@@ -82,19 +82,19 @@ sdr._rxadc.set_kernel_buffers_count(1)   # set buffers to 1 (instead of the defa
 
 #setup TX
 sdr.tx_enabled_channels = []
-#sdr.tx_rf_bandwidth = int(fc0*3)
-#sdr.tx_lo = int(tx_lo)
-#sdr.tx_cyclic_buffer = True # this keeps repeating!
-#sdr.tx_hardwaregain_chan0 = int(-80) #tx_gain) #tx_gain)
-#sdr.tx_hardwaregain_chan1 = int(-80) # use Tx2 for calibration
+sdr.tx_rf_bandwidth = int(fc0*3)
+sdr.tx_lo = int(tx_lo)
+sdr.tx_cyclic_buffer = True # this keeps repeating!
+sdr.tx_hardwaregain_chan0 = int(tx_gain) #tx_gain) #tx_gain)
+sdr.tx_hardwaregain_chan1 = int(-80) # use Tx2 for calibration
 #
-#tx_n=int(min(lcm(fc0,fs),rx_n*8)) #1024*1024*1024) # tx for longer than rx
-#sdr.tx_buffer_size = tx_n
+tx_n=int(min(lcm(fc0,fs),rx_n*8)) #1024*1024*1024) # tx for longer than rx
+sdr.tx_buffer_size = tx_n
 
 #since its a cyclic buffer its important to end on a full phase
 t = np.arange(0, tx_n)/fs
 iq0 = np.exp(1j*2*np.pi*t*fc0)*(2**14)
-#sdr.tx(iq0)  # Send Tx data.
+sdr.tx(iq0)  # Send Tx data.
 import time
 fig,axs=plt.subplots(1,1,figsize=(4,4))
 
