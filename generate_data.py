@@ -13,7 +13,7 @@ parser.add_argument('--width', type=int, required=False, default=256)
 parser.add_argument('--height', type=int, required=False, default=256)
 parser.add_argument('--seed', type=int, required=False, default=0)
 parser.add_argument('--time-steps', type=int, required=False, default=100)
-parser.add_argument('--time-interval', type=float, required=False, default=0.1)
+parser.add_argument('--time-interval', type=float, required=False, default=5.0)
 parser.add_argument('--samples', type=int, required=False, default=32)
 parser.add_argument('--sessions', type=int, required=False, default=1024)
 parser.add_argument('--output', type=str, required=False, default="sessions")
@@ -22,13 +22,14 @@ parser.add_argument('--output', type=str, required=False, default="sessions")
 args = parser.parse_args()
 
 os.mkdir(args.output)
+pickle.dump(args,open("/".join([args.output,'args.pkl']),'wb'))
 
 c=3e8 # speed of light
 wavelength=c/args.carrier_frequency
 np.random.seed(seed=args.seed)
 
 #setup 
-def time_to_detector_offset(t,orbital_width,orbital_height,orbital_frequency=1/300.0,phase_offset=0): #1/2.0):
+def time_to_detector_offset(t,orbital_width,orbital_height,orbital_frequency=1/100.0,phase_offset=0): #1/2.0):
 	x=np.cos( 2*np.pi*orbital_frequency*t+phase_offset)*orbital_width
 	y=np.sin( 2*np.pi*orbital_frequency*t+phase_offset)*orbital_height
 	return np.array([
@@ -64,11 +65,14 @@ for session_idx in np.arange(args.sessions):
 	receiver_positions=[ list() for _ in range(len(d.receivers))]
 	signal_matrixs=[]
 	beam_former_outputs=[]
-
+	time_stamps=[]
+	phase_offsets=[]
 
 	for t_idx in np.arange(args.time_steps):
+		phase_offsets.append(phase_offset)
 		t=args.time_interval*t_idx
-		d.position_offset=time_to_detector_offset(t=t,orbital_width=args.width,orbital_height=args.height,phase_offset=phase_offset)
+		time_stamps.append(t)
+		d.position_offset=time_to_detector_offset(t=t,orbital_width=args.width/4,orbital_height=args.height/3,phase_offset=phase_offset)
 		source_positions[0].append(d.sources[0].pos)
 		receiver_positions[0].append(d.receiver_pos(0))
 		receiver_positions[1].append(d.receiver_pos(1))
@@ -77,10 +81,11 @@ for session_idx in np.arange(args.sessions):
 		beam_former_outputs.append(
 			beamformer(d,sm,args.carrier_frequency,spacing=256+1)[1].reshape(1,-1))
 	session={
-			'source_positions':[ np.vstack(x) for x in source_positions],
-			'receiver_positions':[ np.vstack(x) for x in receiver_positions],
+			'source_positions':np.concatenate([ np.vstack(x)[:,None] for x in source_positions],axis=1),
+			'receiver_positions':np.concatenate([ np.vstack(x)[:,None] for x in receiver_positions],axis=1),
 			'signal_matrixs':np.vstack(signal_matrixs),
 			'beam_former_outputs':np.vstack(beam_former_outputs),
-			'phase_offset':phase_offset
+			'phase_offsets':phase_offsets,
+			'time_stamps':np.vstack(time_stamps)
 		}
 	pickle.dump(session,open("/".join([args.output,'session_%08d.pkl' % session_idx]),'wb'))
