@@ -1,4 +1,5 @@
 from rf import ULADetector, NoiseWrapper, QAMSource, beamformer
+import os
 import numpy as np
 import pickle
 import sys
@@ -15,10 +16,12 @@ parser.add_argument('--time-steps', type=int, required=False, default=100)
 parser.add_argument('--time-interval', type=float, required=False, default=0.1)
 parser.add_argument('--samples', type=int, required=False, default=32)
 parser.add_argument('--sessions', type=int, required=False, default=1024)
-parser.add_argument('--output-name', type=str, required=False, default="sessions.pkl")
+parser.add_argument('--output', type=str, required=False, default="sessions")
 
 
 args = parser.parse_args()
+
+os.mkdir(args.output)
 
 c=3e8 # speed of light
 wavelength=c/args.carrier_frequency
@@ -32,7 +35,6 @@ def time_to_detector_offset(t,orbital_width,orbital_height,orbital_frequency=1/3
 		args.width/2+x,
 		args.height/2+y])
 
-sessions=[]
 for session_idx in np.arange(args.sessions):
 	print("Session %d" % session_idx)
 	d=ULADetector(args.sampling_frequency,2,wavelength/2) # 10Mhz sampling
@@ -74,12 +76,11 @@ for session_idx in np.arange(args.sessions):
 		signal_matrixs.append(sm[None,:])
 		beam_former_outputs.append(
 			beamformer(d,sm,args.carrier_frequency,spacing=256+1)[1].reshape(1,-1))
-	sessions.append(
-		{
+	session={
 			'source_positions':[ np.vstack(x) for x in source_positions],
 			'receiver_positions':[ np.vstack(x) for x in receiver_positions],
 			'signal_matrixs':np.vstack(signal_matrixs),
 			'beam_former_outputs':np.vstack(beam_former_outputs),
 			'phase_offset':phase_offset
-		})
-pickle.dump(sessions,open(args.output_name,'wb'))
+		}
+	pickle.dump(session,open("/".join([args.output,'session_%08d.pkl' % session_idx]),'wb'))
