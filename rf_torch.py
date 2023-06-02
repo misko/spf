@@ -14,8 +14,10 @@ class SessionsDataset(Dataset):
 		self.root_dir = root_dir
 		self.filenames=sorted(filter(lambda x : 'args' not in x ,[ "%s/%s" % (self.root_dir,x) for x in  os.listdir(self.root_dir)]))
 		self.args=pickle.load(open("/".join([self.root_dir,'args.pkl']),'rb'))
-		assert(self.args.sessions==len(self.filenames)) # make sure its the right dataset
+		if self.args.sessions!=len(self.filenames): # make sure its the right dataset
+			print("WARNING DATASET LOOKS LIKE IT IS MISSING SOME SESSIONS!")
 		assert(self.args.time_steps>=snapshots_in_sample)
+		assert(self.args.width==self.args.height)
 		self.samples_per_session=self.args.time_steps-snapshots_in_sample+1
 		self.snapshots_in_sample=snapshots_in_sample
 
@@ -51,12 +53,12 @@ class SessionsDatasetSimple(SessionsDataset):
 		d=super().__getitem__(idx)
 		#featurie a really simple way
 		x=torch.Tensor(np.hstack([
-			d['receiver_positions'].reshape(self.snapshots_in_sample,-1),
+			d['receiver_positions'].reshape(self.snapshots_in_sample,-1)/float(self.args.width),
 			d['beam_former_outputs'].reshape(self.snapshots_in_sample,-1),
 			#d['signal_matrixs'].reshape(self.snapshots_in_sample,-1)
 			d['time_stamps'].reshape(self.snapshots_in_sample,-1)-d['time_stamps'][0],
-			])[None])
-		y=torch.Tensor(d['source_positions'][0])
+			]))
+		y=torch.Tensor(d['source_positions'][0]/float(self.args.width))
 		return x,y
 			
 if __name__=='__main__':
