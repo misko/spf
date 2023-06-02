@@ -2,6 +2,7 @@ import os
 import pickle
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
+import torch
 import numpy as np
 class SessionsDataset(Dataset):
 
@@ -45,8 +46,23 @@ def plot_space(ax,session,height=256,width=256):
 	ax.set_xlabel("x (m)")
 	ax.set_ylabel("y (m)")
 
+class SessionsDatasetSimple(SessionsDataset):
+	def __getitem__(self,idx):
+		d=super().__getitem__(idx)
+		#featurie a really simple way
+		x=torch.Tensor(np.hstack([
+			d['receiver_positions'].reshape(self.snapshots_in_sample,-1),
+			d['beam_former_outputs'].reshape(self.snapshots_in_sample,-1),
+			#d['signal_matrixs'].reshape(self.snapshots_in_sample,-1)
+			d['time_stamps'].reshape(self.snapshots_in_sample,-1)-d['time_stamps'][0],
+			])[None])
+		y=torch.Tensor(d['source_positions'][0])
+		return x,y
+			
 if __name__=='__main__':
 	#load a dataset
+	ds=SessionsDatasetSimple('./sessions')
+	ds[253]
 	ds=SessionsDataset('./sessions')
 
 	#plot the space diagram for some samples
