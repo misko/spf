@@ -9,8 +9,9 @@ from sdr import *
 
 c=3e8
 fc0 = int(200e3)
-fs = int(4e6)    # must be <=30.72 MHz if both channels are enabled
-rx_lo = int(2.4e9) #4e9
+fs = int(12e6)    # must be <=30.72 MHz if both channels are enabled
+#rx_lo = int(2.4e9) #4e9
+rx_lo = int(2.5e9) #4e9
 tx_lo = rx_lo
 
 rx_mode = "manual"  # can be "manual" or "slow_attack"
@@ -37,7 +38,7 @@ sdr._rxadc.set_kernel_buffers_count(1)   # set buffers to 1 (instead of the defa
 
 #setup TX
 sdr.tx_enabled_channels = [0,1]
-sdr.tx_rf_bandwidth = int(fc0*3)
+sdr.tx_rf_bandwidth = int(fc0)
 sdr.tx_lo = int(tx_lo)
 sdr.tx_cyclic_buffer = True # this keeps repeating!
 sdr.tx_hardwaregain_chan0 = int(-88) #tx_gain)
@@ -72,7 +73,7 @@ sdr.rx_destroy_buffer()
 sdr.rx_enabled_channels = [0, 1]
 sdr.sample_rate = fs
 assert(sdr.sample_rate==fs)
-sdr.rx_rf_bandwidth = int(fc0*3)
+sdr.rx_rf_bandwidth = int(fc0)
 sdr.rx_lo = int(rx_lo)
 sdr.gain_control_mode = rx_mode
 sdr.rx_hardwaregain_chan0 = int(rx_gain)
@@ -82,7 +83,7 @@ sdr._rxadc.set_kernel_buffers_count(1)   # set buffers to 1 (instead of the defa
 
 #setup TX
 sdr.tx_enabled_channels = [0]
-sdr.tx_rf_bandwidth = int(fc0*3)
+sdr.tx_rf_bandwidth = int(fc0)
 sdr.tx_lo = int(tx_lo)
 sdr.tx_cyclic_buffer = True # this keeps repeating!
 sdr.tx_hardwaregain_chan0 = int(tx_gain) #tx_gain)

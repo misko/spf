@@ -4,7 +4,7 @@ import adi
 #;import matplotlib.pyplot as plt
 import numpy as np
 from math import lcm
-from sdr import *
+#from sdr import *
 
 
 c=3e8
