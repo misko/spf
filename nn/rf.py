@@ -41,10 +41,10 @@ class MixedSource(Source):
     return self.source_a(sampling_times)*self.source_b(sampling_times)
 
 class QAMSource(Source):
-  def __init__(self,pos,carrier_frequency,signal_frequency,sigma=0):
+  def __init__(self,pos,carrier_frequency,signal_frequency,sigma=0,IQ=(0,0)):
     super().__init__(pos)
-    self.lo_in_phase=SinSource(pos,carrier_frequency,-np.pi/2) # cos
-    self.lo_out_of_phase=SinSource(pos,carrier_frequency,0) # cos
+    self.lo_in_phase=SinSource(pos,carrier_frequency,-np.pi/2+IQ[0]) # cos
+    self.lo_out_of_phase=SinSource(pos,carrier_frequency,0+IQ[1]) # cos
     self.signal_source=SinSource(pos,signal_frequency,0)
     self.sigma=sigma
 
