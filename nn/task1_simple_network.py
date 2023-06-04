@@ -1,4 +1,4 @@
-from rf_torch import SessionsDataset,SessionsDatasetSimple
+from rf_torch import SessionsDataset,SessionsDatasetTask1Simple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -27,7 +27,7 @@ class Net(nn.Module):
 if __name__=='__main__': 
 	print("init dataset")
 	snapshots_per_sample=8
-	ds=SessionsDatasetSimple('./sessions',snapshots_in_sample=snapshots_per_sample)
+	ds=SessionsDatasetTask1Simple('./sessions_task1',snapshots_in_sample=snapshots_per_sample)
 	print("init dataloader")
 	trainloader = torch.utils.data.DataLoader(
 			ds, 

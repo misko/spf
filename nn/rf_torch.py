@@ -41,8 +41,6 @@ def plot_space(ax,session,height=256,width=256):
 	markers=['o','v','D']
 	colors=['g', 'b', 'y']
 	for receiver_idx in np.arange(session['receiver_positions_at_t'].shape[1]):
-		print('X',session['receiver_positions_at_t'][:,receiver_idx,0])
-		print('Y',session['receiver_positions_at_t'][:,receiver_idx,1])
 		ax.scatter(session['receiver_positions_at_t'][:,receiver_idx,0],session['receiver_positions_at_t'][:,receiver_idx,1],label="Receiver %d" % receiver_idx ,facecolors='none',marker=markers[receiver_idx%len(markers)],edgecolor=colors[receiver_idx%len(colors)])
 	for source_idx in np.arange(session['source_positions_at_t'].shape[1]):
 		ax.scatter(session['source_positions_at_t'][:,source_idx,0],session['source_positions_at_t'][:,source_idx,1],label="Source %d" % source_idx ,facecolors='none',marker=markers[source_idx%len(markers)],edgecolor='r')
@@ -55,12 +53,12 @@ class SessionsDatasetTask1Simple(SessionsDataset):
 		d=super().__getitem__(idx)
 		#featurie a really simple way
 		x=torch.Tensor(np.hstack([
-			d['receiver_positions'].reshape(self.snapshots_in_sample,-1)/float(self.args.width),
-			d['beam_former_outputs'].reshape(self.snapshots_in_sample,-1),
+			d['receiver_positions_at_t'].reshape(self.snapshots_in_sample,-1)/float(self.args.width),
+			d['beam_former_outputs_at_t'].reshape(self.snapshots_in_sample,-1),
 			#d['signal_matrixs'].reshape(self.snapshots_in_sample,-1)
 			d['time_stamps'].reshape(self.snapshots_in_sample,-1)-d['time_stamps'][0],
 			]))
-		y=torch.Tensor(d['source_positions'][0]/float(self.args.width))
+		y=torch.Tensor(d['source_positions_at_t'][:,0]/float(self.args.width))
 		return x,y
 
 class SessionsDatasetTask2Simple(SessionsDataset):
@@ -72,31 +70,33 @@ class SessionsDatasetTask2Simple(SessionsDataset):
 if __name__=='__main__':
 	
 	#test task1
-	if False:
+	if True:
 		#load a dataset
-		ds=SessionsDatasetTask1Simple('./sessions')
+		ds=SessionsDatasetTask1Simple('./sessions_task1')
 		ds[253]
-		ds=SessionsDataset('./sessions')
+		ds=SessionsDataset('./sessions_task1')
 
 		#plot the space diagram for some samples
 		fig,ax=plt.subplots(2,2,figsize=(8,8))
 		r_idxs=np.arange(len(ds))
 		np.random.shuffle(r_idxs)
 		[ plot_space(ax[i//2,i%2], ds[r_idxs[i]]) for i in np.arange(4) ]
+		plt.title("Task1")
 		plt.show()
 
 	#test task2
 	if True:
 		#load a dataset
-		ds=SessionsDatasetTask2Simple('./sessions-multisource')
+		ds=SessionsDatasetTask2Simple('./sessions_task2')
 		ds[253]
-		ds=SessionsDataset('./sessions-multisource')
+		ds=SessionsDataset('./sessions_task2')
 
 		#plot the space diagram for some samples
 		fig,ax=plt.subplots(2,2,figsize=(8,8))
 		r_idxs=np.arange(len(ds))
 		np.random.shuffle(r_idxs)
 		[ plot_space(ax[i//2,i%2], ds[r_idxs[i]]) for i in np.arange(4) ]
+		plt.title("Task2")
 		plt.show()
 
 
