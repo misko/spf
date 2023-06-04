@@ -56,7 +56,7 @@ for session_idx in np.arange(args.sessions):
 	time_stamps=[]
 	source_positions_at_t=[]
 	broadcasting_positions_at_t=[]
-	receiver_positions_at_t=[ list() for _ in range(len(d.receivers))]
+	receiver_positions_at_t=[]
 	signal_matrixs_at_t=[]
 	beam_former_outputs_at_t=[]
 	detector_position_phase_offsets_at_t=[]
@@ -83,16 +83,16 @@ for session_idx in np.arange(args.sessions):
 
 		detector_position_phase_offsets_at_t.append(detector_position_phase_offset)
 		source_positions_at_t.append(fixed_source_positions)
-		receiver_positions_at_t[0].append(d.receiver_pos(0))
-		receiver_positions_at_t[1].append(d.receiver_pos(1))
+		receiver_positions_at_t.append(
+			np.array([ d.receiver_pos(idx) for idx in np.arange(d.n_receivers()) ])) #
 		sm=d.get_signal_matrix(start_time=t,duration=args.samples_per_snapshot/d.sampling_frequency)
 		signal_matrixs_at_t.append(sm[None,:])
 		beam_former_outputs_at_t.append(
-			beamformer(d,sm,args.carrier_frequency,spacing=256+1)[1].reshape(1,-1))
+			beamformer(d,sm,args.carrier_frequency,spacing=256+1)[1].reshape(1,-1))	
 	session={
 			'broadcasting_positions_at_t':broadcasting_positions_at_t, # list of (n_broadcasting,2[x,y]) 
-			'source_positions_at_t':np.concatenate([ np.vstack(x)[None] for x in source_positions_at_t],axis=1), # (time_steps,sources,2[x,y])
-			'receiver_positions_at_t':np.concatenate([ np.vstack(x)[None] for x in receiver_positions_at_t],axis=1), # (time_steps,receivers,2[x,y])
+			'source_positions_at_t':np.concatenate([ np.vstack(x)[None] for x in source_positions_at_t],axis=0), # (time_steps,sources,2[x,y])
+			'receiver_positions_at_t':np.concatenate([ np.vstack(x)[None] for x in receiver_positions_at_t],axis=0), # (time_steps,receivers,2[x,y])
 			'signal_matrixs_at_t':np.vstack(signal_matrixs_at_t), # (time_steps,receivers,samples_per_snapshot)
 			'beam_former_outputs':np.vstack(beam_former_outputs_at_t), #(timesteps,thetas_tested_for_steering)
 			'detector_position_phase_offsets_at_t':detector_position_phase_offsets_at_t,
