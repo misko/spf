@@ -1,4 +1,4 @@
-from rf import ULADetector, NoiseWrapper, QAMSource, beamformer
+from rf import UCADetector, ULADetector, NoiseWrapper, QAMSource, beamformer
 import os
 import numpy as np
 import pickle
@@ -19,7 +19,14 @@ def generate_session(args_and_session_idx):
 	args,session_idx=args_and_session_idx
 	np.random.seed(seed=args.seed+session_idx)
 	wavelength=c/args.carrier_frequency
-	d=ULADetector(args.sampling_frequency,2,wavelength/2) # 10Mhz sampling
+
+	if args.array_type=='linear':
+		d=ULADetector(args.sampling_frequency,args.elements,wavelength/4) # 10Mhz sampling
+	elif args.array_type=='circular':
+		d=UCADetector(args.sampling_frequency,args.elements,wavelength/4) # 10Mhz sampling
+	else:
+		print("Array type must be linear or circular")
+		sys.exit(1)
 
 	fixed_source_positions=np.random.randint(low=0, high=args.width,size=(args.sources,2))
 
@@ -38,6 +45,9 @@ def generate_session(args_and_session_idx):
 	signal_matrixs_at_t=[]
 	beam_former_outputs_at_t=[]
 	detector_position_phase_offsets_at_t=[]
+	detector_position_at_t=[]
+	orientation_at_t=[]
+	thetas_at_t=[]
 
 	for t_idx in np.arange(args.time_steps):
 		t=args.time_interval*t_idx
@@ -54,7 +64,12 @@ def generate_session(args_and_session_idx):
 			sigma=sigma,
 			IQ=source_IQ[tdm_source_idx]),
 		  sigma=sigma))
-		broadcasting_positions_at_t.append(fixed_source_positions[tdm_source_idx])
+
+		broadcasting=np.zeros((args.sources,1))
+		broadcasting[tdm_source_idx]=1
+		broadcasting_positions_at_t.append(
+			broadcasting
+		)
 
 		#set the detector position (its moving)
 		d.position_offset=time_to_detector_offset(t=t,orbital_width=args.width/4,orbital_height=args.height/3,phase_offset=detector_position_phase_offset)
@@ -65,16 +80,23 @@ def generate_session(args_and_session_idx):
 			np.array([ d.receiver_pos(idx) for idx in np.arange(d.n_receivers()) ])) #
 		sm=d.get_signal_matrix(start_time=t,duration=args.samples_per_snapshot/d.sampling_frequency)
 		signal_matrixs_at_t.append(sm[None,:])
-		beam_former_outputs_at_t.append(
-			beamformer(d,sm,args.carrier_frequency,spacing=256+1)[1].reshape(1,-1))	
+
+		thetas,steer_dot_signal,steering_vectors=beamformer(d,sm,args.carrier_frequency,spacing=256+1)
+		beam_former_outputs_at_t.append(steer_dot_signal.reshape(1,-1))	
+		thetas_at_t.append(thetas.reshape(1,-1))
+		orientation_at_t.append(d.orientation)
+		detector_position_at_t.append(d.position_offset)
 	session={
-			'broadcasting_positions_at_t':broadcasting_positions_at_t, # list of (n_broadcasting,2[x,y]) 
+			'broadcasting_positions_at_t':np.vstack([ x[None] for x in broadcasting_positions_at_t]), # list of (time_steps,sources,1) 
 			'source_positions_at_t':np.concatenate([ np.vstack(x)[None] for x in source_positions_at_t],axis=0), # (time_steps,sources,2[x,y])
 			'receiver_positions_at_t':np.concatenate([ np.vstack(x)[None] for x in receiver_positions_at_t],axis=0), # (time_steps,receivers,2[x,y])
 			'signal_matrixs_at_t':np.vstack(signal_matrixs_at_t), # (time_steps,receivers,samples_per_snapshot)
 			'beam_former_outputs_at_t':np.vstack(beam_former_outputs_at_t), #(timesteps,thetas_tested_for_steering)
-			'detector_position_phase_offsets_at_t':detector_position_phase_offsets_at_t,
-			'time_stamps':np.vstack(time_stamps)
+			'thetas_at_t':np.vstack(thetas_at_t), #(timesteps,thetas_tested_for_steering)
+			'detector_position_phase_offsets_at_t':np.array(detector_position_phase_offsets_at_t).reshape(-1,1),
+			'time_stamps':np.vstack(time_stamps),
+			'orientation_at_t':np.array(orientation_at_t),
+			'detector_position_at_t':np.vstack([ x[None] for x in detector_position_at_t]), # (time_steps,2[x,y])
 		}
 	pickle.dump(session,open("/".join([args.output,'session_%08d.pkl' % session_idx]),'wb'))
 
@@ -82,9 +104,11 @@ if __name__=='__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--carrier-frequency', type=float, required=False, default=2.4e9)
 	parser.add_argument('--signal-frequency', type=float, required=False, default=100e3)
-	parser.add_argument('--sampling-frequency', type=float, required=False, default=10e6)
-	parser.add_argument('--sources', type=int, required=False, default=2)
 	parser.add_argument('--width', type=int, required=False, default=256)
+	parser.add_argument('--sampling-frequency', type=float, required=False, default=10e6)
+	parser.add_argument('--array-type', type=str, required=False, default='linear')
+	parser.add_argument('--elements', type=int, required=False, default=11)
+	parser.add_argument('--sources', type=int, required=False, default=2)
 	parser.add_argument('--height', type=int, required=False, default=256)
 	parser.add_argument('--seed', type=int, required=False, default=0)
 	parser.add_argument('--time-steps', type=int, required=False, default=100)

@@ -73,11 +73,12 @@ class Receiver:
     self.pos=np.array(pos)
 
 class Detector(object):
-  def __init__(self,sampling_frequency):
+  def __init__(self,sampling_frequency,oreintation=0):
     self.sources=[]
     self.receivers=[]
     self.sampling_frequency=sampling_frequency
     self.position_offset=np.zeros(2)
+    self.orientation=0.0
 
   def add_source(self,source):
     self.sources.append(source)
@@ -91,8 +92,14 @@ class Detector(object):
   def n_receivers(self):
     return len(self.receivers)
 
+  def rotation_matrix(self):
+    s = np.sin(self.orientation)
+    c = np.cos(self.orientation)
+    return np.stack([np.stack([c, -s]),
+		   np.stack([s, c])])
+
   def receiver_pos(self,receiver_idx):
-    return self.position_offset+self.receivers[receiver_idx].pos
+    return self.position_offset+(self.receivers[receiver_idx].pos @ self.rotation_matrix())
 
   def get_signal_matrix(self,start_time,duration,rx_lo=0):
     n_samples=int(duration*self.sampling_frequency)
@@ -100,8 +107,9 @@ class Detector(object):
     sample_matrix=np.zeros((len(self.receivers),n_samples),dtype=np.cdouble) # receivers x samples
     for receiver_index,receiver in enumerate(self.receivers):
       for _source in self.sources:
-        time_delay=np.linalg.norm(self.receiver_pos(receiver_index)-_source.pos)/c
-        sample_matrix[receiver_index,:]+=_source.demod_signal(_source.signal(base_times-time_delay),
+        distance=np.linalg.norm(self.receiver_pos(receiver_index)-_source.pos)
+        time_delay=distance/c
+        sample_matrix[receiver_index,:]+=_source.demod_signal(_source.signal(base_times-time_delay)/(distance**2),
                                                               base_times)
         if rx_lo>0:
           sample_matrix[receiver_index,:]

@@ -1,6 +1,8 @@
 import os
 import pickle
 from torch.utils.data import Dataset, DataLoader
+import torchvision
+from functools import cache
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
@@ -60,6 +62,38 @@ class SessionsDatasetTask1Simple(SessionsDataset):
 			]))
 		y=torch.Tensor(d['source_positions_at_t'][:,0]/float(self.args.width))
 		return x,y
+@cache
+def get_grid(width):
+	_xy=torch.arange(width)
+	_x,_y=torch.meshgrid(_xy,_xy)
+	return torch.cat([_y[None],_x[None]]).transpose(0,2)
+
+def detector_positions_to_distance(detector_positions,width):
+	diffs=get_grid(ds.args.width)[None,None]-detector_positions[:,:,None,None] 
+	return (torch.sqrt(torch.pow(diffs, 2).sum(axis=4))/width)[:,:,None] # batch, snapshot, 1,x ,y 
+
+def detector_positions_to_theta_grid(detector_positions,width):
+	diffs=get_grid(ds.args.width)[None,None]-detector_positions[:,:,None,None] 
+	return (torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None] # batch, snapshot,1, x ,y `
+
+def blur5(img):
+	blur=torchvision.transforms.GaussianBlur(11, sigma=8.0)
+	return blur(blur(blur(blur(blur(img)))))
+def blur10(img):
+	return blur5(blur5(img))
+			
+def labels_to_source_images(labels):
+	b,s,n_sources,_=labels.shape
+	label_images=torch.zeros((b,s,ds.args.width,ds.args.width))
+	for b_idx in np.arange(b):
+		for s_idx in np.arange(s):
+			for source_idx in np.arange(n_sources):
+				source_x,source_y=labels[b_idx,s_idx,source_idx]
+				label_images[b_idx,s_idx,source_x,source_y]=1
+	#label_images=torchvision.transforms.GaussianBlur(51, sigma=5.0)(label_images.reshape(b*s,1,ds.args.width,ds.args.width)).reshape(b,s,1,ds.args.width,ds.args.width)		
+	label_images=blur10(label_images.reshape(b*s,1,ds.args.width,ds.args.width)).reshape(b,s,1,ds.args.width,ds.args.width)     
+	label_images=label_images/label_images.sum(axis=[3,4],keepdims=True)
+	return label_images
 
 class SessionsDatasetTask2Simple(SessionsDataset):
 	def __getitem__(self,idx):
@@ -76,10 +110,33 @@ if __name__=='__main__':
 		ds[253]
 		ds=SessionsDataset('./sessions_task1')
 
-		#plot the space diagram for some samples
-		fig,ax=plt.subplots(2,2,figsize=(8,8))
 		r_idxs=np.arange(len(ds))
 		np.random.shuffle(r_idxs)
+		fig=plt.figure(figsize=(8,8))
+		for r_idx in r_idxs[:4]:
+			fig.clf()
+			axs=fig.subplots(3,3)
+			x=ds[r_idx]
+			theta_at_pos=detector_positions_to_theta_grid(x['detector_position_at_t'][None],ds.args.width) # batch, snapshot, 1, x ,y 
+			dist_at_pos=detector_positions_to_distance(x['detector_position_at_t'][None],ds.args.width) # batch, snapshot, 1, x ,y
+			theta_idxs=(((theta_at_pos+np.pi)/(2*np.pi))*257).int().float() #~ [2, 8, 1, 128, 128])	
+		
+			label_images=labels_to_source_images(x['source_positions_at_t'][None])
+		
+			breakpoint()
+			_,s,_,_x,_y=dist_at_pos.shape
+			for s_idx in np.arange(s):
+				m=theta_idxs[0,s_idx]
+				for idx in np.arange(257):
+					m[m==idx]=np.abs(x['beam_former_outputs_at_t'][s_idx,idx]) #.abs() #.log()
+			for idx in np.arange(3):
+				axs[idx,0].imshow(theta_idxs[0,idx,0])
+				axs[idx,1].imshow(label_images[0,idx,0])
+				axs[idx,2].imshow( (theta_idxs[0,:idx+1,0].mean(axis=0)) )
+			plt.pause(1)
+		breakpoint()
+		#plot the space diagram for some samples
+		fig,ax=plt.subplots(2,2,figsize=(8,8))
 		[ plot_space(ax[i//2,i%2], ds[r_idxs[i]]) for i in np.arange(4) ]
 		plt.title("Task1")
 		plt.show()
