@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
-from tformer import Transformer
+from tformer import Transformer, TransformerModel
 import torchvision
 
 
@@ -27,8 +27,8 @@ def detector_positions_to_theta_grid(detector_positions,width):
 
 if __name__=='__main__': 
 	print("init dataset")
-	snapshots_per_sample=8
-	ds=SessionsDatasetTask2Simple('./sessions_task2',snapshots_in_sample=snapshots_per_sample)
+	snapshots_per_sample=16
+	ds=SessionsDatasetTask2Simple('./sessions_task1',snapshots_in_sample=snapshots_per_sample)
 	
 	print("init dataloader")
 	trainloader = torch.utils.data.DataLoader(
@@ -39,42 +39,26 @@ if __name__=='__main__':
 	print("init network")
 
 	n_heads=4
-	dim_model=260
-	layers=2	
+	dim_model=512
+	layers=6
+	d_radio=261
+	net_factory = lambda :  TransformerModel(d_radio=d_radio,d_model=dim_model,nhead=n_heads,d_hid=1024,nlayers=layers,dropout=0.0)	
 	nets=(
 		#{'name':'one snapshot','net':Net(1,ds.args.width), 'snapshots_per_sample':1},
 		{'name':'%d snapshots' % 1, 
-		'net':Transformer(
-				dim_model=260,
-				num_heads=4,
-				num_encoder_layers=layers,
-				num_decoder_layers=layers,
-				dropout_p=0.0
-		),
+		'net':net_factory(),
 		 'snapshots_per_sample':1},
 		{'name':'%d snapshots' % (snapshots_per_sample//2), 
-		'net':Transformer(
-				dim_model=260,
-				num_heads=4,
-				num_encoder_layers=layers,
-				num_decoder_layers=layers,
-				dropout_p=0.0
-		),
+		'net':net_factory(),
 		 'snapshots_per_sample':snapshots_per_sample//2},
 		{'name':'%d snapshots' % snapshots_per_sample, 
-		'net':Transformer(
-				dim_model=260,
-				num_heads=4,
-				num_encoder_layers=layers,
-				num_decoder_layers=layers,
-				dropout_p=0.0
-		),
+		'net':net_factory(),
 		 'snapshots_per_sample':snapshots_per_sample},
 	)
 	#nets=nets[-1:]
 
 	for d_net in nets:
-		d_net['optimizer']=optim.Adam(d_net['net'].parameters(),lr=0.001)
+		d_net['optimizer']=optim.Adam(d_net['net'].parameters(),lr=0.00001)
 	criterion = nn.MSELoss()
 
 	print("training loop")
@@ -90,23 +74,27 @@ if __name__=='__main__':
 				inputs, labels = data
 				b,s,n_sources,_=labels.shape
 				source_positions=inputs['source_positions_at_t'][torch.where(inputs['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()/ds.args.width
+				times=inputs['time_stamps']/(0.00001+inputs['time_stamps'].max(axis=2,keepdim=True)[0]) #(ds.args.time_interval*ds.args.time_steps)
 				radio_inputs=torch.cat(
 					[
-						inputs['beam_former_outputs_at_t'],
-						inputs['time_stamps'],
-						inputs['detector_position_at_t'],
+						inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
+						inputs['beam_former_outputs_at_t']/inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
+						times-times.max(axis=2,keepdim=True)[0],
+						inputs['detector_position_at_t']/ds.args.width,
 					],
 					dim=2
 				).float()
-
-				
 				for d_net in nets:
 					d_net['optimizer'].zero_grad()
-					_radio_inputs=radio_inputs[:,:d_net['snapshots_per_sample']]
+
+					_radio_inputs=torch.cat([
+						radio_inputs[:,:d_net['snapshots_per_sample']],
+						],dim=2)
 					_source_positions=source_positions[:,:d_net['snapshots_per_sample']]
+
+				
 					preds=d_net['net'](
-						_radio_inputs,
-						_source_positions) # 8,32,2
+						_radio_inputs) # 8,32,2
 					loss = criterion(
 						preds,
 						_source_positions)
