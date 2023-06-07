@@ -34,7 +34,7 @@ def generate_session(args_and_session_idx):
 
 	detector_position_phase_offset=np.random.uniform(0,2*np.pi)
 
-	sigma=0
+	sigma=args.sigma
 	d.position_offset=0
 
 	# lets run this thing
@@ -111,6 +111,7 @@ if __name__=='__main__':
 	parser.add_argument('--sources', type=int, required=False, default=2)
 	parser.add_argument('--height', type=int, required=False, default=256)
 	parser.add_argument('--seed', type=int, required=False, default=0)
+	parser.add_argument('--sigma', type=float, required=False, default=1.0)
 	parser.add_argument('--time-steps', type=int, required=False, default=100)
 	parser.add_argument('--time-interval', type=float, required=False, default=5.0)
 	parser.add_argument('--samples-per-snapshot', type=int, required=False, default=3)
