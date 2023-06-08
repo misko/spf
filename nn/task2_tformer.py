@@ -33,7 +33,7 @@ if __name__=='__main__':
 	print("init dataloader")
 	trainloader = torch.utils.data.DataLoader(
 			ds, 
-			batch_size=128,
+			batch_size=64,
 			shuffle=True, 
 			num_workers=4)
 	print("init network")
@@ -42,7 +42,8 @@ if __name__=='__main__':
 	dim_model=512
 	layers=6
 	d_radio=261
-	net_factory = lambda :  TransformerModel(d_radio=d_radio,d_model=dim_model,nhead=n_heads,d_hid=1024,nlayers=layers,dropout=0.0)	
+	n_outouts=4
+	net_factory = lambda :  TransformerModel(d_radio=d_radio,d_model=dim_model,nhead=n_heads,d_hid=1024,nlayers=layers,dropout=0.0,n_outputs=4)	
 	nets=(
 		#{'name':'one snapshot','net':Net(1,ds.args.width), 'snapshots_per_sample':1},
 		{'name':'%d snapshots' % 1, 
@@ -58,7 +59,7 @@ if __name__=='__main__':
 	#nets=nets[-1:]
 
 	for d_net in nets:
-		d_net['optimizer']=optim.Adam(d_net['net'].parameters(),lr=0.00001)
+		d_net['optimizer']=optim.Adam(d_net['net'].parameters(),lr=0.0001)
 	criterion = nn.MSELoss()
 
 	print("training loop")
@@ -73,7 +74,20 @@ if __name__=='__main__':
 			for _ in np.arange(1): # for debugging
 				inputs, labels = data
 				b,s,n_sources,_=labels.shape
-				source_positions=inputs['source_positions_at_t'][torch.where(inputs['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()/ds.args.width
+				source_positions_full=inputs['source_positions_at_t'][torch.where(inputs['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
+				source_positions=source_positions_full/ds.args.width
+
+				
+				diffs=source_positions_full-inputs['detector_position_at_t']
+				source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
+				distances=(torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True)))/ds.args.width
+
+				labels=torch.cat([
+					0*source_positions,
+					source_theta,
+					distances,
+				], axis=2).float()
+
 				times=inputs['time_stamps']/(0.00001+inputs['time_stamps'].max(axis=2,keepdim=True)[0]) #(ds.args.time_interval*ds.args.time_steps)
 				radio_inputs=torch.cat(
 					[
@@ -90,22 +104,22 @@ if __name__=='__main__':
 					_radio_inputs=torch.cat([
 						radio_inputs[:,:d_net['snapshots_per_sample']],
 						],dim=2)
-					_source_positions=source_positions[:,:d_net['snapshots_per_sample']]
+					_labels=labels[:,:d_net['snapshots_per_sample']]
 
 				
 					preds=d_net['net'](
 						_radio_inputs) # 8,32,2
 					loss = criterion(
 						preds,
-						_source_positions)
+						_labels)
 					if i%100==0:
 						print(preds[0])
-						print(_source_positions[0])
+						print(_labels[0])
 					loss.backward()
 					running_losses[d_net['name']] += np.log(loss.item())
 					d_net['optimizer'].step()
 				#baseline_loss += ds.args.width*np.sqrt(criterion(torch.zeros(label_images.shape)+label_images.mean(), label_images).item())
-				baseline_loss += np.log(criterion(source_positions*0+source_positions.mean(), source_positions).item())
+				baseline_loss += np.log(criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item())
 
 
 			if i % print_every == print_every-1:

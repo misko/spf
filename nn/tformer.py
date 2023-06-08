@@ -17,12 +17,13 @@ from torch.utils.data import dataset
 class TransformerModel(nn.Module):
 
     def __init__(self, d_radio:int, d_model: int, nhead: int, d_hid: int,
-                 nlayers: int, dropout: float = 0.5):
+                 nlayers: int, dropout: float = 0.5, n_outputs=4):
         super().__init__()
         self.model_type = 'Transformer'
         encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
-        self.linear_out = nn.Linear(d_model, 2)
+        self.n_outputs=n_outputs
+        self.linear_out = nn.Linear(d_model, n_outputs)
         assert( d_model>d_radio)
         self.linear_in = nn.Linear(d_radio, d_model-d_radio)
         self.d_model=d_model
