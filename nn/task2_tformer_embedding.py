@@ -1,5 +1,6 @@
 from rf_torch import SessionsDataset,SessionsDatasetTask2Simple,collate_fn
 import torch
+import time
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -13,6 +14,8 @@ import argparse
 from torch import nn, Tensor
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset
+
+torch.set_printoptions(precision=5,sci_mode=False,linewidth=1000)
 
 class TransformerModel(nn.Module):
 	def __init__(self,
@@ -151,14 +154,16 @@ class Task1Net(nn.Module):
 if __name__=='__main__': 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--device', type=str, required=False, default='cpu')
-	parser.add_argument('--embedding-warmup', type=int, required=False, default=256*8)
+	parser.add_argument('--embedding-warmup', type=int, required=False, default=256*32)
 	parser.add_argument('--snapshots-per-sample', type=int, required=False, default=[1,4,8], nargs="+")
-	parser.add_argument('--print-every', type=int, required=False, default=200)
+	parser.add_argument('--print-every', type=int, required=False, default=100)
 	parser.add_argument('--mb', type=int, required=False, default=64)
 	parser.add_argument('--workers', type=int, required=False, default=4)
 	parser.add_argument('--dataset', type=str, required=False, default='./sessions_task1')
-	parser.add_argument('--lr', type=float, required=False, default=0.0000001)
+	parser.add_argument('--lr', type=float, required=False, default=0.000001)
 	args = parser.parse_args()
+
+	start_time=time.time()
 
 	device=torch.device(args.device)
 	print("init dataset")
@@ -173,10 +178,9 @@ if __name__=='__main__':
 			collate_fn=collate_fn)
 
 	print("init network")
-	net_factory = lambda snapshots_per_sample:  SnapshotNet(snapshots_per_sample).to(device) 
 	nets=[
 		                {'name':'%d snapshots' % snapshots_per_sample, 
-                'net':net_factory(snapshots_per_sample),
+                'net':SnapshotNet(snapshots_per_sample).to(device),
                  'snapshots_per_sample':snapshots_per_sample}
 		for snapshots_per_sample in args.snapshots_per_sample
 	]
@@ -219,9 +223,9 @@ if __name__=='__main__':
 				if i<args.embedding_warmup:
 					loss=single_snapshot_loss
 				if i%1000==0:
-					print(tformer_preds[0])
-					print(single_snapshot_preds[0])
-					print(_labels[0])
+					print("TFORMER",tformer_preds[0])
+					print("SINGLE",single_snapshot_preds[0])
+					print("LABEL",_labels[0])
 				loss.backward()
 				running_losses[d_net['name']] += np.log(np.array([single_snapshot_loss.item(),tformer_loss.item()]))
 				d_net['optimizer'].step()
@@ -233,18 +237,19 @@ if __name__=='__main__':
 				loss_str=",".join([ "%s: %0.3f / %0.3f" % (d_net['name'],
 						running_losses[d_net['name']][0]/args.print_every,
 						running_losses[d_net['name']][1]/args.print_every) for d_net in nets ])
-				print(f'[{epoch + 1}, {i + 1:5d}] err_in_meters {loss_str} baseline: {baseline_loss / args.print_every:.3f}')
+				print(f'[{epoch + 1}, {i + 1:5d}] err_in_meters {loss_str} baseline: {baseline_loss / args.print_every:.3f} , { (time.time()-start_time)/i :.3f} / batch' )
 				if i//args.print_every>2:
 					for d_net in nets:
 						losses_to_plot[d_net['name']+"_ss"].append(running_losses[d_net['name']][0]/args.print_every)
 						losses_to_plot[d_net['name']+"_tformer"].append(running_losses[d_net['name']][1]/args.print_every)
 					losses_to_plot['baseline'].append(baseline_loss / args.print_every)
 					plt.clf()
+					xs=np.arange(len(losses_to_plot['baseline']))*args.print_every
 					for d_net in nets:
-						plt.plot(losses_to_plot[d_net['name']+'_ss'],label=d_net['name']+'_ss')
+						plt.plot(xs,losses_to_plot[d_net['name']+'_ss'],label=d_net['name']+'_ss')
 					for d_net in nets:
-						plt.plot(losses_to_plot[d_net['name']+'_tformer'],label=d_net['name']+'_tformer')
-					plt.plot(losses_to_plot['baseline'],label='baseline')
+						plt.plot(xs,losses_to_plot[d_net['name']+'_tformer'],label=d_net['name']+'_tformer')
+					plt.plot(xs,losses_to_plot['baseline'],label='baseline')
 					plt.xlabel("time")
 					plt.ylabel("error in m")
 					plt.legend()
