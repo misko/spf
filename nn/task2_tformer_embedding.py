@@ -173,9 +173,26 @@ if __name__=='__main__':
 	parser.add_argument('--workers', type=int, required=False, default=4)
 	parser.add_argument('--dataset', type=str, required=False, default='./sessions_task1')
 	parser.add_argument('--lr', type=float, required=False, default=0.000001)
+	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist,det_delta,det_theta,det_space")
 	args = parser.parse_args()
 
 	start_time=time.time()
+
+	cols_for_loss=[]
+	losses=args.losses.split(',')
+	if 'src_pos' in losses:
+		cols_for_loss+=[0,1]
+	if 'src_theta' in losses:
+		cols_for_loss+=[2]
+	if 'src_dist' in losses:
+		cols_for_loss+=[3]
+	if 'det_delta' in losses:
+		cols_for_loss+=[4,5]
+	if 'det_theta' in losses:
+		cols_for_loss+=[6]
+	if 'det_space' in losses:
+		cols_for_loss+=[7]
+	print(cols_for_loss)
 
 	device=torch.device(args.device)
 	print("init dataset")
@@ -234,7 +251,7 @@ if __name__=='__main__':
 	for epoch in range(200):  # loop over the dataset multiple times
 		for i, data in enumerate(trainloader, 0):
 			radio_inputs, labels = data
-			labels[:,:,2:]=0
+			labels=labels[:,:,cols_for_loss]
 
 			radio_inputs=radio_inputs.to(device)
 			labels=labels.to(device)
@@ -247,6 +264,8 @@ if __name__=='__main__':
 				_labels=labels[:,:d_net['snapshots_per_sample']]
 
 				preds=d_net['net'](_radio_inputs)
+				for k in preds:
+					preds[k]=preds[k][:,:,cols_for_loss]
 				losses={}
 				transformer_loss=0.0
 				single_snapshot_loss=0.0
@@ -258,7 +277,7 @@ if __name__=='__main__':
 					single_snapshot_loss = criterion(preds['single_snapshot_pred'],_labels)
 					losses['single_snapshot_loss']=single_snapshot_loss.item()
 				if 'fc_pred' in preds:
-					fc_loss = criterion(preds['fc_pred'],_labels)
+					fc_loss = criterion(preds['fc_pred'],_labels[:,[-1]])
 					losses['fc_loss']=fc_loss.item()
 				loss=transformer_loss+single_snapshot_loss+fc_loss
 				if i<args.embedding_warmup:
