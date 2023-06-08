@@ -149,6 +149,7 @@ class Task1Net(nn.Module):
 		return x,x #.reshape(x.shape[0],1,2)
 
 if __name__=='__main__': 
+	device=torch.device("mps")
 	embedding_headstart=256*8
 	print("init dataset")
 	snapshots_per_sample=8
@@ -162,7 +163,7 @@ if __name__=='__main__':
 			num_workers=0)
 	print("init network")
 
-	net_factory = lambda snapshots_per_sample:  SnapshotNet(snapshots_per_sample) #TransformerModel(d_radio=d_radio,d_model=dim_model,nhead=n_heads,d_hid=1024,nlayers=layers,dropout=0.0,n_outputs=4)	
+	net_factory = lambda snapshots_per_sample:  SnapshotNet(snapshots_per_sample).to(device) #TransformerModel(d_radio=d_radio,d_model=dim_model,nhead=n_heads,d_hid=1024,nlayers=layers,dropout=0.0,n_outputs=4)	
 	nets=(
 		#{'name':'one snapshot','net':Net(1,ds.args.width), 'snapshots_per_sample':1},
 		{'name':'%d snapshots' % 1, 
@@ -182,7 +183,7 @@ if __name__=='__main__':
 	criterion = nn.MSELoss()
 
 	print("training loop")
-	print_every=5
+	print_every=200
 	losses_to_plot={}
 	for d_net in nets:
 		losses_to_plot[d_net['name']+"_ss"]=[]
@@ -228,7 +229,7 @@ if __name__=='__main__':
 					0*space_delta,
 					0*space_theta,
 					0*space_dist
-				], axis=2).float()
+				], axis=2).float().to(device)
 
 				times=inputs['time_stamps']/(0.00001+inputs['time_stamps'].max(axis=2,keepdim=True)[0]) #(ds.args.time_interval*ds.args.time_steps)
 
@@ -244,7 +245,7 @@ if __name__=='__main__':
 						space_dist
 					],
 					dim=2
-				).float()
+				).float().to(device)
 				for d_net in nets:
 					d_net['optimizer'].zero_grad()
 
@@ -264,7 +265,7 @@ if __name__=='__main__':
 					loss=tformer_loss+single_snapshot_loss
 					if i<embedding_headstart:
 						loss=single_snapshot_loss
-					if i%100==0:
+					if i%1000==0:
 						print(tformer_preds[0])
 						print(single_snapshot_preds[0])
 						print(_labels[0])
