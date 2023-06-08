@@ -213,14 +213,14 @@ if __name__=='__main__':
                  'snapshots_per_sample':snapshots_per_sample}
 		for snapshots_per_sample in args.snapshots_per_sample
 	]
+	#for snapshots_per_sample in args.snapshots_per_sample:
+	#	nets.append(
+	#		{'name':'task1net%d' % snapshots_per_sample,
+	#		'net':Task1Net(265*snapshots_per_sample), 'snapshots_per_sample':snapshots_per_sample}
+	#	)
 	for snapshots_per_sample in args.snapshots_per_sample:
 		nets.append(
-			{'name':'task1net%d' % snapshots_per_sample,
-			'net':Task1Net(265*snapshots_per_sample), 'snapshots_per_sample':snapshots_per_sample}
-		)
-	for snapshots_per_sample in args.snapshots_per_sample:
-		nets.append(
-			{'name':'SSN%d' % snapshots_per_sample,
+			{'name':'FCNet %d' % snapshots_per_sample,
 			'net':SingleSnapshotNet(d_radio_feature=265,
                         	d_hid=64,
                         	d_embed=64,
