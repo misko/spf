@@ -1,4 +1,4 @@
-rm -rf sessions_task1 sessions_task2
+#rm -rf sessions_task1 sessions_task2
 
 #generate new data
 n=32768

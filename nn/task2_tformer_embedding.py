@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from tformer import Transformer, TransformerModel
 import torchvision
 from functools import cache
-
+import argparse
 
 from torch import nn, Tensor
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
@@ -149,143 +149,140 @@ class Task1Net(nn.Module):
 		return x,x #.reshape(x.shape[0],1,2)
 
 if __name__=='__main__': 
-	device=torch.device("mps")
-	embedding_headstart=256*8
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--device', type=str, required=False, default='cpu')
+	parser.add_argument('--embedding-warmup', type=int, required=False, default=256*8)
+	parser.add_argument('--snapshots-per-sample', type=int, required=False, default=[1,4,8], nargs="+")
+	parser.add_argument('--print-every', type=int, required=False, default=200)
+	parser.add_argument('--mb', type=int, required=False, default=64)
+	parser.add_argument('--workers', type=int, required=False, default=4)
+	parser.add_argument('--dataset', type=str, required=False, default='./sessions_task1')
+	parser.add_argument('--lr', type=float, required=False, default=0.0000001)
+	args = parser.parse_args()
+
+	device=torch.device(args.device)
 	print("init dataset")
-	snapshots_per_sample=8
-	ds=SessionsDatasetTask2Simple('./sessions_task1',snapshots_in_sample=snapshots_per_sample)
+	ds=SessionsDatasetTask2Simple(args.dataset,snapshots_in_sample=max(args.snapshots_per_sample))
 	
 	print("init dataloader")
 	trainloader = torch.utils.data.DataLoader(
 			ds, 
-			batch_size=64,
+			batch_size=args.mb,
 			shuffle=True, 
-			num_workers=0)
-	print("init network")
+			num_workers=args.workers)
 
-	net_factory = lambda snapshots_per_sample:  SnapshotNet(snapshots_per_sample).to(device) #TransformerModel(d_radio=d_radio,d_model=dim_model,nhead=n_heads,d_hid=1024,nlayers=layers,dropout=0.0,n_outputs=4)	
+	print("init network")
+	net_factory = lambda snapshots_per_sample:  SnapshotNet(snapshots_per_sample).to(device) 
 	nets=(
-		#{'name':'one snapshot','net':Net(1,ds.args.width), 'snapshots_per_sample':1},
-		{'name':'%d snapshots' % 1, 
-		'net':net_factory(1),
-		 'snapshots_per_sample':1},
-		{'name':'%d snapshots' % (snapshots_per_sample//2), 
-		'net':net_factory(snapshots_per_sample//2),
-		 'snapshots_per_sample':snapshots_per_sample//2},
-		{'name':'%d snapshots' % snapshots_per_sample, 
-		'net':net_factory(snapshots_per_sample),
-		 'snapshots_per_sample':snapshots_per_sample},
+		                {'name':'%d snapshots' % snapshots_per_sample, 
+                'net':net_factory(snapshots_per_sample),
+                 'snapshots_per_sample':snapshots_per_sample}
+		for snapshots_per_sample in args.snapshots_per_sample
 	)
-	#nets=nets[-1:]
 
 	for d_net in nets:
-		d_net['optimizer']=optim.Adam(d_net['net'].parameters(),lr=0.000001)#,lr=0.00001)
+		d_net['optimizer']=optim.Adam(d_net['net'].parameters(),lr=args.lr)
 	criterion = nn.MSELoss()
 
 	print("training loop")
-	print_every=200
 	losses_to_plot={}
 	for d_net in nets:
 		losses_to_plot[d_net['name']+"_ss"]=[]
 		losses_to_plot[d_net['name']+"_tformer"]=[]
 	losses_to_plot['baseline']=[]
+	running_losses={ d['name']:np.zeros(2) for d in nets }
+	baseline_loss = 0.0
 
 	for epoch in range(200):  # loop over the dataset multiple times
-		running_losses={ d['name']:np.zeros(2) for d in nets }
-		baseline_loss = 0.0
 		for i, data in enumerate(trainloader, 0):
-			for _ in np.arange(1): # for debugging
-				inputs, labels = data
-				b,s,n_sources,_=labels.shape
-				source_positions_full=inputs['source_positions_at_t'][torch.where(inputs['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
-				source_positions=source_positions_full/ds.args.width
+			inputs, labels = data
+			b,s,n_sources,_=labels.shape
+			source_positions_full=inputs['source_positions_at_t'][torch.where(inputs['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
+			source_positions=source_positions_full/ds.args.width
 
-				
-				diffs=source_positions_full-inputs['detector_position_at_t']
-				source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
-				distances=(torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True)))/ds.args.width
+			diffs=source_positions_full-inputs['detector_position_at_t']
+			source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
+			distances=(torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True)))/ds.args.width
 
-				space_diffs=(inputs['detector_position_at_t'][:,:-1]-inputs['detector_position_at_t'][:,1:])/ds.args.width
-				space_delta=torch.cat([
-					torch.zeros(b,1,2),
-					space_diffs,
-					],axis=1)
-
-				space_theta=torch.cat([	
-					torch.zeros(b,1,1),
-					(torch.atan2(space_diffs[...,1],space_diffs[...,0]))[:,:,None]/np.pi
+			space_diffs=(inputs['detector_position_at_t'][:,:-1]-inputs['detector_position_at_t'][:,1:])/ds.args.width
+			space_delta=torch.cat([
+				torch.zeros(b,1,2),
+				space_diffs,
 				],axis=1)
 
-				space_dist=torch.cat([	
-					torch.zeros(b,1,1),
-					torch.sqrt(torch.pow(space_diffs,2).sum(axis=2,keepdim=True))
-				],axis=1)
+			space_theta=torch.cat([	
+				torch.zeros(b,1,1),
+				(torch.atan2(space_diffs[...,1],space_diffs[...,0]))[:,:,None]/np.pi
+			],axis=1)
+
+			space_dist=torch.cat([	
+				torch.zeros(b,1,1),
+				torch.sqrt(torch.pow(space_diffs,2).sum(axis=2,keepdim=True))
+			],axis=1)
+
+			labels=torch.cat([
+				source_positions,
+				source_theta,
+				distances,
+				0*space_delta,
+				0*space_theta,
+				0*space_dist
+			], axis=2).float().to(device)
+
+			times=inputs['time_stamps']/(0.00001+inputs['time_stamps'].max(axis=2,keepdim=True)[0]) #(ds.args.time_interval*ds.args.time_steps)
+
+			radio_inputs=torch.cat(
+				[
+					inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
+					inputs['beam_former_outputs_at_t']/inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
+					times-times.max(axis=2,keepdim=True)[0],
+					inputs['detector_position_at_t']/ds.args.width,
+					space_delta,
+					space_theta,
+					space_dist
+				],
+				dim=2
+			).float().to(device)
+			for d_net in nets:
+				d_net['optimizer'].zero_grad()
+
+				_radio_inputs=torch.cat([
+					radio_inputs[:,:d_net['snapshots_per_sample']],
+					],dim=2)
+				_labels=labels[:,:d_net['snapshots_per_sample']]
+
+				tformer_preds,single_snapshot_preds=d_net['net'](
+					_radio_inputs) # 8,32,2
+				tformer_loss = criterion(
+					tformer_preds,
+					_labels)
+				single_snapshot_loss = criterion(
+					single_snapshot_preds,
+					_labels)
+				loss=tformer_loss+single_snapshot_loss
+				if i<args.embedding_warmup:
+					loss=single_snapshot_loss
+				if i%1000==0:
+					print(tformer_preds[0])
+					print(single_snapshot_preds[0])
+					print(_labels[0])
+				loss.backward()
+				running_losses[d_net['name']] += np.log(np.array([single_snapshot_loss.item(),tformer_loss.item()]))
+				d_net['optimizer'].step()
+			#baseline_loss += ds.args.width*np.sqrt(criterion(torch.zeros(label_images.shape)+label_images.mean(), label_images).item())
+			baseline_loss += np.log(criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item())
 
 
-				labels=torch.cat([
-					source_positions,
-					source_theta,
-					distances,
-					0*space_delta,
-					0*space_theta,
-					0*space_dist
-				], axis=2).float().to(device)
-
-				times=inputs['time_stamps']/(0.00001+inputs['time_stamps'].max(axis=2,keepdim=True)[0]) #(ds.args.time_interval*ds.args.time_steps)
-
-
-				radio_inputs=torch.cat(
-					[
-						inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-						inputs['beam_former_outputs_at_t']/inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-						times-times.max(axis=2,keepdim=True)[0],
-						inputs['detector_position_at_t']/ds.args.width,
-						space_delta,
-						space_theta,
-						space_dist
-					],
-					dim=2
-				).float().to(device)
-				for d_net in nets:
-					d_net['optimizer'].zero_grad()
-
-					_radio_inputs=torch.cat([
-						radio_inputs[:,:d_net['snapshots_per_sample']],
-						],dim=2)
-					_labels=labels[:,:d_net['snapshots_per_sample']]
-
-					tformer_preds,single_snapshot_preds=d_net['net'](
-						_radio_inputs) # 8,32,2
-					tformer_loss = criterion(
-						tformer_preds,
-						_labels)
-					single_snapshot_loss = criterion(
-						single_snapshot_preds,
-						_labels)
-					loss=tformer_loss+single_snapshot_loss
-					if i<embedding_headstart:
-						loss=single_snapshot_loss
-					if i%1000==0:
-						print(tformer_preds[0])
-						print(single_snapshot_preds[0])
-						print(_labels[0])
-					loss.backward()
-					running_losses[d_net['name']] += np.log(np.array([single_snapshot_loss.item(),tformer_loss.item()]))
-					d_net['optimizer'].step()
-				#baseline_loss += ds.args.width*np.sqrt(criterion(torch.zeros(label_images.shape)+label_images.mean(), label_images).item())
-				baseline_loss += np.log(criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item())
-
-
-			if i % print_every == print_every-1:
+			if i % args.print_every == args.print_every-1:
 				loss_str=",".join([ "%s: %0.3f / %0.3f" % (d_net['name'],
-						running_losses[d_net['name']][0]/print_every,
-						running_losses[d_net['name']][1]/print_every) for d_net in nets ])
-				print(f'[{epoch + 1}, {i + 1:5d}] err_in_meters {loss_str} baseline: {baseline_loss / print_every:.3f}')
+						running_losses[d_net['name']][0]/args.print_every,
+						running_losses[d_net['name']][1]/args.print_every) for d_net in nets ])
+				print(f'[{epoch + 1}, {i + 1:5d}] err_in_meters {loss_str} baseline: {baseline_loss / args.print_every:.3f}')
 				if i//print_every>2:
 					for d_net in nets:
-						losses_to_plot[d_net['name']+"_ss"].append(running_losses[d_net['name']][0]/print_every)
-						losses_to_plot[d_net['name']+"_tformer"].append(running_losses[d_net['name']][1]/print_every)
-					losses_to_plot['baseline'].append(baseline_loss / print_every)
+						losses_to_plot[d_net['name']+"_ss"].append(running_losses[d_net['name']][0]/args.print_every)
+						losses_to_plot[d_net['name']+"_tformer"].append(running_losses[d_net['name']][1]/args.print_every)
+					losses_to_plot['baseline'].append(baseline_loss / args.print_every)
 					plt.clf()
 					for d_net in nets:
 						plt.plot(losses_to_plot[d_net['name']+'_ss'],label=d_net['name']+'_ss')
