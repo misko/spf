@@ -95,7 +95,7 @@ def generate_session(args_and_session_idx):
 			'thetas_at_t':np.vstack(thetas_at_t), #(timesteps,thetas_tested_for_steering)
 			'detector_position_phase_offsets_at_t':np.array(detector_position_phase_offsets_at_t).reshape(-1,1),
 			'time_stamps':np.vstack(time_stamps),
-			'orientation_at_t':np.array(orientation_at_t),
+			'orientation_at_t':np.vstack(orientation_at_t),
 			'detector_position_at_t':np.vstack([ x[None] for x in detector_position_at_t]), # (time_steps,2[x,y])
 		}
 	pickle.dump(session,open("/".join([args.output,'session_%08d.pkl' % session_idx]),'wb'))

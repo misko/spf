@@ -98,66 +98,72 @@ def labels_to_source_images(labels):
 class SessionsDatasetTask2Simple(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
+		d['source_positions_at_t']=d['source_positions_at_t']/self.args.width
+		d['detector_position_at_t']=d['detector_position_at_t']/self.args.width
 		#featurie a really simple way
-		return d,d['source_positions_at_t']
+		return d #,d['source_positions_at_t']
 
-class SessionsDatasetTask(SessionsDataset):
+
+def collate_fn(_in):
+	d={ k:torch.from_numpy(np.stack([ x[k] for x in _in ])) for k in _in[0]}
+	b,s,n_sources,_=d['source_positions_at_t'].shape
+
+	times=d['time_stamps']/(0.00001+d['time_stamps'].max(axis=2,keepdim=True)[0]) 
+
+	#deal with source positions
+	source_positions=d['source_positions_at_t'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
+
+	#deal with detector position features
+	diffs=source_positions-d['detector_position_at_t']
+	source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
+	distances=torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True))
+
+	space_diffs=(d['detector_position_at_t'][:,:-1]-d['detector_position_at_t'][:,1:])
+	space_delta=torch.cat([
+		torch.zeros(b,1,2),
+		space_diffs,
+		],axis=1)
+
+	space_theta=torch.cat([	
+		torch.zeros(b,1,1),
+		(torch.atan2(space_diffs[...,1],space_diffs[...,0]))[:,:,None]/np.pi
+	],axis=1)
+
+	space_dist=torch.cat([	
+		torch.zeros(b,1,1),
+		torch.sqrt(torch.pow(space_diffs,2).sum(axis=2,keepdim=True))
+	],axis=1)
+
+	#create the labels
+	labels=torch.cat([
+		source_positions,
+		source_theta,
+		distances,
+		0*space_delta,
+		0*space_theta,
+		0*space_dist
+	], axis=2).float() #.to(device)
+
+	#create the features
+	radio_inputs=torch.cat(
+		[
+			d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
+			d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
+			times-times.max(axis=2,keepdim=True)[0],
+			d['detector_position_at_t'],
+			space_delta,
+			space_theta,
+			space_dist
+		],
+		dim=2
+	).float() #.to(device)
+	return radio_inputs,labels
+
+class SessionsDatasetTask2(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
 		#featurie a really simple way
-		b,s,n_sources,_=d['source_positions_at_t'].shape
-
-		times=inputs['time_stamps']/(0.00001+inputs['time_stamps'].max(axis=2,keepdim=True)[0]) 
-
-		#deal with source positions
-		source_positions_full=d['source_positions_at_t'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
-		source_positions=source_positions_full/ds.args.width
-
-		#deal with detector position features
-		diffs=source_positions_full-inputs['detector_position_at_t']
-		source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
-		distances=(torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True)))/ds.args.width
-
-		space_diffs=(inputs['detector_position_at_t'][:,:-1]-inputs['detector_position_at_t'][:,1:])/ds.args.width
-		space_delta=torch.cat([
-			torch.zeros(b,1,2),
-			space_diffs,
-			],axis=1)
-
-		space_theta=torch.cat([	
-			torch.zeros(b,1,1),
-			(torch.atan2(space_diffs[...,1],space_diffs[...,0]))[:,:,None]/np.pi
-		],axis=1)
-
-		space_dist=torch.cat([	
-			torch.zeros(b,1,1),
-			torch.sqrt(torch.pow(space_diffs,2).sum(axis=2,keepdim=True))
-		],axis=1)
-
-		#create the labels
-		labels=torch.cat([
-			source_positions,
-			source_theta,
-			distances,
-			0*space_delta,
-			0*space_theta,
-			0*space_dist
-		], axis=2).float() #.to(device)
-
-		#create the features
-		radio_inputs=torch.cat(
-			[
-				inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-				inputs['beam_former_outputs_at_t']/inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-				times-times.max(axis=2,keepdim=True)[0],
-				inputs['detector_position_at_t']/ds.args.width,
-				space_delta,
-				space_theta,
-				space_dist
-			],
-			dim=2
-		).float() #.to(device)
-		return radio_inputs,labels
+		breakpoint()
 			
 if __name__=='__main__':
 	

@@ -1,4 +1,4 @@
-from rf_torch import SessionsDataset,SessionsDatasetTask2Simple
+from rf_torch import SessionsDataset,SessionsDatasetTask2Simple,collate_fn
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -169,16 +169,17 @@ if __name__=='__main__':
 			ds, 
 			batch_size=args.mb,
 			shuffle=True, 
-			num_workers=args.workers)
+			num_workers=args.workers,
+			collate_fn=collate_fn)
 
 	print("init network")
 	net_factory = lambda snapshots_per_sample:  SnapshotNet(snapshots_per_sample).to(device) 
-	nets=(
+	nets=[
 		                {'name':'%d snapshots' % snapshots_per_sample, 
                 'net':net_factory(snapshots_per_sample),
                  'snapshots_per_sample':snapshots_per_sample}
 		for snapshots_per_sample in args.snapshots_per_sample
-	)
+	]
 
 	for d_net in nets:
 		d_net['optimizer']=optim.Adam(d_net['net'].parameters(),lr=args.lr)
@@ -195,54 +196,9 @@ if __name__=='__main__':
 
 	for epoch in range(200):  # loop over the dataset multiple times
 		for i, data in enumerate(trainloader, 0):
-			inputs, labels = data
-			b,s,n_sources,_=labels.shape
-			source_positions_full=inputs['source_positions_at_t'][torch.where(inputs['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
-			source_positions=source_positions_full/ds.args.width
-
-			diffs=source_positions_full-inputs['detector_position_at_t']
-			source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
-			distances=(torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True)))/ds.args.width
-
-			space_diffs=(inputs['detector_position_at_t'][:,:-1]-inputs['detector_position_at_t'][:,1:])/ds.args.width
-			space_delta=torch.cat([
-				torch.zeros(b,1,2),
-				space_diffs,
-				],axis=1)
-
-			space_theta=torch.cat([	
-				torch.zeros(b,1,1),
-				(torch.atan2(space_diffs[...,1],space_diffs[...,0]))[:,:,None]/np.pi
-			],axis=1)
-
-			space_dist=torch.cat([	
-				torch.zeros(b,1,1),
-				torch.sqrt(torch.pow(space_diffs,2).sum(axis=2,keepdim=True))
-			],axis=1)
-
-			labels=torch.cat([
-				source_positions,
-				source_theta,
-				distances,
-				0*space_delta,
-				0*space_theta,
-				0*space_dist
-			], axis=2).float().to(device)
-
-			times=inputs['time_stamps']/(0.00001+inputs['time_stamps'].max(axis=2,keepdim=True)[0]) #(ds.args.time_interval*ds.args.time_steps)
-
-			radio_inputs=torch.cat(
-				[
-					inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-					inputs['beam_former_outputs_at_t']/inputs['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-					times-times.max(axis=2,keepdim=True)[0],
-					inputs['detector_position_at_t']/ds.args.width,
-					space_delta,
-					space_theta,
-					space_dist
-				],
-				dim=2
-			).float().to(device)
+			radio_inputs, labels = data
+			radio_inputs=radio_inputs.to(device)
+			labels=labels.to(device)
 			for d_net in nets:
 				d_net['optimizer'].zero_grad()
 
@@ -278,7 +234,7 @@ if __name__=='__main__':
 						running_losses[d_net['name']][0]/args.print_every,
 						running_losses[d_net['name']][1]/args.print_every) for d_net in nets ])
 				print(f'[{epoch + 1}, {i + 1:5d}] err_in_meters {loss_str} baseline: {baseline_loss / args.print_every:.3f}')
-				if i//print_every>2:
+				if i//args.print_every>2:
 					for d_net in nets:
 						losses_to_plot[d_net['name']+"_ss"].append(running_losses[d_net['name']][0]/args.print_every)
 						losses_to_plot[d_net['name']+"_tformer"].append(running_losses[d_net['name']][1]/args.print_every)
