@@ -1,0 +1,6 @@
+sudo snap install google-cloud-cli --classic
+#sudo snap install gh
+gcloud init
+#gh auth login
+git config --global user.email misko@cs.toronto.edu
+git config --global user.name misko 

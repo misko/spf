@@ -1,166 +1,24 @@
-from rf_torch import SessionsDataset,SessionsDatasetTask2Simple,collate_fn,labels_to_source_images
-import torch
+import argparse
 import time
+from functools import cache
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import numpy as np
-import matplotlib.pyplot as plt
 import torchvision
-from functools import cache
-import argparse
-
-from torch import nn, Tensor
+from torch import Tensor, nn
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset
-from unet import UNet
+
+from utils.image_utils import labels_to_source_images
+from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerModel,
+                    UNet)
+from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2Simple, collate_fn
+
 torch.set_printoptions(precision=5,sci_mode=False,linewidth=1000)
-
-class TransformerModel(nn.Module):
-	def __init__(self,
-			d_radio_feature, 
-			d_model,
-			n_heads,
-			d_hid,
-			n_layers,
-			dropout, 
-			n_outputs):
-		super().__init__()
-		self.model_type = 'Transformer'
-
-		encoder_layers = TransformerEncoderLayer(d_model, n_heads, d_hid, dropout)
-		self.transformer_encoder = TransformerEncoder(encoder_layers, n_layers)
-		
-		self.linear_out = nn.Linear(d_model, n_outputs)
-		assert( d_model>d_radio_feature)
-		
-		self.linear_in = nn.Linear(d_radio_feature, d_model-d_radio_feature)
-		
-		self.d_model=d_model
-
-	def forward(self, src: Tensor) -> Tensor:
-		output = self.transformer_encoder(
-			torch.cat(
-				[src,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
-		output = self.linear_out(output)/np.sqrt(self.d_model)
-		return output
-
-class SnapshotNet(nn.Module):
-	def __init__(self,
-			snapshots_per_sample=1,
-			d_radio_feature=257+4+4,
-			d_model=512,
-			n_heads=8,
-			d_hid=256,
-			n_layers=4,
-			n_outputs=8,
-			dropout=0.0,
-			ssn_d_hid=128,
-			ssn_n_layers=4,
-			ssn_n_outputs=8,
-			ssn_d_embed=64,
-			ssn_dropout=0.0):
-		super().__init__()
-		self.d_radio_feature=d_radio_feature
-		self.d_model=d_model
-		self.n_heads=n_heads
-		self.d_hid=d_hid
-		self.n_outputs=n_outputs
-		self.dropout=dropout
-
-		self.snap_shot_net=SingleSnapshotNet(
-			d_radio_feature=d_radio_feature,
-			d_hid=ssn_d_hid,
-			d_embed=ssn_d_embed,
-			n_layers=ssn_n_layers,
-			n_outputs=ssn_n_outputs,
-			dropout=ssn_dropout)
-		#self.snap_shot_net=Task1Net(d_radio_feature*snapshots_per_sample)
-
-		self.tformer=TransformerModel(
-			d_radio_feature=d_radio_feature+ssn_d_embed+n_outputs,
-			d_model=d_model,
-			n_heads=n_heads,
-			d_hid=d_hid,
-			n_layers=n_layers,
-			dropout=dropout,
-			n_outputs=n_outputs)
-
-	def forward(self,x):
-		single_snapshot_output,embed=self.snap_shot_net(x)
-		d=self.snap_shot_net(x)
-		#return single_snapshot_output,single_snapshot_output
-		tformer_output=self.tformer(
-			torch.cat([
-				x,
-				d['embedding'],
-				d['single_snapshot_pred']
-				],axis=2))
-		return {'transformer_pred':tformer_output,'single_snapshot_pred':d['single_snapshot_pred']}
-		
-
-class SingleSnapshotNet(nn.Module):
-	def __init__(self,
-			d_radio_feature,
-			d_hid,
-			d_embed,
-			n_layers,
-			n_outputs,
-			dropout,
-			snapshots_per_sample=0):
-		super(SingleSnapshotNet,self).__init__()
-		self.snapshots_per_sample=snapshots_per_sample
-		self.d_radio_feature=d_radio_feature
-		if self.snapshots_per_sample>0:
-			self.d_radio_feature*=snapshots_per_sample
-		self.d_hid=d_hid
-		self.d_embed=d_embed
-		self.n_layers=n_layers
-		self.n_outputs=n_outputs
-		self.dropout=dropout
-		
-		self.embed_net=nn.Sequential(
-			nn.Linear(self.d_radio_feature,d_hid),
-			*[nn.Sequential(
-				nn.LayerNorm(d_hid),
-				nn.Linear(d_hid,d_hid),
-				nn.ReLU()
-				)
-			for _ in range(n_layers) ],
-			nn.LayerNorm(d_hid),
-			nn.Linear(d_hid,d_embed),
-			nn.LayerNorm(d_embed))
-		self.lin_output=nn.Linear(d_embed,self.n_outputs)
-
-	def forward(self, x):
-		if self.snapshots_per_sample>0:
-			x=x.reshape(x.shape[0],-1)
-		embed=self.embed_net(x)
-		output=self.lin_output(embed)
-		if self.snapshots_per_sample>0:
-			output=output.reshape(-1,1,self.n_outputs)
-			return {'fc_pred':output}
-		return {'single_snapshot_pred':output,'embedding':embed}
-
-class Task1Net(nn.Module):
-	def __init__(self,ndim,n_outputs=8):
-		super().__init__()
-		self.bn1 = nn.BatchNorm1d(120)
-		self.bn2 = nn.BatchNorm1d(84)
-		self.bn3 = nn.BatchNorm1d(n_outputs)
-		self.fc1 = nn.Linear(ndim, 120)
-		self.fc2 = nn.Linear(120, 84)
-		self.fc3 = nn.Linear(84, n_outputs)
-		self.n_outputs=n_outputs
-		self.ndim=ndim
-
-	def forward(self, x):
-		x = x.reshape(x.shape[0],-1)
-		x = F.relu(self.bn1(self.fc1(x)))
-		x = F.relu(self.bn2(self.fc2(x)))
-		x = F.relu(self.bn3(self.fc3(x)))
-		x = x.reshape(-1,1,self.n_outputs)
-		return {'fc_pred':x} #.reshape(x.shape[0],1,2)
 
 if __name__=='__main__': 
 	parser = argparse.ArgumentParser()
@@ -172,6 +30,7 @@ if __name__=='__main__':
 	parser.add_argument('--workers', type=int, required=False, default=4)
 	parser.add_argument('--dataset', type=str, required=False, default='./sessions_task1')
 	parser.add_argument('--lr', type=float, required=False, default=0.000001)
+	parser.add_argument('--plot', type=bool, required=False, default=False)
 	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist,det_delta,det_theta,det_space")
 	args = parser.parse_args()
 
@@ -292,7 +151,7 @@ if __name__=='__main__':
 					preds=d_net['net'](_radio_images)
 					loss=criterion(preds['image_preds'],_label_images)
 					losses['image_loss']=loss.item()
-					if (i%args.print_every)==args.print_every-1:
+					if args.plot and (i%args.print_every)==args.print_every-1:
 						imfig.clf()
 						#imfig=plt.figure()
 						axs=imfig.subplots(1,3,sharex=True)
@@ -341,7 +200,7 @@ if __name__=='__main__':
 				baseline_image_loss=net_to_losses('baseline_image')
 				print(f'[{epoch + 1}, {i + 1:5d}]\n\tbaseline: {baseline_loss["baseline"][-1]:.3f}, baseline_image: {baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/i :.3f} / batch' )
 				print(loss_str)
-				if i//args.print_every>2:
+				if args.plot and i//args.print_every>2:
 					fig.clf()
 					axs=fig.subplots(1,4,sharex=True)
 					axs[0].get_shared_y_axes().join(axs[0], axs[1])

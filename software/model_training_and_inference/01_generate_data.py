@@ -1,11 +1,13 @@
-from rf import UCADetector, ULADetector, NoiseWrapper, QAMSource, beamformer
+import argparse
 import os
-import numpy as np
 import pickle
 import sys
-import argparse
-from joblib import Parallel, delayed  
-from tqdm import tqdm  
+
+import numpy as np
+from joblib import Parallel, delayed
+from tqdm import tqdm
+
+from utils.rf import NoiseWrapper, QAMSource, UCADetector, ULADetector, beamformer
 
 c=3e8 # speed of light
 
@@ -25,10 +27,7 @@ class BoundedPoint:
 
 		for idx in [0,1]:
 			while self.pos[idx]>self.width or self.pos[idx]<0:
-				if self.pos[idx]>self.width:
-					self.pos[idx]=self.width-self.pos[idx]
-				else:
-					self.pos[idx]=-self.pos[idx]
+				self.pos=np.clip(self.pos,0,self.width)
 				self.v[idx]=-self.v[idx]
 		return np.array(self.pos)
 
