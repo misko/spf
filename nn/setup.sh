@@ -6,6 +6,12 @@ width=128
 array_type="circular"
 elements=4
 sigma=0.5
+python generate_data.py --sources 1 --output sessions_task1_s01 --session $n --width $width --height $width --array-type $array_type --elements $elements --sigma 0.1
+python generate_data.py --sources 2 --output sessions_task2_s01 --session $n --width $width --height $width --array-type $array_type --elements $elements --sigma 0.1
+
+python generate_data.py --sources 1 --output sessions_task1_nonoise --session 1024 --width $width --height $width --array-type $array_type --elements $elements --sigma 0.0
+python generate_data.py --sources 2 --output sessions_task2_nonoise --session 1024 --width $width --height $width --array-type $array_type --elements $elements --sigma 0.0
+
 python generate_data.py --sources 1 --output sessions_task1 --session $n --width $width --height $width --array-type $array_type --elements $elements --sigma $sigma
 python generate_data.py --sources 2 --output sessions_task2 --session $n --width $width --height $width --array-type $array_type --elements $elements --sigma $sigma
 

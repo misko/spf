@@ -19,7 +19,6 @@ class SessionsDataset(Dataset):
 		if self.args.sessions!=len(self.filenames): # make sure its the right dataset
 			print("WARNING DATASET LOOKS LIKE IT IS MISSING SOME SESSIONS!")
 		assert(self.args.time_steps>=snapshots_in_sample)
-		assert(self.args.width==self.args.height)
 		self.samples_per_session=self.args.time_steps-snapshots_in_sample+1
 		self.snapshots_in_sample=snapshots_in_sample
 
@@ -36,9 +35,10 @@ class SessionsDataset(Dataset):
 		end_idx=start_idx+self.snapshots_in_sample
 		return { k:session[k][start_idx:end_idx] for k in session.keys()}
 
-def plot_space(ax,session,height=256,width=256):
+def plot_space(ax,session):
+	width=session['width_at_t'][0]	
 	ax.set_xlim([0,width])
-	ax.set_ylim([0,height])
+	ax.set_ylim([0,width])
 
 	markers=['o','v','D']
 	colors=['g', 'b', 'y']
@@ -55,26 +55,32 @@ class SessionsDatasetTask1Simple(SessionsDataset):
 		d=super().__getitem__(idx)
 		#featurie a really simple way
 		x=torch.Tensor(np.hstack([
-			d['receiver_positions_at_t'].reshape(self.snapshots_in_sample,-1)/float(self.args.width),
+			d['receiver_positions_at_t'].reshape(self.snapshots_in_sample,-1),
 			d['beam_former_outputs_at_t'].reshape(self.snapshots_in_sample,-1),
 			#d['signal_matrixs'].reshape(self.snapshots_in_sample,-1)
 			d['time_stamps'].reshape(self.snapshots_in_sample,-1)-d['time_stamps'][0],
 			]))
-		y=torch.Tensor(d['source_positions_at_t'][:,0]/float(self.args.width))
+		y=torch.Tensor(d['source_positions_at_t'][:,0])
 		return x,y
 @cache
 def get_grid(width):
-	_xy=torch.arange(width)
-	_x,_y=torch.meshgrid(_xy,_xy)
-	return torch.cat([_y[None],_x[None]]).transpose(0,2)
+	_xy=np.arange(width).astype(np.int16)
+	_x,_y=np.meshgrid(_xy,_xy)
+	return np.stack((_x,_y)).transpose(2,1,0)
+	#return np.concatenate([_y[None],_x[None]]).transpose(0,2)
 
+#input b,s,2   output: b,s,1,width,width
 def detector_positions_to_distance(detector_positions,width):
-	diffs=get_grid(ds.args.width)[None,None]-detector_positions[:,:,None,None] 
-	return (torch.sqrt(torch.pow(diffs, 2).sum(axis=4))/width)[:,:,None] # batch, snapshot, 1,x ,y 
+	diffs=get_grid(width)[None,None]-detector_positions[:,:,None,None].astype(np.float32)
+	return (np.sqrt(np.power(diffs, 2).sum(axis=4)))[:,:,None] # batch, snapshot, 1,x ,y 
 
+#input b,s,2   output: b,s,1,width,width
 def detector_positions_to_theta_grid(detector_positions,width):
-	diffs=get_grid(ds.args.width)[None,None]-detector_positions[:,:,None,None] 
-	return (torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None] # batch, snapshot,1, x ,y `
+	diffs=get_grid(width)[None,None]-detector_positions[:,:,None,None].astype(np.float32) 
+	return (np.arctan2(diffs[...,1],diffs[...,0]))[:,:,None] # batch, snapshot,1, x ,y `
+def blur2(img):
+	blur=torchvision.transforms.GaussianBlur(11, sigma=8.0)
+	return blur(blur(img))
 
 def blur5(img):
 	blur=torchvision.transforms.GaussianBlur(11, sigma=8.0)
@@ -82,24 +88,81 @@ def blur5(img):
 def blur10(img):
 	return blur5(blur5(img))
 			
-def labels_to_source_images(labels):
+def labels_to_source_images(labels,width):
 	b,s,n_sources,_=labels.shape
-	label_images=torch.zeros((b,s,ds.args.width,ds.args.width))
+	offset=0 #50 # takes too much compute!
+	label_images=torch.zeros((
+			b,s,
+			width+2*offset,
+			width+2*offset))
 	for b_idx in np.arange(b):
 		for s_idx in np.arange(s):
 			for source_idx in np.arange(n_sources):
 				source_x,source_y=labels[b_idx,s_idx,source_idx]
-				label_images[b_idx,s_idx,source_x,source_y]=1
-	#label_images=torchvision.transforms.GaussianBlur(51, sigma=5.0)(label_images.reshape(b*s,1,ds.args.width,ds.args.width)).reshape(b,s,1,ds.args.width,ds.args.width)		
-	label_images=blur10(label_images.reshape(b*s,1,ds.args.width,ds.args.width)).reshape(b,s,1,ds.args.width,ds.args.width)     
+				label_images[b_idx,s_idx,int(source_x)+offset,int(source_y)+offset]=1
+	
+	label_images=blur5(
+		label_images.reshape(
+			b*s,1,
+			width+2*offset,
+			width+2*offset)).reshape(
+				b,s,1,
+				width+2*offset,
+				width+2*offset)    
+	#label_images=label_images[...,offset:-offset,offset:-offset] # trim the rest
+	assert(label_images.shape[3]==width)
 	label_images=label_images/label_images.sum(axis=[3,4],keepdims=True)
 	return label_images
+
+def radio_to_image(beam_former_outputs_at_t,theta_at_pos):
+	theta_idxs=(((theta_at_pos+np.pi)/(2*np.pi))*(beam_former_outputs_at_t.shape[-1]-1)).round().astype(int)
+	b,s,_,width,_=theta_at_pos.shape
+	beam_former_outputs_at_t=beam_former_outputs_at_t#[:]/beam_former_outputs_at_t.sum(axis=2,keepdims=True)
+
+	outputs=[]
+	for b_idx in np.arange(b):
+		for s_idx in np.arange(s):
+			outputs.append(
+				np.take(
+					beam_former_outputs_at_t[b_idx,s_idx],
+					theta_idxs[b_idx,s_idx].reshape(-1)).reshape(theta_idxs[b_idx,s_idx].shape))
+	return np.stack(outputs).reshape(b,s,1,width,width)
 
 class SessionsDatasetTask2Simple(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
-		d['source_positions_at_t']=d['source_positions_at_t']/self.args.width
-		d['detector_position_at_t']=d['detector_position_at_t']/self.args.width
+		d['source_positions_at_t']=d['source_positions_at_t'] #/self.args.width
+		d['detector_position_at_t']=d['detector_position_at_t'] #/self.args.width
+
+		d['source_image_at_t']=labels_to_source_images(d['source_positions_at_t'][None],self.args.width)[0]
+		d['detector_theta_image_at_t']=detector_positions_to_theta_grid(d['detector_position_at_t'][None],self.args.width)[0]
+		d['radio_image_at_t']=radio_to_image(d['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None])[0]
+		if True:
+			fig=plt.figure(figsize=(16,4))
+			axs=fig.subplots(1,4)
+			det_x,det_y=d['detector_position_at_t'][0] #*self.width
+			detector_pos_str="Det (X=%d,Y=%d)" % (det_x,det_y)
+
+			axs[0].imshow(d['source_image_at_t'][0,0].T)
+			axs[0].set_title("Source emitters")
+
+			axs[1].imshow(d['detector_theta_image_at_t'][0,0].T)
+			axs[1].set_title("Detector theta angle")
+
+			axs[2].imshow(d['radio_image_at_t'][0,0].T)
+			axs[2].set_title("Radio feature (steering)")
+		
+			for idx in range(3):
+				axs[idx].set_xlabel("X")
+				axs[idx].set_ylabel("Y")
+
+			axs[3].plot(d['thetas_at_t'][0],d['beam_former_outputs_at_t'][0])
+			axs[3].set_title("Radio feature (steering)")
+			axs[3].set_xlabel("Theta")
+			axs[3].set_ylabel("Power")
+			fig.suptitle(detector_pos_str)
+			fig.tight_layout()
+			fig.show()
 		#featurie a really simple way
 		return d #,d['source_positions_at_t']
 
@@ -112,6 +175,7 @@ def collate_fn(_in):
 
 	#deal with source positions
 	source_positions=d['source_positions_at_t'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
+	#d['source_image_at_t']=labels_to_source_images(d['source_positions_at_t'],128)
 
 	#deal with detector position features
 	diffs=source_positions-d['detector_position_at_t']
@@ -157,22 +221,24 @@ def collate_fn(_in):
 		],
 		dim=2
 	).float() #.to(device)
-	return radio_inputs,labels
+	radio_images=d['radio_image_at_t'].float()
+	
+	label_images=d['source_image_at_t'].float()
+	return radio_inputs,radio_images,labels,label_images
 
 class SessionsDatasetTask2(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
 		#featurie a really simple way
-		breakpoint()
 			
 if __name__=='__main__':
-	
+	sessions_dir='./sessions-default'	
 	#test task1
-	if True:
+	if False:
 		#load a dataset
-		ds=SessionsDatasetTask1Simple('./sessions_task1')
+		ds=SessionsDatasetTask1Simple(sessions_dir)
 		ds[253]
-		ds=SessionsDataset('./sessions_task1')
+		ds=SessionsDataset(sessions_dir)
 
 		r_idxs=np.arange(len(ds))
 		np.random.shuffle(r_idxs)
@@ -183,11 +249,10 @@ if __name__=='__main__':
 			x=ds[r_idx]
 			theta_at_pos=detector_positions_to_theta_grid(x['detector_position_at_t'][None],ds.args.width) # batch, snapshot, 1, x ,y 
 			dist_at_pos=detector_positions_to_distance(x['detector_position_at_t'][None],ds.args.width) # batch, snapshot, 1, x ,y
-			theta_idxs=(((theta_at_pos+np.pi)/(2*np.pi))*257).int().float() #~ [2, 8, 1, 128, 128])	
+			theta_idxs=(((theta_at_pos+np.pi)/(2*np.pi))*257) #.int().float() #~ [2, 8, 1, 128, 128])	
 		
-			label_images=labels_to_source_images(x['source_positions_at_t'][None])
+			label_images=labels_to_source_images(x['source_positions_at_t'][None],ds.args.width)
 		
-			breakpoint()
 			_,s,_,_x,_y=dist_at_pos.shape
 			for s_idx in np.arange(s):
 				m=theta_idxs[0,s_idx]
@@ -198,7 +263,6 @@ if __name__=='__main__':
 				axs[idx,1].imshow(label_images[0,idx,0])
 				axs[idx,2].imshow( (theta_idxs[0,:idx+1,0].mean(axis=0)) )
 			plt.pause(1)
-		breakpoint()
 		#plot the space diagram for some samples
 		fig,ax=plt.subplots(2,2,figsize=(8,8))
 		[ plot_space(ax[i//2,i%2], ds[r_idxs[i]]) for i in np.arange(4) ]
@@ -208,9 +272,9 @@ if __name__=='__main__':
 	#test task2
 	if True:
 		#load a dataset
-		ds=SessionsDatasetTask2Simple('./sessions_task2')
+		ds=SessionsDatasetTask2Simple(sessions_dir)
 		ds[253]
-		ds=SessionsDataset('./sessions_task2')
+		ds=SessionsDataset(sessions_dir)
 
 		#plot the space diagram for some samples
 		fig,ax=plt.subplots(2,2,figsize=(8,8))

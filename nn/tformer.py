@@ -14,6 +14,22 @@ from torch import nn, Tensor
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset
 
+from functools import cache
+
+@cache
+def get_grid(width):
+        _xy=torch.arange(width)
+        _x,_y=torch.meshgrid(_xy,_xy)
+        return torch.cat([_y[None],_x[None]]).transpose(0,2)
+
+def detector_positions_to_distance(detector_positions,width):
+        diffs=get_grid(ds.args.width)[None,None]-detector_positions[:,:,None,None]
+        return (torch.sqrt(torch.pow(diffs, 2).sum(axis=4))/width)[:,:,None] # batch, snapshot, 1,x ,y 
+
+def detector_positions_to_theta_grid(detector_positions,width):
+        diffs=get_grid(ds.args.width)[None,None]-detector_positions[:,:,None,None]
+        return (torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None] # batch, snapshot,1, x ,y `
+
 class TransformerModel(nn.Module):
 
     def __init__(self, d_radio:int, d_model: int, nhead: int, d_hid: int,
