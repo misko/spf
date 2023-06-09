@@ -1,0 +1,4 @@
+sudo snap install google-cloud-cli --classic
+sudo snap install gh
+gcloud init
+gh auth login
