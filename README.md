@@ -5,7 +5,7 @@
 Given a mobile radio receiver (agent/detector) find the optimal (minimal) path of movement to accurately locate physical emitters in the operating space
 
 ![Example session](images/01_example_animation.gif)
-*(top left): The physical X,Y location of 3 static (non-mobile) emitters and one mobile detector (radio receiver). (top right): The raw radio signal from each antenna in the receiver radio array is processed to produce a mapping from angle of incidence to signal strength. The larger the signal strength the more likely the signal originated from the corresponding angle. (bottom left): The ground truth the detector should output over enough time has elapsed. This represents the probability of finding an emitter at any X/Y coordinate. (bottom right): The processed radio signal from (top right) mapped into an image centered around the detectors position.*
+*(top left): The physical X,Y location of 3 static (non-mobile) emitters and one mobile detector (radio receiver). (top right): The raw radio signal from each antenna in the receiver radio array is [processed](software/notebooks/03_beamformer_wNoise.ipynb) to produce a mapping from angle of incidence to signal strength. The larger the signal strength the more likely the signal originated from the corresponding angle. (bottom left): The ground truth the detector should output over enough time has elapsed. This represents the probability of finding an emitter at any X/Y coordinate. (bottom right): The processed radio signal from (top right) mapped into an image centered around the detectors position.*
 
 ## Background:
 
@@ -16,7 +16,7 @@ In the above example animation the bottom row shows an example of the label/targ
 
 Include in this repository is a simulator to generate large amounts of training data. The simulator outputs captured radio signal sessions over some time duration T, each of these T instances is called a snapshot. Any single snapshot can be quite noisy, but integrating over many snapshots can generate a better quality signal. 
 
-Below is an example snapshot from the animation at the top of this page. The detector's position is shown by a blue circle with a tail representing its travelled path. Each signal source source is identified by a red circle. In this snapshot there are three emitters with only one currently transmitting (indicated by larger red circles). The bottom right image shows that the processed raw radio signal indicates a high probability (yellow) of the transmitting emitter laying directly ahead (Y+). The bottom right image is fully generated from the information in the top right, beamformer output, combined with the X,Y,theta(orientation) description of the detector.  
+Below is an example snapshot from the animation at the top of this page. The detector's position is shown by a blue circle with a tail representing its travelled path. Each signal source source is identified by a red circle. In this snapshot there are three emitters with only one currently transmitting (indicated by larger red circles). The bottom right image shows that the processed raw radio signal indicates a high probability (yellow) of the transmitting emitter laying directly ahead (Y+). The bottom right image is fully generated from the information in the top right, [beamformer](software/notebooks/03_beamformer_wNoise.ipynb) output, combined with the X,Y,theta(orientation) description of the detector.  
  
 ![Example snapshot](images/01_emitter_right_example.png)
 
