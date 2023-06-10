@@ -2,7 +2,7 @@
 
 ## Problem statement:
 
-Given a mobile radio receiver (agent/detector) find the optimal (minimal) path of movement to accurately locate physical emitters in the operating space
+Given a mobile radio receiver (agent/detector) find the optimal (minimal) path of movement to accurately locate physical radio emitters in the operating space
 
 ![Example session](images/01_example_animation.gif)
 *(top left): The physical X,Y location of 3 static (non-mobile) emitters and one mobile detector (radio receiver). (top right): The raw radio signal from each antenna in the receiver radio array is [processed](software/notebooks/03_beamformer_wNoise.ipynb) to produce a mapping from angle of incidence to signal strength. The larger the signal strength the more likely the signal originated from the corresponding angle. (bottom left): The ground truth the detector should output over enough time has elapsed. This represents the probability of finding an emitter at any X/Y coordinate. (bottom right): The processed radio signal from (top right) mapped into an image centered around the detectors position.*
