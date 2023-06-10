@@ -22,7 +22,7 @@ from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2Simple, colla
 torch.set_printoptions(precision=5,sci_mode=False,linewidth=1000)
 
 
-def model_forward(d_model,radio_inputs,radio_images,labels,label_images):
+def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 	d_model['optimizer'].zero_grad()
 
 	_radio_inputs=radio_inputs[:,:d_model['snapshots_per_sample']]
@@ -71,21 +71,21 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images):
 			d_model['fig'].canvas.draw_idle()
 	return loss,losses
 
-def net_to_losses(running_loss):
+def net_to_losses(running_loss,mean_chunk):
 	if len(running_loss)==0:
 		return {}
 	losses={}
 	for k in ['baseline','baseline_image','image_loss','transformer_loss','single_snapshot_loss','fc_loss']:
 		if k in running_loss[0]:
-			losses[k]=np.log(np.array( [ np.mean([ l[k] for l in running_loss[idx*args.print_every:(idx+1)*args.print_every]])  
-				for idx in range(len(running_loss)//args.print_every) ]))
+			losses[k]=np.log(np.array( [ np.mean([ l[k] for l in running_loss[idx*mean_chunk:(idx+1)*mean_chunk]])  
+				for idx in range(len(running_loss)//mean_chunk) ]))
 	return losses
 
-def net_to_loss_str(running_loss):
+def net_to_loss_str(running_loss,mean_chunk):
 	if len(running_loss)==0:
 		return ""
 	loss_str=[]
-	losses=net_to_losses(running_loss)
+	losses=net_to_losses(running_loss,mean_chunk)
 	for k in ['image_loss','transformer_loss','single_snapshot_loss','fc_loss']:
 		if k in losses:
 			loss_str.append("%s:%0.4f" % (k,losses[k][-1]))
@@ -103,14 +103,17 @@ def save(args,models,iteration,keep_n_saves):
 def plot_loss(running_losses,
 		baseline_loss,
 		baseline_image_loss,
-		print_every,
+		xtick_spacing,
+		mean_chunk,
 		output_prefix,
-		fig):
+		fig,
+		title):
 	fig.clf()
+	fig.suptitle(title)
 	axs=fig.subplots(1,4,sharex=True)
 	axs[1].sharex(axs[0])
 	axs[2].sharex(axs[0])
-	xs=np.arange(len(baseline_loss['baseline']))*print_every
+	xs=np.arange(len(baseline_loss['baseline']))*xtick_spacing
 	for i in range(3):
 		axs[i].plot(xs,baseline_loss['baseline'],label='baseline')
 		axs[i].set_xlabel("time")
@@ -121,7 +124,7 @@ def plot_loss(running_losses,
 	axs[2].set_title("FC loss")
 	axs[3].set_title("Image loss")
 	for d_model in models:
-		losses=net_to_losses(running_losses['train'][d_model['name']])
+		losses=net_to_losses(running_losses[d_model['name']],mean_chunk)
 		if 'transformer_loss' in losses:
 			axs[0].plot(xs,losses['transformer_loss'],label=d_model['name'])
 		if 'single_snapshot_loss' in losses:
@@ -133,7 +136,7 @@ def plot_loss(running_losses,
 	for i in range(4):
 		axs[i].legend()
 	fig.tight_layout()
-	fig.savefig('%sloss_%d.png' % (output_prefix,i))
+	fig.savefig('%sloss_%s_%d.png' % (output_prefix,title,i))
 
 if __name__=='__main__': 
 	parser = argparse.ArgumentParser()
@@ -142,6 +145,7 @@ if __name__=='__main__':
 	parser.add_argument('--snapshots-per-sample', type=int, required=False, default=[1,4,8], nargs="+")
 	parser.add_argument('--print-every', type=int, required=False, default=100)
 	parser.add_argument('--save-every', type=int, required=False, default=1000)
+	parser.add_argument('--test-mbs', type=int, required=False, default=8)
 	parser.add_argument('--output-prefix', type=str, required=False, default='net_out')
 	parser.add_argument('--test-fraction', type=float, required=False, default=0.2)
 	parser.add_argument('--seed', type=int, required=False, default=0)
@@ -203,7 +207,7 @@ if __name__=='__main__':
 			ds_test, 
 			batch_size=args.mb,
 			shuffle=True, 
-			num_workers=args.workers,
+			num_workers=1,
 			collate_fn=collate_fn)
 
 	print("init network")
@@ -257,39 +261,88 @@ if __name__=='__main__':
 		running_losses[k]['baseline_image']=[]
 
 	saves=[]
+	
 
+	def prep_data(data):
+		radio_inputs, radio_images, labels, label_images = data
+		labels=labels[:,:,cols_for_loss]
+
+		#direct data
+		radio_inputs=radio_inputs.to(device)
+		labels=labels.to(device)
+		
+		#image data
+		radio_images=radio_images.to(device)
+		label_images=label_images.to(device)
+		
+		return radio_inputs,labels,radio_images,label_images
+
+	test_iterator = iter(testloader)
 	for epoch in range(args.epochs): 
 		for i, data in enumerate(trainloader, 0):
-			radio_inputs, radio_images, labels, label_images = data
-			labels=labels[:,:,cols_for_loss]
-
-			#direct data
-			radio_inputs=radio_inputs.to(device)
-			labels=labels.to(device)
-			
-			#image data
-			radio_images=radio_images.to(device)
-			label_images=label_images.to(device)
+			#move to device, do final prep
+			radio_inputs,labels,radio_images,label_images=prep_data(data)
 				
 			for d_model in models:
-				loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images)
+				loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
 				loss.backward()
 				running_losses['train'][d_model['name']].append(losses) 
 				d_model['optimizer'].step()
 			running_losses['train']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
 			running_losses['train']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
-			
+		
+			if i%args.print_every==args.print_every-1:
+				for idx in np.arange(args.test_mbs):
+					try:
+						data = next(test_iterator)
+					except StopIteration:
+						test_iterator = iter(testloader)
+						data = next(test_iterator)
+					radio_inputs,labels,radio_images,label_images=prep_data(data)
+					with torch.no_grad():
+						for d_model in models:
+							loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
+							running_losses['test'][d_model['name']].append(losses) 
+					running_losses['test']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
+					running_losses['test']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
+				
+	
 			if i==0 or i%args.save_every==args.save_every-1:
 				save(args,models,i,args.keep_n_saves)
 
 			if i % args.print_every == args.print_every-1:
-				loss_str="\t"+"\n\t".join([ "%s:%s" % (d['name'],net_to_loss_str(running_losses['train'][d['name']])) for d in models ])
-				baseline_loss=net_to_losses(running_losses['train']['baseline'])
-				baseline_image_loss=net_to_losses(running_losses['train']['baseline_image'])
-				print(f'[{epoch + 1}, {i + 1:5d}]\n\tbaseline: {baseline_loss["baseline"][-1]:.3f}, baseline_image: {baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/i :.3f} / batch' )
+
+				train_baseline_loss=net_to_losses(running_losses['train']['baseline'],args.print_every)
+				train_baseline_image_loss=net_to_losses(running_losses['train']['baseline_image'],args.print_every)
+				test_baseline_loss=net_to_losses(running_losses['test']['baseline'],args.test_mbs)
+				test_baseline_image_loss=net_to_losses(running_losses['test']['baseline_image'],args.test_mbs)
+
+				print(f'[{epoch + 1}, {i + 1:5d}]')
+				print(f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f}, baseline_image: {train_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/i :.3f} / batch' )
+				print(f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, baseline_image: {test_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/i :.3f} / batch' )
+				loss_str="\t"+"\n\t".join(
+					[ "%s:(tr)%s,(ts)%s" % (d['name'],
+						net_to_loss_str(running_losses['train'][d['name']],args.print_every),
+						net_to_loss_str(running_losses['test'][d['name']],args.test_mbs)
+					) for d in models ])
 				print(loss_str)
 				if i//args.print_every>2:
-					plot_loss(running_losses,baseline_loss,baseline_image_loss,args.print_every,args.output_prefix,loss_figs['train'])
+					plot_loss(running_losses=running_losses['train'],
+						baseline_loss=train_baseline_loss,
+						baseline_image_loss=train_baseline_image_loss,
+						xtick_spacing=args.print_every,
+						mean_chunk=args.print_every,
+						output_prefix=args.output_prefix,
+						fig=loss_figs['train'],
+						title='Train')
+					plot_loss(running_losses=running_losses['test'],
+						baseline_loss=test_baseline_loss,
+						baseline_image_loss=test_baseline_image_loss,
+						xtick_spacing=args.print_every,
+						mean_chunk=args.test_mbs,
+						output_prefix=args.output_prefix,
+						fig=loss_figs['test'],
+						title='Test')
 					if args.plot:
 						plt.pause(0.5)
 
