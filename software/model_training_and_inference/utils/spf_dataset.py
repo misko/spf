@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 from utils.image_utils import (detector_positions_to_theta_grid,
                          labels_to_source_images, radio_to_image)
 from utils.plot import plot_space
-
+from compress_pickle import dump, load
 
 class SessionsDataset(Dataset):
 
@@ -21,7 +21,7 @@ class SessionsDataset(Dataset):
 		"""
 		self.root_dir = root_dir
 		self.filenames=sorted(filter(lambda x : 'args' not in x ,[ "%s/%s" % (self.root_dir,x) for x in  os.listdir(self.root_dir)]))
-		self.args=pickle.load(open("/".join([self.root_dir,'args.pkl']),'rb'))
+		self.args=load("/".join([self.root_dir,'args.pkl'],compression="lzma")
 		if self.args.sessions!=len(self.filenames): # make sure its the right dataset
 			print("WARNING DATASET LOOKS LIKE IT IS MISSING SOME SESSIONS!")
 		assert(self.args.time_steps>=snapshots_in_sample)
@@ -37,7 +37,7 @@ class SessionsDataset(Dataset):
 
 	def __getitem__(self, idx):
 		filename,start_idx=self.idx_to_filename_and_start_idx(idx)
-		session=pickle.load(open(filename,'rb'))
+		session=load(filename,compression="lzma")
 		end_idx=start_idx+self.snapshots_in_sample
 		return { k:session[k][start_idx:end_idx] for k in session.keys()}
 

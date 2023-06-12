@@ -2,11 +2,11 @@ import argparse
 import os
 import pickle
 import sys
-
+import bz2
 import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm
-
+from compress_pickle import dump, load
 from utils.rf import NoiseWrapper, QAMSource, UCADetector, ULADetector, beamformer
 
 c=3e8 # speed of light
@@ -150,7 +150,7 @@ def generate_session(args_and_session_idx):
 			'orientation_at_t':np.vstack(orientation_at_t),
 			'detector_position_at_t':np.vstack([ x[None] for x in detector_position_at_t]), # (time_steps,2[x,y])
 		}
-	pickle.dump(session,open("/".join([args.output,'session_%08d.pkl' % session_idx]),'wb'))
+	dump(session,"/".join([args.output,'session_%08d.pkl' % session_idx]),compression="lzma")
 
 if __name__=='__main__':
 	parser = argparse.ArgumentParser()
@@ -174,6 +174,6 @@ if __name__=='__main__':
 	parser.add_argument('--cpus', type=int, required=False, default=8)
 	args = parser.parse_args()
 	os.mkdir(args.output)
-	pickle.dump(args,open("/".join([args.output,'args.pkl']),'wb'))
+	dump(args,"/".join([args.output,'args.pkl']),compression="lzma")
 
 	result = Parallel(n_jobs=args.cpus)(delayed(generate_session)((args,session_idx)) for session_idx in tqdm(range(args.sessions)))
