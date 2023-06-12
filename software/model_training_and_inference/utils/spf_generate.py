@@ -67,22 +67,21 @@ def generate_session(args_and_session_idx):
 	source_IQ=np.random.uniform(0,2*np.pi,size=(args.sources,2))
 
 	detector_position_phase_offset=np.random.uniform(0,2*np.pi)
+	detector_position_phase_offsets_at_t=np.ones((args.time_steps,1))*detector_position_phase_offset
 
 	sigma=args.sigma
 	d.position_offset=0
 
 	# lets run this thing
-	time_stamps=[]
-	source_positions_at_t=[]
-	broadcasting_positions_at_t=[]
-	receiver_positions_at_t=[]
-	signal_matrixs_at_t=[]
-	beam_former_outputs_at_t=[]
-	detector_position_phase_offsets_at_t=[]
-	detector_position_at_t=[]
-	orientation_at_t=[]
-	thetas_at_t=[]
-	width_at_t=[]
+	source_positions_at_t=np.zeros((args.time_steps,args.sources,2))
+	broadcasting_positions_at_t=np.zeros((args.time_steps,args.sources,1))
+	receiver_positions_at_t=np.zeros((args.time_steps,args.elements,2))
+
+	signal_matrixs_at_t=np.zeros((args.time_steps,args.elements,args.samples_per_snapshot),dtype=np.complex128)
+	beam_former_outputs_at_t=np.zeros((args.time_steps,args.beam_former_spacing))
+	detector_position_at_t=np.zeros((args.time_steps,2))
+
+	thetas_at_t=np.zeros((args.time_steps,args.beam_former_spacing))
 
 	detector_theta=np.random.uniform(-np.pi,np.pi)
 	detector_v=np.array([np.cos(detector_theta),np.sin(detector_theta)])*args.detector_speed # 10m/s
@@ -91,12 +90,10 @@ def generate_session(args_and_session_idx):
 			delta_time=args.time_interval)
 
 	whos_broadcasting_at_t=np.random.randint(0,args.sources,args.time_steps)
-	broadcasting=np.zeros((args.sources,1))
-	for t_idx in np.arange(args.time_steps):
-		t=args.time_interval*t_idx
-		time_stamps.append(t)
-		width_at_t.append(args.width)
+	broadcasting_positions_at_t[np.arange(args.time_steps),whos_broadcasting_at_t]=1
 
+	time_stamps=(np.arange(args.time_steps)*args.time_interval).reshape(-1,1)
+	for t_idx in np.arange(args.time_steps):
 		#only one source transmits at a time, TDM this part
 		tdm_source_idx=whos_broadcasting_at_t[t_idx]
 		d.rm_sources()
@@ -109,16 +106,9 @@ def generate_session(args_and_session_idx):
 			IQ=source_IQ[tdm_source_idx]),
 		  sigma=sigma))
 		
-		#clear and set the array	
-		broadcasting[:,:]=0
-		broadcasting[tdm_source_idx]=1
-		broadcasting_positions_at_t.append(
-			broadcasting
-		)
-
 		#set the detector position (its moving)
 		if args.detector_trajectory=='orbit':
-			d.position_offset=(time_to_detector_offset(t=t,
+			d.position_offset=(time_to_detector_offset(t=time_stamps[t_idx,0],
 				orbital_width=1/4,
 				orbital_height=1/3,
 				phase_offset=detector_position_phase_offset,
@@ -126,31 +116,34 @@ def generate_session(args_and_session_idx):
 		elif args.detector_trajectory=='bounce':
 			d.position_offset=p1.time_step()
 
-		detector_position_phase_offsets_at_t.append(detector_position_phase_offset)
-		source_positions_at_t.append(fixed_source_positions)
-		receiver_positions_at_t.append(
-			np.array([ d.receiver_pos(idx) for idx in np.arange(d.n_receivers()) ])) #
-		sm=d.get_signal_matrix(start_time=t,duration=args.samples_per_snapshot/d.sampling_frequency)
-		signal_matrixs_at_t.append(sm[None,:])
+		detector_position_phase_offsets_at_t[t_idx]=detector_position_phase_offset
+		source_positions_at_t[t_idx]=fixed_source_positions
+		receiver_positions_at_t[t_idx]=np.array([ d.receiver_pos(idx) for idx in np.arange(d.n_receivers()) ]) #
 
-		thetas,steer_dot_signal,steering_vectors=beamformer(d,sm,args.carrier_frequency,spacing=256+1)
-		beam_former_outputs_at_t.append(steer_dot_signal.reshape(1,-1))	
-		thetas_at_t.append(thetas.reshape(1,-1))
-		orientation_at_t.append(d.orientation)
-		detector_position_at_t.append(d.position_offset)
-	return {
-			'broadcasting_positions_at_t':np.vstack([ x[None] for x in broadcasting_positions_at_t]), # list of (time_steps,sources,1) 
-			'source_positions_at_t':np.concatenate([ np.vstack(x)[None] for x in source_positions_at_t],axis=0), # (time_steps,sources,2[x,y])
-			'receiver_positions_at_t':np.concatenate([ np.vstack(x)[None] for x in receiver_positions_at_t],axis=0), # (time_steps,receivers,2[x,y])
-			'signal_matrixs_at_t':np.vstack(signal_matrixs_at_t), # (time_steps,receivers,samples_per_snapshot)
-			'beam_former_outputs_at_t':np.vstack(beam_former_outputs_at_t), #(timesteps,thetas_tested_for_steering)
-			'thetas_at_t':np.vstack(thetas_at_t), #(timesteps,thetas_tested_for_steering)
-			'detector_position_phase_offsets_at_t':np.array(detector_position_phase_offsets_at_t).reshape(-1,1),
-			'time_stamps':np.vstack(time_stamps),
-			'width_at_t':np.vstack(width_at_t),
-			'orientation_at_t':np.vstack(orientation_at_t),
-			'detector_position_at_t':np.vstack([ x[None] for x in detector_position_at_t]), # (time_steps,2[x,y])
-		}
+		signal_matrixs_at_t[t_idx]=d.get_signal_matrix(
+			    start_time=time_stamps[t_idx,0],
+			    duration=args.samples_per_snapshot/d.sampling_frequency)
+
+		thetas_at_t[t_idx],beam_former_outputs_at_t[t_idx],_=beamformer(
+			d,
+			signal_matrixs_at_t[t_idx],
+			args.carrier_frequency,spacing=256+1)
+
+		detector_position_at_t[t_idx]=d.position_offset
+	session={
+			'broadcasting_positions_at_t':broadcasting_positions_at_t, # list of (time_steps,sources,1) 
+			'source_positions_at_t':source_positions_at_t, # (time_steps,sources,2[x,y])
+			'receiver_positions_at_t':receiver_positions_at_t, # (time_steps,receivers,2[x,y])
+			'signal_matrixs_at_t':signal_matrixs_at_t, # (time_steps,receivers,samples_per_snapshot)
+			'beam_former_outputs_at_t':beam_former_outputs_at_t, #(timesteps,thetas_tested_for_steering)
+			'thetas_at_t':thetas_at_t, #(timesteps,thetas_tested_for_steering)
+			'detector_position_phase_offsets_at_t':detector_position_phase_offsets_at_t,
+			'time_stamps':time_stamps,
+			'width_at_t':np.ones((args.time_steps,1))*args.width,
+			'orientation_at_t':np.ones((args.time_steps,1))*d.orientation,
+			'detector_position_at_t':detector_position_at_t, # (time_steps,2[x,y])
+	}
+	return session
 
 def generate_session_and_dump(args_and_session_idx):
 	args,session_idx=args_and_session_idx

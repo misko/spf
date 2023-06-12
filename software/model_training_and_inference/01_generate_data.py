@@ -20,6 +20,7 @@ if __name__=='__main__':
 	parser.add_argument('--elements', type=int, required=False, default=11)
 	parser.add_argument('--sources', type=int, required=False, default=2)
 	parser.add_argument('--seed', type=int, required=False, default=0)
+	parser.add_argument('--beam-former-spacing', type=int, required=False, default=256+1)
 	parser.add_argument('--width', type=int, required=False, default=128)
 	parser.add_argument('--detector-trajectory', type=str, required=False, default='orbit',choices=['orbit','bounce'])
 	parser.add_argument('--detector-speed', type=float, required=False, default=10.0)
