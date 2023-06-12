@@ -6,7 +6,7 @@ array_type="circular"
 elements=4
 time_steps=256
 time_interval=0.3
-for n in 8192 32768; do
+for n in $((2**19)); do
 for sigma in 0.0 0.1 0.5; do
 	for sources in 3 2 1; do
 	python 01_generate_data.py \
