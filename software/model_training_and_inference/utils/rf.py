@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from functools import cache
-#from numba import jit
+from numba import jit
 
 '''
 
@@ -184,12 +184,33 @@ def get_thetas(spacing):
     thetas=rf_linspace(-np.pi,np.pi,spacing)
     return thetas,np.vstack([np.cos(thetas)[None],np.sin(thetas)[None]]).T
 
-def beamformer(detector,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
-    thetas,source_vectors=get_thetas(spacing)
+@jit(nopython=True)
+def beamformer_numba_helper(receiver_positions,signal_matrix,carrier_frequency,spacing,thetas,source_vectors):
     steer_dot_signal=np.zeros(thetas.shape[0])
     carrier_wavelength=c/carrier_frequency
 
-    receiver_positions=detector.all_receiver_pos()
+    projection_of_receiver_onto_source_directions=(source_vectors @ receiver_positions.T)
+    args=2*np.pi*projection_of_receiver_onto_source_directions/carrier_wavelength
+    steering_vectors=np.exp(-1j*args)
+    steer_dot_signal=np.absolute(steering_vectors @ signal_matrix).sum(axis=1)/signal_matrix.shape[1]
+
+    return thetas,steer_dot_signal,steering_vectors
+
+
+def beamformer_numba(receiver_positions,signal_matrix,carrier_frequency,spacing=64+1):
+    thetas,source_vectors=get_thetas(spacing)
+    return beamformer_numba_helper(receiver_positions,
+            signal_matrix,
+            carrier_frequency,
+            spacing,
+            thetas,source_vectors)
+
+def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
+    thetas=np.linspace(-np.pi,np.pi,spacing)
+    source_vectors=np.vstack([np.cos(thetas)[None],np.sin(thetas)[None]]).T
+    #thetas,source_vectors=get_thetas(spacing)
+    steer_dot_signal=np.zeros(thetas.shape[0])
+    carrier_wavelength=c/carrier_frequency
 
     projection_of_receiver_onto_source_directions=(source_vectors @ receiver_positions.T)
     args=2*np.pi*projection_of_receiver_onto_source_directions/carrier_wavelength
@@ -200,23 +221,21 @@ def beamformer(detector,signal_matrix,carrier_frequency,calibration=None,spacing
 
     return thetas,steer_dot_signal,steering_vectors
 
-def beamformer_old(detector,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
-    beamformer2(detector,signal_matrix,carrier_frequency,calibration=None,spacing=64+1)
+def beamformer_old(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
     if calibration is None:
-        calibration=np.ones(len(detector.receivers)).astype(np.cdouble)
+        calibration=np.ones(receiver_positions.shape[0]).astype(np.cdouble)
     thetas=rf_linspace(-np.pi,np.pi,spacing)
     source_vectors=np.vstack([np.cos(thetas)[None],np.sin(thetas)[None]]).T
     steer_dot_signal=np.zeros(thetas.shape[0])
     carrier_wavelength=c/carrier_frequency
-    steering_vectors=np.zeros((len(thetas),len(detector.receivers))).astype(np.cdouble)
+    steering_vectors=np.zeros((len(thetas),receiver_positions.shape[0])).astype(np.cdouble)
     for theta_index,theta in enumerate(thetas):
         source_vector=np.array([np.cos(theta),np.sin(theta)])
-        for receiver_index,receiver in enumerate(detector.receivers):
-            projection_of_receiver_onto_source_direction=np.dot(source_vector,detector.receiver_pos(receiver_index))
+        for receiver_index in np.arange(receiver_positions.shape[0]):
+            projection_of_receiver_onto_source_direction=np.dot(source_vector,receiver_positions[receiver_index])
             arg=2*np.pi*projection_of_receiver_onto_source_direction/carrier_wavelength
             steering_vectors[theta_index][receiver_index]=np.exp(-1j*arg)
         steer_dot_signal[theta_index]=np.absolute(np.matmul(steering_vectors[theta_index]*calibration,signal_matrix)).mean()
 
-    t2,sds2,sv2 = beamformer2(detector,signal_matrix,carrier_frequency,calibration,spacing)
     return thetas,steer_dot_signal,steering_vectors
   

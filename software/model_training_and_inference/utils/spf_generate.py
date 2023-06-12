@@ -8,7 +8,7 @@ import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from compress_pickle import dump, load
-from utils.rf import NoiseWrapper, QAMSource, UCADetector, ULADetector, beamformer
+from utils.rf import NoiseWrapper, QAMSource, UCADetector, ULADetector, beamformer_numba, beamformer, beamformer_old
 
 c=3e8 # speed of light
 
@@ -124,8 +124,8 @@ def generate_session(args_and_session_idx):
 			    start_time=time_stamps[t_idx,0],
 			    duration=args.samples_per_snapshot/d.sampling_frequency)
 
-		thetas_at_t[t_idx],beam_former_outputs_at_t[t_idx],_=beamformer(
-			d,
+		thetas_at_t[t_idx],beam_former_outputs_at_t[t_idx],_=beamformer_numba(
+			d.all_receiver_pos(),
 			signal_matrixs_at_t[t_idx],
 			args.carrier_frequency,spacing=256+1)
 
