@@ -63,7 +63,7 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 			axs[1].set_title('Predictions')
 			axs[2].set_title('Mean of input channels')
 			d_model['fig'].suptitle("%s iteration: %d" % (d_model['name'],i))
-			axs=d_model['fig'].subplots(1,3,sharex=True)
+			#axs=d_model['fig'].subplots(1,3,sharex=True)
 			axs[0].imshow(_label_images[0,0].cpu())
 			axs[1].imshow(preds['image_preds'][0,0].detach().cpu())
 			axs[2].imshow(_radio_images[0].mean(axis=0).cpu())
@@ -91,9 +91,12 @@ def net_to_loss_str(running_loss,mean_chunk):
 			loss_str.append("%s:%0.4f" % (k,losses[k][-1]))
 	return ",".join(loss_str)
 
-def save(args,models,iteration,keep_n_saves):
+def save(args,running_losses,models,iteration,keep_n_saves):
 	fn='%ssave_%d.pkl' % (args.output_prefix,iteration)
-	pickle.dump({'models':models,'args':args},open(fn,'wb'))
+	pickle.dump({
+		'models':models,
+		'args':args,
+		'running_losses':running_losses},open(fn,'wb'))
 	saves.append(fn)
 	while len(saves)>keep_n_saves:
 		fn=saves.pop(0)
@@ -137,6 +140,7 @@ def plot_loss(running_losses,
 		axs[i].legend()
 	fig.tight_layout()
 	fig.savefig('%sloss_%s_%d.png' % (output_prefix,title,i))
+	fig.canvas.draw_idle()
 
 if __name__=='__main__': 
 	parser = argparse.ArgumentParser()
@@ -194,7 +198,14 @@ if __name__=='__main__':
 	device=torch.device(args.device)
 	print("init dataset")
 	ds=SessionsDatasetTask2Simple(args.dataset,snapshots_in_sample=max(args.snapshots_per_sample))
-	ds_train, ds_test = random_split(ds, [1-args.test_fraction, args.test_fraction])
+	train_size=int(len(ds)*args.test_fraction)
+	test_size=len(ds)-train_size
+
+	#need to generate separate files for this not to train test leak
+	#ds_train, ds_test = random_split(ds, [1-args.test_fraction, args.test_fraction])
+
+	ds_train = torch.utils.data.Subset(ds, np.arange(train_size))
+	ds_test = torch.utils.data.Subset(ds, np.arange(train_size, train_size + test_size))
 	
 	print("init dataloader")
 	trainloader = torch.utils.data.DataLoader(
@@ -207,7 +218,7 @@ if __name__=='__main__':
 			ds_test, 
 			batch_size=args.mb,
 			shuffle=True, 
-			num_workers=1,
+			num_workers=args.workers,
 			collate_fn=collate_fn)
 
 	print("init network")
@@ -308,7 +319,7 @@ if __name__=='__main__':
 				
 	
 			if i==0 or i%args.save_every==args.save_every-1:
-				save(args,models,i,args.keep_n_saves)
+				save(args,running_losses,models,i,args.keep_n_saves)
 
 			if i % args.print_every == args.print_every-1:
 
