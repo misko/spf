@@ -1,0 +1,1 @@
+python 12_task2_model_training.py --dataset ./sessions_sigma0.0_sources3_n8192_timesteps256_timeinterval0.3_dtbounce --lr 0.1 --mb 16 --workers 4 --print-every 20 --plot True --snapshots 1 16 128 --device mps --save-every 10000 
