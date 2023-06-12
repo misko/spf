@@ -47,6 +47,7 @@ def generate_session(args_and_session_idx):
 	np.random.seed(seed=args.seed+session_idx)
 	wavelength=c/args.carrier_frequency
 
+
 	if args.array_type=='linear':
 		d=ULADetector(args.sampling_frequency,args.elements,wavelength/4) # 10Mhz sampling
 	elif args.array_type=='circular':
@@ -56,8 +57,11 @@ def generate_session(args_and_session_idx):
 		sys.exit(1)
 
 	fixed_source_positions=np.random.uniform(low=0, high=args.width,size=(args.sources,2))
+
 	if args.reference:
-		fixed_source_positions=fixed_source_positions*0+np.array((width//2,width//4))
+		fixed_source_positions=fixed_source_positions*0+np.array((args.width//2,args.width//4))
+		args.sigma=0
+		args.sources=1
 
 	source_IQ=np.random.uniform(0,2*np.pi,size=(args.sources,2))
 
@@ -85,13 +89,15 @@ def generate_session(args_and_session_idx):
 			v=detector_v,
 			delta_time=args.time_interval)
 
+	whos_broadcasting_at_t=np.random.randint(0,args.sources,args.time_steps)
+	broadcasting=np.zeros((args.sources,1))
 	for t_idx in np.arange(args.time_steps):
 		t=args.time_interval*t_idx
 		time_stamps.append(t)
 		width_at_t.append(args.width)
 
 		#only one source transmits at a time, TDM this part
-		tdm_source_idx=np.random.randint(0,args.sources)
+		tdm_source_idx=whos_broadcasting_at_t[t_idx]
 		d.rm_sources()
 		d.add_source(NoiseWrapper(
 		  QAMSource(
@@ -101,8 +107,9 @@ def generate_session(args_and_session_idx):
 			sigma=sigma,
 			IQ=source_IQ[tdm_source_idx]),
 		  sigma=sigma))
-
-		broadcasting=np.zeros((args.sources,1))
+		
+		#clear and set the array	
+		broadcasting[:,:]=0
 		broadcasting[tdm_source_idx]=1
 		broadcasting_positions_at_t.append(
 			broadcasting

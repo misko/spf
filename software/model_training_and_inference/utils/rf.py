@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from functools import cache
+from numba import jit
 
 '''
 
@@ -68,29 +70,41 @@ class NoiseWrapper(Source):
   def signal(self,sampling_times):
     return self.internal_source.signal(sampling_times) + (np.random.randn(sampling_times.shape[0], 2)*self.sigma).view(np.cdouble).reshape(-1)
 
-class Receiver:
-  def __init__(self,pos):
-    self.pos=np.array(pos)
-
 class Detector(object):
   def __init__(self,sampling_frequency,oreintation=0):
     self.sources=[]
-    self.receivers=[]
+    self.source_positions=None
+    self.receiver_positions=None
     self.sampling_frequency=sampling_frequency
     self.position_offset=np.zeros(2)
     self.orientation=0.0
 
   def add_source(self,source):
     self.sources.append(source)
+    if self.source_positions is None:
+      self.source_positions=np.array(source.pos).reshape(1,2)
+    else:
+      self.source_positions=np.vstack([
+			self.source_positions,
+			np.array(source.pos).reshape(1,2)])
+
+  def distance_receiver_to_source(self):
+    return np.linalg.norm(self.all_receiver_pos()[:,None]-self.source_positions[None],axis=2)
 
   def rm_sources(self):
     self.sources=[]
+    self.source_positions=None
 
-  def add_receiver(self,receiver):
-    self.receivers.append(receiver)
+  def add_receiver(self,receiver_position):
+    if self.receiver_positions is None:
+      self.receiver_positions=np.array(receiver_position).reshape(1,2)
+    else:
+      self.receiver_positions=np.vstack([
+			self.receiver_positions,
+			np.array(receiver_position).reshape(1,2)])
 
   def n_receivers(self):
-    return len(self.receivers)
+    return self.receiver_positions.shape[0]
 
   def rotation_matrix(self):
     s = np.sin(self.orientation)
@@ -98,14 +112,17 @@ class Detector(object):
     return np.stack([np.stack([c, -s]),
 		   np.stack([s, c])])
 
-  def receiver_pos(self,receiver_idx):
-    return self.position_offset+(self.receivers[receiver_idx].pos @ self.rotation_matrix())
+  def all_receiver_pos(self):
+    return self.position_offset+(self.receiver_positions @ self.rotation_matrix())
 
-  def get_signal_matrix(self,start_time,duration,rx_lo=0):
+  def receiver_pos(self,receiver_idx):
+    return self.position_offset+(self.receiver_positions[receiver_idx] @ self.rotation_matrix())
+
+  def get_signal_matrix_old(self,start_time,duration,rx_lo=0):
     n_samples=int(duration*self.sampling_frequency)
     base_times=start_time+np.linspace(0,n_samples-1,n_samples)/self.sampling_frequency
-    sample_matrix=np.zeros((len(self.receivers),n_samples),dtype=np.cdouble) # receivers x samples
-    for receiver_index,receiver in enumerate(self.receivers):
+    sample_matrix=np.zeros((self.n_receivers(),n_samples),dtype=np.cdouble) # receivers x samples
+    for receiver_index,receiver in enumerate(self.receiver_positions):
       for _source in self.sources:
         distance=np.linalg.norm(self.receiver_pos(receiver_index)-_source.pos)
         time_delay=distance/c
@@ -115,13 +132,31 @@ class Detector(object):
           sample_matrix[receiver_index,:]
     return sample_matrix
 
+  def get_signal_matrix(self,start_time,duration,rx_lo=0):
+    n_samples=int(duration*self.sampling_frequency)
+    base_times=start_time+np.linspace(0,n_samples-1,n_samples)/self.sampling_frequency
+
+    sample_matrix=np.zeros((self.receiver_positions.shape[0],n_samples),dtype=np.cdouble) # receivers x samples
+
+    distances=self.distance_receiver_to_source().T # sources x receivers
+    time_delays=distances/c 
+    base_time_offsets=base_times[None,None]-(distances/c)[...,None] # sources x receivers x sampling intervals
+    distances_squared=distances**2
+
+    for source_index,_source in enumerate(self.sources):
+      signal=_source.signal(base_time_offsets[source_index].reshape(-1)).reshape(base_time_offsets[source_index].shape)
+      normalized_signal=signal/distances_squared[source_index][...,None]
+      _base_times=np.broadcast_to(base_times,normalized_signal.shape) # broadcast the basetimes for rx_lo on all receivers
+      sample_matrix+=_source.demod_signal(normalized_signal.reshape(-1),_base_times).reshape(normalized_signal.shape)
+    return sample_matrix
+
  
 
 class ULADetector(Detector):
   def __init__(self,sampling_frequency,n_elements,spacing):
     super().__init__(sampling_frequency)
     for idx in np.arange(n_elements):
-      self.add_receiver(Receiver([
+      self.add_receiver(np.array([
           spacing*(idx-(n_elements-1)/2),
           0]))
       
@@ -129,25 +164,48 @@ class UCADetector(Detector):
   def __init__(self,sampling_frequency,n_elements,radius):
     super().__init__(sampling_frequency)
     for theta in np.linspace(0,2*np.pi,n_elements+1)[:-1]+np.pi/2: # orientate along y axis
-      self.add_receiver(Receiver([
+      self.add_receiver(np.array([
           radius*np.cos(theta),
           radius*np.sin(theta)]))
 
+@cache
+def get_thetas(spacing):
+    thetas=np.linspace(-np.pi,np.pi,spacing)
+    return thetas,np.vstack([np.cos(thetas)[None],np.sin(thetas)[None]]).T
+
 def beamformer(detector,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
+    thetas,source_vectors=get_thetas(spacing)
+    steer_dot_signal=np.zeros(thetas.shape[0])
+    carrier_wavelength=c/carrier_frequency
+
+    receiver_positions=detector.all_receiver_pos()
+
+    projection_of_receiver_onto_source_directions=(source_vectors @ receiver_positions.T)
+    args=2*np.pi*projection_of_receiver_onto_source_directions/carrier_wavelength
+    steering_vectors=np.exp(-1j*args)
+    if calibration is not None:
+      steering_vectors=steering_vectors*calibration[None]
+    steer_dot_signal=np.absolute(np.matmul(steering_vectors,signal_matrix)).mean(axis=1)
+
+    return thetas,steer_dot_signal,steering_vectors
+
+def beamformer_old(detector,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
+    beamformer2(detector,signal_matrix,carrier_frequency,calibration=None,spacing=64+1)
     if calibration is None:
         calibration=np.ones(len(detector.receivers)).astype(np.cdouble)
     thetas=np.linspace(-np.pi,np.pi,spacing)
+    source_vectors=np.vstack([np.cos(thetas)[None],np.sin(thetas)[None]]).T
     steer_dot_signal=np.zeros(thetas.shape[0])
     carrier_wavelength=c/carrier_frequency
     steering_vectors=np.zeros((len(thetas),len(detector.receivers))).astype(np.cdouble)
     for theta_index,theta in enumerate(thetas):
         source_vector=np.array([np.cos(theta),np.sin(theta)])
-        projections=[]
         for receiver_index,receiver in enumerate(detector.receivers):
             projection_of_receiver_onto_source_direction=np.dot(source_vector,detector.receiver_pos(receiver_index))
-            projections.append(projection_of_receiver_onto_source_direction/carrier_wavelength)
             arg=2*np.pi*projection_of_receiver_onto_source_direction/carrier_wavelength
             steering_vectors[theta_index][receiver_index]=np.exp(-1j*arg)
         steer_dot_signal[theta_index]=np.absolute(np.matmul(steering_vectors[theta_index]*calibration,signal_matrix)).mean()
+
+    t2,sds2,sv2 = beamformer2(detector,signal_matrix,carrier_frequency,calibration,spacing)
     return thetas,steer_dot_signal,steering_vectors
   
