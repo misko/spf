@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 from utils.image_utils import (detector_positions_to_theta_grid,
                          labels_to_source_images, radio_to_image)
 from utils.plot import plot_space
+from utils.spf_generate import generate_session
 from compress_pickle import dump, load
 
 class SessionsDataset(Dataset):
@@ -20,28 +21,38 @@ class SessionsDataset(Dataset):
 			root_dir (string): Directory with all the images.
 		"""
 		self.root_dir = root_dir
-		self.filenames=sorted(filter(lambda x : 'args' not in x ,[ "%s/%s" % (self.root_dir,x) for x in  os.listdir(self.root_dir)]))
-		self.args=load("/".join([self.root_dir,'args.pkl'],compression="lzma")
-		if self.args.sessions!=len(self.filenames): # make sure its the right dataset
-			print("WARNING DATASET LOOKS LIKE IT IS MISSING SOME SESSIONS!")
+		self.args=load("/".join([self.root_dir,'args.pkl']),compression="lzma")
 		assert(self.args.time_steps>=snapshots_in_sample)
 		self.samples_per_session=self.args.time_steps-snapshots_in_sample+1
 		self.snapshots_in_sample=snapshots_in_sample
+		if not self.args.live:	
+			print("NOT LIVE")
+			self.filenames=sorted(filter(lambda x : 'args' not in x ,[ "%s/%s" % (self.root_dir,x) for x in  os.listdir(self.root_dir)]))
+			if self.args.sessions!=len(self.filenames): # make sure its the right dataset
+				print("WARNING DATASET LOOKS LIKE IT IS MISSING SOME SESSIONS!")
 
 	def idx_to_filename_and_start_idx(self,idx):
 		assert(idx>=0 and idx<=self.samples_per_session*len(self.filenames))
 		return self.filenames[idx//self.samples_per_session],idx%self.samples_per_session
 
 	def __len__(self):
-		return self.samples_per_session*len(self.filenames)
+		if self.args.live:
+			return self.samples_per_session*self.args.sessions
+		else:
+			return self.samples_per_session*len(self.filenames)
 
 	def __getitem__(self, idx):
-		filename,start_idx=self.idx_to_filename_and_start_idx(idx)
-		session=load(filename,compression="lzma")
+		session_idx=idx//self.samples_per_session
+		start_idx=idx%self.samples_per_session
+
+		if self.args.live:
+			session=generate_session((self.args,session_idx))	
+		else:
+			session=load(self.filenames[session_idx],compression="lzma")
 		end_idx=start_idx+self.snapshots_in_sample
 		return { k:session[k][start_idx:end_idx] for k in session.keys()}
 
-class SessionsDatasetTask1Simple(SessionsDataset):
+class SessionsDatasetTask1(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
 		#featurie a really simple way
@@ -54,7 +65,7 @@ class SessionsDatasetTask1Simple(SessionsDataset):
 		y=torch.Tensor(d['source_positions_at_t'][:,0])
 		return x,y
 
-class SessionsDatasetTask2Simple(SessionsDataset):
+class SessionsDatasetTask2(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
 		d['source_positions_at_t']=d['source_positions_at_t'] #/self.args.width
@@ -126,8 +137,3 @@ def collate_fn(_in):
 	label_images=d['source_image_at_t'].float()
 	return radio_inputs,radio_images,labels,label_images
 
-class SessionsDatasetTask2(SessionsDataset):
-	def __getitem__(self,idx):
-		d=super().__getitem__(idx)
-		#featurie a really simple way
-			

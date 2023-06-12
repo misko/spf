@@ -17,7 +17,7 @@ from torch.utils.data import dataset, random_split
 from utils.image_utils import labels_to_source_images
 from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerModel,
                     UNet)
-from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2Simple, collate_fn
+from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn
 
 torch.set_printoptions(precision=5,sci_mode=False,linewidth=1000)
 
@@ -157,7 +157,7 @@ if __name__=='__main__':
 	parser.add_argument('--epochs', type=int, required=False, default=20000)
 	parser.add_argument('--mb', type=int, required=False, default=64)
 	parser.add_argument('--workers', type=int, required=False, default=4)
-	parser.add_argument('--dataset', type=str, required=False, default='./sessions_task1')
+	parser.add_argument('--dataset', type=str, required=False, default='./sessions-default')
 	parser.add_argument('--lr', type=float, required=False, default=0.000001)
 	parser.add_argument('--plot', type=bool, required=False, default=False)
 	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist,det_delta,det_theta,det_space")
@@ -197,7 +197,7 @@ if __name__=='__main__':
 
 	device=torch.device(args.device)
 	print("init dataset")
-	ds=SessionsDatasetTask2Simple(args.dataset,snapshots_in_sample=max(args.snapshots_per_sample))
+	ds=SessionsDatasetTask2(args.dataset,snapshots_in_sample=max(args.snapshots_per_sample))
 	train_size=int(len(ds)*args.test_fraction)
 	test_size=len(ds)-train_size
 
@@ -206,7 +206,7 @@ if __name__=='__main__':
 
 	ds_train = torch.utils.data.Subset(ds, np.arange(train_size))
 	ds_test = torch.utils.data.Subset(ds, np.arange(train_size, train_size + test_size))
-	
+
 	print("init dataloader")
 	trainloader = torch.utils.data.DataLoader(
 			ds_train, 
@@ -329,8 +329,8 @@ if __name__=='__main__':
 				test_baseline_image_loss=net_to_losses(running_losses['test']['baseline_image'],args.test_mbs)
 
 				print(f'[{epoch + 1}, {i + 1:5d}]')
-				print(f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f}, baseline_image: {train_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/i :.3f} / batch' )
-				print(f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, baseline_image: {test_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/i :.3f} / batch' )
+				print(f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f}, baseline_image: {train_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch' )
+				print(f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, baseline_image: {test_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch' )
 				loss_str="\t"+"\n\t".join(
 					[ "%s:(tr)%s,(ts)%s" % (d['name'],
 						net_to_loss_str(running_losses['train'][d['name']],args.print_every),

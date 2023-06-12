@@ -46,7 +46,7 @@ if __name__=='__main__':
 	#test task1
 	if False:
 		#load a dataset
-		ds=SessionsDatasetTask1Simple(sessions_dir)
+		ds=SessionsDatasetTask1(sessions_dir)
 		ds[253]
 		ds=SessionsDataset(sessions_dir)
 
@@ -82,7 +82,7 @@ if __name__=='__main__':
 	#test task2
 	if True:
 		#load a dataset
-		ds=SessionsDatasetTask2Simple(sessions_dir)
+		ds=SessionsDatasetTask2(sessions_dir)
 		ds[253]
 		plot_single_session(ds[0])
 		plot_single_session(ds[200])
