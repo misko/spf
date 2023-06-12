@@ -48,6 +48,7 @@ def generate_session(args_and_session_idx):
 	np.random.seed(seed=args.seed+session_idx)
 	wavelength=c/args.carrier_frequency
 
+	beamformer_f=beamformer_numba if args.numba else beamformer
 
 	if args.array_type=='linear':
 		d=ULADetector(args.sampling_frequency,args.elements,wavelength/4) # 10Mhz sampling
@@ -124,7 +125,7 @@ def generate_session(args_and_session_idx):
 			    start_time=time_stamps[t_idx,0],
 			    duration=args.samples_per_snapshot/d.sampling_frequency)
 
-		thetas_at_t[t_idx],beam_former_outputs_at_t[t_idx],_=beamformer_numba(
+		thetas_at_t[t_idx],beam_former_outputs_at_t[t_idx],_=beamformer_f(
 			d.all_receiver_pos(),
 			signal_matrixs_at_t[t_idx],
 			args.carrier_frequency,spacing=256+1)
