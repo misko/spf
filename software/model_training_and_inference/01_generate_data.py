@@ -9,7 +9,7 @@ from tqdm import tqdm
 from compress_pickle import dump, load
 from utils.rf import NoiseWrapper, QAMSource, UCADetector, ULADetector, beamformer
 
-from utils.spf_generate import generate_session_and_dump
+from utils.spf_generate import generate_session_and_dump,generate_session
 
 if __name__=='__main__':
 	parser = argparse.ArgumentParser()
@@ -32,8 +32,24 @@ if __name__=='__main__':
 	parser.add_argument('--reference', type=bool, required=False, default=False)
 	parser.add_argument('--cpus', type=int, required=False, default=8)
 	parser.add_argument('--live', type=bool, required=False, default=False)
+	parser.add_argument('--profile', type=bool, required=False, default=False)
+
 	args = parser.parse_args()
 	os.mkdir(args.output)
 	dump(args,"/".join([args.output,'args.pkl']),compression="lzma")
 	if not args.live:
-		result = Parallel(n_jobs=args.cpus)(delayed(generate_session_and_dump)((args,session_idx)) for session_idx in tqdm(range(args.sessions)))
+		if args.profile:
+			import cProfile, pstats, io
+			from pstats import SortKey
+			pr = cProfile.Profile()
+			pr.enable()
+			for session_idx in np.arange(args.sessions):
+				result = generate_session((args,session_idx))
+			pr.disable()
+			s = io.StringIO()
+			sortby = SortKey.CUMULATIVE
+			ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+			ps.print_stats()
+			print(s.getvalue())
+		else:
+			result = Parallel(n_jobs=args.cpus)(delayed(generate_session_and_dump)((args,session_idx)) for session_idx in tqdm(range(args.sessions)))
