@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from functools import cache
-from numba import jit
+#from numba import jit
 
 '''
 
