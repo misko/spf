@@ -4,7 +4,7 @@ from collections import OrderedDict
 from functools import cache
 from tempfile import TemporaryDirectory
 from typing import Tuple
-
+import torch.nn.functional as F
 import numpy as np
 import torch
 import torch.nn as nn
@@ -22,25 +22,47 @@ class TransformerModel(nn.Module):
 			d_hid,
 			n_layers,
 			dropout, 
-			n_outputs):
+			n_outputs,
+			n_layers_output=4):
 		super().__init__()
 		self.model_type = 'Transformer'
 
-		encoder_layers = TransformerEncoderLayer(d_model, n_heads, d_hid, dropout)
-		self.transformer_encoder = TransformerEncoder(encoder_layers, n_layers)
+		encoder_layers = TransformerEncoderLayer(
+			d_model, 
+			n_heads, 
+			d_hid, 
+			dropout,
+			batch_first=True)
+		self.transformer_encoder = TransformerEncoder(
+			encoder_layers, 
+			n_layers,
+			nn.LayerNorm(d_model),
+			)
 		
-		self.linear_out = nn.Linear(d_model, n_outputs)
 		assert( d_model>d_radio_feature)
 		
 		self.linear_in = nn.Linear(d_radio_feature, d_model-d_radio_feature)
 		
 		self.d_model=d_model
 
+		self.output_net=nn.Sequential(
+			nn.Linear(self.d_model,d_hid),
+			*[nn.Sequential(
+				nn.LayerNorm(d_hid),
+				nn.Linear(d_hid,d_hid),
+				nn.ReLU()
+				)
+			for _ in range(n_layers_output) ],
+			nn.LayerNorm(d_hid),
+			nn.Linear(d_hid,n_outputs),
+			nn.LayerNorm(n_outputs))
+
 	def forward(self, src: Tensor) -> Tensor:
-		output = self.transformer_encoder(
+		src_enc = self.transformer_encoder(
 			torch.cat(
 				[src,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
-		output = self.linear_out(output)/np.sqrt(self.d_model)
+		#output = self.transformer_encoder(src) #,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
+		output = self.output_net(src_enc) #/np.sqrt(self.d_model)
 		return output
 
 class SnapshotNet(nn.Module):
@@ -50,7 +72,7 @@ class SnapshotNet(nn.Module):
 			d_model=512,
 			n_heads=8,
 			d_hid=256,
-			n_layers=4,
+			n_layers=1,
 			n_outputs=8,
 			dropout=0.0,
 			ssn_d_hid=128,
@@ -76,7 +98,8 @@ class SnapshotNet(nn.Module):
 		#self.snap_shot_net=Task1Net(d_radio_feature*snapshots_per_sample)
 
 		self.tformer=TransformerModel(
-			d_radio_feature=d_radio_feature+ssn_d_embed+n_outputs,
+			d_radio_feature=d_radio_feature,#+ssn_d_embed,#+n_outputs,
+			#d_radio_feature=ssn_d_embed, #+n_outputs,
 			d_model=d_model,
 			n_heads=n_heads,
 			d_hid=d_hid,
@@ -91,8 +114,8 @@ class SnapshotNet(nn.Module):
 		tformer_output=self.tformer(
 			torch.cat([
 				x,
-				d['embedding'],
-				d['single_snapshot_pred']
+				#d['embedding'],
+				#d['single_snapshot_pred']
 				],axis=2))
 		return {'transformer_pred':tformer_output,'single_snapshot_pred':d['single_snapshot_pred']}
 		

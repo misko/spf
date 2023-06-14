@@ -29,7 +29,6 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 	_radio_images=radio_images[:,:d_model['snapshots_per_sample']][:,:,0] # reshape to b,s,w,h
 	_labels=labels[:,:d_model['snapshots_per_sample']]
 	_label_images=label_images[:,d_model['snapshots_per_sample']-1] # reshape to b,1,w,h
-
 	losses={}
 	if d_model['images']==False:
 		preds=d_model['net'](_radio_inputs)
@@ -39,12 +38,16 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 		single_snapshot_loss=0.0
 		fc_loss=0.0
 		if 'transformer_pred' in preds:
+			if preds['transformer_pred'].mean(axis=1).var(axis=0).mean().item()<1e-13:
+				d_model['dead']=True
+			else:
+				d_model['dead']=False
 			transformer_loss = criterion(preds['transformer_pred'],_labels)
 			losses['transformer_loss']=transformer_loss.item()
-		if 'single_snapshot_pred' in preds:
+		elif 'single_snapshot_pred' in preds:
 			single_snapshot_loss = criterion(preds['single_snapshot_pred'],_labels)
 			losses['single_snapshot_loss']=single_snapshot_loss.item()
-		if 'fc_pred' in preds:
+		elif 'fc_pred' in preds:
 			fc_loss = criterion(preds['fc_pred'],_labels[:,[-1]])
 			losses['fc_loss']=fc_loss.item()
 		loss=transformer_loss+single_snapshot_loss+fc_loss
@@ -145,7 +148,7 @@ def plot_loss(running_losses,
 if __name__=='__main__': 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--device', type=str, required=False, default='cpu')
-	parser.add_argument('--embedding-warmup', type=int, required=False, default=256*32)
+	parser.add_argument('--embedding-warmup', type=int, required=False, default=0)
 	parser.add_argument('--snapshots-per-sample', type=int, required=False, default=[1,4,8], nargs="+")
 	parser.add_argument('--print-every', type=int, required=False, default=100)
 	parser.add_argument('--save-every', type=int, required=False, default=1000)
@@ -158,9 +161,11 @@ if __name__=='__main__':
 	parser.add_argument('--mb', type=int, required=False, default=64)
 	parser.add_argument('--workers', type=int, required=False, default=4)
 	parser.add_argument('--dataset', type=str, required=False, default='./sessions-default')
-	parser.add_argument('--lr', type=float, required=False, default=0.000001)
+	parser.add_argument('--lr-image', type=float, required=False, default=0.05)
+	parser.add_argument('--lr-direct', type=float, required=False, default=0.01)
+	parser.add_argument('--lr-transformer', type=float, required=False, default=0.00001)
 	parser.add_argument('--plot', type=bool, required=False, default=False)
-	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist,det_delta,det_theta,det_space")
+	parser.add_argument('--losses', type=str, required=False, default="src_pos") #,src_theta,src_dist,det_delta,det_theta,det_space")
 	args = parser.parse_args()
 	
 	if args.plot==False:
@@ -222,46 +227,70 @@ if __name__=='__main__':
 			collate_fn=collate_fn)
 
 	print("init network")
-	models=[ {'name':'%d snapshots' % snapshots_per_sample, 
-                'net':SnapshotNet(snapshots_per_sample).to(device),
-                 'snapshots_per_sample':snapshots_per_sample,
-		'images':False}
-		for snapshots_per_sample in args.snapshots_per_sample ]
-	#for snapshots_per_sample in args.snapshots_per_sample:
-	#	models.append(
-	#		{'name':'task1net%d' % snapshots_per_sample,
-	#		'net':Task1Net(265*snapshots_per_sample), 'snapshots_per_sample':snapshots_per_sample}
-	#	)
-	for snapshots_per_sample in args.snapshots_per_sample:
-		models.append(
-			{'name':'FCNet %d' % snapshots_per_sample,
-			'net':SingleSnapshotNet(d_radio_feature=265,
-                        	d_hid=64,
-                        	d_embed=64,
-                        	n_layers=4,
-                        	n_outputs=8,
-                        	dropout=0.0,
-                        snapshots_per_sample=snapshots_per_sample).to(device),
+	models=[ 
+		{
+			'name':'%d snapshots' % snapshots_per_sample, 
+			'net':SnapshotNet(snapshots_per_sample),
 			'snapshots_per_sample':snapshots_per_sample,
 			'images':False,
+			'lr':args.lr_transformer,
+			'dead':False,
+		}
+		for snapshots_per_sample in args.snapshots_per_sample ]
+	for snapshots_per_sample in args.snapshots_per_sample:
+		models.append(
+			{
+				'name':'task1net%d' % snapshots_per_sample,
+				'net':Task1Net(265*snapshots_per_sample),
+				'snapshots_per_sample':snapshots_per_sample,
+				'images':False,
+				'lr':args.lr_direct,
+				'dead':False,
+			}
+		)
+	for snapshots_per_sample in args.snapshots_per_sample:
+		models.append(
+			{
+				'name':'FCNet %d' % snapshots_per_sample,
+				'net':SingleSnapshotNet(d_radio_feature=265,
+					d_hid=64,
+					d_embed=64,
+					n_layers=4,
+					n_outputs=8,
+					dropout=0.0,
+				snapshots_per_sample=snapshots_per_sample),
+				'snapshots_per_sample':snapshots_per_sample,
+				'images':False,
+				'lr':args.lr_direct,
+				'dead':False
 			}
 		)
 
-	models=[]
-	for snapshots_per_sample in args.snapshots_per_sample: 
-		models.append({'name':'Unet %d' % snapshots_per_sample,
-		'net':UNet(in_channels=snapshots_per_sample,out_channels=1,width=128).to(device),
-		'snapshots_per_sample':snapshots_per_sample,
-		'images':True,'fig':plt.figure(figsize=(14,4)),'normalize_input':True}
-		 )
+	if False:
+		for snapshots_per_sample in args.snapshots_per_sample: 
+			models.append(
+				{
+					'name':'Unet %d' % snapshots_per_sample,
+					'net':UNet(in_channels=snapshots_per_sample,out_channels=1,width=128),
+					'snapshots_per_sample':snapshots_per_sample,
+					'images':True,'fig':plt.figure(figsize=(14,4)),
+					'normalize_input':True,
+					'lr':args.lr_image,
+					'dead':False
+				}
+			 )
 
 
+	#move the models to the device
+	for d_net in models:
+		d_net['net']=d_net['net'].to(device)
 	loss_figs={
 		'train':plt.figure(figsize=(14,4)),
 		'test':plt.figure(figsize=(14,4))}
 
 	for d_model in models:
-		d_model['optimizer']=optim.Adam(d_model['net'].parameters(),lr=args.lr)
+		d_model['optimizer']=optim.Adam(d_model['net'].parameters(),lr=d_model['lr'])
+
 	criterion = nn.MSELoss()
 
 	print("training loop")
@@ -332,7 +361,7 @@ if __name__=='__main__':
 				print(f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f}, baseline_image: {train_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch' )
 				print(f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, baseline_image: {test_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch' )
 				loss_str="\t"+"\n\t".join(
-					[ "%s:(tr)%s,(ts)%s" % (d['name'],
+					[ "%s(%s):(tr)%s,(ts)%s" % (d['name'],str(d['dead']),
 						net_to_loss_str(running_losses['train'][d['name']],args.print_every),
 						net_to_loss_str(running_losses['test'][d['name']],args.test_mbs)
 					) for d in models ])

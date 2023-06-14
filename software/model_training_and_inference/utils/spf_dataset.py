@@ -68,13 +68,14 @@ class SessionsDatasetTask1(SessionsDataset):
 class SessionsDatasetTask2(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
-		d['source_positions_at_t']=d['source_positions_at_t'] #/self.args.width
-		d['detector_position_at_t']=d['detector_position_at_t'] #/self.args.width
 
 		d['source_image_at_t']=labels_to_source_images(d['source_positions_at_t'][None],self.args.width)[0]
 		d['detector_theta_image_at_t']=detector_positions_to_theta_grid(d['detector_position_at_t'][None],self.args.width)[0]
 		d['radio_image_at_t']=radio_to_image(d['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None])[0]
-		#featurie a really simple way
+
+		#normalize these before heading out
+		d['source_positions_at_t_normalized']=d['source_positions_at_t']/self.args.width
+		d['detector_position_at_t_normalized']=d['detector_position_at_t']/self.args.width
 		return d #,d['source_positions_at_t']
 
 
@@ -85,11 +86,11 @@ def collate_fn(_in):
 	times=d['time_stamps']/(0.00001+d['time_stamps'].max(axis=2,keepdim=True)[0]) 
 
 	#deal with source positions
-	source_positions=d['source_positions_at_t'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
+	source_positions=d['source_positions_at_t_normalized'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
 	#d['source_image_at_t']=labels_to_source_images(d['source_positions_at_t'],128)
 
 	#deal with detector position features
-	diffs=source_positions-d['detector_position_at_t']
+	diffs=source_positions-d['detector_position_at_t_normalized']
 	source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
 	distances=torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True))
 
@@ -111,9 +112,9 @@ def collate_fn(_in):
 
 	#create the labels
 	labels=torch.cat([
-		source_positions,
+		source_positions-0.5, # zero center the positions
 		source_theta,
-		distances,
+		distances, # try to zero center?
 		0*space_delta,
 		0*space_theta,
 		0*space_dist
