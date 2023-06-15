@@ -27,7 +27,7 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 
 	_radio_inputs=radio_inputs[:,:d_model['snapshots_per_sample']]
 	_radio_images=radio_images[:,:d_model['snapshots_per_sample']][:,:,0] # reshape to b,s,w,h
-	_labels=labels[:,:d_model['snapshots_per_sample']]
+	_labels=labels[:,:d_model['snapshots_per_sample']] # how does network learn the order?!
 	_label_images=label_images[:,d_model['snapshots_per_sample']-1] # reshape to b,1,w,h
 	losses={}
 	if d_model['images']==False:
@@ -165,7 +165,8 @@ if __name__=='__main__':
 	parser.add_argument('--lr-direct', type=float, required=False, default=0.01)
 	parser.add_argument('--lr-transformer', type=float, required=False, default=0.00001)
 	parser.add_argument('--plot', type=bool, required=False, default=False)
-	parser.add_argument('--losses', type=str, required=False, default="src_pos") #,src_theta,src_dist,det_delta,det_theta,det_space")
+	parser.add_argument('--clip', type=float, required=False, default=0.5)
+	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist") #,src_theta,src_dist,det_delta,det_theta,det_space")
 	args = parser.parse_args()
 	
 	if args.plot==False:
@@ -327,6 +328,8 @@ if __name__=='__main__':
 				loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
 				loss.backward()
 				running_losses['train'][d_model['name']].append(losses) 
+				if args.clip>0:
+					torch.nn.utils.clip_grad_norm_(d_net['model'].parameters(), args.clip) # clip gradients
 				d_model['optimizer'].step()
 			running_losses['train']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
 			running_losses['train']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
