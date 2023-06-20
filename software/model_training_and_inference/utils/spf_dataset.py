@@ -74,8 +74,8 @@ class SessionsDatasetTask2(SessionsDataset):
 		d['radio_image_at_t']=radio_to_image(d['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None])[0]
 
 		#normalize these before heading out
-		d['source_positions_at_t_normalized']=d['source_positions_at_t']/self.args.width
-		d['detector_position_at_t_normalized']=d['detector_position_at_t']/self.args.width
+		d['source_positions_at_t_normalized']=2*(d['source_positions_at_t']/self.args.width-0.5)
+		d['detector_position_at_t_normalized']=2*(d['detector_position_at_t']/self.args.width-0.5)
 		return d #,d['source_positions_at_t']
 
 
@@ -94,7 +94,7 @@ def collate_fn(_in):
 	source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
 	distances=torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True))
 
-	space_diffs=(d['detector_position_at_t'][:,:-1]-d['detector_position_at_t'][:,1:])
+	space_diffs=(d['detector_position_at_t_normalized'][:,:-1]-d['detector_position_at_t_normalized'][:,1:])
 	space_delta=torch.cat([
 		torch.zeros(b,1,2),
 		space_diffs,
@@ -112,7 +112,7 @@ def collate_fn(_in):
 
 	#create the labels
 	labels=torch.cat([
-		source_positions-0.5, # zero center the positions
+		source_positions, # zero center the positions
 		source_theta,
 		distances, # try to zero center?
 		0*space_delta,
@@ -126,7 +126,7 @@ def collate_fn(_in):
 			d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
 			d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
 			times-times.max(axis=2,keepdim=True)[0],
-			d['detector_position_at_t'],
+			d['detector_position_at_t_normalized'],
 			space_delta,
 			space_theta,
 			space_dist
