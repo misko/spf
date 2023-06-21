@@ -98,7 +98,7 @@ class SnapshotNet(nn.Module):
 		#self.snap_shot_net=Task1Net(d_radio_feature*snapshots_per_sample)
 
 		self.tformer=TransformerModel(
-			d_radio_feature=d_radio_feature,#+ssn_d_embed,#+n_outputs,
+			d_radio_feature=d_radio_feature+ssn_d_embed+n_outputs,
 			#d_radio_feature=ssn_d_embed, #+n_outputs,
 			d_model=d_model,
 			n_heads=n_heads,
@@ -114,8 +114,8 @@ class SnapshotNet(nn.Module):
 		tformer_output=self.tformer(
 			torch.cat([
 				x,
-				#d['embedding'],
-				#d['single_snapshot_pred']
+				d['embedding'],
+				d['single_snapshot_pred']
 				],axis=2))
 		return {'transformer_pred':tformer_output,'single_snapshot_pred':d['single_snapshot_pred']}
 		

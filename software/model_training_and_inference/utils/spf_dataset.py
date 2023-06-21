@@ -69,6 +69,15 @@ class SessionsDatasetTask2(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
 
+		#normalize these before heading out
+		d['source_positions_at_t_normalized']=2*(d['source_positions_at_t']/self.args.width-0.5)
+		d['detector_position_at_t_normalized']=2*(d['detector_position_at_t']/self.args.width-0.5)
+		return d #,d['source_positions_at_t']
+
+class SessionsDatasetTask2WithImages(SessionsDataset):
+	def __getitem__(self,idx):
+		d=super().__getitem__(idx)
+
 		d['source_image_at_t']=labels_to_source_images(d['source_positions_at_t'][None],self.args.width)[0]
 		d['detector_theta_image_at_t']=detector_positions_to_theta_grid(d['detector_position_at_t'][None],self.args.width)[0]
 		d['radio_image_at_t']=radio_to_image(d['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None])[0]
@@ -87,7 +96,6 @@ def collate_fn(_in):
 
 	#deal with source positions
 	source_positions=d['source_positions_at_t_normalized'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
-	#d['source_image_at_t']=labels_to_source_images(d['source_positions_at_t'],128)
 
 	#deal with detector position features
 	diffs=source_positions-d['detector_position_at_t_normalized']
@@ -133,8 +141,9 @@ def collate_fn(_in):
 		],
 		dim=2
 	).float() #.to(device)
-	radio_images=d['radio_image_at_t'].float()
-	
-	label_images=d['source_image_at_t'].float()
-	return radio_inputs,radio_images,labels,label_images
+	if 'radio_image_at_t' in d:
+		radio_images=d['radio_image_at_t'].float()
+		label_images=d['source_image_at_t'].float()
+		return radio_inputs,radio_images,labels,label_images
+	return radio_inputs,None,labels,None
 

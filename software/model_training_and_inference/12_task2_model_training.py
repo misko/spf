@@ -30,12 +30,13 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 		model_s=d_model['snapshots_per_sample']
 		#assert(s%model_s==0)
 		_radio_inputs=radio_inputs.reshape(b*s//model_s,model_s,radio_inputs.shape[-1])
-		_,_,_,w,h=radio_images.shape	
-		_radio_images=radio_images.reshape(b*s//model_s,model_s,w,h)
 		_,_,l=labels.shape
 		_labels=labels.reshape(b*s//model_s,model_s,l)
-		#_,_,_,_,_=label_images.shape	
-		_label_images=label_images.reshape(b*s//model_s,model_s,1,w,h)[:,model_s-1]
+		if radio_images is not None:
+			_,_,_,w,h=radio_images.shape	
+			_radio_images=radio_images.reshape(b*s//model_s,model_s,w,h)
+			#_,_,_,_,_=label_images.shape	
+			_label_images=label_images.reshape(b*s//model_s,model_s,1,w,h)[:,model_s-1]
 	else:
 		_radio_inputs=radio_inputs[:,:d_model['snapshots_per_sample']]
 		_radio_images=radio_images[:,:d_model['snapshots_per_sample'],0] # reshape to b,s,w,h
@@ -162,7 +163,8 @@ def plot_loss(running_losses,
 		axs[i].plot(xs,baseline_loss['baseline'],label='baseline')
 		axs[i].set_xlabel("time")
 		axs[i].set_ylabel("log loss")
-	axs[3].plot(xs,baseline_image_loss['baseline_image'],label='baseline image')
+	if baseline_image_loss is not None:
+		axs[3].plot(xs,baseline_image_loss['baseline_image'],label='baseline image')
 	axs[0].set_title("Transformer loss")
 	axs[1].set_title("Single snapshot loss")
 	axs[2].set_title("FC loss")
@@ -277,34 +279,36 @@ if __name__=='__main__':
 			'dead':False,
 		}
 		for snapshots_per_sample in args.snapshots_per_sample ]
-	for snapshots_per_sample in args.snapshots_per_sample:
-		models.append(
-			{
-				'name':'task1net%d' % snapshots_per_sample,
-				'model':Task1Net(265*snapshots_per_sample),
-				'snapshots_per_sample':snapshots_per_sample,
-				'images':False,
-				'lr':args.lr_direct,
-				'dead':False,
-			}
-		)
-	for snapshots_per_sample in args.snapshots_per_sample:
-		models.append(
-			{
-				'name':'FCNet %d' % snapshots_per_sample,
-				'model':SingleSnapshotNet(d_radio_feature=265,
-					d_hid=64,
-					d_embed=64,
-					n_layers=4,
-					n_outputs=8,
-					dropout=0.0,
-				snapshots_per_sample=snapshots_per_sample),
-				'snapshots_per_sample':snapshots_per_sample,
-				'images':False,
-				'lr':args.lr_direct,
-				'dead':False
-			}
-		)
+	if False:
+		for snapshots_per_sample in args.snapshots_per_sample:
+			models.append(
+				{
+					'name':'task1net%d' % snapshots_per_sample,
+					'model':Task1Net(265*snapshots_per_sample),
+					'snapshots_per_sample':snapshots_per_sample,
+					'images':False,
+					'lr':args.lr_direct,
+					'dead':False,
+				}
+			)
+	if False:
+		for snapshots_per_sample in args.snapshots_per_sample:
+			models.append(
+				{
+					'name':'FCNet %d' % snapshots_per_sample,
+					'model':SingleSnapshotNet(d_radio_feature=265,
+						d_hid=64,
+						d_embed=64,
+						n_layers=4,
+						n_outputs=8,
+						dropout=0.0,
+					snapshots_per_sample=snapshots_per_sample),
+					'snapshots_per_sample':snapshots_per_sample,
+					'images':False,
+					'lr':args.lr_direct,
+					'dead':False
+				}
+			)
 
 	if False:
 		for snapshots_per_sample in args.snapshots_per_sample: 
@@ -319,6 +323,11 @@ if __name__=='__main__':
 					'dead':False
 				}
 			 )
+
+	using_images=False
+	for d_model in models:
+		if d_model['images']:
+			using_images=True
 
 
 	#move the models to the device
@@ -352,10 +361,12 @@ if __name__=='__main__':
 		labels=labels.to(device)
 		
 		#image data
-		radio_images=radio_images.to(device)
-		label_images=label_images.to(device)
+		if using_images:
+			radio_images=radio_images.to(device)
+			label_images=label_images.to(device)
+			return radio_inputs,labels,radio_images,label_images
 		
-		return radio_inputs,labels,radio_images,label_images
+		return radio_inputs,labels,None,None
 
 	test_iterator = iter(testloader)
 	for epoch in range(args.epochs): 
@@ -371,7 +382,8 @@ if __name__=='__main__':
 					torch.nn.utils.clip_grad_norm_(d_net['model'].parameters(), args.clip) # clip gradients
 				d_model['optimizer'].step()
 			running_losses['train']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
-			running_losses['train']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
+			if using_images:
+				running_losses['train']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
 		
 			if i%args.print_every==args.print_every-1:
 				for idx in np.arange(args.test_mbs):
@@ -386,7 +398,8 @@ if __name__=='__main__':
 							loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
 							running_losses['test'][d_model['name']].append(losses) 
 					running_losses['test']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
-					running_losses['test']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
+					if using_images:
+						running_losses['test']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
 				
 	
 			if i==0 or i%args.save_every==args.save_every-1:
@@ -395,13 +408,18 @@ if __name__=='__main__':
 			if i % args.print_every == args.print_every-1:
 
 				train_baseline_loss=model_to_losses(running_losses['train']['baseline'],args.print_every)
-				train_baseline_image_loss=model_to_losses(running_losses['train']['baseline_image'],args.print_every)
 				test_baseline_loss=model_to_losses(running_losses['test']['baseline'],args.test_mbs)
-				test_baseline_image_loss=model_to_losses(running_losses['test']['baseline_image'],args.test_mbs)
-
+				train_baseline_image_loss=None
+				test_baseline_image_loss=None
 				print(f'[{epoch + 1}, {i + 1:5d}]')
-				print(f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f}, baseline_image: {train_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch' )
-				print(f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, baseline_image: {test_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch' )
+				if using_images:
+					train_baseline_image_loss=model_to_losses(running_losses['train']['baseline_image'],args.print_every)
+					test_baseline_image_loss=model_to_losses(running_losses['test']['baseline_image'],args.test_mbs)
+					print(f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f}, baseline_image: {train_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch' )
+					print(f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, baseline_image: {test_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch' )
+				else:
+					print(f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch' )
+					print(f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, time { (time.time()-start_time)/(i+1) :.3f} / batch' )
 				loss_str="\t"+"\n\t".join(
 					[ "%s(%s):(tr)%s,(ts)%s" % (d['name'],str(d['dead']),
 						model_to_loss_str(running_losses['train'][d['name']],args.print_every),

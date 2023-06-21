@@ -13,3 +13,10 @@ init dataset
 #task1
 (spf) miskodzamba@Miskos-MBP model_training_and_inference % python 01_generate_data.py --array-type circular --elements 4 --sources 1 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.0 --time-steps 64 --time-interval 0.3 --live true --output sessions-train --sessions 5000000
 (spf) miskodzamba@Miskos-MBP model_training_and_inference % python 12_task2_model_training.py --dataset ./sessions-train --lr-image 0.1 --mb 8 --workers 4 --print-every 10 --plot True --snapshots 1 16 32 --device mps --save-every 10000
+
+
+python 12_task2_model_training.py --dataset ./sessions-train --lr-image 0.05 --lr-direct 0.001 --mb 16 --workers 4 --print-every 300 --plot True --snapshots 1 4 16 32 64 128 --device mps --save-every 10000 --lr-transformer 0.0001
+
+#working well
+python 01_generate_data.py --array-type circular --elements 4 --sources 3 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.1 --time-steps 128 --time-interval 0.3 --live true --output sessions-train --sessions 5000000
+python 12_task2_model_training.py --dataset ./sessions-train --lr-image 0.05 --lr-direct 0.001 --mb 16 --workers 4 --print-every 300 --plot True --snapshots 1 4 16 32 64 128 --device mps --save-every 10000 --lr-transformer 0.0001
