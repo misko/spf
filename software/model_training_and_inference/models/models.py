@@ -50,7 +50,8 @@ class TransformerModel(nn.Module):
 			*[nn.Sequential(
 				nn.LayerNorm(d_hid),
 				nn.Linear(d_hid,d_hid),
-				nn.ReLU()
+				#nn.ReLU()
+				nn.SELU()
 				)
 			for _ in range(n_layers_output) ],
 			nn.LayerNorm(d_hid),
@@ -145,7 +146,8 @@ class SingleSnapshotNet(nn.Module):
 			*[nn.Sequential(
 				nn.LayerNorm(d_hid),
 				nn.Linear(d_hid,d_hid),
-				nn.ReLU()
+				#nn.ReLU()
+				nn.SELU()
 				)
 			for _ in range(n_layers) ],
 			nn.LayerNorm(d_hid),

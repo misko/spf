@@ -131,13 +131,13 @@ def collate_fn(_in):
 	#create the features
 	radio_inputs=torch.cat(
 		[
-			d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-			d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-			times-times.max(axis=2,keepdim=True)[0],
 			d['detector_position_at_t_normalized'],
+			times-times.max(axis=2,keepdim=True)[0],
 			space_delta,
 			space_theta,
-			space_dist
+			space_dist,
+			d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
+			d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
 		],
 		dim=2
 	).float() #.to(device)
