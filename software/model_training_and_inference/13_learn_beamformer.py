@@ -241,7 +241,7 @@ if __name__=='__main__':
 			{
 				'name':'ThetaNet %d' % snapshots_per_sample,
 				'model':ComplexFFN(
-					d_inputs=n_receivers*samples_per_snapshot+1,
+					d_inputs=n_receivers*samples_per_snapshot+2,
 					d_outputs=beam_former_bins,
 					d_hidden=beam_former_bins*2,
 					n_layers=4),
