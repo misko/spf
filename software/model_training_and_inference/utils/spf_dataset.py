@@ -106,8 +106,8 @@ def collate_fn_beamformer(_in):
 			perfect_labels[_b,_s,idxs[_b,_s]]=1
 	return {'input':torch.concatenate([
 			#d['signal_matrixs_at_t'].reshape(b,s,-1),
-			(d['signal_matrixs_at_t']/d['signal_matrixs_at_t'].sum(axis=[2,3],keepdims=True)).reshape(b,s,-1), # normalize the data
-			d['signal_matrixs_at_t'].sum(axis=[2,3],keepdims=True).reshape(b,s,-1), # 
+			(d['signal_matrixs_at_t']/d['signal_matrixs_at_t'].abs().mean(axis=[2,3],keepdims=True)).reshape(b,s,-1), # normalize the data
+			d['signal_matrixs_at_t'].abs().mean(axis=[2,3],keepdims=True).reshape(b,s,-1), # 
 			d['detector_orientation_at_t']],
 			axis=2),
 		'beamformer':d['beam_former_outputs_at_t'],

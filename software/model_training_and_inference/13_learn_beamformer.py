@@ -133,24 +133,17 @@ def plot_loss(running_losses,
 		title):
 	fig.clf()
 	fig.suptitle(title)
-	axs=fig.subplots(1,4,sharex=True)
-	axs[1].sharex(axs[0])
-	axs[2].sharex(axs[0])
+	ax=fig.subplots(1,1,sharex=True)
 	xs=np.arange(len(baseline_loss['baseline']))*xtick_spacing
-	for i in range(3):
-		axs[i].plot(xs,baseline_loss['baseline'],label='baseline')
-		axs[i].set_xlabel("time")
-		axs[i].set_ylabel("log loss")
-	axs[0].set_title("Transformer loss")
-	axs[1].set_title("Single snapshot loss")
-	axs[2].set_title("FC loss")
-	axs[3].set_title("Image loss")
+	ax.plot(xs,baseline_loss['baseline'],label='baseline')
+	ax.set_xlabel("time")
+	ax.set_ylabel("log loss")
+	ax.set_title("Loss")
 	for d_model in models:
 		losses=model_to_losses(running_losses[d_model['name']],mean_chunk)
 		if 'beamformer_loss' in losses:
-			axs[0].plot(xs,losses['beamformer_loss'],label=d_model['name'])
-	for i in range(4):
-		axs[i].legend()
+			ax.plot(xs,losses['beamformer_loss'],label=d_model['name'])
+	ax.legend()
 	fig.tight_layout()
 	fig.savefig('%sloss_%s_%d.png' % (output_prefix,title,i))
 	fig.canvas.draw_idle()
@@ -258,8 +251,8 @@ if __name__=='__main__':
 	for d_net in models:
 		d_net['model']=d_net['model'].to(device)
 	loss_figs={
-		'train':plt.figure(figsize=(14*3,6)),
-		'test':plt.figure(figsize=(14*3,6))}
+		'train':plt.figure(figsize=(9,6)),
+		'test':plt.figure(figsize=(9,6))}
 
 	for d_model in models:
 		d_model['optimizer']=optim.Adam(d_model['model'].parameters(),lr=d_model['lr'])
