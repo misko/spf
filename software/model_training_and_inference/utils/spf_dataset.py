@@ -68,23 +68,24 @@ class SessionsDatasetTask1(SessionsDataset):
 class SessionsDatasetTask2(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
-
 		#normalize these before heading out
 		d['source_positions_at_t_normalized']=2*(d['source_positions_at_t']/self.args.width-0.5)
 		d['detector_position_at_t_normalized']=2*(d['detector_position_at_t']/self.args.width-0.5)
+		d['source_distance_at_t_normalized']=d['source_distance_at_t'].mean(axis=2)/(self.args.width/2)
 		return d #,d['source_positions_at_t']
 
 class SessionsDatasetTask2WithImages(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
-
-		d['source_image_at_t']=labels_to_source_images(d['source_positions_at_t'][None],self.args.width)[0]
-		d['detector_theta_image_at_t']=detector_positions_to_theta_grid(d['detector_position_at_t'][None],self.args.width)[0]
-		d['radio_image_at_t']=radio_to_image(d['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None])[0]
-
 		#normalize these before heading out
 		d['source_positions_at_t_normalized']=2*(d['source_positions_at_t']/self.args.width-0.5)
 		d['detector_position_at_t_normalized']=2*(d['detector_position_at_t']/self.args.width-0.5)
+		d['source_distance_at_t_normalized']=d['source_distance_at_t'].mean(axis=2)/(self.args.width/2)
+
+		d['source_image_at_t']=labels_to_source_images(d['source_positions_at_t'][None],self.args.width)[0]
+		d['detector_theta_image_at_t']=detector_positions_to_theta_grid(d['detector_position_at_t'][None],self.args.width)[0]
+		d['radio_image_at_t']=radio_to_image(d['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None],d['detector_orientation_at_t'][None])[0]
+
 		return d #,d['source_positions_at_t']
 
 
@@ -99,9 +100,11 @@ def collate_fn(_in):
 
 	#deal with detector position features
 	diffs=source_positions-d['detector_position_at_t_normalized']
-	source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
-	distances=torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True))
-
+	#source_thetab=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
+	source_theta=d['source_theta_at_t'].mean(axis=2)/np.pi
+	#distancesb=torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True))
+	distances=d['source_distance_at_t_normalized'].mean(axis=2,keepdims=True)
+	#breakpoint()
 	space_diffs=(d['detector_position_at_t_normalized'][:,:-1]-d['detector_position_at_t_normalized'][:,1:])
 	space_delta=torch.cat([
 		torch.zeros(b,1,2),
@@ -123,11 +126,11 @@ def collate_fn(_in):
 		source_positions, # zero center the positions
 		source_theta,
 		distances, # try to zero center?
-		0*space_delta,
-		0*space_theta,
-		0*space_dist
+		space_delta,
+		space_theta,
+		space_dist
 	], axis=2).float() #.to(device)
-
+	#breakpoint()
 	#create the features
 	radio_inputs=torch.cat(
 		[

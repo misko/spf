@@ -16,7 +16,7 @@ from torch.utils.data import dataset, random_split
 
 from utils.image_utils import labels_to_source_images
 from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerModel,
-                    UNet)
+                    UNet, ComplexFFN)
 from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn
 
 
@@ -264,14 +264,13 @@ if __name__=='__main__':
 	parser.add_argument('--lr-transformer', type=float, required=False, default=0.00001)
 	parser.add_argument('--plot', type=bool, required=False, default=False)
 	parser.add_argument('--clip', type=float, required=False, default=0.5)
-	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist") #,src_theta,src_dist,det_delta,det_theta,det_space")
+	parser.add_argument('--losses', type=str, required=False, default="src_theta") #,src_theta,src_dist,det_delta,det_theta,det_space")
 	args = parser.parse_args()
 	
 	if args.plot==False:
 		import matplotlib
 		matplotlib.use('Agg')
 	import matplotlib.pyplot as plt
-		
 
 	torch.manual_seed(args.seed)
 	random.seed(args.seed)
@@ -319,7 +318,30 @@ if __name__=='__main__':
 
 	print("init network")
 	models=[]
-	if True:
+
+	#signal_matrix ~ (snapshots_per_sample,n_antennas,samples_per_snapshot)
+	
+	_,n_receivers,samples_per_snapshot=ds_train[0]['signal_matrixs_at_t'].shape
+	_,beam_former_bins=ds_train[0]['beam_former_outputs_at_t'].shape
+
+	for snapshots_per_sample in [1]:
+		models.append(
+			{
+				'name':'ThetaNet %d' % snapshots_per_sample,
+				'model':ComplexFFN(
+					d_inputs=n_receivers*samples_per_snapshot,
+					d_outputs=beam_former_bins,
+					d_hidden=beam_former_bins*2,
+					n_layers=4),
+				'snapshots_per_sample':snapshots_per_sample,
+				'images':False,
+				'lr':args.lr_direct,
+				'fig':plt.figure(figsize=(18,4)),
+				'dead':False
+			}
+		)
+	#eodels[-1](torch.from_numpy(ds[0]['signal_matrixs_at_t'].reshape(8,-1).astype(np.complex64)))
+	if False:
 		for n_layers in [1,4,8]:
 			for snapshots_per_sample in args.snapshots_per_sample:
 				models.append( 
@@ -364,25 +386,6 @@ if __name__=='__main__':
 				}
 			)
 
-	if False:
-		for snapshots_per_sample in args.snapshots_per_sample: 
-			models.append(
-				{
-					'name':'Unet %d' % snapshots_per_sample,
-					'model':UNet(in_channels=snapshots_per_sample,out_channels=1,width=128),
-					'snapshots_per_sample':snapshots_per_sample,
-					'images':True,'fig':plt.figure(figsize=(14,4)),
-					'normalize_input':True,
-					'lr':args.lr_image,
-					'dead':False
-				}
-			 )
-
-	using_images=False
-	for d_model in models:
-		if d_model['images']:
-			using_images=True
-
 
 	#move the models to the device
 	for d_net in models:
@@ -425,9 +428,10 @@ if __name__=='__main__':
 	test_iterator = iter(testloader)
 	for epoch in range(args.epochs): 
 		for i, data in enumerate(trainloader, 0):
+			breakpoint()
 			#move to device, do final prep
 			radio_inputs,labels,radio_images,label_images=prep_data(data)
-
+				
 			for d_model in models:
 				loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
 				loss.backward()

@@ -30,7 +30,9 @@ class BoundedPoint:
 			while self.pos[idx]>self.width or self.pos[idx]<0:
 				self.pos=np.clip(self.pos,0,self.width)
 				self.v[idx]=-self.v[idx]
-		return np.array(self.pos)
+		if np.linalg.norm(self.v)>0:
+			return np.array(self.pos),np.arctan2(self.v[1],self.v[0])
+		return np.array(self.pos),0.0
 
 
 def time_to_detector_offset(t,orbital_width,orbital_height,orbital_frequency=1/100.0,phase_offset=0): #1/2.0):
@@ -77,6 +79,10 @@ def generate_session(args_and_session_idx):
 	source_positions_at_t=np.zeros((args.time_steps,args.sources,2))
 	broadcasting_positions_at_t=np.zeros((args.time_steps,args.sources,1))
 	receiver_positions_at_t=np.zeros((args.time_steps,args.elements,2))
+	source_theta_at_t=np.zeros((args.time_steps,args.sources,1))
+	source_distance_at_t=np.zeros((args.time_steps,args.sources,1))
+
+	detector_orientation_at_t=np.ones((args.time_steps,1))
 
 	signal_matrixs_at_t=np.zeros((args.time_steps,args.elements,args.samples_per_snapshot),dtype=np.complex128)
 	beam_former_outputs_at_t=np.zeros((args.time_steps,args.beam_former_spacing))
@@ -85,6 +91,8 @@ def generate_session(args_and_session_idx):
 	thetas_at_t=np.zeros((args.time_steps,args.beam_former_spacing))
 
 	detector_theta=np.random.uniform(-np.pi,np.pi)
+	if args.reference:
+		detector_theta=np.random.choice([0,np.pi/4,np.pi/2,np.pi])
 	detector_v=np.array([np.cos(detector_theta),np.sin(detector_theta)])*args.detector_speed # 10m/s
 	p1=BoundedPoint(pos=np.random.uniform(0+10,args.width-10,2),
 			v=detector_v,
@@ -92,6 +100,14 @@ def generate_session(args_and_session_idx):
 
 	whos_broadcasting_at_t=np.random.randint(0,args.sources,args.time_steps)
 	broadcasting_positions_at_t[np.arange(args.time_steps),whos_broadcasting_at_t]=1
+
+	#deal with source positions
+	#broadcasting_source_positions=source_positions_at_t[np.where(broadcasting_positions_at_t==1)[:-1]]
+         
+        #deal with detector position features
+        #diffs=source_positions-d['detector_position_at_t_normalized']
+        #source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]
+	#breakpoint()
 
 	time_stamps=(np.arange(args.time_steps)*args.time_interval).reshape(-1,1)
 	for t_idx in np.arange(args.time_steps):
@@ -115,22 +131,27 @@ def generate_session(args_and_session_idx):
 				phase_offset=detector_position_phase_offset,
 				orbital_frequency=(2/3)*args.width*np.pi/args.detector_speed)*args.width).astype(int)
 		elif args.detector_trajectory=='bounce':
-			d.position_offset=p1.time_step()
+			d.position_offset,d.orientation=p1.time_step()
+			detector_orientation_at_t[t_idx]=d.orientation
 
 		detector_position_phase_offsets_at_t[t_idx]=detector_position_phase_offset
 		source_positions_at_t[t_idx]=fixed_source_positions
-		receiver_positions_at_t[t_idx]=np.array([ d.receiver_pos(idx) for idx in np.arange(d.n_receivers()) ]) #
+		receiver_positions_at_t[t_idx]=d.all_receiver_pos()
 
 		signal_matrixs_at_t[t_idx]=d.get_signal_matrix(
 			    start_time=time_stamps[t_idx,0],
 			    duration=args.samples_per_snapshot/d.sampling_frequency)
-
 		thetas_at_t[t_idx],beam_former_outputs_at_t[t_idx],_=beamformer_f(
 			d.all_receiver_pos(),
 			signal_matrixs_at_t[t_idx],
-			args.carrier_frequency,spacing=256+1)
-
+			args.carrier_frequency,spacing=args.beam_former_spacing,
+			offset=d.orientation)
+		#print(d.orientation,detector_theta)
 		detector_position_at_t[t_idx]=d.position_offset
+
+		diff=fixed_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
+		source_theta_at_t[t_idx]=np.arctan2(diff[[1]],diff[[0]])	
+		source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
 	session={
 			'broadcasting_positions_at_t':broadcasting_positions_at_t, # list of (time_steps,sources,1) 
 			'source_positions_at_t':source_positions_at_t, # (time_steps,sources,2[x,y])
@@ -140,9 +161,11 @@ def generate_session(args_and_session_idx):
 			'thetas_at_t':thetas_at_t, #(timesteps,thetas_tested_for_steering)
 			'detector_position_phase_offsets_at_t':detector_position_phase_offsets_at_t,
 			'time_stamps':time_stamps,
-			'width_at_t':np.ones((args.time_steps,1))*args.width,
-			'orientation_at_t':np.ones((args.time_steps,1))*d.orientation,
+			'width_at_t':np.ones((args.time_steps,1),dtype=int)*args.width,
+			'detector_orientation_at_t':detector_orientation_at_t,
 			'detector_position_at_t':detector_position_at_t, # (time_steps,2[x,y])
+			'source_theta_at_t':source_theta_at_t,
+			'source_distance_at_t':source_distance_at_t,
 	}
 	return session
 

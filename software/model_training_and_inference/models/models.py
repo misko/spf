@@ -13,6 +13,34 @@ from torch import Tensor, nn
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset
 
+from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear, ComplexReLU
+from complexPyTorch.complexFunctions import complex_relu
+
+class ComplexFFN(nn.Module):
+	def __init__(self,
+		d_inputs,
+		d_outputs,
+		n_layers,
+		d_hidden):
+		super().__init__()
+		
+		self.output_net=nn.Sequential(
+			ComplexLinear(d_inputs,d_hidden),
+			*[nn.Sequential(
+				#nn.LayerNorm(d_hid),
+				ComplexLinear(d_hidden,d_hidden),
+				#nn.ReLU()
+				#nn.SELU()
+				ComplexReLU()
+				)
+			for _ in range(n_layers) ],
+			#nn.LayerNorm(d_hidden),
+			ComplexLinear(d_hidden,d_outputs),
+			#nn.LayerNorm(n_outputs))
+		)
+	def forward(self,x):
+		return self.output_net(x)
+		
 
 class TransformerModel(nn.Module):
 	def __init__(self,

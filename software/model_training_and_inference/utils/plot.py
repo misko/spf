@@ -56,18 +56,18 @@ def plot_trajectory(ax,
 
 
 #generate the images for the session
-def plot_full_session(session,step_size,output_prefix):
+def plot_full_session(session,steps,output_prefix):
 	width=session['width_at_t'][0][0]
 	
 	#extract the images
 	d={}
 	d['source_image_at_t']=labels_to_source_images(torch.from_numpy(session['source_positions_at_t'])[None],width)[0]
 	d['detector_theta_image_at_t']=detector_positions_to_theta_grid(session['detector_position_at_t'][None],width)[0]
-	d['radio_image_at_t']=radio_to_image(session['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None])[0]
+	d['radio_image_at_t']=radio_to_image(session['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None],session['detector_orientation_at_t'][None])[0]
 	d['radio_image_at_t_normed']=d['radio_image_at_t']/d['radio_image_at_t'].sum(axis=2,keepdims=True).sum(axis=3,keepdims=True)
 	filenames=[]
 	plt.ioff()
-	for idx in np.arange(1,256,step_size):
+	for idx in np.arange(1,steps):
 		fig=plt.figure(figsize=(12,12))
 		axs=fig.subplots(2,2)
 		for _a in [0,1]:
@@ -79,6 +79,16 @@ def plot_full_session(session,step_size,output_prefix):
 
 		axs[0,0].set_title("Position map")
 		plot_trajectory(axs[0,0],session['detector_position_at_t'][:idx],width,ms=30,label='detector')
+		direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
+			[np.cos(session['detector_orientation_at_t'][idx-1]),np.sin(session['detector_orientation_at_t'][idx-1])],axis=1)
+		axs[0,0].plot(
+			[session['detector_position_at_t'][idx-1][0],direction[0,0]],
+			[session['detector_position_at_t'][idx-1][1],direction[0,1]])
+		anti_direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
+			[np.cos(session['detector_orientation_at_t'][idx-1]+np.pi/2),np.sin(session['detector_orientation_at_t'][idx-1]+np.pi/2)],axis=1)
+		axs[0,0].plot(
+			[session['detector_position_at_t'][idx-1][0],anti_direction[0,0]],
+			[session['detector_position_at_t'][idx-1][1],anti_direction[0,1]])
 		for n in np.arange(session['source_positions_at_t'].shape[1]):
 			rings=(session['broadcasting_positions_at_t'][idx,n,0]==1)
 			plot_trajectory(axs[0,0],session['source_positions_at_t'][:idx,n],width,ms=15,c='r',rings=rings,label='emitter %d' % n)

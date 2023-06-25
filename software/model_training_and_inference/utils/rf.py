@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from functools import cache
-from numba import jit
+#from numba import jit
+
+numba=False
 
 '''
 
@@ -184,17 +186,18 @@ def get_thetas(spacing):
     thetas=rf_linspace(-np.pi,np.pi,spacing)
     return thetas,np.vstack([np.cos(thetas)[None],np.sin(thetas)[None]]).T
 
-@jit(nopython=True)
-def beamformer_numba_helper(receiver_positions,signal_matrix,carrier_frequency,spacing,thetas,source_vectors):
-    steer_dot_signal=np.zeros(thetas.shape[0])
-    carrier_wavelength=c/carrier_frequency
+if numba:
+	@jit(nopython=True)
+	def beamformer_numba_helper(receiver_positions,signal_matrix,carrier_frequency,spacing,thetas,source_vectors):
+	    steer_dot_signal=np.zeros(thetas.shape[0])
+	    carrier_wavelength=c/carrier_frequency
 
-    projection_of_receiver_onto_source_directions=(source_vectors @ receiver_positions.T)
-    args=2*np.pi*projection_of_receiver_onto_source_directions/carrier_wavelength
-    steering_vectors=np.exp(-1j*args)
-    steer_dot_signal=np.absolute(steering_vectors @ signal_matrix).sum(axis=1)/signal_matrix.shape[1]
+	    projection_of_receiver_onto_source_directions=(source_vectors @ receiver_positions.T)
+	    args=2*np.pi*projection_of_receiver_onto_source_directions/carrier_wavelength
+	    steering_vectors=np.exp(-1j*args)
+	    steer_dot_signal=np.absolute(steering_vectors @ signal_matrix).sum(axis=1)/signal_matrix.shape[1]
 
-    return thetas,steer_dot_signal,steering_vectors
+	    return thetas,steer_dot_signal,steering_vectors
 
 
 def beamformer_numba(receiver_positions,signal_matrix,carrier_frequency,spacing=64+1):
@@ -205,9 +208,9 @@ def beamformer_numba(receiver_positions,signal_matrix,carrier_frequency,spacing=
             spacing,
             thetas,source_vectors)
 
-def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
-    thetas=np.linspace(-np.pi,np.pi,spacing)
-    source_vectors=np.vstack([np.cos(thetas)[None],np.sin(thetas)[None]]).T
+def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1,offset=0.0):
+    thetas=np.linspace(-np.pi,np.pi,spacing)#-offset
+    source_vectors=np.vstack([np.cos(thetas+offset)[None],np.sin(thetas+offset)[None]]).T
     #thetas,source_vectors=get_thetas(spacing)
     steer_dot_signal=np.zeros(thetas.shape[0])
     carrier_wavelength=c/carrier_frequency
