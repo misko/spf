@@ -89,6 +89,14 @@ def plot_full_session(session,steps,output_prefix):
 		axs[0,0].plot(
 			[session['detector_position_at_t'][idx-1][0],anti_direction[0,0]],
 			[session['detector_position_at_t'][idx-1][1],anti_direction[0,1]])
+		emitter_direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
+			[
+				np.cos(session['detector_orientation_at_t'][idx-1]+session['source_theta_at_t'][idx-1,0]),
+				np.sin(session['detector_orientation_at_t'][idx-1]+session['source_theta_at_t'][idx-1,0])
+			],axis=1)
+		axs[0,0].plot(
+			[session['detector_position_at_t'][idx-1][0],emitter_direction[0,0]],
+			[session['detector_position_at_t'][idx-1][1],emitter_direction[0,1]])
 		for n in np.arange(session['source_positions_at_t'].shape[1]):
 			rings=(session['broadcasting_positions_at_t'][idx,n,0]==1)
 			plot_trajectory(axs[0,0],session['source_positions_at_t'][:idx,n],width,ms=15,c='r',rings=rings,label='emitter %d' % n)
@@ -106,6 +114,7 @@ def plot_full_session(session,steps,output_prefix):
 		axs[1,1].set_title("Radio feature at t=%d" % idx)
 
 		axs[0,1].plot(session['thetas_at_t'][idx],session['beam_former_outputs_at_t'][idx])
+		axs[0,1].axvline(x=session['source_theta_at_t'][idx-1,0],c='r')
 		axs[0,1].set_title("Beamformer output at t=%d" % idx)
 		axs[0,1].set_xlabel("Theta (rel. to detector)")
 		axs[0,1].set_ylabel("Signal strength")

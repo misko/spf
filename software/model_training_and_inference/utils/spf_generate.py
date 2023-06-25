@@ -79,12 +79,12 @@ def generate_session(args_and_session_idx):
 	source_positions_at_t=np.zeros((args.time_steps,args.sources,2))
 	broadcasting_positions_at_t=np.zeros((args.time_steps,args.sources,1))
 	receiver_positions_at_t=np.zeros((args.time_steps,args.elements,2))
-	source_theta_at_t=np.zeros((args.time_steps,args.sources,1))
-	source_distance_at_t=np.zeros((args.time_steps,args.sources,1))
+	source_theta_at_t=np.zeros((args.time_steps,1,1))
+	source_distance_at_t=np.zeros((args.time_steps,1,1))
 
 	detector_orientation_at_t=np.ones((args.time_steps,1))
 
-	signal_matrixs_at_t=np.zeros((args.time_steps,args.elements,args.samples_per_snapshot),dtype=np.complex128)
+	signal_matrixs_at_t=np.zeros((args.time_steps,args.elements,args.samples_per_snapshot),dtype=np.complex64)
 	beam_former_outputs_at_t=np.zeros((args.time_steps,args.beam_former_spacing))
 	detector_position_at_t=np.zeros((args.time_steps,2))
 
@@ -150,7 +150,7 @@ def generate_session(args_and_session_idx):
 		detector_position_at_t[t_idx]=d.position_offset
 
 		diff=fixed_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
-		source_theta_at_t[t_idx]=np.arctan2(diff[[1]],diff[[0]])	
+		source_theta_at_t[t_idx]=(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi	
 		source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
 	session={
 			'broadcasting_positions_at_t':broadcasting_positions_at_t, # list of (time_steps,sources,1) 

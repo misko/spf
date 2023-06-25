@@ -89,6 +89,29 @@ class SessionsDatasetTask2WithImages(SessionsDataset):
 		return d #,d['source_positions_at_t']
 
 
+def collate_fn_beamformer(_in):
+	d={ k:torch.from_numpy(np.stack([ x[k] for x in _in ])) for k in _in[0]}
+	b,s,n_sources,_=d['source_positions_at_t'].shape
+
+	times=d['time_stamps']/(0.00001+d['time_stamps'].max(axis=2,keepdim=True)[0]) 
+
+	source_theta=d['source_theta_at_t'].mean(axis=2)
+	distances=d['source_distance_at_t_normalized'].mean(axis=2,keepdims=True)
+	_,_,beam_former_bins=d['beam_former_outputs_at_t'].shape
+	perfect_labels=torch.zeros((b,s,beam_former_bins))
+
+	idxs=(beam_former_bins*(d['source_theta_at_t']+np.pi)/(2*np.pi)).int()
+	for _b in torch.arange(b):
+		for _s in torch.arange(s):
+			perfect_labels[_b,_s,idxs[_b,_s]]=1
+	return {'input':torch.concatenate([
+			d['signal_matrixs_at_t'].reshape(b,s,-1),
+			d['detector_orientation_at_t']],
+			axis=2),
+		'beamformer':d['beam_former_outputs_at_t'],
+		'labels':perfect_labels,
+		'thetas':source_theta}
+
 def collate_fn(_in):
 	d={ k:torch.from_numpy(np.stack([ x[k] for x in _in ])) for k in _in[0]}
 	b,s,n_sources,_=d['source_positions_at_t'].shape
@@ -99,7 +122,7 @@ def collate_fn(_in):
 	source_positions=d['source_positions_at_t_normalized'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
 
 	#deal with detector position features
-	diffs=source_positions-d['detector_position_at_t_normalized']
+	#diffs=source_positions-d['detector_position_at_t_normalized']
 	#source_thetab=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
 	source_theta=d['source_theta_at_t'].mean(axis=2)/np.pi
 	#distancesb=torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True))
@@ -149,4 +172,3 @@ def collate_fn(_in):
 		label_images=d['source_image_at_t'].float()
 		return radio_inputs,radio_images,labels,label_images
 	return radio_inputs,None,labels,None
-
