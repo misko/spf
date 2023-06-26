@@ -16,7 +16,7 @@ from torch.utils.data import dataset, random_split
 
 from utils.image_utils import labels_to_source_images
 from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerModel,
-                    UNet, ComplexFFN)
+                    UNet, ComplexFFNN, HybridFFNN)
 from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn_beamformer
 
 
@@ -230,21 +230,40 @@ if __name__=='__main__':
 	_,beam_former_bins=ds_train[0]['beam_former_outputs_at_t'].shape
 
 	for snapshots_per_sample in [1]:
-		models.append(
-			{
-				'name':'ThetaNet %d' % snapshots_per_sample,
-				'model':ComplexFFN(
-					d_inputs=n_receivers*samples_per_snapshot+2,
-					d_outputs=beam_former_bins,
-					d_hidden=beam_former_bins*2,
-					n_layers=4),
-				'snapshots_per_sample':snapshots_per_sample,
-				'images':False,
-				'lr':args.lr_direct,
-				'fig':plt.figure(figsize=(18,4)),
-				'dead':False
-			}
-		)
+		for n_complex_layers in [2,4]:
+			for norm in [True,False]:
+				models.append(
+					{
+						'name':'ThetaNet(Complex%d) %s %d' % (n_complex_layers,"Norm" if norm else "",snapshots_per_sample),
+						'model':ComplexFFNN(
+							d_inputs=n_receivers*samples_per_snapshot+2,
+							d_outputs=beam_former_bins,
+							d_hidden=beam_former_bins*2,
+							n_layers=n_complex_layers,norm=norm),
+						'snapshots_per_sample':snapshots_per_sample,
+						'images':False,
+						'lr':args.lr_direct,
+						'fig':plt.figure(figsize=(18,4)),
+						'dead':False
+					}
+				)
+				models.append(
+					{
+						'name':'ThetaNet(Hybrid%d) %s %d' % (n_complex_layers,"Norm" if norm else "",snapshots_per_sample),
+						'model':HybridFFNN(
+							d_inputs=n_receivers*samples_per_snapshot+2,
+							d_outputs=beam_former_bins,
+							n_complex_layers=n_complex_layers,
+							n_real_layers=8,
+							d_hidden=beam_former_bins*2,
+							norm=norm),
+						'snapshots_per_sample':snapshots_per_sample,
+						'images':False,
+						'lr':args.lr_direct,
+						'fig':plt.figure(figsize=(18,4)),
+						'dead':False
+					}
+				)
 
 
 	#move the models to the device

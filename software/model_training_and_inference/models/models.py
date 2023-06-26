@@ -16,17 +16,51 @@ from torch.utils.data import dataset
 
 from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear, ComplexReLU, ComplexBatchNorm1d #, ComplexSigmoid
 from complexPyTorch.complexFunctions import complex_relu
+class HybridFFNN(nn.Module):
+	def __init__(self,
+		d_inputs,
+		d_outputs,
+		n_complex_layers,
+		n_real_layers,
+		d_hidden,
+		norm=False):
+		super().__init__()
+		
+		self.complex_net=ComplexFFNN(
+			d_inputs,
+			d_hidden,
+			n_layers=n_complex_layers,
+			d_hidden=d_hidden,
+			norm=norm
+		)
+		self.real_net=nn.Sequential(
+			nn.Linear(d_hidden,d_hidden),
+			*[nn.Sequential(
+				#nn.LayerNorm(d_hidden),
+				nn.Linear(d_hidden,d_hidden),
+				nn.SELU()
+				)
+			for _ in range(n_real_layers) ],
+			nn.LayerNorm(d_hidden),
+			nn.Linear(d_hidden,d_outputs)
+		)
+		
+	def forward(self,x):
+		complex_out=self.complex_net(x)
+		real_out=self.real_net(complex_out.abs())
+		return real_out/(real_out.sum(axis=1,keepdims=True)+1e-9)
+	
 
-class ComplexFFN(nn.Module):
+class ComplexFFNN(nn.Module):
 	def __init__(self,
 		d_inputs,
 		d_outputs,
 		n_layers,
-		d_hidden):
+		d_hidden,norm=False):
 		super().__init__()
 		
 		self.output_net=nn.Sequential(
-			ComplexBatchNorm1d(d_inputs),
+			ComplexBatchNorm1d(d_inputs) if norm else nn.Identity(),
 			ComplexLinear(d_inputs,d_hidden),
 			*[nn.Sequential(
 				#nn.LayerNorm(d_hid),
@@ -35,7 +69,7 @@ class ComplexFFN(nn.Module):
 				#nn.SELU()
 				ComplexReLU(),
 				#ComplexSigmoid(),
-				ComplexBatchNorm1d(d_hidden),
+				ComplexBatchNorm1d(d_hidden) if norm else nn.Identity(),
 				)
 			for _ in range(n_layers) ],
 			#nn.LayerNorm(d_hidden),
@@ -47,6 +81,7 @@ class ComplexFFN(nn.Module):
 		if out.sum().isnan():
 			breakpoint()
 			a=1
+		#breakpoint()
 		#return F.softmax(self.output_net(x).abs(),dim=1)
 		return out/(out.sum(axis=1,keepdims=True)+1e-9)
 		

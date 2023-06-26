@@ -104,15 +104,16 @@ def collate_fn_beamformer(_in):
 	for _b in torch.arange(b):
 		for _s in torch.arange(s):
 			perfect_labels[_b,_s,idxs[_b,_s]]=1
-	return {'input':torch.concatenate([
+	r= {'input':torch.concatenate([
 			#d['signal_matrixs_at_t'].reshape(b,s,-1),
 			(d['signal_matrixs_at_t']/d['signal_matrixs_at_t'].abs().mean(axis=[2,3],keepdims=True)).reshape(b,s,-1), # normalize the data
 			d['signal_matrixs_at_t'].abs().mean(axis=[2,3],keepdims=True).reshape(b,s,-1), # 
-			d['detector_orientation_at_t']],
+			d['detector_orientation_at_t'].to(torch.complex64)],
 			axis=2),
 		'beamformer':d['beam_former_outputs_at_t'],
 		'labels':perfect_labels,
 		'thetas':source_theta}
+	return r
 
 def collate_fn(_in):
 	d={ k:torch.from_numpy(np.stack([ x[k] for x in _in ])) for k in _in[0]}
