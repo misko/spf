@@ -139,10 +139,16 @@ def plot_loss(running_losses,
 	ax.set_xlabel("time")
 	ax.set_ylabel("log loss")
 	ax.set_title("Loss")
+	#mn=baseline_loss['baseline'].max()-baseline_loss['baseline'].std()
+	#print(baseline_loss['baseline'].std())
 	for d_model in models:
 		losses=model_to_losses(running_losses[d_model['name']],mean_chunk)
 		if 'beamformer_loss' in losses:
-			ax.plot(xs,losses['beamformer_loss'],label=d_model['name'])
+			ax.plot(xs[2:],losses['beamformer_loss'][2:],label=d_model['name'])
+			#_mn=np.min(losses['beamformer_loss'])
+			#if _mn<mn:
+			#	mn=_mn
+	#ax.set_ylim([baseline_loss['baseline'].max(),None]) #*0.9])
 	ax.legend()
 	fig.tight_layout()
 	fig.savefig('%sloss_%s_%d.png' % (output_prefix,title,i))
@@ -230,7 +236,7 @@ if __name__=='__main__':
 	_,beam_former_bins=ds_train[0]['beam_former_outputs_at_t'].shape
 
 	for snapshots_per_sample in [1]:
-		for n_complex_layers in [2,4]:
+		for n_complex_layers in [2,4,8]:
 			for norm in [True,False]:
 				models.append(
 					{
@@ -340,7 +346,7 @@ if __name__=='__main__':
 						model_to_loss_str(running_losses['test'][d['name']],args.test_mbs)
 					) for d in models ])
 				print(loss_str)
-				if i//args.print_every>3:
+				if i//args.print_every>0:
 					plot_loss(running_losses=running_losses['train'],
 						baseline_loss=train_baseline_loss,
 						xtick_spacing=args.print_every,

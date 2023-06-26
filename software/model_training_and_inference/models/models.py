@@ -36,12 +36,12 @@ class HybridFFNN(nn.Module):
 		self.real_net=nn.Sequential(
 			nn.Linear(d_hidden,d_hidden),
 			*[nn.Sequential(
-				#nn.LayerNorm(d_hidden),
 				nn.Linear(d_hidden,d_hidden),
+				nn.LayerNorm(d_hidden) if norm else nn.Identity(),
 				nn.SELU()
 				)
 			for _ in range(n_real_layers) ],
-			nn.LayerNorm(d_hidden),
+			nn.LayerNorm(d_hidden) if norm else nn.Identity(),
 			nn.Linear(d_hidden,d_outputs)
 		)
 		
@@ -63,18 +63,12 @@ class ComplexFFNN(nn.Module):
 			ComplexBatchNorm1d(d_inputs) if norm else nn.Identity(),
 			ComplexLinear(d_inputs,d_hidden),
 			*[nn.Sequential(
-				#nn.LayerNorm(d_hid),
 				ComplexLinear(d_hidden,d_hidden),
-				#nn.ReLU()
-				#nn.SELU()
 				ComplexReLU(),
-				#ComplexSigmoid(),
 				ComplexBatchNorm1d(d_hidden) if norm else nn.Identity(),
 				)
 			for _ in range(n_layers) ],
-			#nn.LayerNorm(d_hidden),
 			ComplexLinear(d_hidden,d_outputs),
-			#nn.LayerNorm(n_outputs))
 		)
 	def forward(self,x):
 		out=self.output_net(x).abs()
