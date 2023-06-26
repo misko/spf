@@ -234,7 +234,7 @@ if __name__=='__main__':
 			for norm in [True,False]:
 				models.append(
 					{
-						'name':'ThetaNet(Complex%d) %s %d' % (n_complex_layers,"Norm" if norm else "",snapshots_per_sample),
+						'name':'ThetaNet(Complex%d) %s snaps:%d' % (n_complex_layers,"Norm" if norm else "",snapshots_per_sample),
 						'model':ComplexFFNN(
 							d_inputs=n_receivers*samples_per_snapshot+2,
 							d_outputs=beam_former_bins,
@@ -249,7 +249,7 @@ if __name__=='__main__':
 				)
 				models.append(
 					{
-						'name':'ThetaNet(Hybrid%d) %s %d' % (n_complex_layers,"Norm" if norm else "",snapshots_per_sample),
+						'name':'ThetaNet(Hybrid%d) %s snaps:%d' % (n_complex_layers,"Norm" if norm else "",snapshots_per_sample),
 						'model':HybridFFNN(
 							d_inputs=n_receivers*samples_per_snapshot+2,
 							d_outputs=beam_former_bins,
@@ -340,7 +340,7 @@ if __name__=='__main__':
 						model_to_loss_str(running_losses['test'][d['name']],args.test_mbs)
 					) for d in models ])
 				print(loss_str)
-				if i//args.print_every>0:
+				if i//args.print_every>3:
 					plot_loss(running_losses=running_losses['train'],
 						baseline_loss=train_baseline_loss,
 						xtick_spacing=args.print_every,
