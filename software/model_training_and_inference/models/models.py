@@ -37,18 +37,19 @@ class HybridFFNN(nn.Module):
 			nn.Linear(d_hidden,d_hidden),
 			*[nn.Sequential(
 				nn.Linear(d_hidden,d_hidden),
-				nn.LayerNorm(d_hidden) if norm else nn.Identity(),
-				nn.SELU()
+				nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
+				nn.ReLU()
 				)
 			for _ in range(n_real_layers) ],
-			nn.LayerNorm(d_hidden) if norm else nn.Identity(),
+			nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
 			nn.Linear(d_hidden,d_outputs)
 		)
 		
 	def forward(self,x):
 		complex_out=self.complex_net(x)
 		real_out=self.real_net(complex_out.abs())
-		return real_out/(real_out.sum(axis=1,keepdims=True)+1e-9)
+		return F.softmax(real_out,dim=1)
+		#return real_out/(real_out.sum(axis=1,keepdims=True)+1e-9)
 	
 
 class ComplexFFNN(nn.Module):
@@ -56,7 +57,8 @@ class ComplexFFNN(nn.Module):
 		d_inputs,
 		d_outputs,
 		n_layers,
-		d_hidden,norm=False):
+		d_hidden,
+		norm=False):
 		super().__init__()
 		
 		self.output_net=nn.Sequential(
@@ -76,8 +78,8 @@ class ComplexFFNN(nn.Module):
 			breakpoint()
 			a=1
 		#breakpoint()
-		#return F.softmax(self.output_net(x).abs(),dim=1)
-		return out/(out.sum(axis=1,keepdims=True)+1e-9)
+		return F.softmax(self.output_net(x).abs(),dim=1)
+		#return out/(out.sum(axis=1,keepdims=True)+1e-9)
 		
 
 class TransformerModel(nn.Module):

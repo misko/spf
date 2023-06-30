@@ -101,9 +101,12 @@ def collate_fn_beamformer(_in):
 	perfect_labels=torch.zeros((b,s,beam_former_bins))
 
 	idxs=(beam_former_bins*(d['source_theta_at_t']+np.pi)/(2*np.pi)).int()
+	smooth_bins=int(beam_former_bins*0.25*0.5)
 	for _b in torch.arange(b):
 		for _s in torch.arange(s):
-			perfect_labels[_b,_s,idxs[_b,_s]]=1
+			for smooth in range(-smooth_bins,smooth_bins+1):
+				perfect_labels[_b,_s,(idxs[_b,_s]+smooth)%beam_former_bins]=1/(1+smooth**2)
+			perfect_labels[_b,_s]/=perfect_labels[_b,_s].sum()+1e-9
 	r= {'input':torch.concatenate([
 			#d['signal_matrixs_at_t'].reshape(b,s,-1),
 			(d['signal_matrixs_at_t']/d['signal_matrixs_at_t'].abs().mean(axis=[2,3],keepdims=True)).reshape(b,s,-1), # normalize the data

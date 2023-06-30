@@ -54,8 +54,11 @@ def model_forward(d_model,inputs,outputs,args,beamformer):
 	b,s,_=inputs.shape
 	losses={}
 	preds=d_model['model'](inputs.reshape(b*s,-1))
+	p=0.5
 	loss = criterion(preds,outputs.reshape(b*s,-1))
-	losses['beamformer_loss']=loss.item()
+	beam_loss = criterion(preds,beamformer.reshape(b*s,-1).float())
+	losses['mse_loss']=loss.item()
+	losses['beamformer_loss']=beam_loss.item()
 	if (i%args.print_every)==args.print_every-1:
 		d_model['fig'].clf()
 		axs=d_model['fig'].subplots(1,2,sharex=True,sharey=True)
@@ -68,13 +71,13 @@ def model_forward(d_model,inputs,outputs,args,beamformer):
 		d_model['fig'].savefig('%s%s_%d.png' % (args.output_prefix,d_model['name'],i))
 		d_model['fig'].canvas.draw_idle()
 	d_model['dead']=np.isclose(preds.var(axis=1).mean().item(),0.0)
-	return loss,losses
+	return p*loss+(1-p)*beam_loss,losses
 
 def model_to_losses(running_loss,mean_chunk):
 	if len(running_loss)==0:
 		return {}
 	losses={}
-	for k in ['baseline','baseline_image','beamformer_loss']:
+	for k in ['baseline','baseline_image','beamformer_loss','mse_loss']:
 		if k in running_loss[0]:
 			if '_stats' not in k:
 				losses[k]=np.log(np.array( [ np.mean([ l[k] for l in running_loss[idx*mean_chunk:(idx+1)*mean_chunk]])  
@@ -89,7 +92,7 @@ def model_to_loss_str(running_loss,mean_chunk):
 		return ""
 	loss_str=[]
 	losses=model_to_losses(running_loss,mean_chunk)
-	for k in ['beamformer_loss']:
+	for k in ['beamformer_loss','mse_loss']:
 		if k in losses:
 			loss_str.append("%s:%0.4f" % (k,losses[k][-1]))
 	return ",".join(loss_str)
@@ -133,23 +136,27 @@ def plot_loss(running_losses,
 		title):
 	fig.clf()
 	fig.suptitle(title)
-	ax=fig.subplots(1,1,sharex=True)
+	ax=fig.subplots(1,2,sharex=True)
 	xs=np.arange(len(baseline_loss['baseline']))*xtick_spacing
-	ax.plot(xs,baseline_loss['baseline'],label='baseline')
-	ax.set_xlabel("time")
-	ax.set_ylabel("log loss")
-	ax.set_title("Loss")
+	ax[0].plot(xs,baseline_loss['baseline'],label='baseline')
+	for idx in [0,1]:
+		ax[idx].set_xlabel("time")
+		ax[idx].set_ylabel("log loss")
+		ax[idx].set_title("Loss")
 	#mn=baseline_loss['baseline'].max()-baseline_loss['baseline'].std()
 	#print(baseline_loss['baseline'].std())
 	for d_model in models:
 		losses=model_to_losses(running_losses[d_model['name']],mean_chunk)
+		if 'mse_loss' in losses:
+			ax[0].plot(xs[2:],losses['mse_loss'][2:],label=d_model['name'])
 		if 'beamformer_loss' in losses:
-			ax.plot(xs[2:],losses['beamformer_loss'][2:],label=d_model['name'])
+			ax[1].plot(xs[2:],losses['beamformer_loss'][2:],label=d_model['name'])
 			#_mn=np.min(losses['beamformer_loss'])
 			#if _mn<mn:
 			#	mn=_mn
 	#ax.set_ylim([baseline_loss['baseline'].max(),None]) #*0.9])
-	ax.legend()
+	ax[0].legend()
+	ax[1].legend()
 	fig.tight_layout()
 	fig.savefig('%sloss_%s_%d.png' % (output_prefix,title,i))
 	fig.canvas.draw_idle()
@@ -236,8 +243,8 @@ if __name__=='__main__':
 	_,beam_former_bins=ds_train[0]['beam_former_outputs_at_t'].shape
 
 	for snapshots_per_sample in [1]:
-		for n_complex_layers in [2,4,8]:
-			for norm in [True,False]:
+		for n_complex_layers in [2,4,8,16,32]:#,32]:
+			for norm in [False]:
 				models.append(
 					{
 						'name':'ThetaNet(Complex%d) %s snaps:%d' % (n_complex_layers,"Norm" if norm else "",snapshots_per_sample),
@@ -276,8 +283,8 @@ if __name__=='__main__':
 	for d_net in models:
 		d_net['model']=d_net['model'].to(device)
 	loss_figs={
-		'train':plt.figure(figsize=(9,6)),
-		'test':plt.figure(figsize=(9,6))}
+		'train':plt.figure(figsize=(14,6)),
+		'test':plt.figure(figsize=(14,6))}
 
 	for d_model in models:
 		d_model['optimizer']=optim.Adam(d_model['model'].parameters(),lr=d_model['lr'])
@@ -328,8 +335,8 @@ if __name__=='__main__':
 							running_losses['test'][d_model['name']].append(losses) 
 					running_losses['test']['baseline'].append( 
 						{'baseline':criterion(data['beamformer'], data['labels']).item() } )
-				
-	
+			
+
 			if i==0 or i%args.save_every==args.save_every-1:
 				save(args,running_losses,models,i,args.keep_n_saves)
 

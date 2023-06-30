@@ -33,3 +33,6 @@ python 01_generate_data.py --array-type circular --elements 2 --sources 3 --widt
 
 #beamformer experiments
 python 01_generate_data.py --array-type linear --elements 2 --sources 1 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.0 --time-steps 8 --time-interval 0.3 --live true --output sessions-train --sessions 50000000 --seed 1337
+
+python 01_generate_data.py --array-type linear --elements 2 --sources 1 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.3 --time-steps 8 --time-interval 0.3 --live true --output sessions-train --sessions 50000000 --seed 1337
+python 13_learn_beamformer.py   --snapshots 8 --mb 16 --workers 0 --dataset sessions-train --print-every 256 --lr-direct 0.0001 --device cpu --save-every 10000

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from functools import cache
 #from numba import jit
-
+import functools
 numba=False
 
 '''
@@ -13,11 +13,11 @@ source direction is correct, the signal from the N different receivers should
 interfer constructively.
 
 '''
-@cache
+@functools.lru_cache(maxsize=1024)
 def rf_linspace(s,e,i):
     return np.linspace(s,e,i)
 
-@cache
+@functools.lru_cache(maxsize=1024)
 def rotation_matrix(orientation):
   s = np.sin(orientation)
   c = np.cos(orientation)
@@ -160,7 +160,7 @@ class Detector(object):
     return sample_matrix
 
 
-@cache
+@functools.lru_cache(maxsize=1024)
 def linear_receiver_positions(n_elements,spacing):
     receiver_positions=np.zeros((n_elements,2))
     receiver_positions[:,0]=spacing*(np.arange(n_elements)-(n_elements-1)/2)
@@ -171,7 +171,7 @@ class ULADetector(Detector):
     super().__init__(sampling_frequency)
     self.set_receiver_positions(linear_receiver_positions(n_elements,spacing))
     
-@cache
+@functools.lru_cache(maxsize=1024)
 def circular_receiver_positions(n_elements,radius):
     theta=(rf_linspace(0,2*np.pi,n_elements+1)[:-1]+np.pi/2).reshape(-1,1)
     return radius*np.hstack([np.cos(theta),np.sin(theta)])
@@ -181,7 +181,7 @@ class UCADetector(Detector):
     super().__init__(sampling_frequency)
     self.set_receiver_positions(circular_receiver_positions(n_elements,radius))
 
-@cache
+@functools.lru_cache(maxsize=1024)
 def get_thetas(spacing):
     thetas=rf_linspace(-np.pi,np.pi,spacing)
     return thetas,np.vstack([np.cos(thetas)[None],np.sin(thetas)[None]]).T
