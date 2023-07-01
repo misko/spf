@@ -1,11 +1,11 @@
-from functools import cache
+from functools import lru_cache
 
 import numpy as np
 import torch
 import torchvision
 
 
-@cache
+@lru_cache
 def get_grid(width):
 	_xy=np.arange(width).astype(np.int16)
 	_x,_y=np.meshgrid(_xy,_xy)

@@ -20,7 +20,7 @@ numba==0.57.0
 numpy==1.24.3
 packaging==23.1
 Pillow==9.5.0
-portalocker==2.7.0
+#portalocker==2.7.0
 pyadi-iio @ file:///Users/miskodzamba/Dropbox/research/gits/pyadi-iio
 pylibiio @ file:///Users/miskodzamba/Dropbox/research/gits/libiio/build/bindings/python
 pyparsing==3.0.9

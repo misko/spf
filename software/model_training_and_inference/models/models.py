@@ -1,7 +1,6 @@
 import math
 import os
 from collections import OrderedDict
-from functools import cache
 from tempfile import TemporaryDirectory
 from typing import Tuple
 import torch.nn.functional as F
@@ -14,73 +13,74 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset
 
 
-from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear, ComplexReLU, ComplexBatchNorm1d #, ComplexSigmoid
-from complexPyTorch.complexFunctions import complex_relu
-class HybridFFNN(nn.Module):
-	def __init__(self,
-		d_inputs,
-		d_outputs,
-		n_complex_layers,
-		n_real_layers,
-		d_hidden,
-		norm=False):
-		super().__init__()
-		
-		self.complex_net=ComplexFFNN(
-			d_inputs,
-			d_hidden,
-			n_layers=n_complex_layers,
-			d_hidden=d_hidden,
-			norm=norm
-		)
-		self.real_net=nn.Sequential(
-			nn.Linear(d_hidden,d_hidden),
-			*[nn.Sequential(
-				nn.Linear(d_hidden,d_hidden),
-				nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
-				nn.ReLU()
-				)
-			for _ in range(n_real_layers) ],
-			nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
-			nn.Linear(d_hidden,d_outputs)
-		)
-		
-	def forward(self,x):
-		complex_out=self.complex_net(x)
-		real_out=self.real_net(complex_out.abs())
-		return F.softmax(real_out,dim=1)
-		#return real_out/(real_out.sum(axis=1,keepdims=True)+1e-9)
-	
+if False:
+    from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear, ComplexReLU, ComplexBatchNorm1d #, ComplexSigmoid
+    from complexPyTorch.complexFunctions import complex_relu
+    class HybridFFNN(nn.Module):
+            def __init__(self,
+                    d_inputs,
+                    d_outputs,
+                    n_complex_layers,
+                    n_real_layers,
+                    d_hidden,
+                    norm=False):
+                    super().__init__()
+                    
+                    self.complex_net=ComplexFFNN(
+                            d_inputs,
+                            d_hidden,
+                            n_layers=n_complex_layers,
+                            d_hidden=d_hidden,
+                            norm=norm
+                    )
+                    self.real_net=nn.Sequential(
+                            nn.Linear(d_hidden,d_hidden),
+                            *[nn.Sequential(
+                                    nn.Linear(d_hidden,d_hidden),
+                                    nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
+                                    nn.ReLU()
+                                    )
+                            for _ in range(n_real_layers) ],
+                            nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
+                            nn.Linear(d_hidden,d_outputs)
+                    )
+                    
+            def forward(self,x):
+                    complex_out=self.complex_net(x)
+                    real_out=self.real_net(complex_out.abs())
+                    return F.softmax(real_out,dim=1)
+                    #return real_out/(real_out.sum(axis=1,keepdims=True)+1e-9)
+            
 
-class ComplexFFNN(nn.Module):
-	def __init__(self,
-		d_inputs,
-		d_outputs,
-		n_layers,
-		d_hidden,
-		norm=False):
-		super().__init__()
-		
-		self.output_net=nn.Sequential(
-			ComplexBatchNorm1d(d_inputs) if norm else nn.Identity(),
-			ComplexLinear(d_inputs,d_hidden),
-			*[nn.Sequential(
-				ComplexLinear(d_hidden,d_hidden),
-				ComplexReLU(),
-				ComplexBatchNorm1d(d_hidden) if norm else nn.Identity(),
-				)
-			for _ in range(n_layers) ],
-			ComplexLinear(d_hidden,d_outputs),
-		)
-	def forward(self,x):
-		out=self.output_net(x).abs()
-		if out.sum().isnan():
-			breakpoint()
-			a=1
-		#breakpoint()
-		return F.softmax(self.output_net(x).abs(),dim=1)
-		#return out/(out.sum(axis=1,keepdims=True)+1e-9)
-		
+    class ComplexFFNN(nn.Module):
+            def __init__(self,
+                    d_inputs,
+                    d_outputs,
+                    n_layers,
+                    d_hidden,
+                    norm=False):
+                    super().__init__()
+                    
+                    self.output_net=nn.Sequential(
+                            ComplexBatchNorm1d(d_inputs) if norm else nn.Identity(),
+                            ComplexLinear(d_inputs,d_hidden),
+                            *[nn.Sequential(
+                                    ComplexLinear(d_hidden,d_hidden),
+                                    ComplexReLU(),
+                                    ComplexBatchNorm1d(d_hidden) if norm else nn.Identity(),
+                                    )
+                            for _ in range(n_layers) ],
+                            ComplexLinear(d_hidden,d_outputs),
+                    )
+            def forward(self,x):
+                    out=self.output_net(x).abs()
+                    if out.sum().isnan():
+                            breakpoint()
+                            a=1
+                    #breakpoint()
+                    return F.softmax(self.output_net(x).abs(),dim=1)
+                    #return out/(out.sum(axis=1,keepdims=True)+1e-9)
+                    
 
 class TransformerModel(nn.Module):
 	def __init__(self,
