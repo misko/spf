@@ -25,6 +25,7 @@ if __name__=='__main__':
 	parser.add_argument('--width', type=int, required=False, default=128)
 	parser.add_argument('--detector-trajectory', type=str, required=False, default='orbit',choices=['orbit','bounce'])
 	parser.add_argument('--detector-speed', type=float, required=False, default=10.0)
+	parser.add_argument('--source-speed', type=float, required=False, default=0.0)
 	parser.add_argument('--sigma', type=float, required=False, default=1.0)
 	parser.add_argument('--time-steps', type=int, required=False, default=100)
 	parser.add_argument('--time-interval', type=float, required=False, default=5.0)

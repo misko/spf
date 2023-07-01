@@ -28,7 +28,7 @@ output_cols={ # maybe this should get moved to the dataset part...
 	'src_dist':[3],
 	'det_delta':[4,5],
 	'det_theta':[6],
-	'det_space':[7]
+	'det_space':[7],
 }
 
 input_cols={
@@ -36,14 +36,16 @@ input_cols={
 	'time':[2],
 	'space_delta':[3,4],
 	'space_theta':[5],
-	'space_dist':[6]
+	'space_dist':[6],
+	'det_theta2':[7],
 }
 
 def src_pos_from_radial(inputs,outputs):
 	det_pos=inputs[:,:,input_cols['det_pos']]
-	theta=outputs[:,:,output_cols['src_theta']]
+	theta=outputs[:,:,output_cols['src_theta']]*np.pi
 	dist=outputs[:,:,output_cols['src_dist']]
-	return torch.stack([torch.cos(theta*np.pi),torch.sin(theta*np.pi)],axis=2)[...,0]*dist+det_pos
+	#theta+=inputs[:,:,input_cols['det_theta2']]*np.pi
+	return torch.stack([torch.cos(theta),torch.sin(theta)],axis=2)[...,0]*dist+det_pos
 
 def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 	d_model['optimizer'].zero_grad()
@@ -80,19 +82,22 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 				d_model['dead']=False
 			transformer_loss = criterion(preds['transformer_pred'][...,cols_for_loss],_labels[...,cols_for_loss])
 			losses['transformer_loss']=transformer_loss.item()
-			losses['transformer_stats']=(preds['transformer_pred']-_labels).pow(2).mean(axis=[0,1]).detach().cpu()
+			losses['transformer_stats']=(preds['transformer_pred'][...,cols_for_loss]-_labels[...,cols_for_loss]).pow(2).mean(axis=[0,1]).detach().cpu()
+			_p=preds['transformer_pred'].detach().cpu()
+		if 'single_snapshot_pred' in preds:
+			single_snapshot_loss = criterion(preds['single_snapshot_pred'][...,cols_for_loss],_labels[...,cols_for_loss])
+			losses['single_snapshot_loss']=single_snapshot_loss.item()
+			losses['single_snapshot_stats']=(preds['single_snapshot_pred'][...,cols_for_loss]-_labels[...,cols_for_loss]).pow(2).mean(axis=[0,1]).detach().cpu()
+		elif 'fc_pred' in preds:
+			fc_loss = criterion(preds['fc_pred'],_labels[:,[-1]])
+			losses['fc_loss']=fc_loss.item()
+			_p=preds['fc_pred'].detach().cpu()
+			#losses['fc_stats']=(preds['fc_pred']-_labels).pow(2).mean(axis=[0,1]).cpu()
+		if True:
 			if (i%args.print_every)==args.print_every-1:
-				#d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-				#d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-				#times-times.max(axis=2,keepdim=True)[0],
-				#d['detector_position_at_t'], 2
-				#space_delta, 2
-				#space_theta, 1 
-				#space_dist 1
 				d_model['fig'].clf()
 				_ri=_radio_inputs.detach().cpu()
 				_l=_labels.detach().cpu()
-				_p=preds['transformer_pred'].detach().cpu()
 				axs=d_model['fig'].subplots(1,4,sharex=True,sharey=True)
 				d_model['fig'].suptitle(d_model['name'])
 				axs[0].scatter(_ri[0,:,input_cols['det_pos'][0]],_ri[0,:,input_cols['det_pos'][1]],label='detector positions',s=1)
@@ -103,7 +108,6 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 				axs[2].scatter(_l[0,:,output_cols['src_pos'][0]],_l[0,:,output_cols['src_pos'][1]],label='real positions',c='b',alpha=0.1,s=7)
 				axs[2].scatter(_p[0,:,output_cols['src_pos'][0]],_p[0,:,output_cols['src_pos'][1]],label='predicted positions',c='r',alpha=0.3,s=7)
 				axs[2].legend()
-				
 				pos_from_preds=src_pos_from_radial(_ri,_l)
 				axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='real radial positions',c='b',alpha=0.1,s=7)
 				pos_from_preds=src_pos_from_radial(_ri,_p)
@@ -117,14 +121,6 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 					axs[idx].set_ylim([-1,1])
 				d_model['fig'].savefig('%s%s_%d.png' % (args.output_prefix,d_model['name'],i))
 				d_model['fig'].canvas.draw_idle()
-		if 'single_snapshot_pred' in preds:
-			single_snapshot_loss = criterion(preds['single_snapshot_pred'],_labels)
-			losses['single_snapshot_loss']=single_snapshot_loss.item()
-			losses['single_snapshot_stats']=(preds['single_snapshot_pred']-_labels).pow(2).mean(axis=[0,1]).detach().cpu()
-		elif 'fc_pred' in preds:
-			fc_loss = criterion(preds['fc_pred'],_labels[:,[-1]])
-			losses['fc_loss']=fc_loss.item()
-			#losses['fc_stats']=(preds['fc_pred']-_labels).pow(2).mean(axis=[0,1]).cpu()
 		loss=transformer_loss+single_snapshot_loss+fc_loss
 		if i<args.embedding_warmup:
 			loss=single_snapshot_loss+fc_loss
@@ -188,7 +184,7 @@ def model_to_stats_str(running_loss,mean_chunk):
 	loss_str=[]
 	for k in ['transformer_stats','single_snapshot_stats']:
 		if k in losses:
-			loss_str.append("\t\t%s\t%s" % (k,"\t".join([ "%0.4f" % v.item() for v in  losses[k][-1][cols_for_loss]])))
+			loss_str.append("\t\t%s\t%s" % (k,"\t".join([ "%0.4f" % v.item() for v in  losses[k][-1]])))
 	return "\n".join(loss_str)
 
 def save(args,running_losses,models,iteration,keep_n_saves):
@@ -320,7 +316,7 @@ if __name__=='__main__':
 	print("init network")
 	models=[]
 	if True:
-		for n_layers in [1,4,8]:
+		for n_layers in [2,4,8]:
 			for snapshots_per_sample in args.snapshots_per_sample:
 				models.append( 
 					{
@@ -333,24 +329,24 @@ if __name__=='__main__':
 						'dead':False,
 					}
 				)
-	if False:
+	if True:
 		for snapshots_per_sample in args.snapshots_per_sample:
 			models.append(
 				{
 					'name':'task1net%d' % snapshots_per_sample,
-					'model':Task1Net(265*snapshots_per_sample),
+					'model':Task1Net(266*snapshots_per_sample),
 					'snapshots_per_sample':snapshots_per_sample,
-					'images':False,
+					'images':False,'fig':plt.figure(figsize=(18,4)),
 					'lr':args.lr_direct,
 					'dead':False,
 				}
 			)
-	if False:
+	if True:
 		for snapshots_per_sample in args.snapshots_per_sample:
 			models.append(
 				{
 					'name':'FCNet %d' % snapshots_per_sample,
-					'model':SingleSnapshotNet(d_radio_feature=265,
+					'model':SingleSnapshotNet(d_radio_feature=266,
 						d_hid=64,
 						d_embed=64,
 						n_layers=4,
@@ -358,7 +354,7 @@ if __name__=='__main__':
 						dropout=0.0,
 					snapshots_per_sample=snapshots_per_sample),
 					'snapshots_per_sample':snapshots_per_sample,
-					'images':False,
+					'images':False,'fig':plt.figure(figsize=(18,4)),
 					'lr':args.lr_direct,
 					'dead':False
 				}
@@ -435,7 +431,7 @@ if __name__=='__main__':
 				if args.clip>0:
 					torch.nn.utils.clip_grad_norm_(d_net['model'].parameters(), args.clip) # clip gradients
 				d_model['optimizer'].step()
-			running_losses['train']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
+			running_losses['train']['baseline'].append( {'baseline':criterion(labels[...,cols_for_loss]*0+labels[...,cols_for_loss].mean(axis=[0,1],keepdim=True), labels[...,cols_for_loss]).item() } )
 			if using_images:
 				running_losses['train']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
 		
@@ -451,7 +447,7 @@ if __name__=='__main__':
 						for d_model in models:
 							loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
 							running_losses['test'][d_model['name']].append(losses) 
-					running_losses['test']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
+					running_losses['test']['baseline'].append( {'baseline':criterion(labels[...,cols_for_loss]*0+labels[...,cols_for_loss].mean(axis=[0,1],keepdim=True), labels[...,cols_for_loss]).item() } )
 					if using_images:
 						running_losses['test']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
 				

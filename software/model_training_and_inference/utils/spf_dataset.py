@@ -131,9 +131,9 @@ def collate_fn(_in):
 	#diffs=source_positions-d['detector_position_at_t_normalized']
 	#source_thetab=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]/np.pi # batch, snapshot,1, x ,y 
 	source_theta=d['source_theta_at_t'].mean(axis=2)/np.pi
+	detector_theta=d['detector_orientation_at_t']/np.pi
 	#distancesb=torch.sqrt(torch.pow(diffs, 2).sum(axis=2,keepdim=True))
 	distances=d['source_distance_at_t_normalized'].mean(axis=2,keepdims=True)
-	#breakpoint()
 	space_diffs=(d['detector_position_at_t_normalized'][:,:-1]-d['detector_position_at_t_normalized'][:,1:])
 	space_delta=torch.cat([
 		torch.zeros(b,1,2),
@@ -153,7 +153,7 @@ def collate_fn(_in):
 	#create the labels
 	labels=torch.cat([
 		source_positions, # zero center the positions
-		source_theta,
+		(source_theta+detector_theta+1)%2.0-1, # initialy in units of np.pi?
 		distances, # try to zero center?
 		space_delta,
 		space_theta,
@@ -168,6 +168,7 @@ def collate_fn(_in):
 			space_delta,
 			space_theta,
 			space_dist,
+			detector_theta,
 			d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
 			d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
 		],

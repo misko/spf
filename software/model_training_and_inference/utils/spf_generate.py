@@ -24,6 +24,8 @@ class BoundedPoint:
 		self.width=width
 
 	def time_step(self):
+		if np.linalg.norm(self.v)==0:
+			return np.array(self.pos),0.0
 		self.pos+=self.v*self.delta_time
 
 		for idx in [0,1]:
@@ -60,10 +62,10 @@ def generate_session(args_and_session_idx):
 		print("Array type must be linear or circular")
 		sys.exit(1)
 
-	fixed_source_positions=np.random.uniform(low=0, high=args.width,size=(args.sources,2))
+	current_source_positions=np.random.uniform(low=0, high=args.width,size=(args.sources,2))
 
 	if args.reference:
-		fixed_source_positions=fixed_source_positions*0+np.array((args.width//2,args.width//4))
+		current_source_positions=current_source_positions*0+np.array((args.width//2,args.width//4))
 		args.sigma=0
 		args.sources=1
 
@@ -93,10 +95,25 @@ def generate_session(args_and_session_idx):
 	detector_theta=np.random.uniform(-np.pi,np.pi)
 	if args.reference:
 		detector_theta=np.random.choice([0,np.pi/4,np.pi/2,np.pi])
+
 	detector_v=np.array([np.cos(detector_theta),np.sin(detector_theta)])*args.detector_speed # 10m/s
-	p1=BoundedPoint(pos=np.random.uniform(0+10,args.width-10,2),
+	detector_bounded_point=BoundedPoint(pos=np.random.uniform(0+10,args.width-10,2),
 			v=detector_v,
 			delta_time=args.time_interval)
+
+	source_bounded_points=[]
+	for idx in range(args.sources):
+		source_theta=np.random.uniform(-np.pi,np.pi)
+		source_v=np.array(
+				[
+					np.cos(source_theta),
+					np.sin(source_theta)])*args.source_speed 
+		source_bounded_points.append(
+				BoundedPoint(
+					pos=np.random.uniform(0+10,args.width-10,2),
+					v=source_v,
+					delta_time=args.time_interval)
+			)
 
 	whos_broadcasting_at_t=np.random.randint(0,args.sources,args.time_steps)
 	broadcasting_positions_at_t[np.arange(args.time_steps),whos_broadcasting_at_t]=1
@@ -111,12 +128,15 @@ def generate_session(args_and_session_idx):
 
 	time_stamps=(np.arange(args.time_steps)*args.time_interval).reshape(-1,1)
 	for t_idx in np.arange(args.time_steps):
+		#update source positions
+		for idx in range(len(source_bounded_points)):
+			current_source_positions[idx],_=source_bounded_points[idx].time_step()
 		#only one source transmits at a time, TDM this part
 		tdm_source_idx=whos_broadcasting_at_t[t_idx]
 		d.rm_sources()
 		d.add_source(NoiseWrapper(
 		  QAMSource(
-			fixed_source_positions[tdm_source_idx], # x, y position
+			current_source_positions[tdm_source_idx], # x, y position
 			args.carrier_frequency,
 			args.signal_frequency,
 			sigma=sigma,
@@ -131,11 +151,11 @@ def generate_session(args_and_session_idx):
 				phase_offset=detector_position_phase_offset,
 				orbital_frequency=(2/3)*args.width*np.pi/args.detector_speed)*args.width).astype(int)
 		elif args.detector_trajectory=='bounce':
-			d.position_offset,d.orientation=p1.time_step()
+			d.position_offset,d.orientation=detector_bounded_point.time_step()
 			detector_orientation_at_t[t_idx]=d.orientation
 
 		detector_position_phase_offsets_at_t[t_idx]=detector_position_phase_offset
-		source_positions_at_t[t_idx]=fixed_source_positions
+		source_positions_at_t[t_idx]=current_source_positions
 		receiver_positions_at_t[t_idx]=d.all_receiver_pos()
 
 		signal_matrixs_at_t[t_idx]=d.get_signal_matrix(
@@ -149,7 +169,7 @@ def generate_session(args_and_session_idx):
 		#print(d.orientation,detector_theta)
 		detector_position_at_t[t_idx]=d.position_offset
 
-		diff=fixed_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
+		diff=current_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
 		source_theta_at_t[t_idx]=(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi	
 		source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
 	session={

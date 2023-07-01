@@ -137,15 +137,15 @@ class TransformerModel(nn.Module):
 class SnapshotNet(nn.Module):
 	def __init__(self,
 			snapshots_per_sample=1,
-			d_radio_feature=257+4+4,
+			d_radio_feature=257+4+4+1,
 			d_model=512,
 			n_heads=8,
 			d_hid=256,
 			n_layers=1,
 			n_outputs=8,
 			dropout=0.0,
-			ssn_d_hid=128,
-			ssn_n_layers=4,
+			ssn_d_hid=64,
+			ssn_n_layers=8,
 			ssn_n_outputs=8,
 			ssn_d_embed=64,
 			ssn_dropout=0.0):
