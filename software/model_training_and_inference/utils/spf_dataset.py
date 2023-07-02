@@ -168,8 +168,8 @@ def collate_fn(_in):
 			space_theta,
 			space_dist,
 			detector_theta,
-			d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
-			d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].max(axis=2,keepdim=True)[0],
+			torch.log(d['beam_former_outputs_at_t'].mean(axis=2,keepdim=True)),
+			d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].mean(axis=2,keepdim=True), # maybe pass in log values?
 		],
 		dim=2
 	).float() #.to(device)

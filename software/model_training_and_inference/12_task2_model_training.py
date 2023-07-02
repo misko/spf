@@ -330,7 +330,7 @@ if __name__=='__main__':
 
 	print("init network")
 	models=[]
-	if False:
+	if True:
 		for n_layers in [2,4,8,16]: #,32,64]:
 			for snapshots_per_sample in args.snapshots_per_sample:
 				models.append( 
@@ -503,13 +503,13 @@ if __name__=='__main__':
 						model_to_loss_str(running_losses['test'][d['name']],args.test_mbs)
 					) for d in models ])
 				print(loss_str)
-				print("\t\t\t%s" % stats_title())
 				loss_str="\n".join(
 					[ "\t%s:(tr)\n%s\n\t%s:(ts)\n%s" % (d['name'],
 						model_to_stats_str(running_losses['train'][d['name']],args.print_every),
 						d['name'],
 						model_to_stats_str(running_losses['test'][d['name']],args.test_mbs)
 					) for d in models ])
+				print("\t\t\t%s" % stats_title())
 				print(loss_str)
 			if i//args.print_every>2 and i % args.plot_every == args.plot_every-1:
 				plot_loss(running_losses=running_losses['train'],
