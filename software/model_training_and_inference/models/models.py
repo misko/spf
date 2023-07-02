@@ -118,13 +118,13 @@ class TransformerModel(nn.Module):
 			*[nn.Sequential(
 				nn.LayerNorm(d_hid),
 				nn.Linear(d_hid,d_hid),
-				#nn.ReLU()
 				nn.SELU()
 				)
 			for _ in range(n_layers_output) ],
 			nn.LayerNorm(d_hid),
 			nn.Linear(d_hid,n_outputs),
-			nn.LayerNorm(n_outputs))
+			nn.LayerNorm(n_outputs)
+			)
 
 	def forward(self, src: Tensor) -> Tensor:
 		src_enc = self.transformer_encoder(
@@ -132,6 +132,8 @@ class TransformerModel(nn.Module):
 				[src,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
 		#output = self.transformer_encoder(src) #,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
 		output = self.output_net(src_enc) #/np.sqrt(self.d_model)
+		if output.isnan().any():
+			breakpoint()
 		return output
 
 class SnapshotNet(nn.Module):
@@ -210,6 +212,7 @@ class SingleSnapshotNet(nn.Module):
 		self.dropout=dropout
 		
 		self.embed_net=nn.Sequential(
+			nn.LayerNorm(self.d_radio_feature),
 			nn.Linear(self.d_radio_feature,d_hid),
 			*[nn.Sequential(
 				nn.LayerNorm(d_hid),
@@ -220,7 +223,8 @@ class SingleSnapshotNet(nn.Module):
 			for _ in range(n_layers) ],
 			nn.LayerNorm(d_hid),
 			nn.Linear(d_hid,d_embed),
-			nn.LayerNorm(d_embed))
+			nn.LayerNorm(d_embed)
+			)
 		self.lin_output=nn.Linear(d_embed,self.n_outputs)
 
 	def forward(self, x):
@@ -228,6 +232,8 @@ class SingleSnapshotNet(nn.Module):
 			x=x.reshape(x.shape[0],-1)
 		embed=self.embed_net(x)
 		output=self.lin_output(embed)
+		if output.isnan().any():
+			breakpoint()
 		if self.snapshots_per_sample>0:
 			output=output.reshape(-1,1,self.n_outputs)
 			return {'fc_pred':output}

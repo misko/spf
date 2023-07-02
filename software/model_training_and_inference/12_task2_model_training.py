@@ -15,7 +15,7 @@ from torch.utils.data import dataset, random_split
 
 from utils.image_utils import labels_to_source_images
 from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerModel,
-                    UNet)
+		    UNet)
 from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn
 
 
@@ -47,6 +47,8 @@ def src_pos_from_radial(inputs,outputs):
 	return torch.stack([torch.cos(theta),torch.sin(theta)],axis=2)[...,0]*dist+det_pos
 
 def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
+	if radio_inputs.isnan().any():
+		breakpoint()
 	d_model['optimizer'].zero_grad()
 	use_all_data=True
 	if use_all_data:
@@ -69,6 +71,7 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 	losses={}
 	if d_model['images']==False:
 		preds=d_model['model'](_radio_inputs)#.detach().cpu()
+		assert(not _radio_inputs.isnan().any())
 		#for k in preds:
 		#	preds[k]=preds[k].detach().cpu()
 		transformer_loss=0.0
@@ -79,14 +82,15 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 				d_model['dead']=True
 			else:
 				d_model['dead']=False
-			transformer_loss = criterion(preds['transformer_pred'][...,cols_for_loss],_labels[...,cols_for_loss])
-			losses['transformer_loss']=transformer_loss.item()
-			losses['transformer_stats']=(preds['transformer_pred'][...,cols_for_loss]-_labels[...,cols_for_loss]).pow(2).mean(axis=[0,1]).detach().cpu()
+			transformer_loss = criterion(preds['transformer_pred'],_labels)
+			losses['transformer_loss']=transformer_loss.detach().item()
+			losses['transformer_stats']=(preds['transformer_pred']-_labels).pow(2).mean(axis=[0,1]).detach().cpu()
 			_p=preds['transformer_pred'].detach().cpu()
+			assert(not preds['transformer_pred'].isnan().any())
 		if 'single_snapshot_pred' in preds:
-			single_snapshot_loss = criterion(preds['single_snapshot_pred'][...,cols_for_loss],_labels[...,cols_for_loss])
+			single_snapshot_loss = criterion(preds['single_snapshot_pred'],_labels)
 			losses['single_snapshot_loss']=single_snapshot_loss.item()
-			losses['single_snapshot_stats']=(preds['single_snapshot_pred'][...,cols_for_loss]-_labels[...,cols_for_loss]).pow(2).mean(axis=[0,1]).detach().cpu()
+			losses['single_snapshot_stats']=(preds['single_snapshot_pred']-_labels).pow(2).mean(axis=[0,1]).detach().cpu()
 		elif 'fc_pred' in preds:
 			fc_loss = criterion(preds['fc_pred'],_labels[:,[-1]])
 			losses['fc_loss']=fc_loss.item()
@@ -248,6 +252,7 @@ if __name__=='__main__':
 	parser.add_argument('--test-mbs', type=int, required=False, default=8)
 	parser.add_argument('--output-prefix', type=str, required=False, default='model_out')
 	parser.add_argument('--test-fraction', type=float, required=False, default=0.2)
+	parser.add_argument('--type', type=str, required=False, default=32)
 	parser.add_argument('--seed', type=int, required=False, default=0)
 	parser.add_argument('--keep-n-saves', type=int, required=False, default=2)
 	parser.add_argument('--epochs', type=int, required=False, default=20000)
@@ -261,6 +266,10 @@ if __name__=='__main__':
 	parser.add_argument('--clip', type=float, required=False, default=0.5)
 	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist") #,src_theta,src_dist,det_delta,det_theta,det_space")
 	args = parser.parse_args()
+
+	dtype=torch.float32
+	if args.type=='16':
+		dtype=torch.float16
 	
 	if args.plot==False:
 		import matplotlib
@@ -315,12 +324,17 @@ if __name__=='__main__':
 	print("init network")
 	models=[]
 	if True:
-		for n_layers in [2,4,8]:
+		for n_layers in [2,4,8,16]: #,32,64]:
 			for snapshots_per_sample in args.snapshots_per_sample:
 				models.append( 
 					{
 						'name':'%d snapshots (l%d)' % (snapshots_per_sample,n_layers), 
-						'model':SnapshotNet(snapshots_per_sample,n_layers=n_layers,d_model=128+256),
+						'model':SnapshotNet(
+							snapshots_per_sample,
+							n_layers=n_layers,
+							d_model=128+256,
+							n_outputs=len(cols_for_loss),
+							ssn_n_outputs=len(cols_for_loss)),
 						'snapshots_per_sample':snapshots_per_sample,
 						'images':False,
 						'lr':args.lr_transformer,
@@ -328,12 +342,12 @@ if __name__=='__main__':
 						'dead':False,
 					}
 				)
-	if True:
+	if False:
 		for snapshots_per_sample in args.snapshots_per_sample:
 			models.append(
 				{
 					'name':'task1net%d' % snapshots_per_sample,
-					'model':Task1Net(266*snapshots_per_sample),
+					'model':Task1Net(266*snapshots_per_sample,n_outputs=len(cols_for_loss)),
 					'snapshots_per_sample':snapshots_per_sample,
 					'images':False,'fig':plt.figure(figsize=(18,4)),
 					'lr':args.lr_direct,
@@ -349,7 +363,7 @@ if __name__=='__main__':
 						d_hid=64,
 						d_embed=64,
 						n_layers=4,
-						n_outputs=8,
+						n_outputs=len(cols_for_loss),
 						dropout=0.0,
 					snapshots_per_sample=snapshots_per_sample),
 					'snapshots_per_sample':snapshots_per_sample,
@@ -381,7 +395,7 @@ if __name__=='__main__':
 
 	#move the models to the device
 	for d_net in models:
-		d_net['model']=d_net['model'].to(device)
+		d_net['model']=d_net['model'].to(dtype).to(device)
 	loss_figs={
 		'train':plt.figure(figsize=(14*3,6)),
 		'test':plt.figure(figsize=(14*3,6))}
@@ -389,7 +403,7 @@ if __name__=='__main__':
 	for d_model in models:
 		d_model['optimizer']=optim.Adam(d_model['model'].parameters(),lr=d_model['lr'])
 
-	criterion = nn.MSELoss()
+	criterion = nn.MSELoss().to(device)
 
 	print("training loop")
 	running_losses={'train':{},'test':{}}
@@ -406,9 +420,10 @@ if __name__=='__main__':
 		labels=labels[:,:,:]
 
 		#direct data
-		radio_inputs=radio_inputs.to(device)
-		labels=labels.to(device)
+		radio_inputs=radio_inputs.to(dtype).to(device)
+		labels=labels[...,cols_for_loss].to(dtype).to(device)
 		
+		assert(not radio_inputs.isnan().any())
 		#image data
 		if using_images:
 			radio_images=radio_images.to(device)
@@ -422,15 +437,21 @@ if __name__=='__main__':
 		for i, data in enumerate(trainloader, 0):
 			#move to device, do final prep
 			radio_inputs,labels,radio_images,label_images=prep_data(data)
-
-			for d_model in models:
-				loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
-				loss.backward()
-				running_losses['train'][d_model['name']].append(losses) 
-				if args.clip>0:
-					torch.nn.utils.clip_grad_norm_(d_net['model'].parameters(), args.clip) # clip gradients
-				d_model['optimizer'].step()
-			running_losses['train']['baseline'].append( {'baseline':criterion(labels[...,cols_for_loss]*0+labels[...,cols_for_loss].mean(axis=[0,1],keepdim=True), labels[...,cols_for_loss]).item() } )
+			with torch.cuda.amp.autocast():
+				for d_model in models:
+					for p in d_net['model'].parameters():
+						if p.isnan().any():
+							breakpoint()
+					loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
+					loss.backward()
+					running_losses['train'][d_model['name']].append(losses) 
+					if args.clip>0:
+						torch.nn.utils.clip_grad_norm_(d_net['model'].parameters(), args.clip) # clip gradients
+					d_model['optimizer'].step()
+					for p in d_net['model'].parameters():
+						if p.isnan().any():
+							breakpoint()
+			running_losses['train']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
 			if using_images:
 				running_losses['train']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
 		
@@ -446,7 +467,7 @@ if __name__=='__main__':
 						for d_model in models:
 							loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
 							running_losses['test'][d_model['name']].append(losses) 
-					running_losses['test']['baseline'].append( {'baseline':criterion(labels[...,cols_for_loss]*0+labels[...,cols_for_loss].mean(axis=[0,1],keepdim=True), labels[...,cols_for_loss]).item() } )
+					running_losses['test']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
 					if using_images:
 						running_losses['test']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
 				
