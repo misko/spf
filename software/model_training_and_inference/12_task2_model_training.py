@@ -50,7 +50,7 @@ def src_pos_from_radial(inputs,outputs):
 	det_pos=det_pos.float()
 	return torch.stack([torch.cos(theta),torch.sin(theta)],axis=2)[...,0]*dist+det_pos
 
-def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,train_test_label):
+def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,train_test_label,update,plot=True):
 	if radio_inputs.isnan().any():
 		breakpoint()
 	d_model['optimizer'].zero_grad()
@@ -100,36 +100,35 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,tra
 			losses['fc_loss']=fc_loss.item()
 			_p=preds['fc_pred'].detach().cpu()
 			#losses['fc_stats']=(preds['fc_pred']-_labels).pow(2).mean(axis=[0,1]).cpu()
-		if True:
-			if (i%args.plot_every)==args.plot_every-1:
-				d_model['fig'].clf()
-				_ri=_radio_inputs.detach().cpu()
-				_l=_labels.detach().cpu()
-				axs=d_model['fig'].subplots(1,4,sharex=True,sharey=True)
-				d_model['fig'].suptitle(d_model['name'])
-				axs[0].scatter(_ri[0,:,input_cols['det_pos'][0]],_ri[0,:,input_cols['det_pos'][1]],label='detector positions',s=1)
-				if 'src_pos' in args.losses:
-					src_pos_idxs=[]
-					for idx in range(2):
-						src_pos_idxs.append(cols_for_loss.index(output_cols['src_pos'][idx]))	
-					axs[1].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='source positions',c='r')
+		if plot and (update%args.plot_every)==args.plot_every-1:
+			d_model['fig'].clf()
+			_ri=_radio_inputs.detach().cpu()
+			_l=_labels.detach().cpu()
+			axs=d_model['fig'].subplots(1,4,sharex=True,sharey=True)
+			d_model['fig'].suptitle(d_model['name'])
+			axs[0].scatter(_ri[0,:,input_cols['det_pos'][0]],_ri[0,:,input_cols['det_pos'][1]],label='detector positions',s=1)
+			if 'src_pos' in args.losses:
+				src_pos_idxs=[]
+				for idx in range(2):
+					src_pos_idxs.append(cols_for_loss.index(output_cols['src_pos'][idx]))	
+				axs[1].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='source positions',c='r')
 
-					axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
-					axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
-				axs[2].legend()
-				pos_from_preds=src_pos_from_radial(_ri,_l)
-				axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='real radial positions',c='b',alpha=0.1,s=7)
-				pos_from_preds=src_pos_from_radial(_ri,_p)
-				axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='predicted radial positions',c='r',alpha=0.3,s=7)
+				axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
+				axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
+			axs[2].legend()
+			pos_from_preds=src_pos_from_radial(_ri,_l)
+			axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='real radial positions',c='b',alpha=0.1,s=7)
+			pos_from_preds=src_pos_from_radial(_ri,_p)
+			axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='predicted radial positions',c='r',alpha=0.3,s=7)
 
-				axs[3].legend()
-				
-				for idx in [0,1,2]:
-					axs[idx].legend()
-					axs[idx].set_xlim([-1,1])
-					axs[idx].set_ylim([-1,1])
-				d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],i,train_test_label))
-				d_model['fig'].canvas.draw_idle()
+			axs[3].legend()
+			
+			for idx in [0,1,2]:
+				axs[idx].legend()
+				axs[idx].set_xlim([-1,1])
+				axs[idx].set_ylim([-1,1])
+			d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],update,train_test_label))
+			d_model['fig'].canvas.draw_idle()
 		loss=transformer_loss+single_snapshot_loss+fc_loss
 		if i<args.embedding_warmup:
 			loss=single_snapshot_loss+fc_loss
@@ -139,7 +138,7 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,tra
 		preds=d_model['model'](_radio_images)
 		loss=criterion(preds['image_preds'],_label_images)
 		losses['image_loss']=loss.item()
-		if (i%args.plot_every)==args.plot_every-1:
+		if plot and (update%args.plot_every)==args.plot_every-1:
 			d_model['fig'].clf()
 			axs=d_model['fig'].subplots(1,3,sharex=True)
 			axs[0].set_title('Target label')
@@ -150,7 +149,7 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,tra
 			axs[0].imshow(_label_images[0,0].cpu())
 			axs[1].imshow(preds['image_preds'][0,0].detach().cpu())
 			axs[2].imshow(_radio_images[0].mean(axis=0).cpu())
-			d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],i,train_test_label))
+			d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],update,train_test_label))
 			d_model['fig'].canvas.draw_idle()
 	return loss,losses
 
@@ -215,7 +214,8 @@ def plot_loss(running_losses,
 		mean_chunk,
 		output_prefix,
 		fig,
-		title):
+		title,
+		update):
 	fig.clf()
 	fig.suptitle(title)
 	axs=fig.subplots(1,4,sharex=True)
@@ -245,7 +245,7 @@ def plot_loss(running_losses,
 	for i in range(4):
 		axs[i].legend()
 	fig.tight_layout()
-	fig.savefig('%sloss_%s_%d.png' % (output_prefix,title,i))
+	fig.savefig('%sloss_%s_%d.png' % (output_prefix,title,update))
 	fig.canvas.draw_idle()
 
 if __name__=='__main__': 
@@ -449,7 +449,16 @@ if __name__=='__main__':
 					for p in d_net['model'].parameters():
 						if p.isnan().any():
 							breakpoint()
-					loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,'train')
+					loss,losses=model_forward(
+						d_model,
+						radio_inputs,
+						radio_images,
+						labels,
+						label_images,
+						args,
+						'train',
+						update=i,
+						plot=True)
 					loss.backward()
 					running_losses['train'][d_model['name']].append(losses) 
 					if args.clip>0:
@@ -472,7 +481,16 @@ if __name__=='__main__':
 					radio_inputs,labels,radio_images,label_images=prep_data(data)
 					with torch.no_grad():
 						for d_model in models:
-							loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,'test')
+							loss,losses=model_forward(
+								d_model,
+								radio_inputs,
+								radio_images,
+								labels,
+								label_images,
+								args,
+								'test',
+								update=i,
+								plot=idx==0)
 							running_losses['test'][d_model['name']].append(losses) 
 					running_losses['test']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
 					if using_images:
@@ -519,7 +537,7 @@ if __name__=='__main__':
 					mean_chunk=args.print_every,
 					output_prefix=args.output_prefix,
 					fig=loss_figs['train'],
-					title='Train')
+					title='Train',update=i)
 				plot_loss(running_losses=running_losses['test'],
 					baseline_loss=test_baseline_loss,
 					baseline_image_loss=test_baseline_image_loss,
@@ -527,7 +545,7 @@ if __name__=='__main__':
 					mean_chunk=args.test_mbs,
 					output_prefix=args.output_prefix,
 					fig=loss_figs['test'],
-					title='Test')
+					title='Test',update=i)
 				if args.plot:
 					plt.pause(0.5)
 

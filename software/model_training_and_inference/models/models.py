@@ -104,7 +104,7 @@ class TransformerModel(nn.Module):
 		self.transformer_encoder = TransformerEncoder(
 			encoder_layers, 
 			n_layers,
-			#nn.LayerNorm(d_model),
+			nn.LayerNorm(d_model),
 			)
 		
 		assert( d_model>d_radio_feature)

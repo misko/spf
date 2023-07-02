@@ -42,3 +42,7 @@ python 13_learn_beamformer.py   --snapshots 8 --mb 16 --workers 0 --dataset sess
 python 01_generate_data.py --array-type linear --elements 4 --sources 3 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.1 --time-steps 128 --time-interval 0.3 --live true --output sessions-train --sessions 50000000 --seed 1337 --source-speed 0.5
 
 python 12_task2_model_training.py --dataset ./sessions-train --lr-image 0.05 --lr-direct 0.001 --mb 32 --workers 2 --print-every 512 --plot True --snapshots 1 16 128 --device mps --save-every 10000 --lr-transformer 0.00001 --losses src_theta,src_dist
+
+
+Jul2
+python 12_task2_model_training.py --dataset ./sessions-train --lr-image 0.05 --lr-direct 0.001 --mb 32 --workers 16 --print-every 2048 --plot True --snapshots 1 16 128 --device cuda --save-every 10000 --lr-transformer 0.0001 --losses src_theta,src_dist --type 32 --print-every 256 --plot-every 2048
