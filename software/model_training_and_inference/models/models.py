@@ -217,7 +217,7 @@ class SingleSnapshotNet(nn.Module):
 			nn.Linear(self.d_radio_feature,d_hid),
 			nn.SELU(),
 			*[nn.Sequential(
-				#nn.LayerNorm(d_hid),
+				nn.LayerNorm(d_hid),
 				nn.Linear(d_hid,d_hid),
 				#nn.ReLU()
 				nn.SELU()
@@ -225,7 +225,7 @@ class SingleSnapshotNet(nn.Module):
 			for _ in range(n_layers) ],
 			#nn.LayerNorm(d_hid),
 			nn.Linear(d_hid,d_embed),
-			#nn.LayerNorm(d_embed)
+			nn.LayerNorm(d_embed)
 			)
 		self.lin_output=nn.Linear(d_embed,self.n_outputs)
 
