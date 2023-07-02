@@ -41,9 +41,13 @@ input_cols={
 
 def src_pos_from_radial(inputs,outputs):
 	det_pos=inputs[:,:,input_cols['det_pos']]
-	theta=outputs[:,:,output_cols['src_theta']]*np.pi
-	dist=outputs[:,:,output_cols['src_dist']]
-	#theta+=inputs[:,:,input_cols['det_theta2']]*np.pi
+
+	theta=outputs[:,:,[cols_for_loss.index(output_cols['src_theta'][0])]]*np.pi
+	dist=outputs[:,:,[cols_for_loss.index(output_cols['src_dist'][0])]]
+
+	theta=theta.float()
+	dist=dist.float()
+	det_pos=det_pos.float()
 	return torch.stack([torch.cos(theta),torch.sin(theta)],axis=2)[...,0]*dist+det_pos
 
 def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
@@ -97,19 +101,21 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 			_p=preds['fc_pred'].detach().cpu()
 			#losses['fc_stats']=(preds['fc_pred']-_labels).pow(2).mean(axis=[0,1]).cpu()
 		if True:
-			if (i%args.print_every)==args.print_every-1:
+			if (i%args.plot_every)==args.plot_every-1:
 				d_model['fig'].clf()
 				_ri=_radio_inputs.detach().cpu()
 				_l=_labels.detach().cpu()
 				axs=d_model['fig'].subplots(1,4,sharex=True,sharey=True)
 				d_model['fig'].suptitle(d_model['name'])
 				axs[0].scatter(_ri[0,:,input_cols['det_pos'][0]],_ri[0,:,input_cols['det_pos'][1]],label='detector positions',s=1)
-				axs[1].scatter(_l[0,:,output_cols['src_pos'][0]],_l[0,:,output_cols['src_pos'][1]],label='source positions',c='r')
+				if 'src_pos' in args.losses:
+					src_pos_idxs=[]
+					for idx in range(2):
+						src_pos_idxs.append(cols_for_loss.index(output_cols['src_pos'][idx]))	
+					axs[1].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='source positions',c='r')
 
-
-
-				axs[2].scatter(_l[0,:,output_cols['src_pos'][0]],_l[0,:,output_cols['src_pos'][1]],label='real positions',c='b',alpha=0.1,s=7)
-				axs[2].scatter(_p[0,:,output_cols['src_pos'][0]],_p[0,:,output_cols['src_pos'][1]],label='predicted positions',c='r',alpha=0.3,s=7)
+					axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
+					axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
 				axs[2].legend()
 				pos_from_preds=src_pos_from_radial(_ri,_l)
 				axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='real radial positions',c='b',alpha=0.1,s=7)
@@ -133,7 +139,7 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 		preds=d_model['model'](_radio_images)
 		loss=criterion(preds['image_preds'],_label_images)
 		losses['image_loss']=loss.item()
-		if (i%args.print_every)==args.print_every-1:
+		if (i%args.plot_every)==args.plot_every-1:
 			d_model['fig'].clf()
 			axs=d_model['fig'].subplots(1,3,sharex=True)
 			axs[0].set_title('Target label')
@@ -248,6 +254,7 @@ if __name__=='__main__':
 	parser.add_argument('--embedding-warmup', type=int, required=False, default=0)
 	parser.add_argument('--snapshots-per-sample', type=int, required=False, default=[1,4,8], nargs="+")
 	parser.add_argument('--print-every', type=int, required=False, default=100)
+	parser.add_argument('--plot-every', type=int, required=False, default=1024)
 	parser.add_argument('--save-every', type=int, required=False, default=1000)
 	parser.add_argument('--test-mbs', type=int, required=False, default=8)
 	parser.add_argument('--output-prefix', type=str, required=False, default='model_out')
@@ -323,7 +330,7 @@ if __name__=='__main__':
 
 	print("init network")
 	models=[]
-	if True:
+	if False:
 		for n_layers in [2,4,8,16]: #,32,64]:
 			for snapshots_per_sample in args.snapshots_per_sample:
 				models.append( 
@@ -504,24 +511,24 @@ if __name__=='__main__':
 						model_to_stats_str(running_losses['test'][d['name']],args.test_mbs)
 					) for d in models ])
 				print(loss_str)
-				if i//args.print_every>2:
-					plot_loss(running_losses=running_losses['train'],
-						baseline_loss=train_baseline_loss,
-						baseline_image_loss=train_baseline_image_loss,
-						xtick_spacing=args.print_every,
-						mean_chunk=args.print_every,
-						output_prefix=args.output_prefix,
-						fig=loss_figs['train'],
-						title='Train')
-					plot_loss(running_losses=running_losses['test'],
-						baseline_loss=test_baseline_loss,
-						baseline_image_loss=test_baseline_image_loss,
-						xtick_spacing=args.print_every,
-						mean_chunk=args.test_mbs,
-						output_prefix=args.output_prefix,
-						fig=loss_figs['test'],
-						title='Test')
-					if args.plot:
-						plt.pause(0.5)
+			if i//args.print_every>2 and i % args.plot_every == args.plot_every-1:
+				plot_loss(running_losses=running_losses['train'],
+					baseline_loss=train_baseline_loss,
+					baseline_image_loss=train_baseline_image_loss,
+					xtick_spacing=args.print_every,
+					mean_chunk=args.print_every,
+					output_prefix=args.output_prefix,
+					fig=loss_figs['train'],
+					title='Train')
+				plot_loss(running_losses=running_losses['test'],
+					baseline_loss=test_baseline_loss,
+					baseline_image_loss=test_baseline_image_loss,
+					xtick_spacing=args.print_every,
+					mean_chunk=args.test_mbs,
+					output_prefix=args.output_prefix,
+					fig=loss_figs['test'],
+					title='Test')
+				if args.plot:
+					plt.pause(0.5)
 
 	print('Finished Training') # but do we ever really get here?
