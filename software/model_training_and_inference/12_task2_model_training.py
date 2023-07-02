@@ -50,7 +50,7 @@ def src_pos_from_radial(inputs,outputs):
 	det_pos=det_pos.float()
 	return torch.stack([torch.cos(theta),torch.sin(theta)],axis=2)[...,0]*dist+det_pos
 
-def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
+def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,train_test_label):
 	if radio_inputs.isnan().any():
 		breakpoint()
 	d_model['optimizer'].zero_grad()
@@ -128,7 +128,7 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 					axs[idx].legend()
 					axs[idx].set_xlim([-1,1])
 					axs[idx].set_ylim([-1,1])
-				d_model['fig'].savefig('%s%s_%d.png' % (args.output_prefix,d_model['name'],i))
+				d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],i,train_test_label))
 				d_model['fig'].canvas.draw_idle()
 		loss=transformer_loss+single_snapshot_loss+fc_loss
 		if i<args.embedding_warmup:
@@ -150,7 +150,7 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args):
 			axs[0].imshow(_label_images[0,0].cpu())
 			axs[1].imshow(preds['image_preds'][0,0].detach().cpu())
 			axs[2].imshow(_radio_images[0].mean(axis=0).cpu())
-			d_model['fig'].savefig('%s%s_%d.png' % (args.output_prefix,d_model['name'],i))
+			d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],i,train_test_label))
 			d_model['fig'].canvas.draw_idle()
 	return loss,losses
 
@@ -449,7 +449,7 @@ if __name__=='__main__':
 					for p in d_net['model'].parameters():
 						if p.isnan().any():
 							breakpoint()
-					loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
+					loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,'train')
 					loss.backward()
 					running_losses['train'][d_model['name']].append(losses) 
 					if args.clip>0:
@@ -472,7 +472,7 @@ if __name__=='__main__':
 					radio_inputs,labels,radio_images,label_images=prep_data(data)
 					with torch.no_grad():
 						for d_model in models:
-							loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args)
+							loss,losses=model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,'test')
 							running_losses['test'][d_model['name']].append(losses) 
 					running_losses['test']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
 					if using_images:
