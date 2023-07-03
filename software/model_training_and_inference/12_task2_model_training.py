@@ -343,7 +343,7 @@ if __name__=='__main__':
 							d_model=128+256,
 							n_outputs=len(cols_for_loss),
 							ssn_n_outputs=len(cols_for_loss),
-							dropout=0.1),
+							dropout=0.0),
 						'snapshots_per_sample':snapshots_per_sample,
 						'images':False,
 						'lr':args.lr_transformer,
@@ -413,9 +413,9 @@ if __name__=='__main__':
 		d_model['optimizer']=optim.Adam(d_model['model'].parameters(),lr=d_model['lr'])
 		d_model['scheduler']=optim.lr_scheduler.LinearLR(
 			d_model['optimizer'], 
-			start_factor=0.01, 
+			start_factor=0.001, 
 			end_factor=1.0, 
-			total_iters=10, 
+			total_iters=30, 
 			verbose=False)
 
 	criterion = nn.MSELoss().to(device)
