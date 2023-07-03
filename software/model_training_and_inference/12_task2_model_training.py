@@ -254,6 +254,7 @@ if __name__=='__main__':
 	parser.add_argument('--embedding-warmup', type=int, required=False, default=0)
 	parser.add_argument('--snapshots-per-sample', type=int, required=False, default=[1,4,8], nargs="+")
 	parser.add_argument('--print-every', type=int, required=False, default=100)
+	parser.add_argument('--lr-scheduler-every', type=int, required=False, default=256)
 	parser.add_argument('--plot-every', type=int, required=False, default=1024)
 	parser.add_argument('--save-every', type=int, required=False, default=1000)
 	parser.add_argument('--test-mbs', type=int, required=False, default=8)
@@ -341,7 +342,8 @@ if __name__=='__main__':
 							n_layers=n_layers,
 							d_model=128+256,
 							n_outputs=len(cols_for_loss),
-							ssn_n_outputs=len(cols_for_loss)),
+							ssn_n_outputs=len(cols_for_loss),
+							dropout=0.1),
 						'snapshots_per_sample':snapshots_per_sample,
 						'images':False,
 						'lr':args.lr_transformer,
@@ -409,6 +411,12 @@ if __name__=='__main__':
 
 	for d_model in models:
 		d_model['optimizer']=optim.Adam(d_model['model'].parameters(),lr=d_model['lr'])
+		d_model['scheduler']=optim.lr_scheduler.LinearLR(
+			d_model['optimizer'], 
+			start_factor=0.1, 
+			end_factor=1.0, 
+			total_iters=10, 
+			verbose=False)
 
 	criterion = nn.MSELoss().to(device)
 
@@ -459,6 +467,8 @@ if __name__=='__main__':
 						'train',
 						update=i,
 						plot=True)
+					if i%args.lr_scheduler_every==args.lr_scheduler_every-1:
+					    d_model['scheduler'].step()
 					loss.backward()
 					running_losses['train'][d_model['name']].append(losses) 
 					if args.clip>0:
