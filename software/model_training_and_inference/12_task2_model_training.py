@@ -334,7 +334,7 @@ if __name__=='__main__':
 	print("init network")
 	models=[]
 	if True:
-		for n_layers in [2,4,8,16,32]: #,32,64]:
+		for n_layers in [2,4,8,16,32,64]: #,32,64]:
 			for snapshots_per_sample in args.snapshots_per_sample:
 				models.append( 
 					{
