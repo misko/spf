@@ -340,10 +340,11 @@ if __name__=='__main__':
 						'model':SnapshotNet(
 							snapshots_per_sample,
 							n_layers=n_layers,
-							d_model=128+256,
+							d_model=128, #128+256,
 							n_outputs=len(cols_for_loss),
 							ssn_n_outputs=len(cols_for_loss),
-							dropout=0.0),
+							dropout=0.0,
+                                                        tformer_input=['embedding']),
 						'snapshots_per_sample':snapshots_per_sample,
 						'images':False,
 						'lr':args.lr_transformer,

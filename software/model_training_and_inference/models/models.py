@@ -14,73 +14,73 @@ from torch.utils.data import dataset
 
 
 if False:
-    from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear, ComplexReLU, ComplexBatchNorm1d #, ComplexSigmoid
-    from complexPyTorch.complexFunctions import complex_relu
-    class HybridFFNN(nn.Module):
-            def __init__(self,
-                    d_inputs,
-                    d_outputs,
-                    n_complex_layers,
-                    n_real_layers,
-                    d_hidden,
-                    norm=False):
-                    super().__init__()
-                    
-                    self.complex_net=ComplexFFNN(
-                            d_inputs,
-                            d_hidden,
-                            n_layers=n_complex_layers,
-                            d_hidden=d_hidden,
-                            norm=norm
-                    )
-                    self.real_net=nn.Sequential(
-                            nn.Linear(d_hidden,d_hidden),
-                            *[nn.Sequential(
-                                    nn.Linear(d_hidden,d_hidden),
-                                    nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
-                                    nn.ReLU()
-                                    )
-                            for _ in range(n_real_layers) ],
-                            nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
-                            nn.Linear(d_hidden,d_outputs)
-                    )
-                    
-            def forward(self,x):
-                    complex_out=self.complex_net(x)
-                    real_out=self.real_net(complex_out.abs())
-                    return F.softmax(real_out,dim=1)
-                    #return real_out/(real_out.sum(axis=1,keepdims=True)+1e-9)
-            
+	from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear, ComplexReLU, ComplexBatchNorm1d #, ComplexSigmoid
+	from complexPyTorch.complexFunctions import complex_relu
+	class HybridFFNN(nn.Module):
+		def __init__(self,
+			d_inputs,
+			d_outputs,
+			n_complex_layers,
+			n_real_layers,
+			d_hidden,
+			norm=False):
+			super().__init__()
+			
+			self.complex_net=ComplexFFNN(
+				d_inputs,
+				d_hidden,
+				n_layers=n_complex_layers,
+				d_hidden=d_hidden,
+				norm=norm
+			)
+			self.real_net=nn.Sequential(
+				nn.Linear(d_hidden,d_hidden),
+				*[nn.Sequential(
+					nn.Linear(d_hidden,d_hidden),
+					nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
+					nn.ReLU()
+					)
+				for _ in range(n_real_layers) ],
+				nn.LayerNorm(d_hidden),# if norm else nn.Identity(),
+				nn.Linear(d_hidden,d_outputs)
+			)
+			
+		def forward(self,x):
+			complex_out=self.complex_net(x)
+			real_out=self.real_net(complex_out.abs())
+			return F.softmax(real_out,dim=1)
+			#return real_out/(real_out.sum(axis=1,keepdims=True)+1e-9)
+		
 
-    class ComplexFFNN(nn.Module):
-            def __init__(self,
-                    d_inputs,
-                    d_outputs,
-                    n_layers,
-                    d_hidden,
-                    norm=False):
-                    super().__init__()
-                    
-                    self.output_net=nn.Sequential(
-                            ComplexBatchNorm1d(d_inputs) if norm else nn.Identity(),
-                            ComplexLinear(d_inputs,d_hidden),
-                            *[nn.Sequential(
-                                    ComplexLinear(d_hidden,d_hidden),
-                                    ComplexReLU(),
-                                    ComplexBatchNorm1d(d_hidden) if norm else nn.Identity(),
-                                    )
-                            for _ in range(n_layers) ],
-                            ComplexLinear(d_hidden,d_outputs),
-                    )
-            def forward(self,x):
-                    out=self.output_net(x).abs()
-                    if out.sum().isnan():
-                            breakpoint()
-                            a=1
-                    #breakpoint()
-                    return F.softmax(self.output_net(x).abs(),dim=1)
-                    #return out/(out.sum(axis=1,keepdims=True)+1e-9)
-                    
+	class ComplexFFNN(nn.Module):
+		def __init__(self,
+			d_inputs,
+			d_outputs,
+			n_layers,
+			d_hidden,
+			norm=False):
+			super().__init__()
+			
+			self.output_net=nn.Sequential(
+				ComplexBatchNorm1d(d_inputs) if norm else nn.Identity(),
+				ComplexLinear(d_inputs,d_hidden),
+				*[nn.Sequential(
+					ComplexLinear(d_hidden,d_hidden),
+					ComplexReLU(),
+					ComplexBatchNorm1d(d_hidden) if norm else nn.Identity(),
+					)
+				for _ in range(n_layers) ],
+				ComplexLinear(d_hidden,d_outputs),
+			)
+		def forward(self,x):
+			out=self.output_net(x).abs()
+			if out.sum().isnan():
+				breakpoint()
+				a=1
+			#breakpoint()
+			return F.softmax(self.output_net(x).abs(),dim=1)
+			#return out/(out.sum(axis=1,keepdims=True)+1e-9)
+			
 
 class TransformerModel(nn.Module):
 	def __init__(self,
@@ -100,7 +100,7 @@ class TransformerModel(nn.Module):
 			n_heads, 
 			d_hid, 
 			dropout,
-                        activation='gelu',
+			activation='gelu',
 			batch_first=True)
 		self.transformer_encoder = TransformerEncoder(
 			encoder_layers, 
@@ -152,7 +152,8 @@ class SnapshotNet(nn.Module):
 			ssn_n_layers=8,
 			ssn_n_outputs=8,
 			ssn_d_embed=64,
-			ssn_dropout=0.0):
+			ssn_dropout=0.0,
+			tformer_input=['x','embedding','single_snapshot_pred']):
 		super().__init__()
 		self.d_radio_feature=d_radio_feature
 		self.d_model=d_model
@@ -160,6 +161,15 @@ class SnapshotNet(nn.Module):
 		self.d_hid=d_hid
 		self.n_outputs=n_outputs
 		self.dropout=dropout
+		self.tformer_input=tformer_input
+		self.tfomrer_input_dim=0
+		for k,v in [
+			('x',d_radio_feature),
+			('embedding',ssn_d_embed),
+			('single_snapshot_pred',n_outputs)]:
+			if k in self.tformer_input:
+				self.tfomrer_input_dim+=v
+			
 
 		self.snap_shot_net=SingleSnapshotNet(
 			d_radio_feature=d_radio_feature,
@@ -171,7 +181,7 @@ class SnapshotNet(nn.Module):
 		#self.snap_shot_net=Task1Net(d_radio_feature*snapshots_per_sample)
 
 		self.tformer=TransformerModel(
-			d_radio_feature=d_radio_feature+ssn_d_embed+n_outputs,
+			d_radio_feature=self.tfomrer_input_dim,
 			#d_radio_feature=ssn_d_embed, #+n_outputs,
 			d_model=d_model,
 			n_heads=n_heads,
@@ -181,16 +191,12 @@ class SnapshotNet(nn.Module):
 			n_outputs=n_outputs)
 
 	def forward(self,x):
-		single_snapshot_output,embed=self.snap_shot_net(x)
 		d=self.snap_shot_net(x)
 		#return single_snapshot_output,single_snapshot_output
 		tformer_output=self.tformer(
-			torch.cat([
-				x,
-				d['embedding'],
-				d['single_snapshot_pred']
-				],axis=2))
-		return {'transformer_pred':tformer_output,'single_snapshot_pred':d['single_snapshot_pred']}
+			torch.cat([d[t] for t in self.tformer_input ],axis=2))
+		return {'transformer_pred':tformer_output,
+			'single_snapshot_pred':d['single_snapshot_pred']}
 		
 
 class SingleSnapshotNet(nn.Module):
@@ -240,7 +246,7 @@ class SingleSnapshotNet(nn.Module):
 		if self.snapshots_per_sample>0:
 			output=output.reshape(-1,1,self.n_outputs)
 			return {'fc_pred':output}
-		return {'single_snapshot_pred':output,'embedding':embed}
+		return {'x':x,'single_snapshot_pred':output,'embedding':embed}
 
 class Task1Net(nn.Module):
 	def __init__(self,ndim,n_outputs=8):
