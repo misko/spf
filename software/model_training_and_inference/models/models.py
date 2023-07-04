@@ -107,10 +107,10 @@ class TransformerModel(nn.Module):
 			n_layers,
 			#nn.LayerNorm(d_model),
 			)
+
+		assert( d_model>=d_radio_feature)
 		
-		assert( d_model>d_radio_feature)
-		
-		self.linear_in = nn.Linear(d_radio_feature, d_model-d_radio_feature)
+		self.linear_in = nn.Linear(d_radio_feature, d_model-d_radio_feature) if d_model>d_radio_feature else nn.Identity()
 		
 		self.d_model=d_model
 
@@ -129,9 +129,10 @@ class TransformerModel(nn.Module):
 			)
 
 	def forward(self, src: Tensor) -> Tensor:
-		src_enc = self.transformer_encoder(
-			torch.cat(
-				[src,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
+		#src_enc = self.transformer_encoder(
+		#	torch.cat(
+		#		[src,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
+		src_enc = self.transformer_encoder( self.linear_in(src))
 		#output = self.transformer_encoder(src) #,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
 		output = self.output_net(src_enc) #/np.sqrt(self.d_model)
 		if output.isnan().any():

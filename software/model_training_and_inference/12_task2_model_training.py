@@ -271,6 +271,8 @@ if __name__=='__main__':
 	parser.add_argument('--lr-direct', type=float, required=False, default=0.01)
 	parser.add_argument('--lr-transformer', type=float, required=False, default=0.00001)
 	parser.add_argument('--plot', type=bool, required=False, default=False)
+	parser.add_argument('--transformer-input', type=str, required=False, default=['x','embedding','single_snapshot_pred'],nargs="+")
+	parser.add_argument('--transformer-dmodel', type=int, required=False, default=128+256)
 	parser.add_argument('--clip', type=float, required=False, default=0.5)
 	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist") #,src_theta,src_dist,det_delta,det_theta,det_space")
 	args = parser.parse_args()
@@ -340,11 +342,11 @@ if __name__=='__main__':
 						'model':SnapshotNet(
 							snapshots_per_sample,
 							n_layers=n_layers,
-							d_model=128, #128+256,
+							d_model=args.transformer_dmodel,
 							n_outputs=len(cols_for_loss),
 							ssn_n_outputs=len(cols_for_loss),
 							dropout=0.0,
-                                                        tformer_input=['embedding']),
+                                                        tformer_input=args.transformer_input),
 						'snapshots_per_sample':snapshots_per_sample,
 						'images':False,
 						'lr':args.lr_transformer,
