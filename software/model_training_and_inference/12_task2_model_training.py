@@ -260,6 +260,7 @@ if __name__=='__main__':
 	parser.add_argument('--test-mbs', type=int, required=False, default=8)
 	parser.add_argument('--output-prefix', type=str, required=False, default='model_out')
 	parser.add_argument('--test-fraction', type=float, required=False, default=0.2)
+	parser.add_argument('--weight-decay', type=float, required=False, default=1e-2)
 	parser.add_argument('--type', type=str, required=False, default=32)
 	parser.add_argument('--seed', type=int, required=False, default=0)
 	parser.add_argument('--keep-n-saves', type=int, required=False, default=2)
@@ -413,7 +414,7 @@ if __name__=='__main__':
 		'test':plt.figure(figsize=(14*3,6))}
 
 	for d_model in models:
-		d_model['optimizer']=optim.Adam(d_model['model'].parameters(),lr=d_model['lr'])
+		d_model['optimizer']=optim.Adam(d_model['model'].parameters(),lr=d_model['lr'],weight_decay=args.weight_decay)
 		d_model['scheduler']=optim.lr_scheduler.LinearLR(
 			d_model['optimizer'], 
 			start_factor=0.001, 
