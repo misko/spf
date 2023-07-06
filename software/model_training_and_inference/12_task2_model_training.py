@@ -15,7 +15,7 @@ from torch.utils.data import dataset, random_split
 
 from utils.image_utils import labels_to_source_images
 from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerModel,
-		    UNet)
+			UNet)
 from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn
 
 
@@ -335,8 +335,10 @@ if __name__=='__main__':
 	print("init network")
 	models=[]
 	if True:
-		for n_layers in [2,4,8,16,32,64]: #,32,64]:
+		for n_layers in [2,4,8,16,32]:#,32,64]: #,32,64]:
 			for snapshots_per_sample in args.snapshots_per_sample:
+				if snapshots_per_sample==1:
+					continue
 				models.append( 
 					{
 						'name':'%d snapshots (l%d)' % (snapshots_per_sample,n_layers), 
@@ -347,7 +349,7 @@ if __name__=='__main__':
 							n_outputs=len(cols_for_loss),
 							ssn_n_outputs=len(cols_for_loss),
 							dropout=0.0,
-                                                        tformer_input=args.transformer_input),
+							tformer_input=args.transformer_input),
 						'snapshots_per_sample':snapshots_per_sample,
 						'images':False,
 						'lr':args.lr_transformer,
@@ -456,7 +458,7 @@ if __name__=='__main__':
 		for i, data in enumerate(trainloader, 0):
 			#move to device, do final prep
 			radio_inputs,labels,radio_images,label_images=prep_data(data)
-			with torch.cuda.amp.autocast():
+			if True: #torch.cuda.amp.autocast():
 				for d_model in models:
 					for p in d_net['model'].parameters():
 						if p.isnan().any():
@@ -472,7 +474,7 @@ if __name__=='__main__':
 						update=i,
 						plot=True)
 					if i%args.lr_scheduler_every==args.lr_scheduler_every-1:
-					    d_model['scheduler'].step()
+						d_model['scheduler'].step()
 					loss.backward()
 					running_losses['train'][d_model['name']].append(losses) 
 					if args.clip>0:
