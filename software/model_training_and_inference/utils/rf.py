@@ -62,9 +62,10 @@ class QAMSource(Source):
 
   def signal(self,sampling_times):
     signal=self.signal_source.signal(sampling_times)
-    return ((self.lo_in_phase.signal(sampling_times)*signal.real+\
-              self.lo_out_of_phase.signal(sampling_times)*signal.imag)/2) +\
-                np.random.randn(sampling_times.shape[0])*self.sigma
+    signal=((self.lo_in_phase.signal(sampling_times)*signal.real+\
+              self.lo_out_of_phase.signal(sampling_times)*signal.imag)/2)
+    signal+=(np.random.randn(sampling_times.shape[0], 2)*self.sigma).view(np.cdouble).reshape(-1)
+    return signal
 
   def demod_signal(self,signal,demod_times):
     return (self.lo_in_phase(demod_times)+\
@@ -81,13 +82,14 @@ class NoiseWrapper(Source):
     return self.internal_source.signal(sampling_times) + (np.random.randn(sampling_times.shape[0], 2)*self.sigma).view(np.cdouble).reshape(-1)
 
 class Detector(object):
-  def __init__(self,sampling_frequency,oreintation=0):
+  def __init__(self,sampling_frequency,oreintation=0,sigma=0.0):
     self.sources=[]
     self.source_positions=None
     self.receiver_positions=None
     self.sampling_frequency=sampling_frequency
     self.position_offset=np.zeros(2)
     self.orientation=0.0
+    self.sigma=sigma
 
   def add_source(self,source):
     self.sources.append(source)
@@ -144,7 +146,12 @@ class Detector(object):
     n_samples=int(duration*self.sampling_frequency)
     base_times=start_time+rf_linspace(0,n_samples-1,n_samples)/self.sampling_frequency
 
-    sample_matrix=np.zeros((self.receiver_positions.shape[0],n_samples),dtype=np.cdouble) # receivers x samples
+    #sample_matrix=np.zeros((self.receiver_positions.shape[0],n_samples),dtype=np.cdouble) # receivers x samples
+    sample_matrix=np.random.randn(
+		self.receiver_positions.shape[0],n_samples,2).view(np.cdouble).reshape(self.receiver_positions.shape[0],n_samples)*self.sigma
+
+    if len(self.sources)==0:
+      return sample_matrix
 
     distances=self.distance_receiver_to_source().T # sources x receivers
     time_delays=distances/c 
@@ -166,8 +173,8 @@ def linear_receiver_positions(n_elements,spacing):
     return receiver_positions
 
 class ULADetector(Detector):
-  def __init__(self,sampling_frequency,n_elements,spacing):
-    super().__init__(sampling_frequency)
+  def __init__(self,sampling_frequency,n_elements,spacing,sigma=0.0):
+    super().__init__(sampling_frequency,sigma=sigma)
     self.set_receiver_positions(linear_receiver_positions(n_elements,spacing))
     
 @functools.lru_cache(maxsize=1024)
@@ -176,8 +183,8 @@ def circular_receiver_positions(n_elements,radius):
     return radius*np.hstack([np.cos(theta),np.sin(theta)])
 
 class UCADetector(Detector):
-  def __init__(self,sampling_frequency,n_elements,radius):
-    super().__init__(sampling_frequency)
+  def __init__(self,sampling_frequency,n_elements,radius,sigma=0.0):
+    super().__init__(sampling_frequency,sigma=sigma)
     self.set_receiver_positions(circular_receiver_positions(n_elements,radius))
 
 @functools.lru_cache(maxsize=1024)

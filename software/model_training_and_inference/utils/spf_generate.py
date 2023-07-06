@@ -55,9 +55,9 @@ def generate_session(args_and_session_idx):
 	beamformer_f=beamformer_numba if args.numba else beamformer
 
 	if args.array_type=='linear':
-		d=ULADetector(args.sampling_frequency,args.elements,wavelength/4) # 10Mhz sampling
+		d=ULADetector(args.sampling_frequency,args.elements,wavelength/4,sigma=args.detector_noise) # 10Mhz sampling
 	elif args.array_type=='circular':
-		d=UCADetector(args.sampling_frequency,args.elements,wavelength/4) # 10Mhz sampling
+		d=UCADetector(args.sampling_frequency,args.elements,wavelength/4,sigma=args.detector_noise) # 10Mhz sampling
 	else:
 		print("Array type must be linear or circular")
 		sys.exit(1)
@@ -116,7 +116,19 @@ def generate_session(args_and_session_idx):
 			)
 
 	whos_broadcasting_at_t=np.random.randint(0,args.sources,args.time_steps)
-	broadcasting_positions_at_t[np.arange(args.time_steps),whos_broadcasting_at_t]=1
+
+	if args.random_emitter_timing:
+		emitter_p=np.random.randint(1,10,args.sources)
+		emitter_p=emitter_p/emitter_p.sum()
+		whos_broadcasting_at_t=np.random.choice(np.arange(args.sources),args.time_steps,p=emitter_p)
+
+	if args.random_silence:
+		silence_p=np.random.uniform(0.0,0.8)
+		whos_broadcasting_at_t[np.random.choice(np.arange(args.time_steps),int(silence_p*args.time_steps),replace=False)]=-1
+
+	time_steps_that_broadcast=np.where(whos_broadcasting_at_t>=0)[0]
+	broadcasting_positions_at_t[time_steps_that_broadcast,whos_broadcasting_at_t[time_steps_that_broadcast]]=1
+	#broadcasting_positions_at_t[np.arange(args.time_steps),whos_broadcasting_at_t]=1
 
 	#deal with source positions
 	#broadcasting_source_positions=source_positions_at_t[np.where(broadcasting_positions_at_t==1)[:-1]]
@@ -134,17 +146,20 @@ def generate_session(args_and_session_idx):
 		#only one source transmits at a time, TDM this part
 		tdm_source_idx=whos_broadcasting_at_t[t_idx]
 		d.rm_sources()
-		d.add_source(NoiseWrapper(
-		  QAMSource(
-			current_source_positions[tdm_source_idx], # x, y position
-			args.carrier_frequency,
-			args.signal_frequency,
-			sigma=sigma,
-			IQ=source_IQ[tdm_source_idx]),
-		  sigma=sigma))
+		if tdm_source_idx>=0:
+			d.add_source(NoiseWrapper(
+			  QAMSource(
+				current_source_positions[tdm_source_idx], # x, y position
+				args.carrier_frequency,
+				args.signal_frequency,
+				sigma=sigma,
+				IQ=source_IQ[tdm_source_idx]),
+			  sigma=sigma))
 		
 		#set the detector position (its moving)
 		if args.detector_trajectory=='orbit':
+			print("There is an error in angles somewhere here")
+			sys.exit(1)
 			d.position_offset=(time_to_detector_offset(t=time_stamps[t_idx,0],
 				orbital_width=1/4,
 				orbital_height=1/3,
