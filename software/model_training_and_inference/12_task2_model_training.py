@@ -445,6 +445,7 @@ if __name__=='__main__':
 		labels=labels[...,cols_for_loss].to(dtype).to(device)
 		
 		assert(not radio_inputs.isnan().any())
+		assert(not radio_inputs.isinf().any())
 		#image data
 		if using_images:
 			radio_images=radio_images.to(device)
