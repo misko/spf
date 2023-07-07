@@ -116,12 +116,12 @@ def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,tra
 				axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
 				axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
 			axs[2].legend()
-			pos_from_preds=src_pos_from_radial(_ri,_l)
-			axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='real radial positions',c='b',alpha=0.1,s=7)
-			pos_from_preds=src_pos_from_radial(_ri,_p)
-			axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='predicted radial positions',c='r',alpha=0.3,s=7)
-
-			axs[3].legend()
+			if 'src_theta' in args.losses and 'src_dist' in args.losses:
+				pos_from_preds=src_pos_from_radial(_ri,_l)
+				axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='real radial positions',c='b',alpha=0.1,s=7)
+				pos_from_preds=src_pos_from_radial(_ri,_p)
+				axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='predicted radial positions',c='r',alpha=0.3,s=7)
+				axs[3].legend()
 			
 			for idx in [0,1,2]:
 				axs[idx].legend()
