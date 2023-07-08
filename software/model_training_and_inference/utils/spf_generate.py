@@ -25,7 +25,7 @@ class BoundedPoint:
 
 	def time_step(self):
 		if np.linalg.norm(self.v)==0:
-			return np.array(self.pos),0.0
+			return np.array(self.pos),0.0,np.zeros(2)
 		self.pos+=self.v*self.delta_time
 
 		for idx in [0,1]:
@@ -33,8 +33,8 @@ class BoundedPoint:
 				self.pos=np.clip(self.pos,0,self.width)
 				self.v[idx]=-self.v[idx]
 		if np.linalg.norm(self.v)>0:
-			return np.array(self.pos),np.arctan2(self.v[1],self.v[0]),self.v
-		return np.array(self.pos),0.0
+			return np.array(self.pos),np.arctan2(self.v[0],self.v[1]),self.v
+		return np.array(self.pos),0.0,np.zeros(2)
 
 
 def time_to_detector_offset(t,orbital_width,orbital_height,orbital_frequency=1/100.0,phase_offset=0): #1/2.0):
@@ -97,7 +97,8 @@ def generate_session(args_and_session_idx):
 
 	detector_theta=np.random.uniform(-np.pi,np.pi)
 	if args.reference:
-		detector_theta=np.random.choice([0,np.pi/4,np.pi/2,np.pi])
+		detector_theta=np.random.choice([0,np.pi/4,np.pi*3/4,np.pi/2,np.pi])
+		#detector_theta=np.random.choice([0,np.pi/4,np.pi/2,np.pi])
 
 	detector_v=np.array([np.cos(detector_theta),np.sin(detector_theta)])*args.detector_speed # 10m/s
 	detector_bounded_point=BoundedPoint(pos=np.random.uniform(0+10,args.width-10,2),
@@ -190,7 +191,7 @@ def generate_session(args_and_session_idx):
 
 		if tdm_source_idx>=0:
 			diff=current_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
-			source_theta_at_t[t_idx]=(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi	
+			source_theta_at_t[t_idx]=(np.arctan2(diff[[0]],diff[[1]])-d.orientation+np.pi)%(2*np.pi)-np.pi	
 			source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
 		else:
 			source_theta_at_t[t_idx]=0 #(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi	
