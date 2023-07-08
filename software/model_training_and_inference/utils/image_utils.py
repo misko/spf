@@ -20,7 +20,7 @@ def detector_positions_to_distance(detector_positions,width):
 #input b,s,2   output: b,s,1,width,width
 def detector_positions_to_theta_grid(detector_positions,width):
 	diffs=get_grid(width)[None,None]-detector_positions[:,:,None,None].astype(np.float32) 
-	return (np.arctan2(diffs[...,1],diffs[...,0]))[:,:,None] # batch, snapshot,1, x ,y `
+	return (np.arctan2(diffs[...,0],diffs[...,1]))[:,:,None] # batch, snapshot,1, x ,y `
 def blur2(img):
 	blur=torchvision.transforms.GaussianBlur(11, sigma=8.0)
 	return blur(blur(img))

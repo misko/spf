@@ -6,7 +6,7 @@ sampling_frequency=10e6
 d=ULADetector(sampling_frequency,2,wavelength/4,sigma=0.0) 
 
 
-source_pos=np.array([[10,0]])
+source_pos=np.array([[0,10]])
 
 signal_matrixs=[]
 beamformer_outputs=[]
@@ -37,7 +37,8 @@ for rotation in rotations:
     beamformer_outputs.append(beam_former_outputs_at_t)
     assert(np.isclose(signal_matrixs[0],signal_matrixs[-1]).all())
     assert(np.isclose(beamformer_outputs[0],beamformer_outputs[-1]).all())
-plt.plot(beamformer_outputs[0])
+plt.plot(thetas_at_t,beamformer_outputs[0])
+plt.axvline(x=0,color='red')
 plt.show()
 print("PASS!")
 
