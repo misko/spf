@@ -66,10 +66,6 @@ class QAMSource(Source):
               self.lo_out_of_phase.signal(sampling_times)*signal.imag)/2)
     signal+=(np.random.randn(sampling_times.shape[0], 2)*self.sigma).view(np.cdouble).reshape(-1)
     return signal
-
-  def demod_signal(self,signal,demod_times):
-    return (self.lo_in_phase(demod_times)+\
-              self.lo_out_of_phase(demod_times)*1j)*signal
   
 
 class NoiseWrapper(Source):
@@ -159,10 +155,13 @@ class Detector(object):
     distances_squared=distances**2
 
     for source_index,_source in enumerate(self.sources):
-      signal=_source.signal(base_time_offsets[source_index].reshape(-1)).reshape(base_time_offsets[source_index].shape)
+      #get the signal from the source for these times
+      signal=_source.signal(base_time_offsets[source_index].reshape(-1)).reshape(base_time_offsets[source_index].shape) # receivers x sampling intervals
       normalized_signal=signal/distances_squared[source_index][...,None]
       _base_times=np.broadcast_to(base_times,normalized_signal.shape) # broadcast the basetimes for rx_lo on all receivers
-      sample_matrix+=_source.demod_signal(normalized_signal.reshape(-1),_base_times).reshape(normalized_signal.shape)
+      sample_matrix+=_source.demod_signal(
+              normalized_signal,
+              _base_times)
     return sample_matrix
 
 
@@ -216,7 +215,7 @@ def beamformer_numba(receiver_positions,signal_matrix,carrier_frequency,spacing=
 
 def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1,offset=0.0):
     thetas=np.linspace(-np.pi,np.pi,spacing)#-offset
-    source_vectors=np.vstack([np.cos(thetas+offset)[None],np.sin(thetas+offset)[None]]).T
+    source_vectors=np.vstack([np.sin(thetas+offset)[None],np.cos(thetas+offset)[None]]).T
     #thetas,source_vectors=get_thetas(spacing)
     steer_dot_signal=np.zeros(thetas.shape[0])
     carrier_wavelength=c/carrier_frequency
