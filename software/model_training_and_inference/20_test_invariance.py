@@ -1,11 +1,12 @@
 from utils.rf import *
-d=ULADetector(10,2,10)
-
-
-source_pos=np.array([[10,10]])
-
+c=3e8 # speed of light
 carrier_frequency=2.4e9
+wavelength=c/carrier_frequency
+sampling_frequency=10e6
+d=ULADetector(sampling_frequency,2,wavelength/4,sigma=0.0) 
 
+
+source_pos=np.array([[10,0]])
 
 signal_matrixs=[]
 beamformer_outputs=[]
@@ -24,7 +25,7 @@ for rotation in rotations:
     #print("\tSRC",_source_pos)
     #print("\tREC",d.all_receiver_pos())
     signal_matrix=d.get_signal_matrix(
-        start_time=0,
+        start_time=100,
         duration=3/d.sampling_frequency)
     #print(signal_matrix)
     thetas_at_t,beam_former_outputs_at_t,_=beamformer(
@@ -36,6 +37,7 @@ for rotation in rotations:
     beamformer_outputs.append(beam_former_outputs_at_t)
     assert(np.isclose(signal_matrixs[0],signal_matrixs[-1]).all())
     assert(np.isclose(beamformer_outputs[0],beamformer_outputs[-1]).all())
-
+plt.plot(beamformer_outputs[0])
+plt.show()
 print("PASS!")
 
