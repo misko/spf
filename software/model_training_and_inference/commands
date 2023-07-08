@@ -91,3 +91,9 @@ python 12_task2_model_training.py --dataset ./sessions-train_nonoise --lr-direct
 
 lr=0.00001
 python 12_task2_model_training.py --dataset ./sessions-train_nonoise --lr-direct 0.001 --mb 32 --workers 16 --print-every 2048 --plot True --snapshots 1 16 128 --device cuda --save-every 10000 --type 32 --print-every 128 --plot-every 1024 --losses src_theta,src_dist,src_pos --output-prefix 2element_NoNoise_${lr}_ --transformer-dmodel 64 --transformer-input embedding --lr-transformer $lr
+
+lr=0.0000001
+python 12_task2_model_training.py --dataset ./sessions-train_nonoise --lr-direct 0.001 --mb 32 --workers 16 --print-every 2048 --plot True --snapshots 1 16 128 --device cuda --save-every 10000 --type 32 --print-every 128 --plot-every 1024 --losses src_theta,src_dist,src_pos --output-prefix 2element_NoNoise_${lr}_ --transformer-dmodel 64 --transformer-input embedding --lr-transformer $lr
+
+lr=0.0001
+python 12_task2_model_training.py --dataset ./sessions-train_nonoise --lr-direct 0.001 --mb 32 --workers 16 --print-every 2048 --plot True --snapshots 1 16 128 --device cuda --save-every 10000 --type 32 --print-every 128 --plot-every 1024 --losses src_theta,src_dist,src_pos --output-prefix 2element_NoNoise_${lr}_ --transformer-dmodel 64 --transformer-input embedding --lr-transformer $lr
