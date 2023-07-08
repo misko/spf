@@ -4,7 +4,7 @@ import torch
 from PIL import Image
 
 from utils.image_utils import (detector_positions_to_theta_grid,
-                         labels_to_source_images, radio_to_image)
+						 labels_to_source_images, radio_to_image)
 
 
 def plot_space(ax,session):
@@ -54,6 +54,74 @@ def plot_trajectory(ax,
 		for x in range(n):
 			ax.plot( positions[-1,0], positions[-1,1],'.',ms=ms*(1.8**x),c=c,alpha=1/n)
 
+def get_top_n_peaks(bf,n=2,peak_size=15):
+	bf=np.copy(bf)
+	peaks=np.zeros(n)
+	for peak_idx in range(n):
+		#find a peak
+		peak=bf.argmax()
+		for idx in np.arange(-peak_size//2,peak_size//2+1):
+			bf[(peak+idx)%bf.shape[0]]=-np.inf
+		peaks[peak_idx]=peak
+	return peaks
+
+def frac_to_theta(fracs):
+	return 2*(fracs-0.5)*np.pi
+
+def plot_lines(session,steps,output_prefix):
+	width=session['width_at_t'][0][0]
+	
+	#extract the images
+	d={}
+	filenames=[]
+	plt.ioff()
+	for idx in np.arange(1,steps):
+		fig=plt.figure(figsize=(12,12))
+		ax=fig.subplots(1,1)
+
+		plot_trajectory(ax,session['detector_position_at_t'][:idx],width,ms=30,label='detector')
+		direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
+			[np.sin(session['detector_orientation_at_t'][idx-1]),np.cos(session['detector_orientation_at_t'][idx-1])],axis=1)
+		ax.plot(
+			[session['detector_position_at_t'][idx-1][0],direction[0,0]],
+			[session['detector_position_at_t'][idx-1][1],direction[0,1]])
+		anti_direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
+			[np.sin(session['detector_orientation_at_t'][idx-1]+np.pi/2),np.cos(session['detector_orientation_at_t'][idx-1]+np.pi/2)],axis=1)
+		ax.plot(
+			[session['detector_position_at_t'][idx-1][0],anti_direction[0,0]],
+			[session['detector_position_at_t'][idx-1][1],anti_direction[0,1]])
+		_thetas=frac_to_theta(get_top_n_peaks(session['beam_former_outputs_at_t'][idx-1])/session['beam_former_outputs_at_t'][idx-1].shape[-1])
+		for _theta in _thetas:
+			emitter_direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
+				[
+					np.sin(session['detector_orientation_at_t'][idx-1]+_theta),
+					np.cos(session['detector_orientation_at_t'][idx-1]+_theta)
+				],axis=1)
+			ax.plot(
+				[session['detector_position_at_t'][idx-1][0],emitter_direction[0,0]],
+				[session['detector_position_at_t'][idx-1][1],emitter_direction[0,1]])
+		emitter_direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
+			[
+				np.sin(session['detector_orientation_at_t'][idx-1]+session['source_theta_at_t'][idx-1,0]),
+				np.cos(session['detector_orientation_at_t'][idx-1]+session['source_theta_at_t'][idx-1,0])
+			],axis=1)
+		ax.plot(
+			[session['detector_position_at_t'][idx-1][0],emitter_direction[0,0]],
+			[session['detector_position_at_t'][idx-1][1],emitter_direction[0,1]])
+		for n in np.arange(session['source_positions_at_t'].shape[1]):
+			rings=(session['broadcasting_positions_at_t'][idx,n,0]==1)
+			plot_trajectory(ax,session['source_positions_at_t'][:idx,n],width,ms=15,c='r',rings=rings,label='emitter %d' % n)
+		handles, labels = ax.get_legend_handles_labels()
+		by_label = dict(zip(labels, handles))
+		ax.legend(by_label.values(), by_label.keys())
+
+
+		fn='%s_%04d.png' % (output_prefix,idx)
+		filenames.append(fn)
+		fig.savefig(fn)
+		plt.close(fig)
+	plt.ion()
+	return filenames
 
 #generate the images for the session
 def plot_full_session(session,steps,output_prefix):
@@ -80,19 +148,19 @@ def plot_full_session(session,steps,output_prefix):
 		axs[0,0].set_title("Position map")
 		plot_trajectory(axs[0,0],session['detector_position_at_t'][:idx],width,ms=30,label='detector')
 		direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
-			[np.cos(session['detector_orientation_at_t'][idx-1]),np.sin(session['detector_orientation_at_t'][idx-1])],axis=1)
+			[np.sin(session['detector_orientation_at_t'][idx-1]),np.cos(session['detector_orientation_at_t'][idx-1])],axis=1)
 		axs[0,0].plot(
 			[session['detector_position_at_t'][idx-1][0],direction[0,0]],
 			[session['detector_position_at_t'][idx-1][1],direction[0,1]])
 		anti_direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
-			[np.cos(session['detector_orientation_at_t'][idx-1]+np.pi/2),np.sin(session['detector_orientation_at_t'][idx-1]+np.pi/2)],axis=1)
+			[np.sin(session['detector_orientation_at_t'][idx-1]+np.pi/2),np.cos(session['detector_orientation_at_t'][idx-1]+np.pi/2)],axis=1)
 		axs[0,0].plot(
 			[session['detector_position_at_t'][idx-1][0],anti_direction[0,0]],
 			[session['detector_position_at_t'][idx-1][1],anti_direction[0,1]])
 		emitter_direction=session['detector_position_at_t'][idx-1]+0.25*session['width_at_t'][0]*np.stack(
 			[
-				np.cos(session['detector_orientation_at_t'][idx-1]+session['source_theta_at_t'][idx-1,0]),
-				np.sin(session['detector_orientation_at_t'][idx-1]+session['source_theta_at_t'][idx-1,0])
+				np.sin(session['detector_orientation_at_t'][idx-1]+session['source_theta_at_t'][idx-1,0]),
+				np.cos(session['detector_orientation_at_t'][idx-1]+session['source_theta_at_t'][idx-1,0])
 			],axis=1)
 		axs[0,0].plot(
 			[session['detector_position_at_t'][idx-1][0],emitter_direction[0,0]],
