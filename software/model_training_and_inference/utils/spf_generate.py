@@ -33,7 +33,7 @@ class BoundedPoint:
 				self.pos=np.clip(self.pos,0,self.width)
 				self.v[idx]=-self.v[idx]
 		if np.linalg.norm(self.v)>0:
-			return np.array(self.pos),np.arctan2(self.v[1],self.v[0])
+			return np.array(self.pos),np.arctan2(self.v[1],self.v[0]),self.v
 		return np.array(self.pos),0.0
 
 
@@ -63,6 +63,7 @@ def generate_session(args_and_session_idx):
 		sys.exit(1)
 
 	current_source_positions=np.random.uniform(low=0, high=args.width,size=(args.sources,2))
+	current_source_velocities=np.zeros((args.sources,2))
 
 	if args.reference:
 		current_source_positions=current_source_positions*0+np.array((args.width//2,args.width//4))
@@ -79,7 +80,9 @@ def generate_session(args_and_session_idx):
 
 	# lets run this thing
 	source_positions_at_t=np.zeros((args.time_steps,args.sources,2))
+	source_velocities_at_t=np.zeros((args.time_steps,args.sources,2))
 	broadcasting_positions_at_t=np.zeros((args.time_steps,args.sources,1))
+	broadcasting_heading_at_t=np.zeros((args.time_steps,args.sources,1))
 	receiver_positions_at_t=np.zeros((args.time_steps,args.elements,2))
 	source_theta_at_t=np.zeros((args.time_steps,1,1))
 	source_distance_at_t=np.zeros((args.time_steps,1,1))
@@ -132,17 +135,17 @@ def generate_session(args_and_session_idx):
 
 	#deal with source positions
 	#broadcasting_source_positions=source_positions_at_t[np.where(broadcasting_positions_at_t==1)[:-1]]
-         
-        #deal with detector position features
-        #diffs=source_positions-d['detector_position_at_t_normalized']
-        #source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]
+	 
+	#deal with detector position features
+	#diffs=source_positions-d['detector_position_at_t_normalized']
+	#source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]
 	#breakpoint()
 
 	time_stamps=(np.arange(args.time_steps)*args.time_interval).reshape(-1,1)
 	for t_idx in np.arange(args.time_steps):
 		#update source positions
 		for idx in range(len(source_bounded_points)):
-			current_source_positions[idx],_=source_bounded_points[idx].time_step()
+			current_source_positions[idx],_,current_source_velocities[idx]=source_bounded_points[idx].time_step()
 		#only one source transmits at a time, TDM this part
 		tdm_source_idx=whos_broadcasting_at_t[t_idx]
 		d.rm_sources()
@@ -166,11 +169,12 @@ def generate_session(args_and_session_idx):
 				phase_offset=detector_position_phase_offset,
 				orbital_frequency=(2/3)*args.width*np.pi/args.detector_speed)*args.width).astype(int)
 		elif args.detector_trajectory=='bounce':
-			d.position_offset,d.orientation=detector_bounded_point.time_step()
+			d.position_offset,d.orientation,_=detector_bounded_point.time_step()
 			detector_orientation_at_t[t_idx]=d.orientation
 
 		detector_position_phase_offsets_at_t[t_idx]=detector_position_phase_offset
 		source_positions_at_t[t_idx]=current_source_positions
+		source_velocities_at_t[t_idx]=current_source_velocities
 		receiver_positions_at_t[t_idx]=d.all_receiver_pos()
 
 		signal_matrixs_at_t[t_idx]=d.get_signal_matrix(
@@ -194,6 +198,7 @@ def generate_session(args_and_session_idx):
 	session={
 			'broadcasting_positions_at_t':broadcasting_positions_at_t, # list of (time_steps,sources,1) 
 			'source_positions_at_t':source_positions_at_t, # (time_steps,sources,2[x,y])
+			'source_velocities_at_t':source_velocities_at_t, # (time_steps,sources,2[x,y])
 			'receiver_positions_at_t':receiver_positions_at_t, # (time_steps,receivers,2[x,y])
 			'signal_matrixs_at_t':signal_matrixs_at_t, # (time_steps,receivers,samples_per_snapshot)
 			'beam_former_outputs_at_t':beam_former_outputs_at_t, #(timesteps,thetas_tested_for_steering)

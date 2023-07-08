@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 from utils.image_utils import (detector_positions_to_theta_grid,
-                         labels_to_source_images, radio_to_image)
+			 labels_to_source_images, radio_to_image)
 from utils.plot import plot_space
 from utils.spf_generate import generate_session
 from compress_pickle import dump, load
@@ -69,6 +69,7 @@ class SessionsDatasetTask2(SessionsDataset):
 		d=super().__getitem__(idx)
 		#normalize these before heading out
 		d['source_positions_at_t_normalized']=2*(d['source_positions_at_t']/self.args.width-0.5)
+		d['source_velocities_at_t_normalized']=d['source_velocities_at_t']/self.args.width
 		d['detector_position_at_t_normalized']=2*(d['detector_position_at_t']/self.args.width-0.5)
 		d['source_distance_at_t_normalized']=d['source_distance_at_t'].mean(axis=2)/(self.args.width/2)
 		return d #,d['source_positions_at_t']
@@ -78,6 +79,7 @@ class SessionsDatasetTask2WithImages(SessionsDataset):
 		d=super().__getitem__(idx)
 		#normalize these before heading out
 		d['source_positions_at_t_normalized']=2*(d['source_positions_at_t']/self.args.width-0.5)
+		d['source_velocities_at_t_normalized']=d['source_velocities_at_t']/self.args.width
 		d['detector_position_at_t_normalized']=2*(d['detector_position_at_t']/self.args.width-0.5)
 		d['source_distance_at_t_normalized']=d['source_distance_at_t'].mean(axis=2)/(self.args.width/2)
 
@@ -124,7 +126,8 @@ def collate_fn(_in):
 	times=d['time_stamps']/(0.00001+d['time_stamps'].max(axis=2,keepdim=True)[0]) 
 
 	#deal with source positions
-	source_positions=d['source_positions_at_t_normalized'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
+	source_position=d['source_positions_at_t_normalized'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
+	source_velocity=d['source_velocities_at_t_normalized'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
 
 	#deal with detector position features
 	#diffs=source_positions-d['detector_position_at_t_normalized']
@@ -151,16 +154,18 @@ def collate_fn(_in):
 
 	#create the labels
 	labels=torch.cat([
-		source_positions, # zero center the positions
+		source_position, # zero center the positions
 		(source_theta+detector_theta+1)%2.0-1, # initialy in units of np.pi?
 		distances, # try to zero center?
 		space_delta,
 		space_theta,
-		space_dist
+		space_dist,
+                source_velocity,
 	], axis=2).float() #.to(device)
 	#breakpoint()
 	#create the features
-	radio_inputs=torch.cat(
+	inputs={
+		'drone_state':torch.cat(
 		[
 			d['detector_position_at_t_normalized'],
 			times-times.max(axis=2,keepdim=True)[0],
@@ -168,13 +173,21 @@ def collate_fn(_in):
 			space_theta,
 			space_dist,
 			detector_theta,
+		],dim=2).float(),
+		'radio_feature':torch.cat(
+		[
 			torch.log(d['beam_former_outputs_at_t'].mean(axis=2,keepdim=True))/20,
 			d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].mean(axis=2,keepdim=True), # maybe pass in log values?
 		],
 		dim=2
-	).float() #.to(device)
+		).float()
+		}
 	if 'radio_image_at_t' in d:
 		radio_images=d['radio_image_at_t'].float()
 		label_images=d['source_image_at_t'].float()
-		return radio_inputs,radio_images,labels,label_images
-	return radio_inputs,None,labels,None
+		return {'inputs':inputs,
+			'input_images':radio_images,
+			'labels':labels,
+			'label_images':label_images}
+	return {'inputs':inputs,
+		'labels':labels}

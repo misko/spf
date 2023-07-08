@@ -28,6 +28,7 @@ output_cols={ # maybe this should get moved to the dataset part...
 	'det_delta':[4,5],
 	'det_theta':[6],
 	'det_space':[7],
+        'src_v':[8,9]
 }
 
 input_cols={
@@ -50,107 +51,93 @@ def src_pos_from_radial(inputs,outputs):
 	det_pos=det_pos.float()
 	return torch.stack([torch.cos(theta),torch.sin(theta)],axis=2)[...,0]*dist+det_pos
 
-def model_forward(d_model,radio_inputs,radio_images,labels,label_images,args,train_test_label,update,plot=True):
-	if radio_inputs.isnan().any():
-		breakpoint()
+def model_forward(d_model,data,args,train_test_label,update,plot=True):
+	#if radio_inputs.isnan().any():
+	#	breakpoint()
 	d_model['optimizer'].zero_grad()
 	use_all_data=True
 	if use_all_data:
-		b,s,_=radio_inputs.shape
+		b,s,_=data['inputs']['radio_feature'].shape
 		model_s=d_model['snapshots_per_sample']
 		#assert(s%model_s==0)
-		_radio_inputs=radio_inputs.reshape(b*s//model_s,model_s,radio_inputs.shape[-1])
-		_,_,l=labels.shape
-		_labels=labels.reshape(b*s//model_s,model_s,l)
-		if radio_images is not None:
-			_,_,_,w,h=radio_images.shape	
-			_radio_images=radio_images.reshape(b*s//model_s,model_s,w,h)
-			#_,_,_,_,_=label_images.shape	
-			_label_images=label_images.reshape(b*s//model_s,model_s,1,w,h)[:,model_s-1]
+		_data={
+			'inputs':{
+			'drone_state':data['inputs']['drone_state'].reshape(b*s//model_s,model_s,-1),
+			'radio_feature':data['inputs']['radio_feature'].reshape(b*s//model_s,model_s,-1)
+			},
+			'labels':data['labels'].reshape(b*s//model_s,model_s,-1)
+		}
 	else:
-		_radio_inputs=radio_inputs[:,:d_model['snapshots_per_sample']]
-		_radio_images=radio_images[:,:d_model['snapshots_per_sample'],0] # reshape to b,s,w,h
-		_labels=labels[:,:d_model['snapshots_per_sample']] # how does network learn the order?!
-		_label_images=label_images[:,d_model['snapshots_per_sample']-1] # reshape to b,1,w,h
+		_data={
+			'inputs':{
+			'drone_state':data['inputs']['drone_state'][:,:d_model['snapshots_per_sample']],
+			'radio_feature':data['inputs']['radio_feature'][:,:d_model['snapshots_per_sample']]
+			},
+			'labels':data['labels'][:,:d_model['snapshots_per_sample']]
+		}
+		#_radio_images=radio_images[:,:d_model['snapshots_per_sample'],0] # reshape to b,s,w,h
+		#_label_images=label_images[:,d_model['snapshots_per_sample']-1] # reshape to b,1,w,h
 	losses={}
-	if d_model['images']==False:
-		preds=d_model['model'](_radio_inputs)#.detach().cpu()
-		assert(not _radio_inputs.isnan().any())
-		#for k in preds:
-		#	preds[k]=preds[k].detach().cpu()
-		transformer_loss=0.0
-		single_snapshot_loss=0.0
-		fc_loss=0.0
-		if 'transformer_pred' in preds:
-			if preds['transformer_pred'].mean(axis=1).var(axis=0).mean().item()<1e-13:
-				d_model['dead']=True
-			else:
-				d_model['dead']=False
-			transformer_loss = criterion(preds['transformer_pred'],_labels)
-			losses['transformer_loss']=transformer_loss.detach().item()
-			losses['transformer_stats']=(preds['transformer_pred']-_labels).pow(2).mean(axis=[0,1]).detach().cpu()
-			_p=preds['transformer_pred'].detach().cpu()
-			assert(not preds['transformer_pred'].isnan().any())
-		if 'single_snapshot_pred' in preds:
-			single_snapshot_loss = criterion(preds['single_snapshot_pred'],_labels)
-			losses['single_snapshot_loss']=single_snapshot_loss.item()
-			losses['single_snapshot_stats']=(preds['single_snapshot_pred']-_labels).pow(2).mean(axis=[0,1]).detach().cpu()
-		elif 'fc_pred' in preds:
-			fc_loss = criterion(preds['fc_pred'],_labels[:,[-1]])
-			losses['fc_loss']=fc_loss.item()
-			_p=preds['fc_pred'].detach().cpu()
-			#losses['fc_stats']=(preds['fc_pred']-_labels).pow(2).mean(axis=[0,1]).cpu()
-		if plot and (update%args.plot_every)==args.plot_every-1:
-			d_model['fig'].clf()
-			_ri=_radio_inputs.detach().cpu()
-			_l=_labels.detach().cpu()
-			axs=d_model['fig'].subplots(1,4,sharex=True,sharey=True)
-			d_model['fig'].suptitle(d_model['name'])
-			axs[0].scatter(_ri[0,:,input_cols['det_pos'][0]],_ri[0,:,input_cols['det_pos'][1]],label='detector positions',s=1)
-			if 'src_pos' in args.losses:
-				src_pos_idxs=[]
-				for idx in range(2):
-					src_pos_idxs.append(cols_for_loss.index(output_cols['src_pos'][idx]))	
-				axs[1].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='source positions',c='r')
 
-				axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
-				axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
-			axs[2].legend()
-			if 'src_theta' in args.losses and 'src_dist' in args.losses:
-				pos_from_preds=src_pos_from_radial(_ri,_l)
-				axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='real radial positions',c='b',alpha=0.1,s=7)
-				pos_from_preds=src_pos_from_radial(_ri,_p)
-				axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='predicted radial positions',c='r',alpha=0.3,s=7)
-				axs[3].legend()
-			
-			for idx in [0,1,2]:
-				axs[idx].legend()
-				axs[idx].set_xlim([-1,1])
-				axs[idx].set_ylim([-1,1])
-			d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],update,train_test_label))
-			d_model['fig'].canvas.draw_idle()
-		loss=transformer_loss+single_snapshot_loss+fc_loss
-		if i<args.embedding_warmup:
-			loss=single_snapshot_loss+fc_loss
-	else:
-		if d_model['normalize_input']:
-			_radio_images=_radio_images/_radio_images.sum(axis=[2,3],keepdim=True)
-		preds=d_model['model'](_radio_images)
-		loss=criterion(preds['image_preds'],_label_images)
-		losses['image_loss']=loss.item()
-		if plot and (update%args.plot_every)==args.plot_every-1:
-			d_model['fig'].clf()
-			axs=d_model['fig'].subplots(1,3,sharex=True)
-			axs[0].set_title('Target label')
-			axs[1].set_title('Predictions')
-			axs[2].set_title('Mean of input channels')
-			d_model['fig'].suptitle("%s iteration: %d" % (d_model['name'],i))
-			#axs=d_model['fig'].subplots(1,3,sharex=True)
-			axs[0].imshow(_label_images[0,0].cpu())
-			axs[1].imshow(preds['image_preds'][0,0].detach().cpu())
-			axs[2].imshow(_radio_images[0].mean(axis=0).cpu())
-			d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],update,train_test_label))
-			d_model['fig'].canvas.draw_idle()
+	preds=d_model['model'](_data['inputs'])#.detach().cpu()
+	assert(not _data['inputs']['radio_feature'].isnan().any())
+	assert(not _data['inputs']['drone_state'].isnan().any())
+	#for k in preds:
+	#	preds[k]=preds[k].detach().cpu()
+	transformer_loss=0.0
+	single_snapshot_loss=0.0
+	fc_loss=0.0
+	if 'transformer_pred' in preds:
+		if preds['transformer_pred'].mean(axis=1).var(axis=0).mean().item()<1e-13:
+			d_model['dead']=True
+		else:
+			d_model['dead']=False
+		transformer_loss = criterion(preds['transformer_pred'],_data['labels'])
+		losses['transformer_loss']=transformer_loss.detach().item()
+		losses['transformer_stats']=(preds['transformer_pred']-_data['labels']).pow(2).mean(axis=[0,1]).detach().cpu()
+		_p=preds['transformer_pred'].detach().cpu()
+		assert(not preds['transformer_pred'].isnan().any())
+	if 'single_snapshot_pred' in preds:
+		single_snapshot_loss = criterion(preds['single_snapshot_pred'],_data['labels'])
+		losses['single_snapshot_loss']=single_snapshot_loss.item()
+		losses['single_snapshot_stats']=(preds['single_snapshot_pred']-_data['labels']).pow(2).mean(axis=[0,1]).detach().cpu()
+	elif 'fc_pred' in preds:
+		fc_loss = criterion(preds['fc_pred'],_data['labels'][:,[-1]])
+		losses['fc_loss']=fc_loss.item()
+		_p=preds['fc_pred'].detach().cpu()
+		#losses['fc_stats']=(preds['fc_pred']-_labels).pow(2).mean(axis=[0,1]).cpu()
+	if plot and (update%args.plot_every)==args.plot_every-1:
+		d_model['fig'].clf()
+		_ri=_data['inputs']['drone_state'].detach().cpu()
+		_l=_data['labels'].detach().cpu()
+		axs=d_model['fig'].subplots(1,4,sharex=True,sharey=True)
+		d_model['fig'].suptitle(d_model['name'])
+		axs[0].scatter(_ri[0,:,input_cols['det_pos'][0]],_ri[0,:,input_cols['det_pos'][1]],label='detector positions',s=1)
+		if 'src_pos' in args.losses:
+			src_pos_idxs=[]
+			for idx in range(2):
+				src_pos_idxs.append(cols_for_loss.index(output_cols['src_pos'][idx]))	
+			axs[1].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='source positions',c='r')
+
+			axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
+			axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
+		axs[2].legend()
+		if 'src_theta' in args.losses and 'src_dist' in args.losses:
+			pos_from_preds=src_pos_from_radial(_ri,_l)
+			axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='real radial positions',c='b',alpha=0.1,s=7)
+			pos_from_preds=src_pos_from_radial(_ri,_p)
+			axs[3].scatter(pos_from_preds[0,:,0],pos_from_preds[0,:,1],label='predicted radial positions',c='r',alpha=0.3,s=7)
+			axs[3].legend()
+		
+		for idx in [0,1,2]:
+			axs[idx].legend()
+			axs[idx].set_xlim([-1,1])
+			axs[idx].set_ylim([-1,1])
+		d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],update,train_test_label))
+		d_model['fig'].canvas.draw_idle()
+	loss=(1.0-args.transformer_loss_balance)*transformer_loss+args.transformer_loss_balance*single_snapshot_loss+fc_loss
+	if i<args.embedding_warmup:
+		loss=single_snapshot_loss+fc_loss
 	return loss,losses
 
 def model_to_losses(running_loss,mean_chunk):
@@ -260,7 +247,8 @@ if __name__=='__main__':
 	parser.add_argument('--test-mbs', type=int, required=False, default=8)
 	parser.add_argument('--output-prefix', type=str, required=False, default='model_out')
 	parser.add_argument('--test-fraction', type=float, required=False, default=0.2)
-	parser.add_argument('--weight-decay', type=float, required=False, default=1e-2)
+	parser.add_argument('--weight-decay', type=float, required=False, default=0.0)
+	parser.add_argument('--transformer-loss-balance', type=float, required=False, default=0.1)
 	parser.add_argument('--type', type=str, required=False, default=32)
 	parser.add_argument('--seed', type=int, required=False, default=0)
 	parser.add_argument('--keep-n-saves', type=int, required=False, default=2)
@@ -374,7 +362,7 @@ if __name__=='__main__':
 			models.append(
 				{
 					'name':'FCNet %d' % snapshots_per_sample,
-					'model':SingleSnapshotNet(d_radio_feature=266,
+					'model':SingleSnapshotNet(d_input_feature=266,
 						d_hid=64,
 						d_embed=64,
 						n_layers=4,
@@ -437,28 +425,26 @@ if __name__=='__main__':
 	
 
 	def prep_data(data):
-		radio_inputs, radio_images, labels, label_images = data
-		labels=labels[:,:,:]
-
-		#direct data
-		radio_inputs=radio_inputs.to(dtype).to(device)
-		labels=labels[...,cols_for_loss].to(dtype).to(device)
+		prepared_data={
+			'inputs':{
+				'radio_feature':data['inputs']['radio_feature'].to(dtype).to(device),
+				'drone_state':data['inputs']['drone_state'].to(dtype).to(device)
+			},
+			'labels':data['labels'][...,cols_for_loss].to(dtype).to(device)
+		}
 		
-		assert(not radio_inputs.isnan().any())
-		assert(not radio_inputs.isinf().any())
-		#image data
-		if using_images:
-			radio_images=radio_images.to(device)
-			label_images=label_images.to(device)
-			return radio_inputs,labels,radio_images,label_images
+		assert(not data['inputs']['radio_feature'].isnan().any())
+		assert(not data['inputs']['radio_feature'].isinf().any())
+		assert(not data['inputs']['drone_state'].isnan().any())
+		assert(not data['inputs']['drone_state'].isinf().any())
 		
-		return radio_inputs,labels,None,None
+		return prepared_data
 
 	test_iterator = iter(testloader)
 	for epoch in range(args.epochs): 
 		for i, data in enumerate(trainloader, 0):
 			#move to device, do final prep
-			radio_inputs,labels,radio_images,label_images=prep_data(data)
+			prepared_data=prep_data(data)
 			if True: #torch.cuda.amp.autocast():
 				for d_model in models:
 					for p in d_net['model'].parameters():
@@ -466,10 +452,7 @@ if __name__=='__main__':
 							breakpoint()
 					loss,losses=model_forward(
 						d_model,
-						radio_inputs,
-						radio_images,
-						labels,
-						label_images,
+						prepared_data,
 						args,
 						'train',
 						update=i,
@@ -484,6 +467,7 @@ if __name__=='__main__':
 					for p in d_net['model'].parameters():
 						if p.isnan().any():
 							breakpoint()
+			labels=prepared_data['labels']
 			running_losses['train']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
 			if using_images:
 				running_losses['train']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )
@@ -495,20 +479,18 @@ if __name__=='__main__':
 					except StopIteration:
 						test_iterator = iter(testloader)
 						data = next(test_iterator)
-					radio_inputs,labels,radio_images,label_images=prep_data(data)
+					prepared_data=prep_data(data)
 					with torch.no_grad():
 						for d_model in models:
 							loss,losses=model_forward(
 								d_model,
-								radio_inputs,
-								radio_images,
-								labels,
-								label_images,
+								prepared_data,
 								args,
 								'test',
 								update=i,
 								plot=idx==0)
 							running_losses['test'][d_model['name']].append(losses) 
+					labels=prepared_data['labels']
 					running_losses['test']['baseline'].append( {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
 					if using_images:
 						running_losses['test']['baseline_image'].append( {'baseline_image':criterion(label_images*0+label_images.mean(), label_images).item() } )

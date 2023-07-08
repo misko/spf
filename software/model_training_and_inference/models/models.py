@@ -117,11 +117,11 @@ class TransformerModel(nn.Module):
 		self.output_net=nn.Sequential(
 			nn.Linear(self.d_model,d_hid),
 			nn.SELU(),
-			*[nn.Sequential(
+			*[SkipConnection(nn.Sequential(
 				#nn.LayerNorm(d_hid),
 				nn.Linear(d_hid,d_hid),
 				nn.SELU()
-				)
+				))
 			for _ in range(n_layers_output) ],
 			#nn.LayerNorm(d_hid),
 			nn.Linear(d_hid,n_outputs),
@@ -139,10 +139,19 @@ class TransformerModel(nn.Module):
 			breakpoint()
 		return output
 
+class SkipConnection(nn.Module):
+	def __init__(self,module):
+		super().__init__()
+		self.module=module
+
+	def forward(self,x):
+		return self.module(x)+x
+
 class SnapshotNet(nn.Module):
 	def __init__(self,
 			snapshots_per_sample=1,
-			d_radio_feature=257+4+4+1,
+			d_drone_state=4+4,
+			d_radio_feature=258,
 			d_model=512,
 			n_heads=8,
 			d_hid=256,
@@ -154,9 +163,10 @@ class SnapshotNet(nn.Module):
 			ssn_n_outputs=8,
 			ssn_d_embed=64,
 			ssn_dropout=0.0,
-			tformer_input=['x','embedding','single_snapshot_pred']):
+			tformer_input=['drone_state','radio_feature','embedding','single_snapshot_pred']):
 		super().__init__()
 		self.d_radio_feature=d_radio_feature
+		self.d_drone_state=d_drone_state
 		self.d_model=d_model
 		self.n_heads=n_heads
 		self.d_hid=d_hid
@@ -165,15 +175,15 @@ class SnapshotNet(nn.Module):
 		self.tformer_input=tformer_input
 		self.tfomrer_input_dim=0
 		for k,v in [
-			('x',d_radio_feature),
+			('drone_state',d_drone_state),
+			('radio_feature',d_radio_feature),
 			('embedding',ssn_d_embed),
 			('single_snapshot_pred',n_outputs)]:
 			if k in self.tformer_input:
 				self.tfomrer_input_dim+=v
-			
-
+		
 		self.snap_shot_net=SingleSnapshotNet(
-			d_radio_feature=d_radio_feature,
+			d_input_feature=d_radio_feature+d_drone_state,
 			d_hid=ssn_d_hid,
 			d_embed=ssn_d_embed,
 			n_layers=ssn_n_layers,
@@ -202,7 +212,7 @@ class SnapshotNet(nn.Module):
 
 class SingleSnapshotNet(nn.Module):
 	def __init__(self,
-			d_radio_feature,
+			d_input_feature,
 			d_hid,
 			d_embed,
 			n_layers,
@@ -211,9 +221,9 @@ class SingleSnapshotNet(nn.Module):
 			snapshots_per_sample=0):
 		super(SingleSnapshotNet,self).__init__()
 		self.snapshots_per_sample=snapshots_per_sample
-		self.d_radio_feature=d_radio_feature
+		self.d_input_feature=d_input_feature
 		if self.snapshots_per_sample>0:
-			self.d_radio_feature*=snapshots_per_sample
+			self.d_input_feature*=snapshots_per_sample
 		self.d_hid=d_hid
 		self.d_embed=d_embed
 		self.n_layers=n_layers
@@ -222,14 +232,15 @@ class SingleSnapshotNet(nn.Module):
 		
 		self.embed_net=nn.Sequential(
 			#nn.LayerNorm(self.d_radio_feature),
-			nn.Linear(self.d_radio_feature,d_hid),
+			nn.Linear(self.d_input_feature,d_hid),
 			nn.SELU(),
-			*[nn.Sequential(
+			*[SkipConnection(
+				nn.Sequential(
 				nn.LayerNorm(d_hid),
 				nn.Linear(d_hid,d_hid),
 				#nn.ReLU()
 				nn.SELU()
-				)
+				))
 			for _ in range(n_layers) ],
 			#nn.LayerNorm(d_hid),
 			nn.Linear(d_hid,d_embed),
@@ -237,7 +248,8 @@ class SingleSnapshotNet(nn.Module):
 			)
 		self.lin_output=nn.Linear(d_embed,self.n_outputs)
 
-	def forward(self, x):
+	def forward(self, x_dict):
+		x=torch.cat([x_dict['drone_state'],x_dict['radio_feature']],axis=2)
 		if self.snapshots_per_sample>0:
 			x=x.reshape(x.shape[0],-1)
 		embed=self.embed_net(x)
@@ -247,7 +259,9 @@ class SingleSnapshotNet(nn.Module):
 		if self.snapshots_per_sample>0:
 			output=output.reshape(-1,1,self.n_outputs)
 			return {'fc_pred':output}
-		return {'x':x,'single_snapshot_pred':output,'embedding':embed}
+		return {'drone_state':x_dict['drone_state'],
+			'radio_feature':x_dict['radio_feature'],
+			'single_snapshot_pred':output,'embedding':embed}
 
 class Task1Net(nn.Module):
 	def __init__(self,ndim,n_outputs=8):
