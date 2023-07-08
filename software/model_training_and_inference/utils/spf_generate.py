@@ -184,9 +184,13 @@ def generate_session(args_and_session_idx):
 		#print(d.orientation,detector_theta)
 		detector_position_at_t[t_idx]=d.position_offset
 
-		diff=current_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
-		source_theta_at_t[t_idx]=(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi	
-		source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
+		if tdm_source_idx>=0:
+			diff=current_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
+			source_theta_at_t[t_idx]=(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi	
+			source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
+		else:
+			source_theta_at_t[t_idx]=0 #(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi	
+			source_distance_at_t[t_idx]=0 #np.sqrt(np.power(diff,2).sum())
 	session={
 			'broadcasting_positions_at_t':broadcasting_positions_at_t, # list of (time_steps,sources,1) 
 			'source_positions_at_t':source_positions_at_t, # (time_steps,sources,2[x,y])
