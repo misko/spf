@@ -1,0 +1,6 @@
+Learning rate experiments (no noise)
+lr	iter	loss	notes
+1e-3	80k	-5	unstable
+1e-4	80k	-4.9	fairy stable
+1e-5	80k	-3.5	very stable
+1e-5	80k	-2.5	very stable
