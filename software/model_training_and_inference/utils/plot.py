@@ -40,9 +40,9 @@ def lines_to_points(lines,t):
 					pass
 				elif b_m>0 and _x>x2:
 					pass
-				elif ((x1-_x)**2+(y1-_y)**2)<400:
+				elif ((x1-_x)**2+(y1-_y)**2)<800:
 					pass
-				elif ((x2-_x)**2+(y2-_y)**2)<400:
+				elif ((x2-_x)**2+(y2-_y)**2)<800:
 					pass
 				else:
 					points_for_this_line.append((_x,_y))
@@ -120,10 +120,11 @@ def plot_lines(session,steps,output_prefix):
 	lines=[]
 	line_representations=[]
 	for idx in np.arange(1,steps):
-		fig=plt.figure(figsize=(18,9))
-		axs=fig.subplots(1,2)
+		fig=plt.figure(figsize=(9*3,9))
+		axs=fig.subplots(1,3)
 
 		plot_trajectory(axs[0],session['detector_position_at_t'][:idx],width,ms=30,label='detector')
+		plot_trajectory(axs[1],session['detector_position_at_t'][:idx],width,ms=30,label='detector')
 		direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
 			[np.sin(session['detector_orientation_at_t'][idx]),np.cos(session['detector_orientation_at_t'][idx])],axis=1)
 		axs[0].plot(
@@ -153,7 +154,7 @@ def plot_lines(session,steps,output_prefix):
 				
 
 		for x,y in lines:
-			axs[0].plot(x,y,c='blue',linewidth=3,alpha=0.1)
+			axs[0].plot(x,y,c='blue',linewidth=4,alpha=0.1)
 			print("PLOT",x,y)
 		emitter_direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
 			[
@@ -170,19 +171,22 @@ def plot_lines(session,steps,output_prefix):
 		by_label = dict(zip(labels, handles))
 		axs[0].legend(by_label.values(), by_label.keys())
 
-		axs[1].plot(session['thetas_at_t'][idx],session['beam_former_outputs_at_t'][idx])
-		axs[1].axvline(x=session['source_theta_at_t'][idx,0],c='r')
-		axs[1].set_title("Beamformer output at t=%d" % idx)
-		axs[1].set_xlabel("Theta (rel. to detector)")
-		axs[1].set_ylabel("Signal strength")
+		axs[2].plot(session['thetas_at_t'][idx],session['beam_former_outputs_at_t'][idx])
+		axs[2].axvline(x=session['source_theta_at_t'][idx,0],c='r')
+		axs[2].set_title("Beamformer output at t=%d" % idx)
+		axs[2].set_xlabel("Theta (rel. to detector)")
+		axs[2].set_ylabel("Signal strength")
 		axs[0].set_title("Position map")
 		axs[0].set_xlabel("X (m)")
 		axs[0].set_ylabel("Y (m)")
+		axs[1].set_title("Guess map")
+		axs[1].set_xlabel("X (m)")
+		axs[1].set_ylabel("Y (m)")
 
 		lp=lines_to_points(line_representations,steps)
 		for l in lp:
 			for x,y in l:
-				axs[0].scatter([x],[y],c='orange',s=300,alpha=0.1)
+				axs[1].scatter([x],[y],c='red',s=200,alpha=0.05)
 
 		fn='%s_%04d_lines.png' % (output_prefix,idx)
 		filenames.append(fn)

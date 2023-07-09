@@ -1,6 +1,7 @@
 from utils.rf import *
 c=3e8 # speed of light
-carrier_frequency=2.4e9
+#carrier_frequency=2.4e9
+carrier_frequency=1000e3
 wavelength=c/carrier_frequency
 sampling_frequency=10e6
 d=ULADetector(sampling_frequency,2,wavelength/4,sigma=0.0) 
@@ -19,7 +20,7 @@ for rotation in rotations:
     d.add_source(
       QAMSource(
           _source_pos, # x, y position
-          carrier_frequency,100e3))
+          carrier_frequency,100e3,sigma=0.0))
     d.orientation=rotation
     print(rotation)
     #print("\tSRC",_source_pos)
