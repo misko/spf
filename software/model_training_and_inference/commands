@@ -122,3 +122,14 @@ lr=0.0001
 python 12_task2_model_training.py --dataset ./sessions-train_nonoise --lr-direct 0.001 --mb 32 --workers 16 --print-every 2048 --plot True --snapshots 1 16 128 --device cuda --save-every 10000 --type 32 --print-every 128 --plot-every 1024 --losses src_pos --output-prefix 2element_NoNoise_srcPosOnly_${lr}_ --transformer-dmodel 64 --transformer-input embedding --lr-transformer $lr
 
 
+
+
+# 
+#
+python 01_generate_data.py --array-type linear --elements 2 --sources 3 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.0 --time-steps 512 --time-interval 0.3 --live true --output sessions-train_nonoise --sessions 50000000 --seed 1337 --source-speed 0.5 --detector-noise 0.0 
+
+lr=0.0001
+python 12_task2_model_training.py --dataset ./sessions-train_nonoise --lr-direct 0.001 --mb 32 --workers 16 --print-every 2048 --plot True --snapshots 1 16 128 256 512 --device cuda --save-every 10000 --type 32 --print-every 128 --plot-every 1024 --losses src_theta,src_dist,src_pos,src_v --output-prefix 2element_NoNoise_srcV_${lr}_ --transformer-dmodel 64 --transformer-input embedding --lr-transformer $lr
+
+lr=0.00001
+python 12_task2_model_training.py --dataset ./sessions-train_nonoise --lr-direct 0.001 --mb 32 --workers 16 --print-every 2048 --plot True --snapshots 1 16 128 256 512 --device cuda --save-every 10000 --type 32 --print-every 128 --plot-every 1024 --losses src_theta,src_dist,src_pos,src_v --output-prefix 2element_NoNoise_srcV_${lr}_ --transformer-dmodel 64 --transformer-input embedding --lr-transformer $lr
