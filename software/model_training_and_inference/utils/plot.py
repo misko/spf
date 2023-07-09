@@ -7,6 +7,48 @@ from utils.image_utils import (detector_positions_to_theta_grid,
 						 labels_to_source_images, radio_to_image)
 
 
+def line_to_mx(line):
+	print(line)
+	(x,y),((m_x,m_y),)=line
+	m=m_y/(m_x+1e-9)
+	return y-m*x,m,(x,y)
+
+
+def lines_to_points(lines,t):
+	lines=[ line_to_mx(line) for line in lines ]
+	line_to_points=[]
+	for line_idx_a in np.arange(len(lines)):
+		rng = np.random.default_rng(12345+line_idx_a*1337)
+		a_i,a_m,(x1,y1)=lines[line_idx_a]
+		points_for_this_line=[]
+		for line_idx_b in rng.choice(np.arange(t),size=min(30,t),replace=False):
+			if line_idx_b>=len(lines):
+				continue
+			if line_idx_a==line_idx_b:
+				continue
+			b_i,b_m,(x2,y2)=lines[line_idx_b]
+			#compute the intercept
+			if a_i!=b_m and a_m!=b_m:
+				_x=(b_i-a_i)/(a_m-b_m)
+				_y=a_m*((b_i-a_i)/(a_m-b_m))+a_i
+				#check if the point is valid
+				if a_m<0 and _x<x1:
+					pass
+				elif a_m>0 and _x>x1:
+					pass
+				elif b_m<0 and _x<x2:
+					pass
+				elif b_m>0 and _x>x2:
+					pass
+				elif ((x1-_x)**2+(y1-_y)**2)<400:
+					pass
+				elif ((x2-_x)**2+(y2-_y)**2)<400:
+					pass
+				else:
+					points_for_this_line.append((_x,_y))
+		line_to_points.append(points_for_this_line)
+	return line_to_points
+
 def plot_space(ax,session):
 	width=session['width_at_t'][0]	
 	ax.set_xlim([0,width])
@@ -76,6 +118,7 @@ def plot_lines(session,steps,output_prefix):
 	filenames=[]
 	plt.ioff()
 	lines=[]
+	line_representations=[]
 	for idx in np.arange(1,steps):
 		fig=plt.figure(figsize=(18,9))
 		axs=fig.subplots(1,2)
@@ -100,8 +143,18 @@ def plot_lines(session,steps,output_prefix):
 				],axis=1)
 			lines.append(([session['detector_position_at_t'][idx][0],emitter_direction[0,0]],
 										 [session['detector_position_at_t'][idx][1],emitter_direction[0,1]]))
+			line_representations.append(
+					(session['detector_position_at_t'][idx],
+					 np.stack(
+								[	  
+													 np.sin(session['detector_orientation_at_t'][idx]+_theta),
+													 np.cos(session['detector_orientation_at_t'][idx]+_theta)
+												 ],axis=1)))
+				
+
 		for x,y in lines:
-			axs[0].plot(x,y,c='blue',linewidth=5,alpha=0.1)
+			axs[0].plot(x,y,c='blue',linewidth=3,alpha=0.1)
+			print("PLOT",x,y)
 		emitter_direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
 			[
 				np.sin(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0]),
@@ -125,6 +178,12 @@ def plot_lines(session,steps,output_prefix):
 		axs[0].set_title("Position map")
 		axs[0].set_xlabel("X (m)")
 		axs[0].set_ylabel("Y (m)")
+
+		lp=lines_to_points(line_representations,steps)
+		for l in lp:
+			for x,y in l:
+				axs[0].scatter([x],[y],c='orange',s=300,alpha=0.1)
+
 		fn='%s_%04d_lines.png' % (output_prefix,idx)
 		filenames.append(fn)
 		fig.savefig(fn)
