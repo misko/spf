@@ -110,7 +110,7 @@ class TransformerModel(nn.Module):
 
 		assert( d_model>=d_radio_feature)
 		
-		self.linear_in = nn.Linear(d_radio_feature, d_model-d_radio_feature) if d_model>d_radio_feature else nn.Identity()
+		self.linear_in = nn.Linear(d_radio_feature, d_model) if d_model>d_radio_feature else nn.Identity()
 		
 		self.d_model=d_model
 
@@ -204,8 +204,8 @@ class SnapshotNet(nn.Module):
 	def forward(self,x):
 		d=self.snap_shot_net(x)
 		#return single_snapshot_output,single_snapshot_output
-		tformer_output=self.tformer(
-			torch.cat([d[t] for t in self.tformer_input ],axis=2))
+		tformer_input=torch.cat([d[t] for t in self.tformer_input ],axis=2)
+		tformer_output=self.tformer(tformer_input)
 		return {'transformer_pred':tformer_output,
 			'single_snapshot_pred':d['single_snapshot_pred']}
 		

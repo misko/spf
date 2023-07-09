@@ -28,7 +28,7 @@ output_cols={ # maybe this should get moved to the dataset part...
 	'det_delta':[4,5],
 	'det_theta':[6],
 	'det_space':[7],
-        'src_v':[8,9]
+	'src_v':[8,9]
 }
 
 input_cols={
@@ -49,7 +49,7 @@ def src_pos_from_radial(inputs,outputs):
 	theta=theta.float()
 	dist=dist.float()
 	det_pos=det_pos.float()
-	return torch.stack([torch.cos(theta),torch.sin(theta)],axis=2)[...,0]*dist+det_pos
+	return torch.stack([torch.sin(theta),torch.cos(theta)],axis=2)[...,0]*dist+det_pos
 
 def model_forward(d_model,data,args,train_test_label,update,plot=True):
 	#if radio_inputs.isnan().any():
@@ -260,7 +260,7 @@ if __name__=='__main__':
 	parser.add_argument('--lr-direct', type=float, required=False, default=0.01)
 	parser.add_argument('--lr-transformer', type=float, required=False, default=0.00001)
 	parser.add_argument('--plot', type=bool, required=False, default=False)
-	parser.add_argument('--transformer-input', type=str, required=False, default=['x','embedding','single_snapshot_pred'],nargs="+")
+	parser.add_argument('--transformer-input', type=str, required=False, default=['drone_state','embedding','single_snapshot_pred'],nargs="+")
 	parser.add_argument('--transformer-dmodel', type=int, required=False, default=128+256)
 	parser.add_argument('--clip', type=float, required=False, default=0.5)
 	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist") #,src_theta,src_dist,det_delta,det_theta,det_space")
