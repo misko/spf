@@ -5,7 +5,7 @@ from PIL import Image
 import skimage
 from utils.image_utils import (detector_positions_to_theta_grid,
 						 labels_to_source_images, radio_to_image)
-
+	
 def get_top_n_peaks(bf,n=2,peak_size=15):
 	bf=np.copy(bf)
 	peaks=np.zeros(n,dtype=int)
@@ -39,13 +39,15 @@ def baseline_algorithm(session,width,steps=-1):
 			line_representations.append((session['detector_position_at_t'][idx],direction))
 	return get_top_n_points(line_representations,n=4,width=width,threshold=3)
 
+
 def get_top_n_points(line_representations,n,width,threshold=3,mn=4):
 	final_points=[]
 	line_to_point_assignments=np.zeros(len(line_representations),dtype=int)-1
+	line_to_point_distances=np.zeros(len(line_representations),dtype=int)-1
 	for point_idx in range(n): 
 		img=np.zeros((width+1,width+1))
 		for line_idx in np.arange(len(line_representations)):
-			if line_to_point_assignments[line_idx]==-1:
+			if line_to_point_assignments[line_idx]==-1 or line_to_point_distances[line_idx]>=threshold:
 				line=line_representations[line_idx]
 				if len(final_points)>0: # check if its close to the last line
 					b,m,point,mvec=line_to_mx(line)
@@ -54,9 +56,10 @@ def get_top_n_points(line_representations,n,width,threshold=3,mn=4):
 					if np.sign(mvec[0])==np.sign(d[0]) and np.sign(mvec[1])==np.sign(d[1]): # check if its on the right side
 						mvec_orthogonal=(-mvec[1],mvec[0])
 						distance_to_line=abs(np.dot(d,mvec_orthogonal)/np.linalg.norm(mvec))
-						if distance_to_line<threshold:
+						if line_to_point_assignments[line_idx]==-1 or distance_to_line<line_to_point_distances[line_idx]:
 							line_to_point_assignments[line_idx]=len(final_points)-1
-				if line_to_point_assignments[line_idx]==-1:
+							line_to_point_distances[line_idx]=distance_to_line
+				if line_to_point_assignments[line_idx]==-1 or line_to_point_distances[line_idx]>=threshold:
 					b,m,point,mvec=line_to_mx(line)
 					bp=boundary_point(b,m,point,width,mvec)
 					rr,cc=skimage.draw.line(
@@ -67,6 +70,11 @@ def get_top_n_points(line_representations,n,width,threshold=3,mn=4):
 			idx=img.argmax()
 			p=(idx//(width+1),idx%(width+1))
 			final_points.append(p)
+	final_points=np.array(final_points)
+	points_per_line=np.zeros((len(line_representations),2))+width/2
+	for line_idx in np.arange(len(line_representations)):
+		if line_to_point_assignments[line_idx]!=-1:
+			points_per_line[line_idx]=final_points[line_to_point_assignments[line_idx]]
 	imgs=np.zeros((n,width+1,width+1))
 	for point_idx in range(n): 
 		for line_idx in np.arange(len(line_representations)):
@@ -79,7 +87,7 @@ def get_top_n_points(line_representations,n,width,threshold=3,mn=4):
 							int(point[0]), int(point[1]), 
 							int(bp[0]),int(bp[1]))
 					imgs[line_to_point_assignments[line_idx]][rr,cc]+=1
-	return final_points,imgs
+	return final_points,imgs,points_per_line
 
 def boundary_point(b,m,point,width,mvec):
 	y_xmax=m*width+b

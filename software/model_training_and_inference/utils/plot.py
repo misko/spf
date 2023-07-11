@@ -121,7 +121,7 @@ def plot_lines(session,steps,output_prefix):
 		axs[1].set_xlabel("X (m)")
 		axs[1].set_ylabel("Y (m)")
 
-		fp,imgs=baseline_algorithm(session,width,steps=idx)
+		fp,imgs,_=baseline_algorithm(session,width,steps=idx)
 		axs[1].imshow(imgs[:3].transpose([2,1,0])/imgs.max())
 		colors=['r','green','blue']
 		for _idx in range(min(3,len(fp))):
