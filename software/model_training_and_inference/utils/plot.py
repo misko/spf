@@ -15,8 +15,6 @@ def line_to_mx(line):
 def get_top_n_points(line_representations,n,width,threshold=3,mn=4):
 	final_points=[]
 	line_to_point_assignments=np.zeros(len(line_representations),dtype=int)-1
-	#fig=plt.figure(figsize=(n*6,6))
-	#axs=fig.subplots(1,n)
 	for point_idx in range(n): 
 		img=np.zeros((width+1,width+1))
 		for line_idx in np.arange(len(line_representations)):
