@@ -40,7 +40,7 @@ def baseline_algorithm(session,width,steps=-1):
 	return get_top_n_points(line_representations,n=4,width=width,threshold=3)
 
 
-def get_top_n_points(line_representations,n,width,threshold=3,mn=4):
+def get_top_n_points(line_representations,n,width,threshold=3,mn=4,lines_per_step=2):
 	final_points=[]
 	line_to_point_assignments=np.zeros(len(line_representations),dtype=int)-1
 	line_to_point_distances=np.zeros(len(line_representations),dtype=int)-1
@@ -71,10 +71,16 @@ def get_top_n_points(line_representations,n,width,threshold=3,mn=4):
 			p=(idx//(width+1),idx%(width+1))
 			final_points.append(p)
 	final_points=np.array(final_points)
-	points_per_line=np.zeros((len(line_representations),2))+width/2
-	for line_idx in np.arange(len(line_representations)):
-		if line_to_point_assignments[line_idx]!=-1:
-			points_per_line[line_idx]=final_points[line_to_point_assignments[line_idx]]
+	points_per_line=np.zeros((len(line_representations)//lines_per_step,2))+width/2
+	for output_idx in np.arange(len(line_representations)//lines_per_step):
+		line_idx=output_idx*lines_per_step
+		closest_idx=-1
+		for _line_idx in range(lines_per_step):
+			if line_to_point_assignments[line_idx+_line_idx]!=-1 and (
+				closest_idx==-1 or line_to_point_distances[line_idx+closest_idx]>line_to_point_distances[line_idx+_line_idx]):
+				closest_idx=_line_idx
+		if closest_idx!=-1:
+			points_per_line[output_idx]=final_points[line_to_point_assignments[line_idx+closest_idx]]
 	imgs=np.zeros((n,width+1,width+1))
 	for point_idx in range(n): 
 		for line_idx in np.arange(len(line_representations)):

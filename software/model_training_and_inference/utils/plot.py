@@ -121,11 +121,14 @@ def plot_lines(session,steps,output_prefix):
 		axs[1].set_xlabel("X (m)")
 		axs[1].set_ylabel("Y (m)")
 
-		fp,imgs,_=baseline_algorithm(session,width,steps=idx)
+		fp,imgs,pred_points=baseline_algorithm(session,width,steps=idx)
+		for pred_point in pred_points:
+			axs[0].scatter([pred_point[0]],[pred_point[1]])
 		axs[1].imshow(imgs[:3].transpose([2,1,0])/imgs.max())
 		colors=['r','green','blue']
 		for _idx in range(min(3,len(fp))):
 			axs[1].scatter([fp[_idx][0]],[fp[_idx][1]],color=colors[_idx],s=900)
+
 
 		fn='%s_%04d_lines.png' % (output_prefix,idx)
 		filenames.append(fn)
