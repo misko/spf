@@ -52,6 +52,15 @@ def generate_session(args_and_session_idx):
 	np.random.seed(seed=args.seed+session_idx)
 	wavelength=c/args.carrier_frequency
 
+	if args.sources<0:
+	    args.sources=np.random.choice(np.arange(1,(-args.sources)+1))
+	if args.detector_speed<0:
+	    args.detector_speed=np.random.uniform(low=0.0, high=-args.detector_speed)
+	if args.sigma<0:
+	    args.sigma=np.random.uniform(low=0.0, high=-args.sigma)
+	if args.detector_noise<0:
+	    args.detector_noise=np.random.uniform(low=0.0, high=-args.detector_noise)
+
 	beamformer_f=beamformer_numba if args.numba else beamformer
 
 	if args.array_type=='linear':
@@ -108,6 +117,9 @@ def generate_session(args_and_session_idx):
 	source_bounded_points=[]
 	for idx in range(args.sources):
 		source_theta=np.random.uniform(-np.pi,np.pi)
+		source_speed=args.source_speed
+		if source_speed<0:
+		    source_speed=np.random.uniform(low=0.0, high=-source_speed)
 		source_v=np.array(
 				[
 					np.cos(source_theta),
