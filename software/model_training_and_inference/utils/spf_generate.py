@@ -129,7 +129,7 @@ def generate_session(args_and_session_idx):
 		source_v=np.array(
 				[
 					np.cos(source_theta),
-					np.sin(source_theta)])*args.source_speed 
+					np.sin(source_theta)])*source_speed 
 		source_bounded_points.append(
 				BoundedPoint(
 					pos=np.random.uniform(0+10,args.width-10,2),
