@@ -8,9 +8,27 @@ from torch.utils.data import DataLoader, Dataset
 
 from utils.image_utils import (detector_positions_to_theta_grid,
 			 labels_to_source_images, radio_to_image)
-from utils.plot import plot_space
 from utils.spf_generate import generate_session
 from compress_pickle import dump, load
+
+output_cols={ # maybe this should get moved to the dataset part...
+	'src_pos':[0,1],
+	'src_theta':[2],
+	'src_dist':[3],
+	'det_delta':[4,5],
+	'det_theta':[6],
+	'det_space':[7],
+	'src_v':[8,9]
+}
+
+input_cols={
+	'det_pos':[0,1],
+	'time':[2],
+	'space_delta':[3,4],
+	'space_theta':[5],
+	'space_dist':[6],
+	'det_theta2':[7],
+}
 
 class SessionsDataset(Dataset):
 
@@ -63,6 +81,13 @@ class SessionsDatasetTask1(SessionsDataset):
 			]))
 		y=torch.Tensor(d['source_positions_at_t'][:,0])
 		return x,y
+
+
+def pos_to_rel(p,width):
+	return 2*(p/width-0.5)
+
+def rel_to_pos(r,width):
+	return ((r/2)+0.5)*width
 
 class SessionsDatasetTask2(SessionsDataset):
 	def __getitem__(self,idx):

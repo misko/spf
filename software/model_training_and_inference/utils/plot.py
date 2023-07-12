@@ -8,6 +8,78 @@ from utils.image_utils import (detector_positions_to_theta_grid,
 
 from utils.baseline_algorithm import get_top_n_peaks, baseline_algorithm
 
+
+def plot_predictions_and_baseline(session,args,step,pred_a,pred_b):
+	width=session['width_at_t'][0][0]
+
+	fig=plt.figure(figsize=(5*2,5*2))
+	axs=fig.subplots(2,2)
+
+	plot_trajectory(axs[0,0],session['detector_position_at_t'][:step],width,ms=30,label='detector')
+	plot_trajectory(axs[0,1],session['detector_position_at_t'][:step],width,ms=30,label='detector')
+
+	#plot directions on the the space diagram
+	direction=session['detector_position_at_t'][step]+0.25*session['width_at_t'][0]*np.stack(
+		[np.sin(session['detector_orientation_at_t'][step]),np.cos(session['detector_orientation_at_t'][step])],axis=1)
+	axs[0,0].plot(
+		[session['detector_position_at_t'][step][0],direction[0,0]],
+		[session['detector_position_at_t'][step][1],direction[0,1]])
+	anti_direction=session['detector_position_at_t'][step]+0.25*session['width_at_t'][0]*np.stack(
+		[np.sin(session['detector_orientation_at_t'][step]+np.pi/2),np.cos(session['detector_orientation_at_t'][step]+np.pi/2)],axis=1)
+	axs[0,0].plot(
+		[session['detector_position_at_t'][step][0],anti_direction[0,0]],
+		[session['detector_position_at_t'][step][1],anti_direction[0,1]])
+
+	#for every time step plot the lines
+	lines=[]
+	for idx in range(step+1):
+		_thetas=session['thetas_at_t'][idx][get_top_n_peaks(session['beam_former_outputs_at_t'][idx])]
+		for _theta in _thetas:
+			direction=np.stack([	  
+				np.sin(session['detector_orientation_at_t'][idx]+_theta),
+				np.cos(session['detector_orientation_at_t'][idx]+_theta)
+			],axis=1)
+			emitter_direction=session['detector_position_at_t'][idx]+2.0*session['width_at_t'][0]*direction
+			lines.append(([session['detector_position_at_t'][idx][0],emitter_direction[0,0]],
+										 [session['detector_position_at_t'][idx][1],emitter_direction[0,1]]))
+
+	for x,y in lines:
+		axs[0,1].plot(x,y,c='blue',linewidth=4,alpha=0.1)
+
+	for n in np.arange(session['source_positions_at_t'].shape[1]):
+		#rings=(session['broadcasting_positions_at_t'][idx,n,0]==1)
+		rings=False
+		plot_trajectory(axs[0,0],session['source_positions_at_t'][:idx,n],width,ms=15,c='r',rings=rings,label='emitter %d' % n)
+	axs[0,0].set_title("Position map")
+	axs[0,1].set_title("Direction estimates")
+	for x in [0,1]:
+		handles, labels = axs[0,x].get_legend_handles_labels()
+		by_label = dict(zip(labels, handles))
+		axs[0,x].legend(by_label.values(), by_label.keys())
+		for y in [0,1]:
+			#axs[y,x].set_title("Position map")
+			axs[y,x].set_xlabel("X (m)")
+			axs[y,x].set_ylabel("Y (m)")
+			axs[y,x].set_xlim([0,width])
+			axs[y,x].set_ylim([0,width])
+
+	true_positions=session['source_positions_at_t'][session['broadcasting_positions_at_t'].astype(bool)[...,0]]
+	true_positions_noise=true_positions+np.random.randn(*true_positions.shape)*3
+
+	for ax_idx,pred in [(0,pred_a),(1,pred_b)]:	
+		axs[1,ax_idx].set_title("error in %s" % pred['name'])
+		axs[1,ax_idx].scatter(pred['predictions'][:,0],pred['predictions'][:,1],s=15,c='r',alpha=0.1)
+		for idx in np.arange(step):
+			_x,_y=pred['predictions'][idx]+np.random.randn(2)
+			x,y=true_positions_noise[idx]
+			axs[1,ax_idx].plot([_x,x],[_y,y],color='black',linewidth=1,alpha=0.1)
+
+
+	fn='%s_%04d_lines.png' % (args.output_prefix,step)
+	fig.savefig(fn)
+	plt.close(fig)
+	return fn
+ 
 def plot_space(ax,session):
 	width=session['width_at_t'][0]	
 	ax.set_xlim([0,width])

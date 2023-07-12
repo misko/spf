@@ -16,29 +16,10 @@ from torch.utils.data import dataset, random_split
 from utils.image_utils import labels_to_source_images
 from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerModel,
 			UNet)
-from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn
-
+from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn, output_cols, input_cols
 
 torch.set_printoptions(precision=5,sci_mode=False,linewidth=1000)
 
-output_cols={ # maybe this should get moved to the dataset part...
-	'src_pos':[0,1],
-	'src_theta':[2],
-	'src_dist':[3],
-	'det_delta':[4,5],
-	'det_theta':[6],
-	'det_space':[7],
-	'src_v':[8,9]
-}
-
-input_cols={
-	'det_pos':[0,1],
-	'time':[2],
-	'space_delta':[3,4],
-	'space_theta':[5],
-	'space_dist':[6],
-	'det_theta2':[7],
-}
 
 def src_pos_from_radial(inputs,outputs):
 	det_pos=inputs[:,:,input_cols['det_pos']]
