@@ -52,46 +52,52 @@ def generate_session(args_and_session_idx):
 	np.random.seed(seed=args.seed+session_idx)
 	wavelength=c/args.carrier_frequency
 
+	n_sources=args.sources
+	n_sources_used=args.sources
 	if args.sources<0:
-	    args.sources=np.random.choice(np.arange(1,(-args.sources)+1))
+		n_sources_used=np.random.choice(np.arange(1,(-args.sources)+1))
+		n_sources=-args.sources
+	detector_speed=args.detector_speed
 	if args.detector_speed<0:
-	    args.detector_speed=np.random.uniform(low=0.0, high=-args.detector_speed)
+		detector_speed=np.random.uniform(low=0.0, high=-args.detector_speed)
+	sigma=args.sigma
 	if args.sigma<0:
-	    args.sigma=np.random.uniform(low=0.0, high=-args.sigma)
+		sigma=np.random.uniform(low=0.0, high=-args.sigma)
+	detector_noise=args.detector_noise
 	if args.detector_noise<0:
-	    args.detector_noise=np.random.uniform(low=0.0, high=-args.detector_noise)
+		detector_noise=np.random.uniform(low=0.0, high=-args.detector_noise)
 
 	beamformer_f=beamformer_numba if args.numba else beamformer
 
 	if args.array_type=='linear':
-		d=ULADetector(args.sampling_frequency,args.elements,wavelength/4,sigma=args.detector_noise) # 10Mhz sampling
+		d=ULADetector(args.sampling_frequency,args.elements,wavelength/4,sigma=detector_noise) # 10Mhz sampling
 	elif args.array_type=='circular':
-		d=UCADetector(args.sampling_frequency,args.elements,wavelength/4,sigma=args.detector_noise) # 10Mhz sampling
+		d=UCADetector(args.sampling_frequency,args.elements,wavelength/4,sigma=detector_noise) # 10Mhz sampling
 	else:
 		print("Array type must be linear or circular")
 		sys.exit(1)
 
-	current_source_positions=np.random.uniform(low=0, high=args.width,size=(args.sources,2))
-	current_source_velocities=np.zeros((args.sources,2))
+	current_source_positions=np.random.uniform(low=0, high=args.width,size=(n_sources,2))
+	current_source_velocities=np.zeros((n_sources,2))
 
 	if args.reference:
 		current_source_positions=current_source_positions*0+np.array((args.width//2,args.width//4))
-		args.sigma=0
-		args.sources=1
+		sigma=0
+		n_sources=1
+		n_sources_used=1
 
-	source_IQ=np.random.uniform(0,2*np.pi,size=(args.sources,2))
+	source_IQ=np.random.uniform(0,2*np.pi,size=(n_sources,2))
 
 	detector_position_phase_offset=np.random.uniform(0,2*np.pi)
 	detector_position_phase_offsets_at_t=np.ones((args.time_steps,1))*detector_position_phase_offset
 
-	sigma=args.sigma
 	d.position_offset=0
 
 	# lets run this thing
-	source_positions_at_t=np.zeros((args.time_steps,args.sources,2))
-	source_velocities_at_t=np.zeros((args.time_steps,args.sources,2))
-	broadcasting_positions_at_t=np.zeros((args.time_steps,args.sources,1))
-	broadcasting_heading_at_t=np.zeros((args.time_steps,args.sources,1))
+	source_positions_at_t=np.zeros((args.time_steps,n_sources,2))
+	source_velocities_at_t=np.zeros((args.time_steps,n_sources,2))
+	broadcasting_positions_at_t=np.zeros((args.time_steps,n_sources,1))
+	broadcasting_heading_at_t=np.zeros((args.time_steps,n_sources,1))
 	receiver_positions_at_t=np.zeros((args.time_steps,args.elements,2))
 	source_theta_at_t=np.zeros((args.time_steps,1,1))
 	source_distance_at_t=np.zeros((args.time_steps,1,1))
@@ -109,17 +115,17 @@ def generate_session(args_and_session_idx):
 		detector_theta=np.random.choice([0,np.pi/4,np.pi*3/4,np.pi/2,np.pi])
 		#detector_theta=np.random.choice([0,np.pi/4,np.pi/2,np.pi])
 
-	detector_v=np.array([np.cos(detector_theta),np.sin(detector_theta)])*args.detector_speed # 10m/s
+	detector_v=np.array([np.cos(detector_theta),np.sin(detector_theta)])*detector_speed # 10m/s
 	detector_bounded_point=BoundedPoint(pos=np.random.uniform(0+10,args.width-10,2),
 			v=detector_v,
 			delta_time=args.time_interval)
 
 	source_bounded_points=[]
-	for idx in range(args.sources):
+	for idx in range(n_sources):
 		source_theta=np.random.uniform(-np.pi,np.pi)
 		source_speed=args.source_speed
 		if source_speed<0:
-		    source_speed=np.random.uniform(low=0.0, high=-source_speed)
+			source_speed=np.random.uniform(low=0.0, high=-source_speed)
 		source_v=np.array(
 				[
 					np.cos(source_theta),
@@ -131,12 +137,12 @@ def generate_session(args_and_session_idx):
 					delta_time=args.time_interval)
 			)
 
-	whos_broadcasting_at_t=np.random.randint(0,args.sources,args.time_steps)
+	whos_broadcasting_at_t=np.random.randint(0,n_sources_used,args.time_steps)
 
 	if args.random_emitter_timing:
-		emitter_p=np.random.randint(1,10,args.sources)
+		emitter_p=np.random.randint(1,10,n_sources_used)
 		emitter_p=emitter_p/emitter_p.sum()
-		whos_broadcasting_at_t=np.random.choice(np.arange(args.sources),args.time_steps,p=emitter_p)
+		whos_broadcasting_at_t=np.random.choice(np.arange(n_sources_used),args.time_steps,p=emitter_p)
 
 	if args.random_silence:
 		silence_p=np.random.uniform(0.0,0.8)
@@ -180,7 +186,7 @@ def generate_session(args_and_session_idx):
 				orbital_width=1/4,
 				orbital_height=1/3,
 				phase_offset=detector_position_phase_offset,
-				orbital_frequency=(2/3)*args.width*np.pi/args.detector_speed)*args.width).astype(int)
+				orbital_frequency=(2/3)*args.width*np.pi/detector_speed)*args.width).astype(int)
 		elif args.detector_trajectory=='bounce':
 			d.position_offset,d.orientation,_=detector_bounded_point.time_step()
 			detector_orientation_at_t[t_idx]=d.orientation
@@ -191,8 +197,8 @@ def generate_session(args_and_session_idx):
 		receiver_positions_at_t[t_idx]=d.all_receiver_pos()
 
 		signal_matrixs_at_t[t_idx]=d.get_signal_matrix(
-			    start_time=time_stamps[t_idx,0],
-			    duration=args.samples_per_snapshot/d.sampling_frequency)
+				start_time=time_stamps[t_idx,0],
+				duration=args.samples_per_snapshot/d.sampling_frequency)
 		thetas_at_t[t_idx],beam_former_outputs_at_t[t_idx],_=beamformer_f(
 			d.all_receiver_pos(),
 			signal_matrixs_at_t[t_idx],
