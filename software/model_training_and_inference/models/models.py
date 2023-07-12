@@ -11,7 +11,27 @@ import torch.optim as optim
 from torch import Tensor, nn
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset
+import math
 
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d, l):
+        super().__init__()
+
+        position = torch.arange(l).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d, 2) * (-math.log(10000.0) / d))
+        pe = torch.zeros(1,l, d)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        """
+        Arguments:
+            x: Tensor, shape ``[batch, time_steps, features]``
+        """
+        _pe=self.pe.expand((x.shape[0],self.pe.shape[1],self.pe.shape[2]))
+        return torch.cat([x,_pe],axis=2)
 
 if False:
 	from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear, ComplexReLU, ComplexBatchNorm1d #, ComplexSigmoid
@@ -111,7 +131,6 @@ class TransformerModel(nn.Module):
 		assert( d_model>=d_radio_feature)
 		
 		self.linear_in = nn.Linear(d_radio_feature, d_model) if d_model>d_radio_feature else nn.Identity()
-		
 		self.d_model=d_model
 
 		self.output_net=nn.Sequential(
@@ -163,7 +182,8 @@ class SnapshotNet(nn.Module):
 			ssn_n_outputs=8,
 			ssn_d_embed=64,
 			ssn_dropout=0.0,
-			tformer_input=['drone_state','radio_feature','embedding','single_snapshot_pred']):
+			tformer_input=['drone_state','radio_feature','embedding','single_snapshot_pred'],
+			positional_encoding_len=0):
 		super().__init__()
 		self.d_radio_feature=d_radio_feature
 		self.d_drone_state=d_drone_state
@@ -173,14 +193,16 @@ class SnapshotNet(nn.Module):
 		self.n_outputs=n_outputs
 		self.dropout=dropout
 		self.tformer_input=tformer_input
-		self.tfomrer_input_dim=0
+		self.tformer_input_dim=0
 		for k,v in [
 			('drone_state',d_drone_state),
 			('radio_feature',d_radio_feature),
 			('embedding',ssn_d_embed),
 			('single_snapshot_pred',n_outputs)]:
 			if k in self.tformer_input:
-				self.tfomrer_input_dim+=v
+				self.tformer_input_dim+=v
+		self.tformer_input_dim+=positional_encoding_len
+		
 		
 		self.snap_shot_net=SingleSnapshotNet(
 			d_input_feature=d_radio_feature+d_drone_state,
@@ -192,7 +214,7 @@ class SnapshotNet(nn.Module):
 		#self.snap_shot_net=Task1Net(d_radio_feature*snapshots_per_sample)
 
 		self.tformer=TransformerModel(
-			d_radio_feature=self.tfomrer_input_dim,
+			d_radio_feature=self.tformer_input_dim,
 			#d_radio_feature=ssn_d_embed, #+n_outputs,
 			d_model=d_model,
 			n_heads=n_heads,
@@ -201,10 +223,14 @@ class SnapshotNet(nn.Module):
 			dropout=dropout,
 			n_outputs=n_outputs)
 
+		self.positional_encoding=nn.Identity()
+		if positional_encoding_len>0:
+			self.positional_encoding=PositionalEncoding(positional_encoding_len,snapshots_per_sample)
+
 	def forward(self,x):
 		d=self.snap_shot_net(x)
 		#return single_snapshot_output,single_snapshot_output
-		tformer_input=torch.cat([d[t] for t in self.tformer_input ],axis=2)
+		tformer_input=self.positional_encoding(torch.cat([d[t] for t in self.tformer_input ],axis=2))
 		tformer_output=self.tformer(tformer_input)
 		return {'transformer_pred':tformer_output,
 			'single_snapshot_pred':d['single_snapshot_pred']}

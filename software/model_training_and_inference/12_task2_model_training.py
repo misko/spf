@@ -234,6 +234,7 @@ if __name__=='__main__':
 	parser.add_argument('--seed', type=int, required=False, default=0)
 	parser.add_argument('--keep-n-saves', type=int, required=False, default=2)
 	parser.add_argument('--epochs', type=int, required=False, default=20000)
+	parser.add_argument('--positional-encoding-len', type=int, required=False, default=0)
 	parser.add_argument('--mb', type=int, required=False, default=64)
 	parser.add_argument('--workers', type=int, required=False, default=4)
 	parser.add_argument('--dataset', type=str, required=False, default='./sessions-default')
@@ -318,6 +319,7 @@ if __name__=='__main__':
 							n_outputs=len(cols_for_loss),
 							ssn_n_outputs=len(cols_for_loss),
 							dropout=0.0,
+							positional_encoding_len=args.positional_encoding_len,
 							tformer_input=args.transformer_input),
 						'snapshots_per_sample':snapshots_per_sample,
 						'images':False,
