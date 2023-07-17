@@ -15,23 +15,23 @@ import math
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d, l):
-        super().__init__()
+	def __init__(self, d, l):
+		super().__init__()
 
-        position = torch.arange(l).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d, 2) * (-math.log(10000.0) / d))
-        pe = torch.zeros(1,l, d)
-        pe[0, :, 0::2] = torch.sin(position * div_term)
-        pe[0, :, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe)
+		position = torch.arange(l).unsqueeze(1)
+		div_term = torch.exp(torch.arange(0, d, 2) * (-math.log(10000.0) / d))
+		pe = torch.zeros(1,l, d)
+		pe[0, :, 0::2] = torch.sin(position * div_term)
+		pe[0, :, 1::2] = torch.cos(position * div_term)
+		self.register_buffer('pe', pe)
 
-    def forward(self, x):
-        """
-        Arguments:
-            x: Tensor, shape ``[batch, time_steps, features]``
-        """
-        _pe=self.pe.expand((x.shape[0],self.pe.shape[1],self.pe.shape[2]))
-        return torch.cat([x,_pe],axis=2)
+	def forward(self, x):
+		"""
+		Arguments:
+			x: Tensor, shape ``[batch, time_steps, features]``
+		"""
+		_pe=self.pe.expand((x.shape[0],self.pe.shape[1],self.pe.shape[2]))
+		return torch.cat([x,_pe],axis=2)
 
 if False:
 	from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear, ComplexReLU, ComplexBatchNorm1d #, ComplexSigmoid
@@ -101,8 +101,9 @@ if False:
 			return F.softmax(self.output_net(x).abs(),dim=1)
 			#return out/(out.sum(axis=1,keepdims=True)+1e-9)
 			
+			
 
-class TransformerModel(nn.Module):
+class TransformerEncOnlyModel(nn.Module):
 	def __init__(self,
 			d_radio_feature, 
 			d_model,
@@ -158,6 +159,7 @@ class TransformerModel(nn.Module):
 			breakpoint()
 		return output
 
+
 class SkipConnection(nn.Module):
 	def __init__(self,module):
 		super().__init__()
@@ -165,6 +167,102 @@ class SkipConnection(nn.Module):
 
 	def forward(self,x):
 		return self.module(x)+x
+
+class FilterNet(nn.Module):
+	def __init__(self,
+			d_drone_state=4+4,
+			d_emitter_state=8,
+			d_radio_feature=258,
+			d_model=512,
+			n_heads=8,
+			d_hid=256,
+			d_embed=64,
+			n_layers=1,
+			n_outputs=4+4+1, # position , velocity, responsibility
+			dropout=0.0,
+			ssn_d_hid=64,
+			ssn_n_layers=8,
+			ssn_n_outputs=8,
+			ssn_dropout=0.0,
+			tformer_input=['drone_state','embedding']):
+		super().__init__()
+		self.d_radio_feature=d_radio_feature
+		self.d_drone_state=d_drone_state
+		self.d_model=d_model
+		self.n_heads=n_heads
+		self.d_embed=d_embed
+		self.d_hid=d_hid
+		self.dropout=dropout
+		self.tformer_input=tformer_input
+		self.tformer_input_dim=0
+		self.n_layers=n_layers
+		self.n_outputs=n_outputs
+
+		self.d_emitter_state=d_emitter_state
+
+		for k,v in [
+			('drone_state',d_drone_state),
+			('radio_feature',d_radio_feature),
+			('embedding',self.d_embed)]:
+			if k in self.tformer_input:
+				self.tformer_input_dim+=v
+		
+		self.emitter_embedding_net=EmitterWithDetectorEmbeddingNet(
+			d_drone_state=self.d_drone_state,
+			d_emitter_state=self.d_emitter_state,
+			d_hid=16,
+			d_embed=self.d_embed-1,
+			n_layers=8,
+			n_outputs=4,
+			dropout=0.0)
+		
+		self.snap_shot_net=SingleSnapshotNet(
+			d_input_feature=d_radio_feature+d_drone_state,
+			d_hid=ssn_d_hid,
+			d_embed=self.d_embed-1,
+			n_layers=ssn_n_layers,
+			n_outputs=ssn_n_outputs,
+			dropout=ssn_dropout)
+
+
+		self.transformer_enc=TransformerEncOnlyModel(
+			d_radio_feature=self.d_model, 
+			d_model=self.d_model,
+			n_heads=self.n_heads,
+			d_hid=self.d_hid,
+			n_layers=self.n_layers,
+			dropout=self.dropout, 
+			n_outputs=self.n_outputs,
+			n_layers_output=4)
+
+	def forward(self,x):
+		single_snapshot_output=self.snap_shot_net(x)
+		snap_shot_embeddings=single_snapshot_output['embedding'] #torch.Size([batch, time, embedding dim])
+		emitter_state_embeddings=self.emitter_embedding_net(x)['emitter_state_embedding']
+
+		batch_size,time_steps,n_sources,_=emitter_state_embeddings.shape
+
+		snap_shot_embeddings=torch.cat([
+			snap_shot_embeddings, #torch.Size([batch, time, embedding dim])
+			torch.zeros(batch_size,time_steps,1).to(snap_shot_embeddings.device)],dim=2).reshape(batch_size,time_steps,1,self.d_embed)
+		emitter_state_embeddings=torch.cat([
+			emitter_state_embeddings,
+			torch.ones(batch_size,time_steps,n_sources,1).to(emitter_state_embeddings.device)],dim=3)
+
+
+		self_attention_input=torch.cat([emitter_state_embeddings,snap_shot_embeddings],dim=2)
+		#input shape = (batch*time, nsources+1snapshot, embedding_dim)
+		#output shape = (batch*time,N,embedding_dim)
+
+		self_attention_output=self.transformer_enc(
+			self_attention_input.reshape(
+				batch_size*time_steps,
+				n_sources+1,
+				self.d_model)).reshape(batch_size,time_steps,n_sources+1,self.n_outputs)
+		#make sure assignments are probabilities?
+		self_attention_output=torch.cat([self_attention_output[...,:-1],nn.functional.softmax(self_attention_output[...,[-1]],dim=2)],dim=3)
+		return {'transformer_pred':self_attention_output,
+			'single_snapshot_pred':single_snapshot_output['single_snapshot_pred']}
 
 class SnapshotNet(nn.Module):
 	def __init__(self,
@@ -213,7 +311,7 @@ class SnapshotNet(nn.Module):
 			dropout=ssn_dropout)
 		#self.snap_shot_net=Task1Net(d_radio_feature*snapshots_per_sample)
 
-		self.tformer=TransformerModel(
+		self.tformer=TransformerEncOnlyModel(
 			d_radio_feature=self.tformer_input_dim,
 			#d_radio_feature=ssn_d_embed, #+n_outputs,
 			d_model=d_model,
@@ -235,6 +333,62 @@ class SnapshotNet(nn.Module):
 		return {'transformer_pred':tformer_output,
 			'single_snapshot_pred':d['single_snapshot_pred']}
 		
+class EmitterWithDetectorEmbeddingNet(nn.Module):
+	def __init__(self,
+			d_drone_state,
+			d_emitter_state,
+			d_hid,
+			d_embed,
+			n_layers,
+			n_outputs,
+			dropout):
+		super(EmitterWithDetectorEmbeddingNet,self).__init__()
+		self.d_drone_state=d_drone_state
+		self.d_emitter_state=d_emitter_state
+		self.d_hid=d_hid
+		self.d_embed=d_embed
+		self.n_layers=n_layers
+		self.n_outputs=n_outputs
+		self.dropout=dropout
+		
+		self.embed_net=nn.Sequential(
+			#nn.LayerNorm(self.d_radio_feature),
+			nn.Linear(self.d_drone_state+self.d_emitter_state,d_hid),
+			nn.SELU(),
+			*[SkipConnection(
+				nn.Sequential(
+				nn.LayerNorm(d_hid),
+				nn.Linear(d_hid,d_hid),
+				#nn.ReLU()
+				nn.SELU()
+				))
+			for _ in range(n_layers) ],
+			#nn.LayerNorm(d_hid),
+			nn.Linear(d_hid,d_embed),
+			nn.LayerNorm(d_embed),
+			)
+		self.lin_output=nn.Linear(d_embed,self.n_outputs)
+
+	def forward(self, x_dict):
+		batch_size,time_steps,d_drone_state=x_dict['drone_state'].shape
+		_,_,n_sources,d_emitter_state=x_dict['emitter_position_and_velocity'].shape
+
+		drone_states=x_dict['drone_state'].reshape(
+			batch_size*time_steps,1,d_drone_state).expand(
+				batch_size*time_steps,n_sources,d_drone_state).reshape(batch_size*time_steps*n_sources,d_drone_state)
+		emitter_states=x_dict['emitter_position_and_velocity'].reshape(batch_size*time_steps*n_sources,d_emitter_state)
+		x=torch.cat([drone_states,emitter_states],axis=1)
+
+		embed=self.embed_net(x)
+		output=self.lin_output(embed)
+
+		embed=embed.reshape(batch_size,time_steps,n_sources,-1)
+		output=output.reshape(batch_size,time_steps,n_sources,-1)
+		if output.isnan().any():
+			breakpoint()
+		return {'drone_state':x_dict['drone_state'],
+			'emitter_position_and_velcoty':x_dict['emitter_position_and_velocity'],
+			'emitter_step_pred':output,'emitter_state_embedding':embed}
 
 class SingleSnapshotNet(nn.Module):
 	def __init__(self,

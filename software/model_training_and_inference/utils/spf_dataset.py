@@ -144,6 +144,53 @@ def collate_fn_beamformer(_in):
 		'thetas':source_theta}
 	return r
 
+def collate_fn_transformer_filter(_in):
+	d={ k:torch.from_numpy(np.stack([ x[k] for x in _in ])) for k in _in[0]}
+	b,s,n_sources,_=d['source_positions_at_t'].shape
+
+	times=d['time_stamps']/(0.00001+d['time_stamps'].max(axis=2,keepdim=True)[0]) 
+	detector_theta=d['detector_orientation_at_t']/np.pi
+
+	space_diffs=(d['detector_position_at_t_normalized'][:,:-1]-d['detector_position_at_t_normalized'][:,1:])
+	space_delta=torch.cat([
+		torch.zeros(b,1,2),
+		space_diffs,
+		],axis=1)
+
+	space_theta=torch.cat([	
+		torch.zeros(b,1,1),
+		(torch.atan2(space_diffs[...,1],space_diffs[...,0]))[:,:,None]/np.pi
+	],axis=1)
+
+	space_dist=torch.cat([	
+		torch.zeros(b,1,1),
+		torch.sqrt(torch.pow(space_diffs,2).sum(axis=2,keepdim=True))
+	],axis=1)
+	return {
+		'drone_state':torch.cat(
+		[
+			d['detector_position_at_t_normalized'],
+			times-times.max(axis=2,keepdim=True)[0],
+			space_delta,
+			space_theta,
+			space_dist,
+			detector_theta,
+		],dim=2).float(),
+		'emitter_position_and_velocity':torch.cat([
+			d['source_positions_at_t_normalized'],
+			d['source_velocities_at_t_normalized'],
+		],dim=3),
+		'emitters_broadcasting':d['broadcasting_positions_at_t'],
+		'radio_feature':torch.cat(
+		[
+			torch.log(d['beam_former_outputs_at_t'].mean(axis=2,keepdim=True))/20,
+			d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].mean(axis=2,keepdim=True), # maybe pass in log values?
+		],
+		dim=2
+		).float()
+
+	}
+
 def collate_fn(_in):
 	d={ k:torch.from_numpy(np.stack([ x[k] for x in _in ])) for k in _in[0]}
 	b,s,n_sources,_=d['source_positions_at_t'].shape
