@@ -166,6 +166,7 @@ def collate_fn_transformer_filter(_in):
 		torch.zeros(b,1,1),
 		torch.sqrt(torch.pow(space_diffs,2).sum(axis=2,keepdim=True))
 	],axis=1)
+
 	return {
 		'drone_state':torch.cat(
 		[
@@ -181,6 +182,7 @@ def collate_fn_transformer_filter(_in):
 			d['source_velocities_at_t_normalized'],
 		],dim=3),
 		'emitters_broadcasting':d['broadcasting_positions_at_t'],
+		'emitters_n_broadcasts':d['broadcasting_positions_at_t'].cumsum(axis=1),
 		'radio_feature':torch.cat(
 		[
 			torch.log(d['beam_former_outputs_at_t'].mean(axis=2,keepdim=True))/20,

@@ -14,7 +14,7 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset, random_split
 
 from utils.image_utils import labels_to_source_images
-from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerModel,
+from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerEncOnlyModel,
 			UNet)
 from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn, output_cols, input_cols
 

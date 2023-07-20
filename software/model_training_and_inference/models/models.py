@@ -105,7 +105,7 @@ if False:
 
 class TransformerEncOnlyModel(nn.Module):
 	def __init__(self,
-			d_radio_feature, 
+			d_in, 
 			d_model,
 			n_heads,
 			d_hid,
@@ -129,9 +129,9 @@ class TransformerEncOnlyModel(nn.Module):
 			nn.LayerNorm(d_model),
 			)
 
-		assert( d_model>=d_radio_feature)
+		assert( d_model>=d_in)
 		
-		self.linear_in = nn.Linear(d_radio_feature, d_model) if d_model>d_radio_feature else nn.Identity()
+		self.linear_in = nn.Linear(d_in, d_model) if d_model>d_in else nn.Identity()
 		self.d_model=d_model
 
 		self.output_net=nn.Sequential(
@@ -148,11 +148,11 @@ class TransformerEncOnlyModel(nn.Module):
 			#nn.LayerNorm(n_outputs)
 			)
 
-	def forward(self, src: Tensor) -> Tensor:
+	def forward(self, src: Tensor, src_key_padding_mask=None) -> Tensor:
 		#src_enc = self.transformer_encoder(
 		#	torch.cat(
 		#		[src,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
-		src_enc = self.transformer_encoder( self.linear_in(src))
+		src_enc = self.transformer_encoder( self.linear_in(src), src_key_padding_mask=src_key_padding_mask)
 		#output = self.transformer_encoder(src) #,self.linear_in(src)],axis=2)) #/np.sqrt(self.d_radio_feature))
 		output = self.output_net(src_enc) #/np.sqrt(self.d_model)
 		if output.isnan().any():
@@ -171,14 +171,14 @@ class SkipConnection(nn.Module):
 class FilterNet(nn.Module):
 	def __init__(self,
 			d_drone_state=4+4,
-			d_emitter_state=8,
+			d_emitter_state=4+4+2, # 2 means , 2 variances, 2 angles
 			d_radio_feature=258,
 			d_model=512,
 			n_heads=8,
 			d_hid=256,
 			d_embed=64,
 			n_layers=1,
-			n_outputs=4+4+1, # position , velocity, responsibility
+			n_outputs=4+4+2+1, # 2 means , 2 variances, 2 angles, responsibility
 			dropout=0.0,
 			ssn_d_hid=64,
 			ssn_n_layers=8,
@@ -198,7 +198,6 @@ class FilterNet(nn.Module):
 		self.n_layers=n_layers
 		self.n_outputs=n_outputs
 
-		self.d_emitter_state=d_emitter_state
 
 		for k,v in [
 			('drone_state',d_drone_state),
@@ -207,26 +206,16 @@ class FilterNet(nn.Module):
 			if k in self.tformer_input:
 				self.tformer_input_dim+=v
 		
-		self.emitter_embedding_net=EmitterWithDetectorEmbeddingNet(
-			d_drone_state=self.d_drone_state,
-			d_emitter_state=self.d_emitter_state,
-			d_hid=16,
-			d_embed=self.d_embed-1,
-			n_layers=8,
-			n_outputs=4,
-			dropout=0.0)
-		
 		self.snap_shot_net=SingleSnapshotNet(
 			d_input_feature=d_radio_feature+d_drone_state,
 			d_hid=ssn_d_hid,
 			d_embed=self.d_embed-1,
 			n_layers=ssn_n_layers,
-			n_outputs=ssn_n_outputs,
+			n_outputs=n_outputs,
 			dropout=ssn_dropout)
 
-
 		self.transformer_enc=TransformerEncOnlyModel(
-			d_radio_feature=self.d_model, 
+			d_in=self.d_model, 
 			d_model=self.d_model,
 			n_heads=self.n_heads,
 			d_hid=self.d_hid,
@@ -263,6 +252,142 @@ class FilterNet(nn.Module):
 		self_attention_output=torch.cat([self_attention_output[...,:-1],nn.functional.softmax(self_attention_output[...,[-1]],dim=2)],dim=3)
 		return {'transformer_pred':self_attention_output,
 			'single_snapshot_pred':single_snapshot_output['single_snapshot_pred']}
+
+class TrajectoryNet(nn.Module):
+	def __init__(self,
+			d_drone_state=4+4,
+			d_radio_feature=258,
+			d_detector_observation_embedding=128,
+			d_trajectory_embedding=256,
+			d_model=512,
+			n_heads=8,
+			d_hid=256,
+			n_layers=1,
+			n_outputs=8,
+			ssn_d_hid=64,
+			ssn_n_layers=8,
+			ssn_d_output=5,
+			):
+		super().__init__()
+		self.d_detector_observation_embedding=d_detector_observation_embedding
+		self.d_trajectory_embedding=d_trajectory_embedding
+		
+		self.snap_shot_net=EmbeddingNet(
+				d_in=d_radio_feature+d_drone_state, # time is inside drone state
+				d_hid=ssn_d_hid,
+				d_out=ssn_d_output,
+				d_embed=d_detector_observation_embedding,
+				n_layers=ssn_n_layers
+			)
+		
+		self.tformer=TransformerEncOnlyModel(
+			d_in=d_detector_observation_embedding,
+			d_model=d_model,
+			n_heads=n_heads,
+			d_hid=d_hid,
+			n_layers=n_layers,
+			dropout=0.0,
+			n_outputs=d_trajectory_embedding)
+
+
+	def forward(self,x):
+		# Lets get the detector observation embeddings
+		batch_size,time_steps,_=x['drone_state'].shape
+		drone_state_and_observations=torch.cat([
+			x['drone_state'],
+			x['radio_feature']
+			],dim=2)
+		d=self.snap_shot_net(drone_state_and_observations)
+		drone_state_and_observation_embeddings=d['embedding']
+		single_snapshot_predictions=d['output']
+
+		# generate random time points to grab for each batch sample
+		#rt=torch.randint(low=2, high=time_steps-1, size=(batch_size,), device=x['drone_state'].device)
+		rt=torch.randint(low=2, high=20, size=(batch_size,)) # keep on CPU?, device=x['drone_state'].device)
+		tracking=x['emitters_n_broadcasts'][torch.arange(batch_size),rt-1].cpu() #positive values for things already being tracked
+
+		#aggregate embedded states with like tracking to feed into trajectory transformer
+		nested_tensors=[]
+		idxs=[]
+		max_snapshots=0
+		for b in torch.arange(batch_size):
+			t=rt[b]
+			for tracked in np.where(tracking[b]>0)[0]: # TODO is this sorted? does it matter?
+				times_where_this_tracked_is_broadcasting=x['emitters_broadcasting'][b,:,tracked,0].to(bool)
+				times_where_this_tracked_is_broadcasting[t:]=False
+				nested_tensors.append(
+				  drone_state_and_observation_embeddings[b,times_where_this_tracked_is_broadcasting]
+				)
+				print(nested_tensors[-1].shape)
+				if nested_tensors[-1].shape[0]==0:
+					breakpoint()
+					a=1
+				snapshots=nested_tensors[-1].shape[0]
+				if snapshots>max_snapshots:
+					max_snapshots=snapshots
+				idxs.append((b.item(),tracked))
+
+		#compute the forward pass on aggregated embeddings
+		#trajectory_transformer_input=torch.nested.nested_tensor(nested_tensors)
+		tformer_input=torch.zeros((len(idxs),max_snapshots,self.d_detector_observation_embedding),device=x['drone_state'].device)
+		src_key_padding_mask=torch.zeros((len(idxs),max_snapshots),device=x['drone_state'].device,dtype=bool)
+		for idx,emebeddings_per_batch_and_tracked in enumerate(nested_tensors):
+			tracked_time_steps,_=emebeddings_per_batch_and_tracked.shape
+			tformer_input[idx,:tracked_time_steps]=emebeddings_per_batch_and_tracked	
+			src_key_padding_mask[idx,tracked_time_steps:]=True
+		self_attention_output=self.tformer(tformer_input,src_key_padding_mask=src_key_padding_mask)
+
+		#aggegate outputs to generate trajectory embedding
+		trajectory_embeddings=torch.zeros((len(idxs),self.d_trajectory_embedding))
+		
+		
+		#src_key_padding_mask=torch.zeros(()
+
+		#lets try and push this through the transformer?
+		breakpoint()
+		a=1
+		d=self.snap_shot_net(x)
+		#return single_snapshot_output,single_snapshot_output
+		tformer_input=self.positional_encoding(torch.cat([d[t] for t in self.tformer_input ],axis=2))
+		tformer_output=self.tformer(tformer_input)
+		return {'transformer_pred':tformer_output,
+			'single_snapshot_pred':d['single_snapshot_pred']}
+
+
+class EmbeddingNet(nn.Module):
+	def __init__(self,
+			d_in,
+			d_out,
+			d_hid,
+			d_embed,
+			n_layers):
+		super(EmbeddingNet,self).__init__()
+		
+		self.embed_net=nn.Sequential(
+			nn.Linear(d_in,d_hid),
+			nn.SELU(),
+			*[SkipConnection(
+				nn.Sequential(
+				nn.LayerNorm(d_hid),
+				nn.Linear(d_hid,d_hid),
+				#nn.ReLU()
+				nn.SELU()
+				))
+			for _ in range(n_layers) ],
+			#nn.LayerNorm(d_hid),
+			nn.Linear(d_hid,d_embed),
+			nn.LayerNorm(d_embed),
+			)
+		self.lin_output=nn.Linear(d_embed,d_out)
+
+	def forward(self, x):
+		embed=self.embed_net(x)
+		output=self.lin_output(embed)
+
+		if output.isnan().any():
+			breakpoint()
+		return {'embedding':embed,
+			'output':output}
 
 class SnapshotNet(nn.Module):
 	def __init__(self,
@@ -312,7 +437,7 @@ class SnapshotNet(nn.Module):
 		#self.snap_shot_net=Task1Net(d_radio_feature*snapshots_per_sample)
 
 		self.tformer=TransformerEncOnlyModel(
-			d_radio_feature=self.tformer_input_dim,
+			d_in=self.tformer_input_dim,
 			#d_radio_feature=ssn_d_embed, #+n_outputs,
 			d_model=d_model,
 			n_heads=n_heads,
@@ -332,63 +457,6 @@ class SnapshotNet(nn.Module):
 		tformer_output=self.tformer(tformer_input)
 		return {'transformer_pred':tformer_output,
 			'single_snapshot_pred':d['single_snapshot_pred']}
-		
-class EmitterWithDetectorEmbeddingNet(nn.Module):
-	def __init__(self,
-			d_drone_state,
-			d_emitter_state,
-			d_hid,
-			d_embed,
-			n_layers,
-			n_outputs,
-			dropout):
-		super(EmitterWithDetectorEmbeddingNet,self).__init__()
-		self.d_drone_state=d_drone_state
-		self.d_emitter_state=d_emitter_state
-		self.d_hid=d_hid
-		self.d_embed=d_embed
-		self.n_layers=n_layers
-		self.n_outputs=n_outputs
-		self.dropout=dropout
-		
-		self.embed_net=nn.Sequential(
-			#nn.LayerNorm(self.d_radio_feature),
-			nn.Linear(self.d_drone_state+self.d_emitter_state,d_hid),
-			nn.SELU(),
-			*[SkipConnection(
-				nn.Sequential(
-				nn.LayerNorm(d_hid),
-				nn.Linear(d_hid,d_hid),
-				#nn.ReLU()
-				nn.SELU()
-				))
-			for _ in range(n_layers) ],
-			#nn.LayerNorm(d_hid),
-			nn.Linear(d_hid,d_embed),
-			nn.LayerNorm(d_embed),
-			)
-		self.lin_output=nn.Linear(d_embed,self.n_outputs)
-
-	def forward(self, x_dict):
-		batch_size,time_steps,d_drone_state=x_dict['drone_state'].shape
-		_,_,n_sources,d_emitter_state=x_dict['emitter_position_and_velocity'].shape
-
-		drone_states=x_dict['drone_state'].reshape(
-			batch_size*time_steps,1,d_drone_state).expand(
-				batch_size*time_steps,n_sources,d_drone_state).reshape(batch_size*time_steps*n_sources,d_drone_state)
-		emitter_states=x_dict['emitter_position_and_velocity'].reshape(batch_size*time_steps*n_sources,d_emitter_state)
-		x=torch.cat([drone_states,emitter_states],axis=1)
-
-		embed=self.embed_net(x)
-		output=self.lin_output(embed)
-
-		embed=embed.reshape(batch_size,time_steps,n_sources,-1)
-		output=output.reshape(batch_size,time_steps,n_sources,-1)
-		if output.isnan().any():
-			breakpoint()
-		return {'drone_state':x_dict['drone_state'],
-			'emitter_position_and_velcoty':x_dict['emitter_position_and_velocity'],
-			'emitter_step_pred':output,'emitter_state_embedding':embed}
 
 class SingleSnapshotNet(nn.Module):
 	def __init__(self,

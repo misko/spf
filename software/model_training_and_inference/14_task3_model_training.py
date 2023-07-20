@@ -14,7 +14,7 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset, random_split
 
 from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerEncOnlyModel,
-			UNet,EmitterWithDetectorEmbeddingNet,FilterNet)
+			UNet,TrajectoryNet)
 from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn_transformer_filter, output_cols, input_cols
 
 torch.set_printoptions(precision=5,sci_mode=False,linewidth=1000)
@@ -51,11 +51,41 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 		labels=torch.cat([
 			data['emitter_position_and_velocity'],
 			data['emitters_broadcasting'],
-			],dim=3)
-		#print("TODO PLUMBING FOR BIRTH OF TRACKING TRACK")
-		transformer_loss = criterion(preds['transformer_pred'][:,:,:-1],labels)
+			],dim=3)[:,1:]
+
+
+		#print("TODO PLUMBING FOR B OF TRACKING TRACK")
+
+		transformer_preds=preds['transformer_pred'][:,:-1] # trim off last time step, dont have gt for it
+		transformer_pred_means=transformer_preds[...,:4] 
+		transformer_pred_vars=transformer_preds[...,4:4+4] 
+		transformer_pred_angles=transformer_preds[...,8:8+2]
+		#for n in points
+		#  for p_idx in 2: #xy output
+		# 	 for output_col in 2: # xy input
+		#      out[n,p_idx]+=points[n,output_col]*rot[n,output_col,p_idx]
+
+		#for i 
+		#   for k 
+
+		#torch.einsum('ik,kj->ij', [a, b]) , matmul
+
+		#torch.einsum('nik,nkj->nij', [a, b]) , matmul
+		# need to expand b,t,2 angles into b,t,2,(2x2) 
+
+		#point wise mul and sum
+		# then matmul with predictions b,t,2,2
+		
+		
+		breakpoint()
+		transformer_loss = criterion(preds['transformer_pred'][:,:-1,:-1],labels)
+		#transformer_loss = criterion(preds['transformer_pred'][:,:-1,:-1],labels)
+		#pred_means=preds['transformer_pred'][:,:,
+		#		d['emitter_position_and_velocity'],
+		#		d['emitter_position_and_velocity']*0+1, # the variance
+		#TODO add in gaussian scoring here?
 		losses['transformer_loss']=transformer_loss.detach().item()
-		losses['transformer_stats']=(preds['transformer_pred'][:,:,:-1]-labels).pow(2).mean(axis=[0,1]).detach().cpu()
+		losses['transformer_stats']=(preds['transformer_pred'][:,:-1,:-1]-labels).pow(2).mean(axis=[0,1]).detach().cpu()
 		_p=preds['transformer_pred'].detach().cpu()
 		assert(not preds['transformer_pred'].isnan().any())
 	if False and 'single_snapshot_pred' in preds:
@@ -254,36 +284,13 @@ if __name__=='__main__':
 	if True:
 		n_layers=2
 		models.append({
-			'name':'filterNet',
-			'model':FilterNet(
-				d_drone_state=4+4,
-				d_emitter_state=8,
-				d_radio_feature=258,
-				d_model=args.transformer_dmodel,
-				n_heads=8,
-				n_layers=n_layers,
-				dropout=0.0),
+			'name':'TrajectoryNet',
+			'model':TrajectoryNet(),
 			'dead':False,
 						'lr':args.lr_transformer,
 		})
 			
 
-	if False:
-		models.append(
-			{'name':'detectorNet',
-			'model':DetectorEmbeddingNet(
-				d_drone_state=8,
-				d_emitter_state=4,
-				d_hid=8, 
-				d_embed=32, 
-				n_layers=4, 
-				n_outputs=16,
-				dropout=0.0
-			),
-			'dead':False,
-						'lr':args.lr_transformer,
-			}
-		)
 	if False:
 		for n_layers in [2,4,8,16,32]:#,32,64]: #,32,64]:
 			for snapshots_per_sample in args.snapshots_per_sample:
@@ -346,9 +353,11 @@ if __name__=='__main__':
 		#add sources not seen (death)
 		d={ k:data[k].to(dtype).to(device) for k in data}
 
+		batch_size,time_steps,n_sources,_=d['emitter_position_and_velocity'].shape
 		d['emitter_position_and_velocity']=torch.cat([
 				d['emitter_position_and_velocity'],
-				d['emitter_position_and_velocity']*0,
+				torch.zeros(batch_size,time_steps,n_sources,4,device=d['emitter_position_and_velocity'].device)+1, # the variance
+				torch.zeros(batch_size,time_steps,n_sources,2,device=d['emitter_position_and_velocity'].device), # the angle
 			],dim=3)
 
 		for k in d:
