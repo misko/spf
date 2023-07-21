@@ -148,7 +148,8 @@ def collate_fn_transformer_filter(_in):
 	d={ k:torch.from_numpy(np.stack([ x[k] for x in _in ])) for k in _in[0]}
 	b,s,n_sources,_=d['source_positions_at_t'].shape
 
-	times=d['time_stamps']/(0.00001+d['time_stamps'].max(axis=2,keepdim=True)[0]) 
+	times=d['time_stamps']/(0.0000001+d['time_stamps'].max(axis=1,keepdim=True)[0]) 
+	#times-=0.5 # center
 	detector_theta=d['detector_orientation_at_t']/np.pi
 
 	space_diffs=(d['detector_position_at_t_normalized'][:,:-1]-d['detector_position_at_t_normalized'][:,1:])
@@ -170,12 +171,12 @@ def collate_fn_transformer_filter(_in):
 	return {
 		'drone_state':torch.cat(
 		[
-			d['detector_position_at_t_normalized'],
-			times-times.max(axis=2,keepdim=True)[0],
-			space_delta,
-			space_theta,
-			space_dist,
-			detector_theta,
+			d['detector_position_at_t_normalized'], # 2: 2
+			times, #-times.max(axis=2,keepdim=True)[0], # 1: 3
+			space_delta, # 2: 5
+			space_theta, # 1: 6
+			space_dist, #1: 7
+			detector_theta, #1: 8
 		],dim=2).float(),
 		'emitter_position_and_velocity':torch.cat([
 			d['source_positions_at_t_normalized'],
@@ -197,7 +198,8 @@ def collate_fn(_in):
 	d={ k:torch.from_numpy(np.stack([ x[k] for x in _in ])) for k in _in[0]}
 	b,s,n_sources,_=d['source_positions_at_t'].shape
 
-	times=d['time_stamps']/(0.00001+d['time_stamps'].max(axis=2,keepdim=True)[0]) 
+	#times=d['time_stamps']/(0.00001+d['time_stamps'].max(axis=2,keepdim=True)[0]) 
+	times=d['time_stamps']/(0.0000001+d['time_stamps'].max(axis=1,keepdim=True)[0]) 
 
 	#deal with source positions
 	source_position=d['source_positions_at_t_normalized'][torch.where(d['broadcasting_positions_at_t']==1)[:-1]].reshape(b,s,2).float()
@@ -242,7 +244,7 @@ def collate_fn(_in):
 		'drone_state':torch.cat(
 		[
 			d['detector_position_at_t_normalized'],
-			times-times.max(axis=2,keepdim=True)[0],
+			times, #-times.max(axis=2,keepdim=True)[0],
 			space_delta,
 			space_theta,
 			space_dist,
