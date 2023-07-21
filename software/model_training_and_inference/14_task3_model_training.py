@@ -38,9 +38,12 @@ def unpack_mean_cov_angle(x):
 #means (n,2)
 #sigmas (n,2)
 #thetas (n,1)
-def points_to_nll(points,means,sigmas,thetas,min_sigma=0.01,max_sigma=0.3,ellipse=False):
+def convert_sigmas(sigmas,min_sigma,max_sigma):
+	return torch.sigmoid(sigmas)*(max_sigma-min_sigma)+min_sigma
+
+def points_to_nll(points,means,sigmas,thetas,ellipse=False): #,min_sigma=0.01,max_sigma=0.3,ellipse=False):
 	#sigmas=torch.clamp(sigmas.abs(),min=min_sigma,max=None) # TODO clamp hides the gradient?
-	sigmas=torch.sigmoid(sigmas)*(max_sigma-min_sigma)+min_sigma #.abs()+min_sigma
+	#sigmas=torch.sigmoid(sigmas)*(max_sigma-min_sigma)+min_sigma #.abs()+min_sigma
 	if ellipse:
 		p=rotate_points_by_thetas(points-means,thetas)/sigmas
 	else:
@@ -74,13 +77,22 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 	pos_mean,pos_cov,pos_angle=unpack_mean_cov_angle(preds['trajectory_predictions'][:,:,:,:5].reshape(-1,5))
 	vel_mean,vel_cov,vel_angle=unpack_mean_cov_angle(preds['trajectory_predictions'][:,:,:,5:].reshape(-1,5))
 
-	nll_position_reconstruction_loss=points_to_nll(positions,pos_mean,pos_cov,pos_angle,min_sigma=min_sigma,max_sigma=max_sigma).mean()
-	nll_velocity_reconstruction_loss=points_to_nll(velocities,vel_mean,vel_cov,vel_angle,min_sigma=min_sigma,max_sigma=max_sigma).mean()
+	nll_position_reconstruction_loss=points_to_nll(positions,
+											pos_mean,
+											convert_sigmas(pos_cov,min_sigma=min_sigma,max_sigma=max_sigma),
+											pos_angle).mean()
+	nll_velocity_reconstruction_loss=points_to_nll(velocities,
+											vel_mean,
+											convert_sigmas(vel_cov,min_sigma=min_sigma,max_sigma=max_sigma),
+											vel_angle).mean()
 
 	ss_mean,ss_cov,ss_angle=unpack_mean_cov_angle(preds['single_snapshot_predictions'].reshape(-1,5))
 	emitting_positions=data['emitter_position_and_velocity'][data['emitters_broadcasting'][...,0].to(bool)][:,:2]
 
-	nll_ss_position_reconstruction_loss=points_to_nll(emitting_positions,ss_mean,ss_cov,ss_angle,min_sigma=min_sigma,max_sigma=max_sigma).mean()
+	nll_ss_position_reconstruction_loss=points_to_nll(emitting_positions,
+													ss_mean,
+													convert_sigmas(ss_cov,min_sigma=min_sigma,max_sigma=max_sigma),
+													ss_angle).mean()
 	if plot and (update%args.plot_every)==args.plot_every-1:
 		t=128
 		d_model['fig'].clf()
@@ -93,7 +105,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 		axs[0].scatter(_emitting_positions[:,0],_emitting_positions[:,1],label='source positions',c='r',alpha=0.3)
 		axs[0].set_title("Ground truth")
 		_ss_mean=ss_mean[:t].detach().numpy()
-		_ss_cov=ss_cov[:t].abs().detach().numpy()+min_sigma
+		_ss_cov=convert_sigmas(ss_cov[:t],min_sigma=min_sigma,max_sigma=max_sigma).detach().numpy()
 		_ss_angle=ss_angle[:t].detach().numpy()
 		axs[1].scatter(_ss_mean[:,0],_ss_mean[:,1],label='pred means',c='r',alpha=0.3)
 		print("PLOT",_ss_cov[:t].mean(),_ss_cov[:t].max())
@@ -109,10 +121,10 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 
 		_pred_trajectory=preds['trajectory_predictions'].detach().numpy()
 		for source_idx in range(n_sources):
-			trajectory_mean,_,_=unpack_mean_cov_angle(_pred_trajectory[:,:t,source_idx,:5].reshape(-1,5))
+			trajectory_mean,_,_=unpack_mean_cov_angle(_pred_trajectory[0,:t,source_idx,:5].reshape(-1,5))
 			axs[2].scatter(trajectory_mean[:,0],trajectory_mean[:,1],label='trajectory prediction',s=20)
-		for idx in [0,1,2]:
-			axs[idx].legend()
+		#for idx in [0,1,2]:
+		#	axs[idx].legend()
 		#
 		#	axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
 		#	axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
