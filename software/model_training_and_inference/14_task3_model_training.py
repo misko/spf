@@ -12,6 +12,7 @@ import torchvision
 from torch import Tensor, nn
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import dataset, random_split
+from matplotlib.patches import Ellipse
 
 from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerEncOnlyModel,
 			UNet,TrajectoryNet)
@@ -19,6 +20,32 @@ from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn_
 
 torch.set_printoptions(precision=5,sci_mode=False,linewidth=1000)
 
+
+def get_rot_mats(theta):
+	assert(theta.dim()==2 and theta.shape[1]==1)
+	s = torch.sin(theta)
+	c = torch.cos(theta)
+	return torch.cat([c , -s, s, c],axis=1).reshape(theta.shape[0],2,2)
+
+def rotate_points_by_thetas(points,thetas):
+	return torch.einsum('ik,ijk->ij',points,get_rot_mats(thetas))
+
+def unpack_mean_cov_angle(x):
+	return x[:,:2],x[:,2:4],x[:,[4]]
+
+
+#points (n,2)
+#means (n,2)
+#sigmas (n,2)
+#thetas (n,1)
+def points_to_nll(points,means,sigmas,thetas,min_sigma=0.01,max_sigma=0.3,ellipse=False):
+	#sigmas=torch.clamp(sigmas.abs(),min=min_sigma,max=None) # TODO clamp hides the gradient?
+	sigmas=torch.sigmoid(sigmas)*(max_sigma-min_sigma)+min_sigma #.abs()+min_sigma
+	if ellipse:
+		p=rotate_points_by_thetas(points-means,thetas)/sigmas
+	else:
+		p=(points-means)/sigmas.mean(axis=1,keepdim=True)
+	return p.pow(2).sum(axis=1)*0.5 + torch.log(2*torch.pi*sigmas[:,0]*sigmas[:,1])
 
 def src_pos_from_radial(inputs,outputs):
 	det_pos=inputs[:,:,input_cols['det_pos']]
@@ -35,77 +62,86 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 	batch_size,time_steps,d_drone_state=data['drone_state'].shape
 	_,_,n_sources,d_emitter_state=data['emitter_position_and_velocity'].shape
 
+	min_sigma=0.01
+	max_sigma=0.3
 	d_model['optimizer'].zero_grad()
 	losses={}
 	preds=d_model['model'](data)#.detach().cpu()
-	#for k in preds:
-	#	preds[k]=preds[k].detach().cpu()
-	transformer_loss=0.0
-	single_snapshot_loss=0.0
-	fc_loss=0.0
-	if 'transformer_pred' in preds:
-		#if preds['transformer_pred'].mean(axis=1).var(axis=0).mean().item()<1e-13:
-		#	d_model['dead']=True
-		#else:
-		#	d_model['dead']=False
-		labels=torch.cat([
-			data['emitter_position_and_velocity'],
-			data['emitters_broadcasting'],
-			],dim=3)[:,1:]
 
+	positions=data['emitter_position_and_velocity'][...,:2].reshape(-1,2)
+	velocities=data['emitter_position_and_velocity'][...,2:4].reshape(-1,2)
 
-		#print("TODO PLUMBING FOR B OF TRACKING TRACK")
+	pos_mean,pos_cov,pos_angle=unpack_mean_cov_angle(preds['trajectory_predictions'][:,:,:,:5].reshape(-1,5))
+	vel_mean,vel_cov,vel_angle=unpack_mean_cov_angle(preds['trajectory_predictions'][:,:,:,5:].reshape(-1,5))
 
-		transformer_preds=preds['transformer_pred'][:,:-1] # trim off last time step, dont have gt for it
-		transformer_pred_means=transformer_preds[...,:4] 
-		transformer_pred_vars=transformer_preds[...,4:4+4] 
-		transformer_pred_angles=transformer_preds[...,8:8+2]
-		#for n in points
-		#  for p_idx in 2: #xy output
-		# 	 for output_col in 2: # xy input
-		#      out[n,p_idx]+=points[n,output_col]*rot[n,output_col,p_idx]
+	nll_position_reconstruction_loss=points_to_nll(positions,pos_mean,pos_cov,pos_angle,min_sigma=min_sigma,max_sigma=max_sigma).mean()
+	nll_velocity_reconstruction_loss=points_to_nll(velocities,vel_mean,vel_cov,vel_angle,min_sigma=min_sigma,max_sigma=max_sigma).mean()
 
-		#for i 
-		#   for k 
+	ss_mean,ss_cov,ss_angle=unpack_mean_cov_angle(preds['single_snapshot_predictions'].reshape(-1,5))
+	emitting_positions=data['emitter_position_and_velocity'][data['emitters_broadcasting'][...,0].to(bool)][:,:2]
 
-		#torch.einsum('ik,kj->ij', [a, b]) , matmul
+	nll_ss_position_reconstruction_loss=points_to_nll(emitting_positions,ss_mean,ss_cov,ss_angle,min_sigma=min_sigma,max_sigma=max_sigma).mean()
+	if plot and (update%args.plot_every)==args.plot_every-1:
+		t=128
+		d_model['fig'].clf()
+		axs=d_model['fig'].subplots(1,3,sharex=True,sharey=True)
+		axs[0].set_xlim([-1,1])
+		axs[0].set_ylim([-1,1])
+		#axs[0].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='source positions',c='r')
+		_emitting_positions=emitting_positions[:t]
+		axs[0].scatter(data['drone_state'][0,:t,0],data['drone_state'][0,:t,1],label='detector positions',s=1)
+		axs[0].scatter(_emitting_positions[:,0],_emitting_positions[:,1],label='source positions',c='r',alpha=0.3)
+		axs[0].set_title("Ground truth")
+		_ss_mean=ss_mean[:t].detach().numpy()
+		_ss_cov=ss_cov[:t].abs().detach().numpy()+min_sigma
+		_ss_angle=ss_angle[:t].detach().numpy()
+		axs[1].scatter(_ss_mean[:,0],_ss_mean[:,1],label='pred means',c='r',alpha=0.3)
+		print("PLOT",_ss_cov[:t].mean(),_ss_cov[:t].max())
+		for idx in range(t):
+			ellipse = Ellipse((_ss_mean[idx,0], _ss_mean[idx,1]),
+					width=_ss_cov[idx,0]*3,
+					height=_ss_cov[idx,1]*3,
+					facecolor='none',edgecolor='red',
+					angle=-_ss_angle[idx]*(360.0/(2*torch.pi)))
+			axs[1].add_patch(ellipse)
 
-		#torch.einsum('nik,nkj->nij', [a, b]) , matmul
-		# need to expand b,t,2 angles into b,t,2,(2x2) 
+		axs[1].set_title("Single snapshot predictions")
 
-		#point wise mul and sum
-		# then matmul with predictions b,t,2,2
-		
-		
-		breakpoint()
-		transformer_loss = criterion(preds['transformer_pred'][:,:-1,:-1],labels)
-		#transformer_loss = criterion(preds['transformer_pred'][:,:-1,:-1],labels)
-		#pred_means=preds['transformer_pred'][:,:,
-		#		d['emitter_position_and_velocity'],
-		#		d['emitter_position_and_velocity']*0+1, # the variance
-		#TODO add in gaussian scoring here?
-		losses['transformer_loss']=transformer_loss.detach().item()
-		losses['transformer_stats']=(preds['transformer_pred'][:,:-1,:-1]-labels).pow(2).mean(axis=[0,1]).detach().cpu()
-		_p=preds['transformer_pred'].detach().cpu()
-		assert(not preds['transformer_pred'].isnan().any())
-	if False and 'single_snapshot_pred' in preds:
-		single_snapshot_loss = criterion(preds['single_snapshot_pred'],_data['labels'])
-		losses['single_snapshot_loss']=single_snapshot_loss.item()
-		losses['single_snapshot_stats']=(preds['single_snapshot_pred']-_data['labels']).pow(2).mean(axis=[0,1]).detach().cpu()
-	loss=(1.0-args.transformer_loss_balance)*transformer_loss+args.transformer_loss_balance*single_snapshot_loss+fc_loss
-	if i<args.embedding_warmup:
-		loss=single_snapshot_loss+fc_loss
+		_pred_trajectory=preds['trajectory_predictions'].detach().numpy()
+		for source_idx in range(n_sources):
+			trajectory_mean,_,_=unpack_mean_cov_angle(_pred_trajectory[:,:t,source_idx,:5].reshape(-1,5))
+			axs[2].scatter(trajectory_mean[:,0],trajectory_mean[:,1],label='trajectory prediction',s=20)
+		for idx in [0,1,2]:
+			axs[idx].legend()
+		#
+		#	axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
+		#	axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
+		d_model['fig'].tight_layout()
+		d_model['fig'].canvas.draw_idle()
+		d_model['fig'].savefig('%s%s_%d_%s.png' % (args.output_prefix,d_model['name'],update,train_test_label))
+
+	losses={
+		'nll_position_reconstruction_loss':nll_position_reconstruction_loss.item(),
+		'nll_velocity_reconstruction_loss':nll_velocity_reconstruction_loss.item(),
+		'nll_ss_position_reconstruction_loss':nll_ss_position_reconstruction_loss.item()
+	}
+	loss=nll_position_reconstruction_loss+nll_velocity_reconstruction_loss+nll_ss_position_reconstruction_loss
+	lm=torch.tensor([0.8,0.2])
+	lm/=lm.sum()
+	loss=lm[0]*nll_ss_position_reconstruction_loss+lm[1]*nll_position_reconstruction_loss
 	return loss,losses
 
 def model_to_losses(running_loss,mean_chunk):
 	if len(running_loss)==0:
 		return {}
 	losses={}
-	for k in ['baseline','baseline_image','image_loss','transformer_loss','single_snapshot_loss','fc_loss','transformer_stats','single_snapshot_stats']:
+	for k in ['baseline','nll_position_reconstruction_loss','nll_velocity_reconstruction_loss','nll_ss_position_reconstruction_loss']:
 		if k in running_loss[0]:
 			if '_stats' not in k:
-				losses[k]=np.log(np.array( [ np.mean([ l[k] for l in running_loss[idx*mean_chunk:(idx+1)*mean_chunk]])  
-					for idx in range(len(running_loss)//mean_chunk) ]))
+				#losses[k]=np.log(np.array( [ np.mean([ l[k] for l in running_loss[idx*mean_chunk:(idx+1)*mean_chunk]])  
+				#	for idx in range(len(running_loss)//mean_chunk) ]))
+				losses[k]=np.array( [ np.mean([ l[k] for l in running_loss[idx*mean_chunk:(idx+1)*mean_chunk]])  
+					for idx in range(len(running_loss)//mean_chunk) ])
 			else:
 				losses[k]=[ torch.stack([ l[k] for l in running_loss[idx*mean_chunk:(idx+1)*mean_chunk] ]).mean(axis=0)
 					for idx in range(len(running_loss)//mean_chunk) ]
@@ -116,7 +152,7 @@ def model_to_loss_str(running_loss,mean_chunk):
 		return ""
 	loss_str=[]
 	losses=model_to_losses(running_loss,mean_chunk)
-	for k in ['image_loss','transformer_loss','single_snapshot_loss','fc_loss']:
+	for k in ['nll_position_reconstruction_loss','nll_velocity_reconstruction_loss','nll_ss_position_reconstruction_loss']:
 		if k in losses:
 			loss_str.append("%s:%0.4f" % (k,losses[k][-1]))
 	return ",".join(loss_str)
@@ -153,7 +189,6 @@ def save(args,running_losses,models,iteration,keep_n_saves):
 
 def plot_loss(running_losses,
 		baseline_loss,
-		baseline_image_loss,
 		xtick_spacing,
 		mean_chunk,
 		output_prefix,
@@ -167,25 +202,22 @@ def plot_loss(running_losses,
 	axs[2].sharex(axs[0])
 	xs=np.arange(len(baseline_loss['baseline']))*xtick_spacing
 	for i in range(3):
-		axs[i].plot(xs,baseline_loss['baseline'],label='baseline')
+		#axs[i].plot(xs,baseline_loss['baseline'],label='baseline')
 		axs[i].set_xlabel("time")
 		axs[i].set_ylabel("log loss")
-	if baseline_image_loss is not None:
-		axs[3].plot(xs,baseline_image_loss['baseline_image'],label='baseline image')
-	axs[0].set_title("Transformer loss")
-	axs[1].set_title("Single snapshot loss")
-	axs[2].set_title("FC loss")
-	axs[3].set_title("Image loss")
+	#for k in ['nll_position_reconstruction_loss','nll_velocity_reconstruction_loss','nll_ss_position_reconstruction_loss']:
+	axs[0].set_title("nll_ss_position_reconstruction_loss")
+	axs[1].set_title("nll_position_reconstruction_loss")
+	axs[2].set_title("nll_velocity_reconstruction_loss")
+	#axs[3].set_title("Image loss")
 	for d_model in models:
 		losses=model_to_losses(running_losses[d_model['name']],mean_chunk)
-		if 'transformer_loss' in losses:
-			axs[0].plot(xs,losses['transformer_loss'],label=d_model['name'])
-		if 'single_snapshot_loss' in losses:
-			axs[1].plot(xs,losses['single_snapshot_loss'],label=d_model['name'])
-		if 'fc_loss' in losses:
-			axs[2].plot(xs,losses['fc_loss'],label=d_model['name'])
-		if 'image_loss' in losses:
-			axs[3].plot(xs,losses['image_loss'],label=d_model['name'])
+		if 'nll_ss_position_reconstruction_loss' in losses:
+			axs[0].plot(xs,losses['nll_ss_position_reconstruction_loss'],label=d_model['name'])
+		if 'nll_position_reconstruction_loss' in losses:
+			axs[1].plot(xs,losses['nll_position_reconstruction_loss'],label=d_model['name'])
+		if 'nll_velocity_reconstruction_loss' in losses:
+			axs[2].plot(xs,losses['nll_velocity_reconstruction_loss'],label=d_model['name'])
 	for i in range(4):
 		axs[i].legend()
 	fig.tight_layout()
@@ -286,6 +318,7 @@ if __name__=='__main__':
 		models.append({
 			'name':'TrajectoryNet',
 			'model':TrajectoryNet(),
+			'fig':plt.figure(figsize=(18,4)),
 			'dead':False,
 						'lr':args.lr_transformer,
 		})
@@ -341,7 +374,6 @@ if __name__=='__main__':
 	for k in ['train','test']:
 		running_losses[k]={ d['name']:[] for d in models}
 		running_losses[k]['baseline']=[]
-		running_losses[k]['baseline_image']=[]
 
 	saves=[]
 	
@@ -356,10 +388,9 @@ if __name__=='__main__':
 		batch_size,time_steps,n_sources,_=d['emitter_position_and_velocity'].shape
 		d['emitter_position_and_velocity']=torch.cat([
 				d['emitter_position_and_velocity'],
-				torch.zeros(batch_size,time_steps,n_sources,4,device=d['emitter_position_and_velocity'].device)+1, # the variance
-				torch.zeros(batch_size,time_steps,n_sources,2,device=d['emitter_position_and_velocity'].device), # the angle
+				#torch.zeros(batch_size,time_steps,n_sources,4,device=d['emitter_position_and_velocity'].device)+1, # the variance
+				#torch.zeros(batch_size,time_steps,n_sources,2,device=d['emitter_position_and_velocity'].device), # the angle
 			],dim=3)
-
 		for k in d:
 			assert(not d[k].isnan().any())
 		
@@ -441,7 +472,7 @@ if __name__=='__main__':
 				#	) for d in models ])
 				#print("\t\t\t%s" % stats_title())
 				#print(loss_str)
-			if i//args.print_every>2 and i % args.plot_every == args.plot_every-1:
+			if i//args.print_every>5 and i % args.plot_every == args.plot_every-1:
 				plot_loss(running_losses=running_losses['train'],
 					baseline_loss=train_baseline_loss,
 					xtick_spacing=args.print_every,

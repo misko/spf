@@ -259,10 +259,12 @@ class TrajectoryNet(nn.Module):
 			d_radio_feature=258,
 			d_detector_observation_embedding=128,
 			d_trajectory_embedding=256,
+			trajectory_prediction_n_layers=8,
+			d_trajectory_prediction_output=(2+2+1)+(2+2+1),
 			d_model=512,
 			n_heads=8,
 			d_hid=256,
-			n_layers=1,
+			n_layers=4,
 			n_outputs=8,
 			ssn_d_hid=64,
 			ssn_n_layers=8,
@@ -271,13 +273,22 @@ class TrajectoryNet(nn.Module):
 		super().__init__()
 		self.d_detector_observation_embedding=d_detector_observation_embedding
 		self.d_trajectory_embedding=d_trajectory_embedding
-		
+		self.d_trajectory_prediction_output=d_trajectory_prediction_output
+
 		self.snap_shot_net=EmbeddingNet(
 				d_in=d_radio_feature+d_drone_state, # time is inside drone state
 				d_hid=ssn_d_hid,
 				d_out=ssn_d_output,
 				d_embed=d_detector_observation_embedding,
 				n_layers=ssn_n_layers
+			)
+
+		self.trajectory_prediction_net=EmbeddingNet(
+				d_in=d_trajectory_embedding+1, 
+				d_hid=d_trajectory_embedding,
+				d_out=d_trajectory_prediction_output,
+				d_embed=d_trajectory_embedding,
+				n_layers=trajectory_prediction_n_layers
 			)
 		
 		self.tformer=TransformerEncOnlyModel(
@@ -292,7 +303,8 @@ class TrajectoryNet(nn.Module):
 
 	def forward(self,x):
 		# Lets get the detector observation embeddings
-		batch_size,time_steps,_=x['drone_state'].shape
+		batch_size,time_steps,n_emitters,_=x['emitters_n_broadcasts'].shape
+		device=x['emitters_n_broadcasts'].device
 		drone_state_and_observations=torch.cat([
 			x['drone_state'],
 			x['radio_feature']
@@ -303,7 +315,7 @@ class TrajectoryNet(nn.Module):
 
 		# generate random time points to grab for each batch sample
 		#rt=torch.randint(low=2, high=time_steps-1, size=(batch_size,), device=x['drone_state'].device)
-		rt=torch.randint(low=2, high=20, size=(batch_size,)) # keep on CPU?, device=x['drone_state'].device)
+		rt=torch.randint(low=2, high=time_steps-1, size=(batch_size,)) # keep on CPU?, device=x['drone_state'].device)
 		tracking=x['emitters_n_broadcasts'][torch.arange(batch_size),rt-1].cpu() #positive values for things already being tracked
 
 		#aggregate embedded states with like tracking to feed into trajectory transformer
@@ -312,46 +324,52 @@ class TrajectoryNet(nn.Module):
 		max_snapshots=0
 		for b in torch.arange(batch_size):
 			t=rt[b]
-			for tracked in np.where(tracking[b]>0)[0]: # TODO is this sorted? does it matter?
-				times_where_this_tracked_is_broadcasting=x['emitters_broadcasting'][b,:,tracked,0].to(bool)
-				times_where_this_tracked_is_broadcasting[t:]=False
+			for tracked in torch.where(tracking[b]>0)[0]: 
+				# get the mask where this emitter is broadcasting in the first t steps
+				times_where_this_tracked_is_broadcasting=x['emitters_broadcasting'][b,:t,tracked,0].to(bool)
+				# pull the drone state and observations for these time steps
 				nested_tensors.append(
-				  drone_state_and_observation_embeddings[b,times_where_this_tracked_is_broadcasting]
+				  drone_state_and_observation_embeddings[b,:t][times_where_this_tracked_is_broadcasting]
 				)
-				print(nested_tensors[-1].shape)
-				if nested_tensors[-1].shape[0]==0:
-					breakpoint()
-					a=1
-				snapshots=nested_tensors[-1].shape[0]
-				if snapshots>max_snapshots:
-					max_snapshots=snapshots
+				assert(nested_tensors[-1].shape[0]!=0)
+				max_snapshots=max(max_snapshots,nested_tensors[-1].shape[0])
 				idxs.append((b.item(),tracked))
 
 		#compute the forward pass on aggregated embeddings
 		#trajectory_transformer_input=torch.nested.nested_tensor(nested_tensors)
-		tformer_input=torch.zeros((len(idxs),max_snapshots,self.d_detector_observation_embedding),device=x['drone_state'].device)
-		src_key_padding_mask=torch.zeros((len(idxs),max_snapshots),device=x['drone_state'].device,dtype=bool)
+		#move all the drone+observation sequences into a common tensor with padding
+		tformer_input=torch.zeros((len(idxs),max_snapshots,self.d_detector_observation_embedding),device=device)
+		src_key_padding_mask=torch.zeros((len(idxs),max_snapshots),dtype=bool)
 		for idx,emebeddings_per_batch_and_tracked in enumerate(nested_tensors):
 			tracked_time_steps,_=emebeddings_per_batch_and_tracked.shape
 			tformer_input[idx,:tracked_time_steps]=emebeddings_per_batch_and_tracked	
 			src_key_padding_mask[idx,tracked_time_steps:]=True
+		src_key_padding_mask=src_key_padding_mask.to(device)
 		self_attention_output=self.tformer(tformer_input,src_key_padding_mask=src_key_padding_mask)
 
 		#aggegate outputs to generate trajectory embedding
-		trajectory_embeddings=torch.zeros((len(idxs),self.d_trajectory_embedding))
-		
-		
-		#src_key_padding_mask=torch.zeros(()
+		trajectory_embeddings=torch.zeros((batch_size,n_emitters,self.d_trajectory_embedding),device=device)
+		for idx,(b,emitter_idx) in enumerate(idxs):
+			#trajectory_embeddings[b,emitter_idx]=self_attention_output[idx,~src_key_padding_mask[idx]].mean(axis=0)
+			trajectory_embeddings[b,emitter_idx]=self_attention_output[idx,~src_key_padding_mask[idx]][-1]
+	
+		#get trajectory predictions , for every batch , for every time step ,for every emitter
+		time_fractions=torch.linspace(0,1,time_steps,device=device)[...,None]
+		trajectory_predictions=torch.zeros((batch_size,n_emitters,time_steps,self.d_trajectory_prediction_output),device=device)
+		for b in torch.arange(batch_size):
+			for emitter_idx in torch.arange(n_emitters):
+				trajectory_input=torch.cat([
+					trajectory_embeddings[b,emitter_idx][None].expand((time_steps,self.d_trajectory_embedding)),
+					time_fractions,
+					#TODO ADD DRONE EMBEDDING!
+				],axis=1)
+				trajectory_predictions[b,emitter_idx]=self.trajectory_prediction_net(trajectory_input)['output']
 
-		#lets try and push this through the transformer?
-		breakpoint()
-		a=1
-		d=self.snap_shot_net(x)
-		#return single_snapshot_output,single_snapshot_output
-		tformer_input=self.positional_encoding(torch.cat([d[t] for t in self.tformer_input ],axis=2))
-		tformer_output=self.tformer(tformer_input)
-		return {'transformer_pred':tformer_output,
-			'single_snapshot_pred':d['single_snapshot_pred']}
+		return {
+			'single_snapshot_predictions':single_snapshot_predictions,
+			#'trajectory_embeddings':trajectory_embeddings,
+			'trajectory_predictions':trajectory_predictions.transpose(2,1),
+			}
 
 
 class EmbeddingNet(nn.Module):

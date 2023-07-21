@@ -196,3 +196,13 @@ python 01_generate_data.py --array-type linear --elements 2 --sources 3 --width 
 
 lr=0.0001
 python 14_task3_model_training.py --dataset ./sessions-train_sigma00_det00_static --lr-direct 0.001 --mb 32 --workers 4 --print-every 256 --plot True --snapshots 1 16 128 --device mps --save-every 10000 --type 32 --print-every 128 --plot-every 9999999999 --output-prefix filterNet_2element_Sigma01_det00_${lr} --lr-transformer $lr 
+
+
+#
+
+python 01_generate_data.py --array-type linear --elements 2 --sources 1 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.0 --time-steps 128 --time-interval 0.3 --live true --output sessions-train_nonoise_sigma00_randomSpeed --sessions 50000000 --seed 1337 --source-speed 0.0 --detector-noise 0.0  --source-speed 1
+
+lr=0.00001
+python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_randomSpeed --lr-direct 0.001 --mb 32 --workers 4 --print-every 256 --plot True --snapshots 1 16 128 --device cpu --save-every 10000 --type 32 --print-every 128 --plot-every 9999999999 --output-prefix filterNet_2element_Sigma01_det00_${lr} --lr-transformer $lr  --print-every 64 --device cpu --plot-every 256 
+
+python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_randomSpeed --lr-direct 0.001 --mb 32 --workers 0 --print-every 256 --plot True --snapshots 1 16 128 --device cpu --save-every 10000 --type 32 --print-every 128 --plot-every 9999999999 --output-prefix filterNet_2element_Sigma01_det00_${lr} --lr-transformer $lr  --print-every 16 --device cpu --plot-every 256  --output-prefix jul21_run --device cpu
