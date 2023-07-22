@@ -96,15 +96,26 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 													ss_angle).mean()
 	if plot and (update%args.plot_every)==args.plot_every-1:
 		t=128
+		color=['g', 'b','o', 'y']
 		d_model['fig'].clf()
-		axs=d_model['fig'].subplots(1,3,sharex=True,sharey=True)
+		axs=d_model['fig'].subplots(1,3,sharex=True,sharey=True,subplot_kw=dict(box_aspect=1))
 		axs[0].set_xlim([-1,1])
 		axs[0].set_ylim([-1,1])
 		#axs[0].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='source positions',c='r')
 		_emitting_positions=emitting_positions[:t].cpu()
 		axs[0].scatter(data['drone_state'][0,:t,0].cpu(),
                         data['drone_state'][0,:t,1].cpu(),label='detector positions',s=2)
-		axs[0].scatter(_emitting_positions[:,0],_emitting_positions[:,1],label='source positions',c='r',alpha=0.3,s=2)
+		#emitters
+		axs[0].scatter(_emitting_positions[:,0],_emitting_positions[:,1],label='emitting positions',c='r',alpha=0.1,s=20,facecolor='none')
+		#all source trajectories
+		for source_idx in range(n_sources):
+			_positions=data['emitter_position_and_velocity'][0,:,source_idx,:2].cpu().detach().numpy()
+			axs[0].scatter(
+				_positions[:t,0],
+				_positions[:t,1],
+				label='emitter %d' % (source_idx+1),c=color[source_idx%len(color)],alpha=0.3,s=1)
+			
+
 		axs[0].set_title("Ground truth")
 		axs[1].set_title("Single snapshot predictions")
 		axs[2].set_title("Trajectory predictions")
@@ -125,7 +136,6 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 		axs[1].set_title("Single snapshot predictions")
 
 		_pred_trajectory=preds['trajectory_predictions']#.cpu().detach().numpy()
-		color=['r', 'g', 'b', 'y']
 		for source_idx in range(n_sources):
 			trajectory_mean,trajectory_cov,_=unpack_mean_cov_angle(_pred_trajectory[0,:t,source_idx,:5].reshape(-1,5))
 			trajectory_mean=trajectory_mean.cpu() 
@@ -163,7 +173,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 		'nll_ss_position_reconstruction_loss':nll_ss_position_reconstruction_loss.item()
 	}
 	#loss=nll_position_reconstruction_loss+nll_velocity_reconstruction_loss+nll_ss_position_reconstruction_loss
-	lm=torch.tensor([7.0,3.0,1.0])
+	lm=torch.tensor([args.loss_single,args.loss_trec,args.loss_tvel])
 	lm/=lm.sum()
 	loss=lm[0]*nll_ss_position_reconstruction_loss+lm[1]*nll_position_reconstruction_loss+lm[2]*nll_velocity_reconstruction_loss
 	return loss,losses
@@ -266,10 +276,14 @@ if __name__=='__main__':
 	parser.add_argument('--device', type=str, required=False, default='cpu')
 	parser.add_argument('--embedding-warmup', type=int, required=False, default=0)
 	parser.add_argument('--snapshots-per-sample', type=int, required=False, default=[1,4,8], nargs="+")
+	parser.add_argument('--n-layers', type=int, required=False, default=[4], nargs="+")
 	parser.add_argument('--print-every', type=int, required=False, default=100)
 	parser.add_argument('--lr-scheduler-every', type=int, required=False, default=256)
 	parser.add_argument('--plot-every', type=int, required=False, default=1024)
 	parser.add_argument('--save-every', type=int, required=False, default=1000)
+	parser.add_argument('--loss-single', type=float, required=False, default=7.0)
+	parser.add_argument('--loss-trec', type=float, required=False, default=3.0)
+	parser.add_argument('--loss-tvel', type=float, required=False, default=1.0)
 	parser.add_argument('--test-mbs', type=int, required=False, default=8)
 	parser.add_argument('--output-prefix', type=str, required=False, default='model_out')
 	parser.add_argument('--test-fraction', type=float, required=False, default=0.2)
@@ -288,7 +302,10 @@ if __name__=='__main__':
 	parser.add_argument('--lr-transformer', type=float, required=False, default=0.00001)
 	parser.add_argument('--plot', type=bool, required=False, default=False)
 	parser.add_argument('--transformer-input', type=str, required=False, default=['drone_state','embedding','single_snapshot_pred'],nargs="+")
-	parser.add_argument('--transformer-dmodel', type=int, required=False, default=64)
+	parser.add_argument('--transformer-dmodel', type=int, required=False, default=512)
+	parser.add_argument('--ssn-dhid', type=int, required=False, default=64)
+	parser.add_argument('--ssn-nlayers', type=int, required=False, default=8)
+	parser.add_argument('--tj-dembed', type=int, required=False, default=256)
 	parser.add_argument('--clip', type=float, required=False, default=0.5)
 	parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist") #,src_theta,src_dist,det_delta,det_theta,det_space")
 	args = parser.parse_args()
@@ -351,14 +368,29 @@ if __name__=='__main__':
 	models=[]
 
 	if True:
-		n_layers=2
-		models.append({
-			'name':'TrajectoryNet',
-			'model':TrajectoryNet(),
-			'fig':plt.figure(figsize=(18,4)),
-			'dead':False,
-						'lr':args.lr_transformer,
-		})
+		for n_layers in args.n_layers:
+			models.append({
+				'name':'TrajectoryNet_l%d' % n_layers,
+				'model':TrajectoryNet(
+					d_drone_state=4+4,
+					d_radio_feature=258,
+					d_detector_observation_embedding=128,
+					d_trajectory_embedding=args.tj_dembed,
+					trajectory_prediction_n_layers=8,
+					d_trajectory_prediction_output=(2+2+1)+(2+2+1),
+					d_model=args.transformer_dmodel,
+					n_heads=8,
+					d_hid=256,
+					n_layers=n_layers,
+					n_outputs=8,
+					ssn_d_hid=args.ssn_dhid,
+					ssn_n_layers=args.ssn_nlayers,
+					ssn_d_output=5
+				),
+				'fig':plt.figure(figsize=(18,4)),
+				'dead':False,
+							'lr':args.lr_transformer,
+			})
 			
 
 	if False:
