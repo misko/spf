@@ -103,31 +103,53 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 		#axs[0].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='source positions',c='r')
 		_emitting_positions=emitting_positions[:t].cpu()
 		axs[0].scatter(data['drone_state'][0,:t,0].cpu(),
-                        data['drone_state'][0,:t,1].cpu(),label='detector positions',s=1)
-		axs[0].scatter(_emitting_positions[:,0],_emitting_positions[:,1],label='source positions',c='r',alpha=0.3)
+                        data['drone_state'][0,:t,1].cpu(),label='detector positions',s=2)
+		axs[0].scatter(_emitting_positions[:,0],_emitting_positions[:,1],label='source positions',c='r',alpha=0.3,s=2)
 		axs[0].set_title("Ground truth")
+		axs[1].set_title("Single snapshot predictions")
+		axs[2].set_title("Trajectory predictions")
 		_ss_mean=ss_mean[:t].cpu().detach().numpy()
 		_ss_cov=convert_sigmas(ss_cov[:t],min_sigma=min_sigma,max_sigma=max_sigma).cpu().detach().numpy()
 		_ss_angle=ss_angle[:t].cpu().detach().numpy()
-		axs[1].scatter(_ss_mean[:,0],_ss_mean[:,1],label='pred means',c='r',alpha=0.3)
+		axs[1].scatter(_ss_mean[:,0],_ss_mean[:,1],label='pred means',c='r',alpha=0.3,s=2)
 		print("PLOT",_ss_cov[:t].mean(),_ss_cov[:t].max())
-		for idx in range(t):
+		for idx in torch.arange(0,t,5):
 			ellipse = Ellipse((_ss_mean[idx,0], _ss_mean[idx,1]),
 					width=_ss_cov[idx,0]*3,
 					height=_ss_cov[idx,1]*3,
-					facecolor='none',edgecolor='red',
+					facecolor='none',edgecolor='red',alpha=0.1,
 					#angle=-_ss_angle[idx]*(360.0/(2*torch.pi))
 					)
 			axs[1].add_patch(ellipse)
 
 		axs[1].set_title("Single snapshot predictions")
 
-		_pred_trajectory=preds['trajectory_predictions'].cpu().detach().numpy()
+		_pred_trajectory=preds['trajectory_predictions']#.cpu().detach().numpy()
+		color=['r', 'g', 'b', 'y']
 		for source_idx in range(n_sources):
-			trajectory_mean,_,_=unpack_mean_cov_angle(_pred_trajectory[0,:t,source_idx,:5].reshape(-1,5))
-			axs[2].scatter(trajectory_mean[:,0],trajectory_mean[:,1],label='trajectory prediction',s=20)
-		#for idx in [0,1,2]:
-		#	axs[idx].legend()
+			trajectory_mean,trajectory_cov,_=unpack_mean_cov_angle(_pred_trajectory[0,:t,source_idx,:5].reshape(-1,5))
+			trajectory_mean=trajectory_mean.cpu() 
+			trajectory_cov=trajectory_cov.cpu() 
+			axs[2].scatter(
+				trajectory_mean[:,0].detach().numpy(),
+				trajectory_mean[:,1].detach().numpy(),
+				label='trajectory emitter %d' % (source_idx+1),s=2,color=color[source_idx%len(color)])
+			
+			trajectory_cov=convert_sigmas(trajectory_cov,min_sigma=min_sigma,max_sigma=max_sigma).cpu().detach().numpy()
+			for idx in torch.arange(0,t,5):
+				ellipse = Ellipse((trajectory_mean[idx,0], trajectory_mean[idx,1]),
+							width=trajectory_cov[idx,0]*3,
+							height=trajectory_cov[idx,1]*3,
+							facecolor='none',
+							edgecolor=color[source_idx%len(color)],
+							alpha=0.1,
+							#angle=-_ss_angle[idx]*(360.0/(2*torch.pi))
+						)
+				axs[2].add_patch(ellipse)
+		for idx in [0,1,2]:
+			axs[idx].legend()
+			axs[idx].set_xlabel("X")
+			axs[idx].set_ylabel("Y")
 		#
 		#	axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
 		#	axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
@@ -141,7 +163,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 		'nll_ss_position_reconstruction_loss':nll_ss_position_reconstruction_loss.item()
 	}
 	#loss=nll_position_reconstruction_loss+nll_velocity_reconstruction_loss+nll_ss_position_reconstruction_loss
-	lm=torch.tensor([0.4,0.4,0.1])
+	lm=torch.tensor([7.0,3.0,1.0])
 	lm/=lm.sum()
 	loss=lm[0]*nll_ss_position_reconstruction_loss+lm[1]*nll_position_reconstruction_loss+lm[2]*nll_velocity_reconstruction_loss
 	return loss,losses
@@ -487,7 +509,7 @@ if __name__=='__main__':
 				#	) for d in models ])
 				#print("\t\t\t%s" % stats_title())
 				#print(loss_str)
-			if i//args.print_every>5 and i % args.plot_every == args.plot_every-1:
+			if i//args.print_every>1 and i % args.plot_every == args.plot_every-1:
 				plot_loss(running_losses=running_losses['train'],
 					baseline_loss=train_baseline_loss,
 					xtick_spacing=args.print_every,
