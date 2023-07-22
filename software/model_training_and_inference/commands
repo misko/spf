@@ -209,3 +209,17 @@ python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_ran
 
 python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_randomSpeed --lr-direct 0.001 --mb 32 --workers 4 --print-every 256 --plot True --snapshots 1 16 128 --device cpu --save-every 10000 --type 32 --print-every 128 --plot-every 9999999999 --output-prefix filterNet_2element_Sigma01_det00_${lr} --lr-transformer $lr  --print-every 512 --device cpu --plot-every 1024  --output-prefix jul21_run --device cpu
 
+
+# on the cloud
+#
+#
+python 01_generate_data.py --array-type linear --elements 2 --sources 1 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.0 --time-steps 128 --time-interval 0.3 --live true --output sessions-train_nonoise_sigma00_1source_srcSpeed2_detectorSpeed5 --sessions 50000000 --seed 1337 --detector-noise 0.0  --source-speed 2
+
+lr=0.00001
+python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_1source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 512 --plot-every 1024  --output-prefix output_nonoise_sigma00_1source_lr${lr}_ --device cuda
+
+
+python 01_generate_data.py --array-type linear --elements 2 --sources 2 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.0 --time-steps 128 --time-interval 0.3 --live true --output sessions-train_nonoise_sigma00_2source_srcSpeed2_detectorSpeed5 --sessions 50000000 --seed 1337 --detector-noise 0.0  --source-speed 2
+
+lr=0.00001
+python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_2source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 512 --plot-every 1024  --output-prefix output_nonoise_sigma00_2source_lr${lr}_ --device cuda

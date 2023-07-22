@@ -100,13 +100,14 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 		axs[0].set_xlim([-1,1])
 		axs[0].set_ylim([-1,1])
 		#axs[0].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='source positions',c='r')
-		_emitting_positions=emitting_positions[:t]
-		axs[0].scatter(data['drone_state'][0,:t,0],data['drone_state'][0,:t,1],label='detector positions',s=1)
+		_emitting_positions=emitting_positions[:t].cpu()
+		axs[0].scatter(data['drone_state'][0,:t,0].cpu(),
+                        data['drone_state'][0,:t,1].cpu(),label='detector positions',s=1)
 		axs[0].scatter(_emitting_positions[:,0],_emitting_positions[:,1],label='source positions',c='r',alpha=0.3)
 		axs[0].set_title("Ground truth")
-		_ss_mean=ss_mean[:t].detach().numpy()
-		_ss_cov=convert_sigmas(ss_cov[:t],min_sigma=min_sigma,max_sigma=max_sigma).detach().numpy()
-		_ss_angle=ss_angle[:t].detach().numpy()
+		_ss_mean=ss_mean[:t].cpu().detach().numpy()
+		_ss_cov=convert_sigmas(ss_cov[:t],min_sigma=min_sigma,max_sigma=max_sigma).cpu().detach().numpy()
+		_ss_angle=ss_angle[:t].cpu().detach().numpy()
 		axs[1].scatter(_ss_mean[:,0],_ss_mean[:,1],label='pred means',c='r',alpha=0.3)
 		print("PLOT",_ss_cov[:t].mean(),_ss_cov[:t].max())
 		for idx in range(t):
@@ -119,7 +120,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 
 		axs[1].set_title("Single snapshot predictions")
 
-		_pred_trajectory=preds['trajectory_predictions'].detach().numpy()
+		_pred_trajectory=preds['trajectory_predictions'].cpu().detach().numpy()
 		for source_idx in range(n_sources):
 			trajectory_mean,_,_=unpack_mean_cov_angle(_pred_trajectory[0,:t,source_idx,:5].reshape(-1,5))
 			axs[2].scatter(trajectory_mean[:,0],trajectory_mean[:,1],label='trajectory prediction',s=20)
