@@ -38,8 +38,11 @@ def unpack_mean_cov_angle(x):
 #means (n,2)
 #sigmas (n,2)
 #thetas (n,1)
-def convert_sigmas(sigmas,min_sigma,max_sigma):
+def convert_sigmas(sigmas,min_sigma,max_sigma,ellipse=False):
 	z=torch.sigmoid(sigmas)*(max_sigma-min_sigma)+min_sigma
+	if ellipse:
+		return z
+	#otherwise make sure its circles
 	return z.mean(axis=1,keepdim=True).expand_as(z)
 
 def points_to_nll(points,means,sigmas,thetas,ellipse=False): #,min_sigma=0.01,max_sigma=0.3,ellipse=False):
@@ -80,12 +83,12 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 
 	nll_position_reconstruction_loss=points_to_nll(positions,
 											pos_mean,
-											convert_sigmas(pos_cov,min_sigma=min_sigma,max_sigma=max_sigma),
-											pos_angle).mean()
+											convert_sigmas(pos_cov,min_sigma=min_sigma,max_sigma=max_sigma,ellipse=args.ellipse),
+											pos_angle,ellipse=args.ellipse).mean()
 	nll_velocity_reconstruction_loss=points_to_nll(velocities,
 											vel_mean,
-											convert_sigmas(vel_cov,min_sigma=min_sigma,max_sigma=max_sigma),
-											vel_angle).mean()
+											convert_sigmas(vel_cov,min_sigma=min_sigma,max_sigma=max_sigma,ellipse=args.ellipse),
+											vel_angle,ellipse=args.ellipse).mean()
 
 	ss_mean,ss_cov,ss_angle=unpack_mean_cov_angle(preds['single_snapshot_predictions'].reshape(-1,5))
 	emitting_positions=data['emitter_position_and_velocity'][data['emitters_broadcasting'][...,0].to(bool)][:,:2]
@@ -93,9 +96,9 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 	nll_ss_position_reconstruction_loss=points_to_nll(emitting_positions,
 													ss_mean,
 													convert_sigmas(ss_cov,min_sigma=min_sigma,max_sigma=max_sigma),
-													ss_angle).mean()
+													ss_angle,ellipse=args.ellipse).mean()
 	if plot and (update%args.plot_every)==args.plot_every-1:
-		t=128
+		t=time_steps
 		color=['g', 'b','o', 'y']
 		d_model['fig'].clf()
 		axs=d_model['fig'].subplots(1,3,sharex=True,sharey=True,subplot_kw=dict(box_aspect=1))
@@ -120,7 +123,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 		axs[1].set_title("Single snapshot predictions")
 		axs[2].set_title("Trajectory predictions")
 		_ss_mean=ss_mean[:t].cpu().detach().numpy()
-		_ss_cov=convert_sigmas(ss_cov[:t],min_sigma=min_sigma,max_sigma=max_sigma).cpu().detach().numpy()
+		_ss_cov=convert_sigmas(ss_cov[:t],min_sigma=min_sigma,max_sigma=max_sigma,ellipse=args.ellipse).cpu().detach().numpy()
 		_ss_angle=ss_angle[:t].cpu().detach().numpy()
 		axs[1].scatter(_ss_mean[:,0],_ss_mean[:,1],label='pred means',c='r',alpha=0.3,s=2)
 		print("PLOT",_ss_cov[:t].mean(),_ss_cov[:t].max())
@@ -129,7 +132,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 					width=_ss_cov[idx,0]*3,
 					height=_ss_cov[idx,1]*3,
 					facecolor='none',edgecolor='red',alpha=0.1,
-					#angle=-_ss_angle[idx]*(360.0/(2*torch.pi))
+					angle=-_ss_angle[idx]*(360.0/(2*torch.pi) if args.ellipse else 0)
 					)
 			axs[1].add_patch(ellipse)
 
@@ -145,7 +148,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 				trajectory_mean[:,1].detach().numpy(),
 				label='trajectory emitter %d' % (source_idx+1),s=2,color=color[source_idx%len(color)])
 			
-			trajectory_cov=convert_sigmas(trajectory_cov,min_sigma=min_sigma,max_sigma=max_sigma).cpu().detach().numpy()
+			trajectory_cov=convert_sigmas(trajectory_cov,min_sigma=min_sigma,max_sigma=max_sigma,ellipse=args.ellipse).cpu().detach().numpy()
 			for idx in torch.arange(0,t,5):
 				ellipse = Ellipse((trajectory_mean[idx,0], trajectory_mean[idx,1]),
 							width=trajectory_cov[idx,0]*3,
@@ -153,7 +156,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 							facecolor='none',
 							edgecolor=color[source_idx%len(color)],
 							alpha=0.1,
-							#angle=-_ss_angle[idx]*(360.0/(2*torch.pi))
+							angle=-_ss_angle[idx]*(360.0/(2*torch.pi) if args.ellipse else 0) 
 						)
 				axs[2].add_patch(ellipse)
 		for idx in [0,1,2]:
@@ -248,6 +251,7 @@ def plot_loss(running_losses,
 	axs[1].sharex(axs[0])
 	axs[2].sharex(axs[0])
 	xs=np.arange(len(baseline_loss['baseline']))*xtick_spacing
+	start_idx=min(len(baseline_loss['baseline'])-1,int(len(baseline_loss['baseline'])*0.1))
 	for i in range(3):
 		#axs[i].plot(xs,baseline_loss['baseline'],label='baseline')
 		axs[i].set_xlabel("time")
@@ -260,11 +264,17 @@ def plot_loss(running_losses,
 	for d_model in models:
 		losses=model_to_losses(running_losses[d_model['name']],mean_chunk)
 		if 'nll_ss_position_reconstruction_loss' in losses:
-			axs[0].plot(xs,losses['nll_ss_position_reconstruction_loss'],label=d_model['name'])
+			axs[0].plot(
+					xs[start_idx:],
+					losses['nll_ss_position_reconstruction_loss'][start_idx:],label=d_model['name'])
 		if 'nll_position_reconstruction_loss' in losses:
-			axs[1].plot(xs,losses['nll_position_reconstruction_loss'],label=d_model['name'])
+			axs[1].plot(
+					xs[start_idx:],
+					losses['nll_position_reconstruction_loss'][start_idx:],label=d_model['name'])
 		if 'nll_velocity_reconstruction_loss' in losses:
-			axs[2].plot(xs,losses['nll_velocity_reconstruction_loss'],label=d_model['name'])
+			axs[2].plot(
+					xs[start_idx:],
+					losses['nll_velocity_reconstruction_loss'][start_idx:],label=d_model['name'])
 	for i in range(4):
 		axs[i].legend()
 	fig.tight_layout()
@@ -284,6 +294,7 @@ if __name__=='__main__':
 	parser.add_argument('--loss-single', type=float, required=False, default=7.0)
 	parser.add_argument('--loss-trec', type=float, required=False, default=3.0)
 	parser.add_argument('--loss-tvel', type=float, required=False, default=1.0)
+	parser.add_argument('--ellipse', type=bool, required=False, default=False)
 	parser.add_argument('--test-mbs', type=int, required=False, default=8)
 	parser.add_argument('--output-prefix', type=str, required=False, default='model_out')
 	parser.add_argument('--test-fraction', type=float, required=False, default=0.2)
