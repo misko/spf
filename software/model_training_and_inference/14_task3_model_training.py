@@ -138,7 +138,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 		'nll_ss_position_reconstruction_loss':nll_ss_position_reconstruction_loss.item()
 	}
 	loss=nll_position_reconstruction_loss+nll_velocity_reconstruction_loss+nll_ss_position_reconstruction_loss
-	lm=torch.tensor([0.8,0.2])
+	lm=torch.tensor([0.5,0.5])
 	lm/=lm.sum()
 	loss=lm[0]*nll_ss_position_reconstruction_loss+lm[1]*nll_position_reconstruction_loss
 	return loss,losses
