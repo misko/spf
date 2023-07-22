@@ -39,7 +39,8 @@ def unpack_mean_cov_angle(x):
 #sigmas (n,2)
 #thetas (n,1)
 def convert_sigmas(sigmas,min_sigma,max_sigma):
-	return torch.sigmoid(sigmas)*(max_sigma-min_sigma)+min_sigma
+	z=torch.sigmoid(sigmas)*(max_sigma-min_sigma)+min_sigma
+	return z.mean(axis=1,keepdim=True).expand_as(z)
 
 def points_to_nll(points,means,sigmas,thetas,ellipse=False): #,min_sigma=0.01,max_sigma=0.3,ellipse=False):
 	#sigmas=torch.clamp(sigmas.abs(),min=min_sigma,max=None) # TODO clamp hides the gradient?
@@ -115,7 +116,8 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 					width=_ss_cov[idx,0]*3,
 					height=_ss_cov[idx,1]*3,
 					facecolor='none',edgecolor='red',
-					angle=-_ss_angle[idx]*(360.0/(2*torch.pi)))
+					#angle=-_ss_angle[idx]*(360.0/(2*torch.pi))
+					)
 			axs[1].add_patch(ellipse)
 
 		axs[1].set_title("Single snapshot predictions")
