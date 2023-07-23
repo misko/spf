@@ -254,13 +254,13 @@ python 01_generate_data.py --array-type linear --elements 2 --sources 2 --width 
 
 #n_layers in transformer
 lr=0.0001
-python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_2source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 1024 --plot-every 2048  --output-prefix output_nonoise_sigma00_2source_nlayers_lr${lr}_ --device cuda --n-layers 1 4 8 16
+python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_2source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 1024 --plot-every 2048  --output-prefix output_nonoise_sigma00_2source_nlayers_lr${lr}_ --device cuda --n-layers 1 4 8
 
 #n_layers with noise
 python 01_generate_data.py --array-type linear --elements 2 --sources 2 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.1 --time-steps 128 --time-interval 0.3 --live true --output sessions-train_nonoise_sigma01_2source_srcSpeed2_detectorSpeed5 --sessions 50000000 --seed 1337 --detector-noise 0.0  --source-speed 2
 
 lr=0.0001
-python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma01_2source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 1024 --plot-every 2048  --output-prefix output_nonoise_sigma01_2source_nlayers_lr${lr}_ --device cuda --n-layers 1 4 8 16
+python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma01_2source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 1024 --plot-every 2048  --output-prefix output_nonoise_sigma01_2source_nlayers_lr${lr}_ --device cuda --n-layers 1 4 8
 #end node3
 
 
@@ -269,11 +269,11 @@ python 01_generate_data.py --array-type linear --elements 2 --sources 2 --width 
 
 #n_layers in transformer
 lr=0.0001
-python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_2source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 1024 --plot-every 2048  --output-prefix output_nonoise_sigma00_2source_nlayers_lr${lr}_ellipse_ --ellipse true --device cuda --n-layers 1 4 8 16
+python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma00_2source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 1024 --plot-every 2048  --output-prefix output_nonoise_sigma00_2source_nlayers_lr${lr}_ellipse_ --ellipse true --device cuda --n-layers 1 4 8
 
 #n_layers with noise
 python 01_generate_data.py --array-type linear --elements 2 --sources 2 --width 128 --detector-trajectory bounce --detector-speed 5 --sigma 0.1 --time-steps 128 --time-interval 0.3 --live true --output sessions-train_nonoise_sigma01_2source_srcSpeed2_detectorSpeed5 --sessions 50000000 --seed 1337 --detector-noise 0.0  --source-speed 2
 
 lr=0.0001
-python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma01_2source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 1024 --plot-every 2048  --output-prefix output_nonoise_sigma01_2source_nlayers_lr${lr}_ellipse_ --ellipse true --device cuda --n-layers 1 4 8 16
+python 14_task3_model_training.py --dataset ./sessions-train_nonoise_sigma01_2source_srcSpeed2_detectorSpeed5 --mb 32 --workers 16 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 1024 --plot-every 2048  --output-prefix output_nonoise_sigma01_2source_nlayers_lr${lr}_ellipse_ --ellipse true --device cuda 
 #end node4
