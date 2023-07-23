@@ -99,7 +99,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 													ss_angle,ellipse=args.ellipse).mean()
 	if plot and (update%args.plot_every)==args.plot_every-1:
 		t=time_steps
-		color=['g', 'b','o', 'y']
+		color=['g', 'b','orange', 'y']
 		d_model['fig'].clf()
 		axs=d_model['fig'].subplots(1,3,sharex=True,sharey=True,subplot_kw=dict(box_aspect=1))
 		axs[0].set_xlim([-1,1])
