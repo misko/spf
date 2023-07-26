@@ -140,9 +140,10 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 
 		_pred_trajectory=preds['trajectory_predictions']#.cpu().detach().numpy()
 		for source_idx in range(n_sources):
-			trajectory_mean,trajectory_cov,_=unpack_mean_cov_angle(_pred_trajectory[0,:t,source_idx,:5].reshape(-1,5))
+			trajectory_mean,trajectory_cov,trajectory_angle=unpack_mean_cov_angle(_pred_trajectory[0,:t,source_idx,:5].reshape(-1,5))
 			trajectory_mean=trajectory_mean.cpu() 
 			trajectory_cov=trajectory_cov.cpu() 
+			trajectory_angle=trajectory_angle.cpu()
 			axs[2].scatter(
 				trajectory_mean[:,0].detach().numpy(),
 				trajectory_mean[:,1].detach().numpy(),
@@ -156,7 +157,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 							facecolor='none',
 							edgecolor=color[source_idx%len(color)],
 							alpha=0.1,
-							angle=-_ss_angle[idx]*(360.0/(2*torch.pi) if args.ellipse else 0) 
+							angle=-trajectory_angle[idx]*(360.0/(2*torch.pi) if args.ellipse else 0) 
 						)
 				axs[2].add_patch(ellipse)
 		for idx in [0,1,2]:
