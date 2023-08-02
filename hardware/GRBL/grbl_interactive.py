@@ -11,17 +11,17 @@ serial_fn=sys.argv[1]
 
 def to_steps(p):
     #limits (0,1500)  and (3180-300,4000)
-    limit_a1=np.array([3180-300,4000])
+    limit_a1=np.array([2880-300,4000])
     limit_a2=np.array([0,1500])
     
-    x_range=3180-300
+    x_range=2880-300
     x_frac=p[0]/x_range
-    y_limit=(limit_a2*(1-x_frac)+limit_a1*x_frac)[1]
+    y_limit=min(2700,(limit_a2*(1-x_frac)+limit_a1*x_frac)[1])
     
     p[0]=min(x_range,max(0,p[0]))
-    p[1]=min(y_limit,max(0,p[1]))
+    p[1]=min(y_limit,max(100,p[1]))
 
-    a1=np.array([3180,-300])
+    a1=np.array([2880,-300])
     ymotor_steps=np.linalg.norm(a1)-np.linalg.norm(a1-p)
 
     a2=np.array([-300,-365])
