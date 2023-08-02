@@ -28,6 +28,30 @@ def to_steps(p):
     xmotor_steps=np.linalg.norm(a2)-np.linalg.norm(a2-p)#-np.linalg.norm(a2)
     return xmotor_steps,ymotor_steps
 
+def spiral():
+    center=np.array([1500,900])
+    spiral_radius=900
+    t_max=3*2*np.pi
+    v=spiral_radius/t_max
+    w=1
+    for t in np.linspace(0,t_max,256):
+        x=(v*t)*np.cos(w*t)
+        y=(v*t)*np.sin(w*t)
+        print(x,y)
+        p=np.array([x,y])+center
+        x,y=to_steps(p)
+        cmd="G0 X%0.2f Y%0.2f" % (x,y)
+        #print("SENDING",x,y,cmd)
+        s.write((cmd + '\n').encode()) # Send g-code block to grbl
+        print(s.readline().strip())
+
+def calibrate():
+    for x in np.linspace(1500,500,5):
+        for y in np.linspace(30,1200,5):
+            x,y=to_steps(np.array([x,y]))
+            cmd="G0 X%0.2f Y%0.2f" % (x,y)
+            print("SENDING",cmd)
+            s.write((cmd + '\n').encode()) # Send g-code block to grbl
 
 
 # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
@@ -53,6 +77,10 @@ for line in sys.stdin:
         print("STATUS")
         s.write("?".encode())
         print(s.readline().strip())
+    elif line=='c':
+        calibrate()
+    elif line=='e':
+        spiral()
     else:
         if True:
             p=np.array([ float(x) for x in line.split() ])
