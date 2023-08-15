@@ -29,7 +29,7 @@ sdr = adi.ad9361(uri='ip:%s' % args.ip)
 #setup TX
 sdr.sample_rate=fs
 sdr.tx_enabled_channels = [0]
-sdr.tx_rf_bandwidth = int(3*fc0)
+sdr.tx_rf_bandwidth = int(fs)
 sdr.tx_lo = int(tx_lo)
 sdr.tx_cyclic_buffer = True # this keeps repeating!
 sdr.tx_hardwaregain_chan0 = int(-5) #tx_gain) #tx_gain)
@@ -37,6 +37,7 @@ sdr.tx_hardwaregain_chan1 = int(-80) # use Tx2 for calibration
 #
 tx_n=int(min(lcm(fc0,fs),rx_n*8)) #1024*1024*1024) # tx for longer than rx
 tx_n=int(lcm(fc0,fs))
+#tx_n=fc0*8
 sdr.tx_buffer_size = tx_n
 print(sdr.tx_lo,tx_n,lcm(fc0,fs))
 
@@ -46,4 +47,5 @@ iq0 = np.exp(1j*2*np.pi*fc0*t)*(2**14)
 sdr.tx(iq0)  # Send Tx data.
 
 import time
+print("SLEEP")
 time.sleep(30)

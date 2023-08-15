@@ -1,12 +1,11 @@
 #Starter code from jon Kraft
-
+import time
 import adi
 import matplotlib.pyplot as plt
 import numpy as np
 from math import lcm
-#from sdr import *
-
 import argparse
+#from sdr import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--ip", type=str, help="target Pluto IP address",required=True)
@@ -47,14 +46,7 @@ sdr.tx_enabled_channels = []
 #sdr.tx_cyclic_buffer = True # this keeps repeating!
 #sdr.tx_hardwaregain_chan0 = int(-80) #tx_gain) #tx_gain)
 #sdr.tx_hardwaregain_chan1 = int(-80) # use Tx2 for calibration
-
-import time
-fig,axs=plt.subplots(1,1,figsize=(4,4))
-
-
-
-
-import matplotlib.pyplot as plt
+#fig,axs=plt.subplots(1,1,figsize=(4,4))
 
 fig,axs=plt.subplots(2,2,figsize=(10,8))
 
@@ -69,9 +61,14 @@ while True:
 		axs[idx][1].clear()
 		axs[idx][0].scatter(t,signal_matrix[idx].real,s=1)
 		sp = np.fft.fft(signal_matrix[idx])
-		#sp[:int(rx_n/8)]=0
-		#sp[-int(rx_n/8):]=0
 		axs[idx][1].scatter(freq, sp.real,s=1) #, freq, sp.imag)
+		max_freq=freq[np.abs(np.argmax(sp.real))]
+		axs[idx][1].axvline(
+			x=max_freq,
+			label="max %0.2e" % max_freq,
+			color='red'
+		)
+		axs[idx][1].legend()
 		print("MAXFREQ",freq[np.abs(np.argmax(sp.real))])
 	fig.canvas.draw()
 	plt.pause(0.00001)
