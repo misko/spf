@@ -236,7 +236,8 @@ def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=No
     steering_vectors=np.exp(-1j*args)
     if calibration is not None:
       steering_vectors=steering_vectors*calibration[None]
-    steer_dot_signal=np.absolute(np.matmul(steering_vectors,signal_matrix).mean(axis=1))
+    #the delay sum is performed in the matmul step, the absolute is over the summed value
+    steer_dot_signal=np.absolute(np.matmul(steering_vectors,signal_matrix)).mean(axis=1)
     return thetas,steer_dot_signal,steering_vectors
 
 def beamformer_old(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
@@ -253,7 +254,8 @@ def beamformer_old(receiver_positions,signal_matrix,carrier_frequency,calibratio
             projection_of_receiver_onto_source_direction=np.dot(source_vector,receiver_positions[receiver_index])
             arg=2*np.pi*projection_of_receiver_onto_source_direction/carrier_wavelength
             steering_vectors[theta_index][receiver_index]=np.exp(-1j*arg)
-        steer_dot_signal[theta_index]=np.absolute(np.matmul(steering_vectors[theta_index]*calibration,signal_matrix).mean())
+        #the delay sum is performed in the matmul step, the absolute is over the summed value
+        steer_dot_signal[theta_index]=np.absolute(np.matmul(steering_vectors[theta_index]*calibration,signal_matrix)).mean()
 
     return thetas,steer_dot_signal,steering_vectors
   

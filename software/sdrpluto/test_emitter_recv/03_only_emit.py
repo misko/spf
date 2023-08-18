@@ -20,7 +20,6 @@ rx_lo = int(args.fc) #4e9
 tx_lo = rx_lo
 
 rx_mode = "manual"  # can be "manual" or "slow_attack"
-rx_gain = -80 
 tx_gain = -3
 
 wavelength = c/rx_lo              # wavelength of the RF carrier
@@ -59,4 +58,4 @@ import time
 time.sleep(1)
 time.sleep(1)
 print("SLEEP")
-time.sleep(120)
+time.sleep(500)
