@@ -8,6 +8,22 @@ if len(sys.argv)!=2:
 
 serial_fn=sys.argv[1]
 
+a1=np.array([2880,-300])
+a2=np.array([-300,-365])
+
+def from_steps(ymotor_steps,xmotor_steps):
+    r1=np.linalg.norm(a1)-ymotor_steps
+    r2=np.linalg.norm(a2)-xmotor_steps
+    d=np.linalg.norm(a1-a2)
+
+    x=(d*d-r2*r2+r1*r1)/(2*d) # on different axis
+    x_dir=(a2-a1)/d
+
+    y=np.sqrt(r1*r1-x*x)
+    y_dir=np.array([-x_dir[1],x_dir[0]]) #x_dir.T # orthogonal to x 
+
+    xy_g=a1-y_dir*y+x_dir*x
+    return xy_g
 
 def to_steps(p):
     #limits (0,1500)  and (3180-300,4000)
@@ -21,13 +37,9 @@ def to_steps(p):
     p[0]=min(x_range,max(0,p[0]))
     p[1]=min(y_limit,max(0,p[1]))
 
-    a1=np.array([2880,-300])
     ymotor_steps=np.linalg.norm(a1)-np.linalg.norm(a1-p)
-    #ymotor_steps=np.linalg.norm(a1-p)-np.linalg.norm(a1)
 
-    a2=np.array([-300,-365])
     xmotor_steps=np.linalg.norm(a2)-np.linalg.norm(a2-p)#-np.linalg.norm(a2)
-    #xmotor_steps=np.linalg.norm(a2-p)-np.linalg.norm(a2)
     return xmotor_steps,ymotor_steps
 
 def spiral():
