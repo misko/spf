@@ -11,30 +11,32 @@ serial_fn=sys.argv[1]
 
 def to_steps(p):
     #limits (0,1500)  and (3180-300,4000)
-    limit_a1=np.array([2880-300,4000])
-    limit_a2=np.array([0,1500])
+    limit_a1=np.array([2880-300,4000-200])
+    limit_a2=np.array([0,1500-200])
     
     x_range=2880-300
     x_frac=p[0]/x_range
-    y_limit=min(2700,(limit_a2*(1-x_frac)+limit_a1*x_frac)[1])
+    y_limit=min(2500,(limit_a2*(1-x_frac)+limit_a1*x_frac)[1])
     
     p[0]=min(x_range,max(0,p[0]))
-    p[1]=min(y_limit,max(100,p[1]))
+    p[1]=min(y_limit,max(0,p[1]))
 
     a1=np.array([2880,-300])
     ymotor_steps=np.linalg.norm(a1)-np.linalg.norm(a1-p)
+    #ymotor_steps=np.linalg.norm(a1-p)-np.linalg.norm(a1)
 
     a2=np.array([-300,-365])
     xmotor_steps=np.linalg.norm(a2)-np.linalg.norm(a2-p)#-np.linalg.norm(a2)
+    #xmotor_steps=np.linalg.norm(a2-p)-np.linalg.norm(a2)
     return xmotor_steps,ymotor_steps
 
 def spiral():
     center=np.array([1500,900])
-    spiral_radius=900
-    t_max=3*2*np.pi
+    spiral_radius=1200
+    t_max=6*2*np.pi
     v=spiral_radius/t_max
     w=1
-    for t in np.linspace(0,t_max,256):
+    for t in np.linspace(0,t_max,256*16*2):
         x=(v*t)*np.cos(w*t)
         y=(v*t)*np.sin(w*t)
         print(x,y)
