@@ -9,10 +9,11 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--ip", type=str, help="target Pluto IP address",required=True)
+parser.add_argument("--fi", type=int, help="Intermediate frequency",required=False,default=1e5)
 args = parser.parse_args()
 
 c=3e8
-fc0 = int(1e5)
+fc0 = int(args.fi)
 fs = int(4e6)    # must be <=30.72 MHz if both channels are enabled
 rx_lo = int(2.5e9) #4e9
 tx_lo = rx_lo
@@ -48,7 +49,7 @@ sdr.tx_enabled_channels = []
 #sdr.tx_hardwaregain_chan1 = int(-80) # use Tx2 for calibration
 #fig,axs=plt.subplots(1,1,figsize=(4,4))
 
-fig,axs=plt.subplots(2,2,figsize=(10,8))
+fig,axs=plt.subplots(2,2,figsize=(8,6))
 
 t=np.arange(rx_n)
 while True:
