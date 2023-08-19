@@ -8,39 +8,43 @@ if len(sys.argv)!=2:
 
 serial_fn=sys.argv[1]
 
-a1=np.array([2880,-300])
-a2=np.array([-300,-365])
+# a is the left motor on the wall
+# b is the right motor on the wall
+# origin is very close to b
+origin_a=np.array([2880,-300]) # a1 / y 
+origin_b=np.array([-300,-365]) # a2 / x
 
-def from_steps(ymotor_steps,xmotor_steps):
-    r1=np.linalg.norm(a1)-ymotor_steps
-    r2=np.linalg.norm(a2)-xmotor_steps
-    d=np.linalg.norm(a1-a2)
+def from_steps(a_motor_steps,b_motor_steps):
+    r1=np.linalg.norm(origin_a)-a_motor_steps
+    r2=np.linalg.norm(origin_b)-b_motor_steps
+    d=np.linalg.norm(origin_a-origin_b)
 
     x=(d*d-r2*r2+r1*r1)/(2*d) # on different axis
-    x_dir=(a2-a1)/d
+    x_dir=(origin_b-origin_a)/d
 
     y=np.sqrt(r1*r1-x*x)
     y_dir=np.array([-x_dir[1],x_dir[0]]) #x_dir.T # orthogonal to x 
 
-    xy_g=a1-y_dir*y+x_dir*x
+    xy_g=origin_a-y_dir*y+x_dir*x
     return xy_g
+
 
 def to_steps(p):
     #limits (0,1500)  and (3180-300,4000)
-    limit_a1=np.array([2880-300,4000-200])
-    limit_a2=np.array([0,1500-200])
+    limit_topleft=np.array([2880-300,4000-200]) 
+    limit_bottomright=np.array([0,1500-200]) 
     
     x_range=2880-300
     x_frac=p[0]/x_range
-    y_limit=min(2500,(limit_a2*(1-x_frac)+limit_a1*x_frac)[1])
+    y_limit=min(2500,(limit_bottomright*(1-x_frac)+limit_topleft*x_frac)[1])
     
     p[0]=min(x_range,max(0,p[0]))
     p[1]=min(y_limit,max(0,p[1]))
 
-    ymotor_steps=np.linalg.norm(a1)-np.linalg.norm(a1-p)
+    a_motor_steps=np.linalg.norm(origin_a)-np.linalg.norm(origin_a-p)
 
-    xmotor_steps=np.linalg.norm(a2)-np.linalg.norm(a2-p)#-np.linalg.norm(a2)
-    return xmotor_steps,ymotor_steps
+    b_motor_steps=np.linalg.norm(origin_b)-np.linalg.norm(origin_b-p)#-np.linalg.norm(a2)
+    return a_motor_steps,b_motor_steps
 
 def spiral():
     center=np.array([1500,900])
@@ -53,8 +57,8 @@ def spiral():
         y=(v*t)*np.sin(w*t)
         print(x,y)
         p=np.array([x,y])+center
-        x,y=to_steps(p)
-        cmd="G0 X%0.2f Y%0.2f" % (x,y)
+        a_motor_steps,b_motor_steps=to_steps(p)
+        cmd="G0 X%0.2f Y%0.2f" % (a_motor_steps,b_motor_steps)
         #print("SENDING",x,y,cmd)
         s.write((cmd + '\n').encode()) # Send g-code block to grbl
         print(s.readline().strip())
@@ -76,6 +80,19 @@ print(s.readline().strip())
 s.write("?".encode())
 print(s.readline().strip())
 
+def push_reset(s):
+    s.write(b'\x18')
+    return s.readline().decode().strip()
+
+def get_status(s):
+    s.write("?".encode())
+    response=s.readline().decode().strip()
+    #<Idle|MPos:-3589.880,79.560,0.000,0.000|FS:0,0>
+    motor_position_str=response.split("|")[1]
+    xmotor,ymotor,
+    return s.readline().decode().strip()
+
+
 #sys.exit(1)
 #time.sleep(2)    # Wait for grbl to initialize
 #s.flushInput()  # Flush startup text in serial input
@@ -84,13 +101,12 @@ for line in sys.stdin:
     if line=='q':
         sys.exit(1)
     elif line=='r':
-        print("SENT RESET")
-        s.write(b'\x18')
-        print(s.readline().strip())
+        r=push_reset(s)
+        print(r)
     elif line=='s':
-        print("STATUS")
-        s.write("?".encode())
-        print(s.readline().strip())
+        r=get_status(s)
+        #<Idle|MPos:-3589.880,79.560,0.000,0.000|FS:0,0>
+        print(r)
     elif line=='c':
         calibrate()
     elif line=='e':
@@ -98,9 +114,10 @@ for line in sys.stdin:
     else:
         if True:
             p=np.array([ float(x) for x in line.split() ])
-            x,y=to_steps(p)
-            cmd="G0 X%0.2f Y%0.2f" % (x,y)
+            a_motor_steps,b_motor_steps=to_steps(p)
+            cmd="G0 X%0.2f Y%0.2f" % (b_motor_steps,a_motor_steps)
             print("SENDING",cmd)
+            print(from_steps(a_motor_steps,b_motor_steps))
             s.write((cmd + '\n').encode()) # Send g-code block to grbl
             grbl_out = s.readline() # Wait for grbl response with carriage return
             print(grbl_out)
