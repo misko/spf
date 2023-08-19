@@ -1,0 +1,9 @@
+#installing dependencies
+sudo apt-get install flex bison libxml2-dev libaio-dev libusb-1.0-0-dev libserialport-dev libavahi-client-dev
+git clone https://github.com/analogdevicesinc/libiio.git
+cd libiio
+mkdir build
+cd build
+cmake ../ -D PYTHON_BINDINGS=TRUE
+make 
+sudo make install
