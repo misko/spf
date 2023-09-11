@@ -7,8 +7,11 @@ import matplotlib.pyplot as plt
 # a is the left motor on the wall
 # b is the right motor on the wall
 # origin is very close to b
-origin_a=np.array([2880,-300]) # a1 / y 
-origin_b=np.array([-300,-365]) # a2 / x
+#origin_a=np.array([2880,-300]) # a1 / y 
+#origin_b=np.array([-300,-365]) # a2 / x
+#origin_a=np.array([2910,-350]) # a1 / y 
+origin_a=np.array([2910+100,-350]) # a1 / y 
+origin_b=np.array([-300,-370]) # a2 / x
 
 def from_steps(a_motor_steps,b_motor_steps):
     r1=np.linalg.norm(origin_a)-a_motor_steps
@@ -124,7 +127,7 @@ def full_field_step(s,direction):
     l=binary_search_edge(0,10000,xy,direction,0.01)
     #from_steps(*to_steps(l*direction+s))
 
-def bounce(s,direction,xy=None):
+def bounce(s,direction,xy=None,step_size=50):
     #find current position
     #a_motor_steps,b_motor_steps,xy=get_status(s)
     #pick a random direction
@@ -137,20 +140,24 @@ def bounce(s,direction,xy=None):
     #find out at what point xy+l*direction we stop changing one of the variables
     epsilon=0.001
     l=binary_search_edge(0,10000,xy,direction,epsilon)
-    #find a paralell vector to the boundary
-    p1=from_steps(*to_steps((l+2*epsilon)*direction+xy))
-    p2=from_steps(*to_steps((l+3*epsilon)*direction+xy))
-    if np.linalg.norm(p1-p2)<epsilon**2: # the direction is only X or Y
-        new_direction=-direction
+    if l>step_size:
+        #find a paralell vector to the boundary
+        p1=from_steps(*to_steps((l+2*epsilon)*direction+xy))
+        p2=from_steps(*to_steps((l+3*epsilon)*direction+xy))
+        if np.linalg.norm(p1-p2)<epsilon**2: # the direction is only X or Y
+            new_direction=-direction
+        else:
+            b=p2-p1
+            b/=np.linalg.norm(b)
+            bn=np.array([-b[1],b[0]])
+            _xy=from_steps(*to_steps(xy))
+            if np.linalg.norm(from_steps(*to_steps(_xy+bn))-_xy)<epsilon:
+                bn=-bn
+            new_direction=np.dot(direction,b)*b-np.dot(direction,bn)*bn
     else:
-        b=p2-p1
-        b/=np.linalg.norm(b)
-        bn=np.array([-b[1],b[0]])
-        _xy=from_steps(*to_steps(xy))
-        if np.linalg.norm(from_steps(*to_steps(_xy+bn))-_xy)<epsilon:
-            bn=-bn
-        new_direction=np.dot(direction,b)*b-np.dot(direction,bn)*bn
-    theta=np.random.uniform(2*np.pi)
+        new_direction=direction
+        l=step_size
+    #theta=np.random.uniform(2*np.pi)
     #new_direction=0.95*new_direction+0.05*np.array([np.sin(theta),np.cos(theta)])
     jiggle=0#np.random.uniform(-2,2,xy.shape) 
     return l*direction+xy+jiggle,new_direction
@@ -162,7 +169,6 @@ def move_to(s,p):
     s.write((cmd + '\n').encode()) # Send g-code block to grbl
     time.sleep(0.1)
     grbl_out = s.readline() # Wait for grbl response with carriage return
-    print("MOVE TO OUT",grbl_out)
     time.sleep(0.1)
 
 if __name__=='__main__':
@@ -187,12 +193,11 @@ if __name__=='__main__':
             #point=np.array([2491.49001749,2401.75483327])
             #direction=np.array([0.63471637,0.57157117])
             #print("Point",point,direction)
-            for _ in range(30):
+            for _ in range(120):
                 point,direction=bounce(s,direction)
                 print(time.time(),"TO",point,"new direction",direction)
-                print("")
                 move_to(s,point)
-                wait_while_moving(s)
+                #wait_while_moving(s)
                  
             #full_field_step(s,np.array([1,0]))
         elif line=='s':
