@@ -2,6 +2,7 @@ import argparse
 import adi
 import numpy as np
 from math import gcd
+import matplotlib.pyplot as plt
 c=3e8
 
 def setup(args):
@@ -15,7 +16,7 @@ def setup(args):
     rx_gain = 40 
     tx_gain = -30
 
-    rx_n=int(2**10)
+    rx_n=int(2**8)
 
     sdr_receiver = adi.ad9361(uri='ip:%s' % args.receiver_ip)
 
@@ -84,6 +85,42 @@ def setup(args):
     return sdr_receiver,sdr_emitter
 
 
+def plot_recv_signal(sdr_rx):
+    fig,axs=plt.subplots(2,4,figsize=(16,6))
+
+    rx_n=sdr_rx.rx_buffer_size
+    t=np.arange(rx_n)
+    while True:
+      signal_matrix=np.vstack(sdr_rx.rx())
+
+      freq = np.fft.fftfreq(t.shape[-1],d=1.0/sdr_rx.sample_rate)
+      assert(t.shape[-1]==rx_n)
+      for idx in [0,1]:
+        axs[idx][0].clear()
+        axs[idx][1].clear()
+        axs[idx][0].scatter(t,signal_matrix[idx].real,s=1)
+        sp = np.fft.fft(signal_matrix[idx])
+        axs[idx][1].scatter(freq, sp.real,s=1) #, freq, sp.imag)
+        max_freq=freq[np.abs(np.argmax(sp.real))]
+        axs[idx][1].axvline(
+          x=max_freq,
+          label="max %0.2e" % max_freq,
+          color='red'
+        )
+        axs[idx][1].legend()
+
+        axs[idx][2].clear()
+        axs[idx][2].scatter(signal_matrix[idx].real,signal_matrix[idx].imag,s=1)
+
+        axs[idx][0].set_title("Real signal recv (%d)" % idx)
+        axs[idx][1].set_title("Power recv (%d)" % idx)
+        #print("MAXFREQ",freq[np.abs(np.argmax(sp.real))])
+      diff=(np.angle(signal_matrix[0])-np.angle(signal_matrix[1]))%(2*np.pi)
+      axs[0][3].clear()
+      axs[0][3].scatter(t,diff,s=1)
+      axs[0][3].set_ylim([0,2*np.pi])
+      fig.canvas.draw()
+      plt.pause(0.00001)
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
@@ -98,3 +135,6 @@ if __name__=='__main__':
     parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=-3)
     args = parser.parse_args()
     sdr_rx,sdr_tx=setup(args)
+
+
+    plot_recv_signal(sdr_rx)

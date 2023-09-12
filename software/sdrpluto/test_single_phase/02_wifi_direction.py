@@ -39,7 +39,7 @@ sdr = adi.ad9361(uri='ip:%s' % args.ip)
 sdr.rx_enabled_channels = [0, 1]
 sdr.sample_rate = fs
 assert(sdr.sample_rate==fs)
-sdr.rx_rf_bandwidth = int(fs) #fc0*5)
+sdr.rx_rf_bandwidth = int(fc0*3)
 sdr.rx_lo = int(rx_lo)
 sdr.gain_control_mode = rx_mode
 sdr.rx_hardwaregain_chan0 = int(rx_gain)
@@ -71,8 +71,7 @@ while True:
 	steering=steering[64:]
 	if sds.max()>50:
 		#print(time.time(),sds.max(),thetas[sds.argmax()])
-		counts[sds.argmax()%(intervals-1)]+=1
-
+		counts[sds.argmax()%64]+=1
 
 		axs[1].cla()
 		axs[1].set_xlabel("Time")
