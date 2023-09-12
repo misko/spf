@@ -72,7 +72,7 @@ def calibrate():
 
 def open_grbl(serial_fn):
     # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
-    s = serial.Serial(serial_fn,115200) # GRBL operates at 115200 baud. Leave that part alone.
+    s = serial.Serial(serial_fn,115200,timeout=2,write_timeout=2.0) # GRBL operates at 115200 baud. Leave that part alone.
     s.write("?".encode())
     grbl_out=s.readline() # get the response
     print("GRBL ONLINE",grbl_out)
@@ -89,12 +89,13 @@ def get_status(s):
     time.sleep(0.1)
     response=s.readline().decode().strip()
     time.sleep(0.1)
-    print("STATUS",response)
+    #print("STATUS",response)
     #<Idle|MPos:-3589.880,79.560,0.000,0.000|FS:0,0>
     try:
         motor_position_str=response.split("|")[1]
     except:
         print("FAILED TO PARSE",response)
+        return get_status(s)
     b_motor_steps,a_motor_steps,_,_=map(float,motor_position_str[len('MPos:'):].split(','))
     time.sleep(0.01)
     return a_motor_steps,b_motor_steps,from_steps(a_motor_steps,b_motor_steps)
@@ -127,7 +128,7 @@ def full_field_step(s,direction):
     l=binary_search_edge(0,10000,xy,direction,0.01)
     #from_steps(*to_steps(l*direction+s))
 
-def bounce(s,direction,xy=None,step_size=50):
+def bounce(s,direction,xy=None,step_size=30):
     #find current position
     #a_motor_steps,b_motor_steps,xy=get_status(s)
     #pick a random direction
@@ -140,27 +141,29 @@ def bounce(s,direction,xy=None,step_size=50):
     #find out at what point xy+l*direction we stop changing one of the variables
     epsilon=0.001
     l=binary_search_edge(0,10000,xy,direction,epsilon)
-    if l>step_size:
-        #find a paralell vector to the boundary
-        p1=from_steps(*to_steps((l+2*epsilon)*direction+xy))
-        p2=from_steps(*to_steps((l+3*epsilon)*direction+xy))
-        if np.linalg.norm(p1-p2)<epsilon**2: # the direction is only X or Y
-            new_direction=-direction
-        else:
-            b=p2-p1
-            b/=np.linalg.norm(b)
-            bn=np.array([-b[1],b[0]])
-            _xy=from_steps(*to_steps(xy))
-            if np.linalg.norm(from_steps(*to_steps(_xy+bn))-_xy)<epsilon:
-                bn=-bn
-            new_direction=np.dot(direction,b)*b-np.dot(direction,bn)*bn
+    #find a paralell vector to the boundary
+    p1=from_steps(*to_steps((l+2*epsilon)*direction+xy))
+    p2=from_steps(*to_steps((l+3*epsilon)*direction+xy))
+    if np.linalg.norm(p1-p2)<epsilon**2: # the direction is only X or Y
+        new_direction=-direction
     else:
-        new_direction=direction
-        l=step_size
-    #theta=np.random.uniform(2*np.pi)
-    #new_direction=0.95*new_direction+0.05*np.array([np.sin(theta),np.cos(theta)])
-    jiggle=0#np.random.uniform(-2,2,xy.shape) 
-    return l*direction+xy+jiggle,new_direction
+        b=p2-p1
+        b/=np.linalg.norm(b)
+        bn=np.array([-b[1],b[0]])
+        _xy=from_steps(*to_steps(xy))
+        if np.linalg.norm(from_steps(*to_steps(_xy+bn))-_xy)<epsilon:
+            bn=-bn
+        new_direction=np.dot(direction,b)*b-np.dot(direction,bn)*bn
+    to_points=[]
+    _l=0
+    while _l<l:
+        _l=min(_l+step_size,l)
+        to_points.append(_l*direction+xy)
+    #print("FROM",xy,"TO",_to)
+    theta=np.random.uniform(2*np.pi)
+    percent_random=0.05
+    new_direction=(1-percent_random)*new_direction+percent_random*np.array([np.sin(theta),np.cos(theta)])
+    return to_points,new_direction
 
 def move_to(s,p):
     a_motor_steps,b_motor_steps=to_steps(p)
@@ -193,11 +196,14 @@ if __name__=='__main__':
             #point=np.array([2491.49001749,2401.75483327])
             #direction=np.array([0.63471637,0.57157117])
             #print("Point",point,direction)
-            for _ in range(120):
-                point,direction=bounce(s,direction)
-                print(time.time(),"TO",point,"new direction",direction)
-                move_to(s,point)
-                #wait_while_moving(s)
+            for _ in range(20000):
+                to_points,new_direction=bounce(s,direction)
+                print("MOVE")
+                for point in to_points:
+                    move_to(s,point)
+                if (new_direction!=direction).any(): # we are changing direction
+                    wait_while_moving(s)
+                    direction=new_direction
                  
             #full_field_step(s,np.array([1,0]))
         elif line=='s':
