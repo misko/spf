@@ -171,6 +171,18 @@ def setup_rx_and_tx(args):
     return sdr_receiver,sdr_emitter
 
 
+def circular_mean(angles):
+    return np.arctan2(np.sin(angles).sum(),np.cos(angles).sum())
+
+def get_avg_phase(sdr_rx):
+    rx_n=sdr_rx.rx_buffer_size
+    t=np.arange(rx_n)
+    signal_matrix=np.vstack(sdr_rx.rx())
+    signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
+
+    diffs=(np.angle(signal_matrix[0])-np.angle(signal_matrix[1]))%(2*np.pi)
+    return circular_mean(diffs)
+
 def plot_recv_signal(sdr_rx):
     fig,axs=plt.subplots(2,4,figsize=(16,6))
 
