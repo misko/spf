@@ -14,7 +14,6 @@ def setup_rxtx_and_phase_calibration(args):
     # setup receive
     rx_mode = "slow_attack"  # can be "manual" or "slow_attack"
     rx_gain = 40 
-    tx_gain = -30
 
     rx_n=int(2**8)
 
@@ -102,7 +101,6 @@ def setup_rx_and_tx(args):
     # setup receive
     rx_mode = "slow_attack"  # can be "manual" or "slow_attack"
     rx_gain = 40 
-    tx_gain = -30
 
     rx_n=int(2**8)
 
@@ -140,8 +138,8 @@ def setup_rx_and_tx(args):
         sdr_emitter.tx_lo = int(tx_lo)
         assert(sdr_emitter.tx_lo==tx_lo)
         sdr_emitter.tx_enabled_channels = [0]
-        sdr_emitter.tx_hardwaregain_chan0 = int(-5) #tx_gain) #tx_gain)
-        assert(sdr_emitter.tx_hardwaregain_chan0==int(-5))
+        sdr_emitter.tx_hardwaregain_chan0 = int(args.tx_gain) #tx_gain) #tx_gain)
+        assert(sdr_emitter.tx_hardwaregain_chan0==int(args.tx_gain))
         sdr_emitter.tx_hardwaregain_chan1 = int(-80) # use Tx2 for calibration
         #
         tx_n=int(fs/gcd(fs,fc0))
@@ -221,7 +219,7 @@ if __name__=='__main__':
     parser.add_argument("--cal0", type=int, help="Rx0 calibration phase offset in degrees",required=False,default=180)
     parser.add_argument("--d", type=int, help="Distance apart",required=False,default=0.062)
     parser.add_argument("--rx-gain", type=int, help="RX gain",required=False,default=40)
-    parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=-3)
+    parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=0)
     args = parser.parse_args()
 
     #calibrate the receiver
