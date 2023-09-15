@@ -77,6 +77,7 @@ class GRBLManager:
         self.s.write("?".encode())
         grbl_out=self.s.readline() # get the response
         print("GRBL ONLINE",grbl_out)
+        self.update_status()
         time.sleep(0.05)
 
     def push_reset(self):
