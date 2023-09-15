@@ -5,8 +5,12 @@ import time
 import numpy as np
 
 def bounce_grbl(gm):
+    direction=None
     while True:
-        gm.bounce(10)
+        print("TRY TO BOUNCE")
+        direction=gm.bounce(1,direction=direction)
+        print("TRY TO BOUNCE RET")
+        time.sleep(15) # cool off the motor
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
@@ -46,6 +50,9 @@ if __name__=='__main__':
 
     time_offset=time.time()
     for idx in range(args.record_n):
+        while not gm.position['is_moving']:
+            print("wait for movement")
+            time.sleep(1)
         current_time=time.time()-time_offset
         avg_phase_diff=get_avg_phase(sdr_rx)
         xy=gm.position['xy']

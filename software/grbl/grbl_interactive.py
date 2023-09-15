@@ -75,6 +75,7 @@ class GRBLManager:
         self.s.write("?".encode())
         grbl_out=self.s.readline() # get the response
         print("GRBL ONLINE",grbl_out)
+        self.position={'time':time.time(),'xy':np.zeros(2)}
         self.update_status()
         time.sleep(0.05)
 
@@ -97,10 +98,13 @@ class GRBLManager:
             return self.update_status()
         b_motor_steps,a_motor_steps,_,_=map(float,motor_position_str[len('MPos:'):].split(','))
 
+        xy=self.from_steps(a_motor_steps,b_motor_steps)
+        is_moving=(self.position['xy']!=xy).any()
         self.position={
             'a_motor_steps':a_motor_steps,
             'b_motor_steps':b_motor_steps,
-            'xy':self.from_steps(a_motor_steps,b_motor_steps),
+            'xy':xy,
+            'is_moving':is_moving,
             'time':time.time()
             }
         return self.position
@@ -128,7 +132,7 @@ class GRBLManager:
         return self.binary_search_edge(l,right,xy,direction,epsilon)
 
     def bounce(self,bounces,direction=None):
-        if direction==None:
+        if direction is None:
             theta=np.random.uniform(2*np.pi)
             direction=np.array([np.sin(theta),np.cos(theta)])
         for _ in range(bounces):
@@ -143,6 +147,7 @@ class GRBLManager:
             if (new_direction!=direction).any(): # we are changing direction
                 self.wait_while_moving()
                 direction=new_direction
+        return direction
 
     def single_bounce(self,direction,xy=None,step_size=30):
         #find current position
