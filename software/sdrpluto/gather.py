@@ -33,7 +33,7 @@ def setup_rxtx_and_phase_calibration(args):
         sdr_rxtx.rx_hardwaregain_chan0 = int(rx_gain)
         sdr_rxtx.rx_hardwaregain_chan1 = int(rx_gain)
         sdr_rxtx.rx_buffer_size = int(rx_n)
-        sdr_rxtx._rxadc.set_kernel_buffers_count(1)   # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
+        sdr_rxtx._rxadc.set_kernel_buffers_count(2)   # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
 
         #drop the first bunch of frames
         for _ in range(20):
@@ -115,7 +115,7 @@ def setup_rx_and_tx(args):
     sdr_receiver.rx_hardwaregain_chan0 = int(rx_gain)
     sdr_receiver.rx_hardwaregain_chan1 = int(rx_gain)
     sdr_receiver.rx_buffer_size = int(rx_n)
-    sdr_receiver._rxadc.set_kernel_buffers_count(1)   # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
+    sdr_receiver._rxadc.set_kernel_buffers_count(2)   # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
 
     #drop the first bunch of frames
     for _ in range(20):

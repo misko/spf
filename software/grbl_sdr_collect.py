@@ -44,11 +44,14 @@ if __name__=='__main__':
     gm_thread = threading.Thread(target=bounce_grbl, args=(gm,))
     gm_thread.start()
 
-
+    time_offset=time.time()
     for idx in range(args.record_n):
-        print(gm.position)
-        time.sleep(1)
-        print(get_avg_phase(sdr_rx))
+        current_time=time.time()-time_offset
+        avg_phase_diff=get_avg_phase(sdr_rx)
+        xy=gm.position['xy']
+        record_matrix[idx]=np.array([current_time,xy[0],xy[1],avg_phase_diff])
+        print(record_matrix[idx])
+        time.sleep(1.0/args.record_freq)
     #x.join()
 
 

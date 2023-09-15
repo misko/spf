@@ -55,20 +55,18 @@ class GRBLManager:
         for t in np.linspace(0,t_max,256*16*2):
             x=(v*t)*np.cos(w*t)
             y=(v*t)*np.sin(w*t)
-            print(x,y)
             p=np.array([x,y])+center
             a_motor_steps,b_motor_steps=to_steps(p)
             cmd="G0 X%0.2f Y%0.2f" % (b_motor_steps,a_motor_steps)
             #print("SENDING",x,y,cmd)
             s.write((cmd + '\n').encode()) # Send g-code block to grbl
-            print(s.readline().strip())
+            s.readline().strip()
 
     def calibrate(self):
         for x in np.linspace(1500,500,5):
             for y in np.linspace(30,1200,5):
                 x,y=to_steps(np.array([x,y]))
                 cmd="G0 X%0.2f Y%0.2f" % (x,y)
-                print("SENDING",cmd)
                 s.write((cmd + '\n').encode()) # Send g-code block to grbl
 
     def __init__(self,serial_fn):
@@ -138,10 +136,9 @@ class GRBLManager:
             #print("MOVE")
             for point in to_points:
                 self.move_to(point)
-                print("MOVE")
+                #print("MOVE")
                 self.update_status()
                 while np.linalg.norm(self.position['xy']-point)>200:
-                    #print("WAITING",self.position['xy'],np.linalg.norm(self.position['xy']-point))
                     self.update_status()
             if (new_direction!=direction).any(): # we are changing direction
                 self.wait_while_moving()
@@ -178,7 +175,6 @@ class GRBLManager:
         while _l<l:
             _l=min(_l+step_size,l)
             to_points.append(_l*direction+xy)
-        #print("FROM",xy,"TO",_to)
         theta=np.random.uniform(2*np.pi)
         percent_random=0.05
         new_direction=(1-percent_random)*new_direction+percent_random*np.array([np.sin(theta),np.cos(theta)])
@@ -215,7 +211,6 @@ if __name__=='__main__':
 
             #point=np.array([2491.49001749,2401.75483327])
             #direction=np.array([0.63471637,0.57157117])
-            #print("Point",point,direction)
             gm.bounce(20000)
                  
         elif line=='s':
@@ -230,11 +225,9 @@ if __name__=='__main__':
                 p_main=np.array([ float(x) for x in line.split() ])
                 a_motor_steps,b_motor_steps=gm.to_steps(p_main)
                 cmd="G0 X%0.2f Y%0.2f" % (b_motor_steps,a_motor_steps)
-                print("SENDING",cmd)
                 print(gm.from_steps(a_motor_steps,b_motor_steps))
                 gm.s.write((cmd + '\n').encode()) # Send g-code block to grbl
                 grbl_out = gm.s.readline() # Wait for grbl response with carriage return
-                print(grbl_out)
         time.sleep(0.01)
 
     gm.close()
