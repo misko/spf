@@ -219,7 +219,7 @@ if __name__=='__main__':
             gm.bounce(20000)
                  
         elif line=='s':
-            p=gm.update_status(s)
+            p=gm.update_status()
             print(p)
         elif line=='c':
             gm.calibrate()
