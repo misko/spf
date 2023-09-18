@@ -12,11 +12,12 @@ def setup_rxtx_and_phase_calibration(args):
     tx_lo = rx_lo
 
     # setup receive
-    rx_mode = "slow_attack"  # can be "manual" or "slow_attack"
-    rx_gain = 40 
+    rx_mode = "slow_attack" #"slow_attack"  # can be "manual" or "slow_attack"
+    rx_gain = args.rx_gain 
 
     rx_n=int(2**8)
 
+    tx_gain_calibration=-50
 
     retries=0
     while retries<10:
@@ -46,8 +47,8 @@ def setup_rxtx_and_phase_calibration(args):
         assert(sdr_rxtx.tx_lo==tx_lo)
         sdr_rxtx.tx_enabled_channels = [1]
         sdr_rxtx.tx_hardwaregain_chan0 = int(-80) #tx_gain) #tx_gain)
-        sdr_rxtx.tx_hardwaregain_chan1 = int(-5) # use Tx2 for calibration
-        assert(sdr_rxtx.tx_hardwaregain_chan1==int(-5))
+        sdr_rxtx.tx_hardwaregain_chan1 = int(tx_gain_calibration) # use Tx2 for calibration
+        assert(sdr_rxtx.tx_hardwaregain_chan1==int(tx_gain_calibration))
         #
         tx_n=int(fs/gcd(fs,fc0))
         while tx_n<1024*16:
@@ -99,8 +100,8 @@ def setup_rx_and_tx(args):
     tx_lo = rx_lo
 
     # setup receive
-    rx_mode = "slow_attack"  # can be "manual" or "slow_attack"
-    rx_gain = 40 
+    rx_mode = "slow_attack" #"slow_attack"  # can be "manual" or "slow_attack"
+    rx_gain = args.rx_gain
 
     rx_n=int(2**8)
 
@@ -231,8 +232,8 @@ if __name__=='__main__':
     parser.add_argument("--fs", type=int, help="Sampling frequency",required=False,default=16e6)
     parser.add_argument("--cal0", type=int, help="Rx0 calibration phase offset in degrees",required=False,default=180)
     parser.add_argument("--d", type=int, help="Distance apart",required=False,default=0.062)
-    parser.add_argument("--rx-gain", type=int, help="RX gain",required=False,default=40)
-    parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=0)
+    parser.add_argument("--rx-gain", type=int, help="RX gain",required=False,default=-3)
+    parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=-8)
     args = parser.parse_args()
 
     #calibrate the receiver
