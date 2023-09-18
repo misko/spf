@@ -71,7 +71,7 @@ class GRBLManager:
 
     def __init__(self,serial_fn):
         # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
-        self.s = serial.Serial(serial_fn,115200,timeout=2,write_timeout=2.0) # GRBL operates at 115200 baud. Leave that part alone.
+        self.s = serial.Serial(serial_fn,115200,timeout=5,write_timeout=5.0) # GRBL operates at 115200 baud. Leave that part alone.
         self.s.write("?".encode())
         grbl_out=self.s.readline() # get the response
         print("GRBL ONLINE",grbl_out)
@@ -83,19 +83,21 @@ class GRBLManager:
         self.s.write(b'\x18')
         return self.s.readline().decode().strip()
 
-    def update_status(self):
-        time.sleep(0.01)
-        self.s.write("?".encode())
+    def update_status(self,skip_write=False):
+        if not skip_write:
+            time.sleep(0.01)
+            self.s.write("?".encode())
         time.sleep(0.01)
         response=self.s.readline().decode().strip()
         time.sleep(0.01)
         #print("STATUS",response)
         #<Idle|MPos:-3589.880,79.560,0.000,0.000|FS:0,0>
+        start_time=time.time()
         try:
             motor_position_str=response.split("|")[1]
-        except:
-            print("FAILED TO PARSE",response)
-            return self.update_status()
+        except Exception as e:
+            print("FAILED TO PARSE",response,"|e|",e,time.time()-start_time)
+            return self.update_status(skip_write=not skip_write)
         b_motor_steps,a_motor_steps,_,_=map(float,motor_position_str[len('MPos:'):].split(','))
 
         xy=self.from_steps(a_motor_steps,b_motor_steps)
@@ -193,6 +195,7 @@ class GRBLManager:
         time.sleep(0.01)
         grbl_out = self.s.readline() # Wait for grbl response with carriage return
         time.sleep(0.01)
+        #print("MOVE TO RESPONSE", grbl_out)
 
     def close(self):
         self.s.close()
@@ -233,6 +236,7 @@ if __name__=='__main__':
                 print(gm.from_steps(a_motor_steps,b_motor_steps))
                 gm.s.write((cmd + '\n').encode()) # Send g-code block to grbl
                 grbl_out = gm.s.readline() # Wait for grbl response with carriage return
+                print("MAIN OUT",grbl_out)
         time.sleep(0.01)
 
     gm.close()
