@@ -20,13 +20,14 @@ if __name__=='__main__':
     parser.add_argument("--fc", type=int, help="Carrier frequency",required=False,default=2.5e9)
     parser.add_argument("--fs", type=int, help="Sampling frequency",required=False,default=16e6)
     parser.add_argument("--cal0", type=int, help="Rx0 calibration phase offset in degrees",required=False,default=180)
-    parser.add_argument("--d", type=int, help="Distance apart",required=False,default=0.062)
+    #parser.add_argument("--d", type=int, help="Distance apart",required=False,default=0.062)
     parser.add_argument("--rx-gain", type=int, help="RX gain",required=False,default=40)
     parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=-3)
     parser.add_argument("--grbl-serial", type=str, help="serial file for GRBL",required=True)
     parser.add_argument("--out", type=str, help="output file",required=True)
-    parser.add_argument("--record-freq", type=str, help="record freq",required=False,default=1)
-    parser.add_argument("--record-n", type=str, help="records",required=False,default=43200)
+    parser.add_argument("--record-freq", type=int, help="record freq",required=False,default=5)
+    parser.add_argument("--record-n", type=int, help="records",required=False,default=43200)
+    parser.add_argument("--rx-n", type=int, help="RX buffer size",required=False,default=2**16)
     args = parser.parse_args()
 
     #setup output recorder

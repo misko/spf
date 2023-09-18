@@ -15,7 +15,7 @@ def setup_rxtx_and_phase_calibration(args):
     rx_mode = "slow_attack"  # can be "manual" or "slow_attack"
     rx_gain = 40 
 
-    rx_n=int(2**8)
+    rx_n=args.rx_n
 
 
     retries=0
@@ -102,7 +102,7 @@ def setup_rx_and_tx(args):
     rx_mode = "slow_attack"  # can be "manual" or "slow_attack"
     rx_gain = 40 
 
-    rx_n=int(2**8)
+    rx_n=args.rx_n
 
     sdr_receiver = adi.ad9361(uri='ip:%s' % args.receiver_ip)
 
@@ -230,8 +230,9 @@ if __name__=='__main__':
     parser.add_argument("--fc", type=int, help="Carrier frequency",required=False,default=2.5e9)
     parser.add_argument("--fs", type=int, help="Sampling frequency",required=False,default=16e6)
     parser.add_argument("--cal0", type=int, help="Rx0 calibration phase offset in degrees",required=False,default=180)
-    parser.add_argument("--d", type=int, help="Distance apart",required=False,default=0.062)
+    #parser.add_argument("--d", type=int, help="Distance apart",required=False,default=0.062)
     parser.add_argument("--rx-gain", type=int, help="RX gain",required=False,default=40)
+    parser.add_argument("--rx-n", type=int, help="RX buffer size",required=False,default=2**32)
     parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=0)
     args = parser.parse_args()
 

@@ -71,7 +71,7 @@ class GRBLManager:
 
     def __init__(self,serial_fn):
         # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
-        self.s = serial.Serial(serial_fn,115200,timeout=5,write_timeout=5.0) # GRBL operates at 115200 baud. Leave that part alone.
+        self.s = serial.Serial(serial_fn,115200,timeout=0.3,write_timeout=0.3) # GRBL operates at 115200 baud. Leave that part alone.
         self.s.write("?".encode())
         grbl_out=self.s.readline() # get the response
         print("GRBL ONLINE",grbl_out)
@@ -88,11 +88,12 @@ class GRBLManager:
             time.sleep(0.01)
             self.s.write("?".encode())
         time.sleep(0.01)
+
+        start_time=time.time()
         response=self.s.readline().decode().strip()
         time.sleep(0.01)
         #print("STATUS",response)
         #<Idle|MPos:-3589.880,79.560,0.000,0.000|FS:0,0>
-        start_time=time.time()
         try:
             motor_position_str=response.split("|")[1]
         except Exception as e:
