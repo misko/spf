@@ -26,7 +26,7 @@ if __name__=='__main__':
     parser.add_argument("--grbl-serial", type=str, help="serial file for GRBL",required=True)
     parser.add_argument("--out", type=str, help="output file",required=True)
     parser.add_argument("--record-freq", type=int, help="record freq",required=False,default=5)
-    parser.add_argument("--rx-mode", type=int, help="rx mode",required=False,default="slow_attack")
+    parser.add_argument("--rx-mode", type=str, help="rx mode",required=False,default="slow_attack")
     parser.add_argument("--record-n", type=int, help="records",required=False,default=43200)
     parser.add_argument("--rx-n", type=int, help="RX buffer size",required=False,default=2**12)
     args = parser.parse_args()
