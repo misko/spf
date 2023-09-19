@@ -28,7 +28,7 @@ def setup_rxtx_and_phase_calibration(args):
         sdr_rxtx.rx_enabled_channels = [0, 1]
         sdr_rxtx.sample_rate = fs
         assert(sdr_rxtx.sample_rate==fs)
-        sdr_rxtx.rx_rf_bandwidth = int(fs) #fc0*5) #TODO!
+        sdr_rxtx.rx_rf_bandwidth = int(3*args.fi) #fc0*5) #TODO!
         sdr_rxtx.rx_lo = int(rx_lo)
         sdr_rxtx.gain_control_mode = rx_mode
         sdr_rxtx.rx_hardwaregain_chan0 = int(rx_gain)
@@ -41,8 +41,8 @@ def setup_rxtx_and_phase_calibration(args):
             sdr_rxtx.rx()
 
         #setup TX
-        sdr_rxtx.tx_rf_bandwidth = int(fs)
-        assert(sdr_rxtx.tx_rf_bandwidth==int(fs))
+        sdr_rxtx.tx_rf_bandwidth = int(3*args.fi)
+        assert(sdr_rxtx.tx_rf_bandwidth==int(3*args.fi))
         sdr_rxtx.tx_lo = int(tx_lo)
         assert(sdr_rxtx.tx_lo==tx_lo)
         sdr_rxtx.tx_enabled_channels = [1]
@@ -112,7 +112,7 @@ def setup_rx_and_tx(args):
     sdr_receiver.rx_enabled_channels = [0, 1]
     sdr_receiver.sample_rate = fs
     assert(sdr_receiver.sample_rate==fs)
-    sdr_receiver.rx_rf_bandwidth = int(fs) #fc0*5) #TODO!
+    sdr_receiver.rx_rf_bandwidth = int(3*args.fi) #fc0*5) #TODO!
     sdr_receiver.rx_lo = int(rx_lo)
     sdr_receiver.gain_control_mode = rx_mode
     sdr_receiver.rx_hardwaregain_chan0 = int(rx_gain)
@@ -136,8 +136,8 @@ def setup_rx_and_tx(args):
         #setup TX
         sdr_emitter.sample_rate=emitter_fs
         assert(sdr_emitter.sample_rate==emitter_fs)
-        sdr_emitter.tx_rf_bandwidth = int(emitter_fs)
-        assert(sdr_emitter.tx_rf_bandwidth==int(emitter_fs))
+        sdr_emitter.tx_rf_bandwidth = int(3*args.fi)
+        assert(sdr_emitter.tx_rf_bandwidth==int(3*args.fi))
         sdr_emitter.tx_lo = int(tx_lo)
         assert(sdr_emitter.tx_lo==tx_lo)
         sdr_emitter.tx_enabled_channels = [0]
