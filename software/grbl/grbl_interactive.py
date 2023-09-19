@@ -78,6 +78,7 @@ class GRBLManager:
         self.position={'time':time.time(),'xy':np.zeros(2)}
         self.update_status()
         time.sleep(0.05)
+        self.collect=True
 
     def push_reset(self):
         self.s.write(b'\x18')

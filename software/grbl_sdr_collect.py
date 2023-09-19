@@ -6,9 +6,12 @@ import numpy as np
 
 def bounce_grbl(gm):
     direction=None
-    while True:
+    while gm.collect:
         print("TRY TO BOUNCE")
-        direction=gm.bounce(1,direction=direction)
+        try:
+            direction=gm.bounce(1,direction=direction)
+        except Exception as e:
+            print(e)
         print("TRY TO BOUNCE RET")
         time.sleep(15) # cool off the motor
 
@@ -32,7 +35,7 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     #setup output recorder
-    record_matrix = np.memmap(args.out, dtype='float32', mode='w+', shape=(args.record_n,4))
+    record_matrix = np.memmap(args.out, dtype='float32', mode='w+', shape=(args.record_n,5))
 
     #setup GRBL
     gm=GRBLManager(args.grbl_serial)
@@ -58,12 +61,11 @@ if __name__=='__main__':
         current_time=time.time()-time_offset
         avg_phase_diff=get_avg_phase(sdr_rx)
         xy=gm.position['xy']
-        record_matrix[idx]=np.array([current_time,xy[0],xy[1],avg_phase_diff])
+        record_matrix[idx]=np.array([current_time,xy[0],xy[1],avg_phase_diff[0],avg_phase_diff[1]])
         print(record_matrix[idx])
         time.sleep(1.0/args.record_freq)
-    #x.join()
-
-
-
+    gm.collect=False
+    print("Done collecting!")
+    gm_thread.join()
     #plot_recv_signal(sdr_rx)
     

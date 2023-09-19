@@ -59,7 +59,7 @@ def setup_rxtx_and_phase_calibration(args):
         t = np.arange(0, tx_n)/fs # time at each point assuming we are sending samples at (1/fs)s
         iq0 = np.exp(1j*2*np.pi*fc0*t)*(2**14)
         #try to reset the tx
-        #sdr_rxtx.tx_destroy_buffer()
+        sdr_rxtx.tx_destroy_buffer()
         sdr_rxtx.tx_cyclic_buffer = True # this keeps repeating!
         assert(sdr_rxtx.tx_cyclic_buffer==True)
         sdr_rxtx.tx(iq0)  # Send Tx data.
@@ -86,9 +86,11 @@ def setup_rxtx_and_phase_calibration(args):
           sdr_rxtx.rx()
           phase_calibrations[idx]=((np.angle(signal_matrix[0])-np.angle(signal_matrix[1]))%(2*np.pi)).mean() # TODO THIS BREAKS if diff is near 2*np.pi...
       if phase_calibrations.std()<1e-5:
+        sdr_rxtx.tx_destroy_buffer()
         print("FINAL PHASE CALIBRATION",phase_calibrations.mean(),phase_calibrations.mean()/(2*np.pi))
         sdr_rxtx.phase_calibration=phase_calibrations.mean()
         return sdr_rxtx
+    sdr_rxtx.tx_destroy_buffer()
     return None
 
 
@@ -153,6 +155,7 @@ def setup_rx_and_tx(args):
         iq0 = np.exp(1j*2*np.pi*fc0*t)*(2**14)
         #try to reset the tx
         #sdr_emitter.tx_destroy_buffer()
+        sdr_emitter.tx_destroy_buffer()
         sdr_emitter.tx_cyclic_buffer = True # this keeps repeating!
         assert(sdr_emitter.tx_cyclic_buffer==True)
         sdr_emitter.tx(iq0)  # Send Tx data.
