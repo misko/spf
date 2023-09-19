@@ -172,17 +172,25 @@ def setup_rx_and_tx(args):
     return sdr_receiver,sdr_emitter
 
 
-def circular_mean(angles):
-    return np.arctan2(np.sin(angles).sum(),np.cos(angles).sum())%(2*np.pi)
+def circular_mean(angles,trim=50.0):
+    cm=np.arctan2(np.sin(angles).sum(),np.cos(angles).sum())%(2*np.pi)
+    dists=np.vstack([2*np.pi-np.abs(cm-angles),np.abs(cm-angles)]).min(axis=0)
+    _angles=angles[dists<np.percentile(dists,100.0-trim)]
+    _cm=np.arctan2(np.sin(_angles).sum(),np.cos(_angles).sum())%(2*np.pi)
+    return cm,_cm
 
-def get_avg_phase(sdr_rx):
+def get_avg_phase(sdr_rx,trim=0.0):
     rx_n=sdr_rx.rx_buffer_size
     t=np.arange(rx_n)
     signal_matrix=np.vstack(sdr_rx.rx())
     signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
 
     diffs=(np.angle(signal_matrix[0])-np.angle(signal_matrix[1]))%(2*np.pi)
-    return circular_mean(diffs)
+    mean,_mean=circular_mean(diffs,trim=50.0)
+    #dist_to_mean=
+    #min(2pi-|p-u|,|p-u)
+
+    return mean,_mean
 
 def plot_recv_signal(sdr_rx):
     fig,axs=plt.subplots(2,4,figsize=(16,6))
@@ -218,7 +226,10 @@ def plot_recv_signal(sdr_rx):
       diff=(np.angle(signal_matrix[0])-np.angle(signal_matrix[1]))%(2*np.pi)
       axs[0][3].clear()
       axs[0][3].scatter(t,diff,s=1)
-      axs[0][3].axhline(y = circular_mean(diff))
+      mean,_mean=circular_mean(diff)
+      #print(mean,_mean)
+      axs[0][3].axhline(y = mean)
+      axs[0][3].axhline(y = _mean,color='red')
       axs[0][3].set_ylim([0,2*np.pi])
       fig.canvas.draw()
       plt.pause(0.00001)
