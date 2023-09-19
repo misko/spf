@@ -217,8 +217,7 @@ if __name__=='__main__':
         elif line=='r':
             r=push_reset(s)
             print(r)
-        elif line=='f':
-
+        elif line=='bounce':
             #point=np.array([2491.49001749,2401.75483327])
             #direction=np.array([0.63471637,0.57157117])
             gm.bounce(20000)

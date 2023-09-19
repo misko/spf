@@ -3,9 +3,11 @@ import adi
 import numpy as np
 from math import gcd
 import matplotlib.pyplot as plt
+import time
 c=3e8
 
 def setup_rxtx_and_phase_calibration(args):
+    print("Starting inter antenna receiver phase calibration")
     fc0 = int(args.fi)
     fs = int(args.fs)    # must be <=30.72 MHz if both channels are enabled
     rx_lo = int(args.fc) #4e9
@@ -19,6 +21,7 @@ def setup_rxtx_and_phase_calibration(args):
 
     tx_gain_calibration=-50
 
+    emitter_online=False
     retries=0
     while retries<10:
         #try to setup TX and lets see if it works
@@ -65,7 +68,7 @@ def setup_rxtx_and_phase_calibration(args):
         sdr_rxtx.tx(iq0)  # Send Tx data.
         
         #give RX a chance to calm down
-        for _ in range(50):
+        for _ in range(10):
             sdr_rxtx.rx()
 
         #test to see what frequency we are seeing
@@ -74,9 +77,15 @@ def setup_rxtx_and_phase_calibration(args):
         sp = np.fft.fft(signal_matrix[0])
         max_freq=freq[np.abs(np.argmax(sp.real))]
         if np.abs(max_freq-args.fi)<(args.fs/rx_n+1):
-            print("TX ONLINE!")
+            print("Emitter online after %d retries" % retries)
+            emitter_online=True
             break
         retries+=1
+        sdr_rxtx=None
+        time.sleep(1)
+    if emitter_online==False:
+      print("Failed to bring emitter online")
+      return None
 
     #get some new data
     for retry in range(20):
@@ -87,7 +96,7 @@ def setup_rxtx_and_phase_calibration(args):
           phase_calibrations[idx]=((np.angle(signal_matrix[0])-np.angle(signal_matrix[1]))%(2*np.pi)).mean() # TODO THIS BREAKS if diff is near 2*np.pi...
       if phase_calibrations.std()<1e-5:
         sdr_rxtx.tx_destroy_buffer()
-        print("FINAL PHASE CALIBRATION",phase_calibrations.mean(),phase_calibrations.mean()/(2*np.pi))
+        print("Final phase calibration (radians) is %0.4f" % phase_calibrations.mean(),"(fraction of 2pi) %0.4f" % (phase_calibrations.mean()/(2*np.pi)))
         sdr_rxtx.phase_calibration=phase_calibrations.mean()
         return sdr_rxtx
     sdr_rxtx.tx_destroy_buffer()
@@ -169,11 +178,12 @@ def setup_rx_and_tx(args):
         sp = np.fft.fft(signal_matrix[0])
         max_freq=freq[np.abs(np.argmax(sp.real))]
         if np.abs(max_freq-args.fi)<(args.fs/rx_n+1):
-            print("TX ONLINE!")
-            break
+            print("Emitter online after %d retries" % retries)
+            return sdr_receiver,sdr_emitter
         retries+=1
-    return sdr_receiver,sdr_emitter
-
+        sdr_emitter=None
+        time.sleep(1)
+    return None,None
 
 def circular_mean(angles,trim=50.0):
     cm=np.arctan2(np.sin(angles).sum(),np.cos(angles).sum())%(2*np.pi)
@@ -213,11 +223,13 @@ def plot_recv_signal(sdr_rx):
         axs[idx][0].scatter(t,signal_matrix[idx].real,s=1)
         axs[idx][0].set_xlabel("Time")
         axs[idx][0].set_ylabel("Real(signal)")
+        axs[idx][0].set_ylim([-1000,1000])
 
         sp = np.fft.fft(signal_matrix[idx])
-        axs[idx][1].scatter(freq, sp.real,s=1) #, freq, sp.imag)
+        axs[idx][1].scatter(freq, np.log(np.abs(sp.real)),s=1) #, freq, sp.imag)
         axs[idx][1].set_xlabel("Frequency bin")
         axs[idx][1].set_ylabel("Power")
+        axs[idx][1].set_ylim([-30,30])
         max_freq=freq[np.abs(np.argmax(sp.real))]
         axs[idx][1].axvline(
           x=max_freq,
@@ -231,6 +243,8 @@ def plot_recv_signal(sdr_rx):
         axs[idx][2].set_xlabel("I real(signal)")
         axs[idx][2].set_ylabel("Q imag(signal)")
         axs[idx][2].set_title("IQ plot recv (%d)" % idx) 
+        axs[idx][2].set_ylim([-300,300])
+        axs[idx][2].set_xlim([-300,300])
 
         axs[idx][0].set_title("Real signal recv (%d)" % idx)
         axs[idx][1].set_title("Power recv (%d)" % idx)
