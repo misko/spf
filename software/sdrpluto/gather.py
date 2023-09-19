@@ -209,9 +209,15 @@ def plot_recv_signal(sdr_rx):
       for idx in [0,1]:
         axs[idx][0].clear()
         axs[idx][1].clear()
+
         axs[idx][0].scatter(t,signal_matrix[idx].real,s=1)
+        axs[idx][0].set_xlabel("Time")
+        axs[idx][0].set_ylabel("Real(signal)")
+
         sp = np.fft.fft(signal_matrix[idx])
         axs[idx][1].scatter(freq, sp.real,s=1) #, freq, sp.imag)
+        axs[idx][1].set_xlabel("Frequency bin")
+        axs[idx][1].set_ylabel("Power")
         max_freq=freq[np.abs(np.argmax(sp.real))]
         axs[idx][1].axvline(
           x=max_freq,
@@ -222,6 +228,9 @@ def plot_recv_signal(sdr_rx):
 
         axs[idx][2].clear()
         axs[idx][2].scatter(signal_matrix[idx].real,signal_matrix[idx].imag,s=1)
+        axs[idx][2].set_xlabel("I real(signal)")
+        axs[idx][2].set_ylabel("Q imag(signal)")
+        axs[idx][2].set_title("IQ plot recv (%d)" % idx) 
 
         axs[idx][0].set_title("Real signal recv (%d)" % idx)
         axs[idx][1].set_title("Power recv (%d)" % idx)
@@ -231,9 +240,15 @@ def plot_recv_signal(sdr_rx):
       axs[0][3].scatter(t,diff,s=1)
       mean,_mean=circular_mean(diff)
       #print(mean,_mean)
-      axs[0][3].axhline(y = mean)
-      axs[0][3].axhline(y = _mean,color='red')
+      axs[0][3].axhline(y = mean,color='black',label='circular mean')
+      axs[0][3].axhline(y = _mean,color='red',label='trimmed circular mean')
       axs[0][3].set_ylim([0,2*np.pi])
+      axs[0][3].set_xlabel("Time")
+      axs[0][3].set_ylabel("Angle estimate")
+      axs[0][3].legend()
+      axs[0][3].set_title("Angle estimate")
+
+      plt.tight_layout()
       fig.canvas.draw()
       plt.pause(0.00001)
 
