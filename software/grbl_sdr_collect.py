@@ -1,5 +1,6 @@
 from sdrpluto.gather import * 
 from grbl.grbl_interactive import GRBLManager 
+from model_training_and_inference.utils.rf import beamformer
 import threading
 import time
 import numpy as np
@@ -60,13 +61,24 @@ if __name__=='__main__':
     gm_thread = threading.Thread(target=bounce_grbl, args=(gm,))
     gm_thread.start()
 
+    pos=np.array([[-0.03,0],[0.03,0]])
+
     time_offset=time.time()
     for idx in range(args.record_n):
         while not gm.position['is_moving']:
             print("wait for movement")
             time.sleep(1)
-        current_time=time.time()-time_offset
-        avg_phase_diff=get_avg_phase(sdr_rx)
+        #get some data
+        signal_matrix=sdr_rx.rx()
+        current_time=time.time()-time_offset # timestamp
+
+        beam_thetas,beam_sds,beam_steer=beamformer(
+          pos,
+          signal_matrix,
+          args.fc
+        )
+
+        avg_phase_diff=get_avg_phase(signal_matrix)
         xy=gm.position['xy']
         record_matrix[idx]=np.array([current_time,xy[0],xy[1],avg_phase_diff[0],avg_phase_diff[1]])
         print(record_matrix[idx])

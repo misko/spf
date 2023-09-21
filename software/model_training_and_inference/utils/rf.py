@@ -36,43 +36,67 @@ class Source(object):
     return signal
 
 class SinSource(Source):
-  def __init__(self,pos,amplitude,frequency,phase):
+  def __init__(self,pos,frequency,phase=0,amplitude=1):
     super().__init__(pos)
     self.frequency=frequency
     self.phase=phase
-    self.amplitude
+    self.amplitude=amplitude
 
   def signal(self,sampling_times):
     #return np.cos(2*np.pi*sampling_times*self.frequency+self.phase)+np.sin(2*np.pi*sampling_times*self.frequency+self.phase)*1j
-    return self.amplitude*np.sin(2*np.pi*sampling_times*self.frequency+self.phase)
+    return (self.amplitude*np.sin(2*np.pi*sampling_times*self.frequency+self.phase))#.reshape(1,-1)
 
 class MixedSource(Source):
-  def __init__(self,source_a,source_b):
+  def __init__(self,source_a,source_b,h=None):
     super().__init__(pos)
     self.source_a=source_a
     self.source_b=source_b
+    self.h=h
 
   def signal(self,sampling_times):
     return self.source_a(sampling_times)*self.source_b(sampling_times)
 
-class QAMSource(Source):
-  def __init__(self,pos,carrier_frequency,signal_frequency,sigma=0,IQ=(0,0)):
+class CarrierSource(Source):
+  def __init__(self,pos,carrier_frequency,if_source,phase=0,amplitude=1,h=None):
     super().__init__(pos)
-    self.lo_in_phase=SinSource(pos,IQ[0],signal_frequency,-np.pi/2) # cos
-    self.lo_out_of_phase=SinSource(pos,IQ[1],signal_frequency,0) # sin
-    self.signal_source=SinSource(pos,carrier_frequency,0)
-    self.sigma=sigma
+    self.carrier_frequency=carrier_frequency
+    self.carrier_source=SinSource(pos,carrier_frequency,phase,amplitude)
+    self.if_source=if_source
+    self.h=h
 
   def signal(self,sampling_times):
-    signal=((self.lo_in_phase.signal(sampling_times)+self.lo_out_of_phase.signal(sampling_times))/2)*self.signal_source.signal(sampling_times)
-    signal+=(np.random.randn(sampling_times.shape[0], 1)*self.sigma) #.view(np.cdouble).reshape(-1)
-    return signal
+    return (self.carrier_source.signal(sampling_times)*self.if_source.signal(sampling_times)) #.reshape(1,-1)
 
-  def demod_signal(self,signal,demod_times):
-    signal_if=signal*self.signal(demod_times)
-    _i=signal_if*self.lo_in_phase.signal(demod_times)
-    _q=signal_if*self.lo_out_of_phase.signal(demod_times)
-    return _i,_q
+  def demod_signal(self,signal,demod_times,use_filter=True,nested=False):
+    signal_if=signal*self.carrier_source.signal(demod_times)
+    if self.h is not None and use_filter:
+      signal_if=np.array([np.convolve(x, self.h, mode='same') for x in signal_if ])
+    if not nested:
+      return signal_if
+    return self.if_source.demod_signal(signal_if,demod_times,use_filter=use_filter)
+     
+
+class QAMSource(Source):
+  def __init__(self,pos,signal_frequency,sigma=0,IQ=(0,0),h=None):
+    super().__init__(pos)
+    self.lo_in_phase=SinSource(pos,signal_frequency,-np.pi/2) #,amplitude=IQ[0]) # cos
+    self.lo_out_of_phase=SinSource(pos,signal_frequency,0) #,amplitude=IQ[1]) # sin
+    self.sigma=sigma
+    self.IQ=IQ
+    self.h=h
+
+  def signal(self,sampling_times):
+    signal=((self.lo_in_phase.signal(sampling_times)*self.IQ[0]+self.lo_out_of_phase.signal(sampling_times)*self.IQ[1])/2)
+    #signal+=(np.random.randn(sampling_times.shape[0])*self.sigma) #.view(np.cdouble).reshape(-1)
+    return signal #.reshape(1,-1)
+
+  def demod_signal(self,signal,demod_times,use_filter=True):
+    _i=signal*self.lo_in_phase.signal(demod_times)
+    _q=signal*self.lo_out_of_phase.signal(demod_times)
+    if self.h is not None and use_filter:
+      _i=np.array([np.convolve(x,self.h,mode='same') for x in _i ])
+      _q=np.array([np.convolve(x,self.h,mode='same') for x in _q ])
+    return _i+1j*_q
 
 class NoiseWrapper(Source):
   def __init__(self,internal_source,sigma=1):
@@ -147,7 +171,6 @@ class Detector(object):
   def get_signal_matrix(self,start_time,duration,rx_lo=0):
     n_samples=int(duration*self.sampling_frequency)
     base_times=start_time+rf_linspace(0,n_samples-1,n_samples)/self.sampling_frequency
-
     #sample_matrix=np.zeros((self.receiver_positions.shape[0],n_samples),dtype=np.cdouble) # receivers x samples
     sample_matrix=np.random.randn(
         self.receiver_positions.shape[0],n_samples,2).view(np.cdouble).reshape(self.receiver_positions.shape[0],n_samples)*self.sigma
@@ -155,20 +178,24 @@ class Detector(object):
     if len(self.sources)==0:
       return sample_matrix
 
-    distances=self.distance_receiver_to_source().T # sources x receivers
+    distances=self.distance_receiver_to_source().T # sources x receivers # TODO numerical stability,  maybe project angle and calculate diff
+    #TODO diff can be small relative to absolute distance
     time_delays=distances/c 
     base_time_offsets=base_times[None,None]-(distances/c)[...,None] # sources x receivers x sampling intervals
     distances_squared=distances**2
-
+    raw_signal=[]
     for source_index,_source in enumerate(self.sources):
       #get the signal from the source for these times
-      signal=_source.signal(base_time_offsets[source_index].reshape(-1)).reshape(base_time_offsets[source_index].shape) # receivers x sampling intervals
+      print(_source)
+      signal=_source.signal(base_time_offsets[source_index]) #.reshape(base_time_offsets[source_index].shape) # receivers x sampling intervals
+      raw_signal.append(signal)
       normalized_signal=signal/distances_squared[source_index][...,None]
       _base_times=np.broadcast_to(base_times,normalized_signal.shape) # broadcast the basetimes for rx_lo on all receivers
-      sample_matrix+=_source.demod_signal(
+      ds=_source.demod_signal(
               normalized_signal,
-              _base_times)
-    return sample_matrix
+              _base_times,nested=True)
+      sample_matrix+=ds
+    return sample_matrix,raw_signal
 
 
 @functools.lru_cache(maxsize=1024)
@@ -232,7 +259,7 @@ def dbfs(raw_data):
 
 def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1,offset=0.0):
     thetas=np.linspace(-np.pi,np.pi,spacing)#-offset
-    source_vectors=np.vstack([np.cos(thetas+offset)[None],np.sin(thetas+offset)[None]]).T
+    source_vectors=np.vstack([np.sin(thetas+offset)[None],np.cos(thetas+offset)[None]]).T
     #thetas,source_vectors=get_thetas(spacing)
     steer_dot_signal=np.zeros(thetas.shape[0])
     carrier_wavelength=c/carrier_frequency
@@ -240,6 +267,7 @@ def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=No
     projection_of_receiver_onto_source_directions=(source_vectors @ receiver_positions.T)
     args=2*np.pi*projection_of_receiver_onto_source_directions/carrier_wavelength
     steering_vectors=np.exp(-1j*args)
+
     if calibration is not None:
       steering_vectors=steering_vectors*calibration[None]
     #the delay sum is performed in the matmul step, the absolute is over the summed value

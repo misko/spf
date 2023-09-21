@@ -1,6 +1,7 @@
 import argparse
 import adi
 import numpy as np
+from spf.software.model_training_and_inference.utils.rf import beamformer
 from math import gcd
 import matplotlib.pyplot as plt
 import time
@@ -192,20 +193,17 @@ def circular_mean(angles,trim=50.0):
     _cm=np.arctan2(np.sin(_angles).sum(),np.cos(_angles).sum())%(2*np.pi)
     return cm,_cm
 
-def get_avg_phase(sdr_rx,trim=0.0):
-    rx_n=sdr_rx.rx_buffer_size
-    t=np.arange(rx_n)
+def get_avg_phase(signal_matrix,trim=0.0):
     signal_matrix=np.vstack(sdr_rx.rx())
     signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
 
     diffs=(np.angle(signal_matrix[0])-np.angle(signal_matrix[1]))%(2*np.pi)
     mean,_mean=circular_mean(diffs,trim=50.0)
-    #dist_to_mean=
-    #min(2pi-|p-u|,|p-u)
 
     return mean,_mean
 
 def plot_recv_signal(sdr_rx):
+    pos=np.array([[-0.03,0],[0.03,0]])
     fig,axs=plt.subplots(2,4,figsize=(16,6))
 
     rx_n=sdr_rx.rx_buffer_size
@@ -213,6 +211,12 @@ def plot_recv_signal(sdr_rx):
     while True:
       signal_matrix=np.vstack(sdr_rx.rx())
       signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
+
+      beam_thetas,beam_sds,beam_steer=beamformer(
+        pos,
+        signal_matrix,
+        args.fc
+      )
 
       freq = np.fft.fftfreq(t.shape[-1],d=1.0/sdr_rx.sample_rate)
       assert(t.shape[-1]==rx_n)
@@ -261,6 +265,8 @@ def plot_recv_signal(sdr_rx):
       axs[0][3].set_ylabel("Angle estimate")
       axs[0][3].legend()
       axs[0][3].set_title("Angle estimate")
+      axs[1][3].clear()
+      axs[1][3].plot(beam_thetas,beam_sds)
 
       plt.tight_layout()
       fig.canvas.draw()
@@ -277,7 +283,7 @@ if __name__=='__main__':
     parser.add_argument("--rx-gain", type=int, help="RX gain",required=False,default=-3)
     parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=-8)
     parser.add_argument("--rx-mode", type=str, help="rx mode",required=False,default="fast_attack",choices=['manual','slow_attack','fast_attack'])
-    parser.add_argument("--rx-n", type=int, help="RX buffer size",required=False,default=2**12)
+    parser.add_argument("--rx-n", type=int, help="RX buffer size",required=False,default=2**9) #12
     args = parser.parse_args()
 
     #calibrate the receiver
