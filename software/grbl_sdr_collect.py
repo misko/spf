@@ -6,6 +6,8 @@ import time
 import numpy as np
 import sys
 
+import pickle
+
 def bounce_grbl(gm):
     direction=None
     while gm.collect:
@@ -37,7 +39,7 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     #setup output recorder
-    record_matrix = np.memmap(args.out, dtype='float32', mode='w+', shape=(args.record_n,5))
+    record_matrix = np.memmap(args.out, dtype='float32', mode='w+', shape=(args.record_n,5+65))
 
     #setup GRBL
     gm=GRBLManager(args.grbl_serial)
@@ -70,6 +72,7 @@ if __name__=='__main__':
             time.sleep(1)
         #get some data
         signal_matrix=sdr_rx.rx()
+        signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
         current_time=time.time()-time_offset # timestamp
 
         beam_thetas,beam_sds,beam_steer=beamformer(
@@ -80,9 +83,13 @@ if __name__=='__main__':
 
         avg_phase_diff=get_avg_phase(signal_matrix)
         xy=gm.position['xy']
-        record_matrix[idx]=np.array([current_time,xy[0],xy[1],avg_phase_diff[0],avg_phase_diff[1]])
-        print(record_matrix[idx])
+        record_matrix[idx]=np.hstack(
+                [
+                    np.array([current_time,xy[0],xy[1],avg_phase_diff[0],avg_phase_diff[1]]),
+                    beam_sds])
         time.sleep(1.0/args.record_freq)
+        if idx%1000==0:
+            print(idx, float(idx)/args.record_n,'%',time.time()-time_offset)
     gm.collect=False
     print("Done collecting!")
     gm_thread.join()

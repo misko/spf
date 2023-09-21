@@ -194,8 +194,8 @@ def circular_mean(angles,trim=50.0):
     return cm,_cm
 
 def get_avg_phase(signal_matrix,trim=0.0):
-    signal_matrix=np.vstack(sdr_rx.rx())
-    signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
+    #signal_matrix=np.vstack(sdr_rx.rx())
+    #signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
 
     diffs=(np.angle(signal_matrix[0])-np.angle(signal_matrix[1]))%(2*np.pi)
     mean,_mean=circular_mean(diffs,trim=50.0)

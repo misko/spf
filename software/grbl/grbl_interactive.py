@@ -204,8 +204,8 @@ class GRBLManager:
 
 if __name__=='__main__':
     if len(sys.argv)!=2:
-            print("%s device" % sys.argv[0])
-            sys.exit(1)
+        print("grblman: %s device" % sys.argv[0])
+        sys.exit(1)
 
     serial_fn=sys.argv[1]
 
