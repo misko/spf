@@ -243,8 +243,8 @@ def plot_recv_signal(sdr_rx):
         axs[idx][2].set_xlabel("I real(signal)")
         axs[idx][2].set_ylabel("Q imag(signal)")
         axs[idx][2].set_title("IQ plot recv (%d)" % idx) 
-        axs[idx][2].set_ylim([-300,300])
-        axs[idx][2].set_xlim([-300,300])
+        axs[idx][2].set_ylim([-600,600])
+        axs[idx][2].set_xlim([-600,600])
 
         axs[idx][0].set_title("Real signal recv (%d)" % idx)
         axs[idx][1].set_title("Power recv (%d)" % idx)
