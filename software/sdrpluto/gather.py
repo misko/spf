@@ -276,7 +276,7 @@ if __name__=='__main__':
     parser.add_argument("--cal0", type=int, help="Rx0 calibration phase offset in degrees",required=False,default=180)
     parser.add_argument("--rx-gain", type=int, help="RX gain",required=False,default=-3)
     parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=-8)
-    parser.add_argument("--rx-mode", type=str, help="rx mode",required=False,default="slow_attack",choices=['manual','slow_attack','fast_attack'])
+    parser.add_argument("--rx-mode", type=str, help="rx mode",required=False,default="fast_attack",choices=['manual','slow_attack','fast_attack'])
     parser.add_argument("--rx-n", type=int, help="RX buffer size",required=False,default=2**12)
     args = parser.parse_args()
 
