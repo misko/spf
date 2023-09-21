@@ -24,6 +24,7 @@ def rotation_matrix(orientation):
 
 c=3e8 # speed of light
 
+
 class Source(object):
   def __init__(self,pos):
     self.pos=np.array(pos)
@@ -35,13 +36,15 @@ class Source(object):
     return signal
 
 class SinSource(Source):
-  def __init__(self,pos,frequency,phase):
+  def __init__(self,pos,amplitude,frequency,phase):
     super().__init__(pos)
     self.frequency=frequency
     self.phase=phase
+    self.amplitude
 
   def signal(self,sampling_times):
-    return np.cos(2*np.pi*sampling_times*self.frequency+self.phase)+np.sin(2*np.pi*sampling_times*self.frequency+self.phase)*1j
+    #return np.cos(2*np.pi*sampling_times*self.frequency+self.phase)+np.sin(2*np.pi*sampling_times*self.frequency+self.phase)*1j
+    return self.amplitude*np.sin(2*np.pi*sampling_times*self.frequency+self.phase)
 
 class MixedSource(Source):
   def __init__(self,source_a,source_b):
@@ -55,18 +58,21 @@ class MixedSource(Source):
 class QAMSource(Source):
   def __init__(self,pos,carrier_frequency,signal_frequency,sigma=0,IQ=(0,0)):
     super().__init__(pos)
-    self.lo_in_phase=SinSource(pos,carrier_frequency,-np.pi/2+IQ[0]) # cos
-    self.lo_out_of_phase=SinSource(pos,carrier_frequency,0+IQ[1]) # cos
-    self.signal_source=SinSource(pos,signal_frequency,0)
+    self.lo_in_phase=SinSource(pos,IQ[0],signal_frequency,-np.pi/2) # cos
+    self.lo_out_of_phase=SinSource(pos,IQ[1],signal_frequency,0) # sin
+    self.signal_source=SinSource(pos,carrier_frequency,0)
     self.sigma=sigma
 
   def signal(self,sampling_times):
-    signal=self.signal_source.signal(sampling_times)
-    signal=((self.lo_in_phase.signal(sampling_times)*signal.real+\
-              self.lo_out_of_phase.signal(sampling_times)*signal.imag)/2)
-    signal+=(np.random.randn(sampling_times.shape[0], 2)*self.sigma).view(np.cdouble).reshape(-1)
+    signal=((self.lo_in_phase.signal(sampling_times)+self.lo_out_of_phase.signal(sampling_times))/2)*self.signal_source.signal(sampling_times)
+    signal+=(np.random.randn(sampling_times.shape[0], 1)*self.sigma) #.view(np.cdouble).reshape(-1)
     return signal
-  
+
+  def demod_signal(self,signal,demod_times):
+    signal_if=signal*self.signal(demod_times)
+    _i=signal_if*self.lo_in_phase.signal(demod_times)
+    _q=signal_if*self.lo_out_of_phase.signal(demod_times)
+    return _i,_q
 
 class NoiseWrapper(Source):
   def __init__(self,internal_source,sigma=1):

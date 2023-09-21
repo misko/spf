@@ -3,6 +3,7 @@ from grbl.grbl_interactive import GRBLManager
 import threading
 import time
 import numpy as np
+import sys
 
 def bounce_grbl(gm):
     direction=None
@@ -24,12 +25,12 @@ if __name__=='__main__':
     parser.add_argument("--fs", type=int, help="Sampling frequency",required=False,default=16e6)
     parser.add_argument("--cal0", type=int, help="Rx0 calibration phase offset in degrees",required=False,default=180)
     #parser.add_argument("--d", type=int, help="Distance apart",required=False,default=0.062)
-    parser.add_argument("--rx-gain", type=int, help="RX gain",required=False,default=40)
+    parser.add_argument("--rx-gain", type=int, help="RX gain",required=False,default=-3)
     parser.add_argument("--tx-gain", type=int, help="TX gain",required=False,default=-3)
     parser.add_argument("--grbl-serial", type=str, help="serial file for GRBL",required=True)
     parser.add_argument("--out", type=str, help="output file",required=True)
     parser.add_argument("--record-freq", type=int, help="record freq",required=False,default=5)
-    parser.add_argument("--rx-mode", type=str, help="rx mode",required=False,default="slow_attack")
+    parser.add_argument("--rx-mode", type=str, help="rx mode",required=False,default="fast_attack")
     parser.add_argument("--record-n", type=int, help="records",required=False,default=43200)
     parser.add_argument("--rx-n", type=int, help="RX buffer size",required=False,default=2**12)
     args = parser.parse_args()
@@ -42,9 +43,15 @@ if __name__=='__main__':
 
     #calibrate the receiver
     sdr_rx=setup_rxtx_and_phase_calibration(args)
+    if sdr_rx==None:
+        print("Failed phase calibration, exiting")
+        sys.exit(1)
     phase_calibration=sdr_rx.phase_calibration
     sdr_rx=None
     sdr_rx,sdr_tx=setup_rx_and_tx(args)
+    if sdr_rx==None or sdr_tx==None:
+        print("Failed setup, exiting")
+        sys.exit(1)
 
     #apply the previous calibration
     sdr_rx.phase_calibration=phase_calibration
