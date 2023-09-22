@@ -139,21 +139,27 @@ class GRBLManager:
         if direction is None:
             theta=np.random.uniform(2*np.pi)
             direction=np.array([np.sin(theta),np.cos(theta)])
+        percent_random=0.05
+        theta=np.random.uniform(2*np.pi)
+        direction=(1-percent_random)*direction+percent_random*np.array([np.sin(theta),np.cos(theta)])
+        direction=direction/np.linalg.norm(direction)
+        print("bounce",direction,np.linalg.norm(direction))
         for _ in range(bounces):
             to_points,new_direction=self.single_bounce(direction)
-            #print("MOVE")
+            if len(to_points)>0:
+                print("MOVE",to_points[0],to_points[-1])
             for point in to_points:
                 self.move_to(point)
                 #print("MOVE")
                 self.update_status()
-                while np.linalg.norm(self.position['xy']-point)>200:
+                while np.linalg.norm(self.position['xy']-point)>100:
                     self.update_status()
             if (new_direction!=direction).any(): # we are changing direction
                 self.wait_while_moving()
                 direction=new_direction
         return direction
 
-    def single_bounce(self,direction,xy=None,step_size=30):
+    def single_bounce(self,direction,xy=None,step_size=5):
         #find current position
         #pick a random direction
         #take full field step 

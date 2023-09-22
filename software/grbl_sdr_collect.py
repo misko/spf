@@ -70,6 +70,7 @@ if __name__=='__main__':
         while not gm.position['is_moving']:
             print("wait for movement")
             time.sleep(1)
+
         #get some data
         signal_matrix=sdr_rx.rx()
         signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
@@ -87,9 +88,19 @@ if __name__=='__main__':
                 [
                     np.array([current_time,xy[0],xy[1],avg_phase_diff[0],avg_phase_diff[1]]),
                     beam_sds])
-        time.sleep(1.0/args.record_freq)
-        if idx%1000==0:
-            print(idx, float(idx)/args.record_n,'%',time.time()-time_offset)
+        #time.sleep(1.0/args.record_freq)
+
+        if idx%50==0:
+            elapsed=time.time()-time_offset
+            rate=elapsed/(idx+1)
+            print(idx,
+                    "mean: %0.4f" % avg_phase_diff[0],
+                    "_mean: %0.4f" % avg_phase_diff[1],
+                    "%0.4f" % (float(idx)/args.record_n),
+                    '%',
+                    "elapsed(min): %0.1f" % (elapsed/60),
+                    "rate(s/idx): %0.3f" % rate,
+                    "remaining(min): %0.3f" % ((args.record_n-idx)*rate/60))
     gm.collect=False
     print("Done collecting!")
     gm_thread.join()
