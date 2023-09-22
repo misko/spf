@@ -96,7 +96,7 @@ if __name__=='__main__':
             print(idx,
                     "mean: %0.4f" % avg_phase_diff[0],
                     "_mean: %0.4f" % avg_phase_diff[1],
-                    "%0.4f" % (float(idx)/args.record_n),
+                    "%0.4f" % (100.0*float(idx)/args.record_n),
                     '%',
                     "elapsed(min): %0.1f" % (elapsed/60),
                     "rate(s/idx): %0.3f" % rate,
