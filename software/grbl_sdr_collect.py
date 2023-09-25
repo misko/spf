@@ -5,7 +5,7 @@ import threading
 import time
 import numpy as np
 import sys
-
+import os
 import pickle
 
 def bounce_grbl(gm):
@@ -72,7 +72,12 @@ if __name__=='__main__':
             time.sleep(1)
 
         #get some data
-        signal_matrix=sdr_rx.rx()
+        try:
+            signal_matrix=sdr_rx.rx()
+        except Exception as e:
+            print("Failed to receive RX data! removing file",e)
+            os.remove(args.out)
+            break
         signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
         current_time=time.time()-time_offset # timestamp
 
