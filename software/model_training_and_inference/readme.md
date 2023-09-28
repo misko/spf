@@ -21,11 +21,11 @@ To see if the output is reasonable we can run
 
 Which plots the full first (idx=0) session.
 
-![session 0](images/session_reference_example0.gif)
+![session 0](../../images/session_reference_example0.gif)
 
 or second (idx=1) session.
 
-![session 1](images/session_reference_example1.gif)
+![session 1](../../images/session_reference_example1.gif)
 
 
 ## Generate some basic data
