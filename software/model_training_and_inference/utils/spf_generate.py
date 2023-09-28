@@ -23,14 +23,14 @@ class BoundedPoint:
     self.delta_time=delta_time
     self.width=width
 
-  def time_step(self):
+  def time_step(self,eps=1e-6):
     if np.linalg.norm(self.v)==0:
       return np.array(self.pos),0.0,np.zeros(2)
     self.pos+=self.v*self.delta_time
 
     for idx in [0,1]:
-      while self.pos[idx]>self.width or self.pos[idx]<0:
-        self.pos=np.clip(self.pos,0,self.width)
+      while self.pos[idx]>(self.width-eps) or self.pos[idx]<0:
+        self.pos=np.clip(self.pos,0,self.width-eps)
         self.v[idx]=-self.v[idx]
     if np.linalg.norm(self.v)>0:
       return np.array(self.pos),np.arctan2(self.v[0],self.v[1]),self.v
