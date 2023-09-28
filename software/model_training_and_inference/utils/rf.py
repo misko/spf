@@ -35,6 +35,16 @@ class Source(object):
   def demod_signal(self,signal,demod_times):
     return signal
 
+class IQSource(Source):
+  def __init__(self,pos,frequency,phase=0,amplitude=1):
+    super().__init__(pos)
+    self.frequency=frequency
+    self.phase=phase
+    self.amplitude=amplitude
+
+  def signal(self,sampling_times):
+    return np.cos(2*np.pi*sampling_times*self.frequency+self.phase)+np.sin(2*np.pi*sampling_times*self.frequency+self.phase)*1j
+
 class SinSource(Source):
   def __init__(self,pos,frequency,phase=0,amplitude=1):
     super().__init__(pos)
@@ -72,6 +82,7 @@ class CarrierSource(Source):
     if self.h is not None and use_filter:
       signal_if=np.array([np.convolve(x, self.h, mode='same') for x in signal_if ])
     if not nested:
+      print("NOT NESTED")
       return signal_if
     return self.if_source.demod_signal(signal_if,demod_times,use_filter=use_filter)
      
@@ -105,7 +116,8 @@ class NoiseWrapper(Source):
     self.sigma=sigma
 
   def signal(self,sampling_times):
-    return self.internal_source.signal(sampling_times) + (np.random.randn(sampling_times.shape[0], 2)*self.sigma).view(np.cdouble).reshape(-1)
+    assert(sampling_times.ndim==2) # receivers x time
+    return self.internal_source.signal(sampling_times) + (np.random.randn(*sampling_times.shape)+np.random.randn(*sampling_times.shape)*1j)*self.sigma
 
 class Detector(object):
   def __init__(self,sampling_frequency,oreintation=0,sigma=0.0):
@@ -186,16 +198,18 @@ class Detector(object):
     raw_signal=[]
     for source_index,_source in enumerate(self.sources):
       #get the signal from the source for these times
-      print(_source)
       signal=_source.signal(base_time_offsets[source_index]) #.reshape(base_time_offsets[source_index].shape) # receivers x sampling intervals
       raw_signal.append(signal)
-      normalized_signal=signal/distances_squared[source_index][...,None]
+      #normalized_signal=signal/distances_squared[source_index][...,None]
+      normalized_signal=signal
       _base_times=np.broadcast_to(base_times,normalized_signal.shape) # broadcast the basetimes for rx_lo on all receivers
+      demod_times=np.broadcast_to(_base_times.mean(axis=0,keepdims=True),_base_times.shape) #TODO this just takes the average?
       ds=_source.demod_signal(
               normalized_signal,
-              _base_times,nested=True)
+              demod_times) # TODO nested demod?
+      #print(_base_times.shape,"BT")
       sample_matrix+=ds
-    return sample_matrix,raw_signal
+    return sample_matrix #,raw_signal,demod_times,base_time_offsets[0]
 
 
 @functools.lru_cache(maxsize=1024)
