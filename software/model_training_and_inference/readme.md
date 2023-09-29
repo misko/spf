@@ -15,7 +15,7 @@ This creates a dataset with,
 
 This should generate a data configuration, but not the dataset, since `--live true` is set, which means generate the data on the fly instead. 
 
-## Dataset contents
+## Raw dataset contents
 
 - broadcasting_positions_at_t, (time_steps,1), an int representing which source is broadcasting at any single time
 - source_positions_at_t, (time_steps,nsources,2), 2 floats (xy) for each source, representing position of the source at t
@@ -31,6 +31,28 @@ This should generate a data configuration, but not the dataset, since `--live tr
 - detector_position_at_t, (time_steps,2), 2 floats (xy) describing the position of the detector at any time t
 - source_theta_at_t, (time_steps,1), 1 float representing the difference in angle between the detector orientation and the broadcasting source
 - source_distance_at_t':source_distance_at_t, (time_steps,1), 1 float reprensenting the distance to the source currently broadcasting
+
+## Collated dataset for trajectory net
+
+- drone_state, (batch,time_steps, 8) 
+	- detector_position_at_t_normalized_centered, 2 cols (idx=0,1)
+  - normalized_01_times, times normalized to 0...1 interval, 1 col (idx=2)
+  - normalized_pirads_space_theta, units are pi*rad , orientation of relative to last xy position, movement direction, 1 col (idx=5)
+  - space_delta, (width normalized) difference vector of detector from last time step to now, 2 col (idx=3,4)
+  - space_dist, (width normalized) distance travelled since last time point, 1 col (idx=6)
+  - normalized_pirads_detector_theta, units are pi*rad , orientation of detector relative to x/y, 1 col (idx=7)
+- emitter_position_and_velocity, (batch,time_steps,nsources,4)
+  - source_positions_at_t_normalized_centered
+  - source_velocities_at_t_normalized
+- emitters_broadcasting, (batch, time_steps, nsources,1) , which emitter is broadcasting [0/1]
+- emitters_n_broadcasts, (batch, time_steps, nsourcs, 1) , how many times now+previous has this emitter broadcast
+- radio_feature, (batch, timesteps, 1+len(thetas))
+  - torch.log(d['beam_former_outputs_at_t'].mean(axis=2,keepdim=True))/20 , average power
+  - d['beam_former_outputs_at_t']/d['beam_former_outputs_at_t'].mean(axis=2,keepdim=True), mean normalized bf outputs
+
+## Running a simple training loop
+
+python 14_task3_model_training.py --dataset ./sessions-reference  --mb 64 --workers 0 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 256 --plot-every 2048  --output-prefix output_mb64_reference_ --device mps --n-layers 1 4
 
 ## Visualizing sessions
 
