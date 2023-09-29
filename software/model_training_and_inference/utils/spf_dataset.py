@@ -1,3 +1,8 @@
+####
+# Experiment 1 : wall drones , receiver center is x=135.27 cm, y=264.77cm, dist between is 6cm
+###
+
+
 import os
 import pickle
 
@@ -167,7 +172,6 @@ def collate_fn_transformer_filter(_in):
     torch.zeros(b,1,1),
     torch.sqrt(torch.pow(space_diffs,2).sum(axis=2,keepdim=True))
   ],axis=1)
-  breakpoint()
   return {
     'drone_state':torch.cat(
     [
