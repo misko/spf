@@ -33,7 +33,7 @@ class BoundedPoint:
         self.pos=np.clip(self.pos,0,self.width-eps)
         self.v[idx]=-self.v[idx]
     if np.linalg.norm(self.v)>0:
-      return np.array(self.pos),np.arctan2(self.v[0],self.v[1]),self.v
+      return np.array(self.pos),np.arctan2(self.v[1],self.v[0]),self.v
     return np.array(self.pos),0.0,np.zeros(2)
 
 
@@ -205,7 +205,7 @@ def generate_session(args_and_session_idx):
 
     if tdm_source_idx>=0:
       diff=current_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
-      source_theta_at_t[t_idx]=(np.arctan2(diff[[0]],diff[[1]])-d.orientation+np.pi)%(2*np.pi)-np.pi  
+      source_theta_at_t[t_idx]=(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi  
       source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
     else:
       source_theta_at_t[t_idx]=0 #(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi  
@@ -218,13 +218,13 @@ def generate_session(args_and_session_idx):
       'signal_matrixs_at_t':signal_matrixs_at_t, # (time_steps,receivers,samples_per_snapshot)
       'beam_former_outputs_at_t':beam_former_outputs_at_t, #(timesteps,thetas_tested_for_steering)
       'thetas_at_t':thetas_at_t, #(timesteps,thetas_tested_for_steering)
-      'detector_position_phase_offsets_at_t':detector_position_phase_offsets_at_t,
-      'time_stamps':time_stamps,
-      'width_at_t':np.ones((args.time_steps,1),dtype=int)*args.width,
-      'detector_orientation_at_t':detector_orientation_at_t,
+      'detector_position_phase_offsets_at_t':detector_position_phase_offsets_at_t, # (timesteps,1) # phase offset for orbit dynamics
+      'time_stamps':time_stamps, # (timestamps,1) # the time for each step
+      'width_at_t':np.ones((args.time_steps,1),dtype=int)*args.width, # (timestamps, 1) # width in meters 
+      'detector_orientation_at_t':detector_orientation_at_t, # (timesteps,1 ) # orientation of the detector at t
       'detector_position_at_t':detector_position_at_t, # (time_steps,2[x,y])
-      'source_theta_at_t':source_theta_at_t,
-      'source_distance_at_t':source_distance_at_t,
+      'source_theta_at_t':source_theta_at_t, # (time_steps, 1) # if a source is broadcasting than the orientation from detector oreintation to source, else 0 
+      'source_distance_at_t':source_distance_at_t, # (time_steps,1) # if a source is broadcasting than this is the distance to that source from the detector
   }
   return session
 

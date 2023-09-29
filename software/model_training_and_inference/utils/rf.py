@@ -120,13 +120,13 @@ class NoiseWrapper(Source):
     return self.internal_source.signal(sampling_times) + (np.random.randn(*sampling_times.shape)+np.random.randn(*sampling_times.shape)*1j)*self.sigma
 
 class Detector(object):
-  def __init__(self,sampling_frequency,oreintation=0,sigma=0.0):
+  def __init__(self,sampling_frequency,orientation=0,sigma=0.0):
     self.sources=[]
     self.source_positions=None
     self.receiver_positions=None
     self.sampling_frequency=sampling_frequency
     self.position_offset=np.zeros(2)
-    self.orientation=0.0
+    self.orientation=orientation
     self.sigma=sigma
 
   def add_source(self,source):

@@ -93,9 +93,9 @@ class SessionsDatasetTask2(SessionsDataset):
 	def __getitem__(self,idx):
 		d=super().__getitem__(idx)
 		#normalize these before heading out
-		d['source_positions_at_t_normalized']=2*(d['source_positions_at_t']/self.args.width-0.5)
+		d['source_positions_at_t_normalized_centered']=2*(d['source_positions_at_t']/self.args.width-0.5)
 		d['source_velocities_at_t_normalized']=d['source_velocities_at_t']/self.args.width
-		d['detector_position_at_t_normalized']=2*(d['detector_position_at_t']/self.args.width-0.5)
+		d['detector_position_at_t_normalized_centered']=2*(d['detector_position_at_t']/self.args.width-0.5)
 		d['source_distance_at_t_normalized']=d['source_distance_at_t'].mean(axis=2)/(self.args.width/2)
 		return d #,d['source_positions_at_t']
 
@@ -148,11 +148,11 @@ def collate_fn_transformer_filter(_in):
 	d={ k:torch.from_numpy(np.stack([ x[k] for x in _in ])) for k in _in[0]}
 	b,s,n_sources,_=d['source_positions_at_t'].shape
 
-	times=d['time_stamps']/(0.0000001+d['time_stamps'].max(axis=1,keepdim=True)[0]) 
-	#times-=0.5 # center
-	detector_theta=d['detector_orientation_at_t']/np.pi
+	normalized_01_times=d['time_stamps']/(0.0000001+d['time_stamps'].max(axis=1,keepdim=True)[0]) 
 
-	space_diffs=(d['detector_position_at_t_normalized'][:,:-1]-d['detector_position_at_t_normalized'][:,1:])
+	normalized_pirads_detector_theta=d['detector_orientation_at_t']/np.pi
+
+	space_diffs=(d['detector_position_at_t_normalized_centered'][:,:-1]-d['detector_position_at_t_normalized_centered'][:,1:])
 	space_delta=torch.cat([
 		torch.zeros(b,1,2),
 		space_diffs,
@@ -171,12 +171,12 @@ def collate_fn_transformer_filter(_in):
 	return {
 		'drone_state':torch.cat(
 		[
-			d['detector_position_at_t_normalized'], # 2: 2
-			times, #-times.max(axis=2,keepdim=True)[0], # 1: 3
+			d['detector_position_at_t_normalized_centered'], # 2: 2
+			normalized01_times, #-times.max(axis=2,keepdim=True)[0], # 1: 3
 			space_delta, # 2: 5
 			space_theta, # 1: 6
 			space_dist, #1: 7
-			detector_theta, #1: 8
+			normalized_pirads_detector_theta, #1: 8
 		],dim=2).float(),
 		'emitter_position_and_velocity':torch.cat([
 			d['source_positions_at_t_normalized'],

@@ -20,12 +20,16 @@ def plot_predictions_and_baseline(session,args,step,pred_a,pred_b):
 
   #plot directions on the the space diagram
   direction=session['detector_position_at_t'][step]+0.25*session['width_at_t'][0]*np.stack(
-    [np.sin(session['detector_orientation_at_t'][step]),np.cos(session['detector_orientation_at_t'][step])],axis=1)
+    [
+      np.cos(session['detector_orientation_at_t'][step]),
+      np.sin(session['detector_orientation_at_t'][step])],axis=1)
   axs[0,0].plot(
     [session['detector_position_at_t'][step][0],direction[0,0]],
     [session['detector_position_at_t'][step][1],direction[0,1]])
   anti_direction=session['detector_position_at_t'][step]+0.25*session['width_at_t'][0]*np.stack(
-    [np.sin(session['detector_orientation_at_t'][step]+np.pi/2),np.cos(session['detector_orientation_at_t'][step]+np.pi/2)],axis=1)
+    [
+      np.cos(session['detector_orientation_at_t'][step]+np.pi/2),
+      np.sin(session['detector_orientation_at_t'][step]+np.pi/2)],axis=1)
   axs[0,0].plot(
     [session['detector_position_at_t'][step][0],anti_direction[0,0]],
     [session['detector_position_at_t'][step][1],anti_direction[0,1]])
@@ -36,8 +40,8 @@ def plot_predictions_and_baseline(session,args,step,pred_a,pred_b):
     _thetas=session['thetas_at_t'][idx][get_top_n_peaks(session['beam_former_outputs_at_t'][idx])]
     for _theta in _thetas:
       direction=np.stack([    
-        np.sin(session['detector_orientation_at_t'][idx]+_theta),
-        np.cos(session['detector_orientation_at_t'][idx]+_theta)
+        np.cos(session['detector_orientation_at_t'][idx]+_theta),
+        np.sin(session['detector_orientation_at_t'][idx]+_theta)
       ],axis=1)
       emitter_direction=session['detector_position_at_t'][idx]+2.0*session['width_at_t'][0]*direction
       lines.append(([session['detector_position_at_t'][idx][0],emitter_direction[0,0]],
@@ -143,20 +147,24 @@ def plot_lines(session,steps,output_prefix):
     plot_trajectory(axs[0],session['detector_position_at_t'][:idx],width,ms=30,label='detector')
     plot_trajectory(axs[1],session['detector_position_at_t'][:idx],width,ms=30,label='detector')
     direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
-      [np.sin(session['detector_orientation_at_t'][idx]),np.cos(session['detector_orientation_at_t'][idx])],axis=1)
+      [
+        np.cos(session['detector_orientation_at_t'][idx]),
+        np.sin(session['detector_orientation_at_t'][idx])],axis=1)
     axs[0].plot(
       [session['detector_position_at_t'][idx][0],direction[0,0]],
       [session['detector_position_at_t'][idx][1],direction[0,1]])
     anti_direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
-      [np.sin(session['detector_orientation_at_t'][idx]+np.pi/2),np.cos(session['detector_orientation_at_t'][idx]+np.pi/2)],axis=1)
+      [
+        np.cos(session['detector_orientation_at_t'][idx]+np.pi/2),
+        np.sin(session['detector_orientation_at_t'][idx]+np.pi/2)],axis=1)
     axs[0].plot(
       [session['detector_position_at_t'][idx][0],anti_direction[0,0]],
       [session['detector_position_at_t'][idx][1],anti_direction[0,1]])
     _thetas=session['thetas_at_t'][idx][get_top_n_peaks(session['beam_former_outputs_at_t'][idx])]
     for _theta in _thetas:
       direction=np.stack([    
-        np.sin(session['detector_orientation_at_t'][idx]+_theta),
-        np.cos(session['detector_orientation_at_t'][idx]+_theta)
+        np.cos(session['detector_orientation_at_t'][idx]+_theta),
+        np.sin(session['detector_orientation_at_t'][idx]+_theta)
       ],axis=1)
       emitter_direction=session['detector_position_at_t'][idx]+2.0*session['width_at_t'][0]*direction
       lines.append(([session['detector_position_at_t'][idx][0],emitter_direction[0,0]],
@@ -167,8 +175,8 @@ def plot_lines(session,steps,output_prefix):
 
     emitter_direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
       [
-        np.sin(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0]),
-        np.cos(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0])
+        np.cos(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0]),
+        np.sin(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0])
       ],axis=1)
     axs[0].plot(
       [session['detector_position_at_t'][idx][0],emitter_direction[0,0]],
@@ -234,19 +242,23 @@ def plot_full_session(session,steps,output_prefix):
     axs[0,0].set_title("Position map")
     plot_trajectory(axs[0,0],session['detector_position_at_t'][:idx],width,ms=30,label='detector')
     direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
-      [np.sin(session['detector_orientation_at_t'][idx]),np.cos(session['detector_orientation_at_t'][idx])],axis=1)
+      [
+        np.cos(session['detector_orientation_at_t'][idx]),
+        np.sin(session['detector_orientation_at_t'][idx])],axis=1)
     axs[0,0].plot(
       [session['detector_position_at_t'][idx][0],direction[0,0]],
       [session['detector_position_at_t'][idx][1],direction[0,1]])
     anti_direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
-      [np.sin(session['detector_orientation_at_t'][idx]+np.pi/2),np.cos(session['detector_orientation_at_t'][idx]+np.pi/2)],axis=1)
+      [
+        np.cos(session['detector_orientation_at_t'][idx]+np.pi/2),
+        np.sin(session['detector_orientation_at_t'][idx]+np.pi/2)],axis=1)
     axs[0,0].plot(
       [session['detector_position_at_t'][idx][0],anti_direction[0,0]],
       [session['detector_position_at_t'][idx][1],anti_direction[0,1]])
     emitter_direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
       [
-        np.sin(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0]),
-        np.cos(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0])
+        np.cos(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0]),
+        np.sin(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0])
       ],axis=1)
     axs[0,0].plot(
       [session['detector_position_at_t'][idx][0],emitter_direction[0,0]],
