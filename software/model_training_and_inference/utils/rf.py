@@ -271,6 +271,15 @@ def dbfs(raw_data):
     s_dbfs = 20*np.log10(np.abs(s_shift)/(2**11))     # Pluto is a signed 12 bit ADC, so use 2^11 to convert to dBFS
     return s_dbfs
 
+
+###
+'''
+Beamformer assumes,
+0 -> x=0, y=1
+pi/2 -> x=1, y=0
+-pi/2 -> x=-1, y=0
+'''
+###
 def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1,offset=0.0):
     thetas=np.linspace(-np.pi,np.pi,spacing)#-offset
     source_vectors=np.vstack([np.sin(thetas+offset)[None],np.cos(thetas+offset)[None]]).T

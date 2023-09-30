@@ -297,6 +297,7 @@ if __name__=='__main__':
   parser.add_argument('--loss-tvel', type=float, required=False, default=1.0)
   parser.add_argument('--ellipse', type=bool, required=False, default=False)
   parser.add_argument('--test-mbs', type=int, required=False, default=8)
+  parser.add_argument('--beam-former-spacing', type=int, required=False, default=256+1)
   parser.add_argument('--output-prefix', type=str, required=False, default='model_out')
   parser.add_argument('--test-fraction', type=float, required=False, default=0.2)
   parser.add_argument('--weight-decay', type=float, required=False, default=0.0)
@@ -314,10 +315,10 @@ if __name__=='__main__':
   parser.add_argument('--lr-transformer', type=float, required=False, default=0.00001)
   parser.add_argument('--plot', type=bool, required=False, default=False)
   parser.add_argument('--transformer-input', type=str, required=False, default=['drone_state','embedding','single_snapshot_pred'],nargs="+")
-  parser.add_argument('--transformer-dmodel', type=int, required=False, default=512)
-  parser.add_argument('--ssn-dhid', type=int, required=False, default=64)
-  parser.add_argument('--ssn-nlayers', type=int, required=False, default=8)
-  parser.add_argument('--tj-dembed', type=int, required=False, default=256)
+  parser.add_argument('--transformer-dmodel', type=int, required=False, default=64) #512)
+  parser.add_argument('--ssn-dhid', type=int, required=False, default=16) #64)
+  parser.add_argument('--ssn-nlayers', type=int, required=False, default=3) #8)
+  parser.add_argument('--tj-dembed', type=int, required=False, default=32) #256)
   parser.add_argument('--clip', type=float, required=False, default=0.5)
   parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist") #,src_theta,src_dist,det_delta,det_theta,det_space")
   args = parser.parse_args()
@@ -385,14 +386,14 @@ if __name__=='__main__':
         'name':'TrajectoryNet_l%d' % n_layers,
         'model':TrajectoryNet(
           d_drone_state=4+4,
-          d_radio_feature=258,
-          d_detector_observation_embedding=128,
+          d_radio_feature=args.beam_former_spacing+1, # add one for mean power normalization
+          d_detector_observation_embedding=32, #128,
           d_trajectory_embedding=args.tj_dembed,
           trajectory_prediction_n_layers=8,
           d_trajectory_prediction_output=(2+2+1)+(2+2+1),
           d_model=args.transformer_dmodel,
           n_heads=8,
-          d_hid=256,
+          d_hid=64, #256,
           n_layers=n_layers,
           n_outputs=8,
           ssn_d_hid=args.ssn_dhid,

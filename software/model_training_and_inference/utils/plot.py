@@ -218,13 +218,13 @@ def plot_lines(session,steps,output_prefix):
   return filenames
 
 #generate the images for the session
-def plot_full_session(session,steps,output_prefix):
+def plot_full_session(session,steps,output_prefix,img_width=128):
   width=session['width_at_t'][0][0]
   
   #extract the images
   d={}
-  d['source_image_at_t']=labels_to_source_images(torch.from_numpy(session['source_positions_at_t'])[None],width)[0]
-  d['detector_theta_image_at_t']=detector_positions_to_theta_grid(session['detector_position_at_t'][None],width)[0]
+  d['source_image_at_t']=labels_to_source_images(torch.from_numpy(session['source_positions_at_t'])[None],width,img_width=img_width)[0]
+  d['detector_theta_image_at_t']=detector_positions_to_theta_grid(session['detector_position_at_t'][None],width,img_width=img_width)[0]
   d['radio_image_at_t']=radio_to_image(session['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None],session['detector_orientation_at_t'][None])[0]
   d['radio_image_at_t_normed']=d['radio_image_at_t']/d['radio_image_at_t'].sum(axis=2,keepdims=True).sum(axis=3,keepdims=True)
   filenames=[]
@@ -271,14 +271,32 @@ def plot_full_session(session,steps,output_prefix):
     handles, labels = axs[0,0].get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     axs[0,0].legend(by_label.values(), by_label.keys())
+    axs[0,0].invert_xaxis()
+    axs[0,0].invert_yaxis()
 
     #lets draw the radio
-    axs[1,0].imshow(d['source_image_at_t'][idx,0].T,origin='lower')
+    #axs[1,0].imshow(d['source_image_at_t'][idx,0].T,
+    #  origin='upper',
+    #  extent=(0,
+    #      d['source_image_at_t'][idx,0].shape[0],
+    #      d['source_image_at_t'][idx,0].shape[1],
+    #      0)
+    #) #,origin='lower')
+    axs[1,0].imshow(d['source_image_at_t'][idx,0].T)
+    axs[1,0].invert_xaxis()
     axs[1,0].set_title("Emitters as image at t=%d" % idx)
 
-    axs[1,1].imshow(d['radio_image_at_t'][idx,0].T,origin='lower')
+    axs[1,1].imshow(
+      d['radio_image_at_t'][idx,0].T)
+    axs[1,1].invert_xaxis()
+    #  origin='upper',
+    #  extent=(0,
+    #      d['radio_image_at_t'][idx,0].shape[0],
+    #      d['radio_image_at_t'][idx,0].shape[1],
+    #      0))
+    #d['radio_image_at_t']=radio_to_image(session['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None],session['detector_orientation_at_t'][None])[0]
+    #axs[1,1].imshow(d['detector_theta_image_at_t'][0,0])
     axs[1,1].set_title("Radio feature at t=%d" % idx)
-
     axs[0,1].plot(session['thetas_at_t'][idx],session['beam_former_outputs_at_t'][idx])
     axs[0,1].axvline(x=session['source_theta_at_t'][idx,0],c='r')
     axs[0,1].set_title("Beamformer output at t=%d" % idx)
@@ -293,11 +311,11 @@ def plot_full_session(session,steps,output_prefix):
   return filenames
 
 
-def filenames_to_gif(filenames,output_gif_fn,size=(600,600)):
+def filenames_to_gif(filenames,output_gif_fn,size=(600,600),duration=200):
   images=[]
   for fn in filenames:
     images.append(Image.open(fn).resize(size))
 
   images[0].save(output_gif_fn,
            save_all = True, append_images = images[1:], 
-           optimize = False, duration = 200,loop=0)
+           optimize = False, duration = duration,loop=0)
