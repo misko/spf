@@ -17,7 +17,7 @@ def rf_linspace(s,e,i):
     return np.linspace(s,e,i)
 
 @functools.lru_cache(maxsize=1024)
-def rotation_matrix(orientation):
+def rotation_matrix(orientation): #rotate left by orientation in radians
   s = np.sin(orientation)
   c = np.cos(orientation)
   return np.array([c, -s, s, c]).reshape(2,2)
@@ -161,10 +161,10 @@ class Detector(object):
 
 
   def all_receiver_pos(self):
-    return self.position_offset+(self.receiver_positions @ rotation_matrix(self.orientation))
+    return self.position_offset+(self.receiver_positions @ rotation_matrix(np.pi/2-self.orientation))
 
   def receiver_pos(self,receiver_idx):
-    return self.position_offset+(self.receiver_positions[receiver_idx] @ rotation_matrix(self.orientation))
+    return self.position_offset+(self.receiver_positions[receiver_idx] @ rotation_matrix(np.pi/2-self.orientation))
 
   def get_signal_matrix_old(self,start_time,duration,rx_lo=0):
     n_samples=int(duration*self.sampling_frequency)

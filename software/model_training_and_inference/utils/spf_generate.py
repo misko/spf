@@ -186,11 +186,18 @@ def generate_session(args_and_session_idx):
     elif args.detector_trajectory=='bounce':
       d.position_offset,d.orientation,_=detector_bounded_point.time_step()
       detector_orientation_at_t[t_idx]=d.orientation
+      if t_idx<16:
+        print("WTF",d.orientation,session_idx,t_idx)
+        _v=detector_bounded_point.v
+        print("VEL",_v,np.arctan2(_v[1],_v[0]))
 
     detector_position_phase_offsets_at_t[t_idx]=detector_position_phase_offset
     source_positions_at_t[t_idx]=current_source_positions
     source_velocities_at_t[t_idx]=current_source_velocities
     receiver_positions_at_t[t_idx]=d.all_receiver_pos()
+    if t_idx<16:
+      print("RECE",d.receiver_positions)
+      print("ALL RECE",receiver_positions_at_t[t_idx])
 
     signal_matrixs_at_t[t_idx]=d.get_signal_matrix(
         start_time=time_stamps[t_idx,0],
@@ -199,13 +206,15 @@ def generate_session(args_and_session_idx):
       d.all_receiver_pos(),
       signal_matrixs_at_t[t_idx],
       args.carrier_frequency,spacing=args.beam_former_spacing,
-      offset=d.orientation)
+      offset=np.pi/2-d.orientation)
     #print(d.orientation,detector_theta)
     detector_position_at_t[t_idx]=d.position_offset
 
     if tdm_source_idx>=0:
       diff=current_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
-      source_theta_at_t[t_idx]=(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi  
+      #both of these are in regular units, radians to the left of x+ 
+      #but it doesnt matter because we just want the difference
+      source_theta_at_t[t_idx]=(d.orientation-(np.arctan2(diff[[1]],diff[[0]]))+np.pi)%(2*np.pi)-np.pi  
       source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
     else:
       source_theta_at_t[t_idx]=0 #(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi  

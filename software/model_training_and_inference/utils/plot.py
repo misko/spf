@@ -218,7 +218,7 @@ def plot_lines(session,steps,output_prefix):
   return filenames
 
 #generate the images for the session
-def plot_full_session(session,steps,output_prefix,img_width=128):
+def plot_full_session(session,steps,output_prefix,img_width=128,invert=False):
   width=session['width_at_t'][0][0]
   
   #extract the images
@@ -245,6 +245,7 @@ def plot_full_session(session,steps,output_prefix,img_width=128):
       [
         np.cos(session['detector_orientation_at_t'][idx]),
         np.sin(session['detector_orientation_at_t'][idx])],axis=1)
+    print(session['detector_orientation_at_t'][idx],idx,direction)
     axs[0,0].plot(
       [session['detector_position_at_t'][idx][0],direction[0,0]],
       [session['detector_position_at_t'][idx][1],direction[0,1]])
@@ -257,8 +258,8 @@ def plot_full_session(session,steps,output_prefix,img_width=128):
       [session['detector_position_at_t'][idx][1],anti_direction[0,1]])
     emitter_direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
       [
-        np.cos(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0]),
-        np.sin(session['detector_orientation_at_t'][idx]+session['source_theta_at_t'][idx,0])
+        np.cos(session['detector_orientation_at_t'][idx]-session['source_theta_at_t'][idx,0]),
+        np.sin(session['detector_orientation_at_t'][idx]-session['source_theta_at_t'][idx,0])
       ],axis=1)
     axs[0,0].plot(
       [session['detector_position_at_t'][idx][0],emitter_direction[0,0]],
@@ -271,8 +272,6 @@ def plot_full_session(session,steps,output_prefix,img_width=128):
     handles, labels = axs[0,0].get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     axs[0,0].legend(by_label.values(), by_label.keys())
-    axs[0,0].invert_xaxis()
-    axs[0,0].invert_yaxis()
 
     #lets draw the radio
     #axs[1,0].imshow(d['source_image_at_t'][idx,0].T,
@@ -283,12 +282,18 @@ def plot_full_session(session,steps,output_prefix,img_width=128):
     #      0)
     #) #,origin='lower')
     axs[1,0].imshow(d['source_image_at_t'][idx,0].T)
-    axs[1,0].invert_xaxis()
     axs[1,0].set_title("Emitters as image at t=%d" % idx)
 
     axs[1,1].imshow(
       d['radio_image_at_t'][idx,0].T)
-    axs[1,1].invert_xaxis()
+    if invert:
+      axs[0,0].invert_xaxis()
+      axs[0,0].invert_yaxis()
+      axs[1,0].invert_xaxis()
+      axs[1,1].invert_xaxis()
+    else:
+      axs[1,0].invert_yaxis()
+      axs[1,1].invert_yaxis()
     #  origin='upper',
     #  extent=(0,
     #      d['radio_image_at_t'][idx,0].shape[0],
