@@ -1,4 +1,4 @@
-####
+###
 # Experiment 1 : wall drones , receiver center is x=135.27 cm, y=264.77cm, dist between is 6cm
 ###
 
@@ -34,6 +34,13 @@ input_cols={
   'space_dist':[6],
   'det_theta2':[7],
 }
+
+#from stackoverflow
+class dotdict(dict):
+    """dot.notation access to dictionary attributes"""
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
 
 class SessionsDataset(Dataset):
 
@@ -77,6 +84,20 @@ class SessionsDataset(Dataset):
 
 class SessionsDatasetReal(Dataset):
 
+  def get_m(self,filename):
+    return np.memmap(
+            filename, 
+            dtype='float32', 
+            mode='r', 
+            shape=(self.snapshots_in_file,self.nthetas+5)) 
+
+  def check_file(self,filename):
+    m=self.get_m(filename)
+    status=not (np.abs(m).mean(axis=1)==0).any()
+    if status==False:
+      print("DROP",filename)
+    return status
+
   def __init__(self, 
                root_dir, 
                snapshots_in_file=400000, 
@@ -99,9 +120,9 @@ class SessionsDatasetReal(Dataset):
     self.root_dir = root_dir
     self.nthetas=nthetas
     self.thetas=np.linspace(-np.pi,np.pi,self.nthetas)
-    self.args={
+    self.args=dotdict({
         'width':width,
-    }
+    })
     self.receiver_pos=np.array([
         [receiver_pos_x-receiver_spacing/2,receiver_pos_y],
         [receiver_pos_x+receiver_spacing/2,receiver_pos_y]
@@ -110,22 +131,25 @@ class SessionsDatasetReal(Dataset):
     self.snapshots_in_file=snapshots_in_file
     self.snapshots_in_sample=snapshots_in_sample
     self.step_size=step_size
-    self.filenames=sorted(filter(lambda x : '.npy' in x ,[ "%s/%s" % (self.root_dir,x) for x in  os.listdir(self.root_dir)]))
-    self.datas=[
-        np.memmap(
-            filename, 
-            dtype='float32', 
-            mode='r', 
-            shape=(self.snapshots_in_file,self.nthetas+5)) for filename in self.filenames
-    ]
+    self.filenames=sorted(
+      filter( self.check_file, 
+      filter(
+        lambda x : '.npy' in x ,[ "%s/%s" % (self.root_dir,x) for x in  os.listdir(self.root_dir)])))
+    #self.datas=[
+    #    np.memmap(
+    #        filename, 
+    #        dtype='float32', 
+    #        mode='r', 
+    #        shape=(self.snapshots_in_file,self.nthetas+5)) for filename in self.filenames
+    #]
     self.samples_per_file=[
-        d.shape[0]//(self.snapshots_in_sample*self.step_size) for d in self.datas
+        self.get_m(filename).shape[0]-(self.snapshots_in_sample*self.step_size) for filename in self.filenames
     ]
     self.cumsum_samples_per_file=np.cumsum([0]+self.samples_per_file)
     self.len=sum(self.samples_per_file)
     self.zeros=np.zeros((self.snapshots_in_sample,5))
     self.ones=np.ones((self.snapshots_in_sample,5))
-    self.widths=np.ones((self.snapshots_in_sample,1),dtype=np.int32)*self.args['width']
+    self.widths=np.ones((self.snapshots_in_sample,1),dtype=np.int32)*self.args.width
     self.halfpis=np.ones((self.snapshots_in_sample,1))*np.pi/2
     idx_to_fileidx_and_sampleidx={}
     #print("WARNING BY DEFAULT FLIPPING RADIO FEATURE SINCE COORDS WERE WRONG IN PI COLLECT!")
@@ -134,19 +158,15 @@ class SessionsDatasetReal(Dataset):
     file_idx=bisect.bisect_right(self.cumsum_samples_per_file, idx)-1
     if file_idx>=len(self.samples_per_file):
         return None
-    start_idx=(idx-self.cumsum_samples_per_file[file_idx])*(self.snapshots_in_sample*self.step_size)
-    print("IDX",file_idx,start_idx)
+    start_idx=(idx-self.cumsum_samples_per_file[file_idx]) #*(self.snapshots_in_sample*self.step_size)
     return file_idx,start_idx
     
   def __len__(self):
-    self.len
+    return self.len
 
   def __getitem__(self, idx):
     fileidx,startidx=self.idx_to_fileidx_and_startidx(idx)
-    m=self.datas[fileidx][startidx:startidx+self.snapshots_in_sample*self.step_size:self.step_size]
-    print(m[:,1:3][:,None][0],"SOURCE POS",idx)
-    print(self.detector_position,"DET POS")
-    print(m.shape)
+    m=self.get_m(self.filenames[fileidx])[startidx:startidx+self.snapshots_in_sample*self.step_size:self.step_size]
     return {
         'broadcasting_positions_at_t':self.ones[:,[0]][:,None], # TODO multi source
         'source_positions_at_t':m[:,1:3][:,None],
@@ -154,12 +174,12 @@ class SessionsDatasetReal(Dataset):
         'receiver_positions_at_t':np.broadcast_to(self.receiver_pos[None], (m.shape[0],2, 2)),
         'beam_former_outputs_at_t':m[:,5:],
         'thetas_at_t':np.broadcast_to(self.thetas[None], (m.shape[0],self.thetas.shape[0])), 
-        'time_stamps':m[:,0], 
+        'time_stamps':m[:,[0]], 
         'width_at_t': self.widths,
         'detector_orientation_at_t':self.halfpis,#np.arctan2(1,0)=np.pi/2 
         'detector_position_at_t':np.broadcast_to(self.detector_position, (m.shape[0], 2)),
-        'source_theta_at_t':self.zeros[:,[0]],
-        'source_distance_at_t':self.zeros[:,[0]],
+        'source_theta_at_t':self.zeros[:,[0]][:,None],
+        'source_distance_at_t':self.zeros[:,[0]][:,None],
     }
 
 
@@ -182,6 +202,16 @@ def pos_to_rel(p,width):
 
 def rel_to_pos(r,width):
   return ((r/2)+0.5)*width
+
+class SessionsDatasetRealTask2(SessionsDatasetReal):
+  def __getitem__(self,idx):
+    d=super().__getitem__(idx)
+    #normalize these before heading out
+    d['source_positions_at_t_normalized_centered']=2*(d['source_positions_at_t']/self.args.width-0.5)
+    d['source_velocities_at_t_normalized']=d['source_velocities_at_t']/self.args.width
+    d['detector_position_at_t_normalized_centered']=2*(d['detector_position_at_t']/self.args.width-0.5)
+    d['source_distance_at_t_normalized']=d['source_distance_at_t'].mean(axis=2)/(self.args.width/2)
+    return d #,d['source_positions_at_t']
 
 class SessionsDatasetTask2(SessionsDataset):
   def __getitem__(self,idx):

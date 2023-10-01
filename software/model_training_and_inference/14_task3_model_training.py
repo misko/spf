@@ -16,7 +16,7 @@ from matplotlib.patches import Ellipse
 
 from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, TransformerEncOnlyModel,
       UNet,TrajectoryNet)
-from utils.spf_dataset import SessionsDataset, SessionsDatasetTask2, collate_fn_transformer_filter, output_cols, input_cols
+from utils.spf_dataset import SessionsDatasetRealTask2, SessionsDatasetTask2, collate_fn_transformer_filter, output_cols, input_cols
 
 torch.set_printoptions(precision=5,sci_mode=False,linewidth=1000)
 
@@ -290,12 +290,14 @@ if __name__=='__main__':
   parser.add_argument('--n-layers', type=int, required=False, default=[4], nargs="+")
   parser.add_argument('--print-every', type=int, required=False, default=100)
   parser.add_argument('--lr-scheduler-every', type=int, required=False, default=256)
+  parser.add_argument('--step-size', type=int, required=False, default=32)
   parser.add_argument('--plot-every', type=int, required=False, default=1024)
   parser.add_argument('--save-every', type=int, required=False, default=1000)
   parser.add_argument('--loss-single', type=float, required=False, default=7.0)
   parser.add_argument('--loss-trec', type=float, required=False, default=3.0)
   parser.add_argument('--loss-tvel', type=float, required=False, default=1.0)
   parser.add_argument('--ellipse', type=bool, required=False, default=False)
+  parser.add_argument('--real-data', type=bool, required=False, default=False)
   parser.add_argument('--test-mbs', type=int, required=False, default=8)
   parser.add_argument('--beam-former-spacing', type=int, required=False, default=256+1)
   parser.add_argument('--output-prefix', type=str, required=False, default='model_out')
@@ -352,14 +354,21 @@ if __name__=='__main__':
 
   device=torch.device(args.device)
   print("init dataset")
-  ds=SessionsDatasetTask2(args.dataset,snapshots_in_sample=max(args.snapshots_per_sample))
+  if args.real_data:
+    snapshots_per_sample=max(args.snapshots_per_sample)
+    ds=SessionsDatasetRealTask2(
+      args.dataset,
+      snapshots_in_sample=snapshots_per_sample,
+      step_size=args.step_size
+    )
+  else:
+    ds=SessionsDatasetTask2(args.dataset,snapshots_in_sample=max(args.snapshots_per_sample))
   #ds_test=SessionsDatasetTask2(args.test_dataset,snapshots_in_sample=max(args.snapshots_per_sample))
   train_size=int(len(ds)*args.test_fraction)
   test_size=len(ds)-train_size
 
   #need to generate separate files for this not to train test leak
   #ds_train, ds_test = random_split(ds, [1-args.test_fraction, args.test_fraction])
-
   ds_train = torch.utils.data.Subset(ds, np.arange(train_size))
   ds_test = torch.utils.data.Subset(ds, np.arange(train_size, train_size + test_size))
 
@@ -475,13 +484,17 @@ if __name__=='__main__':
       ],dim=3)
     for k in d:
       assert(not d[k].isnan().any())
-    
+    #for k in d:
+    #  print(k,(d[k]).mean(),torch.abs(np.abs(d[k])).mean())
     return d
 
   test_iterator = iter(testloader)
+  total_batch_idx=0
   for epoch in range(args.epochs): 
     for i, data in enumerate(trainloader, 0):
       #move to device, do final prep
+      print(epoch,i)
+      total_batch_idx+=1
       prepared_data=prep_data(data)
       if True: #torch.cuda.amp.autocast():
         for d_model in models:
@@ -493,9 +506,9 @@ if __name__=='__main__':
             prepared_data,
             args,
             'train',
-            update=i,
+            update=total_batch_idx,
             plot=True)
-          if i%args.lr_scheduler_every==args.lr_scheduler_every-1:
+          if total_batch_idx%args.lr_scheduler_every==args.lr_scheduler_every-1:
             d_model['scheduler'].step()
           loss.backward()
           running_losses['train'][d_model['name']].append(losses) 
@@ -508,8 +521,7 @@ if __name__=='__main__':
       #labels=prepared_data['labels']
       running_losses['train']['baseline'].append({'baseline':1e-5}) 
       #running_losses['train']['baseline'].append({'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
-    
-      if i%args.print_every==args.print_every-1:
+      if total_batch_idx%args.print_every==args.print_every-1:
         for idx in np.arange(args.test_mbs):
           try:
             data = next(test_iterator)
@@ -524,18 +536,17 @@ if __name__=='__main__':
                 prepared_data,
                 args,
                 'test',
-                update=i,
+                update=total_batch_idx,
                 plot=idx==0)
               running_losses['test'][d_model['name']].append(losses) 
           #labels=prepared_data['labels']
           running_losses['test']['baseline'].append({'baseline':1e-5})# {'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
         
   
-      if i==0 or i%args.save_every==args.save_every-1:
+      if total_batch_idx==0 or total_batch_idx%args.save_every==args.save_every-1:
         save(args,running_losses,models,i,args.keep_n_saves)
 
-      if i % args.print_every == args.print_every-1:
-
+      if total_batch_idx//args.print_every>=1 and (total_batch_idx % args.print_every) == args.print_every-1:
         train_baseline_loss=model_to_losses(running_losses['train']['baseline'],args.print_every)
         test_baseline_loss=model_to_losses(running_losses['test']['baseline'],args.test_mbs)
         print(f'[{epoch + 1}, {i + 1:5d}]')
@@ -547,15 +558,8 @@ if __name__=='__main__':
             model_to_loss_str(running_losses['test'][d['name']],args.test_mbs)
           ) for d in models ])
         print(loss_str)
-        #loss_str="\n".join(
-        #  [ "\t%s:(tr)\n%s\n\t%s:(ts)\n%s" % (d['name'],
-        #    model_to_stats_str(running_losses['train'][d['name']],args.print_every),
-        #    d['name'],
-        #    model_to_stats_str(running_losses['test'][d['name']],args.test_mbs)
-        #  ) for d in models ])
-        #print("\t\t\t%s" % stats_title())
-        #print(loss_str)
-      if i//args.print_every>1 and i % args.plot_every == args.plot_every-1:
+
+      if total_batch_idx//args.print_every>=1 and (total_batch_idx % args.plot_every) == args.plot_every-1:
         plot_loss(running_losses=running_losses['train'],
           baseline_loss=train_baseline_loss,
           xtick_spacing=args.print_every,
