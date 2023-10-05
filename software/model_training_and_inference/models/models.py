@@ -461,8 +461,8 @@ class SnapShotEmbeddingNet(nn.Module):
     d['output'][:,:,4]=torch.arctan2(diff[...,1],diff[...,0])
     #print("DIFF",diff[0,0,:])
     #print("THETA",d['output'][0,0,4])
-    d['output'][:,:,3]=0.5
-    d['output'][:,:,2]=5
+    #d['output'][:,:,3]=0.5
+    #d['output'][:,:,2]=5
     return d
 
 
