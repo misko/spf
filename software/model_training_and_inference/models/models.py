@@ -138,14 +138,14 @@ class TransformerEncOnlyModel(nn.Module):
       nn.Linear(self.d_model,d_hid),
       nn.SELU(),
       *[SkipConnection(nn.Sequential(
-        #nn.LayerNorm(d_hid),
+        nn.LayerNorm(d_hid),
         nn.Linear(d_hid,d_hid),
         nn.SELU()
         ))
       for _ in range(n_layers_output) ],
       #nn.LayerNorm(d_hid),
       nn.Linear(d_hid,n_outputs),
-      #nn.LayerNorm(n_outputs)
+      nn.LayerNorm(n_outputs)
       )
 
   def forward(self, src: Tensor, src_key_padding_mask=None) -> Tensor:
@@ -268,17 +268,17 @@ class TrajectoryNet(nn.Module):
       n_outputs=8,
       ssn_d_hid=64,
       ssn_n_layers=8,
-      ssn_d_output=5,
+      #ssn_d_output=5,
       ):
     super().__init__()
     self.d_detector_observation_embedding=d_detector_observation_embedding
     self.d_trajectory_embedding=d_trajectory_embedding
     self.d_trajectory_prediction_output=d_trajectory_prediction_output
 
-    self.snap_shot_net=EmbeddingNet(
+    self.snap_shot_net=SnapShotEmbeddingNet(
         d_in=d_radio_feature+d_drone_state, # time is inside drone state
         d_hid=ssn_d_hid,
-        d_out=ssn_d_output,
+        #d_out=5,# 2 mean, 2 sigma, 1 angle
         d_embed=d_detector_observation_embedding,
         n_layers=ssn_n_layers
       )
@@ -290,9 +290,9 @@ class TrajectoryNet(nn.Module):
         d_embed=d_trajectory_embedding,
         n_layers=trajectory_prediction_n_layers
       )
-    
+   
     self.tformer=TransformerEncOnlyModel(
-      d_in=d_detector_observation_embedding,
+      d_in=d_detector_observation_embedding+1,
       d_model=d_model,
       n_heads=n_heads,
       d_hid=d_hid,
@@ -340,18 +340,28 @@ class TrajectoryNet(nn.Module):
         # get the mask where this emitter is broadcasting in the first t steps
         times_where_this_tracked_is_broadcasting=x['emitters_broadcasting'][b,:t,tracked,0].to(bool)
         # pull the drone state and observations for these time steps
+        #nested_tensors.append(
+        #  drone_state_and_observation_embeddings[b,:t][times_where_this_tracked_is_broadcasting]
+        #)
         nested_tensors.append(
-          drone_state_and_observation_embeddings[b,:t][times_where_this_tracked_is_broadcasting]
+          torch.hstack([
+            drone_state_and_observation_embeddings[b,:t][times_where_this_tracked_is_broadcasting],
+            x['times'][b,:t][times_where_this_tracked_is_broadcasting]])
         )
+        #breakpoint()
         assert(nested_tensors[-1].shape[0]!=0)
         max_snapshots=max(max_snapshots,nested_tensors[-1].shape[0]) # efficiency, what is the biggest we need to compute
         idxs.append((b.item(),tracked))
+    #breakpoint()
+    #(Pdb) x['times'].shape
+    #torch.Size([32, 256, 1])
 
     #move all the drone+observation sequences into a common tensor with padding
-    tformer_input=torch.zeros((len(idxs),max_snapshots,self.d_detector_observation_embedding),device=device)
+    tformer_input=torch.zeros((len(idxs),max_snapshots,self.d_detector_observation_embedding+1),device=device)
     src_key_padding_mask=torch.zeros((len(idxs),max_snapshots),dtype=bool) # TODO ones and mask is faster?
     for idx,emebeddings_per_batch_and_tracked in enumerate(nested_tensors):
       tracked_time_steps,_=emebeddings_per_batch_and_tracked.shape
+      #breakpoint()
       tformer_input[idx,:tracked_time_steps]=emebeddings_per_batch_and_tracked  
       src_key_padding_mask[idx,tracked_time_steps:]=True
     src_key_padding_mask=src_key_padding_mask.to(device) #TODO initialize on device?
@@ -385,6 +395,7 @@ class TrajectoryNet(nn.Module):
       #'trajectory_embeddings':trajectory_embeddings,
       'trajectory_predictions':trajectory_predictions.transpose(2,1),
       }
+
 
 
 class EmbeddingNet(nn.Module):
@@ -421,6 +432,39 @@ class EmbeddingNet(nn.Module):
       breakpoint()
     return {'embedding':embed,
       'output':output}
+
+class SnapShotEmbeddingNet(nn.Module):
+  def __init__(self,
+      d_in,
+      d_hid,
+      d_embed,
+      n_layers,
+      directional=True):
+    super(SnapShotEmbeddingNet,self).__init__()
+    self.embedding_net=EmbeddingNet(
+      d_in=d_in,
+      d_out=5, # 2 mean , 2 sigma, 1 angle
+      d_hid=d_hid,
+      d_embed=d_embed,
+      n_layers=n_layers)
+    self.directional=True
+
+
+  def forward(self, x):
+    d=self.embedding_net(x)
+    if not self.directional:
+      return d
+    #else lets make sure the angle is the angle between mean and drone
+    #so that we get gaussians along the angle
+
+    diff=d['output'][:,:,:2]-x[:,:,:2] # vector from detector to predicted mean
+    d['output'][:,:,4]=torch.arctan2(diff[...,1],diff[...,0])
+    #print("DIFF",diff[0,0,:])
+    #print("THETA",d['output'][0,0,4])
+    d['output'][:,:,3]=0.5
+    d['output'][:,:,2]=5
+    return d
+
 
 class SnapshotNet(nn.Module):
   def __init__(self,

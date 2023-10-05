@@ -28,7 +28,7 @@ def get_rot_mats(theta):
   return torch.cat([c , -s, s, c],axis=1).reshape(theta.shape[0],2,2)
 
 def rotate_points_by_thetas(points,thetas):
-  return torch.einsum('ik,ijk->ij',points,get_rot_mats(thetas))
+  return torch.einsum('ijk,ik->ij',get_rot_mats(thetas),points)
 
 def unpack_mean_cov_angle(x):
   return x[:,:2],x[:,2:4],x[:,[4]]
@@ -45,13 +45,15 @@ def convert_sigmas(sigmas,min_sigma,max_sigma,ellipse=False):
   #otherwise make sure its circles
   return z.mean(axis=1,keepdim=True).expand_as(z)
 
-def points_to_nll(points,means,sigmas,thetas,ellipse=False): #,min_sigma=0.01,max_sigma=0.3,ellipse=False):
+def points_to_nll(points,means,sigmas,thetas,mode='ellipse'): #,min_sigma=0.01,max_sigma=0.3,ellipse=False):
   #sigmas=torch.clamp(sigmas.abs(),min=min_sigma,max=None) # TODO clamp hides the gradient?
   #sigmas=torch.sigmoid(sigmas)*(max_sigma-min_sigma)+min_sigma #.abs()+min_sigma
-  if ellipse:
-    p=rotate_points_by_thetas(points-means,thetas)/sigmas
-  else:
+  if mode=='ellipse':
+    p=rotate_points_by_thetas(points-means,-thetas)/sigmas # -theta, to undo the rotation, 
+  elif mode=='circle':
     p=(points-means)/sigmas.mean(axis=1,keepdim=True)
+  else:
+    assert(1==0)
   return p.pow(2).sum(axis=1)*0.5 + torch.log(2*torch.pi*sigmas[:,0]*sigmas[:,1])
 
 def src_pos_from_radial(inputs,outputs):
@@ -84,11 +86,11 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
   nll_position_reconstruction_loss=points_to_nll(positions,
                       pos_mean,
                       convert_sigmas(pos_cov,min_sigma=min_sigma,max_sigma=max_sigma,ellipse=args.ellipse),
-                      pos_angle,ellipse=args.ellipse).mean()
+                      pos_angle,mode=args.point_mode).mean()
   nll_velocity_reconstruction_loss=points_to_nll(velocities,
                       vel_mean,
                       convert_sigmas(vel_cov,min_sigma=min_sigma,max_sigma=max_sigma,ellipse=args.ellipse),
-                      vel_angle,ellipse=args.ellipse).mean()
+                      vel_angle,mode=args.point_mode).mean()
 
   ss_mean,ss_cov,ss_angle=unpack_mean_cov_angle(preds['single_snapshot_predictions'].reshape(-1,5))
   emitting_positions=data['emitter_position_and_velocity'][data['emitters_broadcasting'][...,0].to(bool)][:,:2]
@@ -96,7 +98,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
   nll_ss_position_reconstruction_loss=points_to_nll(emitting_positions,
                           ss_mean,
                           convert_sigmas(ss_cov,min_sigma=min_sigma,max_sigma=max_sigma),
-                          ss_angle,ellipse=args.ellipse).mean()
+                          ss_angle,mode=args.point_mode).mean()
   if plot and (update%args.plot_every)==args.plot_every-1:
     t=time_steps
     color=['g', 'b','orange', 'y']
@@ -132,7 +134,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
           width=_ss_cov[idx,0]*3,
           height=_ss_cov[idx,1]*3,
           facecolor='none',edgecolor='red',alpha=0.1,
-          angle=-_ss_angle[idx]*(360.0/(2*torch.pi) if args.ellipse else 0)
+          angle=_ss_angle[idx]*(360.0/(2*torch.pi) if args.ellipse else 0)
           )
       axs[1].add_patch(ellipse)
 
@@ -180,6 +182,9 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
   lm=torch.tensor([args.loss_single,args.loss_trec,args.loss_tvel])
   lm/=lm.sum()
   loss=lm[0]*nll_ss_position_reconstruction_loss+lm[1]*nll_position_reconstruction_loss+lm[2]*nll_velocity_reconstruction_loss
+  if args.embedding_warmup>update:
+    print("WARMUP")
+    loss=nll_ss_position_reconstruction_loss
   return loss,losses
 
 def model_to_losses(running_loss,mean_chunk):
@@ -285,7 +290,7 @@ def plot_loss(running_losses,
 if __name__=='__main__': 
   parser = argparse.ArgumentParser()
   parser.add_argument('--device', type=str, required=False, default='cpu')
-  parser.add_argument('--embedding-warmup', type=int, required=False, default=0)
+  parser.add_argument('--embedding-warmup', type=int, required=False, default=4096)
   parser.add_argument('--snapshots-per-sample', type=int, required=False, default=[1,4,8], nargs="+")
   parser.add_argument('--n-layers', type=int, required=False, default=[4], nargs="+")
   parser.add_argument('--print-every', type=int, required=False, default=100)
@@ -296,7 +301,8 @@ if __name__=='__main__':
   parser.add_argument('--loss-single', type=float, required=False, default=7.0)
   parser.add_argument('--loss-trec', type=float, required=False, default=3.0)
   parser.add_argument('--loss-tvel', type=float, required=False, default=1.0)
-  parser.add_argument('--ellipse', type=bool, required=False, default=False)
+  parser.add_argument('--ellipse', type=bool, required=False, default=True)
+  parser.add_argument('--point-mode', type=str, required=False, default='ellipse')
   parser.add_argument('--real-data', type=bool, required=False, default=False)
   parser.add_argument('--test-mbs', type=int, required=False, default=8)
   parser.add_argument('--beam-former-spacing', type=int, required=False, default=256+1)
@@ -321,6 +327,7 @@ if __name__=='__main__':
   parser.add_argument('--ssn-dhid', type=int, required=False, default=16) #64)
   parser.add_argument('--ssn-nlayers', type=int, required=False, default=3) #8)
   parser.add_argument('--tj-dembed', type=int, required=False, default=32) #256)
+  parser.add_argument('--obv-dembed', type=int, required=False, default=31) #256)
   parser.add_argument('--clip', type=float, required=False, default=0.5)
   parser.add_argument('--losses', type=str, required=False, default="src_pos,src_theta,src_dist") #,src_theta,src_dist,det_delta,det_theta,det_space")
   args = parser.parse_args()
@@ -369,6 +376,7 @@ if __name__=='__main__':
 
   #need to generate separate files for this not to train test leak
   #ds_train, ds_test = random_split(ds, [1-args.test_fraction, args.test_fraction])
+  print("NO SHUFFLING! make sure datasets are shuffled!!!")
   ds_train = torch.utils.data.Subset(ds, np.arange(train_size))
   ds_test = torch.utils.data.Subset(ds, np.arange(train_size, train_size + test_size))
 
@@ -396,18 +404,18 @@ if __name__=='__main__':
         'model':TrajectoryNet(
           d_drone_state=4+4,
           d_radio_feature=args.beam_former_spacing+1, # add one for mean power normalization
-          d_detector_observation_embedding=32, #128,
+          d_detector_observation_embedding=args.obv_dembed,
           d_trajectory_embedding=args.tj_dembed,
           trajectory_prediction_n_layers=8,
           d_trajectory_prediction_output=(2+2+1)+(2+2+1),
           d_model=args.transformer_dmodel,
           n_heads=8,
-          d_hid=64, #256,
+          d_hid=128,
           n_layers=n_layers,
           n_outputs=8,
           ssn_d_hid=args.ssn_dhid,
           ssn_n_layers=args.ssn_nlayers,
-          ssn_d_output=5
+          #ssn_d_output=5
         ),
         'fig':plt.figure(figsize=(18,4)),
         'dead':False,

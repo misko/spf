@@ -84,15 +84,28 @@ class SessionsDataset(Dataset):
 
 class SessionsDatasetReal(Dataset):
 
-  def get_m(self,filename):
-    return np.memmap(
+  def get_m(self,filename,bypass=False):
+    if bypass:
+      return np.memmap(
             filename, 
             dtype='float32', 
             mode='r', 
             shape=(self.snapshots_in_file,self.nthetas+5)) 
 
+    if filename not in self.m_cache:
+      self.m_cache[filename]=np.memmap(
+            filename, 
+            dtype='float32', 
+            mode='r', 
+            shape=(self.snapshots_in_file,self.nthetas+5)) 
+    return self.m_cache[filename]
+
   def check_file(self,filename):
-    m=self.get_m(filename)
+    try:
+      m=self.get_m(filename,bypass=True)
+    except:
+      print("DROP",filename)
+      return False
     status=not (np.abs(m).mean(axis=1)==0).any()
     if status==False:
       print("DROP",filename)
@@ -123,6 +136,7 @@ class SessionsDatasetReal(Dataset):
     self.args=dotdict({
         'width':width,
     })
+    self.m_cache={}
     self.receiver_pos=np.array([
         [receiver_pos_x-receiver_spacing/2,receiver_pos_y],
         [receiver_pos_x+receiver_spacing/2,receiver_pos_y]
@@ -143,7 +157,7 @@ class SessionsDatasetReal(Dataset):
     #        shape=(self.snapshots_in_file,self.nthetas+5)) for filename in self.filenames
     #]
     self.samples_per_file=[
-        self.get_m(filename).shape[0]-(self.snapshots_in_sample*self.step_size) for filename in self.filenames
+        self.get_m(filename,bypass=True).shape[0]-(self.snapshots_in_sample*self.step_size) for filename in self.filenames
     ]
     self.cumsum_samples_per_file=np.cumsum([0]+self.samples_per_file)
     self.len=sum(self.samples_per_file)
@@ -273,6 +287,7 @@ def collate_fn_transformer_filter(_in):
   b,s,n_sources,_=d['source_positions_at_t'].shape
 
   normalized_01_times=d['time_stamps']/(0.0000001+d['time_stamps'].max(axis=1,keepdim=True)[0]) 
+  normalized_times=(d['time_stamps']-d['time_stamps'].max(axis=1,keepdims=True)[0])/100
 
   normalized_pirads_detector_theta=d['detector_orientation_at_t']/np.pi
 
@@ -295,12 +310,14 @@ def collate_fn_transformer_filter(_in):
     'drone_state':torch.cat(
     [
       d['detector_position_at_t_normalized_centered'], # 2: 2
-      normalized_01_times, #-times.max(axis=2,keepdim=True)[0], # 1: 3
+      #normalized_01_times, #-times.max(axis=2,keepdim=True)[0], # 1: 3
+      normalized_times, #-times.max(axis=2,keepdim=True)[0], # 1: 3
       space_delta, # 2: 5
       normalized_pirads_space_theta, # 1: 6
       space_dist, #1: 7
       normalized_pirads_detector_theta, #1: 8
     ],dim=2).float(),
+    'times':normalized_times,
     'emitter_position_and_velocity':torch.cat([
       d['source_positions_at_t_normalized_centered'],
       d['source_velocities_at_t_normalized'],
