@@ -347,3 +347,6 @@ lr=0.0005; python 14_task3_model_training.py --dataset ../data  --mb 32 --worker
 
 #Fix gaussian ellipse to be aligned along mean diff vector
 lr=0.001; python 14_task3_model_training.py --dataset ../data_test  --mb 64 --workers 4 --plot True --snapshots 128 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 256 --plot-every 1024  --output-prefix output_mb64_reference_ --device cpu --n-layers 1 2  --beam-former-spacing 65 --real-data true
+
+
+lr=0.0005; python 14_task3_model_training.py --dataset ../data  --mb 128 --workers 4 --plot True --snapshots 256 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 128 --plot-every 512  --output-prefix output_mb64_reference_ --n-layers 1 2 4 --beam-former-spacing 65 --real-data true --device cpu --transformer-dmodel 32 --obv-dembed 31 --embedding-warmup 12000

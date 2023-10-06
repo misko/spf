@@ -121,7 +121,8 @@ class SessionsDatasetReal(Dataset):
                receiver_pos_x=1352.7,
                receiver_pos_y=2647.7,
                receiver_spacing=60.0,
-               step_size=1
+               step_size=1,
+               seed=1337
               ):
     #time_step,x,y,mean_angle,_mean_angle #0,1,2,3,4
     #m = np.memmap(filename, dtype='float32', mode='r', shape=(,70))
@@ -149,6 +150,8 @@ class SessionsDatasetReal(Dataset):
       filter( self.check_file, 
       filter(
         lambda x : '.npy' in x ,[ "%s/%s" % (self.root_dir,x) for x in  os.listdir(self.root_dir)])))
+    self.rng = np.random.default_rng(seed)
+    self.rng.shuffle(self.filenames)
     #self.datas=[
     #    np.memmap(
     #        filename, 
