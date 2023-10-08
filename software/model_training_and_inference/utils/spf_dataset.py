@@ -314,11 +314,11 @@ def collate_fn_transformer_filter(_in):
     [
       d['detector_position_at_t_normalized_centered'], # 2: 2
       #normalized_01_times, #-times.max(axis=2,keepdim=True)[0], # 1: 3
-      normalized_times, #-times.max(axis=2,keepdim=True)[0], # 1: 3
-      space_delta, # 2: 5
-      normalized_pirads_space_theta, # 1: 6
-      space_dist, #1: 7
-      normalized_pirads_detector_theta, #1: 8
+      #normalized_times, #-times.max(axis=2,keepdim=True)[0], # 1: 3
+      space_delta, # 2: 4
+      normalized_pirads_space_theta, # 1: 5
+      space_dist, #1: 6
+      normalized_pirads_detector_theta, #1: 7
     ],dim=2).float(),
     'times':normalized_times,
     'emitter_position_and_velocity':torch.cat([

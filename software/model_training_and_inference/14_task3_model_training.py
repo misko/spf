@@ -18,6 +18,7 @@ from models.models import (SingleSnapshotNet, SnapshotNet, Task1Net, Transformer
       UNet,TrajectoryNet)
 from utils.spf_dataset import SessionsDatasetRealTask2, SessionsDatasetTask2, collate_fn_transformer_filter, output_cols, input_cols
 
+torch.set_num_threads(8)
 torch.set_printoptions(precision=5,sci_mode=False,linewidth=1000)
 
 
@@ -182,8 +183,12 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
   lm=torch.tensor([args.loss_single,args.loss_trec,args.loss_tvel])
   lm/=lm.sum()
   loss=lm[0]*nll_ss_position_reconstruction_loss+lm[1]*nll_position_reconstruction_loss+lm[2]*nll_velocity_reconstruction_loss
+
+  if args.l2!=0.0:
+    l2s=d_model['model'].l2()
+    for k in l2s:
+      loss+=args.l2*l2s[k]
   if args.embedding_warmup>update:
-    print("WARMUP")
     loss=nll_ss_position_reconstruction_loss
   return loss,losses
 
@@ -301,6 +306,7 @@ if __name__=='__main__':
   parser.add_argument('--loss-single', type=float, required=False, default=3.0)
   parser.add_argument('--loss-trec', type=float, required=False, default=3.0)
   parser.add_argument('--loss-tvel', type=float, required=False, default=0.0)
+  parser.add_argument('--l2', type=float, required=False, default=0.0001)
   parser.add_argument('--ellipse', type=bool, required=False, default=True)
   parser.add_argument('--point-mode', type=str, required=False, default='ellipse')
   parser.add_argument('--real-data', type=bool, required=False, default=False)
@@ -402,7 +408,7 @@ if __name__=='__main__':
       models.append({
         'name':'TrajectoryNet_l%d' % n_layers,
         'model':TrajectoryNet(
-          d_drone_state=4+4,
+          d_drone_state=3+4,
           d_radio_feature=args.beam_former_spacing+1, # add one for mean power normalization
           d_detector_observation_embedding=args.obv_dembed,
           d_trajectory_embedding=args.tj_dembed,
@@ -451,20 +457,21 @@ if __name__=='__main__':
 
 
   #move the models to the device
-  for d_net in models:
-    d_net['model']=d_net['model'].to(dtype).to(device)
+  for d_model in models:
+    d_model['model']=d_model['model'].to(dtype).to(device)
   loss_figs={
     'train':plt.figure(figsize=(14*3,6)),
     'test':plt.figure(figsize=(14*3,6))}
 
   for d_model in models:
     d_model['optimizer']=optim.Adam(d_model['model'].parameters(),lr=d_model['lr'],weight_decay=args.weight_decay)
-    d_model['scheduler']=optim.lr_scheduler.LinearLR(
-      d_model['optimizer'], 
-      start_factor=0.001, 
-      end_factor=1.0, 
-      total_iters=30, 
-      verbose=False)
+    if args.lr_scheduler_every!=0:
+      d_model['scheduler']=optim.lr_scheduler.LinearLR(
+        d_model['optimizer'], 
+        start_factor=0.001, 
+        end_factor=1.0, 
+        total_iters=30, 
+        verbose=False)
 
   criterion = nn.MSELoss().to(device)
 
@@ -506,7 +513,8 @@ if __name__=='__main__':
       prepared_data=prep_data(data)
       if True: #torch.cuda.amp.autocast():
         for d_model in models:
-          for p in d_net['model'].parameters():
+          d_model['model'].train()
+          for p in d_model['model'].parameters():
             if p.isnan().any():
               breakpoint()
           loss,losses=model_forward(
@@ -516,14 +524,14 @@ if __name__=='__main__':
             'train',
             update=total_batch_idx,
             plot=True)
-          if total_batch_idx%args.lr_scheduler_every==args.lr_scheduler_every-1:
+          if args.lr_scheduler_every!=0 and total_batch_idx%args.lr_scheduler_every==args.lr_scheduler_every-1:
             d_model['scheduler'].step()
           loss.backward()
           running_losses['train'][d_model['name']].append(losses) 
           if args.clip>0:
-            torch.nn.utils.clip_grad_norm_(d_net['model'].parameters(), args.clip) # clip gradients
+            torch.nn.utils.clip_grad_norm_(d_model['model'].parameters(), args.clip) # clip gradients
           d_model['optimizer'].step()
-          for p in d_net['model'].parameters():
+          for p in d_model['model'].parameters():
             if p.isnan().any():
               breakpoint()
       #labels=prepared_data['labels']
@@ -539,6 +547,7 @@ if __name__=='__main__':
           prepared_data=prep_data(data)
           with torch.no_grad():
             for d_model in models:
+              d_model['model'].eval()
               loss,losses=model_forward(
                 d_model,
                 prepared_data,

@@ -138,8 +138,8 @@ class TransformerEncOnlyModel(nn.Module):
       nn.Linear(self.d_model,d_hid),
       nn.SELU(),
       *[SkipConnection(nn.Sequential(
-        nn.LayerNorm(d_hid),
         nn.Linear(d_hid,d_hid),
+        nn.LayerNorm(d_hid),
         nn.SELU()
         ))
       for _ in range(n_layers_output) ],
@@ -255,7 +255,7 @@ class FilterNet(nn.Module):
 
 class TrajectoryNet(nn.Module):
   def __init__(self,
-      d_drone_state=4+4,
+      d_drone_state=3+4,
       d_radio_feature=258,
       d_detector_observation_embedding=128,
       d_trajectory_embedding=256,
@@ -297,9 +297,13 @@ class TrajectoryNet(nn.Module):
       n_heads=n_heads,
       d_hid=d_hid,
       n_layers=n_layers,
-      dropout=0.0,
+      dropout=0.1,
       n_outputs=d_trajectory_embedding)
 
+  def l2(self):
+    return {
+      'snap_shot_net': sum([ (p**2).sum() for p in self.snap_shot_net.parameters() ])
+    }
 
   def forward(self,x):
     # Lets get the detector observation embeddings
@@ -315,7 +319,7 @@ class TrajectoryNet(nn.Module):
         x['radio_feature']
         ],dim=2)
     )
-    drone_state_and_observation_embeddings=d['embedding']
+    drone_state_and_observation_embeddings=d['embedding'].detach()
     single_snapshot_predictions=d['output']
 
 
@@ -325,7 +329,12 @@ class TrajectoryNet(nn.Module):
     ################
 
     #generate random times to grab
-    rt=torch.randint(low=2, high=time_steps-1, size=(batch_size,)) # keep on CPU?, low=2 here gaurantees at least one thing was being tracked for each example
+    if self.training:
+      rt=torch.randint(low=2, high=time_steps-1, size=(batch_size,)) # keep on CPU?, low=2 here gaurantees at least one thing was being tracked for each example
+      rt[:batch_size//2]=(time_steps-1)//2+1 # this might make it a bit smoother?
+    else:
+      print("EVAL MODE")
+      rt=torch.ones(batch_size,dtype=int)*(time_steps-1)
     #now lets grab the (nsources,1) vector for each batch example that tells us how many times the object has transmitted previously
     tracking=x['emitters_n_broadcasts'][torch.arange(batch_size),rt-1].cpu() #positive values for things already being tracked
 
@@ -412,8 +421,8 @@ class EmbeddingNet(nn.Module):
       nn.SELU(),
       *[SkipConnection(
         nn.Sequential(
-        nn.LayerNorm(d_hid),
         nn.Linear(d_hid,d_hid),
+        nn.LayerNorm(d_hid),
         #nn.ReLU()
         nn.SELU()
         ))
