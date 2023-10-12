@@ -183,7 +183,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
   lm=torch.tensor([args.loss_single,args.loss_trec,args.loss_tvel])
   lm/=lm.sum()
   loss=lm[0]*nll_ss_position_reconstruction_loss+lm[1]*nll_position_reconstruction_loss+lm[2]*nll_velocity_reconstruction_loss
-
+  
   if args.l2!=0.0:
     l2s=d_model['model'].l2()
     for k in l2s:
@@ -352,7 +352,6 @@ if __name__=='__main__':
   random.seed(args.seed)
   np.random.seed(args.seed)
 
-  start_time=time.time()
 
   #lets see if output dir exists , if not make it
   basename=os.path.basename(args.output_prefix)
@@ -416,7 +415,7 @@ if __name__=='__main__':
           d_trajectory_prediction_output=(2+2+1)+(2+2+1),
           d_model=args.transformer_dmodel,
           n_heads=8,
-          d_hid=128,
+          d_hid=64,
           n_layers=n_layers,
           n_outputs=8,
           ssn_d_hid=args.ssn_dhid,
@@ -483,6 +482,7 @@ if __name__=='__main__':
 
   saves=[]
   
+  start_time=time.time()
 
   def prep_data(data):
     #todo add data augmentation

@@ -327,7 +327,6 @@ class TrajectoryNet(nn.Module):
     # TRAJECTORY EMBEDDINGS 
     #pick random time for each batch item, crop session, and compute tracjectory emebedding for each tracked object
     ################
-
     #generate random times to grab
     if self.training:
       rt=torch.randint(low=2, high=time_steps-1, size=(batch_size,)) # keep on CPU?, low=2 here gaurantees at least one thing was being tracked for each example
@@ -364,7 +363,7 @@ class TrajectoryNet(nn.Module):
     #breakpoint()
     #(Pdb) x['times'].shape
     #torch.Size([32, 256, 1])
-
+ 
     #move all the drone+observation sequences into a common tensor with padding
     tformer_input=torch.zeros((len(idxs),max_snapshots,self.d_detector_observation_embedding+1),device=device)
     src_key_padding_mask=torch.zeros((len(idxs),max_snapshots),dtype=bool) # TODO ones and mask is faster?
@@ -374,8 +373,7 @@ class TrajectoryNet(nn.Module):
       tformer_input[idx,:tracked_time_steps]=emebeddings_per_batch_and_tracked  
       src_key_padding_mask[idx,tracked_time_steps:]=True
     src_key_padding_mask=src_key_padding_mask.to(device) #TODO initialize on device?
-
-    #run the self attention layer
+    #run the self attention layer # this takes most of the TIME!
     self_attention_output=self.tformer(tformer_input,src_key_padding_mask=src_key_padding_mask)
 
     #select or aggregate the emebedding to use from the historical options
@@ -383,7 +381,6 @@ class TrajectoryNet(nn.Module):
     for idx,(b,emitter_idx) in enumerate(idxs):
       #trajectory_embeddings[b,emitter_idx]=self_attention_output[idx,~src_key_padding_mask[idx]].mean(axis=0)
       trajectory_embeddings[b,emitter_idx]=self_attention_output[idx,~src_key_padding_mask[idx]][-1]
- 
 
     #######
     # TRAJECTORY PREDICTIONS
