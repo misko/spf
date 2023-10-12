@@ -186,18 +186,18 @@ def generate_session(args_and_session_idx):
     elif args.detector_trajectory=='bounce':
       d.position_offset,d.orientation,_=detector_bounded_point.time_step()
       detector_orientation_at_t[t_idx]=d.orientation
-      if t_idx<16:
-        print("WTF",d.orientation,session_idx,t_idx)
-        _v=detector_bounded_point.v
-        print("VEL",_v,np.arctan2(_v[1],_v[0]))
+      #if t_idx<16:
+      #  print("WTF",d.orientation,session_idx,t_idx)
+      #  _v=detector_bounded_point.v
+      #  print("VEL",_v,np.arctan2(_v[1],_v[0]))
 
     detector_position_phase_offsets_at_t[t_idx]=detector_position_phase_offset
     source_positions_at_t[t_idx]=current_source_positions
     source_velocities_at_t[t_idx]=current_source_velocities
     receiver_positions_at_t[t_idx]=d.all_receiver_pos()
-    if t_idx<16:
-      print("RECE",d.receiver_positions)
-      print("ALL RECE",receiver_positions_at_t[t_idx])
+    #if t_idx<16:
+    #  print("RECE",d.receiver_positions)
+    #  print("ALL RECE",receiver_positions_at_t[t_idx])
 
     signal_matrixs_at_t[t_idx]=d.get_signal_matrix(
         start_time=time_stamps[t_idx,0],
