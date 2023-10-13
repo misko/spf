@@ -309,7 +309,7 @@ if __name__=='__main__':
   parser.add_argument('--l2', type=float, required=False, default=0.0001)
   parser.add_argument('--ellipse', type=bool, required=False, default=True)
   parser.add_argument('--point-mode', type=str, required=False, default='ellipse')
-  parser.add_argument('--real-data', type=bool, required=False, default=False)
+  parser.add_argument('--real-data',  action='store_true')
   parser.add_argument('--test-mbs', type=int, required=False, default=8)
   parser.add_argument('--beam-former-spacing', type=int, required=False, default=256+1)
   parser.add_argument('--output-prefix', type=str, required=False, default='model_out')
@@ -365,7 +365,7 @@ if __name__=='__main__':
       cols_for_loss+=output_cols[k]
 
   device=torch.device(args.device)
-  print("init dataset")
+  print("init dataset",args.real_data)
   if args.real_data:
     snapshots_per_sample=max(args.snapshots_per_sample)
     ds=SessionsDatasetRealTask2(
@@ -384,7 +384,6 @@ if __name__=='__main__':
   print("NO SHUFFLING! make sure datasets are shuffled!!!")
   ds_train = torch.utils.data.Subset(ds, np.arange(train_size))
   ds_test = torch.utils.data.Subset(ds, np.arange(train_size, train_size + test_size))
-
   print("init dataloader")
   trainloader = torch.utils.data.DataLoader(
       ds_train, 
