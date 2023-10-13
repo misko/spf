@@ -115,7 +115,12 @@ def generate_session(args_and_session_idx):
     #detector_theta=np.random.choice([0,np.pi/4,np.pi/2,np.pi])
 
   detector_v=np.array([np.cos(detector_theta),np.sin(detector_theta)])*detector_speed # 10m/s
-  detector_bounded_point=BoundedPoint(pos=np.random.uniform(0+10,args.width-10,2),
+  
+  detector_initial_position=pos=np.random.uniform(0+10,args.width-10,2)
+  if args.fixed_detector is not None:
+    detector_initial_position[:2]=args.fixed_detector
+
+  detector_bounded_point=BoundedPoint(pos=detector_initial_position,
       v=detector_v,
       delta_time=args.time_interval)
 
