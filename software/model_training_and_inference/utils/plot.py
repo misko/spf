@@ -240,12 +240,12 @@ def plot_full_session(session,steps,output_prefix,img_width=128,invert=False):
         axs[_a,_b].set_ylabel("Y (m)")
 
     axs[0,0].set_title("Position map")
-    plot_trajectory(axs[0,0],session['detector_position_at_t'][:idx],width,ms=30,label='detector')
+    plot_trajectory(axs[0,0],session['detector_position_at_t'][:idx+1],width,ms=30,label='detector')
     direction=session['detector_position_at_t'][idx]+0.25*session['width_at_t'][0]*np.stack(
       [
         np.cos(session['detector_orientation_at_t'][idx]),
         np.sin(session['detector_orientation_at_t'][idx])],axis=1)
-    print(session['detector_orientation_at_t'][idx],idx,direction)
+
     axs[0,0].plot(
       [session['detector_position_at_t'][idx][0],direction[0,0]],
       [session['detector_position_at_t'][idx][1],direction[0,1]])

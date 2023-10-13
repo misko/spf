@@ -31,7 +31,7 @@ if __name__=='__main__':
 	parser.add_argument('--source-speed', type=float, required=False, default=0.0)
 	parser.add_argument('--sigma', type=float, required=False, default=1.0)
 	parser.add_argument('--time-steps', type=int, required=False, default=100)
-	parser.add_argument('--time-interval', type=float, required=False, default=5.0)
+	parser.add_argument('--time-interval', type=float, required=False, default=0.3)
 	parser.add_argument('--samples-per-snapshot', type=int, required=False, default=3)
 	parser.add_argument('--sessions', type=int, required=False, default=1024)
 	parser.add_argument('--output', type=str, required=False, default="sessions-default")
