@@ -79,7 +79,6 @@ class SessionsDataset(Dataset):
     else:
       session=load(self.filenames[session_idx],compression="lzma")
     end_idx=start_idx+self.snapshots_in_sample
-    print("GET",session_idx,start_idx)
     return { k:session[k][start_idx:end_idx] for k in session.keys()}
 
 class SessionsDatasetReal(Dataset):

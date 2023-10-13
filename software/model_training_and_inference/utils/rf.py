@@ -225,7 +225,7 @@ class ULADetector(Detector):
     
 @functools.lru_cache(maxsize=1024)
 def circular_receiver_positions(n_elements,radius):
-    theta=(rf_linspace(0,2*np.pi,n_elements+1)[:-1]+np.pi/2).reshape(-1,1)
+    theta=(rf_linspace(0,2*np.pi,n_elements+1)[:-1]).reshape(-1,1)
     return radius*np.hstack([np.cos(theta),np.sin(theta)])
 
 class UCADetector(Detector):
