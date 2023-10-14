@@ -166,7 +166,7 @@ class SessionsDatasetReal(Dataset):
     self.zeros=np.zeros((self.snapshots_in_sample,5))
     self.ones=np.ones((self.snapshots_in_sample,5))
     self.widths=np.ones((self.snapshots_in_sample,1),dtype=np.int32)*self.args.width
-    self.halfpis=np.ones((self.snapshots_in_sample,1))*np.pi/2
+    self.halfpis=-np.ones((self.snapshots_in_sample,1))*np.pi/2
     idx_to_fileidx_and_sampleidx={}
     #print("WARNING BY DEFAULT FLIPPING RADIO FEATURE SINCE COORDS WERE WRONG IN PI COLLECT!")
     
@@ -183,18 +183,25 @@ class SessionsDatasetReal(Dataset):
   def __getitem__(self, idx):
     fileidx,startidx=self.idx_to_fileidx_and_startidx(idx)
     m=self.get_m(self.filenames[fileidx])[startidx:startidx+self.snapshots_in_sample*self.step_size:self.step_size]
+
+    detector_position_at_t=np.broadcast_to(self.detector_position, (m.shape[0], 2))
+    detector_orientation_at_t=self.zeros[:,[0]]
+    source_positions_at_t=m[:,1:3][:,None]
+    diffs=source_positions_at_t-detector_position_at_t[:,None] # broadcast over nsource dimension
+    #diffs=(batchsize, nsources, 2)
+    source_theta_at_t=np.arctan2(diffs[:,0,[0]],diffs[:,0,[1]]) # rotation to the right around x=0, y+
     return {
         'broadcasting_positions_at_t':self.ones[:,[0]][:,None], # TODO multi source
-        'source_positions_at_t':m[:,1:3][:,None],
+        'source_positions_at_t':source_positions_at_t,
         'source_velocities_at_t':self.zeros[:,:2][:,None], #TODO calc velocity,
         'receiver_positions_at_t':np.broadcast_to(self.receiver_pos[None], (m.shape[0],2, 2)),
         'beam_former_outputs_at_t':m[:,5:],
         'thetas_at_t':np.broadcast_to(self.thetas[None], (m.shape[0],self.thetas.shape[0])), 
         'time_stamps':m[:,[0]], 
         'width_at_t': self.widths,
-        'detector_orientation_at_t':self.halfpis,#np.arctan2(1,0)=np.pi/2 
-        'detector_position_at_t':np.broadcast_to(self.detector_position, (m.shape[0], 2)),
-        'source_theta_at_t':self.zeros[:,[0]][:,None],
+        'detector_orientation_at_t':detector_orientation_at_t, #self.halfpis*0,#np.arctan2(1,0)=np.pi/2 
+        'detector_position_at_t':detector_position_at_t,
+        'source_theta_at_t':source_theta_at_t,
         'source_distance_at_t':self.zeros[:,[0]][:,None],
     }
 

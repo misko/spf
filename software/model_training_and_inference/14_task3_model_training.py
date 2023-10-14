@@ -28,7 +28,10 @@ def get_rot_mats(theta):
   c = torch.cos(theta)
   return torch.cat([c , -s, s, c],axis=1).reshape(theta.shape[0],2,2)
 
+#R_i @ vector_i
 def rotate_points_by_thetas(points,thetas):
+  #thetas n x D x D , D is point space dimension, n is number of points
+  #points n x D
   return torch.einsum('ijk,ik->ij',get_rot_mats(thetas),points)
 
 def unpack_mean_cov_angle(x):

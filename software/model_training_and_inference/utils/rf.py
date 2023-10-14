@@ -17,7 +17,7 @@ def rf_linspace(s,e,i):
     return np.linspace(s,e,i)
 
 @functools.lru_cache(maxsize=1024)
-def rotation_matrix(orientation): #rotate left by orientation in radians
+def rotation_matrix(orientation): #rotate right by orientation in radians
   s = np.sin(orientation)
   c = np.cos(orientation)
   return np.array([c, -s, s, c]).reshape(2,2)
@@ -160,11 +160,17 @@ class Detector(object):
     return self.receiver_positions.shape[0]
 
 
-  def all_receiver_pos(self):
-    return self.position_offset+(self.receiver_positions @ rotation_matrix(np.pi/2-self.orientation))
+  def all_receiver_pos(self,with_offset=True):
+    if with_offset:
+      return self.position_offset+(rotation_matrix(self.orientation) @ self.receiver_positions.T).T
+    else:
+      return (rotation_matrix(self.orientation) @ self.receiver_positions.T).T
 
-  def receiver_pos(self,receiver_idx):
-    return self.position_offset+(self.receiver_positions[receiver_idx] @ rotation_matrix(np.pi/2-self.orientation))
+  def receiver_pos(self,receiver_idx, with_offset=True):
+    if with_offset:
+      return self.position_offset+(rotation_matrix(self.orientation) @ self.receiver_positions[receiver_idx].T).T
+    else:
+      return (rotation_matrix(self.orientation) @ self.receiver_positions[receiver_idx].T).T
 
   def get_signal_matrix_old(self,start_time,duration,rx_lo=0):
     n_samples=int(duration*self.sampling_frequency)
@@ -290,7 +296,6 @@ def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=No
     projection_of_receiver_onto_source_directions=(source_vectors @ receiver_positions.T)
     args=2*np.pi*projection_of_receiver_onto_source_directions/carrier_wavelength
     steering_vectors=np.exp(-1j*args)
-
     if calibration is not None:
       steering_vectors=steering_vectors*calibration[None]
     #the delay sum is performed in the matmul step, the absolute is over the summed value

@@ -21,7 +21,8 @@ def detector_positions_to_distance(detector_positions,width):
 def detector_positions_to_theta_grid(detector_positions,width,img_width):
   bin_size=np.ceil(width/img_width)
   diffs=get_grid(img_width)[None,None]*bin_size-detector_positions[:,:,None,None].astype(np.float32) 
-  return (np.arctan2(diffs[...,1],diffs[...,0]))[:,:,None] # batch, snapshot,1, x ,y 
+  #return (np.arctan2(diffs[...,1],diffs[...,0]))[:,:,None] # batch, snapshot,1, x ,y 
+  return (np.arctan2(diffs[...,0],diffs[...,1]))[:,:,None] # batch, snapshot,1, x ,y  # get angle from x=0, y+ to the right
   
 def blur2(img):
   blur=torchvision.transforms.GaussianBlur(11, sigma=8.0)

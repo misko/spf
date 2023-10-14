@@ -12,6 +12,10 @@ from utils.rf import NoiseWrapper, IQSource, UCADetector, ULADetector, beamforme
 
 c=3e8 # speed of light
 
+
+def _arctan2(x,y):
+  return np.arctan2(x,y) # rotation to right from x=0,y+
+
 class BoundedPoint:
   def __init__(self,
     pos=np.ones(2)*0.5,
@@ -33,7 +37,7 @@ class BoundedPoint:
         self.pos=np.clip(self.pos,0,self.width-eps)
         self.v[idx]=-self.v[idx]
     if np.linalg.norm(self.v)>0:
-      return np.array(self.pos),np.arctan2(self.v[1],self.v[0]),self.v
+      return np.array(self.pos),_arctan2(self.v[0],self.v[1]),self.v
     return np.array(self.pos),0.0,np.zeros(2)
 
 
@@ -70,7 +74,7 @@ def generate_session(args_and_session_idx):
   beamformer_f=beamformer_numba if args.numba else beamformer
 
   if args.array_type=='linear':
-    d=ULADetector(args.sampling_frequency,args.elements,wavelength/4,sigma=detector_noise) # 10Mhz sampling
+    d=ULADetector(args.sampling_frequency,args.elements,wavelength/2,sigma=detector_noise) # 10Mhz sampling
   elif args.array_type=='circular':
     d=UCADetector(args.sampling_frequency,args.elements,wavelength/4,sigma=detector_noise) # 10Mhz sampling
   else:
@@ -162,7 +166,7 @@ def generate_session(args_and_session_idx):
   #deal with detector position features
   #diffs=source_positions-d['detector_position_at_t_normalized']
   #source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]
-  #breakpoint()
+
 
   time_stamps=(np.arange(args.time_steps)*args.time_interval).reshape(-1,1)
   for t_idx in np.arange(args.time_steps):
@@ -208,10 +212,10 @@ def generate_session(args_and_session_idx):
         start_time=time_stamps[t_idx,0],
         duration=args.samples_per_snapshot/d.sampling_frequency)
     thetas_at_t[t_idx],beam_former_outputs_at_t[t_idx],_=beamformer_f(
-      d.all_receiver_pos(),
+      d.all_receiver_pos(with_offset=False),
       signal_matrixs_at_t[t_idx],
       args.carrier_frequency,spacing=args.beam_former_spacing,
-      offset=np.pi/2-d.orientation)
+      offset=d.orientation)
     #print(d.orientation,detector_theta)
     detector_position_at_t[t_idx]=d.position_offset
 
@@ -219,7 +223,7 @@ def generate_session(args_and_session_idx):
       diff=current_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
       #both of these are in regular units, radians to the left of x+ 
       #but it doesnt matter because we just want the difference
-      source_theta_at_t[t_idx]=(d.orientation-(np.arctan2(diff[[1]],diff[[0]]))+np.pi)%(2*np.pi)-np.pi  
+      source_theta_at_t[t_idx]=(_arctan2(diff[[0]],diff[[1]])-d.orientation+np.pi)%(2*np.pi)-np.pi
       source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
     else:
       source_theta_at_t[t_idx]=0 #(np.arctan2(diff[[1]],diff[[0]])-d.orientation+np.pi)%(2*np.pi)-np.pi  
