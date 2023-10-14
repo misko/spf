@@ -376,7 +376,7 @@ lr=0.001; python3 14_task3_model_training.py --dataset ./sessions-train --mb 64 
 # october 13
 python3 01_generate_data.py --array-type linear --elements 2 --sources 1 --width 128 --detector-trajectory bounce --detector-speed 0.0 --time-steps 256 --time-interval 0.3 --live true --output sessions-train --sessions 200000000 --seed 1337  --source-speed 2.0 --beam-former-spacing 65  --fixed-detector 64 10 --sigma 0.2
 
-lr=0.001; python3 14_task3_model_training.py --dataset ./sessions-train --mb 64 --workers 8 --plot True --snapshots 256 --save-every 10000 --type 32 --lr-transformer 0.001 --print-every 128 --plot-every 512 --output-prefix output_mb64_reference_ --n-layers 1 2 4 8 --beam-former-spacing 65  --device cpu --transformer-dmodel 32 --obv-dembed 31 --embedding-warmup 12000 --lr-scheduler-every 0 --device cuda
+lr=0.001; python3 14_task3_model_training.py --dataset ./sessions-train --mb 64 --workers 8 --plot True --snapshots 256 --save-every 10000 --type 32 --lr-transformer 0.001 --print-every 128 --plot-every 512 --output-prefix output_mb64_reference_ --n-layers 1 2 4 8 --beam-former-spacing 65  --device cpu --transformer-dmodel 32 --obv-dembed 31 --embedding-warmup 6000 --lr-scheduler-every 0 --device cuda
 
 # real data run
 lr=0.001; python 14_task3_model_training.py --dataset ../data  --mb 64 --workers 4 --plot True --snapshots 256 --save-every 10000 --type 32 --lr-transformer $lr  --print-every 128 --plot-every 512  --output-prefix output_mb64_reference_ --n-layers 1 2 4 --beam-former-spacing 65 --real-data --device cpu --transformer-dmodel 32 --obv-dembed 31 --embedding-warmup 6000 --lr-scheduler-every 0  --device cpu 
