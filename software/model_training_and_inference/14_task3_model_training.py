@@ -101,7 +101,7 @@ def model_forward(d_model,data,args,train_test_label,update,plot=True):
 
   nll_ss_position_reconstruction_loss=points_to_nll(emitting_positions,
                           ss_mean,
-                          convert_sigmas(ss_cov,min_sigma=min_sigma,max_sigma=max_sigma),
+                          convert_sigmas(ss_cov,min_sigma=min_sigma,max_sigma=max_sigma,ellipse=args.ellipse),
                           ss_angle,mode=args.point_mode).mean()
   if plot and (update%args.plot_every)==args.plot_every-1:
     t=time_steps

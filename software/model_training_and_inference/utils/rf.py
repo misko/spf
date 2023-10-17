@@ -206,8 +206,8 @@ class Detector(object):
       #get the signal from the source for these times
       signal=_source.signal(base_time_offsets[source_index]) #.reshape(base_time_offsets[source_index].shape) # receivers x sampling intervals
       raw_signal.append(signal)
-      #normalized_signal=signal/distances_squared[source_index][...,None]
-      normalized_signal=signal
+      normalized_signal=signal/distances_squared[source_index][...,None]
+      #normalized_signal=signal
       _base_times=np.broadcast_to(base_times,normalized_signal.shape) # broadcast the basetimes for rx_lo on all receivers
       demod_times=np.broadcast_to(_base_times.mean(axis=0,keepdims=True),_base_times.shape) #TODO this just takes the average?
       ds=_source.demod_signal(

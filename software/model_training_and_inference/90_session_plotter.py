@@ -3,7 +3,7 @@ import pickle
 
 from utils.plot import filenames_to_gif, plot_full_session
 from compress_pickle import dump, load
-from utils.spf_dataset import SessionsDataset
+from utils.spf_dataset import SessionsDatasetTask2
 
 if __name__=='__main__': 
 	parser = argparse.ArgumentParser()
@@ -13,7 +13,7 @@ if __name__=='__main__':
 	parser.add_argument('--output_prefix', type=str, required=False, default='session_output')
 	args = parser.parse_args()
 	
-	ds=SessionsDataset(args.dataset,snapshots_in_sample=args.steps)	
+	ds=SessionsDatasetTask2(args.dataset,snapshots_in_sample=args.steps)	
 	session=ds[args.session_idx]
 	filenames=plot_full_session(session,args.steps,args.output_prefix)
 
