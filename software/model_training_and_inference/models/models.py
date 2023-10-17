@@ -329,8 +329,9 @@ class TrajectoryNet(nn.Module):
     ################
     #generate random times to grab
     if self.training:
-      rt=torch.randint(low=2, high=time_steps-1, size=(batch_size,)) # keep on CPU?, low=2 here gaurantees at least one thing was being tracked for each example
-      rt[:batch_size//2]=(time_steps-1)//2+1 # this might make it a bit smoother?
+      rt=torch.randint(low=max(2,batch_size//10), high=time_steps-1, size=(batch_size,)) # keep on CPU?, low=2 here gaurantees at least one thing was being tracked for each example
+      rt[:batch_size//4]=(time_steps-1)//2+1 # this might make it a bit smoother?
+      rt[batch_size//2:((3*batch_size)//4)]=time_steps # this might make it a bit smoother?
     else:
       print("EVAL MODE")
       rt=torch.ones(batch_size,dtype=int)*(time_steps-1)
