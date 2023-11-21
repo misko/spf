@@ -16,8 +16,13 @@ interfer constructively.
 def rf_linspace(s,e,i):
     return np.linspace(s,e,i)
 
+'''
+Rotate by orientation
+If we are left multiplying then its a left (counter clockwise) rotation
+
+'''
 @functools.lru_cache(maxsize=1024)
-def rotation_matrix(orientation): #rotate right by orientation in radians
+def rotation_matrix(orientation): 
   s = np.sin(orientation)
   c = np.cos(orientation)
   return np.array([c, -s, s, c]).reshape(2,2)
@@ -28,6 +33,7 @@ c=3e8 # speed of light
 class Source(object):
   def __init__(self,pos):
     self.pos=np.array(pos)
+    assert(self.pos.shape==(1,2))
 
   def signal(self,sampling_times):
     return np.cos(2*np.pi*sampling_times)+np.sin(2*np.pi*sampling_times)*1j
@@ -66,49 +72,6 @@ class MixedSource(Source):
   def signal(self,sampling_times):
     return self.source_a(sampling_times)*self.source_b(sampling_times)
 
-class CarrierSource(Source):
-  def __init__(self,pos,carrier_frequency,if_source,phase=0,amplitude=1,h=None):
-    super().__init__(pos)
-    self.carrier_frequency=carrier_frequency
-    self.carrier_source=SinSource(pos,carrier_frequency,phase,amplitude)
-    self.if_source=if_source
-    self.h=h
-
-  def signal(self,sampling_times):
-    return (self.carrier_source.signal(sampling_times)*self.if_source.signal(sampling_times)) #.reshape(1,-1)
-
-  def demod_signal(self,signal,demod_times,use_filter=True,nested=False):
-    signal_if=signal*self.carrier_source.signal(demod_times)
-    if self.h is not None and use_filter:
-      signal_if=np.array([np.convolve(x, self.h, mode='same') for x in signal_if ])
-    if not nested:
-      print("NOT NESTED")
-      return signal_if
-    return self.if_source.demod_signal(signal_if,demod_times,use_filter=use_filter)
-     
-
-class QAMSource(Source):
-  def __init__(self,pos,signal_frequency,sigma=0,IQ=(0,0),h=None):
-    super().__init__(pos)
-    self.lo_in_phase=SinSource(pos,signal_frequency,-np.pi/2) #,amplitude=IQ[0]) # cos
-    self.lo_out_of_phase=SinSource(pos,signal_frequency,0) #,amplitude=IQ[1]) # sin
-    self.sigma=sigma
-    self.IQ=IQ
-    self.h=h
-
-  def signal(self,sampling_times):
-    signal=((self.lo_in_phase.signal(sampling_times)*self.IQ[0]+self.lo_out_of_phase.signal(sampling_times)*self.IQ[1])/2)
-    #signal+=(np.random.randn(sampling_times.shape[0])*self.sigma) #.view(np.cdouble).reshape(-1)
-    return signal #.reshape(1,-1)
-
-  def demod_signal(self,signal,demod_times,use_filter=True):
-    _i=signal*self.lo_in_phase.signal(demod_times)
-    _q=signal*self.lo_out_of_phase.signal(demod_times)
-    if self.h is not None and use_filter:
-      _i=np.array([np.convolve(x,self.h,mode='same') for x in _i ])
-      _q=np.array([np.convolve(x,self.h,mode='same') for x in _q ])
-    return _i+1j*_q
-
 class NoiseWrapper(Source):
   def __init__(self,internal_source,sigma=1):
     super().__init__(internal_source.pos)
@@ -126,7 +89,7 @@ class Detector(object):
     self.receiver_positions=None
     self.sampling_frequency=sampling_frequency
     self.position_offset=np.zeros(2)
-    self.orientation=orientation
+    self.orientation=orientation # rotation to the right in radians to apply to receiver array coordinate system
     self.sigma=sigma
 
   def add_source(self,source):
@@ -159,7 +122,6 @@ class Detector(object):
   def n_receivers(self):
     return self.receiver_positions.shape[0]
 
-
   def all_receiver_pos(self,with_offset=True):
     if with_offset:
       return self.position_offset+(rotation_matrix(self.orientation) @ self.receiver_positions.T).T
@@ -172,25 +134,14 @@ class Detector(object):
     else:
       return (rotation_matrix(self.orientation) @ self.receiver_positions[receiver_idx].T).T
 
-  def get_signal_matrix_old(self,start_time,duration,rx_lo=0):
-    n_samples=int(duration*self.sampling_frequency)
-    base_times=start_time+rf_linspace(0,n_samples-1,n_samples)/self.sampling_frequency
-    sample_matrix=np.zeros((self.n_receivers(),n_samples),dtype=np.cdouble) # receivers x samples
-    for receiver_index,receiver in enumerate(self.receiver_positions):
-      for _source in self.sources:
-        distance=np.linalg.norm(self.receiver_pos(receiver_index)-_source.pos)
-        time_delay=distance/c
-        sample_matrix[receiver_index,:]+=_source.demod_signal(_source.signal(base_times-time_delay)/(distance**2),
-                                                              base_times)
-        if rx_lo>0:
-          sample_matrix[receiver_index,:]
-    return sample_matrix
-
   def get_signal_matrix(self,start_time,duration,rx_lo=0):
     n_samples=int(duration*self.sampling_frequency)
     base_times=start_time+rf_linspace(0,n_samples-1,n_samples)/self.sampling_frequency
-    #sample_matrix=np.zeros((self.receiver_positions.shape[0],n_samples),dtype=np.cdouble) # receivers x samples
-    sample_matrix=np.random.randn(
+
+    if self.sigma==0.0:
+      sample_matrix=np.zeros((self.receiver_positions.shape[0],n_samples),dtype=np.cdouble) # receivers x samples
+    else:
+      sample_matrix=np.random.randn(
         self.receiver_positions.shape[0],n_samples,2).view(np.cdouble).reshape(self.receiver_positions.shape[0],n_samples)*self.sigma
 
     if len(self.sources)==0:
@@ -201,13 +152,10 @@ class Detector(object):
     time_delays=distances/c 
     base_time_offsets=base_times[None,None]-(distances/c)[...,None] # sources x receivers x sampling intervals
     distances_squared=distances**2
-    raw_signal=[]
     for source_index,_source in enumerate(self.sources):
       #get the signal from the source for these times
       signal=_source.signal(base_time_offsets[source_index]) #.reshape(base_time_offsets[source_index].shape) # receivers x sampling intervals
-      raw_signal.append(signal)
       normalized_signal=signal/distances_squared[source_index][...,None]
-      #normalized_signal=signal
       _base_times=np.broadcast_to(base_times,normalized_signal.shape) # broadcast the basetimes for rx_lo on all receivers
       demod_times=np.broadcast_to(_base_times.mean(axis=0,keepdims=True),_base_times.shape) #TODO this just takes the average?
       ds=_source.demod_signal(
@@ -280,6 +228,23 @@ def dbfs(raw_data):
 
 ###
 '''
+Beamformer takes as input the 
+  receiver positions
+  signal marix representing signal received at those positions
+  carrier_frequency
+  calibration between receivers
+  spacing of thetas
+  offset (subtracted from thetas, often needs to be supplied with (-) to counter the actual angle)
+
+(1) compute spacing different directions in the unit circle to test signal strength at
+(2) compute the source unit vectors for each of the directions in (1)
+(3) project the receiver positions onto source unit vectors, this tells us relative distance to each receiver
+(4) using the above distances, normalize to wavelength units, and compute phase adjustments
+(5) transform phase adjustments into complex matrix 
+(6) apply adjustment matrix to signals and take the mean of the absolute values
+
+**Beamformer theta output is right rotated (clockwise)**
+
 Beamformer assumes,
 0 -> x=0, y=1
 pi/2 -> x=1, y=0
@@ -289,17 +254,17 @@ pi/2 -> x=1, y=0
 def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1,offset=0.0):
     thetas=np.linspace(-np.pi,np.pi,spacing)#-offset
     source_vectors=np.vstack([np.sin(thetas+offset)[None],np.cos(thetas+offset)[None]]).T
-    #thetas,source_vectors=get_thetas(spacing)
-    steer_dot_signal=np.zeros(thetas.shape[0])
-    carrier_wavelength=c/carrier_frequency
 
     projection_of_receiver_onto_source_directions=(source_vectors @ receiver_positions.T)
+
+    carrier_wavelength=c/carrier_frequency
     args=2*np.pi*projection_of_receiver_onto_source_directions/carrier_wavelength
     steering_vectors=np.exp(-1j*args)
     if calibration is not None:
       steering_vectors=steering_vectors*calibration[None]
     #the delay sum is performed in the matmul step, the absolute is over the summed value
-    steer_dot_signal=np.absolute(np.matmul(steering_vectors,signal_matrix)).mean(axis=1)
+    phase_adjusted=np.matmul(steering_vectors,signal_matrix) # this is adjust and sum in one step
+    steer_dot_signal=np.absolute(phase_adjusted).mean(axis=1) # mean over samples
     return thetas,steer_dot_signal,steering_vectors
 
 def beamformer_old(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
