@@ -18,7 +18,7 @@ def rf_linspace(s,e,i):
 
 '''
 Rotate by orientation
-If we are left multiplying then its a left (counter clockwise) rotation
+If we are left multiplying then its a right (clockwise) rotation
 
 '''
 @functools.lru_cache(maxsize=1024)
@@ -28,7 +28,6 @@ def rotation_matrix(orientation):
   return np.array([c, s, -s, c]).reshape(2,2)
 
 c=3e8 # speed of light
-
 
 class Source(object):
   def __init__(self,pos):
@@ -161,7 +160,6 @@ class Detector(object):
       ds=_source.demod_signal(
               normalized_signal,
               demod_times) # TODO nested demod?
-      #print(_base_times.shape,"BT")
       sample_matrix+=ds
     return sample_matrix #,raw_signal,demod_times,base_time_offsets[0]
 
@@ -267,22 +265,3 @@ def beamformer(receiver_positions,signal_matrix,carrier_frequency,calibration=No
     steer_dot_signal=np.absolute(phase_adjusted).mean(axis=1) # mean over samples
     return thetas,steer_dot_signal,steering_vectors
 
-def beamformer_old(receiver_positions,signal_matrix,carrier_frequency,calibration=None,spacing=64+1):
-    if calibration is None:
-        calibration=np.ones(receiver_positions.shape[0]).astype(np.cdouble)
-    thetas=rf_linspace(-np.pi,np.pi,spacing)
-    source_vectors=np.vstack([np.cos(thetas)[None],np.sin(thetas)[None]]).T
-    steer_dot_signal=np.zeros(thetas.shape[0])
-    carrier_wavelength=c/carrier_frequency
-    steering_vectors=np.zeros((len(thetas),receiver_positions.shape[0])).astype(np.cdouble)
-    for theta_index,theta in enumerate(thetas):
-        source_vector=np.array([np.cos(theta),np.sin(theta)])
-        for receiver_index in np.arange(receiver_positions.shape[0]):
-            projection_of_receiver_onto_source_direction=np.dot(source_vector,receiver_positions[receiver_index])
-            arg=2*np.pi*projection_of_receiver_onto_source_direction/carrier_wavelength
-            steering_vectors[theta_index][receiver_index]=np.exp(-1j*arg)
-        #the delay sum is performed in the matmul step, the absolute is over the summed value
-        steer_dot_signal[theta_index]=np.absolute(np.matmul(steering_vectors[theta_index]*calibration,signal_matrix)).mean()
-
-    return thetas,steer_dot_signal,steering_vectors
-  
