@@ -211,8 +211,12 @@ def plot_full_session(session,steps,output_prefix,img_width=128,invert=False):
   #extract the images
   d={}
   d['source_image_at_t']=labels_to_source_images(torch.from_numpy(session['source_positions_at_t'])[None],width,img_width=img_width)[0]
-  d['detector_theta_image_at_t']=detector_positions_to_theta_grid(session['detector_position_at_t'][None],width,img_width=img_width)[0]
-  d['radio_image_at_t']=radio_to_image(session['beam_former_outputs_at_t'][None],d['detector_theta_image_at_t'][None],session['detector_orientation_at_t'][None])[0]
+  d['detector_theta_image_at_t']=detector_positions_to_theta_grid(
+    session['detector_position_at_t'][None],width,img_width=img_width)[0]
+  d['radio_image_at_t']=radio_to_image(
+    session['beam_former_outputs_at_t'][None],
+    d['detector_theta_image_at_t'][None],
+    session['detector_orientation_at_t'][None])[0]
   d['radio_image_at_t_normed']=d['radio_image_at_t']/d['radio_image_at_t'].sum(axis=2,keepdims=True).sum(axis=3,keepdims=True)
   filenames=[]
   plt.ioff()
@@ -270,10 +274,12 @@ def plot_full_session(session,steps,output_prefix,img_width=128,invert=False):
       axs[0,0].invert_xaxis()
       axs[0,0].invert_yaxis()
       axs[1,0].invert_xaxis()
-    else:
-      axs[1,0].invert_yaxis()
-      axs[1,1].invert_yaxis()
       axs[1,1].invert_xaxis()
+    else:
+      #axs[1,0].invert_yaxis()
+      axs[1,1].invert_yaxis()
+      #axs[1,1].invert_xaxis()
+      pass
     #  origin='upper',
     #  extent=(0,
     #      d['radio_image_at_t'][idx,0].shape[0],

@@ -25,7 +25,7 @@ If we are left multiplying then its a left (counter clockwise) rotation
 def rotation_matrix(orientation): 
   s = np.sin(orientation)
   c = np.cos(orientation)
-  return np.array([c, -s, s, c]).reshape(2,2)
+  return np.array([c, s, -s, c]).reshape(2,2)
 
 c=3e8 # speed of light
 
@@ -33,7 +33,7 @@ c=3e8 # speed of light
 class Source(object):
   def __init__(self,pos):
     self.pos=np.array(pos)
-    assert(self.pos.shape==(1,2))
+    assert(self.pos.shape[1]==2)
 
   def signal(self,sampling_times):
     return np.cos(2*np.pi*sampling_times)+np.sin(2*np.pi*sampling_times)*1j

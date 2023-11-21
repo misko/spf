@@ -50,7 +50,7 @@ for Detector in [ULADetector,UCADetector]:
                   d.all_receiver_pos(),
                   signal_matrix,
                   carrier_frequency,
-                  offset=-d.orientation)
+                  offset=d.orientation)
           beamformer_outputs.append(beam_former_outputs_at_t)
           #plt.figure()
           #plt.plot(thetas_at_t,beamformer_outputs[0])

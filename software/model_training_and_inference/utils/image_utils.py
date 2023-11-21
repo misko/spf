@@ -66,11 +66,12 @@ def labels_to_source_images(labels,width,img_width=128):
 
 def radio_to_image(beam_former_outputs_at_t,theta_at_pos,detector_orientation): 
   #theta_at_pos=(theta_at_pos+np.pi-detector_orientation[...,None,None])%(2*np.pi)
+  #theta_at_pos=(theta_at_pos+detector_orientation[...,None,None])%(2*np.pi)
   theta_at_pos=(theta_at_pos-detector_orientation[...,None,None])%(2*np.pi)
-
   #theta_idxs=(((theta_at_pos+np.pi)/(2*np.pi))*(beam_former_outputs_at_t.shape[-1]-1)).round().astype(int)
-  theta_idxs=((theta_at_pos/(2*np.pi))*(beam_former_outputs_at_t.shape[-1]-1)).round().astype(int)
+  theta_idxs=(((theta_at_pos/(2*np.pi)+0.5)%1.0)*(beam_former_outputs_at_t.shape[-1]-1)).round().astype(int)
   b,s,_,width,_=theta_at_pos.shape
+  #return theta_at_pos.reshape(b,s,1,width,width)
   beam_former_outputs_at_t=beam_former_outputs_at_t#[:]/beam_former_outputs_at_t.sum(axis=2,keepdims=True)
   outputs=[]
   for b_idx in np.arange(b):

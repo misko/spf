@@ -179,7 +179,7 @@ def generate_session(args_and_session_idx):
     if tdm_source_idx>=0:
       d.add_source(NoiseWrapper(
         IQSource(
-        current_source_positions[tdm_source_idx], # x, y position
+        current_source_positions[[tdm_source_idx]], # x, y position
         args.carrier_frequency),
         sigma=sigma))
     
@@ -221,7 +221,7 @@ def generate_session(args_and_session_idx):
 
     if tdm_source_idx>=0:
       diff=current_source_positions[tdm_source_idx]-detector_position_at_t[t_idx]
-      #both of these are in regular units, radians to the left of x+ 
+      #both of these are in regular units, radians to the right of x+ 
       #but it doesnt matter because we just want the difference
       source_theta_at_t[t_idx]=(_arctan2(diff[[0]],diff[[1]])-d.orientation+np.pi)%(2*np.pi)-np.pi
       source_distance_at_t[t_idx]=np.sqrt(np.power(diff,2).sum())
