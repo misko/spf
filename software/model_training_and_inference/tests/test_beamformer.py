@@ -1,4 +1,4 @@
-from spf.software.model_training_and_inference.utils.rf import *
+from spf.software.rf import *
 
 
 def test_beamformer():
