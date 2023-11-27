@@ -63,18 +63,18 @@ class GRBLManager:
             x = (v * t) * np.cos(w * t)
             y = (v * t) * np.sin(w * t)
             p = np.array([x, y]) + center
-            a_motor_steps, b_motor_steps = to_steps(p)
+            a_motor_steps, b_motor_steps = self.to_steps(p)
             cmd = "G0 X%0.2f Y%0.2f" % (b_motor_steps, a_motor_steps)
             # print("SENDING",x,y,cmd)
-            s.write((cmd + "\n").encode())  # Send g-code block to grbl
-            s.readline().strip()
+            self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
+            self.s.readline().strip()
 
     def calibrate(self):
         for x in np.linspace(1500, 500, 5):
             for y in np.linspace(30, 1200, 5):
-                x, y = to_steps(np.array([x, y]))
+                x, y = self.to_steps(np.array([x, y]))
                 cmd = "G0 X%0.2f Y%0.2f" % (x, y)
-                s.write((cmd + "\n").encode())  # Send g-code block to grbl
+                self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
 
     def __init__(self, serial_fn):
         # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
@@ -254,7 +254,7 @@ if __name__ == "__main__":
         if line == "q":
             sys.exit(1)
         elif line == "r":
-            r = push_reset(s)
+            r = gm.push_reset()
             print(r)
         elif line == "bounce":
             # point=np.array([2491.49001749,2401.75483327])

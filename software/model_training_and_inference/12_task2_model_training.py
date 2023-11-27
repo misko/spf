@@ -616,14 +616,6 @@ if __name__ == "__main__":
                     ).item()
                 }
             )
-            if using_images:
-                running_losses["train"]["baseline_image"].append(
-                    {
-                        "baseline_image": criterion(
-                            label_images * 0 + label_images.mean(), label_images
-                        ).item()
-                    }
-                )
 
             if i % args.print_every == args.print_every - 1:
                 for idx in np.arange(args.test_mbs):
@@ -653,14 +645,6 @@ if __name__ == "__main__":
                             ).item()
                         }
                     )
-                    if using_images:
-                        running_losses["test"]["baseline_image"].append(
-                            {
-                                "baseline_image": criterion(
-                                    label_images * 0 + label_images.mean(), label_images
-                                ).item()
-                            }
-                        )
 
             if i == 0 or i % args.save_every == args.save_every - 1:
                 save(args, running_losses, models, i, args.keep_n_saves)

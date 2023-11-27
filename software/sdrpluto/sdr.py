@@ -40,7 +40,7 @@ class SinSource(Source):
 
 
 class MixedSource(Source):
-    def __init__(self, source_a, source_b):
+    def __init__(self, pos, source_a, source_b):
         super().__init__(pos)
         self.source_a = source_a
         self.source_b = source_b

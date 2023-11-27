@@ -7,7 +7,8 @@ import numpy as np
 from math import lcm
 
 # from sdr import *
-
+from spf.software.rf import ULADetector, beamformer
+import matplotlib.pyplot as plt
 
 c = 3e8
 fc0 = int(500e3)
