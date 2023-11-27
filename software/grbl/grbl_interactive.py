@@ -216,6 +216,15 @@ if __name__=='__main__':
     serial_fn=sys.argv[1]
 
     gm=GRBLManager(serial_fn)
+    print('''
+        q = quit
+        r = reset
+        bounce = bounce
+        s = status
+        c = calibrate
+        e = spiral
+        X,Y = move to X,Y
+    ''')
     for line in sys.stdin:
         line=line.strip()
         if line=='q':
@@ -240,6 +249,7 @@ if __name__=='__main__':
                 p_main=np.array([ float(x) for x in line.split() ])
                 a_motor_steps,b_motor_steps=gm.to_steps(p_main)
                 cmd="G0 X%0.2f Y%0.2f" % (b_motor_steps,a_motor_steps)
+                print(cmd)
                 print(gm.from_steps(a_motor_steps,b_motor_steps))
                 gm.s.write((cmd + '\n').encode()) # Send g-code block to grbl
                 grbl_out = gm.s.readline() # Wait for grbl response with carriage return
