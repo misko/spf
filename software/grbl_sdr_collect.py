@@ -17,7 +17,7 @@ def bounce_grbl(gm):
         except Exception as e:
             print(e)
         print("TRY TO BOUNCE RET")
-        time.sleep(15) # cool off the motor
+        time.sleep(10) # cool off the motor
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()

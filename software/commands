@@ -1,0 +1,2 @@
+export PYTHONPATH=/home/pi/
+xs="78 79 80 81 82 83 84 85 86"; for x in $xs; do python grbl_sdr_collect.py --receiver-ip 192.168.1.16 --emitter-ip 192.168.1.15 --grbl-serial /dev/ttyACM0 --record-n 400000 --out bw_filter_${x}.npy; done
