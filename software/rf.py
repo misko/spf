@@ -4,7 +4,7 @@ import numpy as np
 # from numba import jit
 import functools
 
-numba = False
+#numba = False
 
 """
 
@@ -81,7 +81,7 @@ class SinSource(Source):
 
 
 class MixedSource(Source):
-    def __init__(self, source_a, source_b, h=None):
+    def __init__(self, pos, source_a, source_b, h=None):
         super().__init__(pos)
         self.source_a = source_a
         self.source_b = source_b
@@ -255,7 +255,7 @@ def get_thetas(spacing):
     thetas = rf_linspace(-np.pi, np.pi, spacing)
     return thetas, np.vstack([np.cos(thetas)[None], np.sin(thetas)[None]]).T
 
-
+'''
 if numba:
 
     @jit(nopython=True)
@@ -300,7 +300,7 @@ def beamformer_numba(
         thetas,
         source_vectors,
     )
-
+'''
 
 # from Jon Kraft github
 def dbfs(raw_data):
