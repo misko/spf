@@ -1,4 +1,5 @@
-from spf.software.rf import *
+from spf.rf import beamformer, c, ULADetector, UCADetector, rotation_matrix, IQSource
+import numpy as np
 
 
 def test_beamformer():

@@ -4,7 +4,7 @@ import numpy as np
 # from numba import jit
 import functools
 
-#numba = False
+# numba = False
 
 """
 
@@ -255,7 +255,8 @@ def get_thetas(spacing):
     thetas = rf_linspace(-np.pi, np.pi, spacing)
     return thetas, np.vstack([np.cos(thetas)[None], np.sin(thetas)[None]]).T
 
-'''
+
+"""
 if numba:
 
     @jit(nopython=True)
@@ -300,7 +301,8 @@ def beamformer_numba(
         thetas,
         source_vectors,
     )
-'''
+"""
+
 
 # from Jon Kraft github
 def dbfs(raw_data):
