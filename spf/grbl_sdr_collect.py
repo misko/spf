@@ -1,6 +1,6 @@
 from sdrpluto.gather import *
 from grbl.grbl_interactive import GRBLManager
-from model_training_and_inference.utils.rf import beamformer
+from spf.rf import beamformer
 import threading
 import time
 import numpy as np
@@ -106,12 +106,21 @@ if __name__ == "__main__":
             time.sleep(1)
 
         # get some data
-        try:
-            signal_matrix = sdr_rx.rx()
-        except Exception as e:
-            print("Failed to receive RX data! removing file", e)
-            os.remove(args.out)
-            break
+        read_ok=False
+        tries=0
+        while not read_ok:
+            try:
+                signal_matrix = sdr_rx.rx()
+                read_ok=True
+            except Exception as e:
+                print("Failed to receive RX data! removing file : retry %" % tries, e)
+                time.sleep(0.1)
+                tries+=1
+                if tries>10:
+                    breakpoint()
+                    print("GIVE UP")
+                    os.remove(args.out)
+                    break
         signal_matrix[1] *= np.exp(1j * sdr_rx.phase_calibration)
         current_time = time.time() - time_offset  # timestamp
 

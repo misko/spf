@@ -1,7 +1,7 @@
 import argparse
 import adi
 import numpy as np
-from spf.software.model_training_and_inference.utils.rf import beamformer
+from spf.rf import beamformer
 from math import gcd
 import matplotlib.pyplot as plt
 import time
