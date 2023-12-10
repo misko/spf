@@ -5,52 +5,40 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+home_pA=np.array([3568,0])
+home_pB=np.array([0,0])
+
 class GRBLManager:
     # a is the left motor on the wall
     # b is the right motor on the wall
-    # origin is very close to b
-    # origin_a=np.array([2880,-300]) # a1 / y
-    # origin_b=np.array([-300,-365]) # a2 / x
-    # origin_a=np.array([2910,-350]) # a1 / y
-    origin_a = np.array([2910 + 100, -350])  # a1 / y
-    origin_b = np.array([-300, -370])  # a2 / x
-
-    limit_topleft = np.array([2880 - 300, 4000 - 200])
-    limit_bottomright = np.array([0, 1500 - 200])
-    x_range = 2880 - 300
-    y_max = 2500
+    # (a-b)_x > 0
+    # x is positive from b towards a
+    # y is positive up to ceiling and negative down to floor
 
     def from_steps(self, a_motor_steps, b_motor_steps):
-        r1 = np.linalg.norm(self.origin_a) - a_motor_steps
-        r2 = np.linalg.norm(self.origin_b) - b_motor_steps
-        d = np.linalg.norm(self.origin_a - self.origin_b)
+        r1 = np.linalg.norm(self.pA) + a_motor_steps
+        r2 = np.linalg.norm(self.pB) + b_motor_steps
+        d = np.linalg.norm(self.pA - self.pB)
 
-        x = (d * d - r2 * r2 + r1 * r1) / (2 * d)  # on different axis
-        x_dir = (self.origin_b - self.origin_a) / d
+        '''
+        x^2 = y^2 + r_2^2
+        (x-d)^2 = x^2 - 2xd + d^2 = y^2 + r_1^2
+
+        x = (r_2^2 - d^2 - r_1^2 ) / (2*d)
+
+        '''
+        x = (r2 * r2 - d * d - r1 * r1) / (2 * d)  # on different axis
+        x_dir = (self.pA - self.pB) / d # unit vector from pB to pA
 
         y = np.sqrt(r1 * r1 - x * x)
         y_dir = np.array([-x_dir[1], x_dir[0]])  # x_dir.T # orthogonal to x
 
-        xy_g = self.origin_a - y_dir * y + x_dir * x
-        return xy_g
+        return self.pA + y_dir * y + x_dir * x
 
     def to_steps(self, p):
-        x_frac = p[0] / self.x_range
-        y_limit = min(
-            self.y_max,
-            (self.limit_bottomright * (1 - x_frac) + self.limit_topleft * x_frac)[1],
-        )
+        a_motor_steps = np.linalg.norm(self.pA-p) - np.linalg.norm(self.pA)
+        b_motor_steps = np.linalg.norm(self.pB-p) - np.linalg.norm(self.pB)
 
-        p[0] = min(self.x_range, max(0, p[0]))
-        p[1] = min(y_limit, max(0, p[1]))
-
-        a_motor_steps = np.linalg.norm(self.origin_a) - np.linalg.norm(
-            self.origin_a - p
-        )
-
-        b_motor_steps = np.linalg.norm(self.origin_b) - np.linalg.norm(
-            self.origin_b - p
-        )  # -np.linalg.norm(a2)
         return a_motor_steps, b_motor_steps
 
     def spiral(self):
@@ -76,18 +64,22 @@ class GRBLManager:
                 cmd = "G0 X%0.2f Y%0.2f" % (x, y)
                 self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
 
-    def __init__(self, serial_fn):
-        # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
-        self.s = serial.Serial(
-            serial_fn, 115200, timeout=0.3, write_timeout=0.3
-        )  # GRBL operates at 115200 baud. Leave that part alone.
-        self.s.write("?".encode())
-        grbl_out = self.s.readline()  # get the response
-        print("GRBL ONLINE", grbl_out)
-        self.position = {"time": time.time(), "xy": np.zeros(2)}
-        self.update_status()
-        time.sleep(0.05)
-        self.collect = True
+    def __init__(self, serial_fn, pA, pB,bounding_box,motor_mapping):
+        self.pA=pA
+        self.pB=pB
+        self.bounding_box=bounding_box
+        self.motor_mapping=motor_mapping
+        if serial_fn is not None:
+          # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
+          self.s = serial.Serial(
+              serial_fn, 115200, timeout=0.3, write_timeout=0.3
+          )  # GRBL operates at 115200 baud. Leave that part alone.
+          self.s.write("?".encode())
+          grbl_out = self.s.readline()  # get the response
+          print("GRBL ONLINE", grbl_out)
+          self.position = {"time": time.time(), "xy": np.zeros(2)}
+          self.update_status()
+          time.sleep(0.05)
 
     def push_reset(self):
         self.s.write(b"\x18")
