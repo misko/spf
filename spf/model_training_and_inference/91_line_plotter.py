@@ -19,4 +19,6 @@ if __name__ == "__main__":
     session = ds[args.session_idx]
     filenames = plot_lines(session, args.steps, args.output_prefix)
 
-    filenames_to_gif(filenames, "%s_lines.gif" % args.output_prefix, size=(1200, 400))
+    filenames_to_gif(
+        filenames, "%s_lines.gif" % args.output_prefix, size=(1200, 400)
+    )

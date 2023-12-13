@@ -73,7 +73,7 @@ def setup_rxtx_and_phase_calibration(args):
         # try to reset the tx
         sdr_rxtx.tx_destroy_buffer()
         sdr_rxtx.tx_cyclic_buffer = True  # this keeps repeating!
-        assert sdr_rxtx.tx_cyclic_buffer == True
+        assert sdr_rxtx.tx_cyclic_buffer is True
         sdr_rxtx.tx(iq0)  # Send Tx data.
 
         # give RX a chance to calm down
@@ -92,7 +92,7 @@ def setup_rxtx_and_phase_calibration(args):
         retries += 1
         sdr_rxtx = None
         time.sleep(1)
-    if emitter_online == False:
+    if emitter_online is False:
         print("Failed to bring emitter online")
         return None
 
@@ -103,14 +103,16 @@ def setup_rxtx_and_phase_calibration(args):
         for idx in range(n_calibration_frames):
             sdr_rxtx.rx()
             phase_calibrations[idx] = (
-                (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
+                (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
+                % (2 * np.pi)
             ).mean()  # TODO THIS BREAKS if diff is near 2*np.pi...
         if phase_calibrations.std() < 1e-5:
             sdr_rxtx.tx_destroy_buffer()
             print(
                 "Final phase calibration (radians) is %0.4f"
                 % phase_calibrations.mean(),
-                "(fraction of 2pi) %0.4f" % (phase_calibrations.mean() / (2 * np.pi)),
+                "(fraction of 2pi) %0.4f"
+                % (phase_calibrations.mean() / (2 * np.pi)),
             )
             sdr_rxtx.phase_calibration = phase_calibrations.mean()
             return sdr_rxtx
@@ -166,7 +168,9 @@ def setup_rx_and_tx(args):
         sdr_emitter.tx_lo = int(tx_lo)
         assert sdr_emitter.tx_lo == tx_lo
         sdr_emitter.tx_enabled_channels = [0]
-        sdr_emitter.tx_hardwaregain_chan0 = int(args.tx_gain)  # tx_gain) #tx_gain)
+        sdr_emitter.tx_hardwaregain_chan0 = int(
+            args.tx_gain
+        )  # tx_gain) #tx_gain)
         assert sdr_emitter.tx_hardwaregain_chan0 == int(args.tx_gain)
         sdr_emitter.tx_hardwaregain_chan1 = int(-80)  # use Tx2 for calibration
         #
@@ -184,7 +188,7 @@ def setup_rx_and_tx(args):
         # sdr_emitter.tx_destroy_buffer()
         sdr_emitter.tx_destroy_buffer()
         sdr_emitter.tx_cyclic_buffer = True  # this keeps repeating!
-        assert sdr_emitter.tx_cyclic_buffer == True
+        assert sdr_emitter.tx_cyclic_buffer is True
         sdr_emitter.tx(iq0)  # Send Tx data.
 
         # give RX a chance to calm down
@@ -206,9 +210,9 @@ def setup_rx_and_tx(args):
 
 def circular_mean(angles, trim=50.0):
     cm = np.arctan2(np.sin(angles).sum(), np.cos(angles).sum()) % (2 * np.pi)
-    dists = np.vstack([2 * np.pi - np.abs(cm - angles), np.abs(cm - angles)]).min(
-        axis=0
-    )
+    dists = np.vstack(
+        [2 * np.pi - np.abs(cm - angles), np.abs(cm - angles)]
+    ).min(axis=0)
     _angles = angles[dists < np.percentile(dists, 100.0 - trim)]
     _cm = np.arctan2(np.sin(_angles).sum(), np.cos(_angles).sum()) % (2 * np.pi)
     return cm, _cm
@@ -218,7 +222,9 @@ def get_avg_phase(signal_matrix, trim=0.0):
     # signal_matrix=np.vstack(sdr_rx.rx())
     # signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
 
-    diffs = (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
+    diffs = (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (
+        2 * np.pi
+    )
     mean, _mean = circular_mean(diffs, trim=50.0)
 
     return mean, _mean
@@ -234,7 +240,9 @@ def plot_recv_signal(sdr_rx):
         signal_matrix = np.vstack(sdr_rx.rx())
         signal_matrix[1] *= np.exp(1j * sdr_rx.phase_calibration)
 
-        beam_thetas, beam_sds, beam_steer = beamformer(pos, signal_matrix, args.fc)
+        beam_thetas, beam_sds, beam_steer = beamformer(
+            pos, signal_matrix, args.fc
+        )
 
         freq = np.fft.fftfreq(t.shape[-1], d=1.0 / sdr_rx.sample_rate)
         assert t.shape[-1] == rx_n
@@ -248,16 +256,22 @@ def plot_recv_signal(sdr_rx):
             axs[idx][0].set_ylim([-1000, 1000])
 
             sp = np.fft.fft(signal_matrix[idx])
-            axs[idx][1].scatter(freq, np.log(np.abs(sp.real)), s=1)  # , freq, sp.imag)
+            axs[idx][1].scatter(
+                freq, np.log(np.abs(sp.real)), s=1
+            )  # , freq, sp.imag)
             axs[idx][1].set_xlabel("Frequency bin")
             axs[idx][1].set_ylabel("Power")
             axs[idx][1].set_ylim([-30, 30])
             max_freq = freq[np.abs(np.argmax(sp.real))]
-            axs[idx][1].axvline(x=max_freq, label="max %0.2e" % max_freq, color="red")
+            axs[idx][1].axvline(
+                x=max_freq, label="max %0.2e" % max_freq, color="red"
+            )
             axs[idx][1].legend()
 
             axs[idx][2].clear()
-            axs[idx][2].scatter(signal_matrix[idx].real, signal_matrix[idx].imag, s=1)
+            axs[idx][2].scatter(
+                signal_matrix[idx].real, signal_matrix[idx].imag, s=1
+            )
             axs[idx][2].set_xlabel("I real(signal)")
             axs[idx][2].set_ylabel("Q imag(signal)")
             axs[idx][2].set_title("IQ plot recv (%d)" % idx)
@@ -267,7 +281,9 @@ def plot_recv_signal(sdr_rx):
             axs[idx][0].set_title("Real signal recv (%d)" % idx)
             axs[idx][1].set_title("Power recv (%d)" % idx)
             # print("MAXFREQ",freq[np.abs(np.argmax(sp.real))])
-        diff = (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
+        diff = (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (
+            2 * np.pi
+        )
         axs[0][3].clear()
         axs[0][3].scatter(t, diff, s=1)
         mean, _mean = circular_mean(diff)
@@ -290,19 +306,34 @@ def plot_recv_signal(sdr_rx):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--receiver-ip", type=str, help="receiver Pluto IP address", required=True
+        "--receiver-ip",
+        type=str,
+        help="receiver Pluto IP address",
+        required=True,
     )
     parser.add_argument(
         "--emitter-ip", type=str, help="emitter Pluto IP address", required=True
     )
     parser.add_argument(
-        "--fi", type=int, help="Intermediate frequency", required=False, default=1e5
+        "--fi",
+        type=int,
+        help="Intermediate frequency",
+        required=False,
+        default=1e5,
     )
     parser.add_argument(
-        "--fc", type=int, help="Carrier frequency", required=False, default=2.5e9
+        "--fc",
+        type=int,
+        help="Carrier frequency",
+        required=False,
+        default=2.5e9,
     )
     parser.add_argument(
-        "--fs", type=int, help="Sampling frequency", required=False, default=16e6
+        "--fs",
+        type=int,
+        help="Sampling frequency",
+        required=False,
+        default=16e6,
     )
     parser.add_argument(
         "--cal0",
@@ -326,7 +357,11 @@ if __name__ == "__main__":
         choices=["manual", "slow_attack", "fast_attack"],
     )
     parser.add_argument(
-        "--rx-n", type=int, help="RX buffer size", required=False, default=2**9
+        "--rx-n",
+        type=int,
+        help="RX buffer size",
+        required=False,
+        default=2**9,
     )  # 12
     args = parser.parse_args()
 

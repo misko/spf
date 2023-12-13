@@ -1,4 +1,8 @@
-from sdrpluto.gather import *
+from sdrpluto.gather import (
+    setup_rxtx_and_phase_calibration,
+    setup_rx_and_tx,
+    get_avg_phase,
+)
 from grbl.grbl_interactive import GRBLManager
 from spf.rf import beamformer
 import threading
@@ -6,7 +10,7 @@ import time
 import numpy as np
 import sys
 import os
-import pickle
+import argparse
 
 
 def bounce_grbl(gm):
@@ -24,19 +28,34 @@ def bounce_grbl(gm):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--receiver-ip", type=str, help="receiver Pluto IP address", required=True
+        "--receiver-ip",
+        type=str,
+        help="receiver Pluto IP address",
+        required=True,
     )
     parser.add_argument(
         "--emitter-ip", type=str, help="emitter Pluto IP address", required=True
     )
     parser.add_argument(
-        "--fi", type=int, help="Intermediate frequency", required=False, default=1e5
+        "--fi",
+        type=int,
+        help="Intermediate frequency",
+        required=False,
+        default=1e5,
     )
     parser.add_argument(
-        "--fc", type=int, help="Carrier frequency", required=False, default=2.5e9
+        "--fc",
+        type=int,
+        help="Carrier frequency",
+        required=False,
+        default=2.5e9,
     )
     parser.add_argument(
-        "--fs", type=int, help="Sampling frequency", required=False, default=16e6
+        "--fs",
+        type=int,
+        help="Sampling frequency",
+        required=False,
+        default=16e6,
     )
     parser.add_argument(
         "--cal0",
@@ -60,13 +79,21 @@ if __name__ == "__main__":
         "--record-freq", type=int, help="record freq", required=False, default=5
     )
     parser.add_argument(
-        "--rx-mode", type=str, help="rx mode", required=False, default="fast_attack"
+        "--rx-mode",
+        type=str,
+        help="rx mode",
+        required=False,
+        default="fast_attack",
     )
     parser.add_argument(
         "--record-n", type=int, help="records", required=False, default=43200
     )
     parser.add_argument(
-        "--rx-n", type=int, help="RX buffer size", required=False, default=2**12
+        "--rx-n",
+        type=int,
+        help="RX buffer size",
+        required=False,
+        default=2**12,
     )
     args = parser.parse_args()
 
@@ -80,13 +107,13 @@ if __name__ == "__main__":
 
     # calibrate the receiver
     sdr_rx = setup_rxtx_and_phase_calibration(args)
-    if sdr_rx == None:
+    if sdr_rx is None:
         print("Failed phase calibration, exiting")
         sys.exit(1)
     phase_calibration = sdr_rx.phase_calibration
     sdr_rx = None
     sdr_rx, sdr_tx = setup_rx_and_tx(args)
-    if sdr_rx == None or sdr_tx == None:
+    if sdr_rx is None or sdr_tx is None:
         print("Failed setup, exiting")
         sys.exit(1)
 
@@ -106,17 +133,20 @@ if __name__ == "__main__":
             time.sleep(1)
 
         # get some data
-        read_ok=False
-        tries=0
+        read_ok = False
+        tries = 0
         while not read_ok:
             try:
                 signal_matrix = sdr_rx.rx()
-                read_ok=True
+                read_ok = True
             except Exception as e:
-                print("Failed to receive RX data! removing file : retry %" % tries, e)
+                print(
+                    f"Failed to receive RX data! removing file : retry {tries}",
+                    e,
+                )
                 time.sleep(0.1)
-                tries+=1
-                if tries>10:
+                tries += 1
+                if tries > 10:
                     breakpoint()
                     print("GIVE UP")
                     os.remove(args.out)
@@ -124,14 +154,22 @@ if __name__ == "__main__":
         signal_matrix[1] *= np.exp(1j * sdr_rx.phase_calibration)
         current_time = time.time() - time_offset  # timestamp
 
-        beam_thetas, beam_sds, beam_steer = beamformer(pos, signal_matrix, args.fc)
+        beam_thetas, beam_sds, beam_steer = beamformer(
+            pos, signal_matrix, args.fc
+        )
 
         avg_phase_diff = get_avg_phase(signal_matrix)
         xy = gm.position["xy"]
         record_matrix[idx] = np.hstack(
             [
                 np.array(
-                    [current_time, xy[0], xy[1], avg_phase_diff[0], avg_phase_diff[1]]
+                    [
+                        current_time,
+                        xy[0],
+                        xy[1],
+                        avg_phase_diff[0],
+                        avg_phase_diff[1],
+                    ]
                 ),
                 beam_sds,
             ]

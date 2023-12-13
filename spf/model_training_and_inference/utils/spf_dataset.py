@@ -55,16 +55,23 @@ class SessionsDataset(Dataset):
           root_dir (string): Directory with all the images.
         """
         self.root_dir = root_dir
-        self.args = load("/".join([self.root_dir, "args.pkl"]), compression="lzma")
+        self.args = load(
+            "/".join([self.root_dir, "args.pkl"]), compression="lzma"
+        )
         assert self.args.time_steps >= snapshots_in_sample
-        self.samples_per_session = self.args.time_steps - snapshots_in_sample + 1
+        self.samples_per_session = (
+            self.args.time_steps - snapshots_in_sample + 1
+        )
         self.snapshots_in_sample = snapshots_in_sample
         if not self.args.live:
             print("NOT LIVE")
             self.filenames = sorted(
                 filter(
                     lambda x: "args" not in x,
-                    ["%s/%s" % (self.root_dir, x) for x in os.listdir(self.root_dir)],
+                    [
+                        "%s/%s" % (self.root_dir, x)
+                        for x in os.listdir(self.root_dir)
+                    ],
                 )
             )
             if self.args.sessions != len(
@@ -73,7 +80,9 @@ class SessionsDataset(Dataset):
                 print("WARNING DATASET LOOKS LIKE IT IS MISSING SOME SESSIONS!")
 
     def idx_to_filename_and_start_idx(self, idx):
-        assert idx >= 0 and idx <= self.samples_per_session * len(self.filenames)
+        assert idx >= 0 and idx <= self.samples_per_session * len(
+            self.filenames
+        )
         return (
             self.filenames[idx // self.samples_per_session],
             idx % self.samples_per_session,
@@ -172,7 +181,10 @@ class SessionsDatasetReal(Dataset):
                 self.check_file,
                 filter(
                     lambda x: ".npy" in x,
-                    ["%s/%s" % (self.root_dir, x) for x in os.listdir(self.root_dir)],
+                    [
+                        "%s/%s" % (self.root_dir, x)
+                        for x in os.listdir(self.root_dir)
+                    ],
                 ),
             )
         )
@@ -195,7 +207,8 @@ class SessionsDatasetReal(Dataset):
         self.zeros = np.zeros((self.snapshots_in_sample, 5))
         self.ones = np.ones((self.snapshots_in_sample, 5))
         self.widths = (
-            np.ones((self.snapshots_in_sample, 1), dtype=np.int32) * self.args.width
+            np.ones((self.snapshots_in_sample, 1), dtype=np.int32)
+            * self.args.width
         )
         self.halfpis = -np.ones((self.snapshots_in_sample, 1)) * np.pi / 2
         idx_to_fileidx_and_sampleidx = {}
@@ -237,7 +250,9 @@ class SessionsDatasetReal(Dataset):
                 :, None
             ],  # TODO multi source
             "source_positions_at_t": source_positions_at_t,
-            "source_velocities_at_t": self.zeros[:, :2][:, None],  # TODO calc velocity,
+            "source_velocities_at_t": self.zeros[:, :2][
+                :, None
+            ],  # TODO calc velocity,
             "receiver_positions_at_t": np.broadcast_to(
                 self.receiver_pos[None], (m.shape[0], 2, 2)
             ),
@@ -261,8 +276,12 @@ class SessionsDatasetTask1(SessionsDataset):
         x = torch.Tensor(
             np.hstack(
                 [
-                    d["receiver_positions_at_t"].reshape(self.snapshots_in_sample, -1),
-                    d["beam_former_outputs_at_t"].reshape(self.snapshots_in_sample, -1),
+                    d["receiver_positions_at_t"].reshape(
+                        self.snapshots_in_sample, -1
+                    ),
+                    d["beam_former_outputs_at_t"].reshape(
+                        self.snapshots_in_sample, -1
+                    ),
                     # d['signal_matrixs'].reshape(self.snapshots_in_sample,-1)
                     d["time_stamps"].reshape(self.snapshots_in_sample, -1)
                     - d["time_stamps"][0],
@@ -355,14 +374,18 @@ def collate_fn_beamformer(_in):
     d = {k: torch.from_numpy(np.stack([x[k] for x in _in])) for k in _in[0]}
     b, s, n_sources, _ = d["source_positions_at_t"].shape
 
-    times = d["time_stamps"] / (0.00001 + d["time_stamps"].max(axis=2, keepdim=True)[0])
+    times = d["time_stamps"] / (
+        0.00001 + d["time_stamps"].max(axis=2, keepdim=True)[0]
+    )
 
     source_theta = d["source_theta_at_t"].mean(axis=2)
     distances = d["source_distance_at_t_normalized"].mean(axis=2, keepdims=True)
     _, _, beam_former_bins = d["beam_former_outputs_at_t"].shape
     perfect_labels = torch.zeros((b, s, beam_former_bins))
 
-    idxs = (beam_former_bins * (d["source_theta_at_t"] + np.pi) / (2 * np.pi)).int()
+    idxs = (
+        beam_former_bins * (d["source_theta_at_t"] + np.pi) / (2 * np.pi)
+    ).int()
     smooth_bins = int(beam_former_bins * 0.25 * 0.5)
     for _b in torch.arange(b):
         for _s in torch.arange(s):
@@ -377,7 +400,9 @@ def collate_fn_beamformer(_in):
                 # d['signal_matrixs_at_t'].reshape(b,s,-1),
                 (
                     d["signal_matrixs_at_t"]
-                    / d["signal_matrixs_at_t"].abs().mean(axis=[2, 3], keepdims=True)
+                    / d["signal_matrixs_at_t"]
+                    .abs()
+                    .mean(axis=[2, 3], keepdims=True)
                 ).reshape(
                     b, s, -1
                 ),  # normalize the data
@@ -424,7 +449,8 @@ def collate_fn_transformer_filter(_in):
     normalized_pirads_space_theta = torch.cat(
         [
             torch.zeros(b, 1, 1),
-            (torch.atan2(space_diffs[..., 1], space_diffs[..., 0]))[:, :, None] / np.pi,
+            (torch.atan2(space_diffs[..., 1], space_diffs[..., 0]))[:, :, None]
+            / np.pi,
         ],
         axis=1,
     )
@@ -458,10 +484,14 @@ def collate_fn_transformer_filter(_in):
             dim=3,
         ),
         "emitters_broadcasting": d["broadcasting_positions_at_t"],
-        "emitters_n_broadcasts": d["broadcasting_positions_at_t"].cumsum(axis=1),
+        "emitters_n_broadcasts": d["broadcasting_positions_at_t"].cumsum(
+            axis=1
+        ),
         "radio_feature": torch.cat(
             [
-                torch.log(d["beam_former_outputs_at_t"].mean(axis=2, keepdim=True))
+                torch.log(
+                    d["beam_former_outputs_at_t"].mean(axis=2, keepdim=True)
+                )
                 / 20,
                 d["beam_former_outputs_at_t"]
                 / d["beam_former_outputs_at_t"].mean(
@@ -520,7 +550,8 @@ def collate_fn(_in):
     space_theta = torch.cat(
         [
             torch.zeros(b, 1, 1),
-            (torch.atan2(space_diffs[..., 1], space_diffs[..., 0]))[:, :, None] / np.pi,
+            (torch.atan2(space_diffs[..., 1], space_diffs[..., 0]))[:, :, None]
+            / np.pi,
         ],
         axis=1,
     )
@@ -563,7 +594,9 @@ def collate_fn(_in):
         ).float(),
         "radio_feature": torch.cat(
             [
-                torch.log(d["beam_former_outputs_at_t"].mean(axis=2, keepdim=True))
+                torch.log(
+                    d["beam_former_outputs_at_t"].mean(axis=2, keepdim=True)
+                )
                 / 20,
                 d["beam_former_outputs_at_t"]
                 / d["beam_former_outputs_at_t"].mean(

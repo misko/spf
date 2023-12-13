@@ -1,5 +1,4 @@
 import serial
-import time
 import sys
 
 if len(sys.argv) != 3:
@@ -35,11 +34,11 @@ print(s.readline().strip())
 
 # Stream g-code to grbl
 for line in f:
-    l = line.strip()  # Strip all EOL characters for consistency
-    if l[0] == ";":
+    _line = line.strip()  # Strip all EOL characters for consistency
+    if _line[0] == ";":
         continue
-    print("Sending: " + l)
-    s.write((l + "\n").encode())  # Send g-code block to grbl
+    print("Sending: " + _line)
+    s.write((_line + "\n").encode())  # Send g-code block to grbl
     grbl_out = s.readline()  # Wait for grbl response with carriage return
     print(grbl_out)
 

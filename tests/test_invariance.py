@@ -1,4 +1,11 @@
-from spf.rf import ULADetector, UCADetector, IQSource, rotation_matrix, c, beamformer
+from spf.rf import (
+    ULADetector,
+    UCADetector,
+    IQSource,
+    rotation_matrix,
+    c,
+    beamformer,
+)
 import numpy as np
 
 
@@ -20,12 +27,21 @@ def test_invariance():
     """
 
     source_pos = np.array([[0, 10]])
-    rotations = [-np.pi, -np.pi / 2, -np.pi / 4, 0, np.pi / 2, np.pi / 2, np.pi] + list(
-        np.random.uniform(0, np.pi * 2, 10)
-    )
-    spacings = [wavelength, wavelength / 2, wavelength / 4, wavelength / 3] + list(
-        np.random.uniform(0, 1, 10)
-    )
+    rotations = [
+        -np.pi,
+        -np.pi / 2,
+        -np.pi / 4,
+        0,
+        np.pi / 2,
+        np.pi / 2,
+        np.pi,
+    ] + list(np.random.uniform(0, np.pi * 2, 10))
+    spacings = [
+        wavelength,
+        wavelength / 2,
+        wavelength / 4,
+        wavelength / 3,
+    ] + list(np.random.uniform(0, 1, 10))
     nelements = [2, 3, 4, 16]
     np.random.seed(1442)
 
@@ -38,18 +54,24 @@ def test_invariance():
 
                 for rot_theta in rotations:
                     rot_mat = rotation_matrix(rot_theta)
-                    _source_pos = (rot_mat @ source_pos.T).T  # rotate left by rot_theta
+                    _source_pos = (
+                        rot_mat @ source_pos.T
+                    ).T  # rotate left by rot_theta
 
                     d.rm_sources()
                     d.add_source(
-                        IQSource(_source_pos, carrier_frequency, 100e3)  # x, y position
+                        IQSource(
+                            _source_pos, carrier_frequency, 100e3
+                        )  # x, y position
                     )
                     d.orientation = rot_theta
                     signal_matrix = d.get_signal_matrix(
                         start_time=100, duration=3 / d.sampling_frequency
                     )
                     signal_matrixs.append(signal_matrix)
-                    assert np.isclose(signal_matrixs[0], signal_matrixs[-1]).all()
+                    assert np.isclose(
+                        signal_matrixs[0], signal_matrixs[-1]
+                    ).all()
                     thetas_at_t, beam_former_outputs_at_t, _ = beamformer(
                         d.all_receiver_pos(),
                         signal_matrix,

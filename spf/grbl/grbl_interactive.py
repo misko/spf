@@ -2,7 +2,6 @@ import serial
 import time
 import sys
 import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.path as pltpath
 
 
@@ -30,11 +29,11 @@ We cant go higher than origin, because there wouldn't
 be any grip for the GT2 cable, we need to maintain some
 minimal angle
 
-There are two reference frames, 
+There are two reference frames,
     A) One where motor mount B is the center
     B) One where origin is the center (mountB+offset)
 
-The second frame is the one we can calibrate too, since its 
+The second frame is the one we can calibrate too, since its
 impossible to get the payload to MotorMountB , because there
 would be no tension on the GT2 belts
 
@@ -46,9 +45,9 @@ def a_to_b_in_stepsize(a, b, step_size):
     # move by step_size from where we are now to the target position
     points = [a]
     direction = (b - a) / np.linalg.norm(b - a)
-    l = np.linalg.norm(b - a)
+    distance = np.linalg.norm(b - a)
     _l = 0
-    while _l < l:
+    while _l < distance:
         points.append(_l * direction + a)
         _l = _l + step_size
     points.append(b)
@@ -100,7 +99,7 @@ class Dynamics:
         return position_relative_to_calibration_point
 
     def to_steps(self, p):
-        if (not self.polygon is None) and not self.polygon.contains_point(
+        if (self.polygon is not None) and not self.polygon.contains_point(
             p, radius=0.001
         ):  # todo a bit hacky but works
             raise ValueError
@@ -116,14 +115,18 @@ class Dynamics:
     def binary_search_edge(self, left, right, xy, direction, epsilon):
         if (right - left) < epsilon:
             return left
-        l = (right + left) / 2
-        p = l * direction + xy
+        midpoint = (right + left) / 2
+        p = midpoint * direction + xy
         try:
             steps = self.to_steps(p)
             # actual = self.from_steps(*steps)
-            return self.binary_search_edge(l, right, xy, direction, epsilon)
+            return self.binary_search_edge(
+                midpoint, right, xy, direction, epsilon
+            )
         except ValueError:
-            return self.binary_search_edge(left, l, xy, direction, epsilon)
+            return self.binary_search_edge(
+                left, midpoint, xy, direction, epsilon
+            )
 
     def get_boundary_vector_near_point(self, p):
         if self.polygon is None:
@@ -131,10 +134,10 @@ class Dynamics:
 
         bvec = None
         max_score = 0
-        l = len(self.polygon.vertices)
-        for i in range(l):
-            v0 = self.polygon.vertices[i % l]
-            v1 = self.polygon.vertices[(i + 1) % l]
+        nverts = len(self.polygon.vertices)
+        for i in range(nverts):
+            v0 = self.polygon.vertices[i % nverts]
+            v1 = self.polygon.vertices[(i + 1) % nverts]
             score = max(
                 np.dot(p - v0, v1 - v0)
                 / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v0) + 0.01),
@@ -154,15 +157,20 @@ class Planner:
 
     def get_bounce_pos_and_new_direction(self, p, direction):
         epsilon = 0.001
-        l = self.dynamics.binary_search_edge(0, 10000, p, direction, epsilon)
-        last_point_before_bounce = l * direction + p
+        distance_to_bounce = self.dynamics.binary_search_edge(
+            0, 10000, p, direction, epsilon
+        )
+        last_point_before_bounce = distance_to_bounce * direction + p
 
         # parallel component stays the same
         # negatate the perpendicular component
-        bvec = self.dynamics.get_boundary_vector_near_point(last_point_before_bounce)
+        bvec = self.dynamics.get_boundary_vector_near_point(
+            last_point_before_bounce
+        )
         bvec_perp = np.array([bvec[1], -bvec[0]])
         new_direction = (
-            np.dot(direction, bvec) * bvec - np.dot(direction, bvec_perp) * bvec_perp
+            np.dot(direction, bvec) * bvec
+            - np.dot(direction, bvec_perp) * bvec_perp
         )
         new_direction /= np.linalg.norm(new_direction)
         return last_point_before_bounce, new_direction
@@ -179,7 +187,9 @@ class Planner:
         percent_random = 0.05
         new_direction = (
             1 - percent_random
-        ) * new_direction + percent_random * np.array([np.sin(theta), np.cos(theta)])
+        ) * new_direction + percent_random * np.array(
+            [np.sin(theta), np.cos(theta)]
+        )
 
         return to_points, new_direction
 
@@ -242,7 +252,9 @@ class GRBLController:
         try:
             motor_position_str = response.split("|")[1]
         except Exception as e:
-            print("FAILED TO PARSE", response, "|e|", e, time.time() - start_time)
+            print(
+                "FAILED TO PARSE", response, "|e|", e, time.time() - start_time
+            )
             return self.update_status(skip_write=not skip_write)
         b0_motor_steps, a0_motor_steps, b1_motor_steps, a1_motor_steps = map(
             float, motor_position_str[len("MPos:") :].split(",")
@@ -277,19 +289,24 @@ class GRBLController:
                 return
             time.sleep(0.01)
 
-    def move_to(self, points):  # takes in a list of points equal to length of map
+    def move_to(
+        self, points
+    ):  # takes in a list of points equal to length of map
         gcode_move = ["G0"]
         for c in points:
             motors = self.channel_to_motor_map[c]
             a_motor_steps, b_motor_steps = self.dynamics.to_steps(points[c])
             gcode_move += [
-                "%s%0.2f %s%0.2f" % (motors[0], b_motor_steps, motors[1], a_motor_steps)
+                "%s%0.2f %s%0.2f"
+                % (motors[0], b_motor_steps, motors[1], a_motor_steps)
             ]
         cmd = " ".join(gcode_move)
         time.sleep(0.01)
         self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
         time.sleep(0.01)
-        grbl_out = self.s.readline()  # Wait for grbl response with carriage return
+        grbl_out = (
+            self.s.readline()
+        )  # Wait for grbl response with carriage return
         time.sleep(0.01)
         # print("MOVE TO RESPONSE", grbl_out)
 
@@ -322,11 +339,9 @@ class GRBLController:
 
 def get_next_points(channel_iterators):
     ret = {}
-    at_least_one_point = False
     for c in channel_iterators:
         try:
             ret[c] = next(channel_iterators[c])
-
         except StopIteration:
             pass
     return ret
