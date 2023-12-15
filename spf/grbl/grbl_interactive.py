@@ -9,8 +9,8 @@ home_pA = np.array([3568, 0])
 home_pB = np.array([0, 0])
 home_bounding_box = [
     [300, 400],
-    [home_pA[0] - 400, 400],
-    [home_pA[0] - 400, 2000],
+    [3100, 400],
+    [3100, 2850],
     # [300,1500],
     [900, 900],
 ]
@@ -397,7 +397,7 @@ if __name__ == "__main__":
             sys.exit(1)
         elif line == "bounce":
             # gm.bounce(20000)
-            gm.bounce(20)
+            gm.bounce(40)
         elif line == "s":
             p = gm.update_status()
             print(p)
