@@ -75,7 +75,7 @@ def generate_session(args_and_session_idx):
     if args.detector_noise < 0:
         detector_noise = np.random.uniform(low=0.0, high=-args.detector_noise)
 
-    beamformer_f = beamformer_numba if args.numba else beamformer
+    beamformer_f = beamformer
 
     if args.array_type == "linear":
         d = ULADetector(

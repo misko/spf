@@ -2,11 +2,10 @@
 
 import adi
 
-# ;import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 from math import lcm
-from sdr import *
-
+from spf.rf import ULADetector, beamformer
 
 c = 3e8
 fc0 = int(200e3)
