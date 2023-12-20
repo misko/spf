@@ -9,9 +9,7 @@ import argparse
 # from sdr import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--ip", type=str, help="target Pluto IP address", required=True
-)
+parser.add_argument("--ip", type=str, help="target Pluto IP address", required=True)
 parser.add_argument(
     "--fi", type=int, help="Intermediate frequency", required=False, default=1e5
 )
@@ -71,9 +69,7 @@ while True:
         sp = np.fft.fft(signal_matrix[idx])
         axs[idx][1].scatter(freq, sp.real, s=1)  # , freq, sp.imag)
         max_freq = freq[np.abs(np.argmax(sp.real))]
-        axs[idx][1].axvline(
-            x=max_freq, label="max %0.2e" % max_freq, color="red"
-        )
+        axs[idx][1].axvline(x=max_freq, label="max %0.2e" % max_freq, color="red")
         axs[idx][1].legend()
         print("MAXFREQ", freq[np.abs(np.argmax(sp.real))])
     fig.canvas.draw()

@@ -44,8 +44,7 @@ class Source(object):
 
     def signal(self, sampling_times):
         return (
-            np.cos(2 * np.pi * sampling_times)
-            + np.sin(2 * np.pi * sampling_times) * 1j
+            np.cos(2 * np.pi * sampling_times) + np.sin(2 * np.pi * sampling_times) * 1j
         )
 
     def demod_signal(self, signal, demod_times):
@@ -62,8 +61,7 @@ class IQSource(Source):
     def signal(self, sampling_times):
         return (
             np.cos(2 * np.pi * sampling_times * self.frequency + self.phase)
-            + np.sin(2 * np.pi * sampling_times * self.frequency + self.phase)
-            * 1j
+            + np.sin(2 * np.pi * sampling_times * self.frequency + self.phase) * 1j
         )
 
 
@@ -160,15 +158,10 @@ class Detector(object):
         if with_offset:
             return (
                 self.position_offset
-                + (
-                    rotation_matrix(self.orientation)
-                    @ self.receiver_positions.T
-                ).T
+                + (rotation_matrix(self.orientation) @ self.receiver_positions.T).T
             )
         else:
-            return (
-                rotation_matrix(self.orientation) @ self.receiver_positions.T
-            ).T
+            return (rotation_matrix(self.orientation) @ self.receiver_positions.T).T
 
     def receiver_pos(self, receiver_idx, with_offset=True):
         if with_offset:
@@ -221,9 +214,7 @@ class Detector(object):
             signal = _source.signal(
                 base_time_offsets[source_index]
             )  # .reshape(base_time_offsets[source_index].shape) # receivers x sampling intervals
-            normalized_signal = (
-                signal / distances_squared[source_index][..., None]
-            )
+            normalized_signal = signal / distances_squared[source_index][..., None]
             _base_times = np.broadcast_to(
                 base_times, normalized_signal.shape
             )  # broadcast the basetimes for rx_lo on all receivers
@@ -240,18 +231,14 @@ class Detector(object):
 @functools.lru_cache(maxsize=1024)
 def linear_receiver_positions(n_elements, spacing):
     receiver_positions = np.zeros((n_elements, 2))
-    receiver_positions[:, 0] = spacing * (
-        np.arange(n_elements) - (n_elements - 1) / 2
-    )
+    receiver_positions[:, 0] = spacing * (np.arange(n_elements) - (n_elements - 1) / 2)
     return receiver_positions
 
 
 class ULADetector(Detector):
     def __init__(self, sampling_frequency, n_elements, spacing, sigma=0.0):
         super().__init__(sampling_frequency, sigma=sigma)
-        self.set_receiver_positions(
-            linear_receiver_positions(n_elements, spacing)
-        )
+        self.set_receiver_positions(linear_receiver_positions(n_elements, spacing))
 
 
 @functools.lru_cache(maxsize=1024)
@@ -263,9 +250,7 @@ def circular_receiver_positions(n_elements, radius):
 class UCADetector(Detector):
     def __init__(self, sampling_frequency, n_elements, radius, sigma=0.0):
         super().__init__(sampling_frequency, sigma=sigma)
-        self.set_receiver_positions(
-            circular_receiver_positions(n_elements, radius)
-        )
+        self.set_receiver_positions(circular_receiver_positions(n_elements, radius))
 
 
 @functools.lru_cache(maxsize=1024)
@@ -382,10 +367,7 @@ def beamformer(
 
     carrier_wavelength = c / carrier_frequency
     args = (
-        2
-        * np.pi
-        * projection_of_receiver_onto_source_directions
-        / carrier_wavelength
+        2 * np.pi * projection_of_receiver_onto_source_directions / carrier_wavelength
     )
     steering_vectors = np.exp(-1j * args)
     if calibration is not None:
@@ -394,7 +376,5 @@ def beamformer(
     phase_adjusted = np.matmul(
         steering_vectors, signal_matrix
     )  # this is adjust and sum in one step
-    steer_dot_signal = np.absolute(phase_adjusted).mean(
-        axis=1
-    )  # mean over samples
+    steer_dot_signal = np.absolute(phase_adjusted).mean(axis=1)  # mean over samples
     return thetas, steer_dot_signal, steering_vectors

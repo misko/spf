@@ -20,9 +20,7 @@ if __name__ == "__main__":
     parser.add_argument("--session-idx", type=int, required=True)
     parser.add_argument("--seed", type=int, required=False, default=0)
     parser.add_argument("--load", type=str, required=True)
-    parser.add_argument(
-        "--test-fraction", type=float, required=False, default=0.2
-    )
+    parser.add_argument("--test-fraction", type=float, required=False, default=0.2)
     parser.add_argument("--model-name", type=str, required=True)
 
     parser.add_argument(
@@ -47,9 +45,7 @@ if __name__ == "__main__":
     test_size = len(ds) - train_size
 
     ds_train = torch.utils.data.Subset(ds, np.arange(train_size))
-    ds_test = torch.utils.data.Subset(
-        ds, np.arange(train_size, train_size + test_size)
-    )
+    ds_test = torch.utils.data.Subset(ds, np.arange(train_size, train_size + test_size))
 
     session = ds_test[args.session_idx]
     # _in=collate_fn([session])

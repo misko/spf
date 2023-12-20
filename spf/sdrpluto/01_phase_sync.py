@@ -46,9 +46,7 @@ sdr.tx_lo = int(tx_lo)
 sdr.tx_cyclic_buffer = True  # this keeps repeating!
 sdr.tx_hardwaregain_chan0 = int(-88)  # tx_gain)
 sdr.tx_hardwaregain_chan1 = int(tx_gain)  # use Tx2 for calibration
-tx_n = int(
-    min(lcm(fc0, fs), rx_n * 8)
-)  # 1024*1024*1024) # tx for longer than rx
+tx_n = int(min(lcm(fc0, fs), rx_n * 8))  # 1024*1024*1024) # tx for longer than rx
 sdr.tx_buffer_size = tx_n * 2  # tx_n
 
 # since its a cyclic buffer its important to end on a full phase
@@ -104,9 +102,7 @@ sdr.tx_cyclic_buffer = True  # this keeps repeating!
 sdr.tx_hardwaregain_chan0 = int(tx_gain)  # tx_gain)
 sdr.tx_hardwaregain_chan1 = int(-80)  # use Tx2 for calibration
 
-tx_n = int(
-    min(lcm(fc0, fs), rx_n * 8)
-)  # 1024*1024*1024) # tx for longer than rx
+tx_n = int(min(lcm(fc0, fs), rx_n * 8))  # 1024*1024*1024) # tx for longer than rx
 sdr.tx_buffer_size = tx_n
 
 # since its a cyclic buffer its important to end on a full phase

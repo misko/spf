@@ -15,9 +15,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--carrier-frequency", type=float, required=False, default=2.4e9
     )
-    parser.add_argument(
-        "--signal-frequency", type=float, required=False, default=100e3
-    )
+    parser.add_argument("--signal-frequency", type=float, required=False, default=100e3)
     parser.add_argument(
         "--sampling-frequency", type=float, required=False, default=10e6
     )
@@ -29,12 +27,8 @@ if __name__ == "__main__":
         choices=["linear", "circular"],
     )
     parser.add_argument("--elements", type=int, required=False, default=11)
-    parser.add_argument(
-        "--random-silence", type=bool, required=False, default=False
-    )
-    parser.add_argument(
-        "--detector-noise", type=float, required=False, default=1e-4
-    )
+    parser.add_argument("--random-silence", type=bool, required=False, default=False)
+    parser.add_argument("--detector-noise", type=float, required=False, default=1e-4)
     parser.add_argument(
         "--random-emitter-timing", type=bool, required=False, default=False
     )
@@ -52,20 +46,12 @@ if __name__ == "__main__":
         default="bounce",
         choices=["orbit", "bounce"],
     )
-    parser.add_argument(
-        "--detector-speed", type=float, required=False, default=10.0
-    )
-    parser.add_argument(
-        "--source-speed", type=float, required=False, default=0.0
-    )
+    parser.add_argument("--detector-speed", type=float, required=False, default=10.0)
+    parser.add_argument("--source-speed", type=float, required=False, default=0.0)
     parser.add_argument("--sigma", type=float, required=False, default=1.0)
     parser.add_argument("--time-steps", type=int, required=False, default=100)
-    parser.add_argument(
-        "--time-interval", type=float, required=False, default=0.3
-    )
-    parser.add_argument(
-        "--samples-per-snapshot", type=int, required=False, default=3
-    )
+    parser.add_argument("--time-interval", type=float, required=False, default=0.3)
+    parser.add_argument("--samples-per-snapshot", type=int, required=False, default=3)
     parser.add_argument("--sessions", type=int, required=False, default=1024)
     parser.add_argument(
         "--output", type=str, required=False, default="sessions-default"
@@ -74,9 +60,7 @@ if __name__ == "__main__":
     parser.add_argument("--cpus", type=int, required=False, default=8)
     parser.add_argument("--live", type=bool, required=False, default=False)
     parser.add_argument("--profile", type=bool, required=False, default=False)
-    parser.add_argument(
-        "--fixed-detector", type=float, required=False, nargs="+"
-    )
+    parser.add_argument("--fixed-detector", type=float, required=False, nargs="+")
 
     args = parser.parse_args()
 

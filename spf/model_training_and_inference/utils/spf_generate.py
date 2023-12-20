@@ -23,9 +23,7 @@ def _arctan2(x, y):
 
 
 class BoundedPoint:
-    def __init__(
-        self, pos=np.ones(2) * 0.5, v=np.zeros(2), delta_time=0.05, width=128
-    ):
+    def __init__(self, pos=np.ones(2) * 0.5, v=np.zeros(2), delta_time=0.05, width=128):
         self.pos = pos
         self.v = v
         self.delta_time = delta_time
@@ -53,10 +51,7 @@ def time_to_detector_offset(
     phase_offset=0,
 ):  # 1/2.0):
     x = np.cos(2 * np.pi * orbital_frequency * t + phase_offset) * orbital_width
-    y = (
-        np.sin(2 * np.pi * orbital_frequency * t + phase_offset)
-        * orbital_height
-    )
+    y = np.sin(2 * np.pi * orbital_frequency * t + phase_offset) * orbital_height
     return np.array([1 / 2 + x, 1 / 2 + y])
 
 
@@ -135,9 +130,7 @@ def generate_session(args_and_session_idx):
         (args.time_steps, args.elements, args.samples_per_snapshot),
         dtype=np.complex64,
     )
-    beam_former_outputs_at_t = np.zeros(
-        (args.time_steps, args.beam_former_spacing)
-    )
+    beam_former_outputs_at_t = np.zeros((args.time_steps, args.beam_former_spacing))
     detector_position_at_t = np.zeros((args.time_steps, 2))
 
     thetas_at_t = np.zeros((args.time_steps, args.beam_former_spacing))
@@ -150,13 +143,10 @@ def generate_session(args_and_session_idx):
         # detector_theta=np.random.choice([0,np.pi/4,np.pi/2,np.pi])
 
     detector_v = (
-        np.array([np.cos(detector_theta), np.sin(detector_theta)])
-        * detector_speed
+        np.array([np.cos(detector_theta), np.sin(detector_theta)]) * detector_speed
     )  # 10m/s
 
-    detector_initial_position = pos = np.random.uniform(
-        0 + 10, args.width - 10, 2
-    )
+    detector_initial_position = pos = np.random.uniform(0 + 10, args.width - 10, 2)
     if args.fixed_detector is not None:
         detector_initial_position[:2] = args.fixed_detector
 
@@ -172,10 +162,7 @@ def generate_session(args_and_session_idx):
         source_speed = args.source_speed
         if source_speed < 0:
             source_speed = np.random.uniform(low=0.0, high=-source_speed)
-        source_v = (
-            np.array([np.cos(source_theta), np.sin(source_theta)])
-            * source_speed
-        )
+        source_v = np.array([np.cos(source_theta), np.sin(source_theta)]) * source_speed
         source_bounded_points.append(
             BoundedPoint(
                 pos=np.random.uniform(0 + 10, args.width - 10, 2),
@@ -184,9 +171,7 @@ def generate_session(args_and_session_idx):
             )
         )
 
-    whos_broadcasting_at_t = np.random.randint(
-        0, n_sources_used, args.time_steps
-    )
+    whos_broadcasting_at_t = np.random.randint(0, n_sources_used, args.time_steps)
 
     if args.random_emitter_timing:
         emitter_p = np.random.randint(1, 10, n_sources_used)
@@ -219,9 +204,7 @@ def generate_session(args_and_session_idx):
     # diffs=source_positions-d['detector_position_at_t_normalized']
     # source_theta=(torch.atan2(diffs[...,1],diffs[...,0]))[:,:,None]
 
-    time_stamps = (np.arange(args.time_steps) * args.time_interval).reshape(
-        -1, 1
-    )
+    time_stamps = (np.arange(args.time_steps) * args.time_interval).reshape(-1, 1)
     for t_idx in np.arange(args.time_steps):
         # update source positions
         for idx in range(len(source_bounded_points)):
@@ -237,9 +220,7 @@ def generate_session(args_and_session_idx):
             d.add_source(
                 NoiseWrapper(
                     IQSource(
-                        current_source_positions[
-                            [tdm_source_idx]
-                        ],  # x, y position
+                        current_source_positions[[tdm_source_idx]],  # x, y position
                         args.carrier_frequency,
                     ),
                     sigma=sigma,
@@ -256,10 +237,7 @@ def generate_session(args_and_session_idx):
                     orbital_width=1 / 4,
                     orbital_height=1 / 3,
                     phase_offset=detector_position_phase_offset,
-                    orbital_frequency=(2 / 3)
-                    * args.width
-                    * np.pi
-                    / detector_speed,
+                    orbital_frequency=(2 / 3) * args.width * np.pi / detector_speed,
                 )
                 * args.width
             ).astype(int)
@@ -275,9 +253,7 @@ def generate_session(args_and_session_idx):
             #  _v=detector_bounded_point.v
             #  print("VEL",_v,np.arctan2(_v[1],_v[0]))
 
-        detector_position_phase_offsets_at_t[
-            t_idx
-        ] = detector_position_phase_offset
+        detector_position_phase_offsets_at_t[t_idx] = detector_position_phase_offset
         source_positions_at_t[t_idx] = current_source_positions
         source_velocities_at_t[t_idx] = current_source_velocities
         receiver_positions_at_t[t_idx] = d.all_receiver_pos()
@@ -301,8 +277,7 @@ def generate_session(args_and_session_idx):
 
         if tdm_source_idx >= 0:
             diff = (
-                current_source_positions[tdm_source_idx]
-                - detector_position_at_t[t_idx]
+                current_source_positions[tdm_source_idx] - detector_position_at_t[t_idx]
             )
             # both of these are in regular units, radians to the right of x+
             # but it doesnt matter because we just want the difference

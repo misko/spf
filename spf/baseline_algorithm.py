@@ -50,9 +50,7 @@ def get_top_n_points(
     line_representations, n, width, threshold=3, mn=4, lines_per_step=2
 ):
     final_points = []
-    line_to_point_assignments = (
-        np.zeros(len(line_representations), dtype=int) - 1
-    )
+    line_to_point_assignments = np.zeros(len(line_representations), dtype=int) - 1
     line_to_point_distances = np.zeros(len(line_representations), dtype=int) - 1
     for point_idx in range(n):
         img = np.zeros((width + 1, width + 1))
@@ -77,12 +75,9 @@ def get_top_n_points(
                         )
                         if (
                             line_to_point_assignments[line_idx] == -1
-                            or distance_to_line
-                            < line_to_point_distances[line_idx]
+                            or distance_to_line < line_to_point_distances[line_idx]
                         ):
-                            line_to_point_assignments[line_idx] = (
-                                len(final_points) - 1
-                            )
+                            line_to_point_assignments[line_idx] = len(final_points) - 1
                             line_to_point_distances[line_idx] = distance_to_line
                 if (
                     line_to_point_assignments[line_idx] == -1
@@ -179,9 +174,7 @@ def lines_to_points(lines, t):
         rng = np.random.default_rng(12345 + line_idx_a * 1337)
         a_i, a_m, (x1, y1), _ = lines[line_idx_a]
         points_for_this_line = []
-        for line_idx_b in rng.choice(
-            np.arange(t), size=min(30, t), replace=False
-        ):
+        for line_idx_b in rng.choice(np.arange(t), size=min(30, t), replace=False):
             if line_idx_b >= len(lines):
                 continue
             if line_idx_a == line_idx_b:

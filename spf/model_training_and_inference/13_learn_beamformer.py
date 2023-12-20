@@ -56,9 +56,9 @@ def src_pos_from_radial(inputs, outputs):
     theta = outputs[:, :, output_cols["src_theta"]]
     dist = outputs[:, :, output_cols["src_dist"]]
     return (
-        torch.stack(
-            [torch.cos(theta * np.pi), torch.sin(theta * np.pi)], axis=2
-        )[..., 0]
+        torch.stack([torch.cos(theta * np.pi), torch.sin(theta * np.pi)], axis=2)[
+            ..., 0
+        ]
         * dist
         + det_pos
     )
@@ -88,9 +88,7 @@ def model_forward(d_model, inputs, outputs, args, beamformer):
         for idx in [0, 1]:
             axs[idx].axvline(x=x, c="r")
             axs[idx].legend()
-        d_model["fig"].savefig(
-            "%s%s_%d.png" % (args.output_prefix, d_model["name"], i)
-        )
+        d_model["fig"].savefig("%s%s_%d.png" % (args.output_prefix, d_model["name"], i))
         d_model["fig"].canvas.draw_idle()
     d_model["dead"] = np.isclose(preds.var(axis=1).mean().item(), 0.0)
     return p * loss + (1 - p) * beam_loss, losses
@@ -110,9 +108,7 @@ def model_to_losses(running_loss, mean_chunk):
                                 [
                                     l[k]
                                     for l in running_loss[
-                                        idx
-                                        * mean_chunk : (idx + 1)
-                                        * mean_chunk
+                                        idx * mean_chunk : (idx + 1) * mean_chunk
                                     ]
                                 ]
                             )
@@ -166,10 +162,7 @@ def model_to_stats_str(running_loss, mean_chunk):
                 % (
                     k,
                     "\t".join(
-                        [
-                            "%0.4f" % v.item()
-                            for v in losses[k][-1][cols_for_loss]
-                        ]
+                        ["%0.4f" % v.item() for v in losses[k][-1][cols_for_loss]]
                     ),
                 )
             )
@@ -214,9 +207,7 @@ def plot_loss(
         if "mse_loss" in losses:
             ax[0].plot(xs[2:], losses["mse_loss"][2:], label=d_model["name"])
         if "beamformer_loss" in losses:
-            ax[1].plot(
-                xs[2:], losses["beamformer_loss"][2:], label=d_model["name"]
-            )
+            ax[1].plot(xs[2:], losses["beamformer_loss"][2:], label=d_model["name"])
             # _mn=np.min(losses['beamformer_loss'])
             # if _mn<mn:
             # 	mn=_mn
@@ -231,9 +222,7 @@ def plot_loss(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=str, required=False, default="cpu")
-    parser.add_argument(
-        "--embedding-warmup", type=int, required=False, default=0
-    )
+    parser.add_argument("--embedding-warmup", type=int, required=False, default=0)
     parser.add_argument(
         "--snapshots-per-sample",
         type=int,
@@ -247,9 +236,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output-prefix", type=str, required=False, default="model_out"
     )
-    parser.add_argument(
-        "--test-fraction", type=float, required=False, default=0.2
-    )
+    parser.add_argument("--test-fraction", type=float, required=False, default=0.2)
     parser.add_argument("--seed", type=int, required=False, default=0)
     parser.add_argument("--keep-n-saves", type=int, required=False, default=2)
     parser.add_argument("--epochs", type=int, required=False, default=20000)
@@ -260,9 +247,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--lr-image", type=float, required=False, default=0.05)
     parser.add_argument("--lr-direct", type=float, required=False, default=0.01)
-    parser.add_argument(
-        "--lr-transformer", type=float, required=False, default=0.00001
-    )
+    parser.add_argument("--lr-transformer", type=float, required=False, default=0.00001)
     parser.add_argument("--plot", type=bool, required=False, default=False)
     parser.add_argument("--clip", type=float, required=False, default=0.5)
     parser.add_argument(
@@ -305,9 +290,7 @@ if __name__ == "__main__":
     # ds_train, ds_test = random_split(ds, [1-args.test_fraction, args.test_fraction])
 
     ds_train = torch.utils.data.Subset(ds, np.arange(train_size))
-    ds_test = torch.utils.data.Subset(
-        ds, np.arange(train_size, train_size + test_size)
-    )
+    ds_test = torch.utils.data.Subset(ds, np.arange(train_size, train_size + test_size))
 
     print("init dataloader")
     trainloader = torch.utils.data.DataLoader(
@@ -330,9 +313,7 @@ if __name__ == "__main__":
 
     # signal_matrix ~ (snapshots_per_sample,n_antennas,samples_per_snapshot)
 
-    _, n_receivers, samples_per_snapshot = ds_train[0][
-        "signal_matrixs_at_t"
-    ].shape
+    _, n_receivers, samples_per_snapshot = ds_train[0]["signal_matrixs_at_t"].shape
     _, beam_former_bins = ds_train[0]["beam_former_outputs_at_t"].shape
 
     for snapshots_per_sample in [1]:
@@ -436,11 +417,7 @@ if __name__ == "__main__":
                     )  # clip gradients
                 d_model["optimizer"].step()
             running_losses["train"]["baseline"].append(
-                {
-                    "baseline": criterion(
-                        data["beamformer"], data["labels"]
-                    ).item()
-                }
+                {"baseline": criterion(data["beamformer"], data["labels"]).item()}
             )
 
             if i % args.print_every == args.print_every - 1:
@@ -460,9 +437,7 @@ if __name__ == "__main__":
                                 args,
                                 data["beamformer"],
                             )
-                            running_losses["test"][d_model["name"]].append(
-                                losses
-                            )
+                            running_losses["test"][d_model["name"]].append(losses)
                     running_losses["test"]["baseline"].append(
                         {
                             "baseline": criterion(

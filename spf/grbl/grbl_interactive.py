@@ -42,7 +42,7 @@ home_calibration_point = np.array([300, 400])
 
 
 def a_to_b_in_stepsize(a, b, step_size):
-    if np.isclose(a,b).all():
+    if np.isclose(a, b).all():
         return [b]
     # move by step_size from where we are now to the target position
     points = [a]
@@ -104,7 +104,7 @@ class Dynamics:
         if (self.polygon is not None) and not self.polygon.contains_point(
             p, radius=0.01
         ):  # todo a bit hacky but works
-            print("OUT OF BOUNDS",p)
+            print("OUT OF BOUNDS", p)
             raise ValueError
         # motor_steps = ( distance_between_pivot and point ) - (distance between pivot and calibration point)
         a_motor_steps = np.linalg.norm(self.pA - p) - np.linalg.norm(
@@ -123,13 +123,9 @@ class Dynamics:
         try:
             steps = self.to_steps(p)
             # actual = self.from_steps(*steps)
-            return self.binary_search_edge(
-                midpoint, right, xy, direction, epsilon
-            )
+            return self.binary_search_edge(midpoint, right, xy, direction, epsilon)
         except ValueError:
-            return self.binary_search_edge(
-                left, midpoint, xy, direction, epsilon
-            )
+            return self.binary_search_edge(left, midpoint, xy, direction, epsilon)
 
     def get_boundary_vector_near_point(self, p):
         if self.polygon is None:
@@ -167,13 +163,10 @@ class Planner:
 
         # parallel component stays the same
         # negatate the perpendicular component
-        bvec = self.dynamics.get_boundary_vector_near_point(
-            last_point_before_bounce
-        )
+        bvec = self.dynamics.get_boundary_vector_near_point(last_point_before_bounce)
         bvec_perp = np.array([bvec[1], -bvec[0]])
         new_direction = (
-            np.dot(direction, bvec) * bvec
-            - np.dot(direction, bvec_perp) * bvec_perp
+            np.dot(direction, bvec) * bvec - np.dot(direction, bvec_perp) * bvec_perp
         )
         new_direction /= np.linalg.norm(new_direction)
         return last_point_before_bounce, new_direction
@@ -190,9 +183,7 @@ class Planner:
         percent_random = 0.05
         new_direction = (
             1 - percent_random
-        ) * new_direction + percent_random * np.array(
-            [np.sin(theta), np.cos(theta)]
-        )
+        ) * new_direction + percent_random * np.array([np.sin(theta), np.cos(theta)])
 
         return to_points, new_direction
 
@@ -255,9 +246,7 @@ class GRBLController:
         try:
             motor_position_str = response.split("|")[1]
         except Exception as e:
-            print(
-                "FAILED TO PARSE", response, "|e|", e, time.time() - start_time
-            )
+            print("FAILED TO PARSE", response, "|e|", e, time.time() - start_time)
             return self.update_status(skip_write=not skip_write)
         b0_motor_steps, a0_motor_steps, b1_motor_steps, a1_motor_steps = map(
             float, motor_position_str[len("MPos:") :].split(",")
@@ -292,24 +281,19 @@ class GRBLController:
                 return
             time.sleep(0.01)
 
-    def move_to(
-        self, points
-    ):  # takes in a list of points equal to length of map
+    def move_to(self, points):  # takes in a list of points equal to length of map
         gcode_move = ["G0"]
         for c in points:
             motors = self.channel_to_motor_map[c]
             a_motor_steps, b_motor_steps = self.dynamics.to_steps(points[c])
             gcode_move += [
-                "%s%0.2f %s%0.2f"
-                % (motors[0], b_motor_steps, motors[1], a_motor_steps)
+                "%s%0.2f %s%0.2f" % (motors[0], b_motor_steps, motors[1], a_motor_steps)
             ]
         cmd = " ".join(gcode_move)
         time.sleep(0.01)
         self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
         time.sleep(0.01)
-        grbl_out = (
-            self.s.readline()
-        )  # Wait for grbl response with carriage return
+        grbl_out = self.s.readline()  # Wait for grbl response with carriage return
         time.sleep(0.01)
         # print("MOVE TO RESPONSE", grbl_out)
 

@@ -8,9 +8,7 @@ import argparse
 from utils.rf import ULADetector, beamformer, beamformer_old, dbfs
 
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--ip", type=str, help="target Pluto IP address", required=True
-)
+parser.add_argument("--ip", type=str, help="target Pluto IP address", required=True)
 parser.add_argument(
     "--fi", type=int, help="Intermediate frequency", required=False, default=1e5
 )

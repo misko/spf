@@ -142,9 +142,7 @@ class TransformerEncOnlyModel(nn.Module):
 
         assert d_model >= d_in
 
-        self.linear_in = (
-            nn.Linear(d_in, d_model) if d_model > d_in else nn.Identity()
-        )
+        self.linear_in = nn.Linear(d_in, d_model) if d_model > d_in else nn.Identity()
         self.d_model = d_model
 
         self.output_net = nn.Sequential(
@@ -197,10 +195,7 @@ class FilterNet(nn.Module):
         d_hid=256,
         d_embed=64,
         n_layers=1,
-        n_outputs=4
-        + 4
-        + 2
-        + 1,  # 2 means , 2 variances, 2 angles, responsibility
+        n_outputs=4 + 4 + 2 + 1,  # 2 means , 2 variances, 2 angles, responsibility
         dropout=0.0,
         ssn_d_hid=64,
         ssn_n_layers=8,
@@ -263,9 +258,7 @@ class FilterNet(nn.Module):
         snap_shot_embeddings = torch.cat(
             [
                 snap_shot_embeddings,  # torch.Size([batch, time, embedding dim])
-                torch.zeros(batch_size, time_steps, 1).to(
-                    snap_shot_embeddings.device
-                ),
+                torch.zeros(batch_size, time_steps, 1).to(snap_shot_embeddings.device),
             ],
             dim=2,
         ).reshape(batch_size, time_steps, 1, self.d_embed)
@@ -300,9 +293,7 @@ class FilterNet(nn.Module):
         )
         return {
             "transformer_pred": self_attention_output,
-            "single_snapshot_pred": single_snapshot_output[
-                "single_snapshot_pred"
-            ],
+            "single_snapshot_pred": single_snapshot_output["single_snapshot_pred"],
         }
 
 
@@ -416,9 +407,9 @@ class TrajectoryNet(nn.Module):
             t = rt[b]
             for tracked in torch.where(tracking[b] > 0)[0]:
                 # get the mask where this emitter is broadcasting in the first t steps
-                times_where_this_tracked_is_broadcasting = x[
-                    "emitters_broadcasting"
-                ][b, :t, tracked, 0].to(bool)
+                times_where_this_tracked_is_broadcasting = x["emitters_broadcasting"][
+                    b, :t, tracked, 0
+                ].to(bool)
                 # pull the drone state and observations for these time steps
                 # nested_tensors.append(
                 #  drone_state_and_observation_embeddings[b,:t][times_where_this_tracked_is_broadcasting]
@@ -429,9 +420,7 @@ class TrajectoryNet(nn.Module):
                             drone_state_and_observation_embeddings[b, :t][
                                 times_where_this_tracked_is_broadcasting
                             ],
-                            x["times"][b, :t][
-                                times_where_this_tracked_is_broadcasting
-                            ],
+                            x["times"][b, :t][times_where_this_tracked_is_broadcasting],
                         ]
                     )
                 )
@@ -460,9 +449,7 @@ class TrajectoryNet(nn.Module):
         for idx, emebeddings_per_batch_and_tracked in enumerate(nested_tensors):
             tracked_time_steps, _ = emebeddings_per_batch_and_tracked.shape
             # breakpoint()
-            tformer_input[
-                idx, :tracked_time_steps
-            ] = emebeddings_per_batch_and_tracked
+            tformer_input[idx, :tracked_time_steps] = emebeddings_per_batch_and_tracked
             src_key_padding_mask[idx, tracked_time_steps:] = True
         src_key_padding_mask = src_key_padding_mask.to(
             device
@@ -509,9 +496,9 @@ class TrajectoryNet(nn.Module):
                     ],
                     axis=1,
                 )
-                trajectory_predictions[
-                    b, emitter_idx
-                ] = self.trajectory_prediction_net(trajectory_input)["output"]
+                trajectory_predictions[b, emitter_idx] = self.trajectory_prediction_net(
+                    trajectory_input
+                )["output"]
 
         return {
             "single_snapshot_predictions": single_snapshot_predictions,
@@ -752,9 +739,7 @@ class Task1Net(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(
-        self, in_channels=3, out_channels=1, width=128, init_features=32
-    ):
+    def __init__(self, in_channels=3, out_channels=1, width=128, init_features=32):
         super(UNet, self).__init__()
 
         features = init_features
@@ -769,35 +754,25 @@ class UNet(nn.Module):
         self.encoder5 = UNet._block(features * 8, features * 16, name="enc4")
         self.pool5 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.bottleneck = UNet._block(
-            features * 16, features * 32, name="bottleneck"
-        )
+        self.bottleneck = UNet._block(features * 16, features * 32, name="bottleneck")
         # self.bottleneck = UNet._block(features * 8, features * 16, name="bottleneck")
 
         self.upconv5 = nn.ConvTranspose2d(
             features * 32, features * 16, kernel_size=2, stride=2
         )
-        self.decoder5 = UNet._block(
-            (features * 16) * 2, features * 16, name="dec5"
-        )
+        self.decoder5 = UNet._block((features * 16) * 2, features * 16, name="dec5")
         self.upconv4 = nn.ConvTranspose2d(
             features * 16, features * 8, kernel_size=2, stride=2
         )
-        self.decoder4 = UNet._block(
-            (features * 8) * 2, features * 8, name="dec4"
-        )
+        self.decoder4 = UNet._block((features * 8) * 2, features * 8, name="dec4")
         self.upconv3 = nn.ConvTranspose2d(
             features * 8, features * 4, kernel_size=2, stride=2
         )
-        self.decoder3 = UNet._block(
-            (features * 4) * 2, features * 4, name="dec3"
-        )
+        self.decoder3 = UNet._block((features * 4) * 2, features * 4, name="dec3")
         self.upconv2 = nn.ConvTranspose2d(
             features * 4, features * 2, kernel_size=2, stride=2
         )
-        self.decoder2 = UNet._block(
-            (features * 2) * 2, features * 2, name="dec2"
-        )
+        self.decoder2 = UNet._block((features * 2) * 2, features * 2, name="dec2")
         self.upconv1 = nn.ConvTranspose2d(
             features * 2, features, kernel_size=2, stride=2
         )

@@ -154,9 +154,7 @@ if __name__ == "__main__":
         signal_matrix[1] *= np.exp(1j * sdr_rx.phase_calibration)
         current_time = time.time() - time_offset  # timestamp
 
-        beam_thetas, beam_sds, beam_steer = beamformer(
-            pos, signal_matrix, args.fc
-        )
+        beam_thetas, beam_sds, beam_steer = beamformer(pos, signal_matrix, args.fc)
 
         avg_phase_diff = get_avg_phase(signal_matrix)
         xy = gm.position["xy"]

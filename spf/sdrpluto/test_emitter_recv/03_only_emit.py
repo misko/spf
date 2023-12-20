@@ -7,9 +7,7 @@ from math import lcm, gcd
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--ip", type=str, help="target Pluto IP address", required=True
-)
+parser.add_argument("--ip", type=str, help="target Pluto IP address", required=True)
 parser.add_argument(
     "--fi", type=int, help="Intermediate frequency", required=False, default=1e5
 )

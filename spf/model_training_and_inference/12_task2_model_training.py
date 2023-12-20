@@ -35,10 +35,7 @@ torch.set_printoptions(precision=5, sci_mode=False, linewidth=1000)
 def src_pos_from_radial(inputs, outputs):
     det_pos = inputs[:, :, input_cols["det_pos"]]
 
-    theta = (
-        outputs[:, :, [cols_for_loss.index(output_cols["src_theta"][0])]]
-        * np.pi
-    )
+    theta = outputs[:, :, [cols_for_loss.index(output_cols["src_theta"][0])]] * np.pi
     dist = outputs[:, :, [cols_for_loss.index(output_cols["src_dist"][0])]]
 
     theta = theta.float()
@@ -95,10 +92,7 @@ def model_forward(d_model, data, args, train_test_label, update, plot=True):
     single_snapshot_loss = 0.0
     fc_loss = 0.0
     if "transformer_pred" in preds:
-        if (
-            preds["transformer_pred"].mean(axis=1).var(axis=0).mean().item()
-            < 1e-13
-        ):
+        if preds["transformer_pred"].mean(axis=1).var(axis=0).mean().item() < 1e-13:
             d_model["dead"] = True
         else:
             d_model["dead"] = False
@@ -114,9 +108,7 @@ def model_forward(d_model, data, args, train_test_label, update, plot=True):
         _p = preds["transformer_pred"].detach().cpu()
         assert not preds["transformer_pred"].isnan().any()
     if "single_snapshot_pred" in preds:
-        single_snapshot_loss = criterion(
-            preds["single_snapshot_pred"], _data["labels"]
-        )
+        single_snapshot_loss = criterion(preds["single_snapshot_pred"], _data["labels"])
         losses["single_snapshot_loss"] = single_snapshot_loss.item()
         losses["single_snapshot_stats"] = (
             (preds["single_snapshot_pred"] - _data["labels"])
@@ -145,9 +137,7 @@ def model_forward(d_model, data, args, train_test_label, update, plot=True):
         if "src_pos" in args.losses:
             src_pos_idxs = []
             for idx in range(2):
-                src_pos_idxs.append(
-                    cols_for_loss.index(output_cols["src_pos"][idx])
-                )
+                src_pos_idxs.append(cols_for_loss.index(output_cols["src_pos"][idx]))
             axs[1].scatter(
                 _l[0, :, src_pos_idxs[0]],
                 _l[0, :, src_pos_idxs[1]],
@@ -235,9 +225,7 @@ def model_to_losses(running_loss, mean_chunk):
                                 [
                                     l[k]
                                     for l in running_loss[
-                                        idx
-                                        * mean_chunk : (idx + 1)
-                                        * mean_chunk
+                                        idx * mean_chunk : (idx + 1) * mean_chunk
                                     ]
                                 ]
                             )
@@ -333,9 +321,7 @@ def plot_loss(
         axs[i].set_xlabel("time")
         axs[i].set_ylabel("log loss")
     if baseline_image_loss is not None:
-        axs[3].plot(
-            xs, baseline_image_loss["baseline_image"], label="baseline image"
-        )
+        axs[3].plot(xs, baseline_image_loss["baseline_image"], label="baseline image")
     axs[0].set_title("Transformer loss")
     axs[1].set_title("Single snapshot loss")
     axs[2].set_title("FC loss")
@@ -345,9 +331,7 @@ def plot_loss(
         if "transformer_loss" in losses:
             axs[0].plot(xs, losses["transformer_loss"], label=d_model["name"])
         if "single_snapshot_loss" in losses:
-            axs[1].plot(
-                xs, losses["single_snapshot_loss"], label=d_model["name"]
-            )
+            axs[1].plot(xs, losses["single_snapshot_loss"], label=d_model["name"])
         if "fc_loss" in losses:
             axs[2].plot(xs, losses["fc_loss"], label=d_model["name"])
         if "image_loss" in losses:
@@ -362,9 +346,7 @@ def plot_loss(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=str, required=False, default="cpu")
-    parser.add_argument(
-        "--embedding-warmup", type=int, required=False, default=0
-    )
+    parser.add_argument("--embedding-warmup", type=int, required=False, default=0)
     parser.add_argument(
         "--snapshots-per-sample",
         type=int,
@@ -373,21 +355,15 @@ if __name__ == "__main__":
         nargs="+",
     )
     parser.add_argument("--print-every", type=int, required=False, default=100)
-    parser.add_argument(
-        "--lr-scheduler-every", type=int, required=False, default=256
-    )
+    parser.add_argument("--lr-scheduler-every", type=int, required=False, default=256)
     parser.add_argument("--plot-every", type=int, required=False, default=1024)
     parser.add_argument("--save-every", type=int, required=False, default=1000)
     parser.add_argument("--test-mbs", type=int, required=False, default=8)
     parser.add_argument(
         "--output-prefix", type=str, required=False, default="model_out"
     )
-    parser.add_argument(
-        "--test-fraction", type=float, required=False, default=0.2
-    )
-    parser.add_argument(
-        "--weight-decay", type=float, required=False, default=0.0
-    )
+    parser.add_argument("--test-fraction", type=float, required=False, default=0.2)
+    parser.add_argument("--weight-decay", type=float, required=False, default=0.0)
     parser.add_argument(
         "--transformer-loss-balance", type=float, required=False, default=0.1
     )
@@ -405,9 +381,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--lr-image", type=float, required=False, default=0.05)
     parser.add_argument("--lr-direct", type=float, required=False, default=0.01)
-    parser.add_argument(
-        "--lr-transformer", type=float, required=False, default=0.00001
-    )
+    parser.add_argument("--lr-transformer", type=float, required=False, default=0.00001)
     parser.add_argument("--plot", type=bool, required=False, default=False)
     parser.add_argument(
         "--transformer-input",
@@ -467,9 +441,7 @@ if __name__ == "__main__":
     # ds_train, ds_test = random_split(ds, [1-args.test_fraction, args.test_fraction])
 
     ds_train = torch.utils.data.Subset(ds, np.arange(train_size))
-    ds_test = torch.utils.data.Subset(
-        ds, np.arange(train_size, train_size + test_size)
-    )
+    ds_test = torch.utils.data.Subset(ds, np.arange(train_size, train_size + test_size))
 
     print("init dataloader")
     trainloader = torch.utils.data.DataLoader(
@@ -496,8 +468,7 @@ if __name__ == "__main__":
                     continue
                 models.append(
                     {
-                        "name": "%d snapshots (l%d)"
-                        % (snapshots_per_sample, n_layers),
+                        "name": "%d snapshots (l%d)" % (snapshots_per_sample, n_layers),
                         "model": SnapshotNet(
                             snapshots_per_sample,
                             n_layers=n_layers,
@@ -613,12 +584,8 @@ if __name__ == "__main__":
     def prep_data(data):
         prepared_data = {
             "inputs": {
-                "radio_feature": data["inputs"]["radio_feature"]
-                .to(dtype)
-                .to(device),
-                "drone_state": data["inputs"]["drone_state"]
-                .to(dtype)
-                .to(device),
+                "radio_feature": data["inputs"]["radio_feature"].to(dtype).to(device),
+                "drone_state": data["inputs"]["drone_state"].to(dtype).to(device),
             },
             "labels": data["labels"][..., cols_for_loss].to(dtype).to(device),
         }
@@ -648,10 +615,7 @@ if __name__ == "__main__":
                         update=i,
                         plot=True,
                     )
-                    if (
-                        i % args.lr_scheduler_every
-                        == args.lr_scheduler_every - 1
-                    ):
+                    if i % args.lr_scheduler_every == args.lr_scheduler_every - 1:
                         d_model["scheduler"].step()
                     loss.backward()
                     running_losses["train"][d_model["name"]].append(losses)
@@ -691,15 +655,12 @@ if __name__ == "__main__":
                                 update=i,
                                 plot=idx == 0,
                             )
-                            running_losses["test"][d_model["name"]].append(
-                                losses
-                            )
+                            running_losses["test"][d_model["name"]].append(losses)
                     labels = prepared_data["labels"]
                     running_losses["test"]["baseline"].append(
                         {
                             "baseline": criterion(
-                                labels * 0
-                                + labels.mean(axis=[0, 1], keepdim=True),
+                                labels * 0 + labels.mean(axis=[0, 1], keepdim=True),
                                 labels,
                             ).item()
                         }
@@ -776,10 +737,7 @@ if __name__ == "__main__":
                 )
                 print("\t\t\t%s" % stats_title())
                 print(loss_str)
-            if (
-                i // args.print_every > 2
-                and i % args.plot_every == args.plot_every - 1
-            ):
+            if i // args.print_every > 2 and i % args.plot_every == args.plot_every - 1:
                 plot_loss(
                     running_losses=running_losses["train"],
                     baseline_loss=train_baseline_loss,

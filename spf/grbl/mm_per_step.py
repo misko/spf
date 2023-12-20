@@ -7,9 +7,7 @@ degrees_per_step = degrees_per_step_wo_gear / gear_ratio
 steps_per_revolution = 360 / degrees_per_step
 micro_stepping = 16
 steps_per_mm = (
-    micro_stepping
-    * steps_per_revolution
-    / (teeth_per_revolution * spacing_per_tooth)
+    micro_stepping * steps_per_revolution / (teeth_per_revolution * spacing_per_tooth)
 )
 
 

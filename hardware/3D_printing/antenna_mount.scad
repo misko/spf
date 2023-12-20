@@ -1,5 +1,5 @@
 wave_length=125/2;
-antenna_width=10;
+antenna_width=10-0.2;
 antenna_stalk_width=10-0.25;
 antenna_base_length=23;
 
@@ -9,7 +9,8 @@ height=antenna_width+8;
 ziptie_width=3.5;
 ziptie_depth=2.5;
 
-screw_r=5.5/2;
+dry_screw_r=5.5/2; //dry wall
+screw_r=3.5/2; //m3
 backing=2;
 edges=2;
 
@@ -75,8 +76,8 @@ difference() {
 
 rotate([0,0,tx_theta]) antenna_cutout();
     
-k1=antenna_width/2+ziptie_depth+(screw_r+backing);
-k2=wave_length/2+antenna_base_length-screw_r*2;
+k1=antenna_width/2+ziptie_depth+(dry_screw_r+backing);
+k2=wave_length/2+antenna_base_length-dry_screw_r*2;
 translate([k1,-k2,0]) screw_hold();
 translate([-k1,k2,0]) screw_hold();
 translate([k2,-k1,0]) screw_hold();
