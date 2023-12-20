@@ -42,6 +42,8 @@ home_calibration_point = np.array([300, 400])
 
 
 def a_to_b_in_stepsize(a, b, step_size):
+    if np.isclose(a,b).all():
+        return [b]
     # move by step_size from where we are now to the target position
     points = [a]
     direction = (b - a) / np.linalg.norm(b - a)
@@ -100,8 +102,9 @@ class Dynamics:
 
     def to_steps(self, p):
         if (self.polygon is not None) and not self.polygon.contains_point(
-            p, radius=0.001
+            p, radius=0.01
         ):  # todo a bit hacky but works
+            print("OUT OF BOUNDS",p)
             raise ValueError
         # motor_steps = ( distance_between_pivot and point ) - (distance between pivot and calibration point)
         a_motor_steps = np.linalg.norm(self.pA - p) - np.linalg.norm(
