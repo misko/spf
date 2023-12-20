@@ -19,7 +19,8 @@ class Source(object):
 
     def signal(self, sampling_times):
         return (
-            np.cos(2 * np.pi * sampling_times) + np.sin(2 * np.pi * sampling_times) * 1j
+            np.cos(2 * np.pi * sampling_times)
+            + np.sin(2 * np.pi * sampling_times) * 1j
         )
 
     def demod_signal(self, signal, demod_times):
@@ -35,7 +36,8 @@ class SinSource(Source):
     def signal(self, sampling_times):
         return (
             np.cos(2 * np.pi * sampling_times * self.frequency + self.phase)
-            + np.sin(2 * np.pi * sampling_times * self.frequency + self.phase) * 1j
+            + np.sin(2 * np.pi * sampling_times * self.frequency + self.phase)
+            * 1j
         )
 
 
@@ -69,7 +71,8 @@ class QAMSource(Source):
 
     def demod_signal(self, signal, demod_times):
         return (
-            self.lo_in_phase(demod_times) + self.lo_out_of_phase(demod_times) * 1j
+            self.lo_in_phase(demod_times)
+            + self.lo_out_of_phase(demod_times) * 1j
         ) * signal
 
 
@@ -144,7 +147,8 @@ def beamformer(
                 source_vector, receiver.pos
             )
             projections.append(
-                projection_of_receiver_onto_source_direction / carrier_wavelength
+                projection_of_receiver_onto_source_direction
+                / carrier_wavelength
             )
             arg = (
                 2
@@ -154,14 +158,18 @@ def beamformer(
             )
             steering_vectors[theta_index][receiver_index] = np.exp(-1j * arg)
         steer_dot_signal[theta_index] = np.absolute(
-            np.matmul(steering_vectors[theta_index] * calibration, signal_matrix)
+            np.matmul(
+                steering_vectors[theta_index] * calibration, signal_matrix
+            )
         ).mean()
     return thetas, steer_dot_signal, steering_vectors
 
 
 def plot_space(ax, d, wavelength=1):
     # fig,ax=plt.subplots(1,1,figsize=(4,4))
-    receiver_pos = np.vstack([receiver.pos / wavelength for receiver in d.receivers])
+    receiver_pos = np.vstack(
+        [receiver.pos / wavelength for receiver in d.receivers]
+    )
     _max = receiver_pos.max()
     _min = receiver_pos.min()
     buffer = (_max - _min) * 0.1
@@ -199,14 +207,18 @@ def plot_space(ax, d, wavelength=1):
     ax.legend()
     ax.set_xlabel("x (wavelengths)")
     ax.set_ylabel("y (wavelengths)")
-    ax.set_title("Space diagram (%s)" % ",".join(map(lambda x: "%0.2f" % x, thetas)))
+    ax.set_title(
+        "Space diagram (%s)" % ",".join(map(lambda x: "%0.2f" % x, thetas))
+    )
 
 
 class ULADetector(Detector):
     def __init__(self, sampling_frequency, n_elements, spacing):
         super().__init__(sampling_frequency)
         for idx in np.arange(n_elements):
-            self.add_receiver(Receiver([spacing * (idx - (n_elements - 1) / 2), 0]))
+            self.add_receiver(
+                Receiver([spacing * (idx - (n_elements - 1) / 2), 0])
+            )
 
 
 ula_d = ULADetector(300, 10, 1)

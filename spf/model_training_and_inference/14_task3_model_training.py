@@ -85,7 +85,10 @@ def points_to_nll(
 def src_pos_from_radial(inputs, outputs):
     det_pos = inputs[:, :, input_cols["det_pos"]]
 
-    theta = outputs[:, :, [cols_for_loss.index(output_cols["src_theta"][0])]] * np.pi
+    theta = (
+        outputs[:, :, [cols_for_loss.index(output_cols["src_theta"][0])]]
+        * np.pi
+    )
     dist = outputs[:, :, [cols_for_loss.index(output_cols["src_dist"][0])]]
 
     theta = theta.float()
@@ -99,7 +102,9 @@ def src_pos_from_radial(inputs, outputs):
 
 def model_forward(d_model, data, args, train_test_label, update, plot=True):
     batch_size, time_steps, d_drone_state = data["drone_state"].shape
-    _, _, n_sources, d_emitter_state = data["emitter_position_and_velocity"].shape
+    _, _, n_sources, d_emitter_state = data[
+        "emitter_position_and_velocity"
+    ].shape
 
     min_sigma = 0.01
     max_sigma = 0.3
@@ -121,7 +126,10 @@ def model_forward(d_model, data, args, train_test_label, update, plot=True):
         positions,
         pos_mean,
         convert_sigmas(
-            pos_cov, min_sigma=min_sigma, max_sigma=max_sigma, ellipse=args.ellipse
+            pos_cov,
+            min_sigma=min_sigma,
+            max_sigma=max_sigma,
+            ellipse=args.ellipse,
         ),
         pos_angle,
         mode=args.point_mode,
@@ -130,7 +138,10 @@ def model_forward(d_model, data, args, train_test_label, update, plot=True):
         velocities,
         vel_mean,
         convert_sigmas(
-            vel_cov, min_sigma=min_sigma, max_sigma=max_sigma, ellipse=args.ellipse
+            vel_cov,
+            min_sigma=min_sigma,
+            max_sigma=max_sigma,
+            ellipse=args.ellipse,
         ),
         vel_angle,
         mode=args.point_mode,
@@ -147,7 +158,10 @@ def model_forward(d_model, data, args, train_test_label, update, plot=True):
         emitting_positions,
         ss_mean,
         convert_sigmas(
-            ss_cov, min_sigma=min_sigma, max_sigma=max_sigma, ellipse=args.ellipse
+            ss_cov,
+            min_sigma=min_sigma,
+            max_sigma=max_sigma,
+            ellipse=args.ellipse,
         ),
         ss_angle,
         mode=args.point_mode,
@@ -213,7 +227,12 @@ def model_forward(d_model, data, args, train_test_label, update, plot=True):
         )
         _ss_angle = ss_angle[:t].cpu().detach().numpy()
         axs[1].scatter(
-            _ss_mean[:, 0], _ss_mean[:, 1], label="pred means", c="r", alpha=0.3, s=2
+            _ss_mean[:, 0],
+            _ss_mean[:, 1],
+            label="pred means",
+            c="r",
+            alpha=0.3,
+            s=2,
         )
         print("PLOT", _ss_cov[:t].mean(), _ss_cov[:t].max())
         for idx in torch.arange(0, t, 5):
@@ -224,15 +243,22 @@ def model_forward(d_model, data, args, train_test_label, update, plot=True):
                 facecolor="none",
                 edgecolor="red",
                 alpha=0.1,
-                angle=_ss_angle[idx] * (360.0 / (2 * torch.pi) if args.ellipse else 0),
+                angle=_ss_angle[idx]
+                * (360.0 / (2 * torch.pi) if args.ellipse else 0),
             )
             axs[1].add_patch(ellipse)
 
         axs[1].set_title("Single snapshot predictions")
 
-        _pred_trajectory = preds["trajectory_predictions"]  # .cpu().detach().numpy()
+        _pred_trajectory = preds[
+            "trajectory_predictions"
+        ]  # .cpu().detach().numpy()
         for source_idx in range(n_sources):
-            trajectory_mean, trajectory_cov, trajectory_angle = unpack_mean_cov_angle(
+            (
+                trajectory_mean,
+                trajectory_cov,
+                trajectory_angle,
+            ) = unpack_mean_cov_angle(
                 _pred_trajectory[0, :t, source_idx, :5].reshape(-1, 5)
             )
             trajectory_mean = trajectory_mean.cpu()
@@ -415,7 +441,8 @@ def plot_loss(
     axs[2].sharex(axs[0])
     xs = np.arange(len(baseline_loss["baseline"])) * xtick_spacing
     start_idx = min(
-        len(baseline_loss["baseline"]) - 1, int(len(baseline_loss["baseline"]) * 0.1)
+        len(baseline_loss["baseline"]) - 1,
+        int(len(baseline_loss["baseline"]) * 0.1),
     )
     for i in range(3):
         # axs[i].plot(xs,baseline_loss['baseline'],label='baseline')
@@ -456,22 +483,36 @@ def plot_loss(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=str, required=False, default="cpu")
-    parser.add_argument("--embedding-warmup", type=int, required=False, default=4096)
     parser.add_argument(
-        "--snapshots-per-sample", type=int, required=False, default=[1, 4, 8], nargs="+"
+        "--embedding-warmup", type=int, required=False, default=4096
     )
-    parser.add_argument("--n-layers", type=int, required=False, default=[4], nargs="+")
+    parser.add_argument(
+        "--snapshots-per-sample",
+        type=int,
+        required=False,
+        default=[1, 4, 8],
+        nargs="+",
+    )
+    parser.add_argument(
+        "--n-layers", type=int, required=False, default=[4], nargs="+"
+    )
     parser.add_argument("--print-every", type=int, required=False, default=100)
-    parser.add_argument("--lr-scheduler-every", type=int, required=False, default=256)
+    parser.add_argument(
+        "--lr-scheduler-every", type=int, required=False, default=256
+    )
     parser.add_argument("--step-size", type=int, required=False, default=32)
     parser.add_argument("--plot-every", type=int, required=False, default=1024)
     parser.add_argument("--save-every", type=int, required=False, default=1000)
-    parser.add_argument("--loss-single", type=float, required=False, default=3.0)
+    parser.add_argument(
+        "--loss-single", type=float, required=False, default=3.0
+    )
     parser.add_argument("--loss-trec", type=float, required=False, default=3.0)
     parser.add_argument("--loss-tvel", type=float, required=False, default=0.0)
     parser.add_argument("--l2", type=float, required=False, default=0.0001)
     parser.add_argument("--ellipse", type=bool, required=False, default=True)
-    parser.add_argument("--point-mode", type=str, required=False, default="ellipse")
+    parser.add_argument(
+        "--point-mode", type=str, required=False, default="ellipse"
+    )
     parser.add_argument("--real-data", action="store_true")
     parser.add_argument("--test-mbs", type=int, required=False, default=8)
     parser.add_argument(
@@ -480,8 +521,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output-prefix", type=str, required=False, default="model_out"
     )
-    parser.add_argument("--test-fraction", type=float, required=False, default=0.2)
-    parser.add_argument("--weight-decay", type=float, required=False, default=0.0)
+    parser.add_argument(
+        "--test-fraction", type=float, required=False, default=0.2
+    )
+    parser.add_argument(
+        "--weight-decay", type=float, required=False, default=0.0
+    )
     parser.add_argument(
         "--transformer-loss-balance", type=float, required=False, default=0.1
     )
@@ -499,7 +544,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--lr-image", type=float, required=False, default=0.05)
     parser.add_argument("--lr-direct", type=float, required=False, default=0.01)
-    parser.add_argument("--lr-transformer", type=float, required=False, default=0.00001)
+    parser.add_argument(
+        "--lr-transformer", type=float, required=False, default=0.00001
+    )
     parser.add_argument("--plot", type=bool, required=False, default=False)
     parser.add_argument(
         "--transformer-input",
@@ -511,13 +558,24 @@ if __name__ == "__main__":
     parser.add_argument(
         "--transformer-dmodel", type=int, required=False, default=64
     )  # 512)
-    parser.add_argument("--ssn-dhid", type=int, required=False, default=16)  # 64)
-    parser.add_argument("--ssn-nlayers", type=int, required=False, default=3)  # 8)
-    parser.add_argument("--tj-dembed", type=int, required=False, default=32)  # 256)
-    parser.add_argument("--obv-dembed", type=int, required=False, default=31)  # 256)
+    parser.add_argument(
+        "--ssn-dhid", type=int, required=False, default=16
+    )  # 64)
+    parser.add_argument(
+        "--ssn-nlayers", type=int, required=False, default=3
+    )  # 8)
+    parser.add_argument(
+        "--tj-dembed", type=int, required=False, default=32
+    )  # 256)
+    parser.add_argument(
+        "--obv-dembed", type=int, required=False, default=31
+    )  # 256)
     parser.add_argument("--clip", type=float, required=False, default=0.5)
     parser.add_argument(
-        "--losses", type=str, required=False, default="src_pos,src_theta,src_dist"
+        "--losses",
+        type=str,
+        required=False,
+        default="src_pos,src_theta,src_dist",
     )  # ,src_theta,src_dist,det_delta,det_theta,det_space")
     args = parser.parse_args()
 
@@ -566,7 +624,9 @@ if __name__ == "__main__":
     # ds_train, ds_test = random_split(ds, [1-args.test_fraction, args.test_fraction])
     print("NO SHUFFLING! make sure datasets are shuffled!!!")
     ds_train = torch.utils.data.Subset(ds, np.arange(train_size))
-    ds_test = torch.utils.data.Subset(ds, np.arange(train_size, train_size + test_size))
+    ds_test = torch.utils.data.Subset(
+        ds, np.arange(train_size, train_size + test_size)
+    )
     print("init dataloader")
     trainloader = torch.utils.data.DataLoader(
         ds_train,
@@ -598,7 +658,8 @@ if __name__ == "__main__":
                         d_detector_observation_embedding=args.obv_dembed,
                         d_trajectory_embedding=args.tj_dembed,
                         trajectory_prediction_n_layers=8,
-                        d_trajectory_prediction_output=(2 + 2 + 1) + (2 + 2 + 1),
+                        d_trajectory_prediction_output=(2 + 2 + 1)
+                        + (2 + 2 + 1),
                         d_model=args.transformer_dmodel,
                         n_heads=8,
                         d_hid=64,
@@ -621,7 +682,8 @@ if __name__ == "__main__":
                     continue
                 models.append(
                     {
-                        "name": "%d snapshots (l%d)" % (snapshots_per_sample, n_layers),
+                        "name": "%d snapshots (l%d)"
+                        % (snapshots_per_sample, n_layers),
                         "model": SnapshotNet(
                             snapshots_per_sample,
                             n_layers=n_layers,
@@ -683,7 +745,9 @@ if __name__ == "__main__":
         # add sources not seen (death)
         d = {k: data[k].to(dtype).to(device) for k in data}
 
-        batch_size, time_steps, n_sources, _ = d["emitter_position_and_velocity"].shape
+        batch_size, time_steps, n_sources, _ = d[
+            "emitter_position_and_velocity"
+        ].shape
         d["emitter_position_and_velocity"] = torch.cat(
             [
                 d["emitter_position_and_velocity"],
@@ -758,7 +822,9 @@ if __name__ == "__main__":
                                 update=total_batch_idx,
                                 plot=idx == 0,
                             )
-                            running_losses["test"][d_model["name"]].append(losses)
+                            running_losses["test"][d_model["name"]].append(
+                                losses
+                            )
                     # labels=prepared_data['labels']
                     running_losses["test"]["baseline"].append(
                         {"baseline": 1e-5}
@@ -794,7 +860,8 @@ if __name__ == "__main__":
                             d["name"],
                             str(d["dead"]),
                             model_to_loss_str(
-                                running_losses["train"][d["name"]], args.print_every
+                                running_losses["train"][d["name"]],
+                                args.print_every,
                             ),
                             model_to_loss_str(
                                 running_losses["test"][d["name"]], args.test_mbs

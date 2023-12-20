@@ -2,13 +2,70 @@ import serial
 import time
 import sys
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.path as pltpath
 
 
-home_pA=np.array([3568,0])
-home_pB=np.array([0,0])
+home_pA = np.array([3568, 0])
+home_pB = np.array([0, 0])
+home_bounding_box = [
+    [300, 400],
+    [3100, 400],
+    [3100, 2850],
+    # [300,1500],
+    [900, 900],
+]
 
-class GRBLManager:
+"""
+MotorMountA                         MotorMountB
+        .                           .
+            .                   .
+                .           .
+                    .   .
+                    Origin
+                 (Offset from MotorMountB)
+
+
+We cant go higher than origin, because there wouldn't
+be any grip for the GT2 cable, we need to maintain some
+minimal angle
+
+There are two reference frames,
+    A) One where motor mount B is the center
+    B) One where origin is the center (mountB+offset)
+
+The second frame is the one we can calibrate too, since its
+impossible to get the payload to MotorMountB , because there
+would be no tension on the GT2 belts
+
+"""
+home_calibration_point = np.array([300, 400])
+
+
+def a_to_b_in_stepsize(a, b, step_size):
+    if np.isclose(a,b).all():
+        return [b]
+    # move by step_size from where we are now to the target position
+    points = [a]
+    direction = (b - a) / np.linalg.norm(b - a)
+    distance = np.linalg.norm(b - a)
+    _l = 0
+    while _l < distance:
+        points.append(_l * direction + a)
+        _l = _l + step_size
+    points.append(b)
+    return points
+
+
+class Dynamics:
+    def __init__(self, calibration_point, pA, pB, bounding_box):
+        self.calibration_point = calibration_point
+        self.pA = pA
+        self.pB = pB
+        if len(bounding_box) >= 3:
+            self.polygon = pltpath.Path(bounding_box)
+        else:
+            self.polygon = None
+
     # a is the left motor on the wall
     # b is the right motor on the wall
     # (a-b)_x > 0
@@ -16,70 +73,169 @@ class GRBLManager:
     # y is positive up to ceiling and negative down to floor
 
     def from_steps(self, a_motor_steps, b_motor_steps):
-        r1 = np.linalg.norm(self.pA) + a_motor_steps
-        r2 = np.linalg.norm(self.pB) + b_motor_steps
+        """
+        The motor steps are relative to calibration point
+        (0,0) motor steps means we are at the calibration point and have
+        r1 /r2 corresponding to calibration point lengths
+        """
+        r1 = np.linalg.norm(self.pA - self.calibration_point) + a_motor_steps
+        r2 = np.linalg.norm(self.pB - self.calibration_point) + b_motor_steps
         d = np.linalg.norm(self.pA - self.pB)
 
-        '''
+        """
         x^2 = y^2 + r_2^2
         (x-d)^2 = x^2 - 2xd + d^2 = y^2 + r_1^2
 
         x = (r_2^2 - d^2 - r_1^2 ) / (2*d)
 
-        '''
+        """
         x = (r2 * r2 - d * d - r1 * r1) / (2 * d)  # on different axis
-        x_dir = (self.pA - self.pB) / d # unit vector from pB to pA
+        x_dir = (self.pA - self.pB) / d  # unit vector from pB to pA
 
         y = np.sqrt(r1 * r1 - x * x)
         y_dir = np.array([-x_dir[1], x_dir[0]])  # x_dir.T # orthogonal to x
 
-        return self.pA + y_dir * y + x_dir * x
+        position_relative_to_calibration_point = np.round(
+            self.pA + y_dir * y + x_dir * x, 1
+        )
+        return position_relative_to_calibration_point
 
     def to_steps(self, p):
-        a_motor_steps = np.linalg.norm(self.pA-p) - np.linalg.norm(self.pA)
-        b_motor_steps = np.linalg.norm(self.pB-p) - np.linalg.norm(self.pB)
-
+        if (self.polygon is not None) and not self.polygon.contains_point(
+            p, radius=0.01
+        ):  # todo a bit hacky but works
+            print("OUT OF BOUNDS",p)
+            raise ValueError
+        # motor_steps = ( distance_between_pivot and point ) - (distance between pivot and calibration point)
+        a_motor_steps = np.linalg.norm(self.pA - p) - np.linalg.norm(
+            self.pA - self.calibration_point
+        )
+        b_motor_steps = np.linalg.norm(self.pB - p) - np.linalg.norm(
+            self.pB - self.calibration_point
+        )
         return a_motor_steps, b_motor_steps
 
-    def spiral(self):
-        center = np.array([1500, 900])
-        spiral_radius = 1200
-        t_max = 6 * 2 * np.pi
-        v = spiral_radius / t_max
-        w = 1
-        for t in np.linspace(0, t_max, 256 * 16 * 2):
-            x = (v * t) * np.cos(w * t)
-            y = (v * t) * np.sin(w * t)
-            p = np.array([x, y]) + center
-            a_motor_steps, b_motor_steps = self.to_steps(p)
-            cmd = "G0 X%0.2f Y%0.2f" % (b_motor_steps, a_motor_steps)
-            # print("SENDING",x,y,cmd)
-            self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
-            self.s.readline().strip()
+    def binary_search_edge(self, left, right, xy, direction, epsilon):
+        if (right - left) < epsilon:
+            return left
+        midpoint = (right + left) / 2
+        p = midpoint * direction + xy
+        try:
+            steps = self.to_steps(p)
+            # actual = self.from_steps(*steps)
+            return self.binary_search_edge(
+                midpoint, right, xy, direction, epsilon
+            )
+        except ValueError:
+            return self.binary_search_edge(
+                left, midpoint, xy, direction, epsilon
+            )
 
-    def calibrate(self):
-        for x in np.linspace(1500, 500, 5):
-            for y in np.linspace(30, 1200, 5):
-                x, y = self.to_steps(np.array([x, y]))
-                cmd = "G0 X%0.2f Y%0.2f" % (x, y)
-                self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
+    def get_boundary_vector_near_point(self, p):
+        if self.polygon is None:
+            raise ValueError
 
-    def __init__(self, serial_fn, pA, pB,bounding_box,motor_mapping):
-        self.pA=pA
-        self.pB=pB
-        self.bounding_box=bounding_box
-        self.motor_mapping=motor_mapping
-        if serial_fn is not None:
-          # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
-          self.s = serial.Serial(
-              serial_fn, 115200, timeout=0.3, write_timeout=0.3
-          )  # GRBL operates at 115200 baud. Leave that part alone.
-          self.s.write("?".encode())
-          grbl_out = self.s.readline()  # get the response
-          print("GRBL ONLINE", grbl_out)
-          self.position = {"time": time.time(), "xy": np.zeros(2)}
-          self.update_status()
-          time.sleep(0.05)
+        bvec = None
+        max_score = 0
+        nverts = len(self.polygon.vertices)
+        for i in range(nverts):
+            v0 = self.polygon.vertices[i % nverts]
+            v1 = self.polygon.vertices[(i + 1) % nverts]
+            score = max(
+                np.dot(p - v0, v1 - v0)
+                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v0) + 0.01),
+                np.dot(p - v1, v1 - v1)
+                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v1) + 0.01),
+            )
+            if score > max_score:
+                max_score = score
+                bvec = (v1 - v0) / np.linalg.norm(v1 - v0)
+        return bvec
+
+
+class Planner:
+    def __init__(self, dynamics):
+        self.dynamics = dynamics
+        self.current_direction = None
+
+    def get_bounce_pos_and_new_direction(self, p, direction):
+        epsilon = 0.001
+        distance_to_bounce = self.dynamics.binary_search_edge(
+            0, 10000, p, direction, epsilon
+        )
+        last_point_before_bounce = distance_to_bounce * direction + p
+
+        # parallel component stays the same
+        # negatate the perpendicular component
+        bvec = self.dynamics.get_boundary_vector_near_point(
+            last_point_before_bounce
+        )
+        bvec_perp = np.array([bvec[1], -bvec[0]])
+        new_direction = (
+            np.dot(direction, bvec) * bvec
+            - np.dot(direction, bvec_perp) * bvec_perp
+        )
+        new_direction /= np.linalg.norm(new_direction)
+        return last_point_before_bounce, new_direction
+
+    def single_bounce(self, direction, p, step_size=5):
+        bounce_point, new_direction = self.get_bounce_pos_and_new_direction(
+            p, direction
+        )
+
+        to_points = a_to_b_in_stepsize(p, bounce_point, step_size=step_size)
+
+        # add some noise to the new direction
+        theta = np.random.uniform(2 * np.pi)
+        percent_random = 0.05
+        new_direction = (
+            1 - percent_random
+        ) * new_direction + percent_random * np.array(
+            [np.sin(theta), np.cos(theta)]
+        )
+
+        return to_points, new_direction
+
+    def random_direction(self):
+        theta = np.random.uniform(2 * np.pi)
+        return np.array([np.sin(theta), np.cos(theta)])
+
+    def bounce(self, start_p, n_bounces):
+        # if no previous direciton lets initialize one
+        if self.current_direction is None:
+            self.current_direction = self.random_direction()
+        # add some random noise
+        percent_random = 0.05
+        self.current_direction = (
+            1 - percent_random
+        ) * self.current_direction + percent_random * self.random_direction()
+        self.current_direction /= np.linalg.norm(self.current_direction)
+
+        for _ in range(n_bounces):
+            to_points, new_direction = self.single_bounce(
+                self.current_direction, start_p
+            )
+            assert len(to_points) > 0
+            print("MOVE", to_points[0], to_points[-1])
+            yield from to_points
+            start_p = to_points[-1]
+            self.current_direction = new_direction
+
+
+class GRBLController:
+    def __init__(self, serial_fn, dyamics, channel_to_motor_map):
+        self.dynamics = dynamics
+        # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
+        self.s = serial.Serial(
+            serial_fn, 115200, timeout=0.3, write_timeout=0.3
+        )  # GRBL operates at 115200 baud. Leave that part alone.
+        self.s.write("?".encode())
+        grbl_out = self.s.readline()  # get the response
+        print("GRBL ONLINE", grbl_out)
+        self.position = {"time": time.time(), "xy": np.zeros(2)}
+        self.update_status()
+        time.sleep(0.05)
+        self.channel_to_motor_map = channel_to_motor_map
 
     def push_reset(self):
         self.s.write(b"\x18")
@@ -99,18 +255,26 @@ class GRBLManager:
         try:
             motor_position_str = response.split("|")[1]
         except Exception as e:
-            print("FAILED TO PARSE", response, "|e|", e, time.time() - start_time)
+            print(
+                "FAILED TO PARSE", response, "|e|", e, time.time() - start_time
+            )
             return self.update_status(skip_write=not skip_write)
-        b_motor_steps, a_motor_steps, _, _ = map(
+        b0_motor_steps, a0_motor_steps, b1_motor_steps, a1_motor_steps = map(
             float, motor_position_str[len("MPos:") :].split(",")
         )
 
-        xy = self.from_steps(a_motor_steps, b_motor_steps)
-        is_moving = (self.position["xy"] != xy).any()
+        xy0 = self.dynamics.from_steps(a0_motor_steps, b0_motor_steps)
+        xy1 = self.dynamics.from_steps(a1_motor_steps, b1_motor_steps)
+
+        is_moving = (self.position["xy"][0] != xy0).any() or (
+            self.position["xy"][1] != xy1
+        ).any()
         self.position = {
-            "a_motor_steps": a_motor_steps,
-            "b_motor_steps": b_motor_steps,
-            "xy": xy,
+            "a0_motor_steps": a0_motor_steps,
+            "b0_motor_steps": b0_motor_steps,
+            "a1_motor_steps": a1_motor_steps,
+            "b1_motor_steps": b1_motor_steps,
+            "xy": [xy0, xy1],
             "is_moving": is_moving,
             "time": time.time(),
         }
@@ -128,98 +292,77 @@ class GRBLManager:
                 return
             time.sleep(0.01)
 
-    def binary_search_edge(self, left, right, xy, direction, epsilon):
-        if (right - left) < epsilon:
-            return left
-        l = (right + left) / 2
-        p = l * direction + xy
-        steps = self.to_steps(np.copy(p))
-        actual = self.from_steps(*steps)
-        deviation = np.linalg.norm(p - actual)
-        if deviation > 0.0001:
-            # go back left
-            return self.binary_search_edge(left, l, xy, direction, epsilon)
-        return self.binary_search_edge(l, right, xy, direction, epsilon)
-
-    def bounce(self, bounces, direction=None):
-        if direction is None:
-            theta = np.random.uniform(2 * np.pi)
-            direction = np.array([np.sin(theta), np.cos(theta)])
-        percent_random = 0.05
-        theta = np.random.uniform(2 * np.pi)
-        direction = (1 - percent_random) * direction + percent_random * np.array(
-            [np.sin(theta), np.cos(theta)]
-        )
-        direction = direction / np.linalg.norm(direction)
-        print("bounce", direction, np.linalg.norm(direction))
-        for _ in range(bounces):
-            to_points, new_direction = self.single_bounce(direction)
-            if len(to_points) > 0:
-                print("MOVE", to_points[0], to_points[-1])
-            for point in to_points:
-                self.move_to(point)
-                # print("MOVE")
-                self.update_status()
-                while np.linalg.norm(self.position["xy"] - point) > 100:
-                    self.update_status()
-            if (new_direction != direction).any():  # we are changing direction
-                self.wait_while_moving()
-                direction = new_direction
-        return direction
-
-    def single_bounce(self, direction, xy=None, step_size=5):
-        # find current position
-        # pick a random direction
-        # take full field step
-        # if hit a wall
-        # direction=np.array([1,0])
-        # direction=direction/np.linalg.norm(direction)
-        if xy is None:
-            self.update_status()
-            xy = self.position["xy"]
-        # find out at what point xy+l*direction we stop changing one of the variables
-        epsilon = 0.001
-        l = self.binary_search_edge(0, 10000, xy, direction, epsilon)
-        # find a paralell vector to the boundary
-        p1 = self.from_steps(*self.to_steps((l + 2 * epsilon) * direction + xy))
-        p2 = self.from_steps(*self.to_steps((l + 3 * epsilon) * direction + xy))
-        if np.linalg.norm(p1 - p2) < epsilon**2:  # the direction is only X or Y
-            new_direction = -direction
-        else:
-            b = p2 - p1
-            b /= np.linalg.norm(b)
-            bn = np.array([-b[1], b[0]])
-            _xy = self.from_steps(*self.to_steps(xy))
-            if (
-                np.linalg.norm(self.from_steps(*self.to_steps(_xy + bn)) - _xy)
-                < epsilon
-            ):
-                bn = -bn
-            new_direction = np.dot(direction, b) * b - np.dot(direction, bn) * bn
-        to_points = []
-        _l = 0
-        while _l < l:
-            _l = min(_l + step_size, l)
-            to_points.append(_l * direction + xy)
-        theta = np.random.uniform(2 * np.pi)
-        percent_random = 0.05
-        new_direction = (
-            1 - percent_random
-        ) * new_direction + percent_random * np.array([np.sin(theta), np.cos(theta)])
-        return to_points, new_direction
-
-    def move_to(self, p):
-        a_motor_steps, b_motor_steps = self.to_steps(p)
-        cmd = "G0 X%0.2f Y%0.2f" % (b_motor_steps, a_motor_steps)
+    def move_to(
+        self, points
+    ):  # takes in a list of points equal to length of map
+        gcode_move = ["G0"]
+        for c in points:
+            motors = self.channel_to_motor_map[c]
+            a_motor_steps, b_motor_steps = self.dynamics.to_steps(points[c])
+            gcode_move += [
+                "%s%0.2f %s%0.2f"
+                % (motors[0], b_motor_steps, motors[1], a_motor_steps)
+            ]
+        cmd = " ".join(gcode_move)
         time.sleep(0.01)
         self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
         time.sleep(0.01)
-        grbl_out = self.s.readline()  # Wait for grbl response with carriage return
+        grbl_out = (
+            self.s.readline()
+        )  # Wait for grbl response with carriage return
         time.sleep(0.01)
         # print("MOVE TO RESPONSE", grbl_out)
 
+    def distance_to_targets(self, target_points):
+        current_position = self.update_status()
+        return {
+            c: np.linalg.norm(current_position["xy"][c] - target_points[c])
+            for c in target_points
+        }
+
+    def targets_far_out(self, target_points, tolerance=100):
+        dists = self.distance_to_targets(target_points)
+        for c in dists:
+            if dists[c] >= tolerance:
+                return True
+        return False
+
+    def move_to_iter(self, points_by_channel):
+        while True:
+            next_points = get_next_points(points_by_channel)
+            if len(next_points) == 0:
+                break
+            self.move_to(next_points)
+            while self.targets_far_out(next_points):
+                pass
+
     def close(self):
         self.s.close()
+
+
+def get_next_points(channel_iterators):
+    ret = {}
+    for c in channel_iterators:
+        try:
+            ret[c] = next(channel_iterators[c])
+        except StopIteration:
+            pass
+    return ret
+
+
+class GRBLManager:
+    def __init__(self, controller, planners):
+        self.controller = controller
+        self.channels = list(self.controller.channel_to_motor_map.keys())
+        self.planners = planners
+
+    def bounce(self, n_bounces, direction=None):
+        start_positions = controller.update_status()["xy"]
+        points_by_channel = {
+            c: self.planners[c].bounce(start_positions[c], n_bounces)
+            for c in self.channels
+        }
+        self.controller.move_to_iter(points_by_channel)
 
 
 if __name__ == "__main__":
@@ -229,15 +372,25 @@ if __name__ == "__main__":
 
     serial_fn = sys.argv[1]
 
-    gm = GRBLManager(serial_fn)
+    dynamics = Dynamics(
+        calibration_point=home_calibration_point,
+        pA=home_pA,
+        pB=home_pB,
+        bounding_box=home_bounding_box,
+    )
+
+    planners = {0: Planner(dynamics), 1: Planner(dynamics)}
+
+    controller = GRBLController(
+        serial_fn, dynamics, channel_to_motor_map={0: "XY", 1: "ZA"}
+    )
+
+    gm = GRBLManager(controller, planners)
     print(
         """
         q = quit
-        r = reset
         bounce = bounce
         s = status
-        c = calibrate
-        e = spiral
         X,Y = move to X,Y
     """
     )
@@ -245,33 +398,23 @@ if __name__ == "__main__":
         line = line.strip()
         if line == "q":
             sys.exit(1)
-        elif line == "r":
-            r = gm.push_reset()
-            print(r)
         elif line == "bounce":
-            # point=np.array([2491.49001749,2401.75483327])
-            # direction=np.array([0.63471637,0.57157117])
-            gm.bounce(20000)
-
+            # gm.bounce(20000)
+            gm.bounce(40)
         elif line == "s":
             p = gm.update_status()
             print(p)
-        elif line == "c":
-            gm.calibrate()
-        elif line == "e":
-            gm.spiral()
         else:
+            current_positions = controller.update_status()["xy"]
+            p_main = np.array([float(x) for x in line.split()])
             if True:
-                p_main = np.array([float(x) for x in line.split()])
-                a_motor_steps, b_motor_steps = gm.to_steps(p_main)
-                cmd = "G0 X%0.2f Y%0.2f" % (b_motor_steps, a_motor_steps)
-                print(cmd)
-                print(gm.from_steps(a_motor_steps, b_motor_steps))
-                gm.s.write((cmd + "\n").encode())  # Send g-code block to grbl
-                grbl_out = (
-                    gm.s.readline()
-                )  # Wait for grbl response with carriage return
-                print("MAIN OUT", grbl_out)
+                points_iter = {
+                    c: iter(a_to_b_in_stepsize(current_positions[c], p_main, 5))
+                    for c in [0, 1]
+                }
+                controller.move_to_iter(points_iter)
+            # except ValueError:
+            #    print("Position is out of bounds!")
         time.sleep(0.01)
 
     gm.close()

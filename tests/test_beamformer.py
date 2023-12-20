@@ -1,4 +1,11 @@
-from spf.rf import beamformer, c, ULADetector, UCADetector, rotation_matrix, IQSource
+from spf.rf import (
+    beamformer,
+    c,
+    ULADetector,
+    UCADetector,
+    rotation_matrix,
+    IQSource,
+)
 import numpy as np
 
 
@@ -22,9 +29,15 @@ def test_beamformer():
     """
 
     source_pos = np.array([[0, 10000]])
-    rotations = [-np.pi / 2, -np.pi, -np.pi / 4, 0, np.pi / 2, np.pi / 2, np.pi] + list(
-        np.random.uniform(-np.pi, np.pi, 10)
-    )
+    rotations = [
+        -np.pi / 2,
+        -np.pi,
+        -np.pi / 4,
+        0,
+        np.pi / 2,
+        np.pi / 2,
+        np.pi,
+    ] + list(np.random.uniform(-np.pi, np.pi, 10))
     spacings = [
         wavelength / 4
     ]  # ,wavelength/2,wavelength,wavelength/3]+list(np.random.uniform(0,1,10))
@@ -45,7 +58,9 @@ def test_beamformer():
 
                     d.rm_sources()
                     d.add_source(
-                        IQSource(_source_pos, carrier_frequency, 100e3)  # x, y position
+                        IQSource(
+                            _source_pos, carrier_frequency, 100e3
+                        )  # x, y position
                     )
 
                     signal_matrix = d.get_signal_matrix(
@@ -59,9 +74,12 @@ def test_beamformer():
                         spacing=1024 + 1,
                     )
 
-                    closest_angle_answer = np.argmin(np.abs(thetas_at_t - rot_theta))
+                    closest_angle_answer = np.argmin(
+                        np.abs(thetas_at_t - rot_theta)
+                    )
                     potential_error = np.abs(
-                        beam_former_outputs_at_t[:-1] - beam_former_outputs_at_t[1:]
+                        beam_former_outputs_at_t[:-1]
+                        - beam_former_outputs_at_t[1:]
                     ).max()
 
                     assert (

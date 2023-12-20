@@ -8,9 +8,13 @@ from utils.spf_dataset import SessionsDatasetReal
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--root-dir", type=str, required=True)
-    parser.add_argument("--snapshots-in-file", type=int, required=False, default=400000)
+    parser.add_argument(
+        "--snapshots-in-file", type=int, required=False, default=400000
+    )
     parser.add_argument("--nthetas", type=int, required=False, default=64 + 1)
-    parser.add_argument("--snapshots-in-sample", type=int, required=False, default=128)
+    parser.add_argument(
+        "--snapshots-in-sample", type=int, required=False, default=128
+    )
     parser.add_argument("--width", type=int, required=False, default=3000)
     parser.add_argument("--session-idx", type=int, required=True)
     parser.add_argument("--steps", type=int, required=False, default=3)
@@ -34,6 +38,10 @@ if __name__ == "__main__":
     print("DSLEN", ds.len)
 
     session = ds[args.session_idx]
-    filenames = plot_full_session(session, args.steps, args.output_prefix, invert=True)
+    filenames = plot_full_session(
+        session, args.steps, args.output_prefix, invert=True
+    )
 
-    filenames_to_gif(filenames, "%s.gif" % args.output_prefix, duration=args.duration)
+    filenames_to_gif(
+        filenames, "%s.gif" % args.output_prefix, duration=args.duration
+    )

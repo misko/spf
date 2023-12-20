@@ -8,15 +8,25 @@ import argparse
 from utils.rf import ULADetector, beamformer, beamformer_old, dbfs
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--ip", type=str, help="target Pluto IP address", required=True)
+parser.add_argument(
+    "--ip", type=str, help="target Pluto IP address", required=True
+)
 parser.add_argument(
     "--fi", type=int, help="Intermediate frequency", required=False, default=5e4
 )
 parser.add_argument(
-    "--fc", type=int, help="Intermediate frequency", required=False, default=2.5e9
+    "--fc",
+    type=int,
+    help="Intermediate frequency",
+    required=False,
+    default=2.5e9,
 )
 parser.add_argument(
-    "--fs", type=int, help="Intermediate frequency", required=False, default=16e6
+    "--fs",
+    type=int,
+    help="Intermediate frequency",
+    required=False,
+    default=16e6,
 )
 parser.add_argument(
     "--cal0", type=int, help="Rx0 cal in degree", required=False, default=90
@@ -102,10 +112,16 @@ while True:
         axs[1].set_xlabel("Time")
         axs[1].set_ylabel("Value")
         axs[1].scatter(
-            np.arange(signal_matrix.shape[1]), signal_matrix[0].real, s=2, label="I"
+            np.arange(signal_matrix.shape[1]),
+            signal_matrix[0].real,
+            s=2,
+            label="I",
         )
         axs[1].scatter(
-            np.arange(signal_matrix.shape[1]), signal_matrix[0].imag, s=2, label="Q"
+            np.arange(signal_matrix.shape[1]),
+            signal_matrix[0].imag,
+            s=2,
+            label="Q",
         )
         axs[1].set_title("Receiver 1")
         axs[1].legend(loc=3)
@@ -116,10 +132,18 @@ while True:
         # axs[2].scatter(np.arange(signal_matrix.shape[1]),signal_matrix[1].real,s=2,label="I")
         # axs[2].scatter(np.arange(signal_matrix.shape[1]),signal_matrix[1].imag,s=2,label="Q")
         axs[2].scatter(
-            signal_matrix[0].real, signal_matrix[0].imag, s=2, alpha=0.5, label="RX0"
+            signal_matrix[0].real,
+            signal_matrix[0].imag,
+            s=2,
+            alpha=0.5,
+            label="RX0",
         )
         axs[2].scatter(
-            signal_matrix[1].real, signal_matrix[1].imag, s=2, alpha=0.5, label="RX1"
+            signal_matrix[1].real,
+            signal_matrix[1].imag,
+            s=2,
+            alpha=0.5,
+            label="RX1",
         )
         axs[2].legend(loc=3)
 

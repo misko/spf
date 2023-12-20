@@ -46,16 +46,18 @@ def plot_predictions_and_baseline(session, args, step, pred_a, pred_b):
     )
 
     # plot directions on the the space diagram
-    direction = session["detector_position_at_t"][step] + 0.25 * session["width_at_t"][
-        0
-    ] * get_xy_from_theta(session["detector_orientation_at_t"][step])
+    direction = session["detector_position_at_t"][step] + 0.25 * session[
+        "width_at_t"
+    ][0] * get_xy_from_theta(session["detector_orientation_at_t"][step])
     axs[0, 0].plot(
         [session["detector_position_at_t"][step][0], direction[0, 0]],
         [session["detector_position_at_t"][step][1], direction[0, 1]],
     )
     anti_direction = session["detector_position_at_t"][step] + 0.25 * session[
         "width_at_t"
-    ][0] * get_xy_from_theta(session["detector_orientation_at_t"][step] + np.pi / 2)
+    ][0] * get_xy_from_theta(
+        session["detector_orientation_at_t"][step] + np.pi / 2
+    )
     axs[0, 0].plot(
         [session["detector_position_at_t"][step][0], anti_direction[0, 0]],
         [session["detector_position_at_t"][step][1], anti_direction[0, 1]],
@@ -119,17 +121,25 @@ def plot_predictions_and_baseline(session, args, step, pred_a, pred_b):
     true_positions = session["source_positions_at_t"][
         session["broadcasting_positions_at_t"].astype(bool)[..., 0]
     ]
-    true_positions_noise = true_positions + np.random.randn(*true_positions.shape) * 3
+    true_positions_noise = (
+        true_positions + np.random.randn(*true_positions.shape) * 3
+    )
 
     for ax_idx, pred in [(0, pred_a), (1, pred_b)]:
         axs[1, ax_idx].set_title("error in %s" % pred["name"])
         axs[1, ax_idx].scatter(
-            pred["predictions"][:, 0], pred["predictions"][:, 1], s=15, c="r", alpha=0.1
+            pred["predictions"][:, 0],
+            pred["predictions"][:, 1],
+            s=15,
+            c="r",
+            alpha=0.1,
         )
         for idx in np.arange(step):
             _x, _y = pred["predictions"][idx] + np.random.randn(2)
             x, y = true_positions_noise[idx]
-            axs[1, ax_idx].plot([_x, x], [_y, y], color="black", linewidth=1, alpha=0.1)
+            axs[1, ax_idx].plot(
+                [_x, x], [_y, y], color="black", linewidth=1, alpha=0.1
+            )
 
     fn = "%s_%04d_lines.png" % (args.output_prefix, step)
     fig.savefig(fn)
@@ -256,9 +266,11 @@ def plot_lines(session, steps, output_prefix):
             [session["detector_position_at_t"][idx][0], direction[0, 0]],
             [session["detector_position_at_t"][idx][1], direction[0, 1]],
         )
-        anti_direction = session["detector_position_at_t"][idx] + 0.25 * session[
-            "width_at_t"
-        ][0] * get_xy_from_theta(session["detector_orientation_at_t"][idx] + np.pi / 2)
+        anti_direction = session["detector_position_at_t"][
+            idx
+        ] + 0.25 * session["width_at_t"][0] * get_xy_from_theta(
+            session["detector_orientation_at_t"][idx] + np.pi / 2
+        )
         axs[0].plot(
             [session["detector_position_at_t"][idx][0], anti_direction[0, 0]],
             [session["detector_position_at_t"][idx][1], anti_direction[0, 1]],
@@ -290,15 +302,21 @@ def plot_lines(session, steps, output_prefix):
         for x, y in lines:
             axs[0].plot(x, y, c="blue", linewidth=4, alpha=0.1)
 
-        emitter_direction = session["detector_position_at_t"][idx] + 0.25 * session[
-            "width_at_t"
-        ][0] * get_xy_from_theta(
+        emitter_direction = session["detector_position_at_t"][
+            idx
+        ] + 0.25 * session["width_at_t"][0] * get_xy_from_theta(
             session["detector_orientation_at_t"][idx]
             + session["source_theta_at_t"][idx, 0]
         )
         axs[0].plot(
-            [session["detector_position_at_t"][idx][0], emitter_direction[0, 0]],
-            [session["detector_position_at_t"][idx][1], emitter_direction[0, 1]],
+            [
+                session["detector_position_at_t"][idx][0],
+                emitter_direction[0, 0],
+            ],
+            [
+                session["detector_position_at_t"][idx][1],
+                emitter_direction[0, 1],
+            ],
         )
 
         for n in np.arange(session["source_positions_at_t"].shape[1]):
@@ -317,7 +335,8 @@ def plot_lines(session, steps, output_prefix):
         axs[0].legend(by_label.values(), by_label.keys())
 
         axs[2].plot(
-            session["thetas_at_t"][idx], session["beam_former_outputs_at_t"][idx]
+            session["thetas_at_t"][idx],
+            session["beam_former_outputs_at_t"][idx],
         )
         axs[2].axvline(x=session["source_theta_at_t"][idx, 0], c="r")
         axs[2].set_title("Beamformer output at t=%d" % idx)
@@ -336,7 +355,9 @@ def plot_lines(session, steps, output_prefix):
         axs[1].imshow(imgs[:3].transpose([2, 1, 0]) / imgs.max())
         colors = ["r", "green", "blue"]
         for _idx in range(min(3, len(fp))):
-            axs[1].scatter([fp[_idx][0]], [fp[_idx][1]], color=colors[_idx], s=900)
+            axs[1].scatter(
+                [fp[_idx][0]], [fp[_idx][1]], color=colors[_idx], s=900
+            )
 
         fn = "%s_%04d_lines.png" % (output_prefix, idx)
         filenames.append(fn)
@@ -347,7 +368,9 @@ def plot_lines(session, steps, output_prefix):
 
 
 # generate the images for the session
-def plot_full_session(session, steps, output_prefix, img_width=128, invert=False):
+def plot_full_session(
+    session, steps, output_prefix, img_width=128, invert=False
+):
     width = session["width_at_t"][0][0]
 
     # extract the images
@@ -365,9 +388,9 @@ def plot_full_session(session, steps, output_prefix, img_width=128, invert=False
         d["detector_theta_image_at_t"][None],
         session["detector_orientation_at_t"][None],
     )[0]
-    d["radio_image_at_t_normed"] = d["radio_image_at_t"] / d["radio_image_at_t"].sum(
-        axis=2, keepdims=True
-    ).sum(axis=3, keepdims=True)
+    d["radio_image_at_t_normed"] = d["radio_image_at_t"] / d[
+        "radio_image_at_t"
+    ].sum(axis=2, keepdims=True).sum(axis=3, keepdims=True)
     filenames = []
     plt.ioff()
     for idx in np.arange(1, steps):
@@ -397,24 +420,32 @@ def plot_full_session(session, steps, output_prefix, img_width=128, invert=False
             [session["detector_position_at_t"][idx][1], direction[0, 1]],
         )
 
-        anti_direction = session["detector_position_at_t"][idx] + 0.25 * session[
-            "width_at_t"
-        ][0] * get_xy_from_theta(session["detector_orientation_at_t"][idx] + np.pi / 2)
+        anti_direction = session["detector_position_at_t"][
+            idx
+        ] + 0.25 * session["width_at_t"][0] * get_xy_from_theta(
+            session["detector_orientation_at_t"][idx] + np.pi / 2
+        )
 
         axs[0, 0].plot(
             [session["detector_position_at_t"][idx][0], anti_direction[0, 0]],
             [session["detector_position_at_t"][idx][1], anti_direction[0, 1]],
         )
 
-        emitter_direction = session["detector_position_at_t"][idx] + 0.25 * session[
-            "width_at_t"
-        ][0] * get_xy_from_theta(
+        emitter_direction = session["detector_position_at_t"][
+            idx
+        ] + 0.25 * session["width_at_t"][0] * get_xy_from_theta(
             session["detector_orientation_at_t"][idx]
             + session["source_theta_at_t"][idx, 0]
         )
         axs[0, 0].plot(
-            [session["detector_position_at_t"][idx][0], emitter_direction[0, 0]],
-            [session["detector_position_at_t"][idx][1], emitter_direction[0, 1]],
+            [
+                session["detector_position_at_t"][idx][0],
+                emitter_direction[0, 0],
+            ],
+            [
+                session["detector_position_at_t"][idx][1],
+                emitter_direction[0, 1],
+            ],
         )
         for n in np.arange(session["source_positions_at_t"].shape[1]):
             rings = session["broadcasting_positions_at_t"][idx, n, 0] == 1
@@ -464,7 +495,8 @@ def plot_full_session(session, steps, output_prefix, img_width=128, invert=False
         # axs[1,1].imshow(d['detector_theta_image_at_t'][0,0])
         axs[1, 1].set_title("Radio feature at t=%d" % idx)
         axs[0, 1].plot(
-            session["thetas_at_t"][idx], session["beam_former_outputs_at_t"][idx]
+            session["thetas_at_t"][idx],
+            session["beam_former_outputs_at_t"][idx],
         )
         axs[0, 1].axvline(x=session["source_theta_at_t"][idx, 0], c="r")
         axs[0, 1].set_title("Beamformer output at t=%d" % idx)
