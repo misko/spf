@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from PIL import Image
 import skimage
-from utils.image_utils import (
+from spf.model_training_and_inference.utils.image_utils import (
     detector_positions_to_theta_grid,
     labels_to_source_images,
     radio_to_image,

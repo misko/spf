@@ -7,14 +7,12 @@ import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from compress_pickle import dump, load
-from utils.rf import (
+from spf.rf import (
     NoiseWrapper,
     IQSource,
     UCADetector,
     ULADetector,
-    beamformer_numba,
     beamformer,
-    beamformer_old,
 )
 
 c = 3e8  # speed of light
