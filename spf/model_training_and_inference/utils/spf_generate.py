@@ -86,7 +86,7 @@ def generate_session(args_and_session_idx):
         d = ULADetector(
             args.sampling_frequency,
             args.elements,
-            wavelength / 2,
+            wavelength / 4,
             sigma=detector_noise,
         )  # 10Mhz sampling
     elif args.array_type == "circular":

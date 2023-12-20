@@ -1,0 +1,2 @@
+python ./model_training_and_inference/01_generate_data.py --array-type linear --elements 2 --time-steps 2056
+python model_training_and_inference/90_session_plotter.py --dataset sessions-default --session-idx 2000 --steps 128
