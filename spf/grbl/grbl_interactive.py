@@ -3,7 +3,7 @@ import time
 import sys
 import numpy as np
 import matplotlib.path as pltpath
-
+from scipy.spatial import ConvexHull
 
 home_pA = np.array([3568, 0])
 home_pB = np.array([0, 0])
@@ -12,7 +12,7 @@ home_bounding_box = [
     [3100, 400],
     [3100, 2850],
     # [300,1500],
-    [900, 900],
+    [800, 1000],
 ]
 
 """
@@ -62,6 +62,11 @@ class Dynamics:
         self.pA = pA
         self.pB = pB
         if len(bounding_box) >= 3:
+            hull = ConvexHull(bounding_box)
+            if len(np.unique(hull.simplices))!=len(bounding_box):
+                print("Points do not form a simple hull, most likely non convex") 
+                print("Points in the hull are, " + ",".join(map(str,[ bounding_box[x] for x in np.unique(hull.simplices)])))
+                raise ValueError
             self.polygon = pltpath.Path(bounding_box)
         else:
             self.polygon = None
@@ -104,7 +109,6 @@ class Dynamics:
         if (self.polygon is not None) and not self.polygon.contains_point(
             p, radius=0.01
         ):  # todo a bit hacky but works
-            print("OUT OF BOUNDS", p)
             raise ValueError
         # motor_steps = ( distance_between_pivot and point ) - (distance between pivot and calibration point)
         a_motor_steps = np.linalg.norm(self.pA - p) - np.linalg.norm(
@@ -207,7 +211,6 @@ class Planner:
                 self.current_direction, start_p
             )
             assert len(to_points) > 0
-            print("MOVE", to_points[0], to_points[-1])
             yield from to_points
             start_p = to_points[-1]
             self.current_direction = new_direction
@@ -304,7 +307,7 @@ class GRBLController:
             for c in target_points
         }
 
-    def targets_far_out(self, target_points, tolerance=100):
+    def targets_far_out(self, target_points, tolerance=80):
         dists = self.distance_to_targets(target_points)
         for c in dists:
             if dists[c] >= tolerance:
@@ -386,7 +389,7 @@ if __name__ == "__main__":
             # gm.bounce(20000)
             gm.bounce(40)
         elif line == "s":
-            p = gm.update_status()
+            p = controller.update_status()
             print(p)
         else:
             current_positions = controller.update_status()["xy"]
