@@ -10,9 +10,9 @@ from typing import Optional
 
 import sys
 
-#TODO close SDR on exit
-#import signal
-#def signal_handler(sig, frame):
+# TODO close SDR on exit
+# import signal
+# def signal_handler(sig, frame):
 #    print("You pressed Ctrl+C!")
 #    sys.exit(0)
 # signal.signal(signal.SIGINT, signal_handler)
