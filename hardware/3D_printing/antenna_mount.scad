@@ -64,8 +64,13 @@ module screw_hold() {
 tx_theta=45;
 
 difference() {
-    for ( i = [0,90,180,270] ) {
-        rotate([0,0,i]) translate([0,-wave_length/2,0]) antenna_cutout();
+    union() {
+        for ( i = [0,90,180,270] ) {
+            rotate([0,0,i]) translate([0,-wave_length/2,0]) antenna_cutout();
+        }
+        /*for ( i = [45,180+45] ) {
+            rotate([0,0,i]) translate([0,-wave_length/2+10-20,0]) antenna_cutout();
+        }*/
     }
 
     rotate([0,0,tx_theta]) translate([-antenna_width/2-edges-ziptie_depth,-antenna_base_length,0]) cube([
