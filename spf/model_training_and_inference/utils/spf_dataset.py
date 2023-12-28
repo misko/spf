@@ -120,11 +120,17 @@ class SessionsDatasetReal(Dataset):
         try:
             m = self.get_m(filename, bypass=True)
         except:
-            print("DROP", filename)
+            print(
+                "SessionDatasetReal: Dropping file from loading because memmap failed",
+                filename,
+            )
             return False
         status = not (np.abs(m).mean(axis=1) == 0).any()
         if status == False:
-            print("DROP", filename)
+            print(
+                "SessionDatasetReal: Dropping file from loading because it looks like all zeros",
+                filename,
+            )
         return status
 
     def __init__(
@@ -176,6 +182,9 @@ class SessionsDatasetReal(Dataset):
                 ),
             )
         )
+        if len(self.filenames) == 0:
+            print("SessionsDatasetReal: No valid files to load from")
+            raise ValueError
         self.rng = np.random.default_rng(seed)
         self.rng.shuffle(self.filenames)
         # self.datas=[
