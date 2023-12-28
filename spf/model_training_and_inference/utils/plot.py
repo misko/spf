@@ -417,20 +417,23 @@ def plot_full_session(session, steps, output_prefix, img_width=128, invert=False
             [session["detector_position_at_t"][idx][1], anti_direction[0, 1]],
         )
 
-        emitter_direction = session["detector_position_at_t"][idx] + 0.25 * session[
-            "width_at_t"
-        ][0] * get_xy_from_theta(
-            session["detector_orientation_at_t"][idx]
-            + session["source_theta_at_t"][idx, 0]
+        # plot a line to emitter direction
+        emitter_direction = (
+            0.25
+            * session["width_at_t"][0]
+            * get_xy_from_theta(
+                session["detector_orientation_at_t"][idx]
+                + session["source_theta_at_t"][idx]
+            )
         )
         axs[0, 0].plot(
             [
                 session["detector_position_at_t"][idx][0],
-                emitter_direction[0, 0],
+                session["detector_position_at_t"][idx][0] + emitter_direction[0, 0],
             ],
             [
                 session["detector_position_at_t"][idx][1],
-                emitter_direction[0, 1],
+                session["detector_position_at_t"][idx][1] + emitter_direction[0, 1],
             ],
         )
         for n in np.arange(session["source_positions_at_t"].shape[1]):
