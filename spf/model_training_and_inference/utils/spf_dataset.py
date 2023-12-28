@@ -11,12 +11,12 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from utils.image_utils import (
+from spf.model_training_and_inference.utils.image_utils import (
     detector_positions_to_theta_grid,
     labels_to_source_images,
     radio_to_image,
 )
-from utils.spf_generate import generate_session
+from spf.model_training_and_inference.utils.spf_generate import generate_session
 from compress_pickle import dump, load
 
 output_cols = {  # maybe this should get moved to the dataset part...
