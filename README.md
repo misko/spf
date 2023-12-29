@@ -1,5 +1,11 @@
 # SPF (Signal Processing Fun)
 
+## Youtube explanation
+
+[Overview](https://www.youtube.com/watch?v=vj99KvB2AcA)
+
+[Wall array v1](https://youtu.be/ljlRKGjBUoE)
+
 ## Problem statement:
 
 Given a mobile radio receiver (agent/detector) find the optimal (minimal) path of movement to accurately locate physical radio emitters in the operating space

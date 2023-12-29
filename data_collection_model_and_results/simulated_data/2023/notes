@@ -1,0 +1,4 @@
+Does symbol duration really limit length of collection? can we get information through the guard interval if there is no multipath? even if there is multipath?
+
+https://en.wikipedia.org/wiki/IEEE_802.11g-2003 - symbol duration
+https://rfmw.em.keysight.com/wireless/helpfiles/89600b/webhelp/subsystems/wlan-ofdm/content/ofdm_80211-overview.htm
