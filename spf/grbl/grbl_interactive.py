@@ -131,7 +131,7 @@ class Dynamics:
         midpoint = (right + left) / 2
         p = midpoint * direction + xy
         try:
-            steps = self.to_steps(p)
+            steps = self.to_steps(p)  # noqa
             # actual = self.from_steps(*steps)
             return self.binary_search_edge(midpoint, right, xy, direction, epsilon)
         except ValueError:
@@ -302,7 +302,9 @@ class GRBLController:
         time.sleep(0.01)
         self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
         time.sleep(0.01)
-        grbl_out = self.s.readline()  # Wait for grbl response with carriage return
+        grbl_out = (  # noqa
+            self.s.readline()
+        )  # Wait for grbl response with carriage return
         time.sleep(0.01)
         # print("MOVE TO RESPONSE", grbl_out)
 

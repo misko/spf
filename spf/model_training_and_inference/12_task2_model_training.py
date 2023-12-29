@@ -16,7 +16,6 @@ from spf.dataset.spf_dataset import (
     input_cols,
     output_cols,
 )
-from spf.plot.image_utils import labels_to_source_images
 
 torch.set_printoptions(precision=5, sci_mode=False, linewidth=1000)
 
@@ -212,8 +211,8 @@ def model_to_losses(running_loss, mean_chunk):
                         [
                             np.mean(
                                 [
-                                    l[k]
-                                    for l in running_loss[
+                                    _loss[k]
+                                    for _loss in running_loss[
                                         idx * mean_chunk : (idx + 1) * mean_chunk
                                     ]
                                 ]
@@ -226,8 +225,8 @@ def model_to_losses(running_loss, mean_chunk):
                 losses[k] = [
                     torch.stack(
                         [
-                            l[k]
-                            for l in running_loss[
+                            _loss[k]
+                            for _loss in running_loss[
                                 idx * mean_chunk : (idx + 1) * mean_chunk
                             ]
                         ]
@@ -395,7 +394,7 @@ if __name__ == "__main__":
     if args.type == "16":
         dtype = torch.float16
 
-    if args.plot == False:
+    if args.plot is False:
         import matplotlib
 
         matplotlib.use("Agg")
@@ -677,17 +676,23 @@ if __name__ == "__main__":
                         running_losses["test"]["baseline_image"], args.test_mbs
                     )
                     print(
-                        f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f}, baseline_image: {train_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch'
+                        f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f}, \
+                            baseline_image: {train_baseline_image_loss["baseline_image"][-1]:.3f} , \
+                                time { (time.time()-start_time)/(i+1) :.3f} / batch'
                     )
                     print(
-                        f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, baseline_image: {test_baseline_image_loss["baseline_image"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch'
+                        f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, \
+                            baseline_image: {test_baseline_image_loss["baseline_image"][-1]:.3f} , \
+                                time { (time.time()-start_time)/(i+1) :.3f} / batch'
                     )
                 else:
                     print(
-                        f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch'
+                        f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f} , \
+                            time { (time.time()-start_time)/(i+1) :.3f} / batch'
                     )
                     print(
-                        f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, time { (time.time()-start_time)/(i+1) :.3f} / batch'
+                        f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, \
+                            time { (time.time()-start_time)/(i+1) :.3f} / batch'
                     )
                 loss_str = "\t" + "\n\t".join(
                     [

@@ -1,7 +1,7 @@
 import sys
 
 import numpy as np
-from compress_pickle import dump, load
+from compress_pickle import dump
 
 from spf.rf import IQSource, NoiseWrapper, UCADetector, ULADetector, beamformer
 
@@ -94,7 +94,7 @@ def generate_session(args_and_session_idx):
         current_source_positions = current_source_positions * 0 + np.array(
             (args.width // 2, args.width // 4)
         )
-        sigma = 0
+        sigma_noise = 0
         n_sources = 1
         n_sources_used = 1
 
@@ -109,7 +109,7 @@ def generate_session(args_and_session_idx):
     source_positions_at_t = np.zeros((args.time_steps, n_sources, 2))
     source_velocities_at_t = np.zeros((args.time_steps, n_sources, 2))
     broadcasting_positions_at_t = np.zeros((args.time_steps, n_sources, 1))
-    broadcasting_heading_at_t = np.zeros((args.time_steps, n_sources, 1))
+    # broadcasting_heading_at_t = np.zeros((args.time_steps, n_sources, 1))
     receiver_positions_at_t = np.zeros((args.time_steps, args.elements, 2))
     source_theta_at_t = np.zeros((args.time_steps, 1))
     source_distance_at_t = np.zeros((args.time_steps, 1))
@@ -136,7 +136,7 @@ def generate_session(args_and_session_idx):
         np.array([np.cos(detector_theta), np.sin(detector_theta)]) * detector_speed
     )  # 10m/s
 
-    detector_initial_position = pos = np.random.uniform(0 + 10, args.width - 10, 2)
+    detector_initial_position = np.random.uniform(0 + 10, args.width - 10, 2)
     if args.fixed_detector is not None:
         detector_initial_position[:2] = args.fixed_detector
 
@@ -289,14 +289,17 @@ def generate_session(args_and_session_idx):
         "signal_matrixs_at_t": signal_matrixs_at_t,  # (time_steps,receivers,readings_per_snapshot)
         "beam_former_outputs_at_t": beam_former_outputs_at_t,  # (timesteps,thetas_tested_for_steering)
         "thetas_at_t": thetas_at_t,  # (timesteps,thetas_tested_for_steering)
-        "detector_position_phase_offsets_at_t": detector_position_phase_offsets_at_t,  # (timesteps,1) # phase offset for orbit dynamics
+        # (timesteps,1) # phase offset for orbit dynamics
+        "detector_position_phase_offsets_at_t": detector_position_phase_offsets_at_t,
         "time_stamps": time_stamps,  # (timestamps,1) # the time for each step
         "width_at_t": np.ones((args.time_steps, 1), dtype=int)
         * args.width,  # (timestamps, 1) # width in meters
         "detector_orientation_at_t": detector_orientation_at_t,  # (timesteps,1 ) # orientation of the detector at t
         "detector_position_at_t": detector_position_at_t,  # (time_steps,2[x,y])
-        "source_theta_at_t": source_theta_at_t,  # (time_steps, 1) # if a source is broadcasting than the orientation from detector oreintation to source, else 0
-        "source_distance_at_t": source_distance_at_t,  # (time_steps,1) # if a source is broadcasting than this is the distance to that source from the detector
+        # (time_steps, 1) # if a source is broadcasting than the orientation from detector oreintation to source, else 0
+        "source_theta_at_t": source_theta_at_t,
+        # (time_steps,1) # if a source is broadcasting than this is the distance to that source from the detector
+        "source_distance_at_t": source_distance_at_t,
     }
     return session
 

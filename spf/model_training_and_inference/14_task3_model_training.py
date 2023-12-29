@@ -280,9 +280,6 @@ def model_forward(d_model, data, args, train_test_label, update, plot=True):
             axs[idx].legend()
             axs[idx].set_xlabel("X")
             axs[idx].set_ylabel("Y")
-        #
-        #  axs[2].scatter(_l[0,:,src_pos_idxs[0]],_l[0,:,src_pos_idxs[1]],label='real positions',c='b',alpha=0.1,s=7)
-        #  axs[2].scatter(_p[0,:,src_pos_idxs[0]],_p[0,:,src_pos_idxs[1]],label='predicted positions',c='r',alpha=0.3,s=7)
         d_model["fig"].tight_layout()
         d_model["fig"].canvas.draw_idle()
         d_model["fig"].savefig(
@@ -331,8 +328,8 @@ def model_to_losses(running_loss, mean_chunk):
                     [
                         np.mean(
                             [
-                                l[k]
-                                for l in running_loss[
+                                _loss[k]
+                                for _loss in running_loss[
                                     idx * mean_chunk : (idx + 1) * mean_chunk
                                 ]
                             ]
@@ -344,8 +341,8 @@ def model_to_losses(running_loss, mean_chunk):
                 losses[k] = [
                     torch.stack(
                         [
-                            l[k]
-                            for l in running_loss[
+                            _loss[k]
+                            for _loss in running_loss[
                                 idx * mean_chunk : (idx + 1) * mean_chunk
                             ]
                         ]
@@ -429,7 +426,6 @@ def plot_loss(
         # axs[i].plot(xs,baseline_loss['baseline'],label='baseline')
         axs[i].set_xlabel("time")
         axs[i].set_ylabel("log loss")
-    # for k in ['nll_position_reconstruction_loss','nll_velocity_reconstruction_loss','nll_ss_position_reconstruction_loss']:
     axs[0].set_title("nll_ss_position_reconstruction_loss")
     axs[1].set_title("nll_position_reconstruction_loss")
     axs[2].set_title("nll_velocity_reconstruction_loss")
@@ -540,7 +536,7 @@ if __name__ == "__main__":
     if args.type == "16":
         dtype = torch.float16
 
-    if args.plot == False:
+    if args.plot is False:
         import matplotlib
 
         matplotlib.use("Agg")
@@ -702,8 +698,6 @@ if __name__ == "__main__":
         d["emitter_position_and_velocity"] = torch.cat(
             [
                 d["emitter_position_and_velocity"],
-                # torch.zeros(batch_size,time_steps,n_sources,4,device=d['emitter_position_and_velocity'].device)+1, # the variance
-                # torch.zeros(batch_size,time_steps,n_sources,2,device=d['emitter_position_and_velocity'].device), # the angle
             ],
             dim=3,
         )
@@ -753,7 +747,6 @@ if __name__ == "__main__":
                             breakpoint()
             # labels=prepared_data['labels']
             running_losses["train"]["baseline"].append({"baseline": 1e-5})
-            # running_losses['train']['baseline'].append({'baseline':criterion(labels*0+labels.mean(axis=[0,1],keepdim=True), labels).item() } )
             if total_batch_idx % args.print_every == args.print_every - 1:
                 for idx in np.arange(args.test_mbs):
                     try:
@@ -797,10 +790,12 @@ if __name__ == "__main__":
                 )
                 print(f"[{epoch + 1}, {i + 1:5d}]")
                 print(
-                    f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch'
+                    f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f} , \
+                        time { (time.time()-start_time)/(i+1) :.3f} / batch'
                 )
                 print(
-                    f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, time { (time.time()-start_time)/(i+1) :.3f} / batch'
+                    f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, \
+                        time { (time.time()-start_time)/(i+1) :.3f} / batch'
                 )
                 loss_str = "\t" + "\n\t".join(
                     [

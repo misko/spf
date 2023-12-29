@@ -1,13 +1,9 @@
-import argparse
-import os
 import tempfile
 
-import numpy as np
 import pytest
 from compress_pickle import dump
-from joblib import Parallel, delayed
 
-from spf.dataset.spf_generate import generate_session, generate_session_and_dump
+from spf.dataset.spf_generate import generate_session_and_dump
 
 
 class dotdict(dict):
@@ -37,10 +33,10 @@ def default_args():
             "detector_trajectory": "bounce",
             "detector_speed": 10.0,
             "source_speed": 0.0,
-            "sigma": 1.0,
+            "sigma_noise": 1.0,
             "time_steps": 100,
             "time_interval": 0.3,
-            "samples_per_snapshot": 3,
+            "readings_per_snapshot": 3,
             "sessions": 16,
             "reference": False,
             "cpus": 8,
@@ -58,7 +54,21 @@ def test_data_generation(default_args):
         print(args)
 
         dump(args, "/".join([args.output, "args.pkl"]), compression="lzma")
-        result = [
+        result = [  # noqa
+            generate_session_and_dump((args, session_idx))
+            for session_idx in range(args.sessions)
+        ]
+        # ds = Sessions
+
+
+def test_live_data_generation(default_args):
+    with tempfile.TemporaryDirectory() as tmp:
+        args = default_args
+        args.output = tmp
+        print(args)
+
+        dump(args, "/".join([args.output, "args.pkl"]), compression="lzma")
+        result = [  # noqa
             generate_session_and_dump((args, session_idx))
             for session_idx in range(args.sessions)
         ]

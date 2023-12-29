@@ -230,7 +230,6 @@ def plot_lines(session, steps, output_prefix):
     width = session["width_at_t"][0][0]
 
     # extract the images
-    d = {}
     filenames = []
     plt.ioff()
     lines = []

@@ -6,7 +6,6 @@ from shapely import geometry
 
 from spf.grbl.grbl_interactive import (
     Dynamics,
-    GRBLManager,
     Planner,
     home_bounding_box,
     home_calibration_point,
@@ -50,7 +49,8 @@ def test_xaxis():
         if x > 0:
             assert (
                 steps[0] == -steps[1]
-            )  # if we are sliding across the x axis we should have a constant length , so decrease in one is increase in the other
+            )  # if we are sliding across the x axis we should have a constant length ,
+            # so decrease in one is increase in the other
         else:
             assert steps[0] == steps[1]  # not physically possible
         assert steps[0] == -x
@@ -103,10 +103,10 @@ def test_binary_search_edge():
     direction = np.array([3, 1])
     p = np.array([1500, 900])
 
-    l = dynamics.binary_search_edge(
+    length = dynamics.binary_search_edge(
         left=0, right=10000, xy=p, direction=direction, epsilon=0.001
     )
-    last_point = l * direction + p
+    last_point = length * direction + p
 
     dynamics.get_boundary_vector_near_point(last_point)
     lp, nd = planner.get_bounce_pos_and_new_direction(p, direction)

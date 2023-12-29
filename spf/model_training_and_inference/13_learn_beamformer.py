@@ -3,7 +3,6 @@ import os
 import pickle
 import random
 import time
-from functools import cache
 
 import numpy as np
 import torch
@@ -88,8 +87,8 @@ def model_to_losses(running_loss, mean_chunk):
                         [
                             np.mean(
                                 [
-                                    l[k]
-                                    for l in running_loss[
+                                    _loss[k]
+                                    for _loss in running_loss[
                                         idx * mean_chunk : (idx + 1) * mean_chunk
                                     ]
                                 ]
@@ -102,8 +101,8 @@ def model_to_losses(running_loss, mean_chunk):
                 losses[k] = [
                     torch.stack(
                         [
-                            l[k]
-                            for l in running_loss[
+                            _loss[k]
+                            for _loss in running_loss[
                                 idx * mean_chunk : (idx + 1) * mean_chunk
                             ]
                         ]
@@ -237,7 +236,7 @@ if __name__ == "__main__":
     )  # ,src_theta,src_dist,det_delta,det_theta,det_space")
     args = parser.parse_args()
 
-    if args.plot == False:
+    if args.plot is False:
         import matplotlib
 
         matplotlib.use("Agg")
@@ -440,10 +439,12 @@ if __name__ == "__main__":
                 )
                 print(f"[{epoch + 1}, {i + 1:5d}]")
                 print(
-                    f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f} , time { (time.time()-start_time)/(i+1) :.3f} / batch'
+                    f'\tTrain: baseline: {train_baseline_loss["baseline"][-1]:.3f} , \
+                        time { (time.time()-start_time)/(i+1) :.3f} / batch'
                 )
                 print(
-                    f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, time { (time.time()-start_time)/(i+1) :.3f} / batch'
+                    f'\tTest: baseline: {test_baseline_loss["baseline"][-1]:.3f}, \
+                        time { (time.time()-start_time)/(i+1) :.3f} / batch'
                 )
                 loss_str = "\t" + "\n\t".join(
                     [

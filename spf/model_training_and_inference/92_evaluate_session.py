@@ -1,4 +1,6 @@
 import argparse
+import io
+import pickle
 import random
 
 import numpy as np
@@ -12,6 +14,16 @@ from spf.dataset.spf_dataset import (
     rel_to_pos,
 )
 from spf.plot.plot import plot_predictions_and_baseline
+
+
+# from online https://stackoverflow.com/questions/57081727/load-pickle-file-obtained-from-gpu-to-cpu
+class CPU_Unpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == "torch.storage" and name == "_load_from_bytes":
+            return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
+        else:
+            return super().find_class(module, name)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
