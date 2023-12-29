@@ -219,7 +219,6 @@ def setup_rxtx(receiver_uri, receiver_config, emitter_uri, emitter_config):
 
         # test to see what frequency we are seeing
         if check_for_freq_peak(sdr_rx, args):
-            # close_tx(sdr_tx)
             return sdr_rx, sdr_tx
         retries += 1
 
@@ -238,7 +237,7 @@ Using Tx1 to emit and Rx1 + Rx2 to receive
 
 
 def setup_rxtx_and_phase_calibration(
-    receiver_uri, receiver_config, emitter_uri, emitter_config
+    receiver_uri, receiver_config, emitter_uri, emitter_config, tolerance=0.01
 ):
     print("%s: Starting inter antenna receiver phase calibration" % receiver_uri)
 
@@ -279,7 +278,7 @@ def setup_rxtx_and_phase_calibration(
             % (args.receiver_ip, phase_calibrations.mean(), phase_calibrations.std())
         )
         print(phase_calibrations.mean(), phase_calibrations2.mean())
-        if phase_calibrations.std() < 0.01:
+        if phase_calibrations.std() < tolerance:
             sdr_tx.close()
             print(
                 "%s: Final phase calibration (radians) is %0.4f"
