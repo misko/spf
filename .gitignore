@@ -6,3 +6,5 @@ test_data
 test_data.zip
 test_data_dl.zip
 test_data.txt
+.ipynb_checkpoints
+**/.ipynb_checkpoints
