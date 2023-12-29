@@ -73,7 +73,6 @@ class SinSource(Source):
         self.amplitude = amplitude
 
     def signal(self, sampling_times):
-        # return np.cos(2*np.pi*sampling_times*self.frequency+self.phase)+np.sin(2*np.pi*sampling_times*self.frequency+self.phase)*1j
         return self.amplitude * np.sin(
             2 * np.pi * sampling_times * self.frequency + self.phase
         )  # .reshape(1,-1)
@@ -378,3 +377,15 @@ def beamformer(
     )  # this is adjust and sum in one step
     steer_dot_signal = np.absolute(phase_adjusted).mean(axis=1)  # mean over samples
     return thetas, steer_dot_signal, steering_vectors
+
+
+def get_peaks_for_2rx(beam_former_output):
+    n = beam_former_output.shape[0]
+    first_peak = np.argmax(beam_former_output)
+
+    pivot = n // 4
+    if first_peak > n // 2:
+        pivot = n // 2 + n // 4
+
+    d = np.abs(first_peak - pivot)
+    return pivot + d, pivot - d
