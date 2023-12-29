@@ -51,9 +51,11 @@ def test_data_generation(default_args):
     with tempfile.TemporaryDirectory() as tmp:
         args = default_args
         args.output = tmp
-        print(args)
-
-        dump(args, "/".join([args.output, "args.pkl"]), compression="lzma")
+        dump(
+            {k: v for k, v in args.items()},
+            "/".join([args.output, "args.pkl"]),
+            compression="lzma",
+        )
         result = [  # noqa
             generate_session_and_dump((args, session_idx))
             for session_idx in range(args.sessions)
@@ -65,9 +67,11 @@ def test_live_data_generation(default_args):
     with tempfile.TemporaryDirectory() as tmp:
         args = default_args
         args.output = tmp
-        print(args)
-
-        dump(args, "/".join([args.output, "args.pkl"]), compression="lzma")
+        dump(
+            {k: v for k, v in args.items()},
+            "/".join([args.output, "args.pkl"]),
+            compression="lzma",
+        )
         result = [  # noqa
             generate_session_and_dump((args, session_idx))
             for session_idx in range(args.sessions)
