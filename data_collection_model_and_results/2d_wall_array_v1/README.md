@@ -1,6 +1,6 @@
 # 2D wall array (v1)
 
-[see it in action!](https://studio.youtube.com/video/2BFlrQI8Ydw)
+[see it in action!](https://www.youtube.com/shorts/2BFlrQI8Ydw)
 
 Instead of simulations we can collect real world data by moving a emitter around in 2D space while keeping our receiver in a fixed location.
 
