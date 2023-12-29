@@ -1,8 +1,9 @@
-import serial
-import time
 import sys
-import numpy as np
+import time
+
 import matplotlib.path as pltpath
+import numpy as np
+import serial
 from scipy.spatial import ConvexHull
 
 home_pA = np.array([3568, 0])
@@ -63,9 +64,14 @@ class Dynamics:
         self.pB = pB
         if len(bounding_box) >= 3:
             hull = ConvexHull(bounding_box)
-            if len(np.unique(hull.simplices))!=len(bounding_box):
-                print("Points do not form a simple hull, most likely non convex") 
-                print("Points in the hull are, " + ",".join(map(str,[ bounding_box[x] for x in np.unique(hull.simplices)])))
+            if len(np.unique(hull.simplices)) != len(bounding_box):
+                print("Points do not form a simple hull, most likely non convex")
+                print(
+                    "Points in the hull are, "
+                    + ",".join(
+                        map(str, [bounding_box[x] for x in np.unique(hull.simplices)])
+                    )
+                )
                 raise ValueError
             self.polygon = pltpath.Path(bounding_box)
         else:

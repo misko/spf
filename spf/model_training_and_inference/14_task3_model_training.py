@@ -1,33 +1,22 @@
-import os
 import argparse
-import time
-import random
+import os
 import pickle
+import random
+import time
+
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-import torchvision
-from torch import Tensor, nn
-from torch.nn import TransformerEncoder, TransformerEncoderLayer
-from torch.utils.data import dataset, random_split
 from matplotlib.patches import Ellipse
+from models.models import SnapshotNet, TrajectoryNet
 
-from models.models import (
-    SingleSnapshotNet,
-    SnapshotNet,
-    Task1Net,
-    TransformerEncOnlyModel,
-    UNet,
-    TrajectoryNet,
-)
-from utils.spf_dataset import (
+from spf.dataset.spf_dataset import (
     SessionsDatasetRealTask2,
     SessionsDatasetTask2,
     collate_fn_transformer_filter,
-    output_cols,
     input_cols,
+    output_cols,
 )
 
 torch.set_num_threads(8)

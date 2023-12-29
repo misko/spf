@@ -1,14 +1,12 @@
 import argparse
 import os
-import pickle
-import sys
-import bz2
+
 import numpy as np
+from compress_pickle import dump, load
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from compress_pickle import dump, load
 
-from utils.spf_generate import generate_session_and_dump, generate_session
+from spf.dataset.spf_generate import generate_session, generate_session_and_dump
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -1,6 +1,8 @@
 .DS_Store
 **/.DS_Store
+**/__pycache__
 spf/data
 test_data
 test_data.zip
+test_data_dl.zip
 test_data.txt

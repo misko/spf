@@ -1,5 +1,6 @@
-import pickle
 import io
+import pickle
+
 import torch
 
 

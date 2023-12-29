@@ -2,7 +2,6 @@ from functools import lru_cache
 
 import numpy as np
 import torch
-import torchvision
 
 
 @lru_cache

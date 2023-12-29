@@ -1,16 +1,18 @@
-from sdrpluto.gather import (
-    setup_rxtx_and_phase_calibration,
-    setup_rx_and_tx,
-    get_avg_phase,
-)
-from grbl.grbl_interactive import GRBLManager
-from spf.rf import beamformer
+import argparse
+import os
+import sys
 import threading
 import time
+
 import numpy as np
-import sys
-import os
-import argparse
+from grbl.grbl_interactive import GRBLManager
+
+from spf.rf import beamformer
+from spf.sdrpluto.sdr_controller import (
+    get_avg_phase,
+    setup_rx_and_tx,
+    setup_rxtx_and_phase_calibration,
+)
 
 
 def bounce_grbl(gm):

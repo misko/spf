@@ -1,18 +1,17 @@
 import argparse
-import pickle
-import numpy as np
-from utils.plot import (
-    filenames_to_gif,
-    plot_lines,
-    plot_predictions_and_baseline,
-)
-from compress_pickle import dump, load
-from utils.spf_dataset import SessionsDatasetTask2, collate_fn
-import torch
 import random
-from utils.baseline_algorithm import baseline_algorithm
-from utils.spf_dataset import collate_fn, output_cols, rel_to_pos
-from utils.save_load import CPU_Unpickler
+
+import numpy as np
+import torch
+
+from spf.baseline_algorithm import baseline_algorithm
+from spf.dataset.spf_dataset import (
+    SessionsDatasetTask2,
+    collate_fn,
+    output_cols,
+    rel_to_pos,
+)
+from spf.plot.plot import plot_predictions_and_baseline
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

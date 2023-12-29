@@ -1,9 +1,7 @@
 import argparse
-import pickle
 
-from utils.plot import filenames_to_gif, plot_lines
-from compress_pickle import dump, load
-from utils.spf_dataset import SessionsDataset
+from spf.dataset.spf_dataset import SessionsDataset
+from spf.plot.plot import filenames_to_gif, plot_lines
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -2,14 +2,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image
-import skimage
-from spf.model_training_and_inference.utils.image_utils import (
+
+from spf.baseline_algorithm import baseline_algorithm, get_top_n_peaks
+from spf.plot.image_utils import (
     detector_positions_to_theta_grid,
     labels_to_source_images,
     radio_to_image,
 )
-
-from spf.baseline_algorithm import get_top_n_peaks, baseline_algorithm
 
 
 # depends if we are using y=0 or x=0 as origin

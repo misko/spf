@@ -1,12 +1,6 @@
-from spf.rf import (
-    beamformer,
-    c,
-    ULADetector,
-    UCADetector,
-    rotation_matrix,
-    IQSource,
-)
 import numpy as np
+
+from spf.rf import IQSource, UCADetector, ULADetector, beamformer, c, rotation_matrix
 
 
 def test_beamformer():
@@ -58,9 +52,7 @@ def test_beamformer():
 
                     d.rm_sources()
                     d.add_source(
-                        IQSource(
-                            _source_pos, carrier_frequency, 100e3
-                        )  # x, y position
+                        IQSource(_source_pos, carrier_frequency, 100e3)  # x, y position
                     )
 
                     signal_matrix = d.get_signal_matrix(
@@ -74,12 +66,9 @@ def test_beamformer():
                         spacing=1024 + 1,
                     )
 
-                    closest_angle_answer = np.argmin(
-                        np.abs(thetas_at_t - rot_theta)
-                    )
+                    closest_angle_answer = np.argmin(np.abs(thetas_at_t - rot_theta))
                     potential_error = np.abs(
-                        beam_former_outputs_at_t[:-1]
-                        - beam_former_outputs_at_t[1:]
+                        beam_former_outputs_at_t[:-1] - beam_former_outputs_at_t[1:]
                     ).max()
 
                     assert (

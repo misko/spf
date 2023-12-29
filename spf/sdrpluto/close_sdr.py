@@ -1,6 +1,8 @@
-from spf.sdrpluto.sdr_controller import close_tx
 import argparse
+
 import adi
+
+from spf.sdrpluto.sdr_controller import close_tx
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

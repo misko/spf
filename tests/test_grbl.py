@@ -1,16 +1,18 @@
+import time
+
+import matplotlib.path as pltpath
+import numpy as np
+from shapely import geometry
+
 from spf.grbl.grbl_interactive import (
+    Dynamics,
     GRBLManager,
+    Planner,
+    home_bounding_box,
+    home_calibration_point,
     home_pA,
     home_pB,
-    home_calibration_point,
-    home_bounding_box,
-    Dynamics,
-    Planner,
 )
-import numpy as np
-import matplotlib.path as pltpath
-from shapely import geometry
-import time
 
 
 def test_steps_and_steps_inverse():
@@ -82,8 +84,7 @@ def test_polygon_contains():
 
     # check classic way
     inside_classic = [
-        check_in_range(x[0], 0, 1) and check_in_range(x[1], 0, 1)
-        for x in points
+        check_in_range(x[0], 0, 1) and check_in_range(x[1], 0, 1) for x in points
     ]
 
     assert (plt_inside == inside_classic).all()

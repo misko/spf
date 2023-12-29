@@ -4,20 +4,18 @@
 
 import bisect
 import os
-import pickle
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
+from compress_pickle import dump, load
+from torch.utils.data import Dataset
 
-from spf.model_training_and_inference.utils.image_utils import (
+from spf.dataset.spf_generate import generate_session
+from spf.plot.image_utils import (
     detector_positions_to_theta_grid,
     labels_to_source_images,
     radio_to_image,
 )
-from spf.model_training_and_inference.utils.spf_generate import generate_session
-from compress_pickle import dump, load
 
 output_cols = {  # maybe this should get moved to the dataset part...
     "src_pos": [0, 1],

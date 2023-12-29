@@ -1,12 +1,6 @@
-from spf.rf import (
-    ULADetector,
-    UCADetector,
-    IQSource,
-    rotation_matrix,
-    c,
-    beamformer,
-)
 import numpy as np
+
+from spf.rf import IQSource, UCADetector, ULADetector, beamformer, c, rotation_matrix
 
 
 def test_invariance():
@@ -54,24 +48,18 @@ def test_invariance():
 
                 for rot_theta in rotations:
                     rot_mat = rotation_matrix(rot_theta)
-                    _source_pos = (
-                        rot_mat @ source_pos.T
-                    ).T  # rotate left by rot_theta
+                    _source_pos = (rot_mat @ source_pos.T).T  # rotate left by rot_theta
 
                     d.rm_sources()
                     d.add_source(
-                        IQSource(
-                            _source_pos, carrier_frequency, 100e3
-                        )  # x, y position
+                        IQSource(_source_pos, carrier_frequency, 100e3)  # x, y position
                     )
                     d.orientation = rot_theta
                     signal_matrix = d.get_signal_matrix(
                         start_time=100, duration=3 / d.sampling_frequency
                     )
                     signal_matrixs.append(signal_matrix)
-                    assert np.isclose(
-                        signal_matrixs[0], signal_matrixs[-1]
-                    ).all()
+                    assert np.isclose(signal_matrixs[0], signal_matrixs[-1]).all()
                     thetas_at_t, beam_former_outputs_at_t, _ = beamformer(
                         d.all_receiver_pos(),
                         signal_matrix,

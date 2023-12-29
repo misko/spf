@@ -1,14 +1,14 @@
 import argparse
-import adi
-import numpy as np
-from spf.rf import beamformer
-from math import gcd
-import matplotlib.pyplot as plt
-import time
 import sys
+import time
+from math import gcd
 from typing import Optional
 
-import sys
+import adi
+import matplotlib.pyplot as plt
+import numpy as np
+
+from spf.rf import beamformer
 
 # TODO close SDR on exit
 # import signal
@@ -265,15 +265,20 @@ def setup_rxtx_and_phase_calibration(
     for retry in range(20):
         n_calibration_frames = 800
         phase_calibrations = np.zeros(n_calibration_frames)
+        phase_calibrations2 = np.zeros(n_calibration_frames)
         for idx in range(n_calibration_frames):
             signal_matrix = np.vstack(sdr_rx.rx())
             phase_calibrations[idx] = (
                 (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
             ).mean()  # TODO THIS BREAKS if diff is near 2*np.pi...
+            phase_calibrations2[idx], _ = circular_mean(
+                np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])
+            )
         print(
             "%s: Phase calibration mean (%0.4f) std (%0.4f)"
             % (args.receiver_ip, phase_calibrations.mean(), phase_calibrations.std())
         )
+        print(phase_calibrations.mean(), phase_calibrations2.mean())
         if phase_calibrations.std() < 0.01:
             sdr_tx.close()
             print(

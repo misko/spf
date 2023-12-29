@@ -1,7 +1,7 @@
-import numpy as np
-
 # from numba import jit
 import functools
+
+import numpy as np
 
 # numba = False
 

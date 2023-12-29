@@ -1,5 +1,6 @@
-import serial
 import sys
+
+import serial
 
 if len(sys.argv) != 3:
     print("%s device file" % sys.argv[0])
