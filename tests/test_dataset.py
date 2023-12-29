@@ -5,13 +5,7 @@ from compress_pickle import dump
 
 from spf.dataset.spf_generate import generate_session_and_dump
 
-
-class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+from spf.utils import dotdict
 
 
 @pytest.fixture
@@ -52,7 +46,7 @@ def test_data_generation(default_args):
         args = default_args
         args.output = tmp
         dump(
-            {k: v for k, v in args.items()},
+            args,
             "/".join([args.output, "args.pkl"]),
             compression="lzma",
         )
@@ -68,7 +62,7 @@ def test_live_data_generation(default_args):
         args = default_args
         args.output = tmp
         dump(
-            {k: v for k, v in args.items()},
+            args,
             "/".join([args.output, "args.pkl"]),
             compression="lzma",
         )
