@@ -293,9 +293,9 @@ if __name__ == "__main__":
     print("init network")
     models = []
 
-    # signal_matrix ~ (snapshots_per_sample,n_antennas,samples_per_snapshot)
+    # signal_matrix ~ (snapshots_per_sample,n_antennas,readings_per_snapshot)
 
-    _, n_receivers, samples_per_snapshot = ds_train[0]["signal_matrixs_at_t"].shape
+    _, n_receivers, readings_per_snapshot = ds_train[0]["signal_matrixs_at_t"].shape
     _, beam_former_bins = ds_train[0]["beam_former_outputs_at_t"].shape
 
     for snapshots_per_sample in [1]:
@@ -310,7 +310,7 @@ if __name__ == "__main__":
                             snapshots_per_sample,
                         ),
                         "model": ComplexFFNN(
-                            d_inputs=n_receivers * samples_per_snapshot + 2,
+                            d_inputs=n_receivers * readings_per_snapshot + 2,
                             d_outputs=beam_former_bins,
                             d_hidden=beam_former_bins * 2,
                             n_layers=n_complex_layers,
@@ -332,7 +332,7 @@ if __name__ == "__main__":
                             snapshots_per_sample,
                         ),
                         "model": HybridFFNN(
-                            d_inputs=n_receivers * samples_per_snapshot + 2,
+                            d_inputs=n_receivers * readings_per_snapshot + 2,
                             d_outputs=beam_former_bins,
                             n_complex_layers=n_complex_layers,
                             n_real_layers=8,
