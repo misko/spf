@@ -6,6 +6,11 @@ Instead of simulations we can collect real world data by moving a emitter around
 
 ![v1 hardware setup](v1_hardware_setup.png)
 
+![Measured wall phase difference](20mm_res_map.png)
+The measured phase difference by a fixed emitter at the base of the middle of the stairs. This was generated from real data using this notebook [link](/spf/notebooks/visualize_angle.ipynb)
+
+![Overlayed](v1_hardware_setup_phase.png)
+
 ## Youtube explanation
 
 [Overview](https://www.youtube.com/watch?v=vj99KvB2AcA)
@@ -48,6 +53,7 @@ Thanks to great work by [@dammitcoetzee](https://github.com/dammitcoetzee) , we 
 Ontop of this data several models were trained using TrajectoryNet. Sample command lines can be found towards the end of the file [here](commands).
 
 127486 minibatch updates were perfomed to simultaneously train 4 versions of TrajectoryNet with varying number of layers (1,2,4,8). 
+
 
 ### Loss objectives
 
