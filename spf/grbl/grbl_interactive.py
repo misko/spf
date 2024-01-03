@@ -1,3 +1,4 @@
+import logging
 import sys
 import time
 
@@ -15,6 +16,15 @@ home_bounding_box = [
     # [300,1500],
     [800, 1000],
 ]
+
+run_grbl = True
+
+
+def stop_grbl():
+    logging.info("STOP GRBL")
+    global run_grbl
+    run_grbl = False
+
 
 """
 MotorMountA                         MotorMountB
@@ -65,8 +75,10 @@ class Dynamics:
         if len(bounding_box) >= 3:
             hull = ConvexHull(bounding_box)
             if len(np.unique(hull.simplices)) != len(bounding_box):
-                print("Points do not form a simple hull, most likely non convex")
-                print(
+                logging.error(
+                    "Points do not form a simple hull, most likely non convex"
+                )
+                logging.error(
                     "Points in the hull are, "
                     + ",".join(
                         map(str, [bounding_box[x] for x in np.unique(hull.simplices)])
@@ -163,11 +175,11 @@ class Planner:
     def __init__(self, dynamics):
         self.dynamics = dynamics
         self.current_direction = None
+        self.epsilon = 1  # original was 0.001
 
     def get_bounce_pos_and_new_direction(self, p, direction):
-        epsilon = 0.001
         distance_to_bounce = self.dynamics.binary_search_edge(
-            0, 10000, p, direction, epsilon
+            0, 10000, p, direction, self.epsilon
         )
         last_point_before_bounce = distance_to_bounce * direction + p
 
@@ -202,6 +214,7 @@ class Planner:
         return np.array([np.sin(theta), np.cos(theta)])
 
     def bounce(self, start_p, n_bounces):
+        global run_grbl
         # if no previous direciton lets initialize one
         if self.current_direction is None:
             self.current_direction = self.random_direction()
@@ -213,6 +226,9 @@ class Planner:
         self.current_direction /= np.linalg.norm(self.current_direction)
 
         for _ in range(n_bounces):
+            if not run_grbl:
+                logging.info("Exiting bounce early")
+                break
             to_points, new_direction = self.single_bounce(
                 self.current_direction, start_p
             )
@@ -220,10 +236,11 @@ class Planner:
             yield from to_points
             start_p = to_points[-1]
             self.current_direction = new_direction
+        logging.info("Exiting bounce")
 
 
 class GRBLController:
-    def __init__(self, serial_fn, dyamics, channel_to_motor_map):
+    def __init__(self, serial_fn, dynamics, channel_to_motor_map):
         self.dynamics = dynamics
         # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
         self.s = serial.Serial(
@@ -231,7 +248,7 @@ class GRBLController:
         )  # GRBL operates at 115200 baud. Leave that part alone.
         self.s.write("?".encode())
         grbl_out = self.s.readline()  # get the response
-        print("GRBL ONLINE", grbl_out)
+        logging.info(f"GRBL ONLINE {grbl_out}")
         self.position = {"time": time.time(), "xy": np.zeros(2)}
         self.update_status()
         time.sleep(0.05)
@@ -247,7 +264,6 @@ class GRBLController:
             self.s.write("?".encode())
         time.sleep(0.01)
 
-        start_time = time.time()
         response = self.s.readline().decode().strip()
         time.sleep(0.01)
         # print("STATUS",response)
@@ -255,7 +271,9 @@ class GRBLController:
         try:
             motor_position_str = response.split("|")[1]
         except Exception as e:
-            print("FAILED TO PARSE", response, "|e|", e, time.time() - start_time)
+            if response.strip() == "ok" or response.strip() == "":
+                return self.update_status(skip_write=not skip_write)
+            logging.warning(f"Failed to parse grbl output, {response}, {e}")
             return self.update_status(skip_write=not skip_write)
         b0_motor_steps, a0_motor_steps, b1_motor_steps, a1_motor_steps = map(
             float, motor_position_str[len("MPos:") :].split(",")
@@ -279,7 +297,8 @@ class GRBLController:
         return self.position
 
     def wait_while_moving(self):
-        while True:
+        global run_grbl
+        while run_grbl:
             old_pos = self.update_status()
             time.sleep(0.05)
             new_pos = self.update_status()
@@ -291,8 +310,11 @@ class GRBLController:
             time.sleep(0.01)
 
     def move_to(self, points):  # takes in a list of points equal to length of map
+        global run_grbl
         gcode_move = ["G0"]
         for c in points:
+            if not run_grbl:
+                return
             motors = self.channel_to_motor_map[c]
             a_motor_steps, b_motor_steps = self.dynamics.to_steps(points[c])
             gcode_move += [
@@ -323,7 +345,8 @@ class GRBLController:
         return False
 
     def move_to_iter(self, points_by_channel):
-        while True:
+        global run_grbl
+        while run_grbl:
             next_points = get_next_points(points_by_channel)
             if len(next_points) == 0:
                 break
@@ -352,7 +375,7 @@ class GRBLManager:
         self.planners = planners
 
     def bounce(self, n_bounces, direction=None):
-        start_positions = controller.update_status()["xy"]
+        start_positions = self.controller.update_status()["xy"]
         points_by_channel = {
             c: self.planners[c].bounce(start_positions[c], n_bounces)
             for c in self.channels
@@ -360,13 +383,7 @@ class GRBLManager:
         self.controller.move_to_iter(points_by_channel)
 
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("grblman: %s device" % sys.argv[0])
-        sys.exit(1)
-
-    serial_fn = sys.argv[1]
-
+def get_default_gm(serial_fn):
     dynamics = Dynamics(
         calibration_point=home_calibration_point,
         pA=home_pA,
@@ -380,7 +397,18 @@ if __name__ == "__main__":
         serial_fn, dynamics, channel_to_motor_map={0: "XY", 1: "ZA"}
     )
 
-    gm = GRBLManager(controller, planners)
+    return GRBLManager(controller, planners)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("grblman: %s device" % sys.argv[0])
+        sys.exit(1)
+
+    serial_fn = sys.argv[1]
+
+    gm = get_default_gm()
+
     print(
         """
         q = quit
@@ -397,17 +425,17 @@ if __name__ == "__main__":
             # gm.bounce(20000)
             gm.bounce(40)
         elif line == "s":
-            p = controller.update_status()
+            p = gm.controller.update_status()
             print(p)
         else:
-            current_positions = controller.update_status()["xy"]
+            current_positions = gm.controller.update_status()["xy"]
             p_main = np.array([float(x) for x in line.split()])
             if True:
                 points_iter = {
                     c: iter(a_to_b_in_stepsize(current_positions[c], p_main, 5))
                     for c in [0, 1]
                 }
-                controller.move_to_iter(points_iter)
+                gm.controller.move_to_iter(points_iter)
             # except ValueError:
             #    print("Position is out of bounds!")
         time.sleep(0.01)

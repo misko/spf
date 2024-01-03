@@ -11,3 +11,5 @@ test_data.txt
 .ipynb_checkpoints
 **/.ipynb_checkpoints
 **/*.pkl
+**/*.log
+**/token

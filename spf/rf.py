@@ -227,6 +227,14 @@ class Detector(object):
         return sample_matrix  # ,raw_signal,demod_times,base_time_offsets[0]
 
 
+"""
+Spacing is the full distance between each antenna
+This zero centers the array, for two elements we get
+spacing*([-0.5, 0.5]) for the two X positions 
+and 0 on the Y positions
+"""
+
+
 @functools.lru_cache(maxsize=1024)
 def linear_receiver_positions(n_elements, spacing):
     receiver_positions = np.zeros((n_elements, 2))
@@ -235,8 +243,10 @@ def linear_receiver_positions(n_elements, spacing):
 
 
 class ULADetector(Detector):
-    def __init__(self, sampling_frequency, n_elements, spacing, sigma=0.0):
-        super().__init__(sampling_frequency, sigma=sigma)
+    def __init__(
+        self, sampling_frequency, n_elements, spacing, sigma=0.0, orientation=0.0
+    ):
+        super().__init__(sampling_frequency, sigma=sigma, orientation=orientation)
         self.set_receiver_positions(linear_receiver_positions(n_elements, spacing))
 
 
@@ -247,8 +257,10 @@ def circular_receiver_positions(n_elements, radius):
 
 
 class UCADetector(Detector):
-    def __init__(self, sampling_frequency, n_elements, radius, sigma=0.0):
-        super().__init__(sampling_frequency, sigma=sigma)
+    def __init__(
+        self, sampling_frequency, n_elements, radius, sigma=0.0, orientation=0.0
+    ):
+        super().__init__(sampling_frequency, sigma=sigma, orientation=orientation)
         self.set_receiver_positions(circular_receiver_positions(n_elements, radius))
 
 

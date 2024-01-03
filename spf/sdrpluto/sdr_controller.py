@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 import time
 from math import gcd
@@ -8,7 +9,7 @@ import adi
 import matplotlib.pyplot as plt
 import numpy as np
 
-from spf.rf import beamformer
+from spf.rf import ULADetector, beamformer
 
 # TODO close SDR on exit
 # import signal
@@ -21,31 +22,170 @@ from spf.rf import beamformer
 
 c = 3e8
 
+pplus_online = {}
 
-class AdiWrap(adi.ad9361):
-    def __init__(self, uri):
-        print("%s: OPEN" % uri)
-        super(AdiWrap, self).__init__(uri)
+run_radios = True
+
+
+def shutdown_radios():
+    global run_radios
+    run_radios = False
+
+
+def get_uri(rx_config=None, tx_config=None, uri=None):
+    assert rx_config is not None or tx_config is not None or uri is not None
+    if rx_config is not None and tx_config is not None:
+        assert rx_config.uri == tx_config.uri
+    if rx_config is not None:
+        return rx_config.uri
+    elif tx_config is not None:
+        return tx_config.uri
+    return uri
+
+
+# TODO not thread safe
+def get_pplus(rx_config=None, tx_config=None, uri=None):
+    uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
+    global pplus_online
+    if uri not in pplus_online:
+        pplus_online[uri] = PPlus(rx_config=rx_config, tx_config=tx_config, uri=uri)
+    else:
+        pplus_online[uri].set_config(rx_config=rx_config, tx_config=tx_config)
+    logging.info(f"{uri}: get_pplus PlutoPlus")
+    return pplus_online[uri]
+
+
+class PPlus:
+    def __init__(self, rx_config=None, tx_config=None, uri=None):
+        super(PPlus, self).__init__()
+        self.uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
+        logging.info(f"{self.uri}: Open PlutoPlus")
+
+        # try to fix issue with radios coming online
+        self.sdr = adi.ad9361(uri=self.uri)
+        self.close_tx()
+        # self.sdr = None
+        time.sleep(0.1)
+
+        # open for real
+        # self.sdr = adi.ad9361(uri=self.uri)
+        self.tx_config = None
+        self.rx_config = None
+        self.set_config(rx_config=rx_config, tx_config=tx_config)
+
+        if (
+            self.tx_config is None and self.rx_config is None
+        ):  # this is a fresh open or reset
+            self.close_tx()
+            self.sdr.tx_destroy_buffer()
+            self.sdr.rx_destroy_buffer()
+            self.sdr.tx_enabled_channels = []
+
+    def set_config(self, rx_config=None, tx_config=None):
+        logging.info(f"{self.uri} RX{str(rx_config)} TX{str(tx_config)})")
+        # RX should be setup like this
+        if rx_config is not None:
+            assert self.rx_config is None
+            self.rx_config = rx_config
+
+        # TX should be setup like this
+        if tx_config is not None:
+            assert self.tx_config is None
+            self.tx_config = tx_config
 
     def close(self):
-        close_tx(self)
-        print("%s: CLOSE" % self.uri)
+        logging.info(f"{self.uri}: Start close PlutoPlus")
+        self.close_tx()
+        logging.info(f"{self.uri}: Done close PlutoPlus")
 
     def __del__(self):
-        close_tx(self)
-        print("%s: DELETE!" % self.uri)
+        logging.info(f"{self.uri}: Start delete PlutoPlus")
+        self.close_tx()
+        self.sdr.tx_destroy_buffer()
+        self.sdr.rx_destroy_buffer()
+        self.sdr.tx_enabled_channels = []
+        logging.info(f"{self.uri}: Done delete PlutoPlus")
 
+    """
+    Setup the Rx part of the pluto
+    """
 
-"""
-Close pluto
-"""
+    def setup_rx(self):
+        self.sdr.sample_rate = self.rx_config.sample_rate
+        assert self.sdr.sample_rate == self.rx_config.sample_rate
 
+        self.sdr.rx_rf_bandwidth = self.rx_config.rf_bandwidth
+        self.sdr.rx_lo = self.rx_config.lo
 
-def close_tx(sdr):
-    sdr.tx_enabled_channels = []
-    sdr.tx_hardwaregain_chan0 = -80
-    sdr.tx_hardwaregain_chan1 = -80
-    sdr.tx_destroy_buffer()
+        # setup the gain mode
+        self.sdr.rx_hardwaregain_chan0 = self.rx_config.gains[0]
+        self.sdr.rx_hardwaregain_chan1 = self.rx_config.gains[1]
+        self.sdr.gain_control_mode = self.rx_config.gain_control_mode
+
+        if self.rx_config.buffer_size is not None:
+            self.sdr.rx_buffer_size = self.rx_config.buffer_size
+        # sdr._rxadc.set_kernel_buffers_count(
+        #    1
+        # )  # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
+        self.sdr.rx_enabled_channels = self.rx_config.enabled_channels
+
+    """
+    Setup the Tx side of the pluto
+    """
+
+    def setup_tx(self):
+        logging.info(f"{self.tx_config.uri}: Setup TX")
+        self.sdr.tx_destroy_buffer()
+        self.sdr.tx_cyclic_buffer = self.tx_config.cyclic  # this keeps repeating!
+
+        self.sdr.sample_rate = self.tx_config.sample_rate
+        assert self.sdr.sample_rate == self.tx_config.sample_rate
+
+        self.sdr.tx_rf_bandwidth = self.tx_config.rf_bandwidth
+        self.sdr.tx_lo = self.tx_config.lo
+
+        # setup the gain mode
+        self.sdr.tx_hardwaregain_chan0 = self.tx_config.gains[0]
+        self.sdr.tx_hardwaregain_chan1 = self.tx_config.gains[1]
+
+        if self.tx_config.buffer_size is not None:
+            self.sdr.tx_buffer_size = self.tx_config.buffer_size
+        # self.sdr._rxadc.set_kernel_buffers_count(
+        #    1
+        # )  # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
+        self.sdr.tx_enabled_channels = self.tx_config.enabled_channels
+
+    """
+    Close pluto
+    """
+
+    def close_tx(self):
+        self.sdr.tx_hardwaregain_chan0 = -80
+        self.sdr.tx_hardwaregain_chan1 = -80
+        self.sdr.tx_enabled_channels = []
+        self.sdr.tx_destroy_buffer()
+        self.tx_config = None
+        time.sleep(0.1)
+
+    def close_rx(self):
+        self.rx_config = None
+
+    """
+    Given an online SDR receiver check if the max power peak is as expected during calibration
+    """
+
+    def check_for_freq_peak(self):
+        freq = np.fft.fftfreq(
+            self.rx_config.buffer_size, d=1.0 / self.rx_config.sample_rate
+        )
+        signal_matrix = np.vstack(self.sdr.rx())
+        sp = np.fft.fft(signal_matrix[0])
+        max_freq = freq[np.abs(np.argmax(sp.real))]
+        if np.abs(max_freq - self.rx_config.intermediate) < (
+            self.rx_config.sample_rate / self.rx_config.buffer_size + 1
+        ):
+            return True
+        return False
 
 
 class ReceiverConfig:
@@ -54,10 +194,15 @@ class ReceiverConfig:
         lo: int,
         rf_bandwidth: int,
         sample_rate: int,
+        intermediate: int,
+        uri: str,
         buffer_size: Optional[int] = None,
         gains: list[int] = [-30, -30],
         gain_control_mode: str = "slow_attack",
         enabled_channels: list[int] = [0, 1],
+        rx_spacing=None,
+        rx_theta_in_pis=0.0,
+        motor_channel=None,
     ):
         self.lo = lo
         self.rf_bandwidth = rf_bandwidth
@@ -66,6 +211,27 @@ class ReceiverConfig:
         self.gains = gains
         self.gain_control_mode = gain_control_mode
         self.enabled_channels = enabled_channels
+        self.intermediate = intermediate
+        self.uri = uri
+        self.rx_spacing = rx_spacing
+        self.rx_theta_in_pis = rx_theta_in_pis
+        self.motor_channel = motor_channel
+
+        if self.rx_spacing is not None:
+            d = ULADetector(
+                sampling_frequency=None,
+                n_elements=2,
+                spacing=self.rx_spacing,
+                orientation=self.rx_theta_in_pis * np.pi,
+            )
+            self.rx_pos = d.all_receiver_pos()
+            logging.info(
+                f"{self.uri}:RX antenna positions (theta_in_pis:{self.rx_theta_in_pis}):"
+            )
+            logging.info(f"{self.uri}:\tRX[0]:{str(self.rx_pos[0])}")
+            logging.info(f"{self.uri}:\tRX[1]:{str(self.rx_pos[1])}")
+        else:
+            self.rx_pos = None
 
 
 class EmitterConfig:
@@ -74,10 +240,13 @@ class EmitterConfig:
         lo: int,
         rf_bandwidth: int,
         sample_rate: int,
+        intermediate: int,
+        uri: str,
         buffer_size: Optional[int] = None,
         gains: list = [-30, -80],
         enabled_channels: list[int] = [0],
         cyclic: bool = True,
+        motor_channel: int = None,
     ):
         self.lo = lo
         self.rf_bandwidth = rf_bandwidth
@@ -86,9 +255,12 @@ class EmitterConfig:
         self.gains = gains
         self.enabled_channels = enabled_channels
         self.cyclic = cyclic
+        self.intermediate = intermediate
+        self.uri = uri
+        self.motor_channel = motor_channel
 
 
-def args_to_receiver_config(args):
+def args_to_rx_config(args):
     return ReceiverConfig(
         lo=args.fc,
         rf_bandwidth=int(3 * args.fi),
@@ -97,10 +269,12 @@ def args_to_receiver_config(args):
         gain_control_mode=args.rx_mode,
         enabled_channels=[0, 1],
         buffer_size=int(args.rx_n),
+        intermediate=args.fi,
+        uri="ip:%s" % args.receiver_ip,
     )
 
 
-def args_to_emitter_config(args):
+def args_to_tx_config(args):
     return EmitterConfig(
         lo=args.fc,
         rf_bandwidth=int(3 * args.fi),
@@ -108,68 +282,15 @@ def args_to_emitter_config(args):
         gains=[-30, -80],
         enabled_channels=[0],
         cyclic=True,
+        intermediate=args.fi,
+        uri="ip:%s" % args.emitter_ip,
     )
 
 
-"""
-Setup the Rx part of the pluto
-"""
-
-
-def setup_rx(sdr, receiver_config):
-    sdr.sample_rate = receiver_config.sample_rate
-    assert sdr.sample_rate == receiver_config.sample_rate
-
-    sdr.rx_rf_bandwidth = receiver_config.rf_bandwidth
-    sdr.rx_lo = receiver_config.lo
-
-    # setup the gain mode
-    sdr.rx_hardwaregain_chan0 = receiver_config.gains[0]
-    sdr.rx_hardwaregain_chan1 = receiver_config.gains[1]
-    sdr.gain_control_mode = receiver_config.gain_control_mode
-
-    if receiver_config.buffer_size is not None:
-        sdr.rx_buffer_size = receiver_config.buffer_size
-    # sdr._rxadc.set_kernel_buffers_count(
-    #    1
-    # )  # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
-    sdr.rx_enabled_channels = receiver_config.enabled_channels
-
-    # turn off TX
-    sdr.tx_enabled_channels = []
-    sdr.tx_destroy_buffer()
-
-
-"""
-Setup the Tx side of the pluto
-"""
-
-
-def setup_tx(sdr, emitter_config):
-    sdr.tx_cyclic_buffer = emitter_config.cyclic  # this keeps repeating!
-
-    sdr.sample_rate = emitter_config.sample_rate
-    assert sdr.sample_rate == emitter_config.sample_rate
-
-    sdr.tx_rf_bandwidth = emitter_config.rf_bandwidth
-    sdr.tx_lo = emitter_config.lo
-
-    # setup the gain mode
-    sdr.tx_hardwaregain_chan0 = emitter_config.gains[0]
-    sdr.tx_hardwaregain_chan1 = emitter_config.gains[1]
-
-    if emitter_config.buffer_size is not None:
-        sdr.tx_buffer_size = emitter_config.buffer_size
-    # sdr._rxadc.set_kernel_buffers_count(
-    #    1
-    # )  # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
-    sdr.tx_enabled_channels = emitter_config.enabled_channels
-
-
-def make_tone(args):
+def make_tone(tx_config: EmitterConfig):
     # create a buffe for the signal
-    fc0 = int(args.fi)
-    fs = int(args.fs)  # must be <=30.72 MHz if both channels are enabled
+    fc0 = tx_config.intermediate
+    fs = tx_config.sample_rate  # must be <=30.72 MHz if both channels are enabled
     tx_n = int(fs / gcd(fs, fc0))
     while tx_n < 1024 * 16:
         tx_n *= 2
@@ -181,52 +302,47 @@ def make_tone(args):
     return np.exp(1j * 2 * np.pi * fc0 * t) * (2**14)
 
 
-"""
-Given an online SDR receiver check if the max power peak is as expected during calibration
-"""
-
-
-def check_for_freq_peak(sdr, args):
-    freq = np.fft.fftfreq(args.rx_n, d=1.0 / args.fs)
-    signal_matrix = np.vstack(sdr.rx())
-    sp = np.fft.fft(signal_matrix[0])
-    max_freq = freq[np.abs(np.argmax(sp.real))]
-    if np.abs(max_freq - args.fi) < (args.fs / args.rx_n + 1):
-        return True
-    return False
-
-
-def setup_rxtx(receiver_uri, receiver_config, emitter_uri, emitter_config):
+def setup_rxtx(rx_config, tx_config, leave_tx_on=False):
     retries = 0
-    while retries < 10:
+    while run_radios and retries < 10:
+        logging.info(f"setup_rxtx({rx_config.uri}, {tx_config.uri}) retry {retries}")
         # sdr_rx = adi.ad9361(uri=receiver_uri)
-        sdr_rx = AdiWrap(uri=receiver_uri)
-        setup_rx(sdr_rx, receiver_config)
+        if rx_config.uri == tx_config.uri:
+            logging.info(f"{rx_config.uri} RX TX are same")
+            pplus_rx = get_pplus(rx_config=rx_config, tx_config=tx_config)
+            pplus_tx = pplus_rx
+        else:
+            logging.info(f"{rx_config.uri}(RX) TX are different")
+            pplus_rx = get_pplus(rx_config=rx_config)
+            logging.info(f"{tx_config.uri} RX (TX) are different")
+            pplus_tx = get_pplus(tx_config=tx_config)
 
-        sdr_tx = sdr_rx
-        if receiver_uri != emitter_uri:
-            # sdr_tx = adi.ad9361(uri=emitter_uri)
-            sdr_tx = AdiWrap(uri=emitter_uri)
-
-        setup_tx(sdr_tx, emitter_config)
+        pplus_rx.setup_rx()
+        pplus_tx.setup_tx()
+        time.sleep(0.1)
 
         # start TX
-        sdr_tx.tx(make_tone(args))
+        pplus_tx.sdr.tx(make_tone(tx_config))
+        time.sleep(0.1)
 
         # get RX and drop it
         for _ in range(40):
-            sdr_rx.rx()
+            pplus_rx.sdr.rx()
 
         # test to see what frequency we are seeing
-        if check_for_freq_peak(sdr_rx, args):
-            return sdr_rx, sdr_tx
+        if pplus_rx.check_for_freq_peak():
+            if not leave_tx_on:
+                pplus_tx.close_tx()
+            return pplus_rx, pplus_tx
+        pplus_rx.close_rx()
+        pplus_tx.close_tx()
         retries += 1
 
         # try to reset
-        sdr_tx.close()
-        sdr_rx = None
-        sdr_tx = None
-        time.sleep(1)
+        pplus_tx.close_tx()
+        pplus_rx = None
+        pplus_tx = None
+        time.sleep(0.1)
     return None, None
 
 
@@ -237,59 +353,78 @@ Using Tx1 to emit and Rx1 + Rx2 to receive
 
 
 def setup_rxtx_and_phase_calibration(
-    receiver_uri, receiver_config, emitter_uri, emitter_config, tolerance=0.01
+    rx_config: ReceiverConfig,
+    tx_config: EmitterConfig,
+    tolerance=0.01,
+    n_calibration_frames=800,
+    leave_tx_on=False,
+    using_tx_already_on=None,
 ):
-    print("%s: Starting inter antenna receiver phase calibration" % receiver_uri)
+    logging.info(f"{rx_config.uri}: Starting inter antenna receiver phase calibration")
 
     # its important to not use the emitter uri when calibrating!
-    sdr_rx, sdr_tx = setup_rxtx(
-        receiver_uri=receiver_uri,
-        receiver_config=receiver_config,
-        emitter_uri=emitter_uri,
-        emitter_config=emitter_config,
-    )
+    if using_tx_already_on is not None:
+        logging.info(f"{rx_config.uri}: TX already on!")
+        pplus_rx = get_pplus(rx_config=rx_config)
+        pplus_rx.setup_rx()
+        pplus_tx = using_tx_already_on
+    else:
+        logging.info(f"{rx_config.uri}: TX not on!")
+        pplus_rx, pplus_tx = setup_rxtx(
+            rx_config=rx_config, tx_config=tx_config, leave_tx_on=True
+        )
 
-    if sdr_rx is None:
-        print("Failed to bring rx tx online")
-        return None
-    print("%s: Emitter online verified by %s" % (emitter_uri, receiver_uri))
+    if pplus_rx is None:
+        logging.info(f"{rx_config.uri}: Failed to bring rx tx online")
+        return None, None
+    logging.info(f"{tx_config.uri}: TX online verified by RX {rx_config.uri}")
 
     # sdr_rx.phase_calibration=0
     # return sdr_rx,sdr_tx
     # get some new data
-    print(
-        "%s: Starting phase calibration (using emitter: %s)"
-        % (receiver_uri, emitter_uri)
+    logging.info(
+        f"{rx_config.uri}: Starting phase calibration (using emitter: {tx_config.uri})"
     )
-    for retry in range(20):
-        n_calibration_frames = 800
+    retries = 0
+    while run_radios and retries < 20:
+        logging.info(f"{rx_config.uri} RETRY {retries}")
         phase_calibrations = np.zeros(n_calibration_frames)
-        phase_calibrations2 = np.zeros(n_calibration_frames)
+        phase_calibrations_cm = np.zeros(n_calibration_frames)
         for idx in range(n_calibration_frames):
-            signal_matrix = np.vstack(sdr_rx.rx())
+            signal_matrix = np.vstack(pplus_rx.sdr.rx())
             phase_calibrations[idx] = (
                 (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
             ).mean()  # TODO THIS BREAKS if diff is near 2*np.pi...
-            phase_calibrations2[idx], _ = circular_mean(
+            phase_calibrations_cm[idx], _ = circular_mean(
                 np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])
             )
-        print(
-            "%s: Phase calibration mean (%0.4f) std (%0.4f)"
-            % (args.receiver_ip, phase_calibrations.mean(), phase_calibrations.std())
+        phase_calibration_u = phase_calibrations.mean()
+        phase_calibration_std = phase_calibrations.std()
+        logging.info(
+            f"{rx_config.uri}: Phase calibration mean \
+                ({phase_calibration_u:0.4f}) std ({phase_calibration_std:0.4f})"
         )
-        print(phase_calibrations.mean(), phase_calibrations2.mean())
-        if phase_calibrations.std() < tolerance:
-            sdr_tx.close()
-            print(
-                "%s: Final phase calibration (radians) is %0.4f"
-                % (args.receiver_ip, phase_calibrations.mean()),
-                "(fraction of 2pi) %0.4f" % (phase_calibrations.mean() / (2 * np.pi)),
+
+        # TODO this part should also get replaced by circular mean
+        phase_calibration_cm_u = circular_mean(phase_calibrations_cm)[0]
+        phase_calibration_cm_std = phase_calibrations_cm.std()
+        logging.info(
+            f"{rx_config.uri}: Phase calibration mean CM \
+                ({phase_calibration_cm_u:0.4f}) std ({phase_calibration_cm_std:0.4f})"
+        )
+
+        if phase_calibration_std < tolerance:
+            if not leave_tx_on:
+                pplus_tx.close()
+            logging.info(
+                f"{rx_config.uri}: Final phase calibration (radians) is {phase_calibration_u:0.4f}\
+                 (fraction of 2pi) {(phase_calibration_u / (2 * np.pi)):0.4f}"
             )
-            sdr_rx.phase_calibration = phase_calibrations.mean()
-            return sdr_rx, sdr_tx
-    sdr_tx.close()
-    print("%s: Phase calibration failed" % args.receiver_ip)
-    return None
+            pplus_rx.phase_calibration = phase_calibrations.mean()
+            return pplus_rx, pplus_tx
+    pplus_tx.close()
+    logging.info(f"{rx_config.uri}: Phase calibration failed")
+    return None, None
 
 
 def circular_mean(angles, trim=50.0):
@@ -312,19 +447,20 @@ def get_avg_phase(signal_matrix, trim=0.0):
     return mean, _mean
 
 
-def plot_recv_signal(sdr_rx):
-    pos = np.array([[-0.03, 0], [0.03, 0]])
+def plot_recv_signal(pplus_rx):
     fig, axs = plt.subplots(2, 4, figsize=(16, 6))
 
-    rx_n = sdr_rx.rx_buffer_size
+    rx_n = pplus_rx.sdr.rx_buffer_size
     t = np.arange(rx_n)
     while True:
-        signal_matrix = np.vstack(sdr_rx.rx())
-        signal_matrix[1] *= np.exp(1j * sdr_rx.phase_calibration)
+        signal_matrix = np.vstack(pplus_rx.sdr.rx())
+        signal_matrix[1] *= np.exp(1j * pplus_rx.phase_calibration)
 
-        beam_thetas, beam_sds, beam_steer = beamformer(pos, signal_matrix, args.fc)
+        beam_thetas, beam_sds, _ = beamformer(
+            pplus_rx.rx_config.rx_pos, signal_matrix, args.fc
+        )
 
-        freq = np.fft.fftfreq(t.shape[-1], d=1.0 / sdr_rx.sample_rate)
+        freq = np.fft.fftfreq(t.shape[-1], d=1.0 / pplus_rx.sdr.sample_rate)
         assert t.shape[-1] == rx_n
         for idx in [0, 1]:
             axs[idx][0].clear()
@@ -354,12 +490,10 @@ def plot_recv_signal(sdr_rx):
 
             axs[idx][0].set_title("Real signal recv (%d)" % idx)
             axs[idx][1].set_title("Power recv (%d)" % idx)
-            # print("MAXFREQ",freq[np.abs(np.argmax(sp.real))])
         diff = (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
         axs[0][3].clear()
         axs[0][3].scatter(t, diff, s=1)
         mean, _mean = circular_mean(diff)
-        # print(mean,_mean)
         axs[0][3].axhline(y=mean, color="black", label="circular mean")
         axs[0][3].axhline(y=_mean, color="red", label="trimmed circular mean")
         axs[0][3].set_ylim([0, 2 * np.pi])
@@ -445,39 +579,36 @@ if __name__ == "__main__":
 
     if args.mode == "rxcal":
         # if we use weaker tx gain then the noise in phase calibration goes up
-        emitter_config = args_to_emitter_config(args)
-        emitter_config.gains = [-30, -80]
+        tx_config = args_to_tx_config(args)
+        tx_config.gains = [-30, -80]
 
-        sdr_rx, sdr_tx = setup_rxtx_and_phase_calibration(
-            receiver_uri=receiver_uri,
-            receiver_config=args_to_receiver_config(args),
-            emitter_uri=emitter_uri,
-            emitter_config=emitter_config,
+        pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
+            rx_config=args_to_rx_config(args),
+            tx_config=tx_config,
         )
 
-        if sdr_rx is None:
-            print("Failed phase calibration, exiting")
+        if pplus_rx is None:
+            logging.error("Failed phase calibration, exiting")
             sys.exit(1)
 
-        plot_recv_signal(sdr_rx)
+        plot_recv_signal(pplus_rx)
 
     elif args.mode == "rx":
         # sdr_rx = adi.ad9361(uri=receiver_uri)
-        sdr_rx = AdiWrap(uri=receiver_uri)
-        receiver_config = args_to_receiver_config(args)
-        setup_rx(sdr_rx, receiver_config)
-        sdr_rx.phase_calibration = args.cal0
-        plot_recv_signal(sdr_rx)
+        pplus_rx = get_pplus(rx_config=args_to_rx_config(args))
+        pplus_rx.setup_rx()
+        pplus_rx.phase_calibration = args.cal0
+
+        plot_recv_signal(pplus_rx)
     elif args.mode == "tx":
-        sdr_rx, sdr_tx = setup_rxtx(
-            receiver_uri=emitter_uri,
-            receiver_config=args_to_receiver_config(args),
-            emitter_uri=emitter_uri,
-            emitter_config=args_to_emitter_config(args),
+        pplus_rx, pplus_tx = setup_rxtx(
+            rx_config=args_to_rx_config(args),
+            tx_config=args_to_tx_config(args),
+            leave_tx_on=True,
         )
-        if sdr_rx is None:
-            print("Failed to bring emitter online")
+        if pplus_rx is None:
+            logging.error("Failed to bring emitter online")
             sys.exit(1)
-        print("%s: Emitter online verified by %s" % (emitter_uri, receiver_uri))
+        logging.info(f"{emitter_uri}: Emitter online verified by {receiver_uri}")
         # apply the previous calibration
         time.sleep(600)

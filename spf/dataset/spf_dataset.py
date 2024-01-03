@@ -7,7 +7,7 @@ import os
 
 import numpy as np
 import torch
-from compress_pickle import dump, load
+from compress_pickle import load
 from torch.utils.data import Dataset
 
 from spf.dataset.spf_generate import generate_session
@@ -205,7 +205,6 @@ class SessionsDatasetReal(Dataset):
             np.ones((self.snapshots_in_sample, 1), dtype=np.int32) * self.args.width
         )
         self.halfpis = -np.ones((self.snapshots_in_sample, 1)) * np.pi / 2
-        idx_to_fileidx_and_sampleidx = {}
         # print("WARNING BY DEFAULT FLIPPING RADIO FEATURE SINCE COORDS WERE WRONG IN PI COLLECT!")
 
     def idx_to_fileidx_and_startidx(self, idx):
@@ -362,10 +361,10 @@ def collate_fn_beamformer(_in):
     d = {k: torch.from_numpy(np.stack([x[k] for x in _in])) for k in _in[0]}
     b, s, n_sources, _ = d["source_positions_at_t"].shape
 
-    times = d["time_stamps"] / (0.00001 + d["time_stamps"].max(axis=2, keepdim=True)[0])
+    # times = d["time_stamps"] / (0.00001 + d["time_stamps"].max(axis=2, keepdim=True)[0])
 
     source_theta = d["source_theta_at_t"].mean(axis=2)
-    distances = d["source_distance_at_t_normalized"].mean(axis=2, keepdims=True)
+    # distances = d["source_distance_at_t_normalized"].mean(axis=2, keepdims=True)
     _, _, beam_former_bins = d["beam_former_outputs_at_t"].shape
     perfect_labels = torch.zeros((b, s, beam_former_bins))
 
@@ -407,9 +406,9 @@ def collate_fn_transformer_filter(_in):
     d = {k: torch.from_numpy(np.stack([x[k] for x in _in])) for k in _in[0]}
     b, s, n_sources, _ = d["source_positions_at_t"].shape
 
-    normalized_01_times = d["time_stamps"] / (
-        0.0000001 + d["time_stamps"].max(axis=1, keepdim=True)[0]
-    )
+    # normalized_01_times = d["time_stamps"] / (
+    #     0.0000001 + d["time_stamps"].max(axis=1, keepdim=True)[0]
+    # )
     normalized_times = (
         d["time_stamps"] - d["time_stamps"].max(axis=1, keepdims=True)[0]
     ) / 100
