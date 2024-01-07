@@ -51,7 +51,7 @@ def get_pplus(rx_config=None, tx_config=None, uri=None):
         pplus_online[uri] = PPlus(rx_config=rx_config, tx_config=tx_config, uri=uri)
     else:
         pplus_online[uri].set_config(rx_config=rx_config, tx_config=tx_config)
-    logging.info(f"{uri}: get_pplus PlutoPlus")
+    logging.debug(f"{uri}: get_pplus PlutoPlus")
     return pplus_online[uri]
 
 
@@ -82,7 +82,7 @@ class PPlus:
             self.sdr.tx_enabled_channels = []
 
     def set_config(self, rx_config=None, tx_config=None):
-        logging.info(f"{self.uri} RX{str(rx_config)} TX{str(tx_config)})")
+        logging.debug(f"{self.uri}: set_config RX{str(rx_config)} TX{str(tx_config)})")
         # RX should be setup like this
         if rx_config is not None:
             assert self.rx_config is None
@@ -94,17 +94,17 @@ class PPlus:
             self.tx_config = tx_config
 
     def close(self):
-        logging.info(f"{self.uri}: Start close PlutoPlus")
+        logging.debug(f"{self.uri}: Start close PlutoPlus")
         self.close_tx()
-        logging.info(f"{self.uri}: Done close PlutoPlus")
+        logging.debug(f"{self.uri}: Done close PlutoPlus")
 
     def __del__(self):
-        logging.info(f"{self.uri}: Start delete PlutoPlus")
+        logging.debug(f"{self.uri}: Start delete PlutoPlus")
         self.close_tx()
         self.sdr.tx_destroy_buffer()
         self.sdr.rx_destroy_buffer()
         self.sdr.tx_enabled_channels = []
-        logging.info(f"{self.uri}: Done delete PlutoPlus")
+        logging.debug(f"{self.uri}: Done delete PlutoPlus")
 
     """
     Setup the Rx part of the pluto
@@ -134,7 +134,7 @@ class PPlus:
     """
 
     def setup_tx(self):
-        logging.info(f"{self.tx_config.uri}: Setup TX")
+        logging.debug(f"{self.tx_config.uri}: Setup TX")
         self.sdr.tx_destroy_buffer()
         self.sdr.tx_cyclic_buffer = self.tx_config.cyclic  # this keeps repeating!
 
@@ -308,13 +308,13 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False):
         logging.info(f"setup_rxtx({rx_config.uri}, {tx_config.uri}) retry {retries}")
         # sdr_rx = adi.ad9361(uri=receiver_uri)
         if rx_config.uri == tx_config.uri:
-            logging.info(f"{rx_config.uri} RX TX are same")
+            logging.debug(f"{rx_config.uri} RX TX are same")
             pplus_rx = get_pplus(rx_config=rx_config, tx_config=tx_config)
             pplus_tx = pplus_rx
         else:
-            logging.info(f"{rx_config.uri}(RX) TX are different")
+            logging.debug(f"{rx_config.uri}(RX) TX are different")
             pplus_rx = get_pplus(rx_config=rx_config)
-            logging.info(f"{tx_config.uri} RX (TX) are different")
+            logging.debug(f"{tx_config.uri} RX (TX) are different")
             pplus_tx = get_pplus(tx_config=tx_config)
 
         pplus_rx.setup_rx()
@@ -364,12 +364,12 @@ def setup_rxtx_and_phase_calibration(
 
     # its important to not use the emitter uri when calibrating!
     if using_tx_already_on is not None:
-        logging.info(f"{rx_config.uri}: TX already on!")
+        logging.debug(f"{rx_config.uri}: TX already on!")
         pplus_rx = get_pplus(rx_config=rx_config)
         pplus_rx.setup_rx()
         pplus_tx = using_tx_already_on
     else:
-        logging.info(f"{rx_config.uri}: TX not on!")
+        logging.debug(f"{rx_config.uri}: TX not on!")
         pplus_rx, pplus_tx = setup_rxtx(
             rx_config=rx_config, tx_config=tx_config, leave_tx_on=True
         )
@@ -387,7 +387,7 @@ def setup_rxtx_and_phase_calibration(
     )
     retries = 0
     while run_radios and retries < 20:
-        logging.info(f"{rx_config.uri} RETRY {retries}")
+        logging.debug(f"{rx_config.uri} RETRY {retries}")
         phase_calibrations = np.zeros(n_calibration_frames)
         phase_calibrations_cm = np.zeros(n_calibration_frames)
         for idx in range(n_calibration_frames):
@@ -423,7 +423,7 @@ def setup_rxtx_and_phase_calibration(
             pplus_rx.phase_calibration = phase_calibrations.mean()
             return pplus_rx, pplus_tx
     pplus_tx.close()
-    logging.info(f"{rx_config.uri}: Phase calibration failed")
+    logging.error(f"{rx_config.uri}: Phase calibration failed")
     return None, None
 
 

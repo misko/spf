@@ -51,7 +51,7 @@ receivers:
     motor_channel: 0
 
 
-output-file: wallarrayv2___DATE___.npy
+output-file: wallarrayv2___DATE__.npy
 n-thetas: 65
 n-records-per-receiver: 300000
 

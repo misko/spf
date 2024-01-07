@@ -23,7 +23,7 @@ from spf.sdrpluto.sdr_controller import (
     setup_rxtx_and_phase_calibration,
     shutdown_radios,
 )
-from spf.wall_array_v2 import get_column_names_v2
+from spf.wall_array_v2 import v2_column_names
 
 faulthandler.enable()
 
@@ -47,7 +47,7 @@ def prepare_record_entry(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array):
             ds.timestamp,  # 1
             tx_pos,  # 2
             rx_pos,  # 2
-            ds.rx_theta_in_pis,  # 1
+            ds.rx_theta_in_pis * np.pi,  # 1
             ds.rx_spacing,  # 1
             ds.avg_phase_diff,  # 2
             ds.beam_sds,  # 65
@@ -194,7 +194,7 @@ if __name__ == "__main__":
         yaml_config = yaml.safe_load(stream)
 
     # record matrix
-    column_names = get_column_names_v2(nthetas=yaml_config["n-thetas"])
+    column_names = v2_column_names(nthetas=yaml_config["n-thetas"])
     record_matrix = np.memmap(
         yaml_config["output-file"].replace("__DATE__", start_logging_at),
         dtype="float32",
@@ -252,7 +252,7 @@ if __name__ == "__main__":
             # leave_tx_on=False,
             # using_tx_already_on=None,
         )
-        logging.info("RX online!")
+        logging.debug("RX online!")
         receiver_pplus.append(pplus_rx)
 
     # setup the emitter
