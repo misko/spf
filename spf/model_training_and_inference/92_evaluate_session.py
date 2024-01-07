@@ -7,13 +7,27 @@ import numpy as np
 import torch
 
 from spf.baseline_algorithm import baseline_algorithm
-from spf.dataset.spf_dataset import (
-    SessionsDatasetTask2,
-    collate_fn,
-    output_cols,
-    rel_to_pos,
-)
+from spf.dataset.spf_dataset import SessionsDatasetTask2, collate_fn, rel_to_pos
 from spf.plot.plot import plot_predictions_and_baseline
+
+output_cols = {  # maybe this should get moved to the dataset part...
+    "src_pos": [0, 1],
+    "src_theta": [2],
+    "src_dist": [3],
+    "det_delta": [4, 5],
+    "det_theta": [6],
+    "det_space": [7],
+    "src_v": [8, 9],
+}
+
+input_cols = {
+    "det_pos": [0, 1],
+    "time": [2],
+    "space_delta": [3, 4],
+    "space_theta": [5],
+    "space_dist": [6],
+    "det_theta2": [7],
+}
 
 
 # from online https://stackoverflow.com/questions/57081727/load-pickle-file-obtained-from-gpu-to-cpu

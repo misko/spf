@@ -1,6 +1,6 @@
 import argparse
 
-from spf.dataset.spf_dataset import SessionsDatasetReal
+from spf.dataset.spf_dataset import SessionsDatasetRealV1
 from spf.plot.plot import filenames_to_gif, plot_full_session
 
 if __name__ == "__main__":
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     assert args.snapshots_in_sample >= args.steps
-    ds = SessionsDatasetReal(
+    ds = SessionsDatasetRealV1(
         root_dir=args.root_dir,
         snapshots_in_file=args.snapshots_in_file,
         nthetas=args.nthetas,

@@ -15,9 +15,26 @@ from spf.dataset.spf_dataset import (
     SessionsDatasetRealTask2,
     SessionsDatasetTask2,
     collate_fn_transformer_filter,
-    input_cols,
-    output_cols,
 )
+
+output_cols = {  # maybe this should get moved to the dataset part...
+    "src_pos": [0, 1],
+    "src_theta": [2],
+    "src_dist": [3],
+    "det_delta": [4, 5],
+    "det_theta": [6],
+    "det_space": [7],
+    "src_v": [8, 9],
+}
+
+input_cols = {
+    "det_pos": [0, 1],
+    "time": [2],
+    "space_delta": [3, 4],
+    "space_theta": [5],
+    "space_dist": [6],
+    "det_theta2": [7],
+}
 
 torch.set_num_threads(8)
 torch.set_printoptions(precision=5, sci_mode=False, linewidth=1000)

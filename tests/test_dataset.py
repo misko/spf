@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from compress_pickle import dump
 
-from spf.dataset.spf_dataset import SessionsDataset
+from spf.dataset.spf_dataset import SessionsDatasetSimulated
 from spf.dataset.spf_generate import generate_session_and_dump
 from spf.rf import get_peaks_for_2rx
 from spf.utils import dotdict
@@ -56,7 +56,7 @@ def test_data_generation(default_args):
             generate_session_and_dump((args, session_idx))
             for session_idx in range(args.sessions)
         ]
-        ds = SessionsDataset(root_dir=tmp, snapshots_in_sample=1024)
+        ds = SessionsDatasetSimulated(root_dir=tmp, snapshots_in_sample=1024)
         session = ds[1]
         dump(
             session,
@@ -82,7 +82,7 @@ def test_closeness_to_ground_truth(default_args):
             "/".join([args.output, "args.pkl"]),
             compression="lzma",
         )
-        ds = SessionsDataset(root_dir=tmp, snapshots_in_sample=1024)
+        ds = SessionsDatasetSimulated(root_dir=tmp, snapshots_in_sample=1024)
         session = ds[1]
         peaks_at_t = np.array(
             [
@@ -119,7 +119,7 @@ def test_live_data_generation(default_args):
             generate_session_and_dump((args, session_idx))
             for session_idx in range(args.sessions)
         ]
-        ds = SessionsDataset(root_dir=tmp, snapshots_in_sample=1024)
+        ds = SessionsDatasetSimulated(root_dir=tmp, snapshots_in_sample=1024)
         session = ds[1]
         dump(
             session,
