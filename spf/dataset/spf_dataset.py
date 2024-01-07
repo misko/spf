@@ -260,25 +260,6 @@ class SessionsDatasetReal(Dataset):
         }
 
 
-class SessionsDatasetTask1(SessionsDataset):
-    def __getitem__(self, idx):
-        d = super().__getitem__(idx)
-        # featurie a really simple way
-        x = torch.Tensor(
-            np.hstack(
-                [
-                    d["receiver_positions_at_t"].reshape(self.snapshots_in_sample, -1),
-                    d["beam_former_outputs_at_t"].reshape(self.snapshots_in_sample, -1),
-                    # d['signal_matrixs'].reshape(self.snapshots_in_sample,-1)
-                    d["time_stamps"].reshape(self.snapshots_in_sample, -1)
-                    - d["time_stamps"][0],
-                ]
-            )
-        )
-        y = torch.Tensor(d["source_positions_at_t"][:, 0])
-        return x, y
-
-
 def pos_to_rel(p, width):
     return 2 * (p / width - 0.5)
 

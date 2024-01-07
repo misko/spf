@@ -225,7 +225,8 @@ class Planner:
         ) * self.current_direction + percent_random * self.random_direction()
         self.current_direction /= np.linalg.norm(self.current_direction)
 
-        for _ in range(n_bounces):
+        n_bounce = 0
+        while n_bounce < n_bounces or n_bounces == -1:
             if not run_grbl:
                 logging.info("Exiting bounce early")
                 break
@@ -236,6 +237,7 @@ class Planner:
             yield from to_points
             start_p = to_points[-1]
             self.current_direction = new_direction
+            n_bounce += 1
         logging.info("Exiting bounce")
 
 

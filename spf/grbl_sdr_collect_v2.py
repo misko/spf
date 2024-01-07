@@ -23,6 +23,7 @@ from spf.sdrpluto.sdr_controller import (
     setup_rxtx_and_phase_calibration,
     shutdown_radios,
 )
+from spf.wall_array_v2 import get_column_names_v2
 
 faulthandler.enable()
 
@@ -70,13 +71,14 @@ signal.signal(signal.SIGINT, signal_handler)
 
 
 class ThreadedRX:
-    def __init__(self, pplus, time_offset):
+    def __init__(self, pplus, time_offse, nthetas):
         self.pplus = pplus
         self.read_lock = threading.Lock()
         self.ready_lock = threading.Lock()
         self.ready_lock.acquire()
         self.run = False
         self.time_offset = time_offset
+        self.nthetas = nthetas
 
     def start_read_thread(self):
         self.t = threading.Thread(target=self.read_forever)
@@ -109,6 +111,7 @@ class ThreadedRX:
                     self.pplus.rx_config.rx_pos,
                     signal_matrix,
                     self.pplus.rx_config.intermediate,
+                    spacing=self.nthetas,
                 )
 
                 avg_phase_diff = get_avg_phase(signal_matrix)
@@ -138,7 +141,7 @@ def bounce_grbl(gm):
     while run_collection:
         logging.info("TRY TO BOUNCE")
         try:
-            direction = gm.bounce(100, direction=direction)
+            direction = gm.bounce(-1, direction=direction)
         except Exception as e:
             logging.error(e)
         if not run_collection:
@@ -190,6 +193,19 @@ if __name__ == "__main__":
     with open(args.yaml_config, "r") as stream:
         yaml_config = yaml.safe_load(stream)
 
+    # record matrix
+    column_names = get_column_names_v2(nthetas=yaml_config["n-thetas"])
+    record_matrix = np.memmap(
+        yaml_config["output-file"].replace("__DATE__", start_logging_at),
+        dtype="float32",
+        mode="w+",
+        shape=(
+            2,  # TODO should be nreceivers
+            yaml_config["n-records-per-receiver"],
+            len(column_names),
+        ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
+    )
+
     logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
 
     # lets open all the radios
@@ -235,15 +251,6 @@ if __name__ == "__main__":
             n_calibration_frames=800,
             # leave_tx_on=False,
             # using_tx_already_on=None,
-        )
-        pplus_rx.record_matrix = np.memmap(
-            receiver["output-file"],
-            dtype="float32",
-            mode="w+",
-            shape=(
-                yaml_config["n-records-per-receiver"],
-                7 + 2 + 65,
-            ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
         )
         logging.info("RX online!")
         receiver_pplus.append(pplus_rx)
@@ -293,7 +300,7 @@ if __name__ == "__main__":
     time_offset = time.time()
     read_threads = []
     for pplus_rx in receiver_pplus:
-        read_thread = ThreadedRX(pplus_rx, time_offset)
+        read_thread = ThreadedRX(pplus_rx, time_offset, nthetas=yaml_config["n-thetas"])
         read_thread.start_read_thread()
         read_threads.append(read_thread)
 
@@ -302,7 +309,7 @@ if __name__ == "__main__":
         if not run_collection:
             logging.info("Breaking man loop early")
             break
-        for read_thread in read_threads:
+        for read_thread_idx, read_thread in enumerate(read_threads):
             while run_collection and not read_thread.ready_lock.acquire(timeout=0.5):
                 pass
             ###
@@ -316,7 +323,7 @@ if __name__ == "__main__":
                     read_thread.pplus.rx_config.motor_channel
                 ]
 
-            read_thread.pplus.record_matrix[record_index] = prepare_record_entry(
+            record_matrix[read_thread_idx, record_index] = prepare_record_entry(
                 ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
             )
             ###

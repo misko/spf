@@ -218,13 +218,13 @@ class ReceiverConfig:
         self.motor_channel = motor_channel
 
         if self.rx_spacing is not None:
-            d = ULADetector(
+            self.rx_pos = ULADetector(
                 sampling_frequency=None,
                 n_elements=2,
                 spacing=self.rx_spacing,
                 orientation=self.rx_theta_in_pis * np.pi,
-            )
-            self.rx_pos = d.all_receiver_pos()
+            ).all_receiver_pos()
+
             logging.info(
                 f"{self.uri}:RX antenna positions (theta_in_pis:{self.rx_theta_in_pis}):"
             )

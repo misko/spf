@@ -30,7 +30,6 @@ receivers:
     rx-gain-mode: fast_attack
     rx-gain: -3
     buffer-size: 4096 # 2**12
-    output-file: recieverA.npy
     f-intermediate: 100000 #1.0e5
     f-carrier: 2500000000 #2.5e9
     f-sampling: 16000000 # 16.0e6
@@ -45,7 +44,6 @@ receivers:
     rx-gain-mode: fast_attack
     rx-gain: -3
     buffer-size: 4096 # 2**12
-    output-file: recieverB.npy
     f-intermediate: 100000 #1.0e5
     f-carrier: 2500000000 #2.5e9
     f-sampling: 16000000 # 16.0e6
@@ -53,6 +51,8 @@ receivers:
     motor_channel: 0
 
 
+output-file: wallarrayv2___DATE___.npy
+n-thetas: 65
 n-records-per-receiver: 300000
 
  
