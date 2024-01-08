@@ -25,6 +25,7 @@ from spf.wall_array_v1 import (
     v1_tx_pos_idxs,
 )
 from spf.wall_array_v2 import (
+    v2_avg_phase_diff_idxs,
     v2_beamformer_start_idx,
     v2_column_names,
     v2_rx_pos_idxs,
@@ -172,7 +173,7 @@ class SessionsDatasetRealV1(SessionsDatasetReal):
         root_dir,
         snapshots_in_file=400000,
         nthetas=65,
-        snapshots_in_sample=128,
+        snapshots_in_session=128,
         nsources=1,
         width=3000,
         receiver_pos_x=1352.7,
@@ -207,7 +208,7 @@ class SessionsDatasetRealV1(SessionsDatasetReal):
         )
         self.detector_position = np.array([[receiver_pos_x, receiver_pos_y]])
         self.snapshots_in_file = snapshots_in_file
-        self.snapshots_in_sample = snapshots_in_sample
+        self.snapshots_in_sample = snapshots_in_session
         self.step_size = step_size
         self.filenames = self.get_all_valid_files()
         if len(self.filenames) == 0:
@@ -288,7 +289,6 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
         yaml_config_fn,
         snapshots_in_session=128,
         nsources=1,
-        width=3000,
         step_size=1,
         seed=1337,
         check_files=True,
@@ -318,7 +318,7 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
 
         self.args = dotdict(
             {
-                "width": width,
+                "width": yaml_config["width"],
             }
         )
         self.m_cache = {}
@@ -378,7 +378,7 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
             startidx = unadjusted_startidx - sessions_per_receiver
 
         m = self.get_m(self.filenames[fileidx])[
-            receiver_idx,
+            1 - receiver_idx,
             startidx : startidx
             + self.snapshots_in_session * self.step_size : self.step_size,
         ]
@@ -394,8 +394,8 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
             tx_positions_at_t - rx_position_at_t[:, None]
         )  # broadcast over nsource dimension
         # diffs=(batchsize, nsources, 2)
-        source_theta_at_t = np.arctan2(
-            diffs[:, 0, [0]], diffs[:, 0, [1]]
+        source_theta_at_t = (
+            np.arctan2(diffs[:, 0, [0]], diffs[:, 0, [1]]) - rx_orientation_at_t
         )  # rotation to the right around x=0, y+
 
         return {
@@ -415,6 +415,7 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
             "detector_position_at_t": rx_position_at_t,
             "source_theta_at_t": source_theta_at_t,
             "source_distance_at_t": self.zeros[:, [0]][:, None],
+            "avg_phase_diffs": m[:, v2_avg_phase_diff_idxs()],
         }
 
 

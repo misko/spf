@@ -8,7 +8,7 @@ if __name__ == "__main__":
     parser.add_argument("--root-dir", type=str, required=True)
     parser.add_argument("--snapshots-in-file", type=int, required=False, default=400000)
     parser.add_argument("--nthetas", type=int, required=False, default=64 + 1)
-    parser.add_argument("--snapshots-in-sample", type=int, required=False, default=128)
+    parser.add_argument("--snapshots-in-session", type=int, required=False, default=128)
     parser.add_argument("--width", type=int, required=False, default=3000)
     parser.add_argument("--session-idx", type=int, required=True)
     parser.add_argument("--steps", type=int, required=False, default=3)
@@ -23,7 +23,7 @@ if __name__ == "__main__":
         root_dir=args.root_dir,
         snapshots_in_file=args.snapshots_in_file,
         nthetas=args.nthetas,
-        snapshots_in_sample=args.snapshots_in_sample,
+        snapshots_in_session=args.snapshots_in_session,
         nsources=1,
         width=args.width,
         step_size=args.step_size,

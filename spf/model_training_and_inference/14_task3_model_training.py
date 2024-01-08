@@ -579,7 +579,7 @@ if __name__ == "__main__":
         snapshots_per_sample = max(args.snapshots_per_sample)
         ds = SessionsDatasetRealTask2(
             args.dataset,
-            snapshots_in_sample=snapshots_per_sample,
+            snapshots_in_session=snapshots_per_sample,
             step_size=args.step_size,
         )
     else:
