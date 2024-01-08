@@ -222,6 +222,12 @@ class ReceiverConfig:
                 sampling_frequency=None,
                 n_elements=2,
                 spacing=self.rx_spacing,
+                orientation=0.0,
+            ).all_receiver_pos()
+            self.rx_pos_rotated = ULADetector(
+                sampling_frequency=None,
+                n_elements=2,
+                spacing=self.rx_spacing,
                 orientation=self.rx_theta_in_pis * np.pi,
             ).all_receiver_pos()
 
@@ -271,6 +277,8 @@ def args_to_rx_config(args):
         buffer_size=int(args.rx_n),
         intermediate=args.fi,
         uri="ip:%s" % args.receiver_ip,
+        rx_spacing=args.rx_spacing,
+        # rx_theta_in_pis=0.25,
     )
 
 
@@ -455,7 +463,7 @@ def plot_recv_signal(pplus_rx):
     while True:
         signal_matrix = np.vstack(pplus_rx.sdr.rx())
         signal_matrix[1] *= np.exp(1j * pplus_rx.phase_calibration)
-
+        assert pplus_rx.rx_config.rx_pos is not None
         beam_thetas, beam_sds, _ = beamformer(
             pplus_rx.rx_config.rx_pos, signal_matrix, args.fc
         )
@@ -570,9 +578,26 @@ if __name__ == "__main__":
         required=False,
         default=int(2**9),
     )  # 12
+    parser.add_argument(
+        "--rx-spacing",
+        type=float,
+        help="RX spacing",
+        required=False,
+        default=0.065,
+    )  # 12
     args = parser.parse_args()
 
     # calibrate the receiver
+    # setup logging
+    # start_logging_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    logging.basicConfig(
+        handlers=[
+            # logging.FileHandler(f"{start_logging_at}.log"),
+            logging.StreamHandler(),
+        ],
+        format="%(asctime)s:%(levelname)s:%(message)s",
+        level=getattr(logging, "DEBUG", None),
+    )
 
     emitter_uri = "ip:%s" % args.emitter_ip
     receiver_uri = "ip:%s" % args.receiver_ip
@@ -581,7 +606,7 @@ if __name__ == "__main__":
         # if we use weaker tx gain then the noise in phase calibration goes up
         tx_config = args_to_tx_config(args)
         tx_config.gains = [-30, -80]
-
+        breakpoint()
         pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
             rx_config=args_to_rx_config(args),
             tx_config=tx_config,
