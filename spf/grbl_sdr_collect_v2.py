@@ -236,6 +236,7 @@ if __name__ == "__main__":
             rx_spacing=receiver["antenna-spacing-m"],
             rx_theta_in_pis=receiver["theta-in-pis"],
             motor_channel=receiver["motor_channel"],
+            rx_buffers=receiver["rx-buffers"],
         )
         tx_config = EmitterConfig(
             lo=receiver["f-carrier"],

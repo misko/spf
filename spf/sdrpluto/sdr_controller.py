@@ -124,9 +124,9 @@ class PPlus:
 
         if self.rx_config.buffer_size is not None:
             self.sdr.rx_buffer_size = self.rx_config.buffer_size
-        # sdr._rxadc.set_kernel_buffers_count(
-        #    1
-        # )  # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
+        self.sdr._rxadc.set_kernel_buffers_count(
+            self.rx_config.rx_buffers
+        )  # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
         self.sdr.rx_enabled_channels = self.rx_config.enabled_channels
 
     """
@@ -203,6 +203,7 @@ class ReceiverConfig:
         rx_spacing=None,
         rx_theta_in_pis=0.0,
         motor_channel=None,
+        rx_buffers=4,
     ):
         self.lo = lo
         self.rf_bandwidth = rf_bandwidth
@@ -216,6 +217,7 @@ class ReceiverConfig:
         self.rx_spacing = rx_spacing
         self.rx_theta_in_pis = rx_theta_in_pis
         self.motor_channel = motor_channel
+        self.rx_buffers = rx_buffers
 
         if self.rx_spacing is not None:
             self.rx_pos = ULADetector(
