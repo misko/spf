@@ -378,7 +378,7 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
             startidx = unadjusted_startidx - sessions_per_receiver
 
         m = self.get_m(self.filenames[fileidx])[
-            1 - receiver_idx,
+            receiver_idx,
             startidx : startidx
             + self.snapshots_in_session * self.step_size : self.step_size,
         ]
