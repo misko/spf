@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 
+import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from grbl.grbl_interactive import get_default_gm, stop_grbl
@@ -110,7 +111,7 @@ class ThreadedRX:
                 _, beam_sds, _ = beamformer(
                     self.pplus.rx_config.rx_pos,
                     signal_matrix,
-                    self.pplus.rx_config.intermediate,
+                    self.pplus.rx_config.lo,
                     spacing=self.nthetas,
                 )
 
@@ -176,6 +177,7 @@ if __name__ == "__main__":
         default=None,
         required=False,
     )
+    parser.add_argument("--plot", action="store_true")
     args = parser.parse_args()
 
     # setup logging
@@ -273,7 +275,7 @@ if __name__ == "__main__":
         rf_bandwidth=target_yaml_config["bandwidth"],
         sample_rate=target_yaml_config["f-sampling"],
         intermediate=target_yaml_config["f-intermediate"],
-        gains=[-30, -80],
+        gains=[target_yaml_config["tx-gain"], -80],
         enabled_channels=[0],
         cyclic=True,
         uri="ip:%s" % target_yaml_config["emitter-ip"],
@@ -326,6 +328,11 @@ if __name__ == "__main__":
             record_matrix[read_thread_idx, record_index] = prepare_record_entry(
                 ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
             )
+            if args.plot and record_index % 100 == 0 and read_thread_idx == 0:
+                plt.cla()
+                plt.plot(read_thread.data.beam_sds)
+                plt.draw()
+                plt.pause(0.01)
             ###
             read_thread.read_lock.release()
     shutdown()
