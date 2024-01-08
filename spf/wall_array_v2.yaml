@@ -38,8 +38,8 @@ receivers:
     motor_channel: 0
   - receiver-ip: 192.168.1.18
     emitter-ip: 192.168.1.17
-    theta-in-pis: 0.25
-    antenna-spacing-m: -0.065 # 62.5 mm -> 6.5cm -> 0.065m
+    theta-in-pis: 1.25
+    antenna-spacing-m: 0.065 # 62.5 mm -> 6.5cm -> 0.065m
     nelements: 2
     array-type: linear
     rx-gain-mode: slow_attack
