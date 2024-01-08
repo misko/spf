@@ -13,3 +13,4 @@ test_data.txt
 **/*.pkl
 **/*.log
 **/token
+**/session_output_*.png

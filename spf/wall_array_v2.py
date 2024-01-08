@@ -32,6 +32,14 @@ def v2_rx_pos_idxs():
 
 
 @cache
+def v2_avg_phase_diff_idxs():
+    return [
+        v2_column_names().index("avg_phase_diff_1"),
+        v2_column_names().index("avg_phase_diff_2"),
+    ]
+
+
+@cache
 def v2_rx_theta_idx():
     return [
         v2_column_names().index("rx_theta"),

@@ -4,7 +4,7 @@
 emitter:
   receiver-ip: 192.168.1.15
   emitter-ip: 192.168.1.15
-  tx-gain: -3
+  tx-gain: -15
   rx-gain-mode: fast_attack
   rx-gain: -3
   buffer-size: 4096 # 2**12
@@ -27,9 +27,9 @@ receivers:
     antenna-spacing-m: 0.065 # 62.5 mm -> 6.5cm -> 0.065m
     nelements: 2
     array-type: linear
-    rx-gain-mode: fast_attack
+    rx-gain-mode: slow_attack
     rx-gain: -3
-    buffer-size: 4096 # 2**12
+    buffer-size: 512 # 2**12
     f-intermediate: 100000 #1.0e5
     f-carrier: 2500000000 #2.5e9
     f-sampling: 16000000 # 16.0e6
@@ -41,9 +41,9 @@ receivers:
     antenna-spacing-m: -0.065 # 62.5 mm -> 6.5cm -> 0.065m
     nelements: 2
     array-type: linear
-    rx-gain-mode: fast_attack
+    rx-gain-mode: slow_attack
     rx-gain: -3
-    buffer-size: 4096 # 2**12
+    buffer-size: 512 # 2**12
     f-intermediate: 100000 #1.0e5
     f-carrier: 2500000000 #2.5e9
     f-sampling: 16000000 # 16.0e6
@@ -54,5 +54,6 @@ receivers:
 output-file: wallarrayv2___DATE__.npy
 n-thetas: 65
 n-records-per-receiver: 300000
+width: 4000
 
  
