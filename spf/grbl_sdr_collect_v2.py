@@ -180,11 +180,14 @@ if __name__ == "__main__":
     parser.add_argument("--plot", action="store_true")
     args = parser.parse_args()
 
+
+    run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    output_files_prefix=f"wallarrayv2_{run_started_at}"
+
     # setup logging
-    start_logging_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     logging.basicConfig(
         handlers=[
-            logging.FileHandler(f"{start_logging_at}.log"),
+            logging.FileHandler(f"{output_files_prefix}.log"),
             logging.StreamHandler(),
         ],
         format="%(asctime)s:%(levelname)s:%(message)s",
@@ -195,10 +198,14 @@ if __name__ == "__main__":
     with open(args.yaml_config, "r") as stream:
         yaml_config = yaml.safe_load(stream)
 
+    
+    with open(f'{output_files_prefix}.yaml', 'w') as outfile:
+        yaml.dump(yaml_config, outfile, default_flow_style=False)
+
     # record matrix
     column_names = v2_column_names(nthetas=yaml_config["n-thetas"])
     record_matrix = np.memmap(
-        yaml_config["output-file"].replace("__DATE__", start_logging_at),
+        yaml_config["output-file"].replace("__DATE__", run_started_at),
         dtype="float32",
         mode="w+",
         shape=(

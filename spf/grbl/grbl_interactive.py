@@ -15,6 +15,7 @@ home_bounding_box = [
     [3100, 2850],
     # [300,1500],
     [800, 1000],
+    [300, 500]
 ]
 
 run_grbl = True
@@ -125,7 +126,7 @@ class Dynamics:
 
     def to_steps(self, p):
         if (self.polygon is not None) and not self.polygon.contains_point(
-            p, radius=0.01
+            p, #radius=0.01
         ):  # todo a bit hacky but works
             raise ValueError
         # motor_steps = ( distance_between_pivot and point ) - (distance between pivot and calibration point)
@@ -409,7 +410,7 @@ if __name__ == "__main__":
 
     serial_fn = sys.argv[1]
 
-    gm = get_default_gm()
+    gm = get_default_gm(serial_fn)
 
     print(
         """
