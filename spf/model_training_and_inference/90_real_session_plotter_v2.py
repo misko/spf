@@ -23,7 +23,7 @@ if __name__ == "__main__":
         snapshots_in_session=args.snapshots_in_session,
         nsources=1,
         step_size=args.step_size,
-        yaml_config_fn=args.yaml_config,
+        # yaml_config_fn=args.yaml_config,
     )
     print(ds)
     print("DSLEN", ds.len)

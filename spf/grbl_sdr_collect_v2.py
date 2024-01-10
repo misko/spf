@@ -8,7 +8,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 
-import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from grbl.grbl_interactive import get_default_gm, stop_grbl
@@ -20,6 +19,7 @@ from spf.sdrpluto.sdr_controller import (
     ReceiverConfig,
     get_avg_phase,
     get_pplus,
+    plot_recv_signal,
     setup_rxtx,
     setup_rxtx_and_phase_calibration,
     shutdown_radios,
@@ -180,11 +180,22 @@ if __name__ == "__main__":
         default=None,
         required=False,
     )
-    parser.add_argument("--plot", action="store_true")
+    parser.add_argument(
+        "-p",
+        "--plot",
+        type=int,
+        help="Plot an output",
+        default=None,
+        required=False,
+    )
     args = parser.parse_args()
 
     run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    output_files_prefix = f"wallarrayv2_{run_started_at}"
+    # read YAML
+    with open(args.yaml_config, "r") as stream:
+        yaml_config = yaml.safe_load(stream)
+
+    output_files_prefix = f"wallarrayv2_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['planner']}"
 
     # setup logging
     logging.basicConfig(
@@ -196,17 +207,13 @@ if __name__ == "__main__":
         level=getattr(logging, args.logging_level.upper(), None),
     )
 
-    # read YAML
-    with open(args.yaml_config, "r") as stream:
-        yaml_config = yaml.safe_load(stream)
-
     with open(f"{output_files_prefix}.yaml", "w") as outfile:
         yaml.dump(yaml_config, outfile, default_flow_style=False)
 
     # record matrix
     column_names = v2_column_names(nthetas=yaml_config["n-thetas"])
     record_matrix = np.memmap(
-        yaml_config["output-file"].replace("__DATE__", run_started_at),
+        f"{output_files_prefix}.npy",
         dtype="float32",
         mode="w+",
         shape=(
@@ -231,67 +238,71 @@ if __name__ == "__main__":
     receiver_pplus = []
     pplus_rx, pplus_tx = (None, None)
     for receiver in yaml_config["receivers"]:
-        rx_config = ReceiverConfig(
-            lo=receiver["f-carrier"],
-            rf_bandwidth=receiver["bandwidth"],
-            sample_rate=receiver["f-sampling"],
-            gains=[receiver["rx-gain"], receiver["rx-gain"]],
-            gain_control_mode=receiver["rx-gain-mode"],
+        if run_collection:
+            rx_config = ReceiverConfig(
+                lo=receiver["f-carrier"],
+                rf_bandwidth=receiver["bandwidth"],
+                sample_rate=receiver["f-sampling"],
+                gains=[receiver["rx-gain"], receiver["rx-gain"]],
+                gain_control_mode=receiver["rx-gain-mode"],
+                enabled_channels=[0, 1],
+                buffer_size=receiver["buffer-size"],
+                intermediate=receiver["f-intermediate"],
+                uri="ip:%s" % receiver["receiver-ip"],
+                rx_spacing=receiver["antenna-spacing-m"],
+                rx_theta_in_pis=receiver["theta-in-pis"],
+                motor_channel=receiver["motor_channel"],
+                rx_buffers=receiver["rx-buffers"],
+            )
+            tx_config = EmitterConfig(
+                lo=receiver["f-carrier"],
+                rf_bandwidth=receiver["bandwidth"],
+                sample_rate=receiver["f-sampling"],
+                intermediate=receiver["f-intermediate"],
+                gains=[-30, -80],
+                enabled_channels=[0],
+                cyclic=True,
+                uri="ip:%s" % receiver["emitter-ip"],
+            )
+            pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
+                rx_config=rx_config,
+                tx_config=tx_config,
+                n_calibration_frames=yaml_config["calibration-frames"],
+                # leave_tx_on=False,
+                # using_tx_already_on=None,
+            )
+            logging.debug("RX online!")
+            receiver_pplus.append(pplus_rx)
+
+    if run_collection:
+        # setup the emitter
+        target_yaml_config = yaml_config["emitter"]
+        target_rx_config = ReceiverConfig(
+            lo=target_yaml_config["f-carrier"],
+            rf_bandwidth=target_yaml_config["bandwidth"],
+            sample_rate=target_yaml_config["f-sampling"],
+            gains=[target_yaml_config["rx-gain"], target_yaml_config["rx-gain"]],
+            gain_control_mode=target_yaml_config["rx-gain-mode"],
             enabled_channels=[0, 1],
-            buffer_size=receiver["buffer-size"],
-            intermediate=receiver["f-intermediate"],
-            uri="ip:%s" % receiver["receiver-ip"],
-            rx_spacing=receiver["antenna-spacing-m"],
-            rx_theta_in_pis=receiver["theta-in-pis"],
-            motor_channel=receiver["motor_channel"],
-            rx_buffers=receiver["rx-buffers"],
+            buffer_size=target_yaml_config["buffer-size"],
+            intermediate=target_yaml_config["f-intermediate"],
+            uri="ip:%s" % target_yaml_config["receiver-ip"],
         )
-        tx_config = EmitterConfig(
-            lo=receiver["f-carrier"],
-            rf_bandwidth=receiver["bandwidth"],
-            sample_rate=receiver["f-sampling"],
-            intermediate=receiver["f-intermediate"],
-            gains=[-30, -80],
+        target_tx_config = EmitterConfig(
+            lo=target_yaml_config["f-carrier"],
+            rf_bandwidth=target_yaml_config["bandwidth"],
+            sample_rate=target_yaml_config["f-sampling"],
+            intermediate=target_yaml_config["f-intermediate"],
+            gains=[target_yaml_config["tx-gain"], -80],
             enabled_channels=[0],
             cyclic=True,
-            uri="ip:%s" % receiver["emitter-ip"],
+            uri="ip:%s" % target_yaml_config["emitter-ip"],
+            motor_channel=target_yaml_config["motor_channel"],
         )
-        pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
-            rx_config=rx_config,
-            tx_config=tx_config,
-            n_calibration_frames=800,
-            # leave_tx_on=False,
-            # using_tx_already_on=None,
+
+        setup_rxtx(
+            rx_config=target_rx_config, tx_config=target_tx_config, leave_tx_on=True
         )
-        logging.debug("RX online!")
-        receiver_pplus.append(pplus_rx)
-
-    # setup the emitter
-    target_yaml_config = yaml_config["emitter"]
-    target_rx_config = ReceiverConfig(
-        lo=target_yaml_config["f-carrier"],
-        rf_bandwidth=target_yaml_config["bandwidth"],
-        sample_rate=target_yaml_config["f-sampling"],
-        gains=[target_yaml_config["rx-gain"], target_yaml_config["rx-gain"]],
-        gain_control_mode=target_yaml_config["rx-gain-mode"],
-        enabled_channels=[0, 1],
-        buffer_size=target_yaml_config["buffer-size"],
-        intermediate=target_yaml_config["f-intermediate"],
-        uri="ip:%s" % target_yaml_config["receiver-ip"],
-    )
-    target_tx_config = EmitterConfig(
-        lo=target_yaml_config["f-carrier"],
-        rf_bandwidth=target_yaml_config["bandwidth"],
-        sample_rate=target_yaml_config["f-sampling"],
-        intermediate=target_yaml_config["f-intermediate"],
-        gains=[target_yaml_config["tx-gain"], -80],
-        enabled_channels=[0],
-        cyclic=True,
-        uri="ip:%s" % target_yaml_config["emitter-ip"],
-        motor_channel=target_yaml_config["motor_channel"],
-    )
-
-    setup_rxtx(rx_config=target_rx_config, tx_config=target_tx_config)
 
     # threadA semaphore to produce fresh data
     # threadB semaphore to produce fresh data
@@ -301,51 +312,60 @@ if __name__ == "__main__":
     # setup GRBL
     gm = None
     gm_thread = None
-    if args.grbl_serial is not None:
-        gm = get_default_gm(args.grbl_serial)
-        gm_thread = threading.Thread(
-            target=grbl_thread_runner, args=(gm, yaml_config["planner"])
-        )
-        gm_thread.start()
+    if run_collection:
+        if args.grbl_serial is not None:
+            gm = get_default_gm(args.grbl_serial)
+            gm_thread = threading.Thread(
+                target=grbl_thread_runner, args=(gm, yaml_config["planner"])
+            )
+            gm_thread.start()
 
     # setup read threads
-
-    time_offset = time.time()
     read_threads = []
-    for pplus_rx in receiver_pplus:
-        read_thread = ThreadedRX(pplus_rx, time_offset, nthetas=yaml_config["n-thetas"])
-        read_thread.start_read_thread()
-        read_threads.append(read_thread)
-
-    record_index = 0
-    for record_index in tqdm(range(yaml_config["n-records-per-receiver"])):
-        if not run_collection:
-            logging.info("Breaking man loop early")
-            break
-        for read_thread_idx, read_thread in enumerate(read_threads):
-            while run_collection and not read_thread.ready_lock.acquire(timeout=0.5):
-                pass
-            ###
-            # copy the data out
-
-            rx_pos = np.array([0, 0])
-            tx_pos = np.array([0, 0])
-            if gm is not None:
-                tx_pos = gm.controller.position["xy"][target_tx_config.motor_channel]
-                rx_pos = gm.controller.position["xy"][
-                    read_thread.pplus.rx_config.motor_channel
-                ]
-
-            record_matrix[read_thread_idx, record_index] = prepare_record_entry(
-                ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
+    time_offset = time.time()
+    if run_collection:
+        for pplus_rx in receiver_pplus:
+            read_thread = ThreadedRX(
+                pplus_rx, time_offset, nthetas=yaml_config["n-thetas"]
             )
-            if args.plot and record_index % 100 == 0 and read_thread_idx == 0:
-                plt.cla()
-                plt.plot(read_thread.data.beam_sds)
-                plt.draw()
-                plt.pause(0.01)
-            ###
-            read_thread.read_lock.release()
+            read_thread.start_read_thread()
+            read_threads.append(read_thread)
+            if (
+                pplus_rx is not None
+                and args.plot is not None
+                and args.plot == (len(read_threads) - 1)
+            ):
+                plot_recv_signal(pplus_rx)
+
+    if run_collection:
+        record_index = 0
+        for record_index in tqdm(range(yaml_config["n-records-per-receiver"])):
+            if not run_collection:
+                logging.info("Breaking man loop early")
+                break
+            for read_thread_idx, read_thread in enumerate(read_threads):
+                while run_collection and not read_thread.ready_lock.acquire(
+                    timeout=0.5
+                ):
+                    pass
+                ###
+                # copy the data out
+
+                rx_pos = np.array([0, 0])
+                tx_pos = np.array([0, 0])
+                if gm is not None:
+                    tx_pos = gm.controller.position["xy"][
+                        target_tx_config.motor_channel
+                    ]
+                    rx_pos = gm.controller.position["xy"][
+                        read_thread.pplus.rx_config.motor_channel
+                    ]
+
+                record_matrix[read_thread_idx, record_index] = prepare_record_entry(
+                    ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
+                )
+                ###
+                read_thread.read_lock.release()
     shutdown()
     logging.info("Shuttingdown: sending false to threads")
     for read_thread in read_threads:

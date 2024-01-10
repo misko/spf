@@ -358,10 +358,40 @@ pi/2 -> x=1, y=0
 """
 
 
-###
+"""
+              Y+
+              0deg
+              |
+              |
+              |
+              |    
+       .......*........  X+ ( on axis right is +pi/2) 
+              |
+              |
+              |
+              |   
+        (-pi (counter clockwise) or +pi (clockwise))
+
+        by default for ULA
+
+              Y+
+              0deg
+              |
+              |
+              |
+              |    
+    RX0.......*........ RX1 X+ ( on axis right is +pi/2) 
+              |
+              |
+              |
+              |   
+    
+"""
+
+
 def beamformer(
-    receiver_positions,
-    signal_matrix,
+    receiver_positions,  # recievers X 2[X,Y]
+    signal_matrix,  # receivers X samples
     carrier_frequency,
     calibration=None,
     spacing=64 + 1,

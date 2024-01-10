@@ -2,6 +2,7 @@ import argparse
 import logging
 import sys
 import time
+from datetime import datetime
 from math import gcd
 from typing import Optional
 
@@ -94,9 +95,9 @@ class PPlus:
             self.tx_config = tx_config
 
     def close(self):
-        logging.debug(f"{self.uri}: Start close PlutoPlus")
+        logging.info(f"{self.uri}: Start close PlutoPlus")
         self.close_tx()
-        logging.debug(f"{self.uri}: Done close PlutoPlus")
+        logging.info(f"{self.uri}: Done close PlutoPlus")
 
     def __del__(self):
         logging.debug(f"{self.uri}: Start delete PlutoPlus")
@@ -188,7 +189,18 @@ class PPlus:
         return False
 
 
-class ReceiverConfig:
+class Config:
+    def __repr__(self):
+        return "<{klass} @{id:x} {attrs}>".format(
+            klass=self.__class__.__name__,
+            id=id(self) & 0xFFFFFF,
+            attrs="\n".join(
+                "{}={!r}".format(k, v) for k, v in sorted(self.__dict__.items())
+            ),
+        )
+
+
+class ReceiverConfig(Config):
     def __init__(
         self,
         lo: int,
@@ -242,7 +254,7 @@ class ReceiverConfig:
             self.rx_pos = None
 
 
-class EmitterConfig:
+class EmitterConfig(Config):
     def __init__(
         self,
         lo: int,
@@ -289,7 +301,7 @@ def args_to_tx_config(args):
         lo=args.fc,
         rf_bandwidth=int(3 * args.fi),
         sample_rate=int(args.fs),
-        gains=[-30, -80],
+        gains=[args.tx_gain, -80],
         enabled_channels=[0],
         cyclic=True,
         intermediate=args.fi,
@@ -326,7 +338,6 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False):
             pplus_rx = get_pplus(rx_config=rx_config)
             logging.debug(f"{tx_config.uri} RX (TX) are different")
             pplus_tx = get_pplus(tx_config=tx_config)
-
         pplus_rx.setup_rx()
         pplus_tx.setup_tx()
         time.sleep(0.1)
@@ -341,6 +352,9 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False):
 
         # test to see what frequency we are seeing
         if pplus_rx.check_for_freq_peak():
+            logging.info(
+                f"RXTX came online with configs\nRX_config:{pplus_rx.rx_config}\nTX_config:{pplus_tx.tx_config}"
+            )
             if not leave_tx_on:
                 pplus_tx.close_tx()
             return pplus_rx, pplus_tx
@@ -401,6 +415,8 @@ def setup_rxtx_and_phase_calibration(
         phase_calibrations = np.zeros(n_calibration_frames)
         phase_calibrations_cm = np.zeros(n_calibration_frames)
         for idx in range(n_calibration_frames):
+            if not run_radios:
+                break
             signal_matrix = np.vstack(pplus_rx.sdr.rx())
             phase_calibrations[idx] = (
                 (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
@@ -462,12 +478,12 @@ def plot_recv_signal(pplus_rx):
 
     rx_n = pplus_rx.sdr.rx_buffer_size
     t = np.arange(rx_n)
-    while True:
+    while run_radios:
         signal_matrix = np.vstack(pplus_rx.sdr.rx())
         signal_matrix[1] *= np.exp(1j * pplus_rx.phase_calibration)
         assert pplus_rx.rx_config.rx_pos is not None
         beam_thetas, beam_sds, _ = beamformer(
-            pplus_rx.rx_config.rx_pos, signal_matrix, args.fc
+            pplus_rx.rx_config.rx_pos, signal_matrix, pplus_rx.rx_config.lo
         )
 
         freq = np.fft.fftfreq(t.shape[-1], d=1.0 / pplus_rx.sdr.sample_rate)
@@ -591,10 +607,11 @@ if __name__ == "__main__":
 
     # calibrate the receiver
     # setup logging
-    # start_logging_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    output_files_prefix = f"wallarrayv2_{run_started_at}"
     logging.basicConfig(
         handlers=[
-            # logging.FileHandler(f"{start_logging_at}.log"),
+            logging.FileHandler(f"{output_files_prefix}.log"),
             logging.StreamHandler(),
         ],
         format="%(asctime)s:%(levelname)s:%(message)s",
@@ -608,7 +625,6 @@ if __name__ == "__main__":
         # if we use weaker tx gain then the noise in phase calibration goes up
         tx_config = args_to_tx_config(args)
         tx_config.gains = [-30, -80]
-        breakpoint()
         pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
             rx_config=args_to_rx_config(args),
             tx_config=tx_config,
@@ -621,7 +637,6 @@ if __name__ == "__main__":
         plot_recv_signal(pplus_rx)
 
     elif args.mode == "rx":
-        # sdr_rx = adi.ad9361(uri=receiver_uri)
         pplus_rx = get_pplus(rx_config=args_to_rx_config(args))
         pplus_rx.setup_rx()
         pplus_rx.phase_calibration = args.cal0
@@ -638,4 +653,4 @@ if __name__ == "__main__":
             sys.exit(1)
         logging.info(f"{emitter_uri}: Emitter online verified by {receiver_uri}")
         # apply the previous calibration
-        time.sleep(600)
+        time.sleep(1800)
