@@ -12,11 +12,14 @@ home_pB = np.array([0, 0])
 home_bounding_box = [
     [300, 400],
     [3100, 400],
-    [3100, 2850],
+    [3100, 3200],
+    [1900, 3000],
     # [300,1500],
-    [800, 1000],
-    [300, 500]
+    [800, 2000],
+    [300, 500],
 ]
+rx_calibration_point = [1900, 3000]
+tx_calibration_point = [350, 450]
 
 run_grbl = True
 
@@ -126,7 +129,7 @@ class Dynamics:
 
     def to_steps(self, p):
         if (self.polygon is not None) and not self.polygon.contains_point(
-            p, #radius=0.01
+            p, radius=0.00001
         ):  # todo a bit hacky but works
             raise ValueError
         # motor_steps = ( distance_between_pivot and point ) - (distance between pivot and calibration point)
@@ -213,6 +216,40 @@ class Planner:
     def random_direction(self):
         theta = np.random.uniform(2 * np.pi)
         return np.array([np.sin(theta), np.cos(theta)])
+
+    def stationary_point(self, p):
+        while True:
+            yield p
+
+    def calibration_run(self, current_p, step_size=5, y_bump=100):
+        start_p = np.array(tx_calibration_point)
+        max_y = np.max([x[1] for x in home_bounding_box])
+        direction_left = np.array([1, 0])  # ride the x dont change y
+        direction_right = np.array([-1, 0])  # ride the x dont change y
+
+        while True:
+            print("CUR->P", current_p, start_p)
+            yield from a_to_b_in_stepsize(current_p, start_p, step_size=step_size)
+
+            while current_p[1] + y_bump < max_y:
+                # move to far wall
+                next_p, _ = self.get_bounce_pos_and_new_direction(
+                    current_p, direction_left
+                )
+                yield from a_to_b_in_stepsize(current_p, next_p, step_size=step_size)
+                current_p = next_p
+
+                # move a tiny bit down
+                next_p = current_p + np.array([0, y_bump])
+                yield from a_to_b_in_stepsize(current_p, next_p, step_size=step_size)
+                current_p = next_p
+
+                # move back
+                next_p, _ = self.get_bounce_pos_and_new_direction(
+                    current_p, direction_right
+                )
+                yield from a_to_b_in_stepsize(current_p, next_p, step_size=step_size)
+                current_p = next_p
 
     def bounce(self, start_p, n_bounces):
         global run_grbl
@@ -353,6 +390,7 @@ class GRBLController:
             next_points = get_next_points(points_by_channel)
             if len(next_points) == 0:
                 break
+            print(next_points)
             self.move_to(next_points)
             while self.targets_far_out(next_points):
                 pass
@@ -382,6 +420,14 @@ class GRBLManager:
         points_by_channel = {
             c: self.planners[c].bounce(start_positions[c], n_bounces)
             for c in self.channels
+        }
+        self.controller.move_to_iter(points_by_channel)
+
+    def calibrate(self, direction=None):
+        start_positions = self.controller.update_status()["xy"]
+        points_by_channel = {
+            0: self.planners[0].stationary_point(np.array(rx_calibration_point)),
+            1: self.planners[1].calibration_run(start_positions[1]),
         }
         self.controller.move_to_iter(points_by_channel)
 
@@ -427,6 +473,8 @@ if __name__ == "__main__":
         elif line == "bounce":
             # gm.bounce(20000)
             gm.bounce(40)
+        elif line == "calibrate":
+            gm.calibrate()
         elif line == "s":
             p = gm.controller.update_status()
             print(p)
