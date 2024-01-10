@@ -221,15 +221,15 @@ class Planner:
         while True:
             yield p
 
-    def calibration_run(self, current_p, step_size=5, y_bump=100):
+    def calibration_run(self, current_p, step_size=5, y_bump=1000):
         start_p = np.array(tx_calibration_point)
         max_y = np.max([x[1] for x in home_bounding_box])
         direction_left = np.array([1, 0])  # ride the x dont change y
         direction_right = np.array([-1, 0])  # ride the x dont change y
 
         while True:
-            print("CUR->P", current_p, start_p)
             yield from a_to_b_in_stepsize(current_p, start_p, step_size=step_size)
+            current_p = start_p
 
             while current_p[1] + y_bump < max_y:
                 # move to far wall
@@ -306,8 +306,6 @@ class GRBLController:
 
         response = self.s.readline().decode().strip()
         time.sleep(0.01)
-        # print("STATUS",response)
-        # <Idle|MPos:-3589.880,79.560,0.000,0.000|FS:0,0>
         try:
             motor_position_str = response.split("|")[1]
         except Exception as e:
@@ -368,7 +366,6 @@ class GRBLController:
             self.s.readline()
         )  # Wait for grbl response with carriage return
         time.sleep(0.01)
-        # print("MOVE TO RESPONSE", grbl_out)
 
     def distance_to_targets(self, target_points):
         current_position = self.update_status()
@@ -390,7 +387,6 @@ class GRBLController:
             next_points = get_next_points(points_by_channel)
             if len(next_points) == 0:
                 break
-            print(next_points)
             self.move_to(next_points)
             while self.targets_far_out(next_points):
                 pass
@@ -423,7 +419,7 @@ class GRBLManager:
         }
         self.controller.move_to_iter(points_by_channel)
 
-    def calibrate(self, direction=None):
+    def calibrate(self):
         start_positions = self.controller.update_status()["xy"]
         points_by_channel = {
             0: self.planners[0].stationary_point(np.array(rx_calibration_point)),

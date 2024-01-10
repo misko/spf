@@ -136,13 +136,16 @@ class ThreadedRX:
         logging.info(f"{str(self.pplus.rx_config.uri)} PPlus read_forever() exit!")
 
 
-def bounce_grbl(gm):
+def grbl_thread_runner(gm, planner):
     direction = None
     global run_collection
     while run_collection:
         logging.info("TRY TO BOUNCE")
         try:
-            direction = gm.bounce(-1, direction=direction)
+            if planner == "bounce":
+                gm.bounce(-1, direction=direction)
+            elif planner == "calibration":
+                gm.calibrate()
         except Exception as e:
             logging.error(e)
         if not run_collection:
@@ -180,9 +183,8 @@ if __name__ == "__main__":
     parser.add_argument("--plot", action="store_true")
     args = parser.parse_args()
 
-
     run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    output_files_prefix=f"wallarrayv2_{run_started_at}"
+    output_files_prefix = f"wallarrayv2_{run_started_at}"
 
     # setup logging
     logging.basicConfig(
@@ -198,8 +200,7 @@ if __name__ == "__main__":
     with open(args.yaml_config, "r") as stream:
         yaml_config = yaml.safe_load(stream)
 
-    
-    with open(f'{output_files_prefix}.yaml', 'w') as outfile:
+    with open(f"{output_files_prefix}.yaml", "w") as outfile:
         yaml.dump(yaml_config, outfile, default_flow_style=False)
 
     # record matrix
@@ -302,7 +303,9 @@ if __name__ == "__main__":
     gm_thread = None
     if args.grbl_serial is not None:
         gm = get_default_gm(args.grbl_serial)
-        gm_thread = threading.Thread(target=bounce_grbl, args=(gm,))
+        gm_thread = threading.Thread(
+            target=grbl_thread_runner, args=(gm, yaml_config["planner"])
+        )
         gm_thread.start()
 
     # setup read threads
