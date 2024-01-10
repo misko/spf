@@ -221,7 +221,7 @@ class Planner:
         while True:
             yield p
 
-    def calibration_run(self, current_p, step_size=5, y_bump=1000):
+    def calibration_run(self, current_p, step_size=5, y_bump=100):
         start_p = np.array(tx_calibration_point)
         max_y = np.max([x[1] for x in home_bounding_box])
         direction_left = np.array([1, 0])  # ride the x dont change y
