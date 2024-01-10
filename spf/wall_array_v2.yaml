@@ -4,7 +4,7 @@
 emitter:
   receiver-ip: 192.168.1.15
   emitter-ip: 192.168.1.15
-  tx-gain: -3
+  tx-gain: -10
   rx-gain-mode: fast_attack
   rx-gain: -3
   buffer-size: 4096 # 2**12
