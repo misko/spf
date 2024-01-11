@@ -9,6 +9,7 @@ click==8.1.7
 compress-pickle==2.1.0
 contourpy==1.1.0
 cycler==0.11.0
+deepdiff==6.7.1
 exceptiongroup==1.2.0
 filelock==3.13.1
 flake8==6.1.0
@@ -31,6 +32,7 @@ multidict==6.0.4
 mypy-extensions==1.0.0
 networkx==3.2.1
 numpy==1.25.2
+ordered-set==4.1.0
 packaging==23.1
 pathspec==0.12.1
 Pillow==10.0.0
