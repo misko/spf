@@ -215,6 +215,9 @@ class Planner(ABC):
     def yield_points(self):
         pass
 
+    def get_planner_start_position(self):
+        return None
+
 
 class BouncePlanner(Planner):
     def single_bounce(self, direction, p):
@@ -282,6 +285,9 @@ class StationaryPlanner(Planner):
         while True:
             yield self.stationary_point
 
+    def get_planner_start_position(self):
+        return self.stationary_point
+
 
 class CirclePlanner(Planner):
     def __init__(
@@ -298,6 +304,9 @@ class CirclePlanner(Planner):
         self.circle_center = circle_center
         self.circle_radius = circle_diameter / 2
         self.angle_increment = chord_length_to_angle(self.step_size, self.circle_radius)
+
+    def get_planner_start_position(self):
+        return circle_center
 
     def angle_to_pos(self, angle):
         return self.circle_center + self.circle_radius * np.array(
@@ -330,6 +339,9 @@ class CalibationV1Planner(Planner):
         )
         self.stationary_point = stationary_point
         self.y_bump = y_bump
+
+    def get_planner_start_position(self):
+        return tx_calibration_point
 
     def yield_points(self):
         start_p = np.array(tx_calibration_point)
@@ -473,8 +485,9 @@ class GRBLController:
                 return True
         return False
 
-    def move_to_iter(self, points_by_channel):
+    def move_to_iter(self, points_by_channel, return_once_stopped=False):
         global run_grbl
+        previous_points = None
         while run_grbl:
             next_points = get_next_points(points_by_channel)
             if len(next_points) == 0:
@@ -482,6 +495,9 @@ class GRBLController:
             self.move_to(next_points)
             while self.targets_far_out(next_points):
                 time.sleep(0.1)
+            if previous_points is not None:
+                breakpoint()
+                a = 1
 
     def close(self):
         self.s.close()
@@ -510,6 +526,13 @@ class GRBLManager:
         }
 
     def run(self):
+        # default start points are the current start points
+        start_points = gm.controller.position["xy"]
+        for c in self.channels:
+            requested_point = self.planners[c].get_planner_start_position()
+            if requested_point is not None:
+                start_points[c] = requested_point
+        breakpoint()
         points_by_channel = {c: self.planners[c].yield_points() for c in self.channels}
         self.controller.move_to_iter(points_by_channel)
 
