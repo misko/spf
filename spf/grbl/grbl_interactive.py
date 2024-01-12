@@ -1,6 +1,7 @@
 import logging
 import sys
 import time
+from abc import ABC, abstractmethod
 
 import matplotlib.path as pltpath
 import numpy as np
@@ -9,17 +10,20 @@ from scipy.spatial import ConvexHull
 
 home_pA = np.array([3568, 0])
 home_pB = np.array([0, 0])
-home_bounding_box = [
-    [300, 400],
-    [3100, 400],
-    [3100, 3050],
-    [1900, 3000],
-    # [300,1500],
-    [800, 2000],
-    [300, 500],
-]
-rx_calibration_point = [1900, 3000]
-tx_calibration_point = [350, 450]
+home_bounding_box = np.array(
+    [
+        [300, 400],
+        [3100, 400],
+        [3100, 3050],
+        [1900, 3000],
+        [800, 2000],
+        [300, 500],
+    ]
+)
+rx_calibration_point = np.array([1900, 3000])
+tx_calibration_point = np.array([350, 450])
+circle_center = np.array([2000, 1600])
+max_circle_diameter = 2000
 
 run_grbl = True
 
@@ -175,11 +179,13 @@ class Dynamics:
         return bvec
 
 
-class Planner:
-    def __init__(self, dynamics):
+class Planner(ABC):
+    def __init__(self, dynamics, start_point, step_size=5):
         self.dynamics = dynamics
         self.current_direction = None
         self.epsilon = 1  # original was 0.001
+        self.start_point = start_point
+        self.step_size = step_size
 
     def get_bounce_pos_and_new_direction(self, p, direction):
         distance_to_bounce = self.dynamics.binary_search_edge(
@@ -197,12 +203,22 @@ class Planner:
         new_direction /= np.linalg.norm(new_direction)
         return last_point_before_bounce, new_direction
 
-    def single_bounce(self, direction, p, step_size=5):
+    def random_direction(self):
+        theta = np.random.uniform(2 * np.pi)
+        return np.array([np.sin(theta), np.cos(theta)])
+
+    @abstractmethod
+    def yield_points(self):
+        pass
+
+
+class BouncePlanner(Planner):
+    def single_bounce(self, direction, p):
         bounce_point, new_direction = self.get_bounce_pos_and_new_direction(
             p, direction
         )
 
-        to_points = a_to_b_in_stepsize(p, bounce_point, step_size=step_size)
+        to_points = a_to_b_in_stepsize(p, bounce_point, step_size=self.step_size)
 
         # add some noise to the new direction
         theta = np.random.uniform(2 * np.pi)
@@ -213,48 +229,10 @@ class Planner:
 
         return to_points, new_direction
 
-    def random_direction(self):
-        theta = np.random.uniform(2 * np.pi)
-        return np.array([np.sin(theta), np.cos(theta)])
+    def yield_points(self):
+        yield from self.bounce(self.start_point)
 
-    def stationary_point(self, start_position, stationary_point, step_size=5):
-        yield from a_to_b_in_stepsize(
-            start_position, stationary_point, step_size=step_size
-        )
-        while True:
-            yield stationary_point
-
-    def calibration_run(self, current_p, step_size=5, y_bump=100):
-        start_p = np.array(tx_calibration_point)
-        max_y = np.max([x[1] for x in home_bounding_box])
-        direction_left = np.array([1, 0])  # ride the x dont change y
-        direction_right = np.array([-1, 0])  # ride the x dont change y
-
-        while True:
-            yield from a_to_b_in_stepsize(current_p, start_p, step_size=step_size)
-            current_p = start_p
-
-            while current_p[1] + y_bump < max_y:
-                # move to far wall
-                next_p, _ = self.get_bounce_pos_and_new_direction(
-                    current_p, direction_left
-                )
-                yield from a_to_b_in_stepsize(current_p, next_p, step_size=step_size)
-                current_p = next_p
-
-                # move a tiny bit down
-                next_p = current_p + np.array([0, y_bump])
-                yield from a_to_b_in_stepsize(current_p, next_p, step_size=step_size)
-                current_p = next_p
-
-                # move back
-                next_p, _ = self.get_bounce_pos_and_new_direction(
-                    current_p, direction_right
-                )
-                yield from a_to_b_in_stepsize(current_p, next_p, step_size=step_size)
-                current_p = next_p
-
-    def bounce(self, start_p, n_bounces):
+    def bounce(self, current_p):
         global run_grbl
         # if no previous direciton lets initialize one
         if self.current_direction is None:
@@ -266,20 +244,103 @@ class Planner:
         ) * self.current_direction + percent_random * self.random_direction()
         self.current_direction /= np.linalg.norm(self.current_direction)
 
-        n_bounce = 0
-        while n_bounce < n_bounces or n_bounces == -1:
+        while True:
             if not run_grbl:
                 logging.info("Exiting bounce early")
                 break
             to_points, new_direction = self.single_bounce(
-                self.current_direction, start_p
+                self.current_direction, current_p
             )
             assert len(to_points) > 0
             yield from to_points
-            start_p = to_points[-1]
+            current_p = to_points[-1]
             self.current_direction = new_direction
-            n_bounce += 1
         logging.info("Exiting bounce")
+
+
+class StationaryPlanner(Planner):
+    def __init__(self, dynamics, start_point, stationary_point, step_size=5):
+        super().__init__(
+            dynamics=dynamics, start_point=start_point, step_size=step_size
+        )
+        self.stationary_point = stationary_point
+
+    def yield_points(
+        self,
+    ):
+        # move to the stationary point
+        yield from a_to_b_in_stepsize(
+            self.start_position, self.stationary_point, step_size=self.step_size
+        )
+        # stay still
+        while True:
+            yield self.stationary_point
+
+
+class CalibrationCirclePlanner(Planner):
+    def __init__(
+        self,
+        dynamics,
+        start_point,
+        step_size=5,
+        circle_diameter=100,
+        circle_center=[0, 0],
+    ):
+        super().__init__(
+            dynamics=dynamics, start_point=start_point, step_size=step_size
+        )
+        self.circle_center = circle_center
+        self.circle_diameter = circle_diameter
+
+
+class CalibationV1Planner(Planner):
+    def __init__(
+        self, dynamics, start_point, stationary_point, step_size=5, y_bump=100
+    ):
+        super().__init__(
+            dynamics=dynamics, start_point=start_point, step_size=step_size
+        )
+        self.stationary_point = stationary_point
+        self.y_bump = y_bump
+
+    def yield_points(self):
+        start_p = np.array(tx_calibration_point)
+        max_y = np.max([x[1] for x in home_bounding_box])
+        direction_left = np.array([1, 0])  # ride the x dont change y
+        direction_right = np.array([-1, 0])  # ride the x dont change y
+
+        current_p = self.start_point
+
+        while True:
+            # get to the starting position
+            yield from a_to_b_in_stepsize(current_p, start_p, step_size=self.step_size)
+            current_p = start_p
+
+            while current_p[1] + self.y_bump < max_y:
+                # move to far wall
+                next_p, _ = self.get_bounce_pos_and_new_direction(
+                    current_p, direction_left
+                )
+                yield from a_to_b_in_stepsize(
+                    current_p, next_p, step_size=self.step_size
+                )
+                current_p = next_p
+
+                # move a tiny bit down
+                next_p = current_p + np.array([0, self.y_bump])
+                yield from a_to_b_in_stepsize(
+                    current_p, next_p, step_size=self.step_size
+                )
+                current_p = next_p
+
+                # move back
+                next_p, _ = self.get_bounce_pos_and_new_direction(
+                    current_p, direction_right
+                )
+                yield from a_to_b_in_stepsize(
+                    current_p, next_p, step_size=self.step_size
+                )
+                current_p = next_p
 
 
 class GRBLController:
