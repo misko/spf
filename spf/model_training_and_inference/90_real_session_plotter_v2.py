@@ -11,7 +11,6 @@ if __name__ == "__main__":
     parser.add_argument("--session-idx", type=int, required=True)
     parser.add_argument("--steps", type=int, required=False, default=3)
     parser.add_argument("--step-size", type=int, required=False, default=16)
-    parser.add_argument("-c", "--yaml-config", type=str, required=True)
     parser.add_argument("--duration", type=int, required=False, default=50)
     parser.add_argument(
         "--output_prefix", type=str, required=False, default="session_output"
@@ -23,7 +22,6 @@ if __name__ == "__main__":
         snapshots_in_session=args.snapshots_in_session,
         nsources=1,
         step_size=args.step_size,
-        # yaml_config_fn=args.yaml_config,
     )
     print(ds)
     print("DSLEN", ds.len)

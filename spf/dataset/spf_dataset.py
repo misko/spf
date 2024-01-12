@@ -36,6 +36,10 @@ from spf.wall_array_v2 import (
 )
 
 
+def pi_norm(x):
+    return ((x + np.pi) % (2 * np.pi)) - np.pi
+
+
 # from Stackoverflow
 def yaml_as_dict(my_file):
     my_dict = {}
@@ -314,7 +318,6 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
     def __init__(
         self,
         root_dir,
-        yaml_config_fn=None,
         snapshots_in_session=128,
         nsources=1,
         step_size=1,
@@ -419,7 +422,7 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
             tx_positions_at_t - rx_position_at_t[:, None]
         )  # broadcast over nsource dimension
         # diffs=(batchsize, nsources, 2)
-        source_theta_at_t = (
+        source_theta_at_t = pi_norm(
             np.arctan2(diffs[:, 0, [0]], diffs[:, 0, [1]]) - rx_orientation_at_t
         )  # rotation to the right around x=0, y+
 

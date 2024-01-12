@@ -217,9 +217,12 @@ class Planner:
         theta = np.random.uniform(2 * np.pi)
         return np.array([np.sin(theta), np.cos(theta)])
 
-    def stationary_point(self, p):
+    def stationary_point(self, start_position, stationary_point, step_size=5):
+        yield from a_to_b_in_stepsize(
+            start_position, stationary_point, step_size=step_size
+        )
         while True:
-            yield p
+            yield stationary_point
 
     def calibration_run(self, current_p, step_size=5, y_bump=100):
         start_p = np.array(tx_calibration_point)
@@ -422,7 +425,9 @@ class GRBLManager:
     def calibrate(self):
         start_positions = self.controller.update_status()["xy"]
         points_by_channel = {
-            0: self.planners[0].stationary_point(np.array(rx_calibration_point)),
+            0: self.planners[0].stationary_point(
+                start_positions[0], np.array(rx_calibration_point)
+            ),
             1: self.planners[1].calibration_run(start_positions[1]),
         }
         self.controller.move_to_iter(points_by_channel)

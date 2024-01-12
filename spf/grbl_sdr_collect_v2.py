@@ -72,7 +72,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 
 class ThreadedRX:
-    def __init__(self, pplus, time_offse, nthetas):
+    def __init__(self, pplus, time_offset, nthetas):
         self.pplus = pplus
         self.read_lock = threading.Lock()
         self.ready_lock = threading.Lock()
@@ -140,12 +140,14 @@ def grbl_thread_runner(gm, planner):
     direction = None
     global run_collection
     while run_collection:
-        logging.info("TRY TO BOUNCE")
+        logging.info("GRBL thread runner")
         try:
             if planner == "bounce":
                 gm.bounce(-1, direction=direction)
             elif planner == "calibration":
                 gm.calibrate()
+            else:
+                raise ValueError(f"Unknown grbl planner f{planner}")
         except Exception as e:
             logging.error(e)
         if not run_collection:
@@ -271,8 +273,13 @@ if __name__ == "__main__":
                 # leave_tx_on=False,
                 # using_tx_already_on=None,
             )
-            logging.debug("RX online!")
-            receiver_pplus.append(pplus_rx)
+            if pplus_rx is None or pplus_tx is None:
+                logging.info("Failed to bring RXTX online, shuttingdown")
+                run_collection=False
+                break
+            else:
+                logging.debug("RX online!")
+                receiver_pplus.append(pplus_rx)
 
     if run_collection:
         # setup the emitter
@@ -325,6 +332,8 @@ if __name__ == "__main__":
     time_offset = time.time()
     if run_collection:
         for pplus_rx in receiver_pplus:
+            if pplus_rx == None:
+                continue
             read_thread = ThreadedRX(
                 pplus_rx, time_offset, nthetas=yaml_config["n-thetas"]
             )
