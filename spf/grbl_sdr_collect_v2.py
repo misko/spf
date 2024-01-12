@@ -10,20 +10,15 @@ from datetime import datetime
 
 import numpy as np
 import yaml
-from grbl.grbl_interactive import get_default_gm, stop_grbl
 from tqdm import tqdm
 
+from grbl.grbl_interactive import get_default_gm, stop_grbl
 from spf.rf import beamformer
-from spf.sdrpluto.sdr_controller import (
-    EmitterConfig,
-    ReceiverConfig,
-    get_avg_phase,
-    get_pplus,
-    plot_recv_signal,
-    setup_rxtx,
-    setup_rxtx_and_phase_calibration,
-    shutdown_radios,
-)
+from spf.sdrpluto.sdr_controller import (EmitterConfig, ReceiverConfig,
+                                         get_avg_phase, get_pplus,
+                                         plot_recv_signal, setup_rxtx,
+                                         setup_rxtx_and_phase_calibration,
+                                         shutdown_radios)
 from spf.wall_array_v2 import v2_column_names
 
 faulthandler.enable()
@@ -149,6 +144,8 @@ def grbl_thread_runner(gm, routine):
                 if routine in gm.routines:
                     logging.info(f"RUNNING ROUTINE {routine}")
                     gm.routines[routine]()
+                    gm.get_ready()
+                    gm.run()
                 else:
                     raise ValueError(f"Unknown grbl routine f{routine}")
             except Exception as e:
@@ -339,11 +336,15 @@ if __name__ == "__main__":
     if run_collection:
         if args.grbl_serial is not None:
             gm = get_default_gm(args.grbl_serial)
+            gm.routines[yaml_config["routine"]]()  # setup run
+            logging.info("Waiting for GRBL to get into position")
+            gm.get_ready()  # move into position
             gm_thread = threading.Thread(
                 target=grbl_thread_runner, args=(gm, yaml_config["routine"])
             )
             gm_thread.start()
 
+    time.sleep(0.2)
     # setup read threads
     read_threads = []
     time_offset = time.time()

@@ -1,5 +1,6 @@
 import logging
 import sys
+import threading
 import time
 from abc import ABC, abstractmethod
 
@@ -306,7 +307,7 @@ class CirclePlanner(Planner):
         self.angle_increment = chord_length_to_angle(self.step_size, self.circle_radius)
 
     def get_planner_start_position(self):
-        return circle_center
+        return self.angle_to_pos(0)
 
     def angle_to_pos(self, angle):
         return self.circle_center + self.circle_radius * np.array(
@@ -495,9 +496,10 @@ class GRBLController:
             self.move_to(next_points)
             while self.targets_far_out(next_points):
                 time.sleep(0.1)
-            if previous_points is not None:
-                breakpoint()
-                a = 1
+            if previous_points is not None and return_once_stopped:
+                if np.all([next_points[x] == previous_points[x] for x in next_points]):
+                    return
+            previous_points = next_points
 
     def close(self):
         self.s.close()
@@ -524,15 +526,38 @@ class GRBLManager:
             "tx_circle": self.tx_circle,
             "bounce": self.bounce,
         }
+        self.ready = threading.Lock()
+        self.ready.acquire()
 
-    def run(self):
+    def get_ready(self):
         # default start points are the current start points
-        start_points = gm.controller.position["xy"]
+        self.requested_start_points = self.controller.position["xy"][:]  # make a copy
         for c in self.channels:
             requested_point = self.planners[c].get_planner_start_position()
             if requested_point is not None:
-                start_points[c] = requested_point
-        breakpoint()
+                self.requested_start_points[c] = requested_point
+
+        logging.info("Moving into position")
+        # planners to move into place
+        move_into_place_planners = {
+            c_idx: StationaryPlanner(
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][c_idx],
+                stationary_point=self.requested_start_points[c_idx],
+            ).yield_points()
+            for c_idx in range(len(self.planners))
+        }
+        self.controller.move_to_iter(move_into_place_planners, return_once_stopped=True)
+        # wait for finish moving
+        while run_grbl and self.controller.position["is_moving"]:
+            self.controller.update_status()
+            time.sleep(0.1)
+
+    def run(self):
+        # planners to run routine
+        logging.info("Running routine")
+        for c_idx in range(len(self.planners)):
+            self.planners[c_idx].start_point = self.requested_start_points[c_idx]
         points_by_channel = {c: self.planners[c].yield_points() for c in self.channels}
         self.controller.move_to_iter(points_by_channel)
 
@@ -544,6 +569,7 @@ class GRBLManager:
             )
             for c_idx in range(len(self.planners))
         ]
+        yield self.get_ready()
         self.run()
 
     def tx_circle(self):
@@ -560,7 +586,6 @@ class GRBLManager:
                 circle_center=circle_center,
             ),
         ]
-        self.run()
 
     def rx_circle(self):
         self.planners = [
@@ -576,7 +601,6 @@ class GRBLManager:
                 stationary_point=circle_center,
             ),
         ]
-        self.run()
 
     def v1_calibrate(self):
         self.planners = [
@@ -589,7 +613,6 @@ class GRBLManager:
                 self.controller.dynamics, start_point=self.controller.position["xy"][1]
             ),
         ]
-        self.run()
 
 
 def get_default_gm(serial_fn):
@@ -636,6 +659,8 @@ if __name__ == "__main__":
         line = line.strip()
         if line in gm.routines:
             gm.routines[line]()
+            gm.get_ready()
+            gm.run()
         elif line == "q":
             sys.exit(1)
         elif line == "s":
