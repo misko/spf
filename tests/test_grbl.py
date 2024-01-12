@@ -5,8 +5,8 @@ import numpy as np
 from shapely import geometry
 
 from spf.grbl.grbl_interactive import (
+    BouncePlanner,
     Dynamics,
-    Planner,
     home_bounding_box,
     home_calibration_point,
     home_pA,
@@ -98,7 +98,7 @@ def test_binary_search_edge():
         pB=home_pB,
         bounding_box=home_bounding_box,
     )
-    planner = Planner(dynamics)
+    planner = BouncePlanner(dynamics, start_point=[0, 0])
 
     direction = np.array([3, 1])
     p = np.array([1500, 900])

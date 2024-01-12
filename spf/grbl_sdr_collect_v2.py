@@ -136,23 +136,26 @@ class ThreadedRX:
         logging.info(f"{str(self.pplus.rx_config.uri)} PPlus read_forever() exit!")
 
 
-def grbl_thread_runner(gm, planner):
-    direction = None
+def grbl_thread_runner(gm, routine):
     global run_collection
     while run_collection:
         logging.info("GRBL thread runner")
-        try:
-            if planner == "bounce":
-                gm.bounce(-1, direction=direction)
-            elif planner == "calibration":
-                gm.calibrate()
-            else:
-                raise ValueError(f"Unknown grbl planner f{planner}")
-        except Exception as e:
-            logging.error(e)
+        if routine is None:
+            logging.info("No routine to run, just spining")
+            while run_collection:
+                time.sleep(0.5)
+        else:
+            try:
+                if routine in gm.routines:
+                    logging.info(f"RUNNING ROUTINE {routine}")
+                    gm.routines[routine]()
+                else:
+                    raise ValueError(f"Unknown grbl routine f{routine}")
+            except Exception as e:
+                logging.error(e)
         if not run_collection:
             break
-        logging.info("TRY TO BOUNCE RET")
+        logging.info("GRBL thread runner loop")
         time.sleep(10)  # cool off the motor
     logging.info("Exiting GRBL thread")
 
@@ -173,6 +176,9 @@ if __name__ == "__main__":
         help="Logging level",
         default="INFO",
         required=False,
+    )
+    parser.add_argument(
+        "-r", "--routine", type=str, help="GRBL routine", required=False, default=None
     )
     parser.add_argument(
         "-s",
@@ -197,7 +203,11 @@ if __name__ == "__main__":
     with open(args.yaml_config, "r") as stream:
         yaml_config = yaml.safe_load(stream)
 
-    output_files_prefix = f"wallarrayv2_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['planner']}"
+    # add in our current config
+    if args.routine is not None:
+        yaml_config["routine"] = args.routine
+
+    output_files_prefix = f"wallarrayv2_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
 
     # setup logging
     logging.basicConfig(
@@ -208,33 +218,40 @@ if __name__ == "__main__":
         format="%(asctime)s:%(levelname)s:%(message)s",
         level=getattr(logging, args.logging_level.upper(), None),
     )
+    if args.grbl_serial is None:
+        logging.info("Running without GRBL SERIAL!!")
+        for x in range(50):
+            if not run_collection:
+                break
+            time.sleep(0.1)
 
-    with open(f"{output_files_prefix}.yaml", "w") as outfile:
-        yaml.dump(yaml_config, outfile, default_flow_style=False)
+    if run_collection:
+        with open(f"{output_files_prefix}.yaml", "w") as outfile:
+            yaml.dump(yaml_config, outfile, default_flow_style=False)
 
-    # record matrix
-    column_names = v2_column_names(nthetas=yaml_config["n-thetas"])
-    record_matrix = np.memmap(
-        f"{output_files_prefix}.npy",
-        dtype="float32",
-        mode="w+",
-        shape=(
-            2,  # TODO should be nreceivers
-            yaml_config["n-records-per-receiver"],
-            len(column_names),
-        ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
-    )
+        # record matrix
+        column_names = v2_column_names(nthetas=yaml_config["n-thetas"])
+        record_matrix = np.memmap(
+            f"{output_files_prefix}.npy",
+            dtype="float32",
+            mode="w+",
+            shape=(
+                2,  # TODO should be nreceivers
+                yaml_config["n-records-per-receiver"],
+                len(column_names),
+            ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
+        )
 
-    logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
+        logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
 
-    # lets open all the radios
-    radio_uris = ["ip:%s" % yaml_config["emitter"]["receiver-ip"]]
-    for receiver in yaml_config["receivers"]:
-        radio_uris.append("ip:%s" % receiver["receiver-ip"])
-    for radio_uri in radio_uris:
-        get_pplus(uri=radio_uri)
+        # lets open all the radios
+        radio_uris = ["ip:%s" % yaml_config["emitter"]["receiver-ip"]]
+        for receiver in yaml_config["receivers"]:
+            radio_uris.append("ip:%s" % receiver["receiver-ip"])
+        for radio_uri in radio_uris:
+            get_pplus(uri=radio_uri)
 
-    time.sleep(0.1)
+        time.sleep(0.1)
 
     # get radios online
     receiver_pplus = []
@@ -275,7 +292,7 @@ if __name__ == "__main__":
             )
             if pplus_rx is None or pplus_tx is None:
                 logging.info("Failed to bring RXTX online, shuttingdown")
-                run_collection=False
+                run_collection = False
                 break
             else:
                 logging.debug("RX online!")
@@ -323,7 +340,7 @@ if __name__ == "__main__":
         if args.grbl_serial is not None:
             gm = get_default_gm(args.grbl_serial)
             gm_thread = threading.Thread(
-                target=grbl_thread_runner, args=(gm, yaml_config["planner"])
+                target=grbl_thread_runner, args=(gm, yaml_config["routine"])
             )
             gm_thread.start()
 
@@ -332,7 +349,7 @@ if __name__ == "__main__":
     time_offset = time.time()
     if run_collection:
         for pplus_rx in receiver_pplus:
-            if pplus_rx == None:
+            if pplus_rx is None:
                 continue
             read_thread = ThreadedRX(
                 pplus_rx, time_offset, nthetas=yaml_config["n-thetas"]

@@ -28,6 +28,10 @@ max_circle_diameter = 2000
 run_grbl = True
 
 
+def chord_length_to_angle(chord_length, radius):
+    return 2 * np.arcsin(chord_length / (2 * radius))
+
+
 def stop_grbl():
     logging.info("STOP GRBL")
     global run_grbl
@@ -64,13 +68,13 @@ def a_to_b_in_stepsize(a, b, step_size):
     if np.isclose(a, b).all():
         return [b]
     # move by step_size from where we are now to the target position
-    points = [a]
+    points = []
     direction = (b - a) / np.linalg.norm(b - a)
     distance = np.linalg.norm(b - a)
-    _l = 0
+    _l = step_size
     while _l < distance:
         points.append(_l * direction + a)
-        _l = _l + step_size
+        _l += step_size
     points.append(b)
     return points
 
@@ -232,7 +236,7 @@ class BouncePlanner(Planner):
     def yield_points(self):
         yield from self.bounce(self.start_point)
 
-    def bounce(self, current_p):
+    def bounce(self, current_p, total_bounces=-1):
         global run_grbl
         # if no previous direciton lets initialize one
         if self.current_direction is None:
@@ -244,7 +248,8 @@ class BouncePlanner(Planner):
         ) * self.current_direction + percent_random * self.random_direction()
         self.current_direction /= np.linalg.norm(self.current_direction)
 
-        while True:
+        n_bounce = 0
+        while total_bounces < 0 or n_bounce < total_bounces:
             if not run_grbl:
                 logging.info("Exiting bounce early")
                 break
@@ -255,6 +260,7 @@ class BouncePlanner(Planner):
             yield from to_points
             current_p = to_points[-1]
             self.current_direction = new_direction
+            n_bounce += 1
         logging.info("Exiting bounce")
 
 
@@ -270,27 +276,49 @@ class StationaryPlanner(Planner):
     ):
         # move to the stationary point
         yield from a_to_b_in_stepsize(
-            self.start_position, self.stationary_point, step_size=self.step_size
+            self.start_point, self.stationary_point, step_size=self.step_size
         )
         # stay still
         while True:
             yield self.stationary_point
 
 
-class CalibrationCirclePlanner(Planner):
+class CirclePlanner(Planner):
     def __init__(
         self,
         dynamics,
         start_point,
         step_size=5,
-        circle_diameter=100,
+        circle_diameter=max_circle_diameter,
         circle_center=[0, 0],
     ):
         super().__init__(
             dynamics=dynamics, start_point=start_point, step_size=step_size
         )
         self.circle_center = circle_center
-        self.circle_diameter = circle_diameter
+        self.circle_radius = circle_diameter / 2
+        self.angle_increment = chord_length_to_angle(self.step_size, self.circle_radius)
+
+    def angle_to_pos(self, angle):
+        return self.circle_center + self.circle_radius * np.array(
+            [-np.sin(angle), np.cos(angle)]
+        )
+
+    def yield_points(self):
+        # start at the top of the circle
+        current_p = self.start_point
+
+        # start at the top
+        current_angle = 0
+        while current_angle < 360:
+            next_p = self.angle_to_pos(current_angle)
+            yield from a_to_b_in_stepsize(
+                current_p,
+                next_p,
+                step_size=self.step_size,
+            )
+            current_p = next_p
+            current_angle += self.angle_increment
 
 
 class CalibationV1Planner(Planner):
@@ -453,7 +481,7 @@ class GRBLController:
                 break
             self.move_to(next_points)
             while self.targets_far_out(next_points):
-                pass
+                time.sleep(0.1)
 
     def close(self):
         self.s.close()
@@ -470,28 +498,75 @@ def get_next_points(channel_iterators):
 
 
 class GRBLManager:
-    def __init__(self, controller, planners):
+    def __init__(self, controller):
         self.controller = controller
         self.channels = list(self.controller.channel_to_motor_map.keys())
-        self.planners = planners
-
-    def bounce(self, n_bounces, direction=None):
-        start_positions = self.controller.update_status()["xy"]
-        points_by_channel = {
-            c: self.planners[c].bounce(start_positions[c], n_bounces)
-            for c in self.channels
+        self.planners = [None for x in self.channels]
+        self.routines = {
+            "v1_calibrate": self.v1_calibrate,
+            "rx_circle": self.rx_circle,
+            "tx_circle": self.tx_circle,
+            "bounce": self.bounce,
         }
+
+    def run(self):
+        points_by_channel = {c: self.planners[c].yield_points() for c in self.channels}
         self.controller.move_to_iter(points_by_channel)
 
-    def calibrate(self):
-        start_positions = self.controller.update_status()["xy"]
-        points_by_channel = {
-            0: self.planners[0].stationary_point(
-                start_positions[0], np.array(rx_calibration_point)
+    def bounce(self):
+        self.planners = [
+            BouncePlanner(
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][c_idx],
+            )
+            for c_idx in range(len(self.planners))
+        ]
+        self.run()
+
+    def tx_circle(self):
+        self.planners = [
+            StationaryPlanner(
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][0],
+                stationary_point=circle_center,
             ),
-            1: self.planners[1].calibration_run(start_positions[1]),
-        }
-        self.controller.move_to_iter(points_by_channel)
+            CirclePlanner(
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][1],
+                circle_diameter=max_circle_diameter,
+                circle_center=circle_center,
+            ),
+        ]
+        self.run()
+
+    def rx_circle(self):
+        self.planners = [
+            CirclePlanner(
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][0],
+                circle_diameter=max_circle_diameter,
+                circle_center=circle_center,
+            ),
+            StationaryPlanner(
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][1],
+                stationary_point=circle_center,
+            ),
+        ]
+        self.run()
+
+    def v1_calibrate(self):
+        self.planners = [
+            StationaryPlanner(
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][0],
+                stationary_point=rx_calibration_point,
+            ),
+            BouncePlanner(
+                self.controller.dynamics, start_point=self.controller.position["xy"][1]
+            ),
+        ]
+        self.run()
 
 
 def get_default_gm(serial_fn):
@@ -502,13 +577,13 @@ def get_default_gm(serial_fn):
         bounding_box=home_bounding_box,
     )
 
-    planners = {0: Planner(dynamics), 1: Planner(dynamics)}
+    # planners = {0: Planner(dynamics), 1: Planner(dynamics)}
 
     controller = GRBLController(
         serial_fn, dynamics, channel_to_motor_map={0: "XY", 1: "ZA"}
     )
 
-    return GRBLManager(controller, planners)
+    return GRBLManager(controller)
 
 
 if __name__ == "__main__":
@@ -520,37 +595,41 @@ if __name__ == "__main__":
 
     gm = get_default_gm(serial_fn)
 
+    if gm.controller.position["is_moving"]:
+        print("Waiting for grbl to stop moving before starting...")
+        while gm.controller.position["is_moving"]:
+            time.sleep(0.1)
+            gm.controller.update_status()
     print(
-        """
-        q = quit
-        bounce = bounce
+        """q = quit
         s = status
         X,Y = move to X,Y
-    """
+
+        Routines:"""
     )
+    for k in gm.routines:
+        print("        ", k)
     for line in sys.stdin:
         line = line.strip()
-        if line == "q":
+        if line in gm.routines:
+            gm.routines[line]()
+        elif line == "q":
             sys.exit(1)
-        elif line == "bounce":
-            # gm.bounce(20000)
-            gm.bounce(40)
-        elif line == "calibrate":
-            gm.calibrate()
         elif line == "s":
             p = gm.controller.update_status()
             print(p)
         else:
-            current_positions = gm.controller.update_status()["xy"]
-            p_main = np.array([float(x) for x in line.split()])
-            if True:
-                points_iter = {
-                    c: iter(a_to_b_in_stepsize(current_positions[c], p_main, 5))
-                    for c in [0, 1]
-                }
-                gm.controller.move_to_iter(points_iter)
-            # except ValueError:
-            #    print("Position is out of bounds!")
+            points_iter = {
+                c: iter(
+                    a_to_b_in_stepsize(
+                        gm.controller.update_status()["xy"][c],
+                        np.array([float(x) for x in line.split()]),
+                        5,
+                    )
+                )
+                for c in [0, 1]
+            }
+            gm.controller.move_to_iter(points_iter)
         time.sleep(0.01)
 
     gm.close()

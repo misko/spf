@@ -57,5 +57,5 @@ output-file: wallarrayv2___DATE__.npy
 n-thetas: 65
 n-records-per-receiver: 300000
 width: 4000
-planner: calibration
+routine: null
  
