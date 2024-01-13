@@ -15,10 +15,10 @@ home_bounding_box = np.array(
     [
         [300, 400],
         [3100, 400],
-        [3100, 3050],
+        [2900, 3050],
         [1900, 3000],
-        [800, 2000],
-        [300, 500],
+        [900, 2000],
+        [300, 450],
     ]
 )
 rx_calibration_point = np.array([1900, 3000])
@@ -80,6 +80,13 @@ def a_to_b_in_stepsize(a, b, step_size):
     return points
 
 
+
+class BoundingBoxIsNonConvexException(Exception):
+    pass
+
+class PointOutOfBoundsException(Exception):
+    pass
+
 class Dynamics:
     def __init__(self, calibration_point, pA, pB, bounding_box):
         self.calibration_point = calibration_point
@@ -97,7 +104,7 @@ class Dynamics:
                         map(str, [bounding_box[x] for x in np.unique(hull.simplices)])
                     )
                 )
-                raise ValueError
+                raise BoundingBoxIsNonConvex()
             self.polygon = pltpath.Path(bounding_box)
         else:
             self.polygon = None
@@ -140,7 +147,7 @@ class Dynamics:
         if (self.polygon is not None) and not self.polygon.contains_point(
             p, radius=0.00001
         ):  # todo a bit hacky but works
-            raise ValueError
+            raise PointOutOfBoundsException("Point we want to move to will be out of bounds")
         # motor_steps = ( distance_between_pivot and point ) - (distance between pivot and calibration point)
         a_motor_steps = np.linalg.norm(self.pA - p) - np.linalg.norm(
             self.pA - self.calibration_point
@@ -148,6 +155,13 @@ class Dynamics:
         b_motor_steps = np.linalg.norm(self.pB - p) - np.linalg.norm(
             self.pB - self.calibration_point
         )
+        # check the point again
+        new_point = self.from_steps(a_motor_steps,b_motor_steps)
+        if (self.polygon is not None) and not self.polygon.contains_point(
+            new_point, radius=0.00001
+        ):  # todo a bit hacky but works
+            raise PointOutOfBoundsException("Inverted point is out of bounds")
+        
         return a_motor_steps, b_motor_steps
 
     def binary_search_edge(self, left, right, xy, direction, epsilon):
@@ -159,7 +173,7 @@ class Dynamics:
             steps = self.to_steps(p)  # noqa
             # actual = self.from_steps(*steps)
             return self.binary_search_edge(midpoint, right, xy, direction, epsilon)
-        except ValueError:
+        except PointOutOfBoundsException:
             return self.binary_search_edge(left, midpoint, xy, direction, epsilon)
 
     def get_boundary_vector_near_point(self, p):
