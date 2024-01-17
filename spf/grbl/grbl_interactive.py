@@ -345,14 +345,13 @@ class CirclePlanner(Planner):
             current_angle += self.angle_increment
 
 
-class CalibationV1Planner(Planner):
+class CalibrationV1Planner(Planner):
     def __init__(
-        self, dynamics, start_point, stationary_point, step_size=5, y_bump=100
+        self, dynamics, start_point, step_size=5, y_bump=100
     ):
         super().__init__(
             dynamics=dynamics, start_point=start_point, step_size=step_size
         )
-        self.stationary_point = stationary_point
         self.y_bump = y_bump
 
     def get_planner_start_position(self):
@@ -583,8 +582,6 @@ class GRBLManager:
             )
             for c_idx in range(len(self.planners))
         ]
-        yield self.get_ready()
-        self.run()
 
     def tx_circle(self):
         self.planners = [
@@ -623,8 +620,8 @@ class GRBLManager:
                 start_point=self.controller.position["xy"][0],
                 stationary_point=rx_calibration_point,
             ),
-            BouncePlanner(
-                self.controller.dynamics, start_point=self.controller.position["xy"][1]
+            CalibrationV1Planner(
+                self.controller.dynamics, start_point=self.controller.position["xy"][1], 
             ),
         ]
 
