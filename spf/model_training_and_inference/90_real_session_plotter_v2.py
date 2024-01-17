@@ -1,7 +1,8 @@
 import argparse
+from pathlib import Path
 
 from spf.dataset.spf_dataset import SessionsDatasetRealV2
-from spf.plot.plot import filenames_to_gif, plot_full_session
+from spf.plot.plot import filenames_to_gif, plot_full_session, plot_full_session_v2
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -13,9 +14,13 @@ if __name__ == "__main__":
     parser.add_argument("--step-size", type=int, required=False, default=16)
     parser.add_argument("--duration", type=int, required=False, default=50)
     parser.add_argument(
-        "--output_prefix", type=str, required=False, default="session_output"
+        "--output-folder", type=Path, required=False, default="tmp_v2plotter"
     )
     args = parser.parse_args()
+
+    args.output_folder.mkdir(parents=True, exist_ok=True)
+    output_prefix = f"{args.output_folder}/s{args.session_idx}_steps{args.steps}_ssize{args.step_size}"
+
     assert args.snapshots_in_session >= args.steps
     ds = SessionsDatasetRealV2(
         root_dir=args.root_dir,
@@ -23,10 +28,26 @@ if __name__ == "__main__":
         nsources=1,
         step_size=args.step_size,
     )
-    print(ds)
-    print("DSLEN", ds.len)
 
-    session = ds[args.session_idx]
-    filenames = plot_full_session(session, args.steps, args.output_prefix, invert=True)
-
-    filenames_to_gif(filenames, "%s.gif" % args.output_prefix, duration=args.duration)
+    if ds.n_receivers == 1:
+        filenames = plot_full_session_v2(
+            ds[args.session_idx],
+            args.steps,
+            output_prefix,
+            invert=True,
+        )
+        filenames_to_gif(filenames, f"{output_prefix}.gif", duration=args.duration)
+    else:
+        sessions = [
+            ds[0, args.session_idx],
+            ds[1, args.session_idx],
+        ]
+        filenames = plot_full_session_v2(
+            sessions,
+            args.steps,
+            output_prefix,
+            invert=True,
+        )
+        filenames_to_gif(
+            filenames, f"{output_prefix}.gif", duration=args.duration, size=(900, 600)
+        )

@@ -355,6 +355,7 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
 
         # in case we need them later generate the offsets from the
         # RX center for antenna 0 and antenna 1
+        self.n_receivers = len(yaml_config["receivers"])
         self.rx_antenna_offsets = []
         for receiver in yaml_config["receivers"]:
             self.rx_antenna_offsets.append(
@@ -393,10 +394,20 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
         self.halfpis = -np.ones((self.snapshots_in_session, 1)) * np.pi / 2
 
     def __getitem__(self, idx):
+        if idx is None:
+            return None
+        if type(idx) is tuple:
+            # need to figure out which receiver A/B we are using here
+            fileidx, unadjusted_startidx = self.idx_to_fileidx_and_startidx(idx[1])
+            sessions_per_receiver = self.sessions_per_file[fileidx] // 2
+            if idx[1] < 0 or idx[1] >= sessions_per_receiver:
+                raise IndexError
+            return self[idx[0] * sessions_per_receiver + idx[1]]
         if idx < 0 or idx >= self.len:
             raise IndexError
-        fileidx, unadjusted_startidx = self.idx_to_fileidx_and_startidx(idx)
+
         # need to figure out which receiver A/B we are using here
+        fileidx, unadjusted_startidx = self.idx_to_fileidx_and_startidx(idx)
         sessions_per_receiver = self.sessions_per_file[fileidx] // 2
 
         receiver_idx = 0  # assume A

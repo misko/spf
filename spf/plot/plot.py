@@ -355,28 +355,147 @@ def plot_lines(session, steps, output_prefix):
     return filenames
 
 
+# plot a single frame of positions
+def plot_position_map(ax, session, idx):
+    width = session["width_at_t"][0][0]
+
+    #  direction of array , anti-direction of array, direction towards emitter
+    direction = session["detector_position_at_t"][idx] + 0.25 * session["width_at_t"][
+        0
+    ] * get_xy_from_theta(session["detector_orientation_at_t"][idx])
+    anti_direction = session["detector_position_at_t"][idx] + 0.25 * session[
+        "width_at_t"
+    ][0] * get_xy_from_theta(session["detector_orientation_at_t"][idx] + np.pi / 2)
+
+    # plot a line to emitter direction
+    emitter_direction = (
+        0.25
+        * session["width_at_t"][0]
+        * get_xy_from_theta(
+            session["detector_orientation_at_t"][idx]
+            + session["source_theta_at_t"][idx]
+        )
+    )
+
+    ax.plot(
+        [session["detector_position_at_t"][idx][0], direction[0, 0]],
+        [session["detector_position_at_t"][idx][1], direction[0, 1]],
+        label="detector boresight",
+    )
+
+    ax.plot(
+        [session["detector_position_at_t"][idx][0], anti_direction[0, 0]],
+        [session["detector_position_at_t"][idx][1], anti_direction[0, 1]],
+    )
+
+    ax.plot(
+        [
+            session["detector_position_at_t"][idx][0],
+            session["detector_position_at_t"][idx][0] + emitter_direction[0, 0],
+        ],
+        [
+            session["detector_position_at_t"][idx][1],
+            session["detector_position_at_t"][idx][1] + emitter_direction[0, 1],
+        ],
+    )
+
+    # plot detector trajectory
+    ax.set_title("Position map")
+    plot_trajectory(
+        ax,
+        session["detector_position_at_t"][: idx + 1],
+        width,
+        ms=30,
+        label="detector",
+    )
+    # plot trajectory of sources
+    for n in np.arange(session["source_positions_at_t"].shape[1]):
+        rings = session["broadcasting_positions_at_t"][idx, n, 0] == 1
+        plot_trajectory(
+            ax,
+            session["source_positions_at_t"][: idx + 1, n],
+            width,
+            ms=15,
+            c="r",
+            rings=rings,
+            label="emitter %d" % n,
+        )
+
+    handles, labels = ax.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax.legend(by_label.values(), by_label.keys())
+
+
+def plot_full_session_v2(sessions, steps, output_prefix, img_width=128, invert=False):
+    width = sessions[0]["width_at_t"][0][0]
+
+    filenames = []
+    plt.ioff()
+    for idx in np.arange(1, steps):
+        fig = plt.figure(figsize=(18, 6 * len(sessions)))
+        axs = fig.subplots(len(sessions), 3)
+        for _a in [0, 1]:
+            for _b in [0, 1]:
+                if _a == 0 and _b == 1:
+                    continue
+                axs[_a, _b].set_xlabel("X (m)")
+                axs[_a, _b].set_ylabel("Y (m)")
+
+        for session_idx in range(len(sessions)):
+            plot_position_map(axs[session_idx, 0], sessions[session_idx], idx)
+
+            # PLOT RADIO IMAGE OF BEAMFORMER
+            detector_theta_image_at_t = detector_positions_to_theta_grid(
+                sessions[session_idx]["detector_position_at_t"][None],
+                width,
+                img_width=img_width,
+            )[0]
+            radio_image_at_t = radio_to_image(
+                sessions[session_idx]["beam_former_outputs_at_t"][None],
+                detector_theta_image_at_t[None],
+                sessions[session_idx]["detector_orientation_at_t"][None],
+            )[0]
+            radio_image_at_t_normed = radio_image_at_t / radio_image_at_t.sum(
+                axis=2, keepdims=True
+            ).sum(axis=3, keepdims=True)
+            axs[session_idx, 1].imshow(radio_image_at_t_normed[idx, 0].T)
+            axs[session_idx, 1].set_title("Radio feature at t=%d" % idx)
+
+            # PLOT BEAMFORMER
+            axs[session_idx, 2].plot(
+                sessions[session_idx]["thetas_at_t"][idx],
+                sessions[session_idx]["beam_former_outputs_at_t"][idx],
+                label="Beamformer output",
+            )
+            axs[session_idx, 2].axvline(
+                x=sessions[session_idx]["source_theta_at_t"][idx, 0],
+                c="r",
+                label="Ground truth",
+            )
+            axs[session_idx, 2].legend()
+            axs[session_idx, 2].set_title("Beamformer output at t=%d" % idx)
+            axs[session_idx, 2].set_xlabel("Theta (rel. to detector)")
+            axs[session_idx, 2].set_ylabel("Signal strength")
+
+            if invert:
+                axs[session_idx, 0].invert_xaxis()
+                axs[session_idx, 0].invert_yaxis()
+                axs[session_idx, 1].invert_xaxis()
+            else:
+                axs[session_idx, 1].invert_yaxis()
+
+        fn = "%s_%04d.png" % (output_prefix, idx)
+        filenames.append(fn)
+        fig.savefig(fn)
+        plt.close(fig)
+    plt.ion()
+    return filenames
+
+
 # generate the images for the session
 def plot_full_session(session, steps, output_prefix, img_width=128, invert=False):
     width = session["width_at_t"][0][0]
 
-    # extract the images
-    d = {}
-    d["source_image_at_t"] = labels_to_source_images(
-        torch.from_numpy(session["source_positions_at_t"])[None],
-        width,
-        img_width=img_width,
-    )[0]
-    d["detector_theta_image_at_t"] = detector_positions_to_theta_grid(
-        session["detector_position_at_t"][None], width, img_width=img_width
-    )[0]
-    d["radio_image_at_t"] = radio_to_image(
-        session["beam_former_outputs_at_t"][None],
-        d["detector_theta_image_at_t"][None],
-        session["detector_orientation_at_t"][None],
-    )[0]
-    d["radio_image_at_t_normed"] = d["radio_image_at_t"] / d["radio_image_at_t"].sum(
-        axis=2, keepdims=True
-    ).sum(axis=3, keepdims=True)
     filenames = []
     plt.ioff()
     for idx in np.arange(1, steps):
@@ -389,78 +508,30 @@ def plot_full_session(session, steps, output_prefix, img_width=128, invert=False
                 axs[_a, _b].set_xlabel("X (m)")
                 axs[_a, _b].set_ylabel("Y (m)")
 
-        # PLOT GROUND TRUTH IN 0,0
-        #  direction of array , anti-direction of array, direction towards emitter
-        direction = session["detector_position_at_t"][idx] + 0.25 * session[
-            "width_at_t"
-        ][0] * get_xy_from_theta(session["detector_orientation_at_t"][idx])
-        anti_direction = session["detector_position_at_t"][idx] + 0.25 * session[
-            "width_at_t"
-        ][0] * get_xy_from_theta(session["detector_orientation_at_t"][idx] + np.pi / 2)
-        # plot a line to emitter direction
-        emitter_direction = (
-            0.25
-            * session["width_at_t"][0]
-            * get_xy_from_theta(
-                session["detector_orientation_at_t"][idx]
-                + session["source_theta_at_t"][idx]
-            )
-        )
-
-        axs[0, 0].set_title("Position map")
-        plot_trajectory(
-            axs[0, 0],
-            session["detector_position_at_t"][: idx + 1],
-            width,
-            ms=30,
-            label="detector",
-        )
-
-        axs[0, 0].plot(
-            [session["detector_position_at_t"][idx][0], direction[0, 0]],
-            [session["detector_position_at_t"][idx][1], direction[0, 1]],
-            label="detector boresight",
-        )
-
-        axs[0, 0].plot(
-            [session["detector_position_at_t"][idx][0], anti_direction[0, 0]],
-            [session["detector_position_at_t"][idx][1], anti_direction[0, 1]],
-        )
-
-        axs[0, 0].plot(
-            [
-                session["detector_position_at_t"][idx][0],
-                session["detector_position_at_t"][idx][0] + emitter_direction[0, 0],
-            ],
-            [
-                session["detector_position_at_t"][idx][1],
-                session["detector_position_at_t"][idx][1] + emitter_direction[0, 1],
-            ],
-        )
-
-        # for each source plot its trajectory
-        for n in np.arange(session["source_positions_at_t"].shape[1]):
-            rings = session["broadcasting_positions_at_t"][idx, n, 0] == 1
-            plot_trajectory(
-                axs[0, 0],
-                session["source_positions_at_t"][: idx + 1, n],
-                width,
-                ms=15,
-                c="r",
-                rings=rings,
-                label="emitter %d" % n,
-            )
-
-        handles, labels = axs[0, 0].get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        axs[0, 0].legend(by_label.values(), by_label.keys())
+        plot_position_map(axs[0, 0], session, idx)
 
         # PLOT RADIO IMAGE OF SOURCE
-        axs[1, 0].imshow(d["source_image_at_t"][idx, 0].T)
+        source_image_at_t = labels_to_source_images(
+            torch.from_numpy(session["source_positions_at_t"])[None],
+            width,
+            img_width=img_width,
+        )[0]
+        axs[1, 0].imshow(source_image_at_t[idx, 0].T)
         axs[1, 0].set_title("Emitters as image at t=%d" % idx)
 
         # PLOT RADIO IMAGE OF BEAMFORMER
-        axs[1, 1].imshow(d["radio_image_at_t"][idx, 0].T)
+        detector_theta_image_at_t = detector_positions_to_theta_grid(
+            session["detector_position_at_t"][None], width, img_width=img_width
+        )[0]
+        radio_image_at_t = radio_to_image(
+            session["beam_former_outputs_at_t"][None],
+            detector_theta_image_at_t[None],
+            session["detector_orientation_at_t"][None],
+        )[0]
+        radio_image_at_t_normed = radio_image_at_t / radio_image_at_t.sum(
+            axis=2, keepdims=True
+        ).sum(axis=3, keepdims=True)
+        axs[1, 1].imshow(radio_image_at_t_normed[idx, 0].T)
         axs[1, 1].set_title("Radio feature at t=%d" % idx)
 
         # PLOT BEAMFORMER
@@ -468,7 +539,9 @@ def plot_full_session(session, steps, output_prefix, img_width=128, invert=False
             session["thetas_at_t"][idx],
             session["beam_former_outputs_at_t"][idx],
         )
-        axs[0, 1].axvline(x=session["source_theta_at_t"][idx, 0], c="r")
+        axs[0, 1].axvline(
+            x=session["source_theta_at_t"][idx, 0], c="r", label="Ground truth"
+        )
         axs[0, 1].set_title("Beamformer output at t=%d" % idx)
         axs[0, 1].set_xlabel("Theta (rel. to detector)")
         axs[0, 1].set_ylabel("Signal strength")
