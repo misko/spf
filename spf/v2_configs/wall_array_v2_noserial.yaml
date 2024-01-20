@@ -2,7 +2,7 @@
 # When the emitter is brought online it is verified
 # by a receiver that it actually is broadcasting
 emitter:
-  receiver-ip: 192.168.1.15
+  receiver-ip: 192.168.1.17
   emitter-ip: 192.168.1.15
   tx-gain: -10
   rx-gain-mode: fast_attack
@@ -55,7 +55,7 @@ receivers:
 
 output-file: wallarrayv2___DATE__.npy
 n-thetas: 65
-n-records-per-receiver: 300000
+n-records-per-receiver: 600000
 width: 4000
 routine: null
  
