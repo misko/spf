@@ -75,6 +75,7 @@ class ThreadedRX:
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
+        assert(self.pplus.rx_config.rx_pos is not None)
 
     def start_read_thread(self):
         self.t = threading.Thread(target=self.read_forever)
@@ -96,7 +97,7 @@ class ThreadedRX:
                     )
                     time.sleep(0.1)
                     tries += 1
-                    if tries > 10:
+                    if tries > 15:
                         logging.error("GIVE UP")
                         return
 
@@ -167,6 +168,14 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
+        "-t",
+        "--tag",
+        type=str,
+        help="tag files",
+        required=False,
+        default=""
+    )
+    parser.add_argument(
         "-l",
         "--logging-level",
         type=str,
@@ -205,6 +214,8 @@ if __name__ == "__main__":
         yaml_config["routine"] = args.routine
 
     output_files_prefix = f"wallarrayv2_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
+    if args.tag!="":
+        output_files_prefix+=f"_tag_{args.tag}"
 
     # setup logging
     logging.basicConfig(
@@ -251,7 +262,7 @@ if __name__ == "__main__":
         time.sleep(0.1)
 
     # get radios online
-    receiver_pplus = []
+    receiver_pplus = {}
     pplus_rx, pplus_tx = (None, None)
     for receiver in yaml_config["receivers"]:
         if run_collection:
@@ -293,7 +304,8 @@ if __name__ == "__main__":
                 break
             else:
                 logging.debug("RX online!")
-                receiver_pplus.append(pplus_rx)
+                receiver_pplus[pplus_rx.uri]=pplus_rx
+                assert(pplus_rx.rx_config.rx_pos is not None)
 
     if run_collection:
         # setup the emitter
@@ -321,9 +333,16 @@ if __name__ == "__main__":
             motor_channel=target_yaml_config["motor_channel"],
         )
 
-        setup_rxtx(
-            rx_config=target_rx_config, tx_config=target_tx_config, leave_tx_on=True
-        )
+        if target_rx_config.uri not in receiver_pplus:
+            setup_rxtx(
+                rx_config=target_rx_config, tx_config=target_tx_config, leave_tx_on=True
+            )
+        else:
+            logging.info("Re-using {target_rx_config.uri} as RX for TX")
+            setup_rxtx(
+                rx_config=target_rx_config, tx_config=target_tx_config, leave_tx_on=True, provided_pplus_rx=receiver_pplus[target_rx_config.uri]
+            )
+            
 
     # threadA semaphore to produce fresh data
     # threadB semaphore to produce fresh data
@@ -349,7 +368,7 @@ if __name__ == "__main__":
     read_threads = []
     time_offset = time.time()
     if run_collection:
-        for pplus_rx in receiver_pplus:
+        for _,pplus_rx in receiver_pplus.items():
             if pplus_rx is None:
                 continue
             read_thread = ThreadedRX(

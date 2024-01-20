@@ -323,22 +323,32 @@ def make_tone(tx_config: EmitterConfig):
     )  # time at each point assuming we are sending samples at (1/fs)s
     return np.exp(1j * 2 * np.pi * fc0 * t) * (2**14)
 
-
-def setup_rxtx(rx_config, tx_config, leave_tx_on=False):
+def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
     retries = 0
-    while run_radios and retries < 10:
+    while run_radios and retries < 15:
         logging.info(f"setup_rxtx({rx_config.uri}, {tx_config.uri}) retry {retries}")
         # sdr_rx = adi.ad9361(uri=receiver_uri)
-        if rx_config.uri == tx_config.uri:
-            logging.debug(f"{rx_config.uri} RX TX are same")
-            pplus_rx = get_pplus(rx_config=rx_config, tx_config=tx_config)
-            pplus_tx = pplus_rx
+        if provided_pplus_rx is None:
+            if rx_config.uri == tx_config.uri:
+                logging.debug(f"{rx_config.uri} RX TX are same")
+                pplus_rx = get_pplus(rx_config=rx_config, tx_config=tx_config)
+                pplus_tx = pplus_rx
+            else:
+                logging.debug(f"{rx_config.uri}(RX) TX are different")
+                pplus_rx = get_pplus(rx_config=rx_config)
+                logging.debug(f"{tx_config.uri} RX (TX) are different")
+                pplus_tx = get_pplus(tx_config=tx_config)
+            pplus_rx.setup_rx()
         else:
-            logging.debug(f"{rx_config.uri}(RX) TX are different")
-            pplus_rx = get_pplus(rx_config=rx_config)
-            logging.debug(f"{tx_config.uri} RX (TX) are different")
-            pplus_tx = get_pplus(tx_config=tx_config)
-        pplus_rx.setup_rx()
+            if rx_config.uri == tx_config.uri:
+                logging.debug(f"{rx_config.uri} RX TX are same")
+                pplus_tx = provided_pplus_rx
+            else:
+                logging.debug(f"{tx_config.uri} RX (TX) are different")
+                pplus_tx = get_pplus(tx_config=tx_config)
+            # TODO if pluto_rx is provided confirm its the same config
+            pplus_rx=provided_pplus_rx
+
         pplus_tx.setup_tx()
         time.sleep(0.1)
 
@@ -358,14 +368,13 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False):
             if not leave_tx_on:
                 pplus_tx.close_tx()
             return pplus_rx, pplus_tx
-        pplus_rx.close_rx()
+        if provided_pplus_rx is None:
+            pplus_rx.close_rx()
         pplus_tx.close_tx()
         retries += 1
 
         # try to reset
         pplus_tx.close_tx()
-        pplus_rx = None
-        pplus_tx = None
         time.sleep(0.1)
     return None, None
 

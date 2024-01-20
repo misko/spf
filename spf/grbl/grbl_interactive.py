@@ -1,4 +1,5 @@
 import logging
+import argparse
 import sys
 import threading
 import time
@@ -15,7 +16,7 @@ home_bounding_box = np.array(
     [
         [300, 400],
         [3100, 400],
-        [2900, 3050],
+        [3100, 3050],
         [1900, 3000],
         [900, 2000],
         [300, 450],
@@ -65,7 +66,20 @@ would be no tension on the GT2 belts
 home_calibration_point = np.array([300, 400])
 
 
+def a_to_b_in_stepsize_np(a, b, step_size):
+    if np.isclose(a, b).all():
+        return [b]
+    # move by step_size from where we are now to the target position
+    distance = np.linalg.norm(b - a)
+    steps = np.arange(1, np.ceil(distance / step_size) + 1) * step_size
+
+    direction = (b - a) / np.linalg.norm(b - a)
+    points = a.reshape(1, 2) + direction.reshape(1, 2) * steps.reshape(len(steps), 1)
+    points[-1] = b
+    return points
+
 def a_to_b_in_stepsize(a, b, step_size):
+    return a_to_b_in_stepsize_np(a, b, step_size)
     if np.isclose(a, b).all():
         return [b]
     # move by step_size from where we are now to the target position
@@ -88,10 +102,11 @@ class PointOutOfBoundsException(Exception):
     pass
 
 class Dynamics:
-    def __init__(self, calibration_point, pA, pB, bounding_box):
+    def __init__(self, calibration_point, pA, pB, bounding_box, unsafe=False):
         self.calibration_point = calibration_point
         self.pA = pA
         self.pB = pB
+        self.unsafe=unsafe
         if len(bounding_box) >= 3:
             hull = ConvexHull(bounding_box)
             if len(np.unique(hull.simplices)) != len(bounding_box):
@@ -144,7 +159,7 @@ class Dynamics:
         return position_relative_to_calibration_point
 
     def to_steps(self, p):
-        if (self.polygon is not None) and not self.polygon.contains_point(
+        if (not self.unsafe) and (self.polygon is not None) and not self.polygon.contains_point(
             p, radius=0.00001
         ):  # todo a bit hacky but works
             raise PointOutOfBoundsException("Point we want to move to will be out of bounds")
@@ -157,7 +172,7 @@ class Dynamics:
         )
         # check the point again
         new_point = self.from_steps(a_motor_steps,b_motor_steps)
-        if (self.polygon is not None) and not self.polygon.contains_point(
+        if (not self.unsafe) and (self.polygon is not None) and not self.polygon.contains_point(
             new_point, radius=0.00001
         ):  # todo a bit hacky but works
             raise PointOutOfBoundsException("Inverted point is out of bounds")
@@ -347,7 +362,7 @@ class CirclePlanner(Planner):
 
 class CalibrationV1Planner(Planner):
     def __init__(
-        self, dynamics, start_point, step_size=5, y_bump=100
+        self, dynamics, start_point, step_size=5, y_bump=150
     ):
         super().__init__(
             dynamics=dynamics, start_point=start_point, step_size=step_size
@@ -626,12 +641,13 @@ class GRBLManager:
         ]
 
 
-def get_default_gm(serial_fn):
+def get_default_gm(serial_fn,unsafe=False):
     dynamics = Dynamics(
         calibration_point=home_calibration_point,
         pA=home_pA,
         pB=home_pB,
         bounding_box=home_bounding_box,
+        unsafe=unsafe
     )
 
     # planners = {0: Planner(dynamics), 1: Planner(dynamics)}
@@ -644,13 +660,12 @@ def get_default_gm(serial_fn):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("grblman: %s device" % sys.argv[0])
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("serial", help="serial device to use")
+    parser.add_argument('--unsafe', action=argparse.BooleanOptionalAction)
+    args = parser.parse_args()
 
-    serial_fn = sys.argv[1]
-
-    gm = get_default_gm(serial_fn)
+    gm = get_default_gm(args.serial,unsafe=args.unsafe)
 
     if gm.controller.position["is_moving"]:
         print("Waiting for grbl to stop moving before starting...")
@@ -677,6 +692,18 @@ if __name__ == "__main__":
         elif line == "s":
             p = gm.controller.update_status()
             print(p)
+        elif len(line.split())==3:
+            target_channel=int(line.split()[0])
+            points_iter = {
+                target_channel: iter(
+                    a_to_b_in_stepsize(
+                        gm.controller.update_status()["xy"][target_channel],
+                        np.array([float(x) for x in line.split()[1:]]),
+                        5,
+                    )
+                )
+            }
+            gm.controller.move_to_iter(points_iter)
         else:
             points_iter = {
                 c: iter(
