@@ -10,15 +10,20 @@ from datetime import datetime
 
 import numpy as np
 import yaml
+from grbl.grbl_interactive import get_default_gm, stop_grbl
 from tqdm import tqdm
 
-from grbl.grbl_interactive import get_default_gm, stop_grbl
 from spf.rf import beamformer
-from spf.sdrpluto.sdr_controller import (EmitterConfig, ReceiverConfig,
-                                         get_avg_phase, get_pplus,
-                                         plot_recv_signal, setup_rxtx,
-                                         setup_rxtx_and_phase_calibration,
-                                         shutdown_radios)
+from spf.sdrpluto.sdr_controller import (
+    EmitterConfig,
+    ReceiverConfig,
+    get_avg_phase,
+    get_pplus,
+    plot_recv_signal,
+    setup_rxtx,
+    setup_rxtx_and_phase_calibration,
+    shutdown_radios,
+)
 from spf.wall_array_v2 import v2_column_names
 
 faulthandler.enable()
@@ -75,7 +80,7 @@ class ThreadedRX:
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
-        assert(self.pplus.rx_config.rx_pos is not None)
+        assert self.pplus.rx_config.rx_pos is not None
 
     def start_read_thread(self):
         self.t = threading.Thread(target=self.read_forever)
@@ -168,12 +173,7 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
-        "-t",
-        "--tag",
-        type=str,
-        help="tag files",
-        required=False,
-        default=""
+        "-t", "--tag", type=str, help="tag files", required=False, default=""
     )
     parser.add_argument(
         "-l",
@@ -214,8 +214,8 @@ if __name__ == "__main__":
         yaml_config["routine"] = args.routine
 
     output_files_prefix = f"wallarrayv2_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
-    if args.tag!="":
-        output_files_prefix+=f"_tag_{args.tag}"
+    if args.tag != "":
+        output_files_prefix += f"_tag_{args.tag}"
 
     # setup logging
     logging.basicConfig(
@@ -304,8 +304,8 @@ if __name__ == "__main__":
                 break
             else:
                 logging.debug("RX online!")
-                receiver_pplus[pplus_rx.uri]=pplus_rx
-                assert(pplus_rx.rx_config.rx_pos is not None)
+                receiver_pplus[pplus_rx.uri] = pplus_rx
+                assert pplus_rx.rx_config.rx_pos is not None
 
     if run_collection:
         # setup the emitter
@@ -340,9 +340,11 @@ if __name__ == "__main__":
         else:
             logging.info("Re-using {target_rx_config.uri} as RX for TX")
             setup_rxtx(
-                rx_config=target_rx_config, tx_config=target_tx_config, leave_tx_on=True, provided_pplus_rx=receiver_pplus[target_rx_config.uri]
+                rx_config=target_rx_config,
+                tx_config=target_tx_config,
+                leave_tx_on=True,
+                provided_pplus_rx=receiver_pplus[target_rx_config.uri],
             )
-            
 
     # threadA semaphore to produce fresh data
     # threadB semaphore to produce fresh data
@@ -368,7 +370,7 @@ if __name__ == "__main__":
     read_threads = []
     time_offset = time.time()
     if run_collection:
-        for _,pplus_rx in receiver_pplus.items():
+        for _, pplus_rx in receiver_pplus.items():
             if pplus_rx is None:
                 continue
             read_thread = ThreadedRX(

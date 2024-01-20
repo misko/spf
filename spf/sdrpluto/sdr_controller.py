@@ -323,6 +323,7 @@ def make_tone(tx_config: EmitterConfig):
     )  # time at each point assuming we are sending samples at (1/fs)s
     return np.exp(1j * 2 * np.pi * fc0 * t) * (2**14)
 
+
 def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
     retries = 0
     while run_radios and retries < 15:
@@ -347,7 +348,7 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
                 logging.debug(f"{tx_config.uri} RX (TX) are different")
                 pplus_tx = get_pplus(tx_config=tx_config)
             # TODO if pluto_rx is provided confirm its the same config
-            pplus_rx=provided_pplus_rx
+            pplus_rx = provided_pplus_rx
 
         pplus_tx.setup_tx()
         time.sleep(0.1)

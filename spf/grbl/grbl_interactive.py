@@ -1,5 +1,5 @@
-import logging
 import argparse
+import logging
 import sys
 import threading
 import time
@@ -78,6 +78,7 @@ def a_to_b_in_stepsize_np(a, b, step_size):
     points[-1] = b
     return points
 
+
 def a_to_b_in_stepsize(a, b, step_size):
     return a_to_b_in_stepsize_np(a, b, step_size)
     if np.isclose(a, b).all():
@@ -94,19 +95,20 @@ def a_to_b_in_stepsize(a, b, step_size):
     return points
 
 
-
 class BoundingBoxIsNonConvexException(Exception):
     pass
 
+
 class PointOutOfBoundsException(Exception):
     pass
+
 
 class Dynamics:
     def __init__(self, calibration_point, pA, pB, bounding_box, unsafe=False):
         self.calibration_point = calibration_point
         self.pA = pA
         self.pB = pB
-        self.unsafe=unsafe
+        self.unsafe = unsafe
         if len(bounding_box) >= 3:
             hull = ConvexHull(bounding_box)
             if len(np.unique(hull.simplices)) != len(bounding_box):
@@ -119,7 +121,7 @@ class Dynamics:
                         map(str, [bounding_box[x] for x in np.unique(hull.simplices)])
                     )
                 )
-                raise BoundingBoxIsNonConvex()
+                raise BoundingBoxIsNonConvexException()
             self.polygon = pltpath.Path(bounding_box)
         else:
             self.polygon = None
@@ -159,10 +161,14 @@ class Dynamics:
         return position_relative_to_calibration_point
 
     def to_steps(self, p):
-        if (not self.unsafe) and (self.polygon is not None) and not self.polygon.contains_point(
-            p, radius=0.00001
+        if (
+            (not self.unsafe)
+            and (self.polygon is not None)
+            and not self.polygon.contains_point(p, radius=0.00001)
         ):  # todo a bit hacky but works
-            raise PointOutOfBoundsException("Point we want to move to will be out of bounds")
+            raise PointOutOfBoundsException(
+                "Point we want to move to will be out of bounds"
+            )
         # motor_steps = ( distance_between_pivot and point ) - (distance between pivot and calibration point)
         a_motor_steps = np.linalg.norm(self.pA - p) - np.linalg.norm(
             self.pA - self.calibration_point
@@ -171,12 +177,14 @@ class Dynamics:
             self.pB - self.calibration_point
         )
         # check the point again
-        new_point = self.from_steps(a_motor_steps,b_motor_steps)
-        if (not self.unsafe) and (self.polygon is not None) and not self.polygon.contains_point(
-            new_point, radius=0.00001
+        new_point = self.from_steps(a_motor_steps, b_motor_steps)
+        if (
+            (not self.unsafe)
+            and (self.polygon is not None)
+            and not self.polygon.contains_point(new_point, radius=0.00001)
         ):  # todo a bit hacky but works
             raise PointOutOfBoundsException("Inverted point is out of bounds")
-        
+
         return a_motor_steps, b_motor_steps
 
     def binary_search_edge(self, left, right, xy, direction, epsilon):
@@ -361,9 +369,7 @@ class CirclePlanner(Planner):
 
 
 class CalibrationV1Planner(Planner):
-    def __init__(
-        self, dynamics, start_point, step_size=5, y_bump=150
-    ):
+    def __init__(self, dynamics, start_point, step_size=5, y_bump=150):
         super().__init__(
             dynamics=dynamics, start_point=start_point, step_size=step_size
         )
@@ -636,18 +642,19 @@ class GRBLManager:
                 stationary_point=rx_calibration_point,
             ),
             CalibrationV1Planner(
-                self.controller.dynamics, start_point=self.controller.position["xy"][1], 
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][1],
             ),
         ]
 
 
-def get_default_gm(serial_fn,unsafe=False):
+def get_default_gm(serial_fn, unsafe=False):
     dynamics = Dynamics(
         calibration_point=home_calibration_point,
         pA=home_pA,
         pB=home_pB,
         bounding_box=home_bounding_box,
-        unsafe=unsafe
+        unsafe=unsafe,
     )
 
     # planners = {0: Planner(dynamics), 1: Planner(dynamics)}
@@ -662,10 +669,10 @@ def get_default_gm(serial_fn,unsafe=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("serial", help="serial device to use")
-    parser.add_argument('--unsafe', action=argparse.BooleanOptionalAction)
+    parser.add_argument("--unsafe", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
-    gm = get_default_gm(args.serial,unsafe=args.unsafe)
+    gm = get_default_gm(args.serial, unsafe=args.unsafe)
 
     if gm.controller.position["is_moving"]:
         print("Waiting for grbl to stop moving before starting...")
@@ -692,8 +699,8 @@ if __name__ == "__main__":
         elif line == "s":
             p = gm.controller.update_status()
             print(p)
-        elif len(line.split())==3:
-            target_channel=int(line.split()[0])
+        elif len(line.split()) == 3:
+            target_channel = int(line.split()[0])
             points_iter = {
                 target_channel: iter(
                     a_to_b_in_stepsize(
