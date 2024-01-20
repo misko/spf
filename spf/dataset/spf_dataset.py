@@ -323,7 +323,6 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
         step_size=1,
         seed=1337,
         check_files=True,
-        snapshots_in_file=300000,
     ):
         # time_step,x,y,mean_angle,_mean_angle #0,1,2,3,4
         # m = np.memmap(filename, dtype='float32', mode='r', shape=(,70))
@@ -333,10 +332,10 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
         """
         self.check_files = check_files
         self.root_dir = root_dir
-        self.snapshots_in_file = snapshots_in_file
         self.snapshots_in_session = snapshots_in_session
         self.step_size = step_size
         yaml_config = self.get_yaml_config()
+        self.snapshots_in_file = yaml_config["n-records-per-receiver"]
 
         assert nsources == 1  # TODO implement more
 
@@ -452,7 +451,7 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
             "width_at_t": self.widths,
             "detector_orientation_at_t": rx_orientation_at_t,  # self.halfpis*0,#np.arctan2(1,0)=np.pi/2
             "detector_position_at_t": rx_position_at_t,
-            "source_theta_at_t": source_theta_at_t,
+            "source_theta_at_t": source_theta_at_t,  # theta already accounting for orientation of detector
             "source_distance_at_t": self.zeros[:, [0]][:, None],
             "avg_phase_diffs": m[:, v2_avg_phase_diff_idxs()],
         }
