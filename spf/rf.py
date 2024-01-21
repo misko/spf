@@ -426,8 +426,11 @@ def get_peaks_for_2rx(beam_former_output):
     first_peak = np.argmax(beam_former_output)
 
     pivot = n // 4
+    third_peak = n // 4 + n // 2
     if first_peak > n // 2:
         pivot = n // 2 + n // 4
+        third_peak = n // 4
 
     d = np.abs(first_peak - pivot)
-    return pivot + d, pivot - d
+
+    return pivot + d, pivot - d, third_peak

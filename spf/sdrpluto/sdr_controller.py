@@ -10,6 +10,7 @@ import adi
 import matplotlib.pyplot as plt
 import numpy as np
 
+from spf.dataset.spf_dataset import pi_norm
 from spf.rf import ULADetector, beamformer
 
 # TODO close SDR on exit
@@ -342,10 +343,12 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
             pplus_rx.setup_rx()
         else:
             if rx_config.uri == tx_config.uri:
-                logging.debug(f"{rx_config.uri} RX TX are same")
+                logging.debug(f"{rx_config.uri} RX TX are same using preinitialized")
                 pplus_tx = provided_pplus_rx
             else:
-                logging.debug(f"{tx_config.uri} RX (TX) are different")
+                logging.debug(
+                    f"{tx_config.uri} RX (TX) are different using preinitialized RX"
+                )
                 pplus_tx = get_pplus(tx_config=tx_config)
             # TODO if pluto_rx is provided confirm its the same config
             pplus_rx = provided_pplus_rx
@@ -429,7 +432,7 @@ def setup_rxtx_and_phase_calibration(
                 break
             signal_matrix = np.vstack(pplus_rx.sdr.rx())
             phase_calibrations[idx] = (
-                (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
+                pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
             ).mean()  # TODO THIS BREAKS if diff is near 2*np.pi...
             phase_calibrations_cm[idx], _ = circular_mean(
                 np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])
@@ -456,7 +459,9 @@ def setup_rxtx_and_phase_calibration(
                 f"{rx_config.uri}: Final phase calibration (radians) is {phase_calibration_u:0.4f}\
                  (fraction of 2pi) {(phase_calibration_u / (2 * np.pi)):0.4f}"
             )
-            pplus_rx.phase_calibration = phase_calibrations.mean()
+            pplus_rx.phase_calibration = circular_mean(phase_calibrations_cm)[
+                0
+            ]  # .mean()
             return pplus_rx, pplus_tx
     pplus_tx.close()
     logging.error(f"{rx_config.uri}: Phase calibration failed")
@@ -470,27 +475,30 @@ def circular_mean(angles, trim=50.0):
     )
     _angles = angles[dists < np.percentile(dists, 100.0 - trim)]
     _cm = np.arctan2(np.sin(_angles).sum(), np.cos(_angles).sum()) % (2 * np.pi)
-    return cm, _cm
+    return pi_norm(cm), pi_norm(_cm)
 
 
 def get_avg_phase(signal_matrix, trim=0.0):
-    # signal_matrix=np.vstack(sdr_rx.rx())
-    # signal_matrix[1]*=np.exp(1j*sdr_rx.phase_calibration)
-
-    diffs = (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
-    mean, _mean = circular_mean(diffs, trim=50.0)
-
-    return mean, _mean
+    return circular_mean(
+        np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]), trim=50.0
+    )
 
 
-def plot_recv_signal(pplus_rx):
-    fig, axs = plt.subplots(2, 4, figsize=(16, 6))
+def plot_recv_signal(
+    pplus_rx, fig=None, axs=None, frames=-1, title=None, signal_matrixs=None
+):
+    if fig is None:
+        fig, axs = plt.subplots(2, 4, figsize=(16, 6), layout="constrained")
 
     rx_n = pplus_rx.sdr.rx_buffer_size
     t = np.arange(rx_n)
-    while run_radios:
-        signal_matrix = np.vstack(pplus_rx.sdr.rx())
-        signal_matrix[1] *= np.exp(1j * pplus_rx.phase_calibration)
+    frame_idx = 0
+    while run_radios and frame_idx != frames:
+        if signal_matrixs is None:
+            signal_matrix = np.vstack(pplus_rx.sdr.rx())
+            signal_matrix[1] *= np.exp(1j * pplus_rx.phase_calibration)
+        else:
+            signal_matrix = signal_matrixs[frame_idx]
         assert pplus_rx.rx_config.rx_pos is not None
         beam_thetas, beam_sds, _ = beamformer(
             pplus_rx.rx_config.rx_pos, signal_matrix, pplus_rx.rx_config.lo
@@ -526,13 +534,13 @@ def plot_recv_signal(pplus_rx):
 
             axs[idx][0].set_title("Real signal recv (%d)" % idx)
             axs[idx][1].set_title("Power recv (%d)" % idx)
-        diff = (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])) % (2 * np.pi)
+        diff = pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
         axs[0][3].clear()
         axs[0][3].scatter(t, diff, s=1)
         mean, _mean = circular_mean(diff)
         axs[0][3].axhline(y=mean, color="black", label="circular mean")
         axs[0][3].axhline(y=_mean, color="red", label="trimmed circular mean")
-        axs[0][3].set_ylim([0, 2 * np.pi])
+        axs[0][3].set_ylim([-np.pi, np.pi])
         axs[0][3].set_xlabel("Time")
         axs[0][3].set_ylabel("Angle estimate")
         axs[0][3].legend()
@@ -540,9 +548,13 @@ def plot_recv_signal(pplus_rx):
         axs[1][3].clear()
         axs[1][3].plot(beam_thetas, beam_sds)
 
-        plt.tight_layout()
+        if title is not None:
+            fig.suptitle(title)
+
+        # plt.tight_layout()
         fig.canvas.draw()
         plt.pause(0.00001)
+        frame_idx += 1
 
 
 if __name__ == "__main__":

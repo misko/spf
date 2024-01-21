@@ -7,10 +7,12 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 
 import numpy as np
 import yaml
 from grbl.grbl_interactive import get_default_gm, stop_grbl
+from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from spf.rf import beamformer
@@ -28,32 +30,8 @@ from spf.wall_array_v2 import v2_column_names
 
 faulthandler.enable()
 
+# keep running radio data collection and GRBL
 run_collection = True
-
-
-@dataclass
-class DataSnapshot:
-    timestamp: float
-    rx_theta_in_pis: float
-    rx_center_pos: np.array
-    rx_spacing: float
-    avg_phase_diff: float
-    beam_sds: np.array
-
-
-def prepare_record_entry(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array):
-    # t,rx,ry,rtheta,rspacing,avgphase,sds
-    return np.hstack(
-        [
-            ds.timestamp,  # 1
-            tx_pos,  # 2
-            rx_pos,  # 2
-            ds.rx_theta_in_pis * np.pi,  # 1
-            ds.rx_spacing,  # 1
-            ds.avg_phase_diff,  # 2
-            ds.beam_sds,  # 65
-        ]
-    )
 
 
 def shutdown():
@@ -69,6 +47,32 @@ def signal_handler(sig, frame):
 
 
 signal.signal(signal.SIGINT, signal_handler)
+
+
+@dataclass
+class DataSnapshot:
+    timestamp: float
+    rx_theta_in_pis: float
+    rx_center_pos: np.array
+    rx_spacing: float
+    avg_phase_diff: float
+    beam_sds: np.array
+    signal_matrix: Optional[np.array]
+
+
+def prepare_record_entry(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array):
+    # t,rx,ry,rtheta,rspacing,avgphase,sds
+    return np.hstack(
+        [
+            ds.timestamp,  # 1
+            tx_pos,  # 2
+            rx_pos,  # 2
+            ds.rx_theta_in_pis * np.pi,  # 1
+            ds.rx_spacing,  # 1
+            ds.avg_phase_diff,  # 2
+            ds.beam_sds,  # 65
+        ]
+    )
 
 
 class ThreadedRX:
@@ -125,6 +129,7 @@ class ThreadedRX:
                     rx_spacing=self.pplus.rx_config.rx_spacing,
                     beam_sds=beam_sds,
                     avg_phase_diff=avg_phase_diff,
+                    signal_matrix=signal_matrix if args.plot else None,
                 )
 
                 try:
@@ -194,13 +199,10 @@ if __name__ == "__main__":
         default=None,
         required=False,
     )
+    parser.add_argument("-p", "--plot", action=argparse.BooleanOptionalAction)
+    parser.add_argument("-n", "--dry-run", action=argparse.BooleanOptionalAction)
     parser.add_argument(
-        "-p",
-        "--plot",
-        type=int,
-        help="Plot an output",
-        default=None,
-        required=False,
+        "--skip-phase-calibration", action=argparse.BooleanOptionalAction
     )
     args = parser.parse_args()
 
@@ -218,11 +220,13 @@ if __name__ == "__main__":
         output_files_prefix += f"_tag_{args.tag}"
 
     # setup logging
-    logging.basicConfig(
-        handlers=[
+    handlers = [logging.StreamHandler()]
+    if not args.dry_run:
+        handlers += [
             logging.FileHandler(f"{output_files_prefix}.log"),
-            logging.StreamHandler(),
-        ],
+        ]
+    logging.basicConfig(
+        handlers=handlers,
         format="%(asctime)s:%(levelname)s:%(message)s",
         level=getattr(logging, args.logging_level.upper(), None),
     )
@@ -234,21 +238,25 @@ if __name__ == "__main__":
             time.sleep(0.1)
 
     if run_collection:
-        with open(f"{output_files_prefix}.yaml", "w") as outfile:
-            yaml.dump(yaml_config, outfile, default_flow_style=False)
+        if not args.dry_run:
+            with open(f"{output_files_prefix}.yaml", "w") as outfile:
+                yaml.dump(yaml_config, outfile, default_flow_style=False)
 
         # record matrix
         column_names = v2_column_names(nthetas=yaml_config["n-thetas"])
-        record_matrix = np.memmap(
-            f"{output_files_prefix}.npy",
-            dtype="float32",
-            mode="w+",
-            shape=(
-                2,  # TODO should be nreceivers
-                yaml_config["n-records-per-receiver"],
-                len(column_names),
-            ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
-        )
+        if args.dry_run:
+            record_matrix = None
+        else:
+            record_matrix = np.memmap(
+                f"{output_files_prefix}.npy",
+                dtype="float32",
+                mode="w+",
+                shape=(
+                    2,  # TODO should be nreceivers
+                    yaml_config["n-records-per-receiver"],
+                    len(column_names),
+                ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
+            )
 
         logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
 
@@ -298,6 +306,8 @@ if __name__ == "__main__":
                 # leave_tx_on=False,
                 # using_tx_already_on=None,
             )
+            if args.skip_phase_calibration:
+                pplus_rx.phase_calibration = 0
             if pplus_rx is None or pplus_tx is None:
                 logging.info("Failed to bring RXTX online, shuttingdown")
                 run_collection = False
@@ -346,11 +356,6 @@ if __name__ == "__main__":
                 provided_pplus_rx=receiver_pplus[target_rx_config.uri],
             )
 
-    # threadA semaphore to produce fresh data
-    # threadB semaphore to produce fresh data
-    # thread to bounce
-    #
-
     # setup GRBL
     gm = None
     gm_thread = None
@@ -367,6 +372,7 @@ if __name__ == "__main__":
 
     time.sleep(0.2)
     # setup read threads
+
     read_threads = []
     time_offset = time.time()
     if run_collection:
@@ -378,12 +384,13 @@ if __name__ == "__main__":
             )
             read_thread.start_read_thread()
             read_threads.append(read_thread)
-            if (
-                pplus_rx is not None
-                and args.plot is not None
-                and args.plot == (len(read_threads) - 1)
-            ):
-                plot_recv_signal(pplus_rx)
+
+    plot_figures_and_axs = None
+    if args.plot is not None:
+        plot_figures_and_axs = [
+            plt.subplots(2, 4, figsize=(16, 6), layout="constrained")
+            for _ in range(len(receiver_pplus))
+        ]
 
     if run_collection:
         record_index = 0
@@ -408,12 +415,25 @@ if __name__ == "__main__":
                     rx_pos = gm.controller.position["xy"][
                         read_thread.pplus.rx_config.motor_channel
                     ]
+                if not args.dry_run:
+                    record_matrix[read_thread_idx, record_index] = prepare_record_entry(
+                        ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
+                    )
 
-                record_matrix[read_thread_idx, record_index] = prepare_record_entry(
-                    ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
-                )
+                if plot_figures_and_axs is not None and pplus_rx is not None:
+                    fig, axs = plot_figures_and_axs[read_thread_idx]
+                    plot_recv_signal(
+                        read_thread.pplus,
+                        frames=1,
+                        fig=fig,
+                        axs=axs,
+                        title=read_thread.pplus.uri,
+                        signal_matrixs=[read_thread.data.signal_matrix],
+                    )
                 ###
+
                 read_thread.read_lock.release()
+
     shutdown()
     logging.info("Shuttingdown: sending false to threads")
     for read_thread in read_threads:

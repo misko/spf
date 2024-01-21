@@ -4,7 +4,7 @@
 emitter:
   receiver-ip: 192.168.1.17
   emitter-ip: 192.168.1.15
-  tx-gain: -10
+  tx-gain: -14
   rx-gain-mode: fast_attack
   rx-gain: -3
   buffer-size: 4096 # 2**12
@@ -24,7 +24,7 @@ receivers:
   - receiver-ip: 192.168.1.17
     emitter-ip: 192.168.1.17
     theta-in-pis: -0.25
-    antenna-spacing-m: 0.065 # 62.5 mm -> 6.5cm -> 0.065m
+    antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
     array-type: linear
     rx-gain-mode: slow_attack
@@ -38,8 +38,8 @@ receivers:
     motor_channel: 0
   - receiver-ip: 192.168.1.18
     emitter-ip: 192.168.1.17
-    theta-in-pis: 1.25
-    antenna-spacing-m: 0.065 # 62.5 mm -> 6.5cm -> 0.065m
+    theta-in-pis: -0.75
+    antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
     array-type: linear
     rx-gain-mode: slow_attack
@@ -53,7 +53,7 @@ receivers:
     motor_channel: 0
 
 
-output-file: wallarrayv2___DATE__.npy
+calibration-frames: 800
 n-thetas: 65
 n-records-per-receiver: 600000
 width: 4000
