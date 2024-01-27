@@ -72,7 +72,7 @@ def prepare_record_entry(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array):
             ds.rx_theta_in_pis * np.pi,  # 1
             ds.rx_spacing,  # 1
             ds.avg_phase_diff,  # 2
-            ds.rssi,  # 2
+            ds.rssis,  # 2
             ds.gains,  # 2
             ds.beam_sds,  # 65
         ]

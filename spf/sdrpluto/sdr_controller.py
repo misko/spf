@@ -95,8 +95,8 @@ class PPlus:
     def gains(self):
         return np.array(
             [
-                type(self.sdr._get_iio_attr("voltage0", "hardwaregain", False)),
-                type(self.sdr._get_iio_attr("voltage1", "hardwaregain", False)),
+                self.sdr._get_iio_attr("voltage0", "hardwaregain", False),
+                self.sdr._get_iio_attr("voltage1", "hardwaregain", False),
             ]
         )
 
