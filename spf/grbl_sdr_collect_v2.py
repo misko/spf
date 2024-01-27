@@ -58,6 +58,8 @@ class DataSnapshot:
     avg_phase_diff: float
     beam_sds: np.array
     signal_matrix: Optional[np.array]
+    rssis: np.array
+    gains: np.array
 
 
 def prepare_record_entry(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array):
@@ -70,6 +72,8 @@ def prepare_record_entry(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array):
             ds.rx_theta_in_pis * np.pi,  # 1
             ds.rx_spacing,  # 1
             ds.avg_phase_diff,  # 2
+            ds.rssi,  # 2
+            ds.gains,  # 2
             ds.beam_sds,  # 65
         ]
     )
@@ -99,6 +103,8 @@ class ThreadedRX:
                 tries = 0
                 try:
                     signal_matrix = self.pplus.sdr.rx()
+                    rssis = self.pplus.rssis()
+                    gains = self.pplus.gains()
                 except Exception as e:
                     logging.error(
                         f"Failed to receive RX data! removing file : retry {tries}",
@@ -108,6 +114,7 @@ class ThreadedRX:
                     tries += 1
                     if tries > 15:
                         logging.error("GIVE UP")
+                        shutdown()
                         return
 
                 # process the data
@@ -130,6 +137,8 @@ class ThreadedRX:
                     beam_sds=beam_sds,
                     avg_phase_diff=avg_phase_diff,
                     signal_matrix=signal_matrix if args.plot else None,
+                    rssis=rssis,
+                    gains=gains,
                 )
 
                 try:
@@ -279,7 +288,7 @@ if __name__ == "__main__":
                 rf_bandwidth=receiver["bandwidth"],
                 sample_rate=receiver["f-sampling"],
                 gains=[receiver["rx-gain"], receiver["rx-gain"]],
-                gain_control_mode=receiver["rx-gain-mode"],
+                gain_control_modes=[receiver["rx-gain-mode"], receiver["rx-gain-mode"]],
                 enabled_channels=[0, 1],
                 buffer_size=receiver["buffer-size"],
                 intermediate=receiver["f-intermediate"],
@@ -299,15 +308,19 @@ if __name__ == "__main__":
                 cyclic=True,
                 uri="ip:%s" % receiver["emitter-ip"],
             )
-            pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
-                rx_config=rx_config,
-                tx_config=tx_config,
-                n_calibration_frames=yaml_config["calibration-frames"],
-                # leave_tx_on=False,
-                # using_tx_already_on=None,
-            )
-            if args.skip_phase_calibration:
-                pplus_rx.phase_calibration = 0
+            if args.skip_phase_calibration or (
+                "skip_phase_calibration" in yaml_config
+                and yaml_config["skip_phase_calibration"]
+            ):
+                pplus_rx, pplus_tx = setup_rxtx(
+                    rx_config=rx_config, tx_config=tx_config
+                )
+            else:
+                pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
+                    rx_config=rx_config,
+                    tx_config=tx_config,
+                    n_calibration_frames=yaml_config["calibration-frames"],
+                )
             if pplus_rx is None or pplus_tx is None:
                 logging.info("Failed to bring RXTX online, shuttingdown")
                 run_collection = False
@@ -325,7 +338,10 @@ if __name__ == "__main__":
             rf_bandwidth=target_yaml_config["bandwidth"],
             sample_rate=target_yaml_config["f-sampling"],
             gains=[target_yaml_config["rx-gain"], target_yaml_config["rx-gain"]],
-            gain_control_mode=target_yaml_config["rx-gain-mode"],
+            gain_control_modes=[
+                target_yaml_config["rx-gain-mode"],
+                target_yaml_config["rx-gain-mode"],
+            ],
             enabled_channels=[0, 1],
             buffer_size=target_yaml_config["buffer-size"],
             intermediate=target_yaml_config["f-intermediate"],
@@ -348,7 +364,7 @@ if __name__ == "__main__":
                 rx_config=target_rx_config, tx_config=target_tx_config, leave_tx_on=True
             )
         else:
-            logging.info("Re-using {target_rx_config.uri} as RX for TX")
+            logging.info(f"Re-using {target_rx_config.uri} as RX for TX")
             setup_rxtx(
                 rx_config=target_rx_config,
                 tx_config=target_tx_config,

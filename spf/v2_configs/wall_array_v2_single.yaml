@@ -22,13 +22,13 @@ emitter:
 # multiples of pi
 receivers:
   - receiver-ip: 192.168.1.17
-    emitter-ip: 192.168.1.17
+    emitter-ip: 192.168.1.15
     theta-in-pis: -0.25
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
     array-type: linear
-    rx-gain-mode: slow_attack
-    rx-buffers: 4
+    rx-gain-mode: fast_attack
+    rx-buffers: 1
     rx-gain: -3
     buffer-size: 4096 # 2**12
     f-intermediate: 100000 #1.0e5
@@ -42,3 +42,4 @@ n-records-per-receiver: 600000
 width: 4000
 calibration-frames: 800
 routine: null
+skip_phase_calibration: true

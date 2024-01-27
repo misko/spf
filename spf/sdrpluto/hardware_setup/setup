@@ -1,5 +1,5 @@
 To flash plug in both USB, wait for drive, copy over pluto.frm , eject, wait for drive to reappear
-
+UPDATED: COPY FULL ZIP , which should update boot options including mode=2r2t
 192.168.3.1 root/analog
 https://github.com/DeonMarais64/PlutoPlusSDR-FW
 
@@ -12,6 +12,7 @@ Maybe,
 # fw_setenv mode 2r2t
 # reboot
 
+https://ez.analog.com/adieducation/university-program/f/q-a/544531/pluto-rev-c-how-to-activate-the-2nd-rx-channel
 
 
 #to set the IP try

@@ -4,7 +4,7 @@ import sys
 import time
 from datetime import datetime
 from math import gcd
-from typing import Optional
+from typing import List, Optional
 
 import adi
 import matplotlib.pyplot as plt
@@ -58,7 +58,7 @@ def get_pplus(rx_config=None, tx_config=None, uri=None):
 
 
 class PPlus:
-    def __init__(self, rx_config=None, tx_config=None, uri=None):
+    def __init__(self, rx_config=None, tx_config=None, uri=None, phase_calibration=0.0):
         super(PPlus, self).__init__()
         self.uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
         logging.info(f"{self.uri}: Open PlutoPlus")
@@ -74,6 +74,7 @@ class PPlus:
         self.tx_config = None
         self.rx_config = None
         self.set_config(rx_config=rx_config, tx_config=tx_config)
+        self.phase_calibration = phase_calibration
 
         if (
             self.tx_config is None and self.rx_config is None
@@ -82,6 +83,22 @@ class PPlus:
             self.sdr.tx_destroy_buffer()
             self.sdr.rx_destroy_buffer()
             self.sdr.tx_enabled_channels = []
+
+    def rssis(self):
+        return np.array(
+            [
+                float(self.sdr._ctrl.find_channel("voltage0").attrs["rssi"].value[:-3]),
+                float(self.sdr._ctrl.find_channel("voltage1").attrs["rssi"].value[:-3]),
+            ]
+        )
+
+    def gains(self):
+        return np.array(
+            [
+                type(self.sdr._get_iio_attr("voltage0", "hardwaregain", False)),
+                type(self.sdr._get_iio_attr("voltage1", "hardwaregain", False)),
+            ]
+        )
 
     def set_config(self, rx_config=None, tx_config=None):
         logging.debug(f"{self.uri}: set_config RX{str(rx_config)} TX{str(tx_config)})")
@@ -113,22 +130,56 @@ class PPlus:
     """
 
     def setup_rx(self):
+        # disable the channels before changing
+        # self.sdr.rx_enabled_channels = []
+        # assert len(self.sdr.rx_enabled_channels) == 0
+        self.sdr.rx_destroy_buffer()
+
+        # Fix the phase inversion on channel RX1
+        self.sdr._ctrl.debug_attrs["adi,rx1-rx2-phase-inversion-enable"].value = "1"
+        assert (
+            self.sdr._ctrl.debug_attrs["adi,rx1-rx2-phase-inversion-enable"].value
+            == "1"
+        )
+
+        # https://www.analog.com/media/cn/technical-documentation/user-guides/ad9364_register_map_reference_manual_ug-672.pdf
+        reg22_value = self.sdr._ctrl.reg_read(0x22)
+        # https://github.com/analogdevicesinc/linux/blob/88946d52e61d5b898c061d820caf27fd1c3730d7/drivers/iio/adc/ad9361_regs.h#L780
+        self.sdr._ctrl.reg_write(0x22, reg22_value | (1 << 6))
+        reg22_value = self.sdr._ctrl.reg_read(0x22)
+        assert (reg22_value & (1 << 6)) != 0
+
+        self.sdr.rx_rf_bandwidth = self.rx_config.rf_bandwidth
+        assert self.sdr.rx_rf_bandwidth == self.rx_config.rf_bandwidth
+
+        # if self.sdr.sample_rate != self.rx_config.sample_rate:
         self.sdr.sample_rate = self.rx_config.sample_rate
         assert self.sdr.sample_rate == self.rx_config.sample_rate
 
-        self.sdr.rx_rf_bandwidth = self.rx_config.rf_bandwidth
-        self.sdr.rx_lo = self.rx_config.lo
+        if self.sdr.rx_lo != self.rx_config.lo:
+            self.sdr.rx_lo = self.rx_config.lo
+        assert self.sdr.rx_lo == self.rx_config.lo
 
         # setup the gain mode
-        self.sdr.rx_hardwaregain_chan0 = self.rx_config.gains[0]
-        self.sdr.rx_hardwaregain_chan1 = self.rx_config.gains[1]
-        self.sdr.gain_control_mode = self.rx_config.gain_control_mode
+        self.sdr.gain_control_mode_chan0 = self.rx_config.gain_control_modes[0]
+        assert self.sdr.gain_control_mode_chan0 == self.rx_config.gain_control_modes[0]
+        if self.rx_config.gain_control_modes[0] == "manual":
+            self.sdr.rx_hardwaregain_chan0 = self.rx_config.gains[0]
+            assert self.sdr.rx_hardwaregain_chan0 == self.rx_config.gains[0]
+
+        self.sdr.gain_control_mode_chan1 = self.rx_config.gain_control_modes[1]
+        assert self.sdr.gain_control_mode_chan1 == self.rx_config.gain_control_modes[1]
+        if self.rx_config.gain_control_modes[1] == "manual":
+            self.sdr.rx_hardwaregain_chan0 = self.rx_config.gains[1]
+            assert self.sdr.rx_hardwaregain_chan0 == self.rx_config.gains[1]
 
         if self.rx_config.buffer_size is not None:
             self.sdr.rx_buffer_size = self.rx_config.buffer_size
+
         self.sdr._rxadc.set_kernel_buffers_count(
             self.rx_config.rx_buffers
         )  # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
+
         self.sdr.rx_enabled_channels = self.rx_config.enabled_channels
 
     """
@@ -137,18 +188,30 @@ class PPlus:
 
     def setup_tx(self):
         logging.debug(f"{self.tx_config.uri}: Setup TX")
-        self.sdr.tx_destroy_buffer()
-        self.sdr.tx_cyclic_buffer = self.tx_config.cyclic  # this keeps repeating!
 
-        self.sdr.sample_rate = self.tx_config.sample_rate
-        assert self.sdr.sample_rate == self.tx_config.sample_rate
+        self.sdr.tx_destroy_buffer()
+        # self.sdr.tx_enabled_channels = []
+        # assert len(self.sdr.tx_enabled_channels) == 0
+
+        self.sdr.tx_cyclic_buffer = self.tx_config.cyclic  # this keeps repeating!
+        assert self.sdr.tx_cyclic_buffer == self.tx_config.cyclic
 
         self.sdr.tx_rf_bandwidth = self.tx_config.rf_bandwidth
-        self.sdr.tx_lo = self.tx_config.lo
+        assert self.sdr.tx_rf_bandwidth == self.tx_config.rf_bandwidth
+
+        if self.sdr.sample_rate != self.tx_config.sample_rate:
+            self.sdr.sample_rate = self.tx_config.sample_rate
+        assert self.sdr.sample_rate == self.tx_config.sample_rate
+
+        if self.sdr.tx_lo != self.tx_config.lo:
+            self.sdr.tx_lo = self.tx_config.lo
+        assert self.sdr.tx_lo == self.tx_config.lo
 
         # setup the gain mode
         self.sdr.tx_hardwaregain_chan0 = self.tx_config.gains[0]
+        assert self.sdr.tx_hardwaregain_chan0 == self.tx_config.gains[0]
         self.sdr.tx_hardwaregain_chan1 = self.tx_config.gains[1]
+        assert self.sdr.tx_hardwaregain_chan1 == self.tx_config.gains[1]
 
         if self.tx_config.buffer_size is not None:
             self.sdr.tx_buffer_size = self.tx_config.buffer_size
@@ -156,6 +219,7 @@ class PPlus:
         #    1
         # )  # set buffers to 1 (instead of the default 4) to avoid stale data on Pluto
         self.sdr.tx_enabled_channels = self.tx_config.enabled_channels
+        time.sleep(1)
 
     """
     Close pluto
@@ -167,7 +231,7 @@ class PPlus:
         self.sdr.tx_enabled_channels = []
         self.sdr.tx_destroy_buffer()
         self.tx_config = None
-        time.sleep(0.1)
+        time.sleep(1.0)
 
     def close_rx(self):
         self.rx_config = None
@@ -211,7 +275,7 @@ class ReceiverConfig(Config):
         uri: str,
         buffer_size: Optional[int] = None,
         gains: list[int] = [-30, -30],
-        gain_control_mode: str = "slow_attack",
+        gain_control_modes: List[str] = ["slow_attack", "slow_attack"],
         enabled_channels: list[int] = [0, 1],
         rx_spacing=None,
         rx_theta_in_pis=0.0,
@@ -223,7 +287,7 @@ class ReceiverConfig(Config):
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
         self.gains = gains
-        self.gain_control_mode = gain_control_mode
+        self.gain_control_modes = gain_control_modes
         self.enabled_channels = enabled_channels
         self.intermediate = intermediate
         self.uri = uri
@@ -287,7 +351,7 @@ def args_to_rx_config(args):
         rf_bandwidth=int(3 * args.fi),
         sample_rate=int(args.fs),
         gains=[-30, -30],
-        gain_control_mode=args.rx_mode,
+        gain_control_modes=[args.rx_mode, args.rx_mode],
         enabled_channels=[0, 1],
         buffer_size=int(args.rx_n),
         intermediate=args.fi,
@@ -354,11 +418,11 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
             pplus_rx = provided_pplus_rx
 
         pplus_tx.setup_tx()
-        time.sleep(0.1)
+        time.sleep(1.0)
 
         # start TX
         pplus_tx.sdr.tx(make_tone(tx_config))
-        time.sleep(0.1)
+        time.sleep(1.0)
 
         # get RX and drop it
         for _ in range(40):
@@ -371,6 +435,7 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
             )
             if not leave_tx_on:
                 pplus_tx.close_tx()
+            pplus_rx.phase_calibration = 0.0
             return pplus_rx, pplus_tx
         if provided_pplus_rx is None:
             pplus_rx.close_rx()
@@ -398,6 +463,15 @@ def setup_rxtx_and_phase_calibration(
     using_tx_already_on=None,
 ):
     logging.info(f"{rx_config.uri}: Starting inter antenna receiver phase calibration")
+
+    # make sure no other emitters online
+    pplus_rx = get_pplus(rx_config=rx_config)
+    pplus_rx.setup_rx()
+    if pplus_rx.check_for_freq_peak():
+        logging.error("Refusing phase calibration when another emitter online!")
+        return None, None
+    pplus_rx.close_rx()
+    time.sleep(0.1)
 
     # its important to not use the emitter uri when calibrating!
     if using_tx_already_on is not None:
@@ -469,6 +543,8 @@ def setup_rxtx_and_phase_calibration(
 
 
 def circular_mean(angles, trim=50.0):
+    # n = angles.shape[0]
+    # assert angles.ndim == 1 or np.prod(a.shape[1:]) == 1
     cm = np.arctan2(np.sin(angles).sum(), np.cos(angles).sum()) % (2 * np.pi)
     dists = np.vstack([2 * np.pi - np.abs(cm - angles), np.abs(cm - angles)]).min(
         axis=0
@@ -544,12 +620,14 @@ def plot_recv_signal(
         axs[0][3].set_xlabel("Time")
         axs[0][3].set_ylabel("Angle estimate")
         axs[0][3].legend()
-        axs[0][3].set_title("Angle estimate")
+        axs[0][3].set_title("Phase_RX0 - Phase_RX1")
         axs[1][3].clear()
         axs[1][3].plot(beam_thetas, beam_sds)
 
         if title is not None:
             fig.suptitle(title)
+        else:
+            fig.suptitle(f"{pplus_rx.uri} phase cal: {pplus_rx.phase_calibration:0.4f}")
 
         # plt.tight_layout()
         fig.canvas.draw()
@@ -568,6 +646,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--emitter-ip", type=str, help="Long term emitter", required=True
     )
+    parser.add_argument("-l", "--leave-tx-on", action=argparse.BooleanOptionalAction)
     parser.add_argument("--mode", choices=["rx", "rxcal", "tx"], required=True)
     parser.add_argument(
         "--fi",
@@ -590,13 +669,13 @@ if __name__ == "__main__":
         required=False,
         default=int(16e6),
     )
-    parser.add_argument(
-        "--cal0",
-        type=int,
-        help="Rx0 calibration phase offset in degrees",
-        required=False,
-        default=180,
-    )
+    # parser.add_argument(
+    #    "--cal0",
+    #    type=int,
+    #    help="Rx0 calibration phase offset in degrees",
+    #    required=False,
+    #    default=180,
+    # )
     parser.add_argument(
         "--rx-gain", type=int, help="RX gain", required=False, default=-3
     )
@@ -637,7 +716,7 @@ if __name__ == "__main__":
             logging.StreamHandler(),
         ],
         format="%(asctime)s:%(levelname)s:%(message)s",
-        level=getattr(logging, "DEBUG", None),
+        level="INFO",
     )
 
     emitter_uri = "ip:%s" % args.emitter_ip
@@ -646,11 +725,13 @@ if __name__ == "__main__":
     if args.mode == "rxcal":
         # if we use weaker tx gain then the noise in phase calibration goes up
         tx_config = args_to_tx_config(args)
-        tx_config.gains = [-30, -80]
+        # tx_config.gains = [-30, -80]
         pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
             rx_config=args_to_rx_config(args),
             tx_config=tx_config,
+            leave_tx_on=args.leave_tx_on,
         )
+        # pplus_tx.sdr.tx_hardwaregain_chan0=tx_config
 
         if pplus_rx is None:
             logging.error("Failed phase calibration, exiting")
@@ -661,7 +742,7 @@ if __name__ == "__main__":
     elif args.mode == "rx":
         pplus_rx = get_pplus(rx_config=args_to_rx_config(args))
         pplus_rx.setup_rx()
-        pplus_rx.phase_calibration = args.cal0
+        # pplus_rx.phase_calibration = args.cal0
 
         plot_recv_signal(pplus_rx)
     elif args.mode == "tx":

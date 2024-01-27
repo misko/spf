@@ -15,6 +15,10 @@ def v2_column_names(nthetas=65):
         "rx_spacing_m",
         "avg_phase_diff_1",
         "avg_phase_diff_2",
+        "rssi0",
+        "rssi1",
+        "gain0",
+        "gain1",
     ] + ["beamformer_angle_%0.4f" % theta for theta in thetas]
 
 
