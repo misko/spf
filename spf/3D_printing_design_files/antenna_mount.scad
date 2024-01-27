@@ -1,4 +1,4 @@
-wave_length=125/2;
+wave_length=115/2.7; // 2.6ghz
 antenna_width=10-0.2;
 antenna_stalk_width=10-0.25;
 antenna_base_length=23;
