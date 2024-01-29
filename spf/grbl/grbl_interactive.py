@@ -297,6 +297,7 @@ class BouncePlanner(Planner):
             to_points, new_direction = self.single_bounce(
                 self.current_direction, current_p
             )
+            logging.info(f"{str(self)},{str(to_points[0])},{str(to_points[-1])}")
             assert len(to_points) > 0
             yield from to_points
             current_p = to_points[-1]
@@ -671,6 +672,13 @@ if __name__ == "__main__":
     parser.add_argument("serial", help="serial device to use")
     parser.add_argument("--unsafe", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
+
+    handlers = [logging.StreamHandler()]
+    logging.basicConfig(
+        handlers=handlers,
+        format="%(asctime)s:%(levelname)s:%(message)s",
+        level=logging.DEBUG,
+    )
 
     gm = get_default_gm(args.serial, unsafe=args.unsafe)
 
