@@ -22,8 +22,8 @@ home_bounding_box = np.array(
         [500, 450],
     ]
 )
-rx_calibration_point = np.array([1900, 3000])
-tx_calibration_point = np.array([350, 450])
+rx_calibration_point = np.array([1930, 2770])
+tx_calibration_point = np.array([550, 450])
 circle_center = np.array([2000, 1600])
 max_circle_diameter = 1900
 
