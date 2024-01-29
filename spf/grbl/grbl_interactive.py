@@ -297,11 +297,16 @@ class BouncePlanner(Planner):
             to_points, new_direction = self.single_bounce(
                 self.current_direction, current_p
             )
-            logging.info(f"{str(self)},{str(to_points[0])},{str(to_points[-1])}")
+            logging.info(
+                f"{str(self)},{str(to_points[0])},{str(to_points[-1])},{str(new_direction)},{len(to_points)}"
+            )
             assert len(to_points) > 0
             yield from to_points
             current_p = to_points[-1]
-            self.current_direction = new_direction
+            if len(to_points) == 1:
+                self.current_direction = self.random_direction()
+            else:
+                self.current_direction = new_direction
             n_bounce += 1
         logging.info("Exiting bounce")
 
