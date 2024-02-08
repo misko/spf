@@ -187,6 +187,9 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
+        "--tx-gain", type=int, help="tag files", required=False, default=None
+    )
+    parser.add_argument(
         "-t", "--tag", type=str, help="tag files", required=False, default=""
     )
     parser.add_argument(
@@ -223,6 +226,9 @@ if __name__ == "__main__":
     # add in our current config
     if args.routine is not None:
         yaml_config["routine"] = args.routine
+
+    if args.tx_gain is not None:
+        yaml_config['emitter']['tx-gain']=args.tx_gain
 
     output_files_prefix = f"wallarrayv2_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
     if args.tag != "":
