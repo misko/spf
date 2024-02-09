@@ -36,6 +36,22 @@ def v2_rx_pos_idxs():
 
 
 @cache
+def v2_rssi_idxs():
+    return [
+        v2_column_names().index("rssi0"),
+        v2_column_names().index("rssi0"),
+    ]
+
+
+@cache
+def v2_gain_idxs():
+    return [
+        v2_column_names().index("gain0"),
+        v2_column_names().index("gain1"),
+    ]
+
+
+@cache
 def v2_avg_phase_diff_idxs():
     return [
         v2_column_names().index("avg_phase_diff_1"),

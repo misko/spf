@@ -29,6 +29,8 @@ from spf.wall_array_v2 import (
     v2_avg_phase_diff_idxs,
     v2_beamformer_start_idx,
     v2_column_names,
+    v2_gain_idxs,
+    v2_rssi_idxs,
     v2_rx_pos_idxs,
     v2_rx_theta_idx,
     v2_time_idx,
@@ -454,6 +456,10 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
             "source_theta_at_t": source_theta_at_t,  # theta already accounting for orientation of detector
             "source_distance_at_t": self.zeros[:, [0]][:, None],
             "avg_phase_diffs": m[:, v2_avg_phase_diff_idxs()],
+            "gain": m[:, [v2_gain_idxs()[receiver_idx]]],
+            "rssi": m[:, [v2_rssi_idxs()[receiver_idx]]],
+            "other_gain": m[:, [v2_gain_idxs()[1 - receiver_idx]]],
+            "other_rssi": m[:, [v2_rssi_idxs()[1 - receiver_idx]]],
         }
 
 
@@ -543,9 +549,9 @@ def collate_fn_beamformer(_in):
     for _b in torch.arange(b):
         for _s in torch.arange(s):
             for smooth in range(-smooth_bins, smooth_bins + 1):
-                perfect_labels[
-                    _b, _s, (idxs[_b, _s] + smooth) % beam_former_bins
-                ] = 1 / (1 + smooth**2)
+                perfect_labels[_b, _s, (idxs[_b, _s] + smooth) % beam_former_bins] = (
+                    1 / (1 + smooth**2)
+                )
             perfect_labels[_b, _s] /= perfect_labels[_b, _s].sum() + 1e-9
     r = {
         "input": torch.concatenate(
