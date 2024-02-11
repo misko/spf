@@ -63,6 +63,6 @@ wifiscwout 0 1 0 #STOP
 
 [Running FCC test mode](https://youtu.be/tJOxaxYn43A)
 
-[FCC blink](ardunio_companion_blink_FCC_code/fcc_blink)
+[FCC blink](arduino_companion_blink_FCC_code/fcc_blink)
 
-[FCC test](ardunio_companion/tx)
+[FCC test](arduino_companion/tx)
