@@ -67,7 +67,7 @@ class PPlus:
         self.sdr = adi.ad9361(uri=self.uri)
         self.close_tx()
         # self.sdr = None
-        time.sleep(0.1)
+        time.sleep(0.5)
 
         # open for real
         # self.sdr = adi.ad9361(uri=self.uri)
@@ -418,14 +418,14 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
             pplus_rx = provided_pplus_rx
 
         pplus_tx.setup_tx()
-        time.sleep(1.0)
+        time.sleep(0.5)
 
         # start TX
         pplus_tx.sdr.tx(make_tone(tx_config))
-        time.sleep(1.0)
+        time.sleep(3.0)
 
         # get RX and drop it
-        for _ in range(40):
+        for _ in range(400):
             pplus_rx.sdr.rx()
 
         # test to see what frequency we are seeing
