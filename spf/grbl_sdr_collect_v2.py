@@ -2,6 +2,7 @@ import argparse
 import faulthandler
 import json
 import logging
+import os
 import signal
 import threading
 import time
@@ -177,6 +178,9 @@ def grbl_thread_runner(gm, routine):
     logging.info("Exiting GRBL thread")
 
 
+temp_filenames = []
+final_filenames = []
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -228,17 +232,24 @@ if __name__ == "__main__":
         yaml_config["routine"] = args.routine
 
     if args.tx_gain is not None:
-        yaml_config['emitter']['tx-gain']=args.tx_gain
+        yaml_config["emitter"]["tx-gain"] = args.tx_gain
 
     output_files_prefix = f"wallarrayv2_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
     if args.tag != "":
         output_files_prefix += f"_tag_{args.tag}"
 
+    # setup filename
+    filename_log = f"{output_files_prefix}.log.tmp"
+    filename_yaml = f"{output_files_prefix}.yaml.tmp"
+    filename_npy = f"{output_files_prefix}.npy.tmp"
+    temp_filenames = [filename_log, filename_yaml, filename_npy]
+    final_filenames = [x.replace(".tmp", "") for x in temp_filenames]
+
     # setup logging
     handlers = [logging.StreamHandler()]
     if not args.dry_run:
         handlers += [
-            logging.FileHandler(f"{output_files_prefix}.log"),
+            logging.FileHandler(filename_log),
         ]
     logging.basicConfig(
         handlers=handlers,
@@ -254,7 +265,7 @@ if __name__ == "__main__":
 
     if run_collection:
         if not args.dry_run:
-            with open(f"{output_files_prefix}.yaml", "w") as outfile:
+            with open(filename_yaml, "w") as outfile:
                 yaml.dump(yaml_config, outfile, default_flow_style=False)
 
         # record matrix
@@ -263,7 +274,7 @@ if __name__ == "__main__":
             record_matrix = None
         else:
             record_matrix = np.memmap(
-                f"{output_files_prefix}.npy",
+                filename_npy,
                 dtype="float32",
                 mode="w+",
                 shape=(
@@ -466,5 +477,9 @@ if __name__ == "__main__":
     if gm_thread is not None:
         logging.info("Grab grbl thread")
         gm_thread.join()
+
+    if run_collection:  # keep files and move to final
+        for idx in range(len(temp_filenames)):
+            os.rename(temp_filenames[idx], final_filenames[idx])
 
     logging.info("Shuttingdown: done")
