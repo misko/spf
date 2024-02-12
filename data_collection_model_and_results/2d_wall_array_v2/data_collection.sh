@@ -1,0 +1,1 @@
+ts="-25 -20 -15 -10 -5"; for t in $ts; do xs="bounce bounce"; for r in $xs; do python grbl_sdr_collect_v2.py -c v2_configs/wall_array_v2.yaml -t jan28 -r $r -s /dev/ttyACM0 --tx-gain $t; sleep 10; done; done
