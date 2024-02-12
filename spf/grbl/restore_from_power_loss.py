@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 from spf.dataset.spf_dataset import SessionsDatasetRealV2
-from spf.grbl.grbl_interactive import get_default_dynamics, get_default_gm
+from spf.grbl.grbl_interactive import get_default_gm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -40,21 +40,19 @@ if __name__ == "__main__":
         assert np.isclose(rx0, rx1).all()
 
         # get the emitter
-        tx0 = ds[0]["source_positions_at_t"][-1, 0]
-        tx1 = ds[1]["source_positions_at_t"][-1, 0]
+        tx0 = ds[0]["source_positions_at_t"][last_valid_idx, 0]
+        tx1 = ds[1]["source_positions_at_t"][last_valid_idx, 0]
         assert np.isclose(tx0, tx1, rtol=0.1, atol=0.1).all()
 
         print(f"Last valid idx: {last_valid_idx}, rx-pos:{rx0} tx-pos:{tx0}")
 
-        dynamics = get_default_dynamics()
-
         gm = get_default_gm(args.serial)
-        gm.set_current_position(
+        gm.controller.set_current_position(
             motor_channel=ds.get_yaml_config()["emitter"]["motor_channel"],
-            steps=dynamics.to_steps(tx0),
+            steps=gm.controller.dynamics.to_steps(tx0),
         )
 
-        gm.set_current_position(
+        gm.controller.set_current_position(
             motor_channel=ds.get_yaml_config()["receivers"][0]["motor_channel"],
-            steps=dynamics.to_steps(dynamics.to_steps(rx0)),
+            steps=gm.controller.dynamics.to_steps(rx0),
         )

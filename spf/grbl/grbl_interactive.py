@@ -513,12 +513,13 @@ class GRBLController:
         time.sleep(0.01)
 
     def set_current_position(self, motor_channel, steps):
+        a_motor_steps, b_motor_steps = steps
         motors = self.channel_to_motor_map[motor_channel]
         cmd = "G92 %s%0.2f %s%0.2f" % (
             motors[0],
-            steps[0],
+            b_motor_steps,
             motors[1],
-            steps[1],
+            a_motor_steps,
         )
         time.sleep(0.01)
         self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
