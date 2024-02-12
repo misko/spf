@@ -512,6 +512,19 @@ class GRBLController:
         )  # Wait for grbl response with carriage return
         time.sleep(0.01)
 
+    def set_current_position(self, motor_channel, steps):
+        motors = self.channel_to_motor_map[motor_channel]
+        cmd = "G92 %s%0.2f %s%0.2f" % (
+            motors[0],
+            steps[0],
+            motors[1],
+            steps[1],
+        )
+        time.sleep(0.01)
+        self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
+        time.sleep(0.01)
+        self.update_status()
+
     def distance_to_targets(self, target_points):
         current_position = self.update_status()
         return {
@@ -654,14 +667,18 @@ class GRBLManager:
         ]
 
 
-def get_default_gm(serial_fn, unsafe=False):
-    dynamics = Dynamics(
+def get_default_dynamics(unsafe=False):
+    return Dynamics(
         calibration_point=home_calibration_point,
         pA=home_pA,
         pB=home_pB,
         bounding_box=home_bounding_box,
         unsafe=unsafe,
     )
+
+
+def get_default_gm(serial_fn, unsafe=False):
+    dynamics = get_default_dynamics(unsafe)
 
     # planners = {0: Planner(dynamics), 1: Planner(dynamics)}
 

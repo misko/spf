@@ -313,18 +313,19 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
             else:
                 yaml_config_b = yaml.safe_load(open(yaml_fn, "r"))
                 ddiff = DeepDiff(yaml_config, yaml_config_b, ignore_order=True)
-                if len(ddiff):
+                if self.check_files and len(ddiff):
                     raise ValueError("YAML configs do not match")
         return yaml_config
 
     def __init__(
         self,
         root_dir,
-        snapshots_in_session=128,
+        snapshots_in_session=128,  # how many points we consider a session
         nsources=1,
-        step_size=1,
+        step_size=1,  # how far apart snapshots_in_session are spaced out
         seed=1337,
         check_files=True,
+        filenames=None,
     ):
         # time_step,x,y,mean_angle,_mean_angle #0,1,2,3,4
         # m = np.memmap(filename, dtype='float32', mode='r', shape=(,70))
@@ -334,10 +335,17 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
         """
         self.check_files = check_files
         self.root_dir = root_dir
-        self.snapshots_in_session = snapshots_in_session
         self.step_size = step_size
         yaml_config = self.get_yaml_config()
         self.snapshots_in_file = yaml_config["n-records-per-receiver"]
+        if snapshots_in_session == -1:
+            self.snapshots_in_session = self.snapshots_in_file
+        else:
+            assert snapshots_in_session > 0
+            self.snapshots_in_session = snapshots_in_session
+
+        assert self.snapshots_in_file % step_size == 0
+        assert (self.snapshots_in_file / step_size) % self.snapshots_in_session == 0
 
         assert nsources == 1  # TODO implement more
 
@@ -346,7 +354,11 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
 
         self.column_names = v2_column_names(nthetas=self.nthetas)
 
-        self.filenames = self.get_all_valid_files()
+        if filenames is not None:
+            assert len(filenames) > 0
+            self.filenames = filenames
+        else:
+            self.filenames = self.get_all_valid_files()
         self.args = dotdict(
             {
                 "width": yaml_config["width"],
@@ -377,8 +389,12 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
 
         self.sessions_per_file = [
             (
-                self.get_m(filename, bypass=True).shape[1]
-                - (self.snapshots_in_session * self.step_size)
+                int(
+                    self.get_m(filename, bypass=True).shape[1]
+                    / (
+                        self.snapshots_in_session * self.step_size
+                    )  # sessions per receiver
+                )
             )
             * 2  # TODO should use n-receivers
             for filename in self.filenames
