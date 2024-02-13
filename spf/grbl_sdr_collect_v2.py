@@ -467,6 +467,10 @@ if __name__ == "__main__":
 
                 read_thread.read_lock.release()
 
+    if run_collection:  # keep files and move to final
+        for idx in range(len(temp_filenames)):
+            os.rename(temp_filenames[idx], final_filenames[idx])
+
     shutdown()
     logging.info("Shuttingdown: sending false to threads")
     for read_thread in read_threads:
@@ -477,9 +481,5 @@ if __name__ == "__main__":
     if gm_thread is not None:
         logging.info("Grab grbl thread")
         gm_thread.join()
-
-    if run_collection:  # keep files and move to final
-        for idx in range(len(temp_filenames)):
-            os.rename(temp_filenames[idx], final_filenames[idx])
 
     logging.info("Shuttingdown: done")
