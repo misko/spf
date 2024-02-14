@@ -32,6 +32,14 @@ Issue commands for testing and intercept using minicom on laptop,
 cbw40m_en 0                                                                                                    
 tx_contin_en 1                                                                                                 
 esp_tx 1 0 0  
+                                                                                 
+cmdstop   #STOP                                              
+tx_contin_en 0  
+
+#TX continuous chan1 with 30*0.25db attenuation                   
+cbw40m_en 0                                                                       
+tx_contin_en 1                                                                                    
+wifitxout 1 0 30 
                                                                                                  
 cmdstop   #STOP                                              
 tx_contin_en 0              
@@ -52,11 +60,43 @@ esp_tx 1 0 0
 
 cmdstop #STOP
 
+#TX packet with 30*0.25db attenuation  
+cbw40m_en 0
+tx_contin_en 0
+esp_tx 1 0 30 
+
+#TX packet with 30*0.25db atten + 50 % duty cycle
+cbw40m_en 0
+tx_contin_en 0
+tx_cbw40m_en 0 
+RFChannelSel 1 0
+cmdstop
+FillTxPacket 655410 4 0 0 0 0 1 2 3 4 5 6
+target_power_backoff 30
+WifiTxStart 655360 0 554 0 0 1 0
+
+#TX packet with 30*0.25db atten + 90 % duty cycle
+cbw40m_en 0
+tx_contin_en 0
+tx_cbw40m_en 0 
+RFChannelSel 1 0
+cmdstop
+FillTxPacket 655462 4 0 0 0 0 1 2 3 4 5 6
+target_power_backoff 30
+WifiTxStart 655360 0 67 0 0 1 0
+
+cmdstop #STOP
+
 #TX tone
 cbw40m_en 0
 wifiscwout 1 1 0
 
 wifiscwout 0 1 0 #STOP
+
+
+#TX packet
+esp_tx 1 0 30
+
 ```
 
 ## Running with companion arduino
