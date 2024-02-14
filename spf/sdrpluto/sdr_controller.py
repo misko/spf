@@ -129,7 +129,7 @@ class PPlus:
     Setup the Rx part of the pluto
     """
 
-    def setup_rx(self):
+    def setup_rx_config(self):
         # disable the channels before changing
         # self.sdr.rx_enabled_channels = []
         # assert len(self.sdr.rx_enabled_channels) == 0
@@ -186,7 +186,7 @@ class PPlus:
     Setup the Tx side of the pluto
     """
 
-    def setup_tx(self):
+    def setup_tx_config(self):
         logging.debug(f"{self.tx_config.uri}: Setup TX")
 
         self.sdr.tx_destroy_buffer()
@@ -387,6 +387,26 @@ def make_tone(tx_config: EmitterConfig):
         np.arange(0, tx_n) / fs
     )  # time at each point assuming we are sending samples at (1/fs)s
     return np.exp(1j * 2 * np.pi * fc0 * t) * (2**14)
+
+
+def setup_rx(rx_config, provided_pplus_rx=None):
+    logging.info(f"setup_rx({rx_config.uri}) skip retries")
+    # sdr_rx = adi.ad9361(uri=receiver_uri)
+    if provided_pplus_rx is None:
+        logging.debug(f"{rx_config.uri} RX using external tx")
+        pplus_rx = get_pplus(rx_config=rx_config)
+        pplus_rx.setup_rx_config()
+    else:
+        # TODO if pluto_rx is provided confirm its the same config
+        pplus_rx = provided_pplus_rx
+    time.sleep(2)
+    # get RX and drop it
+    for _ in range(400):
+        pplus_rx.sdr.rx()
+
+    logging.info(f"RX came online with config\nRX_config:{pplus_rx.rx_config}")
+    pplus_rx.phase_calibration = 0.0
+    return pplus_rx
 
 
 def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
@@ -644,7 +664,7 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
-        "--emitter-ip", type=str, help="Long term emitter", required=True
+        "--emitter-ip", type=str, help="Long term emitter", required=False
     )
     parser.add_argument("-l", "--leave-tx-on", action=argparse.BooleanOptionalAction)
     parser.add_argument("--mode", choices=["rx", "rxcal", "tx"], required=True)
@@ -740,8 +760,9 @@ if __name__ == "__main__":
         plot_recv_signal(pplus_rx)
 
     elif args.mode == "rx":
-        pplus_rx = get_pplus(rx_config=args_to_rx_config(args))
-        pplus_rx.setup_rx()
+        # pplus_rx = get_pplus(rx_config=args_to_rx_config(args))
+        # pplus_rx.setup_rx_config()
+        pplus_rx = setup_rx(rx_config=args_to_rx_config(args))
         # pplus_rx.phase_calibration = args.cal0
 
         plot_recv_signal(pplus_rx)

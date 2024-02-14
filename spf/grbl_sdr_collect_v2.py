@@ -23,6 +23,7 @@ from spf.sdrpluto.sdr_controller import (
     get_avg_phase,
     get_pplus,
     plot_recv_signal,
+    setup_rx,
     setup_rxtx,
     setup_rxtx_and_phase_calibration,
     shutdown_radios,
@@ -232,6 +233,7 @@ if __name__ == "__main__":
         yaml_config["routine"] = args.routine
 
     if args.tx_gain is not None:
+        assert "emitter" in yaml_config
         yaml_config["emitter"]["tx-gain"] = args.tx_gain
 
     output_files_prefix = f"wallarrayv2_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
@@ -287,7 +289,9 @@ if __name__ == "__main__":
         logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
 
         # lets open all the radios
-        radio_uris = ["ip:%s" % yaml_config["emitter"]["receiver-ip"]]
+        radio_uris = []
+        if "emitter" in yaml_config:
+            radio_uris.append(["ip:%s" % yaml_config["emitter"]["receiver-ip"]])
         for receiver in yaml_config["receivers"]:
             radio_uris.append("ip:%s" % receiver["receiver-ip"])
         for radio_uri in radio_uris:
@@ -315,30 +319,36 @@ if __name__ == "__main__":
                 motor_channel=receiver["motor_channel"],
                 rx_buffers=receiver["rx-buffers"],
             )
-            tx_config = EmitterConfig(
-                lo=receiver["f-carrier"],
-                rf_bandwidth=receiver["bandwidth"],
-                sample_rate=receiver["f-sampling"],
-                intermediate=receiver["f-intermediate"],
-                gains=[-30, -80],
-                enabled_channels=[0],
-                cyclic=True,
-                uri="ip:%s" % receiver["emitter-ip"],
-            )
-            if args.skip_phase_calibration or (
-                "skip_phase_calibration" in yaml_config
-                and yaml_config["skip_phase_calibration"]
-            ):
-                pplus_rx, pplus_tx = setup_rxtx(
-                    rx_config=rx_config, tx_config=tx_config
+            if "emitter-ip" in receiver:
+                tx_config = EmitterConfig(
+                    lo=receiver["f-carrier"],
+                    rf_bandwidth=receiver["bandwidth"],
+                    sample_rate=receiver["f-sampling"],
+                    intermediate=receiver["f-intermediate"],
+                    gains=[-30, -80],
+                    enabled_channels=[0],
+                    cyclic=True,
+                    uri="ip:%s" % receiver["emitter-ip"],
                 )
+                if args.skip_phase_calibration or (
+                    "skip_phase_calibration" in yaml_config
+                    and yaml_config["skip_phase_calibration"]
+                ):
+                    pplus_rx, pplus_tx = setup_rxtx(
+                        rx_config=rx_config, tx_config=tx_config
+                    )
+                else:
+                    pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
+                        rx_config=rx_config,
+                        tx_config=tx_config,
+                        n_calibration_frames=yaml_config["calibration-frames"],
+                    )
             else:
-                pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
-                    rx_config=rx_config,
-                    tx_config=tx_config,
-                    n_calibration_frames=yaml_config["calibration-frames"],
-                )
-            if pplus_rx is None or pplus_tx is None:
+                assert args.skip_phase_calibration
+                # there is no emitter to setup, its already blasting
+                pplus_rx = setup_rx(rx_config=rx_config)
+
+            if pplus_rx is None:
                 logging.info("Failed to bring RXTX online, shuttingdown")
                 run_collection = False
                 break
@@ -347,7 +357,7 @@ if __name__ == "__main__":
                 receiver_pplus[pplus_rx.uri] = pplus_rx
                 assert pplus_rx.rx_config.rx_pos is not None
 
-    if run_collection:
+    if run_collection and "emitter" in yaml_config:
         # setup the emitter
         target_yaml_config = yaml_config["emitter"]
         target_rx_config = ReceiverConfig(
