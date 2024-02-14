@@ -344,7 +344,10 @@ if __name__ == "__main__":
                         n_calibration_frames=yaml_config["calibration-frames"],
                     )
             else:
-                assert args.skip_phase_calibration
+                assert args.skip_phase_calibration or (
+                    "skip_phase_calibration" in yaml_config
+                    and yaml_config["skip_phase_calibration"]
+                )
                 # there is no emitter to setup, its already blasting
                 pplus_rx = setup_rx(rx_config=rx_config)
 
