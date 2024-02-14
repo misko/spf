@@ -2,6 +2,7 @@
 # When the emitter is brought online it is verified
 # by a receiver that it actually is broadcasting
 emitter:
+  type: sdr
   receiver-ip: 192.168.1.17
   emitter-ip: 192.168.1.15
   tx-gain: -10

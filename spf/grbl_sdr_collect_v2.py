@@ -233,7 +233,7 @@ if __name__ == "__main__":
         yaml_config["routine"] = args.routine
 
     if args.tx_gain is not None:
-        assert "emitter" in yaml_config
+        assert yaml_config["emitter"]["type"] == "sdr"
         yaml_config["emitter"]["tx-gain"] = args.tx_gain
 
     output_files_prefix = f"wallarrayv2_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
@@ -290,7 +290,7 @@ if __name__ == "__main__":
 
         # lets open all the radios
         radio_uris = []
-        if "emitter" in yaml_config:
+        if yaml_config["emitter"]["type"] == "sdr":
             radio_uris.append(["ip:%s" % yaml_config["emitter"]["receiver-ip"]])
         for receiver in yaml_config["receivers"]:
             radio_uris.append("ip:%s" % receiver["receiver-ip"])
@@ -360,9 +360,9 @@ if __name__ == "__main__":
                 receiver_pplus[pplus_rx.uri] = pplus_rx
                 assert pplus_rx.rx_config.rx_pos is not None
 
-    if run_collection and "emitter" in yaml_config:
+    target_yaml_config = yaml_config["emitter"]
+    if run_collection and target_yaml_config["type"] == "sdr":
         # setup the emitter
-        target_yaml_config = yaml_config["emitter"]
         target_rx_config = ReceiverConfig(
             lo=target_yaml_config["f-carrier"],
             rf_bandwidth=target_yaml_config["bandwidth"],
@@ -456,7 +456,7 @@ if __name__ == "__main__":
                 tx_pos = np.array([0, 0])
                 if gm is not None:
                     tx_pos = gm.controller.position["xy"][
-                        target_tx_config.motor_channel
+                        target_yaml_config["motor_channel"]
                     ]
                     rx_pos = gm.controller.position["xy"][
                         read_thread.pplus.rx_config.motor_channel

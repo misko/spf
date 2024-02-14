@@ -565,9 +565,9 @@ def collate_fn_beamformer(_in):
     for _b in torch.arange(b):
         for _s in torch.arange(s):
             for smooth in range(-smooth_bins, smooth_bins + 1):
-                perfect_labels[_b, _s, (idxs[_b, _s] + smooth) % beam_former_bins] = (
-                    1 / (1 + smooth**2)
-                )
+                perfect_labels[
+                    _b, _s, (idxs[_b, _s] + smooth) % beam_former_bins
+                ] = 1 / (1 + smooth**2)
             perfect_labels[_b, _s] /= perfect_labels[_b, _s].sum() + 1e-9
     r = {
         "input": torch.concatenate(
