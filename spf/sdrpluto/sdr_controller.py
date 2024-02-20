@@ -411,33 +411,18 @@ def setup_rx(rx_config, provided_pplus_rx=None):
 
 def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
     retries = 0
+    if provided_pplus_rx is None:
+        pplus_rx = get_pplus(rx_config=rx_config)
+        pplus_rx.setup_rx_config()
+    else:
+        pplus_rx = provided_pplus_rx
+    time.sleep(1)
     while run_radios and retries < 15:
         logging.info(f"setup_rxtx({rx_config.uri}, {tx_config.uri}) retry {retries}")
         # sdr_rx = adi.ad9361(uri=receiver_uri)
-        if provided_pplus_rx is None:
-            if rx_config.uri == tx_config.uri:
-                logging.debug(f"{rx_config.uri} RX TX are same")
-                pplus_rx = get_pplus(rx_config=rx_config, tx_config=tx_config)
-                pplus_tx = pplus_rx
-            else:
-                logging.debug(f"{rx_config.uri}(RX) TX are different")
-                pplus_rx = get_pplus(rx_config=rx_config)
-                logging.debug(f"{tx_config.uri} RX (TX) are different")
-                pplus_tx = get_pplus(tx_config=tx_config)
-            pplus_rx.setup_rx()
-        else:
-            if rx_config.uri == tx_config.uri:
-                logging.debug(f"{rx_config.uri} RX TX are same using preinitialized")
-                pplus_tx = provided_pplus_rx
-            else:
-                logging.debug(
-                    f"{tx_config.uri} RX (TX) are different using preinitialized RX"
-                )
-                pplus_tx = get_pplus(tx_config=tx_config)
-            # TODO if pluto_rx is provided confirm its the same config
-            pplus_rx = provided_pplus_rx
+        pplus_tx = get_pplus(tx_config=tx_config)
 
-        pplus_tx.setup_tx()
+        pplus_tx.setup_tx_config()
         time.sleep(0.5)
 
         # start TX
@@ -457,14 +442,14 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
                 pplus_tx.close_tx()
             pplus_rx.phase_calibration = 0.0
             return pplus_rx, pplus_tx
-        if provided_pplus_rx is None:
-            pplus_rx.close_rx()
+        # if provided_pplus_rx is None:
+        #    pplus_rx.close_rx()
         pplus_tx.close_tx()
         retries += 1
 
         # try to reset
-        pplus_tx.close_tx()
-        time.sleep(0.1)
+        # pplus_tx.close_tx()
+        time.sleep(1)
     return None, None
 
 
