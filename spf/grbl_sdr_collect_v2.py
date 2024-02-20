@@ -291,7 +291,7 @@ if __name__ == "__main__":
         # lets open all the radios
         radio_uris = []
         if yaml_config["emitter"]["type"] == "sdr":
-            radio_uris.append(["ip:%s" % yaml_config["emitter"]["receiver-ip"]])
+            radio_uris.append("ip:%s" % yaml_config["emitter"]["receiver-ip"])
         for receiver in yaml_config["receivers"]:
             radio_uris.append("ip:%s" % receiver["receiver-ip"])
         for radio_uri in radio_uris:
