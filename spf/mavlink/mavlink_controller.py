@@ -2,10 +2,22 @@
 import argparse
 import logging
 import math
+import signal
+import threading
 import time
 
 import numpy as np
 from pymavlink import mavutil, mavwp
+
+keep_running = True
+
+
+def signal_handler(sig, frame):
+    global keep_running
+    keep_running = False
+
+
+signal.signal(signal.SIGINT, signal_handler)
 
 # long , lat
 crissy_boundary = np.array(
@@ -117,6 +129,44 @@ class Drone:
             "MAV_CMD_DO_SET_MODE": 176,
         }
         self.mav_cmd_num2name = {176: "MAV_CMD_DO_SET_MODE"}
+
+        self.switch_condition = threading.Condition()
+        self.message_loop = True
+        self.single_operation = False
+
+        self.message_loop_thread = threading.Thread(target=self.process_messages)
+        self.message_loop_thread.start()
+
+        self.timeout = 0.5
+
+        self.ignore_messages = [
+            "AHRS2",
+            "ATTITUDE",
+            "BATTERY_STATUS",
+            "EKF_STATUS_REPORT",
+            "ESC_TELEMETRY_1_TO_4",
+            "GPS_RAW_INT",
+            "HWSTATUS",
+            "LOCAL_POSITION_NED",
+            "MEMINFO",
+            # "MISSION_CURRENT",
+            "NAV_CONTROLLER_OUTPUT",
+            "POSITION_TARGET_GLOBAL_INT",
+            "POWER_STATUS",
+            "RAW_IMU",
+            "RC_CHANNELS",
+            "RC_CHANNELS_SCALED",
+            "SCALED_IMU2",
+            "SCALED_IMU3",
+            "SCALED_PRESSURE",
+            "SCALED_PRESSURE2",
+            "SERVO_OUTPUT_RAW",
+            "SIMSTATE",
+            "SYSTEM_TIME",
+            "SYS_STATUS",
+            "VFR_HUD",
+            "VIBRATION",
+        ]
 
     def get_cmd(self, cmd):
         v = getattr(mavutil.mavlink, cmd)
@@ -279,10 +329,39 @@ class Drone:
     def ack(self, keyword):
         self.connection.recv_match(type=keyword, blocking=True)
 
+    def single_operation_mode_on(self):
+        global keep_running
+        assert not self.single_operation
+        self.single_operation = True  # request single operation mode
+        with self.switch_condition:
+            while keep_running and self.message_loop:
+                self.switch_condition.wait(timeout=self.timeout)
+            if not keep_running:
+                return None
+            return True
+
+    def single_operation_mode_off(self, turn_on_messages=True):
+        assert self.single_operation
+        self.single_operation = False  # request single operation mode
+        self.message_loop = turn_on_messages
+        with self.switch_condition:
+            self.switch_condition.notify_all()
+
     def process_messages(self):
-        while True:
-            msg = self.connection.recv_match()
-            self.process_message(msg)
+        global keep_running
+        while keep_running:
+            with self.switch_condition:  # try not to leave context too often
+                # if we are not supposed to run  message loop or the single operation mode is requested
+                # chill out
+                if self.single_operation:
+                    self.message_loop = False  # lets chill for a bit
+                while keep_running and (not self.message_loop or self.single_operation):
+                    print("Message loop waiting")
+                    self.switch_condition.wait(timeout=self.timeout)
+                if not keep_running:
+                    return
+                msg = self.connection.recv_match()
+                self.process_message(msg)
 
     def process_message(self, msg):
         if msg is None:
@@ -293,7 +372,7 @@ class Drone:
             d = msg.to_dict()
             lat = d["lat"] * 1e-7
             lon = d["lon"] * 1e-7
-            print("GPS", lat, lon)
+            # print("GPS", lat, lon)
         elif msg.get_type() == "COMMAND_ACK":
             d = msg.to_dict()
             print(d)
@@ -301,13 +380,13 @@ class Drone:
                 print("COMMAND", drone.mav_cmd_num2name[msg.command])
         elif msg.get_type() == "HOME_POSITION":  # also maybe GPS_GLOBAL_ORIGIN
             d = msg.to_dict()
-            print(d)
-        elif False and msg.get_type() == "AHRS":
+            # print(d)
+        elif msg.get_type() == "AHRS":
             d = msg.to_dict()
-            print(d)
+            # print(d)
         elif msg.get_type() == "HEARTBEAT":
             d = msg.to_dict()
-            print(d)
+            # print(d)
             self.mav_state = lookup_exact(d["system_status"], mav_states_list)
             self.mav_mode = self.mav_mode_mapping_num2name[msg.custom_mode]
         elif False and msg.get_type() == "SYS_STATUS":
@@ -332,9 +411,13 @@ class Drone:
             print("\n\n")
             print(d)
             print("\n\n")
-        else:
-            # print(f"\t{msg.get_type()}")
+        elif msg.get_type() == "MISSION_ITEM_REACHED":
+            print("REACHED MISSION ITEM!!")
+        elif msg.get_type() in self.ignore_messages:
             pass
+        else:
+            print(f"\t{msg.get_type()}")
+            # pass
         # if
 
     def set_mode(self, mode):
@@ -400,8 +483,15 @@ if __name__ == "__main__":
     # drone.request_home()
 
     drone.set_mode("GUIDED")
-    for long, lat in crissy_boundary:
+    for long, lat in crissy_boundary[0:]:
         print(lat, long)
         drone.reposition(lat, long)
         break
-    drone.process_messages()
+
+    time.sleep(5)
+    drone.single_operation_mode_on()
+    time.sleep(5)
+    drone.single_operation_mode_off()
+    time.sleep(5)
+    print("DONE")
+    # drone.process_messages()
