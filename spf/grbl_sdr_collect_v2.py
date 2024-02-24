@@ -109,8 +109,7 @@ class ThreadedRX:
                     gains = self.pplus.gains()
                 except Exception as e:
                     logging.error(
-                        f"Failed to receive RX data! removing file : retry {tries}",
-                        e,
+                        f"Failed to receive RX data! removing file : retry {tries} {e}",
                     )
                     time.sleep(0.1)
                     tries += 1
