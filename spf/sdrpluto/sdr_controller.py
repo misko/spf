@@ -152,12 +152,13 @@ class PPlus:
         self.sdr.rx_rf_bandwidth = self.rx_config.rf_bandwidth
         assert self.sdr.rx_rf_bandwidth == self.rx_config.rf_bandwidth
 
+        # some of these reset the controller and gain settings when set, so always set them!
+
         # if self.sdr.sample_rate != self.rx_config.sample_rate:
         self.sdr.sample_rate = self.rx_config.sample_rate
         assert self.sdr.sample_rate == self.rx_config.sample_rate
 
-        if self.sdr.rx_lo != self.rx_config.lo:
-            self.sdr.rx_lo = self.rx_config.lo
+        self.sdr.rx_lo = self.rx_config.lo
         assert self.sdr.rx_lo == self.rx_config.lo
 
         # setup the gain mode
@@ -196,15 +197,15 @@ class PPlus:
         self.sdr.tx_cyclic_buffer = self.tx_config.cyclic  # this keeps repeating!
         assert self.sdr.tx_cyclic_buffer == self.tx_config.cyclic
 
+        # some of these reset the controller and gain settings when set, so always set them!
+
         self.sdr.tx_rf_bandwidth = self.tx_config.rf_bandwidth
         assert self.sdr.tx_rf_bandwidth == self.tx_config.rf_bandwidth
 
-        if self.sdr.sample_rate != self.tx_config.sample_rate:
-            self.sdr.sample_rate = self.tx_config.sample_rate
+        self.sdr.sample_rate = self.tx_config.sample_rate
         assert self.sdr.sample_rate == self.tx_config.sample_rate
 
-        if self.sdr.tx_lo != self.tx_config.lo:
-            self.sdr.tx_lo = self.tx_config.lo
+        self.sdr.tx_lo = self.tx_config.lo
         assert self.sdr.tx_lo == self.tx_config.lo
 
         # setup the gain mode
@@ -379,7 +380,7 @@ def make_tone(tx_config: EmitterConfig):
     fc0 = tx_config.intermediate
     fs = tx_config.sample_rate  # must be <=30.72 MHz if both channels are enabled
     tx_n = int(fs / gcd(fs, fc0))
-    while tx_n < 1024 * 16:
+    while tx_n < 1024 * 2:
         tx_n *= 2
 
     # since its a cyclic buffer its important to end on a full phase
@@ -427,7 +428,7 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
 
         # start TX
         pplus_tx.sdr.tx(make_tone(tx_config))
-        time.sleep(3.0)
+        time.sleep(2.0)
 
         # get RX and drop it
         for _ in range(400):
@@ -763,3 +764,4 @@ if __name__ == "__main__":
         logging.info(f"{emitter_uri}: Emitter online verified by {receiver_uri}")
         # apply the previous calibration
         time.sleep(1800)
+
