@@ -25,7 +25,6 @@ from spf.sdrpluto.sdr_controller import (
     plot_recv_signal,
     setup_rx,
     setup_rxtx,
-    setup_rxtx_and_phase_calibration,
     shutdown_radios,
 )
 from spf.wall_array_v2 import v2_column_names
@@ -298,67 +297,6 @@ if __name__ == "__main__":
 
         time.sleep(0.1)
 
-    # get radios online
-    receiver_pplus = {}
-    pplus_rx, pplus_tx = (None, None)
-    for receiver in yaml_config["receivers"]:
-        if run_collection:
-            rx_config = ReceiverConfig(
-                lo=receiver["f-carrier"],
-                rf_bandwidth=receiver["bandwidth"],
-                sample_rate=receiver["f-sampling"],
-                gains=[receiver["rx-gain"], receiver["rx-gain"]],
-                gain_control_modes=[receiver["rx-gain-mode"], receiver["rx-gain-mode"]],
-                enabled_channels=[0, 1],
-                buffer_size=receiver["buffer-size"],
-                intermediate=receiver["f-intermediate"],
-                uri="ip:%s" % receiver["receiver-ip"],
-                rx_spacing=receiver["antenna-spacing-m"],
-                rx_theta_in_pis=receiver["theta-in-pis"],
-                motor_channel=receiver["motor_channel"],
-                rx_buffers=receiver["rx-buffers"],
-            )
-            if "emitter-ip" in receiver:
-                tx_config = EmitterConfig(
-                    lo=receiver["f-carrier"],
-                    rf_bandwidth=receiver["bandwidth"],
-                    sample_rate=receiver["f-sampling"],
-                    intermediate=receiver["f-intermediate"],
-                    gains=[-30, -80],
-                    enabled_channels=[0],
-                    cyclic=True,
-                    uri="ip:%s" % receiver["emitter-ip"],
-                )
-                if args.skip_phase_calibration or (
-                    "skip_phase_calibration" in yaml_config
-                    and yaml_config["skip_phase_calibration"]
-                ):
-                    pplus_rx, pplus_tx = setup_rxtx(
-                        rx_config=rx_config, tx_config=tx_config
-                    )
-                else:
-                    pplus_rx, pplus_tx = setup_rxtx_and_phase_calibration(
-                        rx_config=rx_config,
-                        tx_config=tx_config,
-                        n_calibration_frames=yaml_config["calibration-frames"],
-                    )
-            else:
-                assert args.skip_phase_calibration or (
-                    "skip_phase_calibration" in yaml_config
-                    and yaml_config["skip_phase_calibration"]
-                )
-                # there is no emitter to setup, its already blasting
-                pplus_rx = setup_rx(rx_config=rx_config)
-
-            if pplus_rx is None:
-                logging.info("Failed to bring RXTX online, shuttingdown")
-                run_collection = False
-                break
-            else:
-                logging.debug("RX online!")
-                receiver_pplus[pplus_rx.uri] = pplus_rx
-                assert pplus_rx.rx_config.rx_pos is not None
-
     target_yaml_config = yaml_config["emitter"]
     if run_collection and target_yaml_config["type"] == "sdr":
         # setup the emitter
@@ -388,18 +326,47 @@ if __name__ == "__main__":
             motor_channel=target_yaml_config["motor_channel"],
         )
 
-        if target_rx_config.uri not in receiver_pplus:
-            setup_rxtx(
-                rx_config=target_rx_config, tx_config=target_tx_config, leave_tx_on=True
+        pplus_rx, _ = setup_rxtx(
+            rx_config=target_rx_config, tx_config=target_tx_config, leave_tx_on=True
+        )
+        pplus_rx.close_rx()
+
+    # get radios online
+    receiver_pplus = {}
+    pplus_rx, pplus_tx = (None, None)
+    for receiver in yaml_config["receivers"]:
+        if run_collection:
+            rx_config = ReceiverConfig(
+                lo=receiver["f-carrier"],
+                rf_bandwidth=receiver["bandwidth"],
+                sample_rate=receiver["f-sampling"],
+                gains=[receiver["rx-gain"], receiver["rx-gain"]],
+                gain_control_modes=[receiver["rx-gain-mode"], receiver["rx-gain-mode"]],
+                enabled_channels=[0, 1],
+                buffer_size=receiver["buffer-size"],
+                intermediate=receiver["f-intermediate"],
+                uri="ip:%s" % receiver["receiver-ip"],
+                rx_spacing=receiver["antenna-spacing-m"],
+                rx_theta_in_pis=receiver["theta-in-pis"],
+                motor_channel=receiver["motor_channel"],
+                rx_buffers=receiver["rx-buffers"],
             )
-        else:
-            logging.info(f"Re-using {target_rx_config.uri} as RX for TX")
-            setup_rxtx(
-                rx_config=target_rx_config,
-                tx_config=target_tx_config,
-                leave_tx_on=True,
-                provided_pplus_rx=receiver_pplus[target_rx_config.uri],
+            assert "emitter-ip" not in receiver
+            assert args.skip_phase_calibration or (
+                "skip_phase_calibration" in yaml_config
+                and yaml_config["skip_phase_calibration"]
             )
+            # there is no emitter to setup, its already blasting
+            pplus_rx = setup_rx(rx_config=rx_config)
+
+            if pplus_rx is None:
+                logging.info("Failed to bring RXTX online, shuttingdown")
+                run_collection = False
+                break
+            else:
+                logging.debug("RX online!")
+                receiver_pplus[pplus_rx.uri] = pplus_rx
+                assert pplus_rx.rx_config.rx_pos is not None
 
     # setup GRBL
     gm = None

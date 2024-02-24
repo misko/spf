@@ -118,12 +118,12 @@ class PPlus:
         logging.info(f"{self.uri}: Done close PlutoPlus")
 
     def __del__(self):
-        logging.debug(f"{self.uri}: Start delete PlutoPlus")
+        # logging.debug(f"{self.uri}: Start delete PlutoPlus")
         self.close_tx()
-        self.sdr.tx_destroy_buffer()
-        self.sdr.rx_destroy_buffer()
+        # self.sdr.tx_destroy_buffer()
+        # self.sdr.rx_destroy_buffer()
         self.sdr.tx_enabled_channels = []
-        logging.debug(f"{self.uri}: Done delete PlutoPlus")
+        # logging.debug(f"{self.uri}: Done delete PlutoPlus")
 
     """
     Setup the Rx part of the pluto
@@ -231,8 +231,9 @@ class PPlus:
         self.sdr.tx_hardwaregain_chan1 = -80
         self.sdr.tx_enabled_channels = []
         self.sdr.tx_destroy_buffer()
+        self.sdr.tx_cyclic_buffer = False
         self.tx_config = None
-        time.sleep(1.0)
+        # time.sleep(1.0)
 
     def close_rx(self):
         self.rx_config = None
@@ -418,6 +419,10 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
     else:
         pplus_rx = provided_pplus_rx
     time.sleep(1)
+    # get RX and drop it
+    for _ in range(400):
+        pplus_rx.sdr.rx()
+
     while run_radios and retries < 15:
         logging.info(f"setup_rxtx({rx_config.uri}, {tx_config.uri}) retry {retries}")
         # sdr_rx = adi.ad9361(uri=receiver_uri)
@@ -764,4 +769,3 @@ if __name__ == "__main__":
         logging.info(f"{emitter_uri}: Emitter online verified by {receiver_uri}")
         # apply the previous calibration
         time.sleep(1800)
-

@@ -23,7 +23,6 @@ emitter:
 # multiples of pi
 receivers:
   - receiver-ip: 192.168.1.17
-    emitter-ip: 192.168.1.15
     theta-in-pis: -0.25
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
@@ -38,7 +37,6 @@ receivers:
     bandwidth: 300000 #3.0e5
     motor_channel: 0
   - receiver-ip: 192.168.1.18
-    emitter-ip: 192.168.1.15
     theta-in-pis: 1.25
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
