@@ -104,10 +104,8 @@ class PointOutOfBoundsException(Exception):
 
 
 class Dynamics:
-    def __init__(self, calibration_point, pA, pB, bounding_box, unsafe=False):
-        self.calibration_point = calibration_point
-        self.pA = pA
-        self.pB = pB
+    def __init__(self, bounding_box, unsafe=False, bounds_radius=0.00001):
+        self.bounds_radius = bounds_radius
         self.unsafe = unsafe
         if len(bounding_box) >= 3:
             hull = ConvexHull(bounding_box)
@@ -126,13 +124,68 @@ class Dynamics:
         else:
             self.polygon = None
 
+    def to_steps(self, p):
+        if (
+            (not self.unsafe)
+            and (self.polygon is not None)
+            and not self.polygon.contains_point(p, radius=self.bounds_radius)
+        ):  # todo a bit hacky but works
+            raise PointOutOfBoundsException(
+                "Point we want to move to will be out of bounds"
+            )
+
+    def from_steps(self, state):
+        return state
+
+    def binary_search_edge(self, left, right, xy, direction, epsilon):
+        if (right - left) < epsilon:
+            return left
+        midpoint = (right + left) / 2
+        p = midpoint * direction + xy
+        try:
+            steps = self.to_steps(p)  # noqa
+            # actual = self.from_steps(*steps)
+            return self.binary_search_edge(midpoint, right, xy, direction, epsilon)
+        except PointOutOfBoundsException:
+            return self.binary_search_edge(left, midpoint, xy, direction, epsilon)
+
+    def get_boundary_vector_near_point(self, p):
+        if self.polygon is None:
+            raise ValueError
+
+        bvec = None
+        max_score = 0
+        nverts = len(self.polygon.vertices)
+        for i in range(nverts):
+            v0 = self.polygon.vertices[i % nverts]
+            v1 = self.polygon.vertices[(i + 1) % nverts]
+            score = max(
+                np.dot(p - v0, v1 - v0)
+                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v0) + 0.01),
+                np.dot(p - v1, v1 - v1)
+                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v1) + 0.01),
+            )
+            if score > max_score:
+                max_score = score
+                bvec = (v1 - v0) / np.linalg.norm(v1 - v0)
+        return bvec
+
+
+class GRBLDynamics(Dynamics):
+    def __init__(self, calibration_point, pA, pB, bounding_box, unsafe=False):
+        super().__init__(bounding_box=bounding_box, unsafe=unsafe)
+        self.calibration_point = calibration_point
+        self.pA = pA
+        self.pB = pB
+
     # a is the left motor on the wall
     # b is the right motor on the wall
     # (a-b)_x > 0
     # x is positive from b towards a
     # y is positive up to ceiling and negative down to floor
 
-    def from_steps(self, a_motor_steps, b_motor_steps):
+    def from_steps(self, state):
+        a_motor_steps, b_motor_steps = state
         """
         The motor steps are relative to calibration point
         (0,0) motor steps means we are at the calibration point and have
@@ -177,7 +230,7 @@ class Dynamics:
             self.pB - self.calibration_point
         )
         # check the point again
-        new_point = self.from_steps(a_motor_steps, b_motor_steps)
+        new_point = self.from_steps([a_motor_steps, b_motor_steps])
         if (
             (not self.unsafe)
             and (self.polygon is not None)
@@ -187,45 +240,12 @@ class Dynamics:
 
         return a_motor_steps, b_motor_steps
 
-    def binary_search_edge(self, left, right, xy, direction, epsilon):
-        if (right - left) < epsilon:
-            return left
-        midpoint = (right + left) / 2
-        p = midpoint * direction + xy
-        try:
-            steps = self.to_steps(p)  # noqa
-            # actual = self.from_steps(*steps)
-            return self.binary_search_edge(midpoint, right, xy, direction, epsilon)
-        except PointOutOfBoundsException:
-            return self.binary_search_edge(left, midpoint, xy, direction, epsilon)
-
-    def get_boundary_vector_near_point(self, p):
-        if self.polygon is None:
-            raise ValueError
-
-        bvec = None
-        max_score = 0
-        nverts = len(self.polygon.vertices)
-        for i in range(nverts):
-            v0 = self.polygon.vertices[i % nverts]
-            v1 = self.polygon.vertices[(i + 1) % nverts]
-            score = max(
-                np.dot(p - v0, v1 - v0)
-                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v0) + 0.01),
-                np.dot(p - v1, v1 - v1)
-                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v1) + 0.01),
-            )
-            if score > max_score:
-                max_score = score
-                bvec = (v1 - v0) / np.linalg.norm(v1 - v0)
-        return bvec
-
 
 class Planner(ABC):
-    def __init__(self, dynamics, start_point, step_size=5):
+    def __init__(self, dynamics, start_point, step_size=5, epsilon=1):
         self.dynamics = dynamics
         self.current_direction = None
-        self.epsilon = 1  # original was 0.001
+        self.epsilon = epsilon  # original was 0.001
         self.start_point = start_point
         self.step_size = step_size
 
@@ -462,8 +482,8 @@ class GRBLController:
             float, motor_position_str[len("MPos:") :].split(",")
         )
 
-        xy0 = self.dynamics.from_steps(a0_motor_steps, b0_motor_steps)
-        xy1 = self.dynamics.from_steps(a1_motor_steps, b1_motor_steps)
+        xy0 = self.dynamics.from_steps([a0_motor_steps, b0_motor_steps])
+        xy1 = self.dynamics.from_steps([a1_motor_steps, b1_motor_steps])
 
         is_moving = (self.position["xy"][0] != xy0).any() or (
             self.position["xy"][1] != xy1
@@ -669,7 +689,7 @@ class GRBLManager:
 
 
 def get_default_dynamics(unsafe=False):
-    return Dynamics(
+    return GRBLDynamics(
         calibration_point=home_calibration_point,
         pA=home_pA,
         pB=home_pB,

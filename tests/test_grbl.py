@@ -6,7 +6,7 @@ from shapely import geometry
 
 from spf.grbl.grbl_interactive import (
     BouncePlanner,
-    Dynamics,
+    GRBLDynamics,
     home_bounding_box,
     home_calibration_point,
     home_pA,
@@ -15,7 +15,7 @@ from spf.grbl.grbl_interactive import (
 
 
 def test_steps_and_steps_inverse():
-    dynamics = Dynamics(
+    dynamics = GRBLDynamics(
         calibration_point=np.array([0, 0]),
         pA=home_pA,
         pB=home_pB,
@@ -27,12 +27,12 @@ def test_steps_and_steps_inverse():
         for y in np.linspace(0, 4000, n + 1):
             p = np.array([x, y])
             steps = dynamics.to_steps(np.array(p))
-            back = dynamics.from_steps(*steps)
+            back = dynamics.from_steps(steps)
             assert np.isclose(p, back).all()
 
 
 def test_xaxis():
-    dynamics = Dynamics(
+    dynamics = GRBLDynamics(
         calibration_point=np.array([0, 0]),
         pA=home_pA,
         pB=home_pB,
@@ -44,7 +44,7 @@ def test_xaxis():
     for x in np.linspace(0, 2000, n + 1):
         p = np.array([x, y])
         steps = dynamics.to_steps(np.array(p))
-        back = dynamics.from_steps(*steps)
+        back = dynamics.from_steps(steps)
         print("p", p, "steps", steps, "back", back)
         if x > 0:
             assert (
@@ -92,7 +92,7 @@ def test_polygon_contains():
 
 
 def test_binary_search_edge():
-    dynamics = Dynamics(
+    dynamics = GRBLDynamics(
         calibration_point=home_calibration_point,
         pA=home_pA,
         pB=home_pB,
