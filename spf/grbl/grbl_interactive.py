@@ -149,23 +149,46 @@ class Dynamics:
         except PointOutOfBoundsException:
             return self.binary_search_edge(left, midpoint, xy, direction, epsilon)
 
+    def distance_from_point_to_segment(self, p, v0, v1):
+        # rint("DISTANCE SEGMENT", p, v0, v1)
+        # center to v0
+        v1 = v1 - v0
+        p = p - v0
+        # lets get v1 -> y axis
+        v1_norm = v1 / np.linalg.norm(v1)
+        v2_norm = np.array([-v1_norm[1], v1_norm[0]])
+
+        inv_m = np.vstack([v1_norm, v2_norm]).T
+        m = np.linalg.inv(inv_m)
+
+        _v1 = m @ v1
+        _p = m @ p
+        assert np.isclose(_v1[1], 0)
+        if _p[0] > _v1[0]:
+            return np.linalg.norm(_p - _v1)
+        elif _p[0] < 0:
+            return np.linalg.norm(_p)
+        return np.abs(_p[1])
+
     def get_boundary_vector_near_point(self, p):
         if self.polygon is None:
             raise ValueError
 
         bvec = None
-        max_score = 0
+        max_score = np.inf
         nverts = len(self.polygon.vertices)
         for i in range(nverts):
             v0 = self.polygon.vertices[i % nverts]
             v1 = self.polygon.vertices[(i + 1) % nverts]
+
             score = max(
                 np.dot(p - v0, v1 - v0)
-                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v0) + 0.01),
+                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v0) + 0.00001),
                 np.dot(p - v1, v1 - v1)
-                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v1) + 0.01),
+                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v1) + 0.00001),
             )
-            if score > max_score:
+            score = self.distance_from_point_to_segment(p, v0, v1)
+            if score < max_score:
                 max_score = score
                 bvec = (v1 - v0) / np.linalg.norm(v1 - v0)
         return bvec
@@ -242,12 +265,13 @@ class GRBLDynamics(Dynamics):
 
 
 class Planner(ABC):
-    def __init__(self, dynamics, start_point, step_size=5, epsilon=1):
+    def __init__(self, dynamics, start_point, step_size=5, epsilon=1, seed=None):
         self.dynamics = dynamics
         self.current_direction = None
         self.epsilon = epsilon  # original was 0.001
         self.start_point = start_point
         self.step_size = step_size
+        self.rng = np.random.default_rng(seed)
 
     def get_bounce_pos_and_new_direction(self, p, direction):
         distance_to_bounce = self.dynamics.binary_search_edge(
@@ -266,7 +290,7 @@ class Planner(ABC):
         return last_point_before_bounce, new_direction
 
     def random_direction(self):
-        theta = np.random.uniform(2 * np.pi)
+        theta = self.rng.uniform(0, 2 * np.pi)
         return np.array([np.sin(theta), np.cos(theta)])
 
     @abstractmethod
@@ -286,12 +310,11 @@ class BouncePlanner(Planner):
         to_points = a_to_b_in_stepsize(p, bounce_point, step_size=self.step_size)
 
         # add some noise to the new direction
-        theta = np.random.uniform(2 * np.pi)
+        theta = self.rng.uniform(0, 2 * np.pi)
         percent_random = 0.05
         new_direction = (
             1 - percent_random
         ) * new_direction + percent_random * np.array([np.sin(theta), np.cos(theta)])
-
         return to_points, new_direction
 
     def yield_points(self):
@@ -323,10 +346,10 @@ class BouncePlanner(Planner):
             assert len(to_points) > 0
             yield from to_points
             current_p = to_points[-1]
-            if len(to_points) == 1:
-                self.current_direction = self.random_direction()
-            else:
-                self.current_direction = new_direction
+            # if len(to_points) == 1:
+            #    self.current_direction = self.random_direction()
+            # else:
+            self.current_direction = new_direction
             n_bounce += 1
         logging.info("Exiting bounce")
 
