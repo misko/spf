@@ -9,6 +9,9 @@ import time
 import numpy as np
 from pymavlink import mavutil, mavwp
 
+from spf.gps.boundaries import crissy_boundary_convex
+from spf.grbl.grbl_interactive import BouncePlanner, Dynamics
+
 keep_running = True
 
 
@@ -19,23 +22,7 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-# long , lat
-crissy_boundary = np.array(
-    [
-        (-122.4611099, 37.8030423),
-        (-122.4602301, 37.8038306),
-        (-122.4610348, 37.804619),
-        (-122.4635024, 37.8045681),
-        (-122.4659164, 37.8047122),
-        (-122.4674828, 37.8052887),
-        (-122.4680933, 37.8046305),
-        (-122.4673315, 37.8037744),
-        (-122.4647659, 37.8025219),
-        # (-122.4640363, 37.8025049),
-        # (-122.4640363, 37.8033103),
-        # (-122.46399, 37.80177),
-    ]
-)
+
 mav_states_list = [
     "MAV_STATE_UNINIT",
     "MAV_STATE_BOOT",
@@ -46,6 +33,15 @@ mav_states_list = [
     "MAV_STATE_EMERGENCY",
     "MAV_STATE_POWEROFF",
     "MAV_STATE_FLIGHT_TERMINATION",
+]
+
+mission_states = [
+    "MISSION_STATE_UNKNOWN",
+    "MISSION_STATE_NO_MISSION",
+    "MISSION_STATE_NOT_STARTED",
+    "MISSION_STATE_ACTIVE",
+    "MISSION_STATE_PAUSED",
+    "MISSION_STATE_COMPLETE",
 ]
 
 mav_mission_states = [
@@ -115,15 +111,17 @@ def lookup_exact(x, table):
 
 
 class Drone:
-    def __init__(self, connection):
+    def __init__(self, connection, planner, boundary, tolerance=0.0001):
         self.connection = connection
+        self.boundary = boundary
 
         self.mav_mode_mapping_name2num = connection.mode_mapping()
         self.mav_mode_mapping_num2name = mavutil.mode_mapping_bynumber(
             connection.sysid_state[connection.sysid].mav_type
         )
 
-        self.mav_state = None
+        self.mav_states = []
+        self.gps = None
         self.mav_mode = None
         self.mav_cmd_name2num = {
             "MAV_CMD_DO_SET_MODE": 176,
@@ -131,14 +129,14 @@ class Drone:
         self.mav_cmd_num2name = {176: "MAV_CMD_DO_SET_MODE"}
 
         self.switch_condition = threading.Condition()
+        self.drone_ready_condition = threading.Condition()
+        self.drone_ready = False
+
         self.message_loop = True
         self.single_operation = False
 
-        self.message_loop_thread = threading.Thread(target=self.process_messages)
-        self.message_loop_thread.start()
-
         self.timeout = 0.5
-
+        self.tolerance = tolerance
         self.ignore_messages = [
             "AHRS2",
             "ATTITUDE",
@@ -166,7 +164,71 @@ class Drone:
             "SYS_STATUS",
             "VFR_HUD",
             "VIBRATION",
+            "PARAM_VALUE",
         ]
+
+        self.message_loop_thread = threading.Thread(target=self.process_messages)
+
+        self.planner_thread = threading.Thread(target=self.run_planner)
+
+        self.planner = planner
+
+        self.mission_item_condition = threading.Condition()
+        self.mission_item_reached = False
+
+        self.message_loop_thread.start()
+        self.planner_thread.start()
+
+    def distance_to_target(self, target_point):
+        # points are long , lat
+        return np.linalg.norm(target_point - self.gps)
+
+    # point long/lat
+    def move_to_point(self, point):
+        print("CURRENT", self.gps, "TARGET", point)
+        with self.mission_item_condition:
+            self.reposition(lat=point[1], long=point[0])
+            while keep_running and self.distance_to_target(point) > self.tolerance:
+                print("D TO TARGET", self.distance_to_target(point))
+                self.mission_item_condition.wait(timeout=5.0)
+        if keep_running:
+            print("REACHED TARGET", point, "Current", self.gps)
+            return True
+        return False
+
+    def run_planner(self):
+
+        home = self.boundary.mean(axis=0)
+
+        self.connection.waypoint_clear_all_send()
+
+        self.set_home(lat=home[1], long=home[0])
+
+        # drone.request_home()
+
+        global keep_running
+        with self.drone_ready_condition:
+            while keep_running and not self.drone_ready:
+                self.turn_off_hardware_safety()
+                self.arm()
+                self.set_mode("GUIDED")
+                print("WAIT FOR READY DRONE")
+                self.drone_ready_condition.wait(timeout=5.0)
+
+        for point in self.boundary:
+            self.move_to_point(point)
+        self.move_to_point(self.boundary[0])
+
+        self.move_to_point(home)
+        time.sleep(2)
+
+        # drone is now ready
+        # point is long, lat
+        yp = self.planner.yield_points()
+        while keep_running:
+            point = next(yp)
+            self.move_to_point(point)
+            time.sleep(2)
 
     def get_cmd(self, cmd):
         v = getattr(mavutil.mavlink, cmd)
@@ -211,6 +273,7 @@ class Drone:
             long,  # -122.4659164,  # lon
             0,
         )
+        self.ack("COMMAND_ACK")
 
     def turn_off_hardware_safety(self):
         self.connection.mav.set_mode_send(
@@ -233,6 +296,7 @@ class Drone:
             0,
             0,
         )
+        self.ack("COMMAND_ACK")
 
     def reposition(self, lat, long):
         # self.connection.mav.command_long_send(
@@ -248,6 +312,7 @@ class Drone:
         #    long,
         #    0.0,  # altitude
         # )
+        self.mission_item_reached = False
         self.connection.mav.command_int_send(
             self.connection.target_system,
             self.connection.target_component,
@@ -278,12 +343,13 @@ class Drone:
             0,
             0,
         )
+        self.ack("COMMAND_ACK")
 
     def upload_waypoints(self):
         wp = mavwp.MAVWPLoader()
         seq = 1
         radius = 10
-        for long, lat in crissy_boundary:
+        for long, lat in self.boundary:
             wp.add(
                 mavutil.mavlink.MAVLink_mission_item_message(
                     self.connection.target_system,
@@ -370,12 +436,11 @@ class Drone:
         # .to_dict())
         if msg.get_type() == "GLOBAL_POSITION_INT":
             d = msg.to_dict()
-            lat = d["lat"] * 1e-7
-            lon = d["lon"] * 1e-7
-            # print("GPS", lat, lon)
+            self.lat = msg.lat / 1e7
+            self.long = msg.lon / 1e7
+            self.gps = np.array([self.long, self.lat])
         elif msg.get_type() == "COMMAND_ACK":
             d = msg.to_dict()
-            print(d)
             if msg.command in drone.mav_cmd_num2name:
                 print("COMMAND", drone.mav_cmd_num2name[msg.command])
         elif msg.get_type() == "HOME_POSITION":  # also maybe GPS_GLOBAL_ORIGIN
@@ -387,24 +452,36 @@ class Drone:
         elif msg.get_type() == "HEARTBEAT":
             d = msg.to_dict()
             # print(d)
-            self.mav_state = lookup_exact(d["system_status"], mav_states_list)
+            self.mav_states = lookup_exact(d["system_status"], mav_states_list)
             self.mav_mode = self.mav_mode_mapping_num2name[msg.custom_mode]
-        elif False and msg.get_type() == "SYS_STATUS":
+            if (
+                not self.drone_ready
+                and (
+                    "MAV_STATE_STANDBY" in self.mav_states
+                    or "MAV_STATE_ACTIVE" in self.mav_states
+                )
+                and self.gps is not None
+            ):
+                self.drone_ready = True
+                with self.drone_ready_condition:
+                    self.drone_ready_condition.notify_all()
+
+        elif msg.get_type() == "SYS_STATUS":
             d = msg.to_dict()
-            sensors_present = lookup_bits(
+            self.sensors_present = lookup_bits(
                 d["onboard_control_sensors_present"], sensors_list
             )
-            sensors_enabled = lookup_bits(
+            self.ensors_enabled = lookup_bits(
                 d["onboard_control_sensors_enabled"], sensors_list
             )
-            sensors_health = lookup_bits(
+            self.sensors_health = lookup_bits(
                 d["onboard_control_sensors_health"], sensors_list
             )
-            print(d)
-            for sensor in sensors_present:
-                enabled = sensor in sensors_enabled
-                health = sensor in sensors_health
-                print(f"\t{sensor}\t{enabled}\t{health}")
+            # print(d)
+            # for sensor in sensors_present:
+            #    enabled = sensor in sensors_enabled
+            #    health = sensor in sensors_health
+            #    print(f"\t{sensor}\t{enabled}\t{health}")
         elif msg.get_type() == "STATUSTEXT":
             # {'mavpackettype': 'STATUSTEXT', 'severity': 6, 'text': 'Throttle disarmed', 'id': 0, 'chunk_seq': 0}
             d = msg.to_dict()
@@ -412,7 +489,18 @@ class Drone:
             print(d)
             print("\n\n")
         elif msg.get_type() == "MISSION_ITEM_REACHED":
-            print("REACHED MISSION ITEM!!")
+            self.mission_item_reached = True
+            with self.mission_item_condition:
+                self.mission_item_condition.notify_all()
+        elif msg.get_type() == "MISSION_CURRENT":
+            # print(
+            #    "MISSION CURRENT",
+            #    mission_states[msg.mission_state],
+            #    msg.mission_mode,
+            #    msg.total,
+            #    msg.seq,
+            # )
+            pass
         elif msg.get_type() in self.ignore_messages:
             pass
         else:
@@ -458,7 +546,19 @@ if __name__ == "__main__":
     while msg is None or msg.get_type() == "BAD_DATA":
         msg = connection.recv_match()
 
-    drone = Drone(connection)
+    drone = Drone(
+        connection,
+        planner=BouncePlanner(
+            dynamics=Dynamics(
+                bounding_box=crissy_boundary_convex,
+                bounds_radius=0.000000001,
+            ),
+            start_point=crissy_boundary_convex.mean(axis=0),
+            epsilon=0.0000001,
+            step_size=0.1,
+        ),
+        boundary=crissy_boundary_convex,
+    )
 
     # upload_waypoints(connection)
 
@@ -476,22 +576,12 @@ if __name__ == "__main__":
     # connection.motors_armed_wait()
     # print("Armed!")
 
-    drone.turn_off_hardware_safety()
+    time.sleep(2)
+    print("MODE", drone.mav_mode)
+    # for long, lat in crissy_boundary_convex[1:]:
+    #    print(lat, long)
+    #    drone.reposition(lat, long)
+    #    break
 
-    drone.arm()
-
-    # drone.request_home()
-
-    drone.set_mode("GUIDED")
-    for long, lat in crissy_boundary[0:]:
-        print(lat, long)
-        drone.reposition(lat, long)
-        break
-
-    time.sleep(5)
-    drone.single_operation_mode_on()
-    time.sleep(5)
-    drone.single_operation_mode_off()
-    time.sleep(5)
-    print("DONE")
+    # print("DONE")
     # drone.process_messages()
