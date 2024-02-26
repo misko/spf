@@ -4,15 +4,15 @@
 
 [Overview](https://www.youtube.com/watch?v=vj99KvB2AcA)
 
-[Wall array v1 video](https://youtu.be/ljlRKGjBUoE) and [design+data+files](2d_wall_array/2d_wall_array_v1)
+[Wall array v1 video](https://youtu.be/ljlRKGjBUoE) and [design+data+files](data_collection_model_and_results/2d_wall_array/2d_wall_array_v1)
 
-[Wall array v2 video](https://youtu.be/9S3mgBD47kw) and [design+data+files](2d_wall_array/2d_wall_array_v2)
+[Wall array v2 video](https://youtu.be/9S3mgBD47kw) and [design+data+files](data_collection_model_and_results/2d_wall_array/2d_wall_array_v2)
 
-[Rover v1 video](https://youtu.be/aGzOBduHrvo) and [design+data+files](rover/rover_v1)
+[Rover v1 video](https://youtu.be/aGzOBduHrvo) and [design+data+files](data_collection_model_and_results/rover/rover_v1)
 
-[Rover v2 video](https://youtube.com/shorts/qZmtBzATahE?feature=share) and [design+data+files](rover/rover_v2)
+[Rover v2 video](https://youtube.com/shorts/qZmtBzATahE?feature=share) and [design+data+files](data_collection_model_and_results/rover/rover_v2)
 
-Rover v3.1 [design+data+files](rover/rover_v3.1)
+Rover v3.1 [design+data+files](data_collection_model_and_results/rover/rover_v3.1)
 
 
 ## Problem statement:
