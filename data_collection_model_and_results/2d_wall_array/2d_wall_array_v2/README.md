@@ -23,6 +23,14 @@ Improvements over v1 are:
 
 [Wall array v1](https://youtu.be/ljlRKGjBUoE)
 
+## Calibration
+
+Calibrate array to a home point of (500,400) (part of the working boundary in the code). To calibrate use a laser level cross and align to origin. 
+
+![Part 1](calibration_p1.jpeg)
+
+![Part 2](calibration_p2.jpeg)
+
 ## Construction 
 
 ### 3D printed files
