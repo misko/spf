@@ -16,3 +16,5 @@ test_data.txt
 **/session_output_*.png
 **/*2024*.yaml
 **/tmp_*
+*.tmp
+**/*.tmp
