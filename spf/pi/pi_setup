@@ -1,5 +1,5 @@
 sudo apt-get update
-sudo apt-get install git screen libiio-dev libiio-utils
+sudo apt-get install git screen libiio-dev libiio-utils vim
 python -m venv ~/spf-virtualenv
 source ~/spf-virtualenv/bin/activate
 git clone https://github.com/misko/spf.git
@@ -20,3 +20,7 @@ Available contexts:
 
 
 USB URI is usb:1.3.5
+
+#to allow users to access usb devices
+sudo chmod -R 777 /dev/bus/usb/
+# there is some examples online using udev but those are not owkring
