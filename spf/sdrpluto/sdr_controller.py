@@ -357,7 +357,7 @@ def args_to_rx_config(args):
         enabled_channels=[0, 1],
         buffer_size=int(args.rx_n),
         intermediate=args.fi,
-        uri="ip:%s" % args.receiver_ip,
+        uri=args.receiver_uri,
         rx_spacing=args.rx_spacing,
         # rx_theta_in_pis=0.25,
     )
@@ -372,7 +372,7 @@ def args_to_tx_config(args):
         enabled_channels=[0],
         cyclic=True,
         intermediate=args.fi,
-        uri="ip:%s" % args.emitter_ip,
+        uri=args.emitter_uri,
     )
 
 
@@ -649,13 +649,13 @@ def plot_recv_signal(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--receiver-ip",
+        "--receiver-uri",
         type=str,
         help="Receivers",
         required=True,
     )
     parser.add_argument(
-        "--emitter-ip", type=str, help="Long term emitter", required=False
+        "--emitter-uri", type=str, help="Long term emitter", required=False
     )
     parser.add_argument("-l", "--leave-tx-on", action=argparse.BooleanOptionalAction)
     parser.add_argument("--mode", choices=["rx", "rxcal", "tx"], required=True)
@@ -730,9 +730,6 @@ if __name__ == "__main__":
         level="INFO",
     )
 
-    emitter_uri = "ip:%s" % args.emitter_ip
-    receiver_uri = "ip:%s" % args.receiver_ip
-
     if args.mode == "rxcal":
         # if we use weaker tx gain then the noise in phase calibration goes up
         tx_config = args_to_tx_config(args)
@@ -766,6 +763,8 @@ if __name__ == "__main__":
         if pplus_rx is None:
             logging.error("Failed to bring emitter online")
             sys.exit(1)
-        logging.info(f"{emitter_uri}: Emitter online verified by {receiver_uri}")
+        logging.info(
+            f"{args.emitter_uri}: Emitter online verified by {args.receiver_uri}"
+        )
         # apply the previous calibration
         time.sleep(1800)
