@@ -12,7 +12,7 @@ emitter:
 # The orientation of the receiver is described in 
 # multiples of pi
 receivers:
-  - receiver-ip: 192.168.1.17
+  - receiver-uri: ip:192.168.1.17
     theta-in-pis: -0.25
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
@@ -26,7 +26,7 @@ receivers:
     f-sampling: 16000000 # 16.0e6
     bandwidth: 300000 #3.0e5
     motor_channel: 0
-  - receiver-ip: 192.168.1.18
+  - receiver-uri: ip:192.168.1.18
     theta-in-pis: 1.25
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2

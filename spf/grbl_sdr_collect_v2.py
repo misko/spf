@@ -289,9 +289,9 @@ if __name__ == "__main__":
         # lets open all the radios
         radio_uris = []
         if yaml_config["emitter"]["type"] == "sdr":
-            radio_uris.append("ip:%s" % yaml_config["emitter"]["receiver-ip"])
+            radio_uris.append(yaml_config["emitter"]["receiver-uri"])
         for receiver in yaml_config["receivers"]:
-            radio_uris.append("ip:%s" % receiver["receiver-ip"])
+            radio_uris.append(receiver["receiver-uri"])
         for radio_uri in radio_uris:
             get_pplus(uri=radio_uri)
 
@@ -312,7 +312,7 @@ if __name__ == "__main__":
             enabled_channels=[0, 1],
             buffer_size=target_yaml_config["buffer-size"],
             intermediate=target_yaml_config["f-intermediate"],
-            uri="ip:%s" % target_yaml_config["receiver-ip"],
+            uri=target_yaml_config["receiver-uri"],
         )
         target_tx_config = EmitterConfig(
             lo=target_yaml_config["f-carrier"],
@@ -322,7 +322,7 @@ if __name__ == "__main__":
             gains=[target_yaml_config["tx-gain"], -80],
             enabled_channels=[0],
             cyclic=True,
-            uri="ip:%s" % target_yaml_config["emitter-ip"],
+            uri=target_yaml_config["emitter-uri"],
             motor_channel=target_yaml_config["motor_channel"],
         )
 
@@ -345,13 +345,13 @@ if __name__ == "__main__":
                 enabled_channels=[0, 1],
                 buffer_size=receiver["buffer-size"],
                 intermediate=receiver["f-intermediate"],
-                uri="ip:%s" % receiver["receiver-ip"],
+                uri=receiver["receiver-uri"],
                 rx_spacing=receiver["antenna-spacing-m"],
                 rx_theta_in_pis=receiver["theta-in-pis"],
                 motor_channel=receiver["motor_channel"],
                 rx_buffers=receiver["rx-buffers"],
             )
-            assert "emitter-ip" not in receiver
+            assert "emitter-uri" not in receiver
             assert args.skip_phase_calibration or (
                 "skip_phase_calibration" in yaml_config
                 and yaml_config["skip_phase_calibration"]
