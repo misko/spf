@@ -1,0 +1,8 @@
+# interfaces(5) file used by ifup(8) and ifdown(8)
+# Include files from /etc/network/interfaces.d:
+source /etc/network/interfaces.d/*
+
+auto eth0
+iface eth0 inet static
+    address 192.168.1.__ROVERID__/24
+    gateway 192.168.1.254

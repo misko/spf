@@ -16,6 +16,7 @@ flake8==6.1.0
 fonttools==4.42.0
 frozenlist==1.4.0
 fsspec==2023.12.2
+haversine==2.8.1
 idna==3.6
 importlib-resources==6.0.1
 iniconfig==2.0.0

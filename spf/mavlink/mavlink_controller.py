@@ -3,14 +3,25 @@ import argparse
 import logging
 import math
 import signal
+import sys
 import threading
 import time
 
 import numpy as np
+from haversine import Unit, haversine
 from pymavlink import mavutil, mavwp
 
-from spf.gps.boundaries import crissy_boundary_convex
+from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
+from spf.gps.gps_utils import swap_lat_long
 from spf.grbl.grbl_interactive import BouncePlanner, Dynamics
+
+logging.basicConfig(
+    filename="logs.log",
+    level=logging.DEBUG,
+    format="%(asctime)s:%(levelname)s: %(message)s",
+)
+logging.getLogger().addHandler(logging.StreamHandler())
+
 
 keep_running = True
 
@@ -18,6 +29,7 @@ keep_running = True
 def signal_handler(sig, frame):
     global keep_running
     keep_running = False
+    logging.info("got ctrl c!")
 
 
 signal.signal(signal.SIGINT, signal_handler)
@@ -102,6 +114,9 @@ sensors_list = [
 mav_cmds_num2name = {}
 
 
+LOG_ERASE = 121
+
+
 def lookup_bits(x, table):
     return [y for y in table if x & getattr(mavutil.mavlink, y)]
 
@@ -111,7 +126,7 @@ def lookup_exact(x, table):
 
 
 class Drone:
-    def __init__(self, connection, planner, boundary, tolerance=0.0001):
+    def __init__(self, connection, planner, boundary, tolerance_in_m=5):
         self.connection = connection
         self.boundary = boundary
 
@@ -136,7 +151,7 @@ class Drone:
         self.single_operation = False
 
         self.timeout = 0.5
-        self.tolerance = tolerance
+        self.tolerance_in_m = tolerance_in_m
         self.ignore_messages = [
             "AHRS2",
             "ATTITUDE",
@@ -167,6 +182,8 @@ class Drone:
             "PARAM_VALUE",
         ]
 
+        # self.erase_logs()
+
         self.message_loop_thread = threading.Thread(target=self.process_messages)
 
         self.planner_thread = threading.Thread(target=self.run_planner)
@@ -181,39 +198,71 @@ class Drone:
 
     def distance_to_target(self, target_point):
         # points are long , lat
+        return haversine(
+            swap_lat_long(self.gps), swap_lat_long(target_point), unit=Unit.METERS
+        )
         return np.linalg.norm(target_point - self.gps)
+
+    def erase_logs(self):
+        self.connection.mav.command_long_send(
+            self.connection.target_system,
+            self.connection.target_component,
+            LOG_ERASE,
+            0,  # set position
+            0,  # param1
+            0,  # param2
+            0,  # param3
+            0,  # param4
+            0,  # 37.8047122,  # lat
+            0,  # long,  # -122.4659164,  # lon
+            0,  # 0,
+        )
 
     # point long/lat
     def move_to_point(self, point):
+        global keep_running
         print("CURRENT", self.gps, "TARGET", point)
         with self.mission_item_condition:
             self.reposition(lat=point[1], long=point[0])
-            while keep_running and self.distance_to_target(point) > self.tolerance:
-                print("D TO TARGET", self.distance_to_target(point))
-                self.mission_item_condition.wait(timeout=5.0)
+            while keep_running and self.distance_to_target(point) > self.tolerance_in_m:
+                print("distance (m) TO TARGET", self.distance_to_target(point))
+                self.mission_item_condition.wait(timeout=0.5)
         if keep_running:
             print("REACHED TARGET", point, "Current", self.gps)
             return True
         return False
 
     def run_planner(self):
-
+        # self.single_operation_mode_on()
+        logging.info("Start planner")
+        # self.single_operation_mode_on()
+        # logging.info("SINGLE OPERATION MODE")
         home = self.boundary.mean(axis=0)
 
         self.connection.waypoint_clear_all_send()
+        # logging.info("SINGLE OPERATION MODE 2")
 
         self.set_home(lat=home[1], long=home[0])
 
+        # self.single_operation_mode_off()
         # drone.request_home()
-
+        logging.info("Planer main loop")
         global keep_running
         with self.drone_ready_condition:
             while keep_running and not self.drone_ready:
                 self.turn_off_hardware_safety()
+                time.sleep(0.2)
+                print("WAIT FOR READY DRONE arm")
                 self.arm()
+                time.sleep(0.2)
+                print("WAIT FOR READY DRONE guided")
                 self.set_mode("GUIDED")
+                time.sleep(0.2)
                 print("WAIT FOR READY DRONE")
                 self.drone_ready_condition.wait(timeout=5.0)
+
+        if not keep_running:
+            return
 
         for point in self.boundary:
             self.move_to_point(point)
@@ -374,10 +423,9 @@ class Drone:
 
         assert wp.count() > 0
 
-        while True:
-            msg = self.connection.recv_match(type=["MISSION_ACK"], blocking=True)
-            if mav_mission_states[msg.type] == "MAV_MISSION_ACCEPTED":
-                break
+        msg = self.connection.recv_match(type=["MISSION_ACK"], blocking=True, timeout=3)
+        if msg is None or mav_mission_states[msg.type] != "MAV_MISSION_ACCEPTED":
+            return False
 
         while True:
             msg = self.connection.recv_match(
@@ -393,7 +441,9 @@ class Drone:
         print("DONE UPLOAD")
 
     def ack(self, keyword):
-        self.connection.recv_match(type=keyword, blocking=True)
+        return (
+            self.connection.recv_match(type=keyword, blocking=True, timeout=5) is None
+        )
 
     def single_operation_mode_on(self):
         global keep_running
@@ -426,10 +476,11 @@ class Drone:
                     self.switch_condition.wait(timeout=self.timeout)
                 if not keep_running:
                     return
-                msg = self.connection.recv_match()
+                msg = self.connection.recv_match(blocking=True, timeout=0.5)
                 self.process_message(msg)
 
     def process_message(self, msg):
+        # logging.info("process_message")
         if msg is None:
             time.sleep(0.01)
             return
@@ -440,6 +491,7 @@ class Drone:
             self.long = msg.lon / 1e7
             self.gps = np.array([self.long, self.lat])
         elif msg.get_type() == "COMMAND_ACK":
+            print("COMMAND ACK", msg)
             d = msg.to_dict()
             if msg.command in drone.mav_cmd_num2name:
                 print("COMMAND", drone.mav_cmd_num2name[msg.command])
@@ -537,29 +589,37 @@ if __name__ == "__main__":
         exit(1)
 
     logging.info("Wait heartbeat...")
-    connection.wait_heartbeat()
+    while keep_running:
+        if connection.wait_heartbeat(blocking=True, timeout=1):
+            break
+    if not keep_running:
+        sys.exit(1)
 
     logging.info("Listening...")
 
     # get rid of the top?
-    msg = connection.recv_match()
+    msg = connection.recv_match(blocking=True, timeout=0.5)
     while msg is None or msg.get_type() == "BAD_DATA":
-        msg = connection.recv_match()
+        msg = connection.recv_match(blocking=True, timeout=0.5)
 
+    logging.info("really listening")
+
+    boundary = franklin_safe
     drone = Drone(
         connection,
         planner=BouncePlanner(
             dynamics=Dynamics(
-                bounding_box=crissy_boundary_convex,
+                bounding_box=boundary,
                 bounds_radius=0.000000001,
             ),
-            start_point=crissy_boundary_convex.mean(axis=0),
+            start_point=boundary.mean(axis=0),
             epsilon=0.0000001,
             step_size=0.1,
         ),
-        boundary=crissy_boundary_convex,
+        boundary=boundary,
     )
 
+    logging.info("drone object created")
     # upload_waypoints(connection)
 
     # do_mission(connection)
