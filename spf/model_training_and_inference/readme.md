@@ -62,11 +62,11 @@ To see if the output is reasonable we can run
 
 Which plots the full first (idx=0) session.
 
-![session 0](../../images/session_reference_example0.gif)
+![session 0](https://www.dropbox.com/scl/fi/jto9rg6mz1wz47npfbmy1/session_reference_example0.gif?rlkey=0leqb8al5q9f09amqu4e4brqw&raw=1)
 
 or second (idx=1) session.
 
-![session 1](../../images/session_reference_example1.gif)
+![session 1](https://www.dropbox.com/scl/fi/j6uge055pw6ml0rd2mogv/session_reference_example1.gif?rlkey=1nd7ilix17jglm55kk7r073ar&raw=1)
 
 
 ## Generate some basic data

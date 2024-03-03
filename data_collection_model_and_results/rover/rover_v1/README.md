@@ -4,13 +4,13 @@ Instead of simulations we can collect real world data by moving several rovers a
 
 ## Construction
 
-![Rover front](roverb.jpeg)
+![Rover front](https://www.dropbox.com/scl/fi/abgkv05ggvcwoufjlkr7l/roverb.jpeg?rlkey=srz2agfvric4couvit20pf4rj&raw=1)
 
-![Rover back](rovera.jpeg)
+![Rover back](https://www.dropbox.com/scl/fi/0gpaqi3i1tjylqslduf2i/rovera.jpeg?rlkey=j047hvi589hphmdzzpxeit2hh&raw=1)
 
 ### 3D printed parts
 
-See [here](https://www.dropbox.com/s/6xr8pvo5qp1q7tm/3D_printed_parts.zip?dl=0)
+See [here](https://www.dropbox.com/s/6xr8pvo5qp1q7tm/roverv1_3dparts.zip?dl=0)
 
 ## Missions
 

@@ -27,7 +27,7 @@ We construct an appartus with our emitter attach by two arms (ArmA, ArmB) to mot
 
 Thanks to great work by [@dammitcoetzee](https://github.com/dammitcoetzee) , we have 3D printable motor mounts designed on OnShape and STL files available.
 
-[3D printable parts](https://www.dropbox.com/s/k0skzakxk3k02kv/3D_printed_parts.zip?dl=0)
+[3D printable parts](https://www.dropbox.com/s/k0skzakxk3k02kv/2dwallarrayv1_3dparts.zip?dl=0)
 
 ![Apparatus setup](onshape_setup.png)
 
@@ -121,8 +121,8 @@ An example data loader can be found [here](https://github.com/misko/spf/blob/0a1
 
 ### Download
 
-The complete dataset can be downloaded [here](https://www.dropbox.com/s/z2npdruftr57q48/data_dec2023.zip?dl=0)
+The complete dataset can be downloaded [here](https://www.dropbox.com/scl/fi/fgppmh3q3t9m17ug4im1w/data_dec2023.zip?rlkey=j6eh34itxv2arj6ngn8imhw8v&dl=0)
 
-A small subset of the data above can be downloaded [here](https://www.dropbox.com/s/zt7md2c9fpbgnc6/sample_data_dec2023.zip?dl=0)
+A small subset of the data above can be downloaded [here](https://www.dropbox.com/scl/fi/qqk1277tmblj0z8r7p5xu/sample_data_dec2023.zip?rlkey=ck9zphdhyz6sco0do1gm01etj&dl=0)
 
 

@@ -4,7 +4,7 @@
 
 Instead of simulations we can collect real world data by moving a emitter around in 2D space while keeping our receiver in a fixed location.
 
-![v2 hardware setup](v2_hardware_setup.jpeg)
+![v2 hardware setup](https://www.dropbox.com/scl/fi/9y2xf46r71b6mdybov16p/v2_hardware_setup.jpeg?rlkey=aa345dnhjz9b14sy8g4uebel9&raw=1)
 
 This improves upon the 2D wall array v1 [link](/data_collection_experiments/2d_wall_array_v1/)
 
@@ -35,7 +35,7 @@ Calibrate array to a home point of (500,400) (part of the working boundary in th
 
 ### 3D printed files
 
-Can be found [here](https://www.dropbox.com/s/dxvuk1ka7cj63hs/3D_printed_parts.zip?dl=0)
+Can be found [here](https://www.dropbox.com/s/dxvuk1ka7cj63hs/2dwallarrayv2_3dparts.zip?dl=0)
 
 ### Bill of Materials
 
