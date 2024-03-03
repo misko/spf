@@ -16,6 +16,7 @@ flake8==6.1.0
 fonttools==4.42.0
 frozenlist==1.4.0
 fsspec==2023.12.2
+future==1.0.0
 haversine==2.8.1
 idna==3.6
 importlib-resources==6.0.1
@@ -25,8 +26,10 @@ Jinja2==3.1.2
 joblib==1.3.2
 kiwisolver==1.4.4
 libaio==0.9.1
+lxml==5.1.0
 MarkupSafe==2.1.3
 matplotlib==3.7.2
+MAVProxy==1.8.70
 mccabe==0.7.0
 mpmath==1.3.0
 multidict==6.0.4
@@ -43,6 +46,7 @@ pyadi-iio==0.0.16
 pycodestyle==2.11.1
 pyflakes==3.1.0
 pylibiio==0.25
+pymavlink==2.4.41
 pyparsing==3.0.9
 pyserial==3.5
 pytest==7.4.3
@@ -57,7 +61,7 @@ tomli==2.0.1
 torch==2.1.2
 torchvision==0.16.2
 tqdm==4.66.1
-typing-extensions==4.9.0
+typing_extensions==4.9.0
 urllib3==2.1.0
 yarl==1.9.4
 zipp==3.16.2
