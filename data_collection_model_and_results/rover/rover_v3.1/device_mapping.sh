@@ -1,0 +1,1 @@
+lsusb -t | grep usb-storage | sed 's/.*Port \([0-9]*\): Dev \([0-9]*\),.*/\1 \2/g'

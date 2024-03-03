@@ -14,6 +14,73 @@ Youtube [link](https://youtu.be/6D6IM0DY81c)
 
 ![flash with wifi settings](./flash_pi2.png)
 
+### USB port setup
+
+```
+
+USB  4     |     USB 3
+
+USB  2     |     USB 1
+
+Ethernet
+
+```
+
+### Taranis Q setup
+
+```
+Setup (Internal RF)
+XJT D16
+Ch Range CH1-16
+
+Binding
+Press bind, beeping starts
+With receiver off, hold down F/S button, power on while holding, let go 1 second later
+Solid green/red -> no connection
+Flashing green/red -> connection established
+Reset receiver
+Press ok on controller
+Try moving around controller sticks to see X8R light go green
+
+
+Input 1 -> 100 Rud
+Input 2 -> 100 Ele
+Input 3 -> 100 Thr
+Input 4 -> 100 Alie
+
+CH 1 -> 100 Ail
+CH 2 -> 100 Ele
+CH 3 -> 100 Thr
+CH 4 -> 100 Rud
+CH 5 -> 100 SF
+
+
+```
+
+### SikRadio
+
+[screen shot](./sikradio.jpg)
+https://www.youtube.com/watch?v=i5lE2cWJJhM
+Connect using mission planner
+Set different NetIDs for each pair
+Make sure to copy over settings
+```
+Rover 1 -> NetID 25
+Rover 2 -> NetID 32
+Rover 3 -> NetID 39
+```
+
+
+### Low power disconnect programming
+
+```
+press up to 5s +
+press hold set 5s
+use up down to set UP to 12.1v
+press set
+use up down to set DOWN to 12.0v
+```
+
 ### Rover 1
 
 ```

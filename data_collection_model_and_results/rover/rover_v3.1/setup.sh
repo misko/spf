@@ -1,12 +1,38 @@
+#assign the rover its ID
+rover_id=1
+echo ${rover_id} > ~/rover_id
+
 sudo apt-get update
 sudo apt-get install git screen libiio-dev libiio-utils vim -y
+
+# virtual enviornment setup
 python -m venv ~/spf-virtualenv
 source ~/spf-virtualenv/bin/activate
 git clone https://github.com/misko/spf.git
 cd spf
 pip install -r requirements.txt
-export PYTHONPATH=/home/pi/spf
-#roverpi2
+
+echo export PYTHONPATH=/home/pi/spf >> ~/.bashrc
+echo 'test -z "$VIRTUAL_ENV" && source ~/spf-virtualenv/bin/activate' >> ~/.bashrc
+echo "lsusb -t | grep usb-storage | sed 's/.*Port \([0-9]*\): Dev \([0-9]*\),.*/\1 \2/g' > ~/device_mapping" >> ~/.bashrc
+
+# lets get eth0 to static ip
+cat > interfaces <<- EOM
+source /etc/network/interfaces.d/*
+
+auto eth0
+iface eth0 inet static
+    address 192.168.1.__ROVERID__/24
+    gateway 192.168.1.1
+EOM
+sed -i "s/__ROVERID__/$(expr 40 + ${rover_id})/g" interfaces
+sudo cp -f interfaces /etc/network/interfaces
+
+
+# disable wifi so it wont interfere
+sudo sh -c 'echo dtoverlay=disable-wifi >> /boot/config.txt'
+
+
 
 (spf-virtualenv) pi@roverpi2:~/spf/spf $ sudo iio_info -s
 Library version: 0.24 (git tag: v0.24)
