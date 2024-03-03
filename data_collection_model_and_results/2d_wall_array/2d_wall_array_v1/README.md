@@ -27,7 +27,7 @@ We construct an appartus with our emitter attach by two arms (ArmA, ArmB) to mot
 
 Thanks to great work by [@dammitcoetzee](https://github.com/dammitcoetzee) , we have 3D printable motor mounts designed on OnShape and STL files available.
 
-[3D printable parts](3D_printed_parts/)
+[3D printable parts](https://www.dropbox.com/s/k0skzakxk3k02kv/3D_printed_parts.zip?dl=0)
 
 ![Apparatus setup](onshape_setup.png)
 

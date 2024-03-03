@@ -35,7 +35,7 @@ Calibrate array to a home point of (500,400) (part of the working boundary in th
 
 ### 3D printed files
 
-Can be found [here](3D_printed_parts)
+Can be found [here](https://www.dropbox.com/s/dxvuk1ka7cj63hs/3D_printed_parts.zip?dl=0)
 
 ### Bill of Materials
 

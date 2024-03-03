@@ -14,7 +14,7 @@ Instead of simulations we can collect real world data by moving several rovers a
 
 ### 3D printed parts
 
-See [here](3D_printed_parts)
+See [here](https://www.dropbox.com/s/i8ecox14pmzpxqy/3D_printed_parts.zip?dl=0)
 
 ## Missions
 
