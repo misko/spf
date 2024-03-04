@@ -240,10 +240,12 @@ class Drone:
         # logging.info("SINGLE OPERATION MODE")
         home = self.boundary.mean(axis=0)
 
+        self.single_operation_mode_on()
         self.connection.waypoint_clear_all_send()
         # logging.info("SINGLE OPERATION MODE 2")
 
         self.set_home(lat=home[1], long=home[0])
+        self.single_operation_mode_off()
 
         # self.single_operation_mode_off()
         # drone.request_home()
@@ -251,10 +253,11 @@ class Drone:
         global keep_running
         with self.drone_ready_condition:
             while keep_running and not self.drone_ready:
+                self.single_operation_mode_on()
                 self.turn_off_hardware_safety()
-                time.sleep(0.2)
                 print("WAIT FOR READY DRONE arm")
                 self.arm()
+                self.single_operation_mode_off()
                 # time.sleep(0.2)
                 # print("WAIT FOR READY DRONE guided")
                 # self.set_mode("GUIDED")
@@ -266,7 +269,10 @@ class Drone:
             return
 
         for point in self.boundary:
+
+            self.single_operation_mode_on()
             self.move_to_point(point)
+            self.single_operation_mode_off()
         self.move_to_point(self.boundary[0])
 
         self.move_to_point(home)
