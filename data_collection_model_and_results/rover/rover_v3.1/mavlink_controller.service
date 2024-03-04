@@ -1,11 +1,13 @@
 [Unit]
-Type=simple
 Description=Run mavlink controller
 After=multi-user.target
 
 [Service]
+WorkingDirectory=/home/pi/
+User=pi
+Group=pi
 Environment=PYTHONPATH=/home/pi/spf/
-ExecStart=/home/pi/spf-virtualenv/bin/python3 /home/pi/spf/spf/mavlink/mavlink_controller.py --serial /dev/ttyACM2
+ExecStart=/home/pi/spf-virtualenv/bin/python3 /home/pi/spf/spf/mavlink/mavlink_controller.py --serial /dev/serial/by-id/usb-ArduPilot*
 
 [Install]
 WantedBy=multi-user.target

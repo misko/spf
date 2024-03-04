@@ -1,5 +1,6 @@
 # Import mavutil
 import argparse
+import glob
 import logging
 import math
 import signal
@@ -578,6 +579,13 @@ if __name__ == "__main__":
     print("WTF")
     # Create the connection
     # Need to provide the serial port and baudrate
+    if args.serial == "" and args.ip == "":
+        available_pilots = glob.glob("/dev/serial/by-id/usb-ArduPilot*")
+        if len(available_pilots) != 1:
+            logging.error(f"Strange number of autopilots found {len(available_pilots)}")
+            sys.exit(1)
+        args.serial = available_pilots[0]
+
     logging.info("Connecting...")
     if args.serial != "":
         connection = mavutil.mavlink_connection(args.serial, baud=115200)
