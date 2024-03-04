@@ -254,9 +254,9 @@ class Drone:
                 time.sleep(0.2)
                 print("WAIT FOR READY DRONE arm")
                 self.arm()
-                time.sleep(0.2)
-                print("WAIT FOR READY DRONE guided")
-                self.set_mode("GUIDED")
+                # time.sleep(0.2)
+                # print("WAIT FOR READY DRONE guided")
+                # self.set_mode("GUIDED")
                 time.sleep(0.2)
                 print("WAIT FOR READY DRONE")
                 self.drone_ready_condition.wait(timeout=5.0)
@@ -513,8 +513,10 @@ class Drone:
                     or "MAV_STATE_ACTIVE" in self.mav_states
                 )
                 and self.gps is not None
+                and self.mav_mode == "GUIDED"
             ):
                 self.drone_ready = True
+                # breakpoint()
                 with self.drone_ready_condition:
                     self.drone_ready_condition.notify_all()
 

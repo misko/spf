@@ -21,9 +21,9 @@ Youtube [link](https://youtu.be/6D6IM0DY81c)
 ```
 press up to 5s +
 press hold set 5s
-use up down to set UP to 12.1v
+use up down to set UP to 11.2v
 press set
-use up down to set DOWN to 12.0v
+use up down to set DOWN to 11.1v
 ```
 
 ### Cytron Motor driver
@@ -79,9 +79,11 @@ Rover 3 -> NetID 39
 ### Ardupilot calibration
 
 Load base parameters
+
 Accel calibration
 Compass calibration
 Change SYSID_THISMAV
+
 Backup parameters
 
 

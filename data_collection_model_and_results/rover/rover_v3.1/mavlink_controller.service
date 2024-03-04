@@ -1,0 +1,11 @@
+[Unit]
+Type=simple
+Description=Run mavlink controller
+After=multi-user.target
+
+[Service]
+Environment=PYTHONPATH=/home/pi/spf/
+ExecStart=/home/pi/spf-virtualenv/bin/python3 /home/pi/spf/spf/mavlink/mavlink_controller.py --serial /dev/ttyACM2
+
+[Install]
+WantedBy=multi-user.target

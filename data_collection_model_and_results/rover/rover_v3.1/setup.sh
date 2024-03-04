@@ -41,6 +41,50 @@ sudo sh -c 'echo SUBSYSTEM=="usb_device", MODE="0664", GROUP="usb" >> /etc/udev/
 # disable wifi so it wont interfere
 sudo sh -c 'echo dtoverlay=disable-wifi >> /boot/config.txt'
 
+# flash pluto
+# sudo chmod -R 777 /dev/bus/usb/ # allow all USB access
+
+pluto_fw=plutosdr-fw-v0.37-dirty.zip
+
+while [ 1 -lt 2 ]; do
+        wget -O ${pluto_fw} 'https://www.dropbox.com/s/4jji77rk3d9ikba/plutosdr-fw-v0.37-dirty.zip?dl=0'
+        md5='613fcdd4f45ad695d85abd53d1e0b918'
+        current_md5=`md5sum ${pluto_fw} | awk '{print $1}'`
+        if [ "$md5" == "${current_md5}" ]; then
+                echo "Download succesful!"
+                break
+        fi
+        rm -f ${pluto_fw}
+done
+
+
+mounts='/dev/sda /dev/sdb'
+mount_point='/media/pluto'
+if [ ! -d "${mount_point}" ]; then
+        sudo mkdir -p ${mount_point}
+fi
+for mount in $mounts; do 
+        if [ -b "$mount" ]; then
+                echo "Trying to flash $mount"
+                sudo mount "${mount}1" ${mount_point}
+                sudo cp ${pluto_fw} ${mount_point}
+                sudo eject ${mount}
+                sleep 1
+                echo -n "Waiting for device to come back up"
+                while [ ! -b "${mount}1" ]; do
+                        echo -n "."
+                        sleep 5
+                done
+                echo "Device came back up!, flashing complete"
+        fi
+done
+
+#mavlink controller service
+sudo cp /home/pi/spf/spf/mavlink/mavlink_controller.service /lib/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable mavlink_controller.service
+
+
 #will come back up with new static IP
 sudo reboot
 
@@ -59,5 +103,5 @@ sudo reboot
 # USB URI is usb:1.3.5
 
 # #to allow users to access usb devices
-# sudo chmod -R 777 /dev/bus/usb/
+# 
 # # there is some examples online using udev but those are not owkring
