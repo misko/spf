@@ -80,7 +80,7 @@ for mount in $mounts; do
 done
 
 #mavlink controller service
-sudo cp /home/pi/spf/spf/mavlink/mavlink_controller.service /lib/systemd/system/
+sudo cp /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable mavlink_controller.service
 

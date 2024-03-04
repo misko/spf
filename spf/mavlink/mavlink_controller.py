@@ -1,10 +1,10 @@
 # Import mavutil
 import argparse
-import subprocess
 import glob
 import logging
 import math
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -23,10 +23,6 @@ logging.basicConfig(
     format="%(asctime)s:%(levelname)s: %(message)s",
 )
 logging.getLogger().addHandler(logging.StreamHandler())
-
-
-
-
 
 
 mav_states_list = [
@@ -137,9 +133,9 @@ class Drone:
         }
         self.mav_cmd_num2name = {176: "MAV_CMD_DO_SET_MODE"}
 
-        self.message_condition = threading.Condition() # can set message_loop=False, 
-        self.single_condition = threading.Condition() # can set message_loop=True 
-        #self.drone_ready_condition = threading.Condition()
+        self.message_condition = threading.Condition()  # can set message_loop=False,
+        self.single_condition = threading.Condition()  # can set message_loop=True
+        # self.drone_ready_condition = threading.Condition()
         self.drone_ready = False
 
         self.message_loop = True
@@ -162,7 +158,7 @@ class Drone:
             "POSITION_TARGET_GLOBAL_INT",
             "POWER_STATUS",
             "RAW_IMU",
-            #"RC_CHANNELS",
+            # "RC_CHANNELS",
             "RC_CHANNELS_SCALED",
             "SCALED_IMU2",
             "SCALED_IMU3",
@@ -180,14 +176,16 @@ class Drone:
 
         # self.erase_logs()
 
-        self.message_loop_thread = threading.Thread(target=self.process_messages,daemon=True)
+        self.message_loop_thread = threading.Thread(
+            target=self.process_messages, daemon=True
+        )
 
-        self.planner_thread = threading.Thread(target=self.run_planner,daemon=True)
+        self.planner_thread = threading.Thread(target=self.run_planner, daemon=True)
 
         self.planner = planner
 
-        #self.mission_item_condition = threading.Condition()
-        #self.mission_item_reached = False
+        # self.mission_item_condition = threading.Condition()
+        # self.mission_item_reached = False
 
         self.message_loop_thread.start()
         self.planner_thread.start()
@@ -232,7 +230,7 @@ class Drone:
         home = self.boundary.mean(axis=0)
 
         self.single_operation_mode_on()
-        #self.connection.waypoint_clear_all_send()
+        # self.connection.waypoint_clear_all_send()
         # logging.info("SINGLE OPERATION MODE 2")
 
         self.set_home(lat=home[1], long=home[0])
@@ -347,7 +345,7 @@ class Drone:
         #    long,
         #    0.0,  # altitude
         # )
-        #self.mission_item_reached = False
+        # self.mission_item_reached = False
         self.connection.mav.command_int_send(
             self.connection.target_system,
             self.connection.target_component,
@@ -457,7 +455,7 @@ class Drone:
                     self.message_loop = False  # lets chill for a bit
                     with self.single_condition:
                         self.single_condition.notify_all()
-                    while self.message_loop==False:
+                    while self.message_loop == False:
                         self.message_condition.wait()
                 msg = self.connection.recv_match(blocking=True, timeout=0.5)
                 self.process_message(msg)
@@ -500,8 +498,8 @@ class Drone:
             ):
                 self.drone_ready = True
                 # breakpoint()
-                #logging.info("HEARTBEAT")
-                #with self.drone_ready_condition:
+                # logging.info("HEARTBEAT")
+                # with self.drone_ready_condition:
                 #    self.drone_ready_condition.notify_all()
 
         elif msg.get_type() == "SYS_STATUS":
@@ -527,7 +525,7 @@ class Drone:
             logging.info(d)
             logging.info("\n\n")
         elif msg.get_type() == "MISSION_ITEM_REACHED":
-            #self.mission_item_reached = True
+            # self.mission_item_reached = True
             pass
         elif msg.get_type() == "MISSION_CURRENT":
             # logging.info(
@@ -539,9 +537,9 @@ class Drone:
             # )
             pass
         elif msg.get_type() == "RC_CHANNELS":
-            print(msg.to_dict())
-            if msg.chan9_raw>1500:
-                subprocess.run(["sudo", "shutdown", "0"]) 
+            # print(msg.to_dict())
+            if msg.chan9_raw > 1500:
+                subprocess.run(["sudo", "shutdown", "0"])
         elif msg.get_type() in self.ignore_messages:
             pass
         else:
@@ -618,7 +616,6 @@ if __name__ == "__main__":
 
     # do_mission(connection)
 
-
     #   connection.set_mode_auto()  # MAV_CMD_MISSION_START
 
     # connection.set_mode_auto()
@@ -631,7 +628,7 @@ if __name__ == "__main__":
 
     while True:
         time.sleep(200)
-    #logging.info(f"MODE {drone.mav_mode}")
+    # logging.info(f"MODE {drone.mav_mode}")
 
     # logging.info("DONE")
     # drone.process_messages()
