@@ -3,7 +3,6 @@ import argparse
 import glob
 import logging
 import math
-import signal
 import subprocess
 import sys
 import threading
@@ -455,7 +454,7 @@ class Drone:
                     self.message_loop = False  # lets chill for a bit
                     with self.single_condition:
                         self.single_condition.notify_all()
-                    while self.message_loop == False:
+                    while not self.message_loop:
                         self.message_condition.wait()
                 msg = self.connection.recv_match(blocking=True, timeout=0.5)
                 self.process_message(msg)
