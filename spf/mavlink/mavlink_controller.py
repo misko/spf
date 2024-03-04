@@ -24,16 +24,8 @@ logging.basicConfig(
 logging.getLogger().addHandler(logging.StreamHandler())
 
 
-keep_running = True
 
 
-def signal_handler(sig, frame):
-    global keep_running
-    keep_running = False
-    logging.info("got ctrl c!")
-
-
-signal.signal(signal.SIGINT, signal_handler)
 
 
 mav_states_list = [
@@ -144,8 +136,9 @@ class Drone:
         }
         self.mav_cmd_num2name = {176: "MAV_CMD_DO_SET_MODE"}
 
-        self.switch_condition = threading.Condition()
-        self.drone_ready_condition = threading.Condition()
+        self.message_condition = threading.Condition() # can set message_loop=False, 
+        self.single_condition = threading.Condition() # can set message_loop=True 
+        #self.drone_ready_condition = threading.Condition()
         self.drone_ready = False
 
         self.message_loop = True
@@ -186,14 +179,14 @@ class Drone:
 
         # self.erase_logs()
 
-        self.message_loop_thread = threading.Thread(target=self.process_messages)
+        self.message_loop_thread = threading.Thread(target=self.process_messages,daemon=True)
 
-        self.planner_thread = threading.Thread(target=self.run_planner)
+        self.planner_thread = threading.Thread(target=self.run_planner,daemon=True)
 
         self.planner = planner
 
-        self.mission_item_condition = threading.Condition()
-        self.mission_item_reached = False
+        #self.mission_item_condition = threading.Condition()
+        #self.mission_item_reached = False
 
         self.message_loop_thread.start()
         self.planner_thread.start()
@@ -222,17 +215,13 @@ class Drone:
 
     # point long/lat
     def move_to_point(self, point):
-        global keep_running
-        print("CURRENT", self.gps, "TARGET", point)
-        with self.mission_item_condition:
-            self.reposition(lat=point[1], long=point[0])
-            while keep_running and self.distance_to_target(point) > self.tolerance_in_m:
-                print("distance (m) TO TARGET", self.distance_to_target(point))
-                self.mission_item_condition.wait(timeout=0.5)
-        if keep_running:
-            print("REACHED TARGET", point, "Current", self.gps)
-            return True
-        return False
+        logging.info(f"CURRENT {self.gps} TARGET {str(point)}")
+        self.reposition(lat=point[1], long=point[0])
+        while self.distance_to_target(point) > self.tolerance_in_m:
+            logging.info("distance (m) TO TARGET {str(self.distance_to_target(point)}")
+            time.sleep(0.5)
+        logging.info(f"REACHED TARGET {str(point)} Current {str(self.gps)}")
+        return True
 
     def run_planner(self):
         # self.single_operation_mode_on()
@@ -242,7 +231,7 @@ class Drone:
         home = self.boundary.mean(axis=0)
 
         self.single_operation_mode_on()
-        self.connection.waypoint_clear_all_send()
+        #self.connection.waypoint_clear_all_send()
         # logging.info("SINGLE OPERATION MODE 2")
 
         self.set_home(lat=home[1], long=home[0])
@@ -251,26 +240,16 @@ class Drone:
         # self.single_operation_mode_off()
         # drone.request_home()
         logging.info("Planer main loop")
-        global keep_running
-        with self.drone_ready_condition:
-            while keep_running and not self.drone_ready:
-                self.single_operation_mode_on()
-                self.turn_off_hardware_safety()
-                print("WAIT FOR READY DRONE arm")
-                self.arm()
-                self.single_operation_mode_off()
-                # time.sleep(0.2)
-                # print("WAIT FOR READY DRONE guided")
-                # self.set_mode("GUIDED")
-                time.sleep(0.2)
-                print("WAIT FOR READY DRONE")
-                self.drone_ready_condition.wait(timeout=5.0)
-
-        if not keep_running:
-            return
+        while not self.drone_ready:
+            logging.info("wait for drone ready")
+            self.single_operation_mode_on()
+            self.turn_off_hardware_safety()
+            self.arm()
+            self.single_operation_mode_off()
+            time.sleep(2)
+        logging.info("DRONE IS READY TO ROLL")
 
         for point in self.boundary:
-
             self.single_operation_mode_on()
             self.move_to_point(point)
             self.single_operation_mode_off()
@@ -282,7 +261,7 @@ class Drone:
         # drone is now ready
         # point is long, lat
         yp = self.planner.yield_points()
-        while keep_running:
+        while True:
             point = next(yp)
             self.move_to_point(point)
             time.sleep(2)
@@ -369,7 +348,7 @@ class Drone:
         #    long,
         #    0.0,  # altitude
         # )
-        self.mission_item_reached = False
+        #self.mission_item_reached = False
         self.connection.mav.command_int_send(
             self.connection.target_system,
             self.connection.target_component,
@@ -443,10 +422,10 @@ class Drone:
                 if mav_mission_states[msg.type] == "MAV_MISSION_ACCEPTED":
                     break
                 continue
-            print(f"Sending waypoint {msg.seq}")
+            logging.info(f"Sending waypoint {msg.seq}")
             self.connection.mav.send(wp.wp(msg.seq))
 
-        print("DONE UPLOAD")
+        logging.info("DONE UPLOAD")
 
     def ack(self, keyword):
         return (
@@ -454,36 +433,33 @@ class Drone:
         )
 
     def single_operation_mode_on(self):
-        global keep_running
         assert not self.single_operation
-        self.single_operation = True  # request single operation mode
-        with self.switch_condition:
-            while keep_running and self.message_loop:
-                self.switch_condition.wait(timeout=self.timeout)
-            if not keep_running:
-                return None
+        with self.single_condition:
+            self.single_operation = True  # request single operation mode
+            while self.message_loop:
+                self.single_condition.wait()
             return True
 
     def single_operation_mode_off(self, turn_on_messages=True):
         assert self.single_operation
-        self.single_operation = False  # request single operation mode
-        self.message_loop = turn_on_messages
-        with self.switch_condition:
-            self.switch_condition.notify_all()
+        with self.single_condition:
+            self.single_operation = False  # request single operation mode
+            if turn_on_messages:
+                self.message_loop = turn_on_messages
+                with self.message_condition:
+                    self.message_condition.notify_all()
 
     def process_messages(self):
-        global keep_running
-        while keep_running:
-            with self.switch_condition:  # try not to leave context too often
+        with self.message_condition:
+            while True:  # try not to leave context too often
                 # if we are not supposed to run  message loop or the single operation mode is requested
                 # chill out
                 if self.single_operation:
                     self.message_loop = False  # lets chill for a bit
-                while keep_running and (not self.message_loop or self.single_operation):
-                    print("Message loop waiting")
-                    self.switch_condition.wait(timeout=self.timeout)
-                if not keep_running:
-                    return
+                    with self.single_condition:
+                        self.single_condition.notify_all()
+                    while self.message_loop==False:
+                        self.message_condition.wait()
                 msg = self.connection.recv_match(blocking=True, timeout=0.5)
                 self.process_message(msg)
 
@@ -499,19 +475,19 @@ class Drone:
             self.long = msg.lon / 1e7
             self.gps = np.array([self.long, self.lat])
         elif msg.get_type() == "COMMAND_ACK":
-            print("COMMAND ACK", msg)
+            logging.info(f"COMMAND ACK {str(msg)}")
             d = msg.to_dict()
             if msg.command in drone.mav_cmd_num2name:
-                print("COMMAND", drone.mav_cmd_num2name[msg.command])
+                logging.info(f"COMMAND {drone.mav_cmd_num2name[msg.command]}")
         elif msg.get_type() == "HOME_POSITION":  # also maybe GPS_GLOBAL_ORIGIN
             d = msg.to_dict()
-            # print(d)
+            # logging.info(d)
         elif msg.get_type() == "AHRS":
             d = msg.to_dict()
-            # print(d)
+            # logging.info(d)
         elif msg.get_type() == "HEARTBEAT":
             d = msg.to_dict()
-            # print(d)
+            # logging.info(d)
             self.mav_states = lookup_exact(d["system_status"], mav_states_list)
             self.mav_mode = self.mav_mode_mapping_num2name[msg.custom_mode]
             if (
@@ -525,8 +501,9 @@ class Drone:
             ):
                 self.drone_ready = True
                 # breakpoint()
-                with self.drone_ready_condition:
-                    self.drone_ready_condition.notify_all()
+                #logging.info("HEARTBEAT")
+                #with self.drone_ready_condition:
+                #    self.drone_ready_condition.notify_all()
 
         elif msg.get_type() == "SYS_STATUS":
             d = msg.to_dict()
@@ -539,23 +516,22 @@ class Drone:
             self.sensors_health = lookup_bits(
                 d["onboard_control_sensors_health"], sensors_list
             )
-            # print(d)
+            # logging.info(d)
             # for sensor in sensors_present:
             #    enabled = sensor in sensors_enabled
             #    health = sensor in sensors_health
-            #    print(f"\t{sensor}\t{enabled}\t{health}")
+            #    logging.info(f"\t{sensor}\t{enabled}\t{health}")
         elif msg.get_type() == "STATUSTEXT":
             # {'mavpackettype': 'STATUSTEXT', 'severity': 6, 'text': 'Throttle disarmed', 'id': 0, 'chunk_seq': 0}
             d = msg.to_dict()
-            print("\n\n")
-            print(d)
-            print("\n\n")
+            logging.info("\n\n")
+            logging.info(d)
+            logging.info("\n\n")
         elif msg.get_type() == "MISSION_ITEM_REACHED":
-            self.mission_item_reached = True
-            with self.mission_item_condition:
-                self.mission_item_condition.notify_all()
+            #self.mission_item_reached = True
+            pass
         elif msg.get_type() == "MISSION_CURRENT":
-            # print(
+            # logging.info(
             #    "MISSION CURRENT",
             #    mission_states[msg.mission_state],
             #    msg.mission_mode,
@@ -566,7 +542,7 @@ class Drone:
         elif msg.get_type() in self.ignore_messages:
             pass
         else:
-            print(f"\t{msg.get_type()}")
+            logging.info(f"\t{msg.get_type()}")
             # pass
         # if
 
@@ -583,7 +559,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, help="port", required=False, default=14552)
 
     args = parser.parse_args()
-    print("WTF")
+    logging.info("WTF")
     # Create the connection
     # Need to provide the serial port and baudrate
     if args.serial == "" and args.ip == "":
@@ -606,11 +582,9 @@ if __name__ == "__main__":
         exit(1)
 
     logging.info("Wait heartbeat...")
-    while keep_running:
+    while True:
         if connection.wait_heartbeat(blocking=True, timeout=1):
             break
-    if not keep_running:
-        sys.exit(1)
 
     logging.info("Listening...")
 
@@ -649,16 +623,12 @@ if __name__ == "__main__":
 
     # connection.set_mode_auto()
     # breakpoint()
-    # print("Waiting for the vehicle to arm")
+    # logging.info("Waiting for the vehicle to arm")
     # connection.motors_armed_wait()
-    # print("Armed!")
+    # logging.info("Armed!")
 
-    time.sleep(2)
-    print("MODE", drone.mav_mode)
-    # for long, lat in crissy_boundary_convex[1:]:
-    #    print(lat, long)
-    #    drone.reposition(lat, long)
-    #    break
+    time.sleep(20)
+    logging.info(f"MODE {drone.mav_mode}")
 
-    # print("DONE")
+    # logging.info("DONE")
     # drone.process_messages()
