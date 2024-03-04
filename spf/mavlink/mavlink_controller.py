@@ -1,5 +1,6 @@
 # Import mavutil
 import argparse
+import subprocess
 import glob
 import logging
 import math
@@ -161,7 +162,7 @@ class Drone:
             "POSITION_TARGET_GLOBAL_INT",
             "POWER_STATUS",
             "RAW_IMU",
-            "RC_CHANNELS",
+            #"RC_CHANNELS",
             "RC_CHANNELS_SCALED",
             "SCALED_IMU2",
             "SCALED_IMU3",
@@ -250,9 +251,7 @@ class Drone:
         logging.info("DRONE IS READY TO ROLL")
 
         for point in self.boundary:
-            self.single_operation_mode_on()
             self.move_to_point(point)
-            self.single_operation_mode_off()
         self.move_to_point(self.boundary[0])
 
         self.move_to_point(home)
@@ -539,6 +538,10 @@ class Drone:
             #    msg.seq,
             # )
             pass
+        elif msg.get_type() == "RC_CHANNELS":
+            print(msg.to_dict())
+            if msg.chan9_raw>1500:
+                subprocess.run(["sudo", "shutdown", "0"]) 
         elif msg.get_type() in self.ignore_messages:
             pass
         else:
@@ -615,7 +618,6 @@ if __name__ == "__main__":
 
     # do_mission(connection)
 
-    time.sleep(1)
 
     #   connection.set_mode_auto()  # MAV_CMD_MISSION_START
 
@@ -627,8 +629,9 @@ if __name__ == "__main__":
     # connection.motors_armed_wait()
     # logging.info("Armed!")
 
-    time.sleep(20)
-    logging.info(f"MODE {drone.mav_mode}")
+    while True:
+        time.sleep(200)
+    #logging.info(f"MODE {drone.mav_mode}")
 
     # logging.info("DONE")
     # drone.process_messages()
