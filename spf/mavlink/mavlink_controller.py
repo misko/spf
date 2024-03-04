@@ -181,6 +181,7 @@ class Drone:
             "VFR_HUD",
             "VIBRATION",
             "PARAM_VALUE",
+            "BAD_DATA",
         ]
 
         # self.erase_logs()
