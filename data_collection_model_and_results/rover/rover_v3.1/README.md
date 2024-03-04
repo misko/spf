@@ -14,17 +14,76 @@ Youtube [link](https://youtu.be/6D6IM0DY81c)
 
 ![flash with wifi settings](./flash_pi2.png)
 
+
+
+### Low power disconnect programming
+
+```
+press up to 5s +
+press hold set 5s
+use up down to set UP to 12.1v
+press set
+use up down to set DOWN to 12.0v
+```
+
+### Cytron Motor driver
+
+Pins 3,4,6 set to high(1) rest to 0
+
+MRB / MRA -> A motors
+MLB / MLA -> B motors
+
+
+### Battery compartment
+
+Velcro include pictures
+
+
 ### USB port setup
 
 ```
 
 USB  4     |     USB 3
 
-USB  2     |     USB 1
+USB  2   (Radio A)  |     USB 1 (Radio B)
 
 Ethernet
 
 ```
+
+
+### Ardupilot flash
+
+Use mission planner windows
+RPi script installs Arudpilot settings!
+
+### PI setup
+
+setup.sh
+
+### Flash PlutoPlus
+
+### SikRadio
+
+[screen shot](./sikradio.jpg)
+https://www.youtube.com/watch?v=i5lE2cWJJhM
+Connect using mission planner
+Set different NetIDs for each pair
+Make sure to copy over settings
+```
+Rover 1 -> NetID 25
+Rover 2 -> NetID 32
+Rover 3 -> NetID 39
+```
+
+### Ardupilot calibration
+
+Load base parameters
+Accel calibration
+Compass calibration
+Change SYSID_THISMAV
+Backup parameters
+
 
 ### Taranis Q setup
 
@@ -34,9 +93,9 @@ XJT D16
 Ch Range CH1-16
 
 Binding
-Press bind, beeping starts
 With receiver off, hold down F/S button, power on while holding, let go 1 second later
 Solid green/red -> no connection
+Press bind on controller, beeping starts
 Flashing green/red -> connection established
 Reset receiver
 Press ok on controller
@@ -57,39 +116,6 @@ CH 5 -> 100 SF
 
 ```
 
-### SikRadio
-
-[screen shot](./sikradio.jpg)
-https://www.youtube.com/watch?v=i5lE2cWJJhM
-Connect using mission planner
-Set different NetIDs for each pair
-Make sure to copy over settings
-```
-Rover 1 -> NetID 25
-Rover 2 -> NetID 32
-Rover 3 -> NetID 39
-```
-
-
-### Low power disconnect programming
-
-```
-press up to 5s +
-press hold set 5s
-use up down to set UP to 12.1v
-press set
-use up down to set DOWN to 12.0v
-```
-
-### Rover 1
-
-```
-SYSID_THISMAV 1
-auto eth0
-iface eth0 inet static
-    address 192.168.1.41/24
-    gateway 192.168.1.254
-```
 
 ### 3D printed parts
 
