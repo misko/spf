@@ -114,7 +114,8 @@ CH 2 -> 100 Ele
 CH 3 -> 100 Thr
 CH 4 -> 100 Rud
 CH 5 -> 100 SF
-
+CH 8 -> 100 SA
+CH 9 -> 100 SH
 
 ```
 
