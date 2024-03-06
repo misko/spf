@@ -151,6 +151,8 @@ class Drone:
             | EKF_STATUS_STRING_TO_DEC["EKF_POS_HORIZ_REL"]
         )
 
+        self.motor_active = False
+
         self.ekf_healthy = False
 
         self.mav_states = []
@@ -265,13 +267,19 @@ class Drone:
                 f"distance (m) TO TARGET {str(self.distance_to_target(point))}"
             )
             if self.distance_finder is not None:
-                if self.distance_finder.distance < 100:
+                logging.info(f"distance finder {self.distance_finder.distance}")
+                if self.distance_finder.distance < 170:
                     if self.mav_mode == "GUIDED":
                         self.set_mode("HOLD")
-                elif self.mav_mode != "GUIDED":
+                elif self.mav_mode != "GUIDED" and self.mav_mode != "MANUAL":
                     self.set_mode("GUIDED")
+                    time.sleep(0.1)
+                    self.reposition(lat=point[1], long=point[0])
+                elif self.mav_mode == "GUIDED" and not self.motor_active:
+                    self.reposition(lat=point[1], long=point[0])
+                    time.sleep(0.5)
             #
-            time.sleep(0.5)
+            time.sleep(0.1)
         logging.info(f"REACHED TARGET {str(point)} Current {str(self.gps)}")
         return True
 
@@ -573,6 +581,12 @@ class Drone:
         if msg.chan9_raw > 1500:
             subprocess.run(["sudo", "shutdown", "0"])
 
+    def handle_SERVO_OUTPUT_RAW(self, msg):
+        if msg.servo1_raw == 1500 and msg.servo3_raw == 1500:
+            self.motor_active = False
+        else:
+            self.motor_active = True
+
     message_handlers = {
         "GLOBAL_POSITION_INT": handle_GLOBAL_POSITION_INT,
         "EKF_STATUS_REPORT": handle_EKF_STATUS_REPORT,
@@ -582,6 +596,7 @@ class Drone:
         "SYS_STATUS": handle_SYS_STATUS,
         "STATUSTEXT": handle_STATUSTEXT,
         "RC_CHANNELS": handle_RC_CHANNELS,
+        "SERVO_OUTPUT_RAW": handle_SERVO_OUTPUT_RAW,
     }
 
     def process_message(self, msg):

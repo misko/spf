@@ -72,7 +72,11 @@ class DataCollector:
                 enabled_channels=[0],
                 cyclic=True,
                 uri=target_yaml_config["emitter-uri"],
-                motor_channel=target_yaml_config["motor_channel"],
+                motor_channel=(
+                    target_yaml_config["motor_channel"]
+                    if "motor_channel" in target_yaml_config
+                    else None
+                ),
             )
 
             pplus_rx, _ = setup_rxtx(
@@ -98,7 +102,9 @@ class DataCollector:
                 uri=receiver["receiver-uri"],
                 rx_spacing=receiver["antenna-spacing-m"],
                 rx_theta_in_pis=receiver["theta-in-pis"],
-                motor_channel=receiver["motor_channel"],
+                motor_channel=(
+                    receiver["motor_channel"] if "motor_channel" in receiver else None
+                ),
                 rx_buffers=receiver["rx-buffers"],
             )
             assert "emitter-uri" not in receiver
@@ -121,4 +127,4 @@ class DataCollector:
         pass
 
     def is_collecting(self):
-        pass
+        return True
