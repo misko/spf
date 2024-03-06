@@ -6,3 +6,12 @@ class dotdict(dict):
 
     def __setstate__(self, state):
         vars(self).update(state)
+
+
+def is_pi():
+    try:
+        import RPi.GPIO as GPIO  # noqa
+
+        return True
+    except ImportError:
+        return False

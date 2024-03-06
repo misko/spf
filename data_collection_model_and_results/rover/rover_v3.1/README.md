@@ -137,3 +137,5 @@ See [here](https://www.dropbox.com/s/egpfn434aox6vvk/roverv3_3dparts.zip?dl=0)
 [Low power disconnect](https://www.dropbox.com/scl/fi/wmjql1251xnxs90oqn2jd/lower_power_disconnect_30A.pdf?rlkey=h3vitle22f5xrkcthws3yf8ft&dl=0)
 
 [Cytron Smart duo 30](https://www.dropbox.com/scl/fi/eeqg87gi8wzy2aa1k1yx3/MDDS30_User_Manual.pdf?rlkey=xe49gu88bpqspxbg2dh6x139w&dl=0)
+
+[Fans](https://www.dropbox.com/s/b4bna0s1yyfwyqa/cooler_guys_fan.pdf?dl=0)

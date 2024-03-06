@@ -3,6 +3,24 @@ from functools import cache
 import numpy as np
 
 
+def v3_column_names(nthetas=65):
+    thetas = np.linspace(-np.pi, np.pi, nthetas)
+    return [
+        "timestamp",
+        "lat",
+        "long",
+        "bearing",
+        "rx_theta",
+        "rx_spacing_m",
+        "avg_phase_diff_1",
+        "avg_phase_diff_2",
+        "rssi0",
+        "rssi1",
+        "gain0",
+        "gain1",
+    ] + ["beamformer_angle_%0.4f" % theta for theta in thetas]
+
+
 def v2_column_names(nthetas=65):
     thetas = np.linspace(-np.pi, np.pi, nthetas)
     return [

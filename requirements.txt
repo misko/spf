@@ -53,6 +53,7 @@ pytest==7.4.3
 python-dateutil==2.8.2
 PyYAML==6.0.1
 requests==2.31.0
+RPi.GPIO==0.7.1
 scipy==1.11.4
 shapely==2.0.2
 six==1.16.0

@@ -3,10 +3,13 @@ import sys
 import threading
 import time
 
-import RPi.GPIO as GPIO
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    pass
 
 
-class UtrasonicDistanceController:
+class DistanceFinderController:
     def __init__(self, trigger=2, echo=3):
         # assign pins
         self.trigger = trigger
@@ -17,6 +20,9 @@ class UtrasonicDistanceController:
         GPIO.setmode(GPIO.BCM)  # GPIO Mode (BOARD / BCM)
         GPIO.setup(self.trigger, GPIO.OUT)
         GPIO.setup(self.echo, GPIO.IN)
+
+    def run_in_new_thread(self):
+        threading.Thread(target=self.run, daemon=True).start()
 
     def run(self, sample_interval=0.05):
         # start sensor
@@ -51,8 +57,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    udc = UtrasonicDistanceController(trigger=args.trigger, echo=args.echo)
-    threading.Thread(target=udc.run, daemon=True).start()
+    udc = DistanceFinderController(trigger=args.trigger, echo=args.echo)
+    udc.run_in_new_thread()
     for x in range(15 * 2):
         time.sleep(1.0 / 2)
         print(udc.distance)

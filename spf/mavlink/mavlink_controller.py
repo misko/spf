@@ -23,6 +23,20 @@ logging.basicConfig(
 )
 logging.getLogger().addHandler(logging.StreamHandler())
 
+EKF_STATUS_DEC_TO_STRING = {
+    1: "EKF_ATTITUDE",
+    2: "EKF_VELOCITY_HORIZ",
+    4: "EKF_VELOCITY_VERT",
+    8: "EKF_POS_HORIZ_REL",
+    16: "EKF_POS_HORIZ_ABS",
+    32: "EKF_POS_VERT_ABS",
+    64: "EKF_POS_VERT_AGL",
+    128: "EKF_CONST_POS_MODE",
+    256: "EKF_PRED_POS_HORIZ_REL",
+    512: "EKF_PRED_POS_HORIZ_ABS",
+    1024: "EKF_UNINITIALIZED",
+}
+EKF_STATUS_STRING_TO_DEC = {v: k for k, v in EKF_STATUS_DEC_TO_STRING.items()}
 
 mav_states_list = [
     "MAV_STATE_UNINIT",
@@ -115,14 +129,29 @@ def lookup_exact(x, table):
 
 
 class Drone:
-    def __init__(self, connection, planner, boundary, tolerance_in_m=5):
+    def __init__(
+        self, connection, planner, boundary, tolerance_in_m=5, distance_finder=None
+    ):
         self.connection = connection
         self.boundary = boundary
 
+        self.distance_finder = distance_finder
+        if self.distance_finder is not None:
+            self.distance_finder.run_in_new_thread()
+
+        logging.getLogger("numba").setLevel(logging.WARNING)
         self.mav_mode_mapping_name2num = connection.mode_mapping()
         self.mav_mode_mapping_num2name = mavutil.mode_mapping_bynumber(
             connection.sysid_state[connection.sysid].mav_type
         )
+
+        self.healthy_ekf_flag = (
+            EKF_STATUS_STRING_TO_DEC["EKF_ATTITUDE"]
+            | EKF_STATUS_STRING_TO_DEC["EKF_POS_HORIZ_REL"]
+            | EKF_STATUS_STRING_TO_DEC["EKF_POS_HORIZ_REL"]
+        )
+
+        self.ekf_healthy = False
 
         self.mav_states = []
         self.gps = None
@@ -140,13 +169,17 @@ class Drone:
         self.message_loop = True
         self.single_operation = False
 
+        self.sensors_present = []
+        self.sensors_enabled = []
+        self.sensors_health = []
+
         self.timeout = 0.5
         self.tolerance_in_m = tolerance_in_m
         self.ignore_messages = [
-            "AHRS2",
+            # "AHRS2",
             "ATTITUDE",
             "BATTERY_STATUS",
-            "EKF_STATUS_REPORT",
+            # "EKF_STATUS_REPORT",
             "ESC_TELEMETRY_1_TO_4",
             "GPS_RAW_INT",
             "HWSTATUS",
@@ -165,7 +198,7 @@ class Drone:
             "SCALED_PRESSURE2",
             "SERVO_OUTPUT_RAW",
             "SIMSTATE",
-            "SYSTEM_TIME",
+            # "SYSTEM_TIME",
             "SYS_STATUS",
             "VFR_HUD",
             "VIBRATION",
@@ -183,11 +216,23 @@ class Drone:
 
         self.planner = planner
 
+        self.planner_started_moving = False
+
         # self.mission_item_condition = threading.Condition()
         # self.mission_item_reached = False
 
+    # motion interface
+    def start(self):
         self.message_loop_thread.start()
         self.planner_thread.start()
+
+    def has_planner_started_moving(self):
+        return self.planner_started_moving
+
+    def get_position(self):
+        return {"gps": self.gps, "bearing": None}
+
+    # drone specific
 
     def distance_to_target(self, target_point):
         # points are long , lat
@@ -216,7 +261,16 @@ class Drone:
         logging.info(f"CURRENT {self.gps} TARGET {str(point)}")
         self.reposition(lat=point[1], long=point[0])
         while self.distance_to_target(point) > self.tolerance_in_m:
-            logging.info("distance (m) TO TARGET {str(self.distance_to_target(point)}")
+            logging.info(
+                f"distance (m) TO TARGET {str(self.distance_to_target(point))}"
+            )
+            if self.distance_finder is not None:
+                if self.distance_finder.distance < 100:
+                    if self.mav_mode == "GUIDED":
+                        self.set_mode("HOLD")
+                elif self.mav_mode != "GUIDED":
+                    self.set_mode("GUIDED")
+            #
             time.sleep(0.5)
         logging.info(f"REACHED TARGET {str(point)} Current {str(self.gps)}")
         return True
@@ -246,6 +300,8 @@ class Drone:
             self.single_operation_mode_off()
             time.sleep(2)
         logging.info("DRONE IS READY TO ROLL")
+
+        self.planner_started_moving = True
 
         for point in self.boundary:
             self.move_to_point(point)
@@ -459,95 +515,93 @@ class Drone:
                 msg = self.connection.recv_match(blocking=True, timeout=0.5)
                 self.process_message(msg)
 
+    def handle_GLOBAL_POSITION_INT(self, msg):
+        self.lat = msg.lat / 1e7
+        self.long = msg.lon / 1e7
+        self.gps = np.array([self.long, self.lat])
+
+    def handle_EKF_STATUS_REPORT(self, msg):
+        if msg.flags & self.healthy_ekf_flag == self.healthy_ekf_flag:
+            self.ekf_healthy = True
+        else:
+            self.ekf_healthy = False
+
+    def handle_COMMAND_ACK(self, msg):
+        # logging.info(f"COMMAND ACK {str(msg)}")
+        # if msg.command in self.mav_cmd_num2name:
+        #    logging.info(f"COMMAND {self.mav_cmd_num2name[msg.command]}")
+        pass
+
+    def handle_HEARTBEAT(self, msg):
+        print(self.mav_mode, "MODE")
+        self.mav_states = lookup_exact(msg.system_status, mav_states_list)
+        self.mav_mode = self.mav_mode_mapping_num2name[msg.custom_mode]
+        if (
+            not self.drone_ready
+            and (
+                "MAV_STATE_STANDBY" in self.mav_states
+                or "MAV_STATE_ACTIVE" in self.mav_states
+            )
+            and self.gps is not None
+            and "MAV_SYS_STATUS_SENSOR_GPS" in self.sensors_health
+            and self.mav_mode == "GUIDED"
+            and self.ekf_healthy
+        ):
+            self.drone_ready = True
+
+    def handle_SYSTEM_TIME(self, msg):
+        self.gps_time = msg.time_unix_usec / 1e6  # time in seconds since epoch
+        self.time_since_boot = msg.time_boot_ms / 1e3
+
+    def handle_SYS_STATUS(self, msg):
+        self.sensors_present = lookup_bits(
+            msg.onboard_control_sensors_present, sensors_list
+        )
+        self.sensors_enabled = lookup_bits(
+            msg.onboard_control_sensors_enabled, sensors_list
+        )
+        self.sensors_health = lookup_bits(
+            msg.onboard_control_sensors_health, sensors_list
+        )
+
+    def handle_STATUSTEXT(self, msg):
+        logging.info("\n\n")
+        logging.info(msg.text)
+        logging.info("\n\n")
+
+    def handle_RC_CHANNELS(self, msg):
+        if msg.chan9_raw > 1500:
+            subprocess.run(["sudo", "shutdown", "0"])
+
+    message_handlers = {
+        "GLOBAL_POSITION_INT": handle_GLOBAL_POSITION_INT,
+        "EKF_STATUS_REPORT": handle_EKF_STATUS_REPORT,
+        "COMMAND_ACK": handle_COMMAND_ACK,
+        "HEARTBEAT": handle_HEARTBEAT,
+        "SYSTEM_TIME": handle_SYSTEM_TIME,
+        "SYS_STATUS": handle_SYS_STATUS,
+        "STATUSTEXT": handle_STATUSTEXT,
+        "RC_CHANNELS": handle_RC_CHANNELS,
+    }
+
     def process_message(self, msg):
-        # logging.info("process_message")
         if msg is None:
             time.sleep(0.01)
             return
-        # .to_dict())
-        if msg.get_type() == "GLOBAL_POSITION_INT":
-            d = msg.to_dict()
-            self.lat = msg.lat / 1e7
-            self.long = msg.lon / 1e7
-            self.gps = np.array([self.long, self.lat])
-        elif msg.get_type() == "COMMAND_ACK":
-            logging.info(f"COMMAND ACK {str(msg)}")
-            d = msg.to_dict()
-            if msg.command in drone.mav_cmd_num2name:
-                logging.info(f"COMMAND {drone.mav_cmd_num2name[msg.command]}")
-        elif msg.get_type() == "HOME_POSITION":  # also maybe GPS_GLOBAL_ORIGIN
-            d = msg.to_dict()
-            # logging.info(d)
-        elif msg.get_type() == "AHRS":
-            d = msg.to_dict()
-            # logging.info(d)
-        elif msg.get_type() == "HEARTBEAT":
-            d = msg.to_dict()
-            # logging.info(d)
-            self.mav_states = lookup_exact(d["system_status"], mav_states_list)
-            self.mav_mode = self.mav_mode_mapping_num2name[msg.custom_mode]
-            if (
-                not self.drone_ready
-                and (
-                    "MAV_STATE_STANDBY" in self.mav_states
-                    or "MAV_STATE_ACTIVE" in self.mav_states
-                )
-                and self.gps is not None
-                and self.mav_mode == "GUIDED"
-            ):
-                self.drone_ready = True
-                # breakpoint()
-                # logging.info("HEARTBEAT")
-                # with self.drone_ready_condition:
-                #    self.drone_ready_condition.notify_all()
-
-        elif msg.get_type() == "SYS_STATUS":
-            d = msg.to_dict()
-            self.sensors_present = lookup_bits(
-                d["onboard_control_sensors_present"], sensors_list
-            )
-            self.ensors_enabled = lookup_bits(
-                d["onboard_control_sensors_enabled"], sensors_list
-            )
-            self.sensors_health = lookup_bits(
-                d["onboard_control_sensors_health"], sensors_list
-            )
-            # logging.info(d)
-            # for sensor in sensors_present:
-            #    enabled = sensor in sensors_enabled
-            #    health = sensor in sensors_health
-            #    logging.info(f"\t{sensor}\t{enabled}\t{health}")
-        elif msg.get_type() == "STATUSTEXT":
-            # {'mavpackettype': 'STATUSTEXT', 'severity': 6, 'text': 'Throttle disarmed', 'id': 0, 'chunk_seq': 0}
-            d = msg.to_dict()
-            logging.info("\n\n")
-            logging.info(d)
-            logging.info("\n\n")
-        elif msg.get_type() == "MISSION_ITEM_REACHED":
-            # self.mission_item_reached = True
-            pass
-        elif msg.get_type() == "MISSION_CURRENT":
-            # logging.info(
-            #    "MISSION CURRENT",
-            #    mission_states[msg.mission_state],
-            #    msg.mission_mode,
-            #    msg.total,
-            #    msg.seq,
-            # )
-            pass
-        elif msg.get_type() == "RC_CHANNELS":
-            # print(msg.to_dict())
-            if msg.chan9_raw > 1500:
-                subprocess.run(["sudo", "shutdown", "0"])
-        elif msg.get_type() in self.ignore_messages:
-            pass
-        else:
-            logging.info(f"\t{msg.get_type()}")
-            # pass
-        # if
+        msg_type = msg.get_type()
+        if msg_type in self.message_handlers:
+            self.message_handlers[msg_type](self, msg)
 
     def set_mode(self, mode):
         self.connection.set_mode(mode)
+
+
+def get_adrupilot_serial():
+    available_pilots = glob.glob("/dev/serial/by-id/usb-ArduPilot*")
+    if len(available_pilots) != 1:
+        logging.error(f"Strange number of autopilots found {len(available_pilots)}")
+        return None
+    return available_pilots[0]
 
 
 if __name__ == "__main__":
@@ -563,11 +617,9 @@ if __name__ == "__main__":
     # Create the connection
     # Need to provide the serial port and baudrate
     if args.serial == "" and args.ip == "":
-        available_pilots = glob.glob("/dev/serial/by-id/usb-ArduPilot*")
-        if len(available_pilots) != 1:
-            logging.error(f"Strange number of autopilots found {len(available_pilots)}")
+        args.serial = get_adrupilot_serial()
+        if args.serial is None:
             sys.exit(1)
-        args.serial = available_pilots[0]
 
     logging.info("Connecting...")
     if args.serial != "":
@@ -611,6 +663,7 @@ if __name__ == "__main__":
     )
 
     logging.info("drone object created")
+    drone.start()
     # upload_waypoints(connection)
 
     # do_mission(connection)

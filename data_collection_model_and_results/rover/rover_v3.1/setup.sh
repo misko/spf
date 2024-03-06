@@ -10,7 +10,7 @@ rover_id=$1
 echo ${rover_id} > ~/rover_id
 
 sudo apt-get update
-sudo apt-get install git screen libiio-dev libiio-utils vim -y
+sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev -y
 
 # virtual enviornment setup
 python -m venv ~/spf-virtualenv
