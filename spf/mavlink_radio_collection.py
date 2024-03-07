@@ -66,7 +66,8 @@ if __name__ == "__main__":
         }
 
     for receiver in yaml_config["receivers"]:
-        receiver["receiver-uri"] = port_to_uri[receiver["receiver-port"]]
+        if "receiver-port" in receiver:
+            receiver["receiver-uri"] = port_to_uri[receiver["receiver-port"]]
 
     # add in our current config
     if args.routine is not None:
@@ -81,14 +82,12 @@ if __name__ == "__main__":
         output_files_prefix += f"_tag_{args.tag}"
 
     # setup filename
-    filename_log = f"{output_files_prefix}.log.tmp"
-    filename_yaml = f"{output_files_prefix}.yaml.tmp"
-    filename_npy = f"{output_files_prefix}.npy.tmp"
-    temp_dir_name = tempfile.TemporaryDirectory().name
-    temp_filenames = [
-        os.path.join(temp_dir_name, x)
-        for x in [filename_log, filename_yaml, filename_npy]
-    ]
+    tmpdir = tempfile.TemporaryDirectory()
+    temp_dir_name = tmpdir.name
+    filename_log = f"{temp_dir_name}/{output_files_prefix}.log.tmp"
+    filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
+    filename_npy = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
+    temp_filenames = [filename_log, filename_yaml, filename_npy]
     final_filenames = [x.replace(".tmp", "") for x in temp_filenames]
 
     logger = logging.getLogger(__name__)
@@ -112,7 +111,7 @@ if __name__ == "__main__":
 
     boundary = franklin_safe
 
-    logging.info("Connecting...")
+    logging.info("Connecting to drone...")
 
     if yaml_config["drone-uri"] == "serial":
         serial = get_adrupilot_serial()
@@ -146,9 +145,11 @@ if __name__ == "__main__":
     )
     drone.start()
 
-    data_collector = DataCollector(filename_npy=filename_npy, yaml_config=yaml_config)
-    if is_pi():
-        data_collector.radios_to_online()  # blocking
+    logging.info("Starting data collector...")
+    data_collector = DataCollector(
+        filename_npy=filename_npy, yaml_config=yaml_config, drone=drone
+    )
+    data_collector.radios_to_online()  # blocking
 
     while not drone.has_planner_started_moving():
         logging.info(f"waiting for drone to start moving {time.time()}")

@@ -135,6 +135,8 @@ class Drone:
         self.connection = connection
         self.boundary = boundary
 
+        self.heading = 0
+        self.gps_time = 0
         self.distance_finder = distance_finder
         if self.distance_finder is not None:
             self.distance_finder.run_in_new_thread()
@@ -188,7 +190,7 @@ class Drone:
             "LOCAL_POSITION_NED",
             "MEMINFO",
             # "MISSION_CURRENT",
-            "NAV_CONTROLLER_OUTPUT",
+            # "NAV_CONTROLLER_OUTPUT",
             "POSITION_TARGET_GLOBAL_INT",
             "POWER_STATUS",
             "RAW_IMU",
@@ -231,8 +233,8 @@ class Drone:
     def has_planner_started_moving(self):
         return self.planner_started_moving
 
-    def get_position(self):
-        return {"gps": self.gps, "bearing": None}
+    def get_position_bearing_and_time(self):
+        return {"gps": self.gps, "heading": self.heading, "gps_time": self.gps_time}
 
     # drone specific
 
@@ -263,9 +265,9 @@ class Drone:
         logging.info(f"CURRENT {self.gps} TARGET {str(point)}")
         self.reposition(lat=point[1], long=point[0])
         while self.distance_to_target(point) > self.tolerance_in_m:
-            logging.info(
-                f"distance (m) TO TARGET {str(self.distance_to_target(point))}"
-            )
+            # logging.info(
+            #    f"distance (m) TO TARGET {str(self.distance_to_target(point))}"
+            # )
             if self.distance_finder is not None:
                 logging.info(f"distance finder {self.distance_finder.distance}")
                 if self.distance_finder.distance < 170:
@@ -523,10 +525,16 @@ class Drone:
                 msg = self.connection.recv_match(blocking=True, timeout=0.5)
                 self.process_message(msg)
 
+    def handle_NAV_CONTROLLER_OUTPUT(self, msg):
+        # breakpoint()
+        # self.target_
+        pass
+
     def handle_GLOBAL_POSITION_INT(self, msg):
         self.lat = msg.lat / 1e7
         self.long = msg.lon / 1e7
         self.gps = np.array([self.long, self.lat])
+        self.heading = msg.hdg / 100
 
     def handle_EKF_STATUS_REPORT(self, msg):
         if msg.flags & self.healthy_ekf_flag == self.healthy_ekf_flag:
@@ -541,7 +549,6 @@ class Drone:
         pass
 
     def handle_HEARTBEAT(self, msg):
-        print(self.mav_mode, "MODE")
         self.mav_states = lookup_exact(msg.system_status, mav_states_list)
         self.mav_mode = self.mav_mode_mapping_num2name[msg.custom_mode]
         if (
@@ -597,6 +604,7 @@ class Drone:
         "STATUSTEXT": handle_STATUSTEXT,
         "RC_CHANNELS": handle_RC_CHANNELS,
         "SERVO_OUTPUT_RAW": handle_SERVO_OUTPUT_RAW,
+        "NAV_CONTROLLER_OUTPUT": handle_NAV_CONTROLLER_OUTPUT,
     }
 
     def process_message(self, msg):

@@ -9,7 +9,7 @@ def v3_column_names(nthetas=65):
         "timestamp",
         "lat",
         "long",
-        "bearing",
+        "heading",
         "rx_theta",
         "rx_spacing_m",
         "avg_phase_diff_1",

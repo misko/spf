@@ -1,28 +1,135 @@
 import logging
 import sys
+import threading
 import time
+from typing import Optional
 
 import numpy as np
+from attr import dataclass
+from tqdm import tqdm
 
+from spf.rf import beamformer
 from spf.sdrpluto.sdr_controller import (
     EmitterConfig,
     ReceiverConfig,
+    get_avg_phase,
     get_pplus,
     setup_rx,
     setup_rxtx,
 )
-from spf.wall_array_v2 import v2_column_names
+from spf.wall_array_v2 import v3_column_names
+
+
+@dataclass
+class DataSnapshot:
+    timestamp: float
+    rx_theta_in_pis: float
+    rx_center_pos: np.array
+    rx_spacing: float
+    avg_phase_diff: float
+    beam_sds: np.array
+    signal_matrix: Optional[np.array]
+    rssis: np.array
+    gains: np.array
+
+
+def prepare_record_entry_v3(ds: DataSnapshot, current_pos_heading_and_time):
+    # t,rx,ry,rtheta,rspacing,avgphase,sds
+    return np.hstack(
+        [
+            current_pos_heading_and_time["gps_time"],  # 1
+            current_pos_heading_and_time["gps"],  # 2
+            current_pos_heading_and_time["heading"],  # 1
+            ds.rx_theta_in_pis * np.pi,  # 1
+            ds.rx_spacing,  # 1
+            ds.avg_phase_diff,  # 2
+            ds.rssis,  # 2
+            ds.gains,  # 2
+            ds.beam_sds,  # 65
+        ]
+    )
+
+
+class ThreadedRX:
+    def __init__(self, pplus, time_offset, nthetas):
+        self.pplus = pplus
+        self.read_lock = threading.Lock()
+        self.ready_lock = threading.Lock()
+        self.ready_lock.acquire()
+        self.run = False
+        self.time_offset = time_offset
+        self.nthetas = nthetas
+        assert self.pplus.rx_config.rx_pos is not None
+
+    def start_read_thread(self):
+        self.t = threading.Thread(target=self.read_forever)
+        self.run = True
+        self.t.start()
+
+    def read_forever(self):
+        logging.info(f"{str(self.pplus.rx_config.uri)} PPlus read_forever()")
+        while self.run:
+            if self.read_lock.acquire(blocking=True, timeout=0.5):
+                # got the semaphore, read some data!
+                tries = 0
+                try:
+                    signal_matrix = self.pplus.sdr.rx()
+                    rssis = self.pplus.rssis()
+                    gains = self.pplus.gains()
+                except Exception as e:
+                    logging.error(
+                        f"Failed to receive RX data! removing file : retry {tries} {e}",
+                    )
+                    time.sleep(0.1)
+                    tries += 1
+                    if tries > 15:
+                        logging.error("GIVE UP")
+                        sys.exit(1)
+
+                # process the data
+                signal_matrix[1] *= np.exp(1j * self.pplus.phase_calibration)
+                current_time = time.time() - self.time_offset  # timestamp
+                _, beam_sds, _ = beamformer(
+                    self.pplus.rx_config.rx_pos,
+                    signal_matrix,
+                    self.pplus.rx_config.lo,
+                    spacing=self.nthetas,
+                )
+
+                avg_phase_diff = get_avg_phase(signal_matrix)
+
+                self.data = DataSnapshot(
+                    timestamp=current_time,
+                    rx_center_pos=self.pplus.rx_config.rx_spacing,
+                    rx_theta_in_pis=self.pplus.rx_config.rx_theta_in_pis,
+                    rx_spacing=self.pplus.rx_config.rx_spacing,
+                    beam_sds=beam_sds,
+                    avg_phase_diff=avg_phase_diff,
+                    signal_matrix=None,
+                    rssis=rssis,
+                    gains=gains,
+                )
+
+                try:
+                    self.ready_lock.release()  # tell the parent we are ready to provide
+                except Exception as e:
+                    logging.error(f"Thread encountered an issue exiting {str(e)}")
+                    self.run = False
+                # logging.info(f"{self.pplus.rx_config.uri} READY")
+
+        logging.info(f"{str(self.pplus.rx_config.uri)} PPlus read_forever() exit!")
 
 
 class DataCollector:
-    def __init__(self, yaml_config, filename_npy, tag=""):
+    def __init__(self, yaml_config, filename_npy, drone, tag=""):
         self.yaml_config = yaml_config
         self.filename_npy = filename_npy
         self.record_matrix = None
+        self.drone = drone
 
     def radios_to_online(self):
         # record matrix
-        column_names = v2_column_names(nthetas=self.yaml_config["n-thetas"])
+        column_names = v3_column_names(nthetas=self.yaml_config["n-thetas"])
         if not self.yaml_config["dry-run"]:
             self.record_matrix = np.memmap(
                 self.filename_npy,
@@ -85,7 +192,7 @@ class DataCollector:
             pplus_rx.close_rx()
 
         # get radios online
-        receiver_pplus = {}
+        self.receiver_pplus = {}
         for receiver in self.yaml_config["receivers"]:
             rx_config = ReceiverConfig(
                 lo=receiver["f-carrier"],
@@ -120,11 +227,45 @@ class DataCollector:
                 sys.exit(1)
             else:
                 logging.debug("RX online!")
-                receiver_pplus[pplus_rx.uri] = pplus_rx
+                self.receiver_pplus[pplus_rx.uri] = pplus_rx
                 assert pplus_rx.rx_config.rx_pos is not None
 
-    def start(self):
-        pass
+        self.read_threads = []
+        time_offset = time.time()
+        for _, pplus_rx in self.receiver_pplus.items():
+            if pplus_rx is None:
+                continue
+            read_thread = ThreadedRX(
+                pplus_rx, time_offset, nthetas=self.yaml_config["n-thetas"]
+            )
+            read_thread.start_read_thread()
+            self.read_threads.append(read_thread)
+
+        self.collector_thread = threading.Thread(
+            target=self.run_collector_thread, daemon=True
+        )
+        self.collector_thread.start()
+
+    def run_collector_thread(self):
+        record_index = 0
+        for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
+            for read_thread_idx, read_thread in enumerate(self.read_threads):
+                while not read_thread.ready_lock.acquire(timeout=0.5):
+                    pass
+                ###
+                # copy the data out
+                current_pos_heading_and_time = (
+                    self.drone.get_position_bearing_and_time()
+                )
+
+                self.record_matrix[read_thread_idx, record_index] = (
+                    prepare_record_entry_v3(
+                        ds=read_thread.data,
+                        current_pos_heading_and_time=current_pos_heading_and_time,
+                    )
+                )
+
+                read_thread.read_lock.release()
 
     def is_collecting(self):
         return True

@@ -15,22 +15,8 @@ distance-finder:
 #USB  2   (Radio A)  |     USB 1 (Radio B)
 receivers:
   #radio A
-  - receiver-port: 2
+  - receiver-uri: usb:2.12.5
     theta-in-pis: 0
-    antenna-spacing-m: 0.05075 # 50.75 mm 
-    nelements: 2
-    array-type: linear
-    rx-gain-mode: fast_attack
-    rx-buffers: 4
-    rx-gain: -3
-    buffer-size: 4096 # 2**12
-    f-intermediate: 100000 #1.0e5
-    f-carrier: 2467000000 #2.5e9
-    f-sampling: 16000000 # 16.0e6
-    bandwidth: 300000 #3.0e5
-  #radio B
-  - receiver-port: 1
-    theta-in-pis: 1
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
     array-type: linear
@@ -51,4 +37,4 @@ routine: null
 
 drone-uri: udpin:127.0.0.1:14552
 
-dry-run: True
+dry-run: False
