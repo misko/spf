@@ -7,7 +7,7 @@ WorkingDirectory=/home/pi/
 User=pi
 Group=pi
 Environment=PYTHONPATH=/home/pi/spf/
-ExecStart=/home/pi/spf-virtualenv/bin/python3 /home/pi/spf/spf/mavlink/mavlink_controller.py
+ExecStart=/home/pi/spf/spf/data_collection_model_and_results/rover/rover_v3.1/drone_run.sh
 
 [Install]
 WantedBy=multi-user.target

@@ -13,7 +13,12 @@ from pymavlink import mavutil
 from spf.data_collector import DroneDataCollector
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
 from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
-from spf.grbl.grbl_interactive import BouncePlanner, Dynamics
+from spf.grbl.grbl_interactive import (
+    BouncePlanner,
+    CirclePlanner,
+    Dynamics,
+    StationaryPlanner,
+)
 from spf.mavlink.mavlink_controller import Drone, get_adrupilot_serial
 from spf.utils import is_pi
 
@@ -53,6 +58,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    rover_id = 1
+    # with open("/home/pi/rover_id", "r") as f:
+    #    rover_id = int(f.readline().strip())
+
     run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     # read YAML
     with open(args.yaml_config, "r") as stream:
@@ -68,6 +77,10 @@ if __name__ == "__main__":
     for receiver in yaml_config["receivers"]:
         if "receiver-port" in receiver:
             receiver["receiver-uri"] = port_to_uri[receiver["receiver-port"]]
+    if "emitter-port" in yaml_config["emitter"]:
+        yaml_config["emitter"]["emitter-uri"] = port_to_uri[
+            yaml_config["emitter"]["emitter-port"]
+        ]
 
     # add in our current config
     if args.routine is not None:
@@ -129,17 +142,44 @@ if __name__ == "__main__":
             trigger=yaml_config["distance-finder"]["trigger"],
             echo=yaml_config["distance-finder"]["echo"],
         )
-    drone = Drone(
-        connection,
-        planner=BouncePlanner(
+
+    if yaml_config["routine"] == "circle":
+        planner = CirclePlanner(
             dynamics=Dynamics(
                 bounding_box=boundary,
-                bounds_radius=0.000000001,
+                bounds_radius=0.000001,
             ),
             start_point=boundary.mean(axis=0),
-            epsilon=0.0000001,
-            step_size=0.1,
-        ),
+            step_size=0.0001,
+            circle_diameter=0.0003,
+            circle_center=boundary.mean(axis=0),
+        )
+    elif yaml_config["routine"] == "center":
+        planner = StationaryPlanner(
+            dynamics=Dynamics(
+                bounding_box=boundary,
+                bounds_radius=0.000001,
+            ),
+            start_point=boundary.mean(axis=0),
+            stationary_point=boundary.mean(axis=0),
+            step_size=0.0002,
+        )
+    elif yaml_config["routine"] == "bounce":
+        planner = (
+            BouncePlanner(
+                dynamics=Dynamics(
+                    bounding_box=boundary,
+                    bounds_radius=0.000000001,
+                ),
+                start_point=boundary.mean(axis=0),
+                epsilon=0.0000001,
+                step_size=0.1,
+            ),
+        )
+
+    drone = Drone(
+        connection,
+        planner=planner,
         boundary=boundary,
         distance_finder=distance_finder,
     )
@@ -155,11 +195,16 @@ if __name__ == "__main__":
         logging.info(f"waiting for drone to start moving {time.time()}")
         time.sleep(5)  # easy poll this
 
-    data_collector.start()
     logging.info("DRONE IS READY!!! LETS GOOO!!!")
 
-    while data_collector.is_collecting():
-        time.sleep(5)
+    if len(yaml_config["receivers"]) == 0:
+        logging.info("EMITTER ONLINE!")
+        while True:
+            time.sleep(5)
+    else:
+        data_collector.start()
+        while data_collector.is_collecting():
+            time.sleep(5)
 
     # we finished lets move files out to final positions
     for idx in range(len(temp_filenames)):

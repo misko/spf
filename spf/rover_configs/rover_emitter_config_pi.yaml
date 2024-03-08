@@ -1,0 +1,37 @@
+# Two receivers each with two antennas
+# When a receiver is brought online it performs
+# phase calibration using an emitter equidistant from
+# both receiver antenna
+# The orientation of the receiver is described in 
+# multiples of pi
+emitter:
+  type: sdr
+  #emitter-port: 2
+  receiver-uri: usb:2.12.5
+  emitter-uri: usb:2.12.5
+  tx-gain: -10
+  rx-gain-mode: fast_attack
+  rx-gain: -3
+  buffer-size: 4096 # 2**12
+  f-intermediate: 100000 #1.0e5
+  f-carrier: 2500000000 #2.5e9
+  f-sampling: 16000000 # 16.0e6
+  bandwidth: 300000 #3.0e5
+  motor_channel: 1
+  
+receivers: []
+
+distance-finder:
+  trigger: 2
+  echo: 
+
+n-thetas: 65
+n-records-per-receiver: 600000
+width: 4000
+calibration-frames: 800
+routine: null
+
+
+drone-uri: udpin:127.0.0.1:14552
+
+dry-run: False

@@ -311,11 +311,9 @@ class Drone:
             time.sleep(2)
         logging.info("DRONE IS READY TO ROLL")
 
-        self.planner_started_moving = True
-
-        for point in self.boundary:
-            self.move_to_point(point)
-        self.move_to_point(self.boundary[0])
+        # for point in self.boundary:
+        #    self.move_to_point(point)
+        # self.move_to_point(self.boundary[0])
 
         self.move_to_point(home)
         time.sleep(2)
@@ -326,6 +324,7 @@ class Drone:
         while True:
             point = next(yp)
             self.move_to_point(point)
+            self.planner_started_moving = True
             time.sleep(2)
 
     def get_cmd(self, cmd):
