@@ -74,7 +74,7 @@ if __name__ == "__main__":
             for mapping in [line.strip().split() for line in device_mapping]
         }
 
-    for receiver in yaml_config["receivers"]:
+    for receiver in yaml_config["receivers"] + [yaml_config["emitter"]]:
         if "receiver-port" in receiver:
             receiver["receiver-uri"] = port_to_uri[receiver["receiver-port"]]
     if "emitter-port" in yaml_config["emitter"]:
