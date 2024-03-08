@@ -7,8 +7,8 @@
 emitter:
   type: sdr
   #emitter-port: 2
-  receiver-uri: 2
-  emitter-uri: 2
+  receiver-port: 2
+  emitter-port: 2
   tx-gain: -10
   rx-gain-mode: fast_attack
   rx-gain: -3
