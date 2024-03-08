@@ -51,4 +51,4 @@ routine: null
 
 drone-uri: serial
 
-dry-run: True
+dry-run: False

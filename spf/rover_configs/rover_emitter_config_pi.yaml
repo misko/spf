@@ -32,6 +32,6 @@ calibration-frames: 800
 routine: null
 
 
-drone-uri: udpin:127.0.0.1:14552
+drone-uri: serial
 
 dry-run: False
