@@ -18,5 +18,5 @@ else
     exit
 fi
 
-/home/pi/spf-virtualenv/bin/python3 ${repo_root}/spf/mavlink/mavlink_radio_collection.py \
+/home/pi/spf-virtualenv/bin/python3 ${repo_root}/spf/mavlink_radio_collection.py \
     -c ${config} -m /home/pi/device_mapping -r ${routine}
