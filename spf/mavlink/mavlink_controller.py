@@ -308,7 +308,7 @@ class Drone:
             self.turn_off_hardware_safety()
             self.arm()
             self.single_operation_mode_off()
-            time.sleep(2)
+            time.sleep(10)
         logging.info("DRONE IS READY TO ROLL")
 
         # for point in self.boundary:
