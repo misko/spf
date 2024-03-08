@@ -156,6 +156,7 @@ class DataCollector:
         self.filename_npy = filename_npy
         self.record_matrix = None
         self.position_controller = position_controller
+        self.finished_collecting = False
 
     def radios_to_online(self):
         # record matrix
@@ -281,7 +282,7 @@ class DataCollector:
         raise NotImplementedError
 
     def is_collecting(self):
-        return True
+        return not self.finished_collecting
 
 
 class DroneDataCollector(DataCollector):
@@ -309,6 +310,8 @@ class DroneDataCollector(DataCollector):
                 )
 
                 read_thread.read_lock.release()
+
+        self.finished_collecting = True
 
 
 class GrblDataCollector(DataCollector):
@@ -339,3 +342,4 @@ class GrblDataCollector(DataCollector):
                 )
 
                 read_thread.read_lock.release()
+        self.finished_collecting = True
