@@ -471,14 +471,16 @@ class GRBLController:
     def __init__(self, serial_fn, dynamics, channel_to_motor_map):
         self.dynamics = dynamics
         # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
-        self.s = serial.Serial(
-            serial_fn, 115200, timeout=0.3, write_timeout=0.3
-        )  # GRBL operates at 115200 baud. Leave that part alone.
-        self.s.write("?".encode())
-        grbl_out = self.s.readline()  # get the response
-        logging.info(f"GRBL ONLINE {grbl_out}")
-        self.position = {"time": time.time(), "xy": np.zeros(2)}
-        self.update_status()
+        self.position = {"time": time.time(), "xy": np.zeros((2, 2))}
+        self.serial_fn = serial_fn
+        if serial_fn is not None:
+            self.s = serial.Serial(
+                serial_fn, 115200, timeout=0.3, write_timeout=0.3
+            )  # GRBL operates at 115200 baud. Leave that part alone.
+            self.s.write("?".encode())
+            grbl_out = self.s.readline()  # get the response
+            logging.info(f"GRBL ONLINE {grbl_out}")
+            self.update_status()
         time.sleep(0.05)
         self.channel_to_motor_map = channel_to_motor_map
 
@@ -613,7 +615,7 @@ def get_next_points(channel_iterators):
 
 
 class GRBLManager:
-    def __init__(self, controller):
+    def __init__(self, controller, routine):
         self.controller = controller
         self.channels = list(self.controller.channel_to_motor_map.keys())
         self.planners = [None for x in self.channels]
@@ -625,6 +627,41 @@ class GRBLManager:
         }
         self.ready = threading.Lock()
         self.ready.acquire()
+        assert routine is not None
+        self.routine = routine
+        self.planner_started_moving = False
+        self.planner_thread = threading.Thread(target=self.run_planner, daemon=True)
+
+    def has_planner_started_moving(self):
+        return self.planner_started_moving
+
+    def run_planner(self):
+        logging.info("GRBL thread runner")
+        self.routines[self.routine]()  # setup run
+        logging.info("Waiting for GRBL to get into position")
+        self.get_ready()  # move into position
+        if self.routine is None:
+            logging.info("No routine to run, just spining")
+            while True:
+                time.sleep(0.5)
+        else:
+            try:
+                if self.routine in self.routines:
+                    logging.info(f"RUNNING ROUTINE {self.routine}")
+                    self.routines[self.routine]()
+                    self.get_ready()
+                    self.planner_started_moving = True
+                    if self.controller.serial_fn is not None:
+                        self.run()
+                else:
+                    raise ValueError(f"Unknown grbl routine f{self.routine}")
+            except Exception as e:
+                logging.error(e)
+        logging.info("GRBL thread runner loop")
+        time.sleep(10)  # cool off the motor
+
+    def start(self):
+        self.planner_thread.start()
 
     def get_ready(self):
         # default start points are the current start points
@@ -721,7 +758,7 @@ def get_default_dynamics(unsafe=False):
     )
 
 
-def get_default_gm(serial_fn, unsafe=False):
+def get_default_gm(serial_fn, routine, unsafe=False):
     dynamics = get_default_dynamics(unsafe)
 
     # planners = {0: Planner(dynamics), 1: Planner(dynamics)}
@@ -730,7 +767,7 @@ def get_default_gm(serial_fn, unsafe=False):
         serial_fn, dynamics, channel_to_motor_map={0: "XY", 1: "ZA"}
     )
 
-    return GRBLManager(controller)
+    return GRBLManager(controller, routine=routine)
 
 
 if __name__ == "__main__":

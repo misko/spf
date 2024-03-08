@@ -29,12 +29,134 @@ pplus_online = {}
 run_radios = True
 
 
+class Config:
+    def __repr__(self):
+        return "<{klass} @{id:x} {attrs}>".format(
+            klass=self.__class__.__name__,
+            id=id(self) & 0xFFFFFF,
+            attrs="\n".join(
+                "{}={!r}".format(k, v) for k, v in sorted(self.__dict__.items())
+            ),
+        )
+
+
+class ReceiverConfig(Config):
+    def __init__(
+        self,
+        lo: int,
+        rf_bandwidth: int,
+        sample_rate: int,
+        intermediate: int,
+        uri: str,
+        buffer_size: Optional[int] = None,
+        gains: list[int] = [-30, -30],
+        gain_control_modes: List[str] = ["slow_attack", "slow_attack"],
+        enabled_channels: list[int] = [0, 1],
+        rx_spacing=None,
+        rx_theta_in_pis=0.0,
+        motor_channel=None,
+        rx_buffers=4,
+    ):
+        self.lo = lo
+        self.rf_bandwidth = rf_bandwidth
+        self.sample_rate = sample_rate
+        self.buffer_size = buffer_size
+        self.gains = gains
+        self.gain_control_modes = gain_control_modes
+        self.enabled_channels = enabled_channels
+        self.intermediate = intermediate
+        self.uri = uri
+        self.rx_spacing = rx_spacing
+        self.rx_theta_in_pis = rx_theta_in_pis
+        self.motor_channel = motor_channel
+        self.rx_buffers = rx_buffers
+
+        if self.rx_spacing is not None:
+            self.rx_pos = ULADetector(
+                sampling_frequency=None,
+                n_elements=2,
+                spacing=self.rx_spacing,
+                orientation=0.0,
+            ).all_receiver_pos()
+            self.rx_pos_rotated = ULADetector(
+                sampling_frequency=None,
+                n_elements=2,
+                spacing=self.rx_spacing,
+                orientation=self.rx_theta_in_pis * np.pi,
+            ).all_receiver_pos()
+
+            logging.info(
+                f"{self.uri}:RX antenna positions (theta_in_pis:{self.rx_theta_in_pis}):"
+            )
+            logging.info(f"{self.uri}:\tRX[0]:{str(self.rx_pos[0])}")
+            logging.info(f"{self.uri}:\tRX[1]:{str(self.rx_pos[1])}")
+        else:
+            self.rx_pos = None
+
+
+class EmitterConfig(Config):
+    def __init__(
+        self,
+        lo: int,
+        rf_bandwidth: int,
+        sample_rate: int,
+        intermediate: int,
+        uri: str,
+        buffer_size: Optional[int] = None,
+        gains: list = [-30, -80],
+        enabled_channels: list[int] = [0],
+        cyclic: bool = True,
+        motor_channel: int = None,
+    ):
+        self.lo = lo
+        self.rf_bandwidth = rf_bandwidth
+        self.buffer_size = buffer_size
+        self.sample_rate = sample_rate
+        self.gains = gains
+        self.enabled_channels = enabled_channels
+        self.cyclic = cyclic
+        self.intermediate = intermediate
+        self.uri = uri
+        self.motor_channel = motor_channel
+
+
+def args_to_rx_config(args):
+    return ReceiverConfig(
+        lo=args.fc,
+        rf_bandwidth=int(3 * args.fi),
+        sample_rate=int(args.fs),
+        gains=[-30, -30],
+        gain_control_modes=[args.rx_mode, args.rx_mode],
+        enabled_channels=[0, 1],
+        buffer_size=int(args.rx_n),
+        intermediate=args.fi,
+        uri=args.receiver_uri,
+        rx_spacing=args.rx_spacing,
+        # rx_theta_in_pis=0.25,
+    )
+
+
+def args_to_tx_config(args):
+    return EmitterConfig(
+        lo=args.fc,
+        rf_bandwidth=int(3 * args.fi),
+        sample_rate=int(args.fs),
+        gains=[args.tx_gain, -80],
+        enabled_channels=[0],
+        cyclic=True,
+        intermediate=args.fi,
+        uri=args.emitter_uri,
+    )
+
+
 def shutdown_radios():
     global run_radios
     run_radios = False
 
 
-def get_uri(rx_config=None, tx_config=None, uri=None):
+def get_uri(
+    rx_config: ReceiverConfig = None, tx_config: EmitterConfig = None, uri: str = None
+):
     assert rx_config is not None or tx_config is not None or uri is not None
     if rx_config is not None and tx_config is not None:
         assert rx_config.uri == tx_config.uri
@@ -46,7 +168,9 @@ def get_uri(rx_config=None, tx_config=None, uri=None):
 
 
 # TODO not thread safe
-def get_pplus(rx_config=None, tx_config=None, uri=None):
+def get_pplus(
+    rx_config: ReceiverConfig = None, tx_config: EmitterConfig = None, uri: str = None
+):
     uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
     global pplus_online
     if uri not in pplus_online:
@@ -58,7 +182,13 @@ def get_pplus(rx_config=None, tx_config=None, uri=None):
 
 
 class PPlus:
-    def __init__(self, rx_config=None, tx_config=None, uri=None, phase_calibration=0.0):
+    def __init__(
+        self,
+        rx_config: ReceiverConfig = None,
+        tx_config: EmitterConfig = None,
+        uri: str = None,
+        phase_calibration=0.0,
+    ):
         super(PPlus, self).__init__()
         self.uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
         logging.info(f"{self.uri}: Open PlutoPlus")
@@ -84,6 +214,21 @@ class PPlus:
             self.sdr.rx_destroy_buffer()
             self.sdr.tx_enabled_channels = []
 
+    def get_rssi_and_gain(self):
+        v0 = self.sdr._ctrl.find_channel("voltage0")
+        v1 = self.sdr._ctrl.find_channel("voltage1")
+        # breakpoint()
+        return np.array(
+            [
+                float(v0.attrs["rssi"].value[:-3]),
+                float(v1.attrs["rssi"].value[:-3]),
+                float(v0.attrs["hardwaregain"].value[:-3]),
+                float(v1.attrs["hardwaregain"].value[:-3]),
+                # self.sdr._get_iio_attr("voltage0", "hardwaregain", False),
+                # self.sdr._get_iio_attr("voltage1", "hardwaregain", False),
+            ]
+        )
+
     def rssis(self):
         return np.array(
             [
@@ -100,7 +245,9 @@ class PPlus:
             ]
         )
 
-    def set_config(self, rx_config=None, tx_config=None):
+    def set_config(
+        self, rx_config: ReceiverConfig = None, tx_config: EmitterConfig = None
+    ):
         logging.debug(f"{self.uri}: set_config RX{str(rx_config)} TX{str(tx_config)})")
         # RX should be setup like this
         if rx_config is not None:
@@ -254,126 +401,6 @@ class PPlus:
         ):
             return True
         return False
-
-
-class Config:
-    def __repr__(self):
-        return "<{klass} @{id:x} {attrs}>".format(
-            klass=self.__class__.__name__,
-            id=id(self) & 0xFFFFFF,
-            attrs="\n".join(
-                "{}={!r}".format(k, v) for k, v in sorted(self.__dict__.items())
-            ),
-        )
-
-
-class ReceiverConfig(Config):
-    def __init__(
-        self,
-        lo: int,
-        rf_bandwidth: int,
-        sample_rate: int,
-        intermediate: int,
-        uri: str,
-        buffer_size: Optional[int] = None,
-        gains: list[int] = [-30, -30],
-        gain_control_modes: List[str] = ["slow_attack", "slow_attack"],
-        enabled_channels: list[int] = [0, 1],
-        rx_spacing=None,
-        rx_theta_in_pis=0.0,
-        motor_channel=None,
-        rx_buffers=4,
-    ):
-        self.lo = lo
-        self.rf_bandwidth = rf_bandwidth
-        self.sample_rate = sample_rate
-        self.buffer_size = buffer_size
-        self.gains = gains
-        self.gain_control_modes = gain_control_modes
-        self.enabled_channels = enabled_channels
-        self.intermediate = intermediate
-        self.uri = uri
-        self.rx_spacing = rx_spacing
-        self.rx_theta_in_pis = rx_theta_in_pis
-        self.motor_channel = motor_channel
-        self.rx_buffers = rx_buffers
-
-        if self.rx_spacing is not None:
-            self.rx_pos = ULADetector(
-                sampling_frequency=None,
-                n_elements=2,
-                spacing=self.rx_spacing,
-                orientation=0.0,
-            ).all_receiver_pos()
-            self.rx_pos_rotated = ULADetector(
-                sampling_frequency=None,
-                n_elements=2,
-                spacing=self.rx_spacing,
-                orientation=self.rx_theta_in_pis * np.pi,
-            ).all_receiver_pos()
-
-            logging.info(
-                f"{self.uri}:RX antenna positions (theta_in_pis:{self.rx_theta_in_pis}):"
-            )
-            logging.info(f"{self.uri}:\tRX[0]:{str(self.rx_pos[0])}")
-            logging.info(f"{self.uri}:\tRX[1]:{str(self.rx_pos[1])}")
-        else:
-            self.rx_pos = None
-
-
-class EmitterConfig(Config):
-    def __init__(
-        self,
-        lo: int,
-        rf_bandwidth: int,
-        sample_rate: int,
-        intermediate: int,
-        uri: str,
-        buffer_size: Optional[int] = None,
-        gains: list = [-30, -80],
-        enabled_channels: list[int] = [0],
-        cyclic: bool = True,
-        motor_channel: int = None,
-    ):
-        self.lo = lo
-        self.rf_bandwidth = rf_bandwidth
-        self.buffer_size = buffer_size
-        self.sample_rate = sample_rate
-        self.gains = gains
-        self.enabled_channels = enabled_channels
-        self.cyclic = cyclic
-        self.intermediate = intermediate
-        self.uri = uri
-        self.motor_channel = motor_channel
-
-
-def args_to_rx_config(args):
-    return ReceiverConfig(
-        lo=args.fc,
-        rf_bandwidth=int(3 * args.fi),
-        sample_rate=int(args.fs),
-        gains=[-30, -30],
-        gain_control_modes=[args.rx_mode, args.rx_mode],
-        enabled_channels=[0, 1],
-        buffer_size=int(args.rx_n),
-        intermediate=args.fi,
-        uri=args.receiver_uri,
-        rx_spacing=args.rx_spacing,
-        # rx_theta_in_pis=0.25,
-    )
-
-
-def args_to_tx_config(args):
-    return EmitterConfig(
-        lo=args.fc,
-        rf_bandwidth=int(3 * args.fi),
-        sample_rate=int(args.fs),
-        gains=[args.tx_gain, -80],
-        enabled_channels=[0],
-        cyclic=True,
-        intermediate=args.fi,
-        uri=args.emitter_uri,
-    )
 
 
 def make_tone(tx_config: EmitterConfig):

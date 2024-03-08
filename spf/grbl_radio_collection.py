@@ -2,20 +2,14 @@ import argparse
 import json
 import logging
 import os
-import sys
 import tempfile
 import time
 from datetime import datetime
 
 import yaml
-from pymavlink import mavutil
 
-from spf.data_collector import DroneDataCollector
-from spf.distance_finder.distance_finder_controller import DistanceFinderController
-from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
-from spf.grbl.grbl_interactive import BouncePlanner, Dynamics
-from spf.mavlink.mavlink_controller import Drone, get_adrupilot_serial
-from spf.utils import is_pi
+from spf.data_collector import GrblDataCollector
+from spf.grbl.grbl_interactive import get_default_gm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -27,8 +21,12 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
+        "-s", "--serial", type=str, help="serial", required=False, default=None
+    )
+    parser.add_argument(
         "-t", "--tag", type=str, help="tag files", required=False, default=""
     )
+    parser.add_argument("-n", "--dry-run", action=argparse.BooleanOptionalAction)
     parser.add_argument(
         "--tx-gain", type=int, help="tag files", required=False, default=None
     )
@@ -43,35 +41,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "-r", "--routine", type=str, help="GRBL routine", required=False, default=None
     )
-    parser.add_argument(
-        "-m",
-        "--device-mapping",
-        type=str,
-        help="Device mapping file",
-        default=None,
-        required=True,
-    )
     args = parser.parse_args()
 
     run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     # read YAML
     with open(args.yaml_config, "r") as stream:
         yaml_config = yaml.safe_load(stream)
-
-    # open device mapping and figure out URIs
-    with open(args.device_mapping, "r") as device_mapping:
-        port_to_uri = {
-            int(mapping[0]): f"usb:1.{mapping[1]}.5"
-            for mapping in [line.strip().split() for line in device_mapping]
-        }
-
-    for receiver in yaml_config["receivers"]:
-        if "receiver-port" in receiver:
-            receiver["receiver-uri"] = port_to_uri[receiver["receiver-port"]]
-
-    # add in our current config
+    if args.serial is not None or "grbl-serial" not in yaml_config:
+        yaml_config["grbl-serial"] = args.serial
     if args.routine is not None:
         yaml_config["routine"] = args.routine
+    assert yaml_config["routine"] is not None
 
     if args.tx_gain is not None:
         assert yaml_config["emitter"]["type"] == "sdr"
@@ -80,6 +60,9 @@ if __name__ == "__main__":
     output_files_prefix = f"rover_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
     if args.tag != "":
         output_files_prefix += f"_tag_{args.tag}"
+
+    if "dry-run" not in yaml_config or args.dry_run:
+        yaml_config["dry-run"] = args.dry_run
 
     # setup filename
     tmpdir = tempfile.TemporaryDirectory()
@@ -109,50 +92,19 @@ if __name__ == "__main__":
 
     logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
 
-    boundary = franklin_safe
-
-    logging.info("Connecting to drone...")
-
-    if yaml_config["drone-uri"] == "serial":
-        serial = get_adrupilot_serial()
-        if serial is None:
-            print("Failed to get serial")
-            sys.exit(1)
-        yaml_config["drone-uri"] = serial
-        connection = mavutil.mavlink_connection(serial, baud=115200)
-    else:
-        connection = mavutil.mavlink_connection(yaml_config["drone-uri"])
-
-    distance_finder = None
-    if is_pi():
-        distance_finder = DistanceFinderController(
-            trigger=yaml_config["distance-finder"]["trigger"],
-            echo=yaml_config["distance-finder"]["echo"],
-        )
-    drone = Drone(
-        connection,
-        planner=BouncePlanner(
-            dynamics=Dynamics(
-                bounding_box=boundary,
-                bounds_radius=0.000000001,
-            ),
-            start_point=boundary.mean(axis=0),
-            epsilon=0.0000001,
-            step_size=0.1,
-        ),
-        boundary=boundary,
-        distance_finder=distance_finder,
-    )
-    drone.start()
+    # setup GRBL
+    gm = get_default_gm(yaml_config["grbl-serial"], yaml_config["routine"])
+    if yaml_config["grbl-serial"] is not None:
+        gm.start()
 
     logging.info("Starting data collector...")
-    data_collector = DroneDataCollector(
-        filename_npy=filename_npy, yaml_config=yaml_config, position_controller=drone
+    data_collector = GrblDataCollector(
+        filename_npy=filename_npy, yaml_config=yaml_config, position_controller=gm
     )
     data_collector.radios_to_online()  # blocking
 
-    while not drone.has_planner_started_moving():
-        # logging.info(f"waiting for drone to start moving {time.time()}")
+    while not gm.has_planner_started_moving():
+        logging.info(f"waiting for grbl to start moving {time.time()}")
         time.sleep(5)  # easy poll this
     logging.info("DRONE IS READY!!! LETS GOOO!!!")
 

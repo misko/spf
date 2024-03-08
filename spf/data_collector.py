@@ -8,16 +8,17 @@ import numpy as np
 from attr import dataclass
 from tqdm import tqdm
 
-from spf.rf import beamformer
+from spf.rf import beamformer_given_steering, precompute_steering_vectors
 from spf.sdrpluto.sdr_controller import (
     EmitterConfig,
+    PPlus,
     ReceiverConfig,
     get_avg_phase,
     get_pplus,
     setup_rx,
     setup_rxtx,
 )
-from spf.wall_array_v2 import v3_column_names
+from spf.wall_array_v2 import v2_column_names, v3_column_names
 
 
 @dataclass
@@ -37,6 +38,7 @@ def prepare_record_entry_v3(ds: DataSnapshot, current_pos_heading_and_time):
     # t,rx,ry,rtheta,rspacing,avgphase,sds
     return np.hstack(
         [
+            ds.timestamp,
             current_pos_heading_and_time["gps_time"],  # 1
             current_pos_heading_and_time["gps"],  # 2
             current_pos_heading_and_time["heading"],  # 1
@@ -50,8 +52,25 @@ def prepare_record_entry_v3(ds: DataSnapshot, current_pos_heading_and_time):
     )
 
 
+def prepare_record_entry_v2(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array):
+    # t,rx,ry,rtheta,rspacing,avgphase,sds
+    return np.hstack(
+        [
+            ds.timestamp,  # 1
+            tx_pos,  # 2
+            rx_pos,  # 2
+            ds.rx_theta_in_pis * np.pi,  # 1
+            ds.rx_spacing,  # 1
+            ds.avg_phase_diff,  # 2
+            ds.rssis,  # 2
+            ds.gains,  # 2
+            ds.beam_sds,  # 65
+        ]
+    )
+
+
 class ThreadedRX:
-    def __init__(self, pplus, time_offset, nthetas):
+    def __init__(self, pplus: PPlus, time_offset, nthetas):
         self.pplus = pplus
         self.read_lock = threading.Lock()
         self.ready_lock = threading.Lock()
@@ -68,6 +87,12 @@ class ThreadedRX:
 
     def read_forever(self):
         logging.info(f"{str(self.pplus.rx_config.uri)} PPlus read_forever()")
+        steering_vectors = precompute_steering_vectors(
+            receiver_positions=self.pplus.rx_config.rx_pos,
+            carrier_frequency=self.pplus.rx_config.lo,
+            spacing=self.nthetas,
+        )
+
         while self.run:
             if self.read_lock.acquire(blocking=True, timeout=0.5):
                 # got the semaphore, read some data!
@@ -76,6 +101,7 @@ class ThreadedRX:
                     signal_matrix = self.pplus.sdr.rx()
                     rssis = self.pplus.rssis()
                     gains = self.pplus.gains()
+                    # rssi_and_gain = self.pplus.get_rssi_and_gain()
                 except Exception as e:
                     logging.error(
                         f"Failed to receive RX data! removing file : retry {tries} {e}",
@@ -87,14 +113,18 @@ class ThreadedRX:
                         sys.exit(1)
 
                 # process the data
-                signal_matrix[1] *= np.exp(1j * self.pplus.phase_calibration)
                 current_time = time.time() - self.time_offset  # timestamp
-                _, beam_sds, _ = beamformer(
-                    self.pplus.rx_config.rx_pos,
-                    signal_matrix,
-                    self.pplus.rx_config.lo,
-                    spacing=self.nthetas,
+                # _, beam_sds, _ = beamformer(
+                #     self.pplus.rx_config.rx_pos,
+                #     signal_matrix,
+                #     self.pplus.rx_config.lo,
+                #     spacing=self.nthetas,
+                # )
+                signal_matrix = np.vstack(signal_matrix)
+                beam_sds = beamformer_given_steering(
+                    steering_vectors=steering_vectors, signal_matrix=signal_matrix
                 )
+                # assert np.isclose(beam_sds, beam_sds2).all()
 
                 avg_phase_diff = get_avg_phase(signal_matrix)
 
@@ -121,15 +151,14 @@ class ThreadedRX:
 
 
 class DataCollector:
-    def __init__(self, yaml_config, filename_npy, drone, tag=""):
+    def __init__(self, yaml_config, filename_npy, position_controller, tag=""):
         self.yaml_config = yaml_config
         self.filename_npy = filename_npy
         self.record_matrix = None
-        self.drone = drone
+        self.position_controller = position_controller
 
     def radios_to_online(self):
         # record matrix
-        column_names = v3_column_names(nthetas=self.yaml_config["n-thetas"])
         if not self.yaml_config["dry-run"]:
             self.record_matrix = np.memmap(
                 self.filename_npy,
@@ -138,7 +167,7 @@ class DataCollector:
                 shape=(
                     2,  # TODO should be nreceivers
                     self.yaml_config["n-records-per-receiver"],
-                    len(column_names),
+                    len(self.column_names),
                 ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
             )
 
@@ -247,6 +276,18 @@ class DataCollector:
         self.collector_thread.start()
 
     def run_collector_thread(self):
+        raise NotImplementedError
+
+    def is_collecting(self):
+        return True
+
+
+class DroneDataCollector(DataCollector):
+    def __init__(self, *args, **kwargs):
+        super(DroneDataCollector, self).__init__(*args, **kwargs)
+        self.column_names = v3_column_names(nthetas=self.yaml_config["n-thetas"])
+
+    def run_collector_thread(self):
         record_index = 0
         for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
             for read_thread_idx, read_thread in enumerate(self.read_threads):
@@ -255,7 +296,7 @@ class DataCollector:
                 ###
                 # copy the data out
                 current_pos_heading_and_time = (
-                    self.drone.get_position_bearing_and_time()
+                    self.position_controller.get_position_bearing_and_time()
                 )
 
                 self.record_matrix[read_thread_idx, record_index] = (
@@ -267,5 +308,32 @@ class DataCollector:
 
                 read_thread.read_lock.release()
 
-    def is_collecting(self):
-        return True
+
+class GrblDataCollector(DataCollector):
+    def __init__(self, *args, **kwargs):
+        super(GrblDataCollector, self).__init__(*args, **kwargs)
+        self.column_names = v2_column_names(nthetas=self.yaml_config["n-thetas"])
+
+    def run_collector_thread(self):
+        record_index = 0
+        for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
+            for read_thread_idx, read_thread in enumerate(self.read_threads):
+                while not read_thread.ready_lock.acquire(timeout=0.5):
+                    pass
+                ###
+                # copy the data out
+
+                tx_pos = self.position_controller.controller.position["xy"][
+                    self.yaml_config["emitter"]["motor_channel"]
+                ]
+                rx_pos = self.position_controller.controller.position["xy"][
+                    read_thread.pplus.rx_config.motor_channel
+                ]
+
+                self.record_matrix[read_thread_idx, record_index] = (
+                    prepare_record_entry_v2(
+                        ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
+                    )
+                )
+
+                read_thread.read_lock.release()

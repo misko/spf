@@ -2,6 +2,7 @@
 import functools
 
 import numpy as np
+from numba import njit
 
 # numba = False
 
@@ -387,6 +388,53 @@ pi/2 -> x=1, y=0
               |   
     
 """
+
+
+def precompute_steering_vectors(
+    receiver_positions,
+    carrier_frequency,
+    spacing=64 + 1,
+    calibration=None,
+    offset=0.0,
+):
+    thetas = np.linspace(-np.pi, np.pi, spacing)  # -offset
+    source_vectors = np.vstack(
+        [np.sin(thetas + offset)[None], np.cos(thetas + offset)[None]]
+    ).T
+
+    projection_of_receiver_onto_source_directions = (
+        source_vectors @ receiver_positions.T
+    )
+
+    carrier_wavelength = c / carrier_frequency
+    args = (
+        2 * np.pi * projection_of_receiver_onto_source_directions / carrier_wavelength
+    )
+    steering_vectors = np.exp(-1j * args)
+    if calibration is not None:
+        steering_vectors = steering_vectors * calibration[None]
+    return steering_vectors
+
+
+@njit
+def beamformer_given_steering_core(
+    steering_vectors,
+    signal_matrix,
+):
+    # the delay sum is performed in the matmul step, the absolute is over the summed value
+    phase_adjusted = np.dot(
+        steering_vectors, signal_matrix
+    )  # this is adjust and sum in one step
+    return np.absolute(phase_adjusted)
+
+
+def beamformer_given_steering(
+    steering_vectors,
+    signal_matrix,
+):
+    return beamformer_given_steering_core(steering_vectors, signal_matrix).mean(
+        axis=1
+    )  # mean over samples
 
 
 def beamformer(

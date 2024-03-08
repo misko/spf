@@ -6,7 +6,8 @@ import numpy as np
 def v3_column_names(nthetas=65):
     thetas = np.linspace(-np.pi, np.pi, nthetas)
     return [
-        "timestamp",
+        "system_timestamp",
+        "gps_timestamp",
         "lat",
         "long",
         "heading",

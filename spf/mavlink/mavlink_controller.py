@@ -158,7 +158,7 @@ class Drone:
         self.ekf_healthy = False
 
         self.mav_states = []
-        self.gps = None
+        self.gps = np.zeros(2)
         self.mav_mode = None
         self.mav_cmd_name2num = {
             "MAV_CMD_DO_SET_MODE": 176,
@@ -303,7 +303,7 @@ class Drone:
         # drone.request_home()
         logging.info("Planer main loop")
         while not self.drone_ready:
-            logging.info("wait for drone ready")
+            # logging.info("wait for drone ready")
             self.single_operation_mode_on()
             self.turn_off_hardware_safety()
             self.arm()
