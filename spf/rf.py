@@ -2,7 +2,8 @@
 import functools
 
 import numpy as np
-from numba import njit
+
+# from numba import njit
 
 # numba = False
 
@@ -416,7 +417,7 @@ def precompute_steering_vectors(
     return steering_vectors
 
 
-@njit
+# @njit
 def beamformer_given_steering_core(
     steering_vectors,
     signal_matrix,
