@@ -273,6 +273,8 @@ class DataCollector:
         self.collector_thread = threading.Thread(
             target=self.run_collector_thread, daemon=True
         )
+
+    def start(self):
         self.collector_thread.start()
 
     def run_collector_thread(self):

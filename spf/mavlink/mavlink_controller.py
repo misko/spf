@@ -303,7 +303,7 @@ class Drone:
         # drone.request_home()
         logging.info("Planer main loop")
         while not self.drone_ready:
-            # logging.info("wait for drone ready")
+            logging.info("wait for drone ready")
             self.single_operation_mode_on()
             self.turn_off_hardware_safety()
             self.arm()

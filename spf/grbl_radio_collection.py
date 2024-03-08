@@ -108,6 +108,7 @@ if __name__ == "__main__":
         time.sleep(5)  # easy poll this
     logging.info("DRONE IS READY!!! LETS GOOO!!!")
 
+    data_collector.start()
     while data_collector.is_collecting():
         time.sleep(5)
 

@@ -152,8 +152,10 @@ if __name__ == "__main__":
     data_collector.radios_to_online()  # blocking
 
     while not drone.has_planner_started_moving():
-        # logging.info(f"waiting for drone to start moving {time.time()}")
+        logging.info(f"waiting for drone to start moving {time.time()}")
         time.sleep(5)  # easy poll this
+
+    data_collector.start()
     logging.info("DRONE IS READY!!! LETS GOOO!!!")
 
     while data_collector.is_collecting():
