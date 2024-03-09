@@ -87,6 +87,9 @@ done
 wget https://raw.githubusercontent.com/ArduPilot/ardupilot/master/Tools/scripts/uploader.py
 wget https://firmware.ardupilot.org/Rover/stable-4.4.0/fmuv3/ardurover.apj
 python uploader.py ardurover.apj | tee > ardurover_flash.log
+sleep 20
+cat rover3_base_parameters.params | sed -i "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
+mavproxy.py --cmd="param load this_rover.params;"
 
 #mavlink controller service
 sudo cp /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
