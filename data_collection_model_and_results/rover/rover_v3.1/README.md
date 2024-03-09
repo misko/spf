@@ -123,6 +123,23 @@ CH 10 -> 100 SC -> Mag calibration [ Nothing, Mag cal, Nothing ]
 
 ```
 
+To swap throttle from the left to the right , 
+
+```
+
+Originally set to
+CH1 = Ail
+CH2 = Ele
+CH3 = Thr
+CH4 = Rud
+
+Go to MIXES on controller and set to 
+CH1 = Rud
+CH2 = Thr
+CH3 = Ele
+CH4 = Ail
+
+```
 
 
 ### 3D printed parts

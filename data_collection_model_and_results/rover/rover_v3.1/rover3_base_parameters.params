@@ -8,9 +8,9 @@ FS_THR_ENABLE    0
 MODE1            0
 MODE2            0
 MODE3            0
-MODE4            15
+MODE4            11
 MODE5            0
-MODE6            11
+MODE6            15
 MODE_CH          8
 RC10_DZ          0
 RC10_MAX         1900
