@@ -14,12 +14,26 @@ emitter:
   rx-gain: -3
   buffer-size: 4096 # 2**12
   f-intermediate: 100000 #1.0e5
-  f-carrier: 2500000000 #2.5e9
+  f-carrier: 2467000000 #2.5e9
   f-sampling: 16000000 # 16.0e6
   bandwidth: 300000 #3.0e5
   motor_channel: 1
   
-receivers: []
+receivers:
+  #radio A
+  - receiver-port: 2
+    theta-in-pis: 0
+    antenna-spacing-m: 0.05075 # 50.75 mm 
+    nelements: 2
+    array-type: linear
+    rx-gain-mode: fast_attack
+    rx-buffers: 4
+    rx-gain: -3
+    buffer-size: 4096 # 2**12
+    f-intermediate: 100000 #1.0e5
+    f-carrier: 2467000000 #2.5e9
+    f-sampling: 16000000 # 16.0e6
+    bandwidth: 300000 #3.0e5
 
 distance-finder:
   trigger: 2

@@ -438,6 +438,10 @@ def beamformer_given_steering(
     )  # mean over samples
 
 
+def beamformer_thetas(spacing):
+    return np.linspace(-np.pi, np.pi, spacing)
+
+
 def beamformer(
     receiver_positions,  # recievers X 2[X,Y]
     signal_matrix,  # receivers X samples
@@ -446,7 +450,7 @@ def beamformer(
     spacing=64 + 1,
     offset=0.0,
 ):
-    thetas = np.linspace(-np.pi, np.pi, spacing)  # -offset
+    thetas = beamformer_thetas(spacing)  # -offset
     source_vectors = np.vstack(
         [np.sin(thetas + offset)[None], np.cos(thetas + offset)[None]]
     ).T

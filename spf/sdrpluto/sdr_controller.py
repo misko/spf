@@ -11,7 +11,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from spf.dataset.spf_dataset import pi_norm
-from spf.rf import ULADetector, beamformer
+from spf.rf import (
+    ULADetector,
+    beamformer,
+    beamformer_given_steering,
+    beamformer_thetas,
+    precompute_steering_vectors,
+)
 
 # TODO close SDR on exit
 # import signal
@@ -599,7 +605,7 @@ def get_avg_phase(signal_matrix, trim=0.0):
 
 
 def plot_recv_signal(
-    pplus_rx, fig=None, axs=None, frames=-1, title=None, signal_matrixs=None
+    pplus_rx, nthetas, fig=None, axs=None, frames=-1, title=None, signal_matrixs=None
 ):
     if fig is None:
         fig, axs = plt.subplots(2, 4, figsize=(16, 6), layout="constrained")
@@ -607,16 +613,35 @@ def plot_recv_signal(
     rx_n = pplus_rx.sdr.rx_buffer_size
     t = np.arange(rx_n)
     frame_idx = 0
+
+    steering_vectors = precompute_steering_vectors(
+        receiver_positions=pplus_rx.rx_config.rx_pos,
+        carrier_frequency=pplus_rx.rx_config.lo,
+        spacing=nthetas,
+    )
+
     while run_radios and frame_idx != frames:
         if signal_matrixs is None:
             signal_matrix = np.vstack(pplus_rx.sdr.rx())
-            signal_matrix[1] *= np.exp(1j * pplus_rx.phase_calibration)
+            # signal_matrix[1] *= np.exp(1j * pplus_rx.phase_calibration)
         else:
             signal_matrix = signal_matrixs[frame_idx]
         assert pplus_rx.rx_config.rx_pos is not None
-        beam_thetas, beam_sds, _ = beamformer(
-            pplus_rx.rx_config.rx_pos, signal_matrix, pplus_rx.rx_config.lo
-        )
+
+        slow_beamformer = False
+        if slow_beamformer:
+            beam_thetas, beam_sds, _ = beamformer(
+                pplus_rx.rx_config.rx_pos,
+                signal_matrix,
+                pplus_rx.rx_config.lo,
+                spacing=nthetas,
+            )
+        else:
+            # signal_matrix = np.vstack(signal_matrix)
+            beam_thetas = beamformer_thetas(nthetas)
+            beam_sds = beamformer_given_steering(
+                steering_vectors=steering_vectors, signal_matrix=signal_matrix
+            )
 
         freq = np.fft.fftfreq(t.shape[-1], d=1.0 / pplus_rx.sdr.sample_rate)
         assert t.shape[-1] == rx_n
@@ -701,6 +726,13 @@ if __name__ == "__main__":
         default=int(2.5e9),
     )
     parser.add_argument(
+        "--nthetas",
+        type=int,
+        help="thetas",
+        required=False,
+        default=int(64 + 1),
+    )
+    parser.add_argument(
         "--fs",
         type=int,
         help="Sampling frequency",
@@ -725,7 +757,7 @@ if __name__ == "__main__":
         type=str,
         help="rx mode",
         required=False,
-        default="slow_attack",
+        default="fast_attack",
         choices=["manual", "slow_attack", "fast_attack"],
     )
     parser.add_argument(
@@ -772,7 +804,7 @@ if __name__ == "__main__":
             logging.error("Failed phase calibration, exiting")
             sys.exit(1)
 
-        plot_recv_signal(pplus_rx)
+        plot_recv_signal(pplus_rx, args.nthetas)
 
     elif args.mode == "rx":
         # pplus_rx = get_pplus(rx_config=args_to_rx_config(args))
@@ -780,7 +812,7 @@ if __name__ == "__main__":
         pplus_rx = setup_rx(rx_config=args_to_rx_config(args))
         # pplus_rx.phase_calibration = args.cal0
 
-        plot_recv_signal(pplus_rx)
+        plot_recv_signal(pplus_rx, args.nthetas)
     elif args.mode == "tx":
         pplus_rx, pplus_tx = setup_rxtx(
             rx_config=args_to_rx_config(args),

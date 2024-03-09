@@ -18,7 +18,7 @@ from spf.grbl.grbl_interactive import (
     Dynamics,
     StationaryPlanner,
 )
-from spf.mavlink.mavlink_controller import Drone, get_adrupilot_serial
+from spf.mavlink.mavlink_controller import Drone, get_ardupilot_serial
 from spf.utils import is_pi
 
 if __name__ == "__main__":
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    rover_id = 1
+    # rover_id = 1
     # with open("/home/pi/rover_id", "r") as f:
     #    rover_id = int(f.readline().strip())
 
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     logging.info("Connecting to drone...")
 
     if yaml_config["drone-uri"] == "serial":
-        serial = get_adrupilot_serial()
+        serial = get_ardupilot_serial()
         if serial is None:
             print("Failed to get serial")
             sys.exit(1)
@@ -195,14 +195,9 @@ if __name__ == "__main__":
 
     logging.info("DRONE IS READY!!! LETS GOOO!!!")
 
-    if len(yaml_config["receivers"]) == 0:
-        logging.info("EMITTER ONLINE!")
-        while True:
-            time.sleep(5)
-    else:
-        data_collector.start()
-        while data_collector.is_collecting():
-            time.sleep(5)
+    data_collector.start()
+    while data_collector.is_collecting():
+        time.sleep(5)
 
     # we finished lets move files out to final positions
     for idx in range(len(temp_filenames)):

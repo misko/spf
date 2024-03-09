@@ -672,7 +672,7 @@ class Drone:
         self.connection.set_mode(mode)
 
 
-def get_adrupilot_serial():
+def get_ardupilot_serial():
     available_pilots = glob.glob("/dev/serial/by-id/usb-ArduPilot*")
     if len(available_pilots) != 1:
         logging.error(f"Strange number of autopilots found {len(available_pilots)}")
@@ -693,7 +693,7 @@ if __name__ == "__main__":
     # Create the connection
     # Need to provide the serial port and baudrate
     if args.serial == "" and args.ip == "":
-        args.serial = get_adrupilot_serial()
+        args.serial = get_ardupilot_serial()
         if args.serial is None:
             sys.exit(1)
 
