@@ -732,6 +732,7 @@ class Drone:
 
     message_handlers = {
         "GLOBAL_POSITION_INT": handle_GLOBAL_POSITION_INT,
+        "GPS_RAW_INT": handle_GPS_RAW_INT,
         "EKF_STATUS_REPORT": handle_EKF_STATUS_REPORT,
         "COMMAND_ACK": handle_COMMAND_ACK,
         "HEARTBEAT": handle_HEARTBEAT,
