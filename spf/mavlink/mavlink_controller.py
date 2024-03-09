@@ -114,6 +114,21 @@ sensors_list = [
 ]
 
 
+custom_mode_mapping = {
+    0: "ROVER_MODE_MANUAL",
+    1: "ROVER_MODE_ACRO",
+    3: "ROVER_MODE_STEERING",
+    4: "ROVER_MODE_HOLD",
+    5: "ROVER_MODE_LOITER",
+    6: "ROVER_MODE_FOLLOW",
+    7: "ROVER_MODE_SIMPLE",
+    10: "ROVER_MODE_AUTO",
+    11: "ROVER_MODE_RTL",
+    12: "ROVER_MODE_SMART_RTL",
+    15: "ROVER_MODE_GUIDED",
+    16: "ROVER_MODE_INITIALIZING",
+}
+
 mav_cmds_num2name = {}
 
 
@@ -146,6 +161,7 @@ class Drone:
         self.mav_mode_mapping_num2name = mavutil.mode_mapping_bynumber(
             connection.sysid_state[connection.sysid].mav_type
         )
+        # breakpoint()
 
         self.healthy_ekf_flag = (
             EKF_STATUS_STRING_TO_DEC["EKF_ATTITUDE"]
@@ -261,27 +277,33 @@ class Drone:
         )
 
     # point long/lat
-    def move_to_point(self, point):
+    def move_to_point(self, point, log_interval=5):
         logging.info(f"CURRENT {self.gps} TARGET {str(point)}")
         self.reposition(lat=point[1], long=point[0])
+        last_message = None
         while self.distance_to_target(point) > self.tolerance_in_m:
-            logging.info(
-                f"distance (m) TO TARGET {str(self.distance_to_target(point))} {self.motor_active} {self.mav_mode}"
-            )
+            if last_message is None or time.time() - last_message > log_interval:
+                logging.info(
+                    f"distance (m) TO TARGET {str(self.distance_to_target(point))} {self.motor_active} {self.mav_mode}"
+                )
+                last_message = time.time()
             # safety
-            if (
-                self.distance_finder is not None
-                and self.distance_finder.distance < 170
-                and self.mav_mode == "GUIDED"
-            ):
-                self.set_mode("HOLD")
-            if self.mav_mode == "GUIDED" and not self.motor_active:
-                self.reposition(lat=point[1], long=point[0])
-                time.sleep(0.5)
-            elif self.mav_mode != "GUIDED" and self.mav_mode != "MANUAL":
-                self.set_mode("GUIDED")
-                time.sleep(0.1)
-                self.reposition(lat=point[1], long=point[0])
+            collision_soon = (
+                self.distance_finder is not None and self.distance_finder.distance < 170
+            )
+            if self.mav_mode == "ROVER_MODE_GUIDED":
+                if self.armed and collision_soon:
+                    logging.info("AVOIDING COLLISION!")
+                    self.disarm()
+                    time.sleep(2)
+                elif not self.armed and not collision_soon:
+                    logging.info("RESUMING FROM NEAR COLLISION!")
+                    self.arm()
+                    time.sleep(2)
+                elif self.armed and not self.motor_active:
+                    logging.info("Are we sleeping somwehere?")
+                    self.reposition(lat=point[1], long=point[0])
+                    time.sleep(2)
             time.sleep(0.1)
         logging.info(f"REACHED TARGET {str(point)} Current {str(self.gps)}")
         return True
@@ -304,11 +326,16 @@ class Drone:
         # drone.request_home()
         logging.info("Planer main loop")
         while not self.drone_ready:
-            logging.info("wait for drone ready")
-            self.single_operation_mode_on()
-            self.turn_off_hardware_safety()
-            self.arm()
-            self.single_operation_mode_off()
+            if (
+                self.gps is not None
+                and "MAV_SYS_STATUS_SENSOR_GPS" in self.sensors_health
+                and self.ekf_healthy
+            ):
+                self.arm()
+            else:
+                logging.info(
+                    f"wait for ready: gps:{str(self.gps)} , ekf:{str(self.ekf_healthy)}"
+                )
             time.sleep(10)
         logging.info("DRONE IS READY TO ROLL")
 
@@ -387,7 +414,7 @@ class Drone:
             long,  # -122.4659164,  # lon
             0,
         )
-        self.ack("COMMAND_ACK")
+        # self.ack("COMMAND_ACK")
 
     def turn_off_hardware_safety(self):
         self.connection.mav.set_mode_send(
@@ -419,21 +446,37 @@ class Drone:
             0,
         )
 
-    def arm(self):
+    def disarm(self, force=False):
         self.connection.mav.command_long_send(
             self.connection.target_system,
             self.connection.target_component,
             self.get_cmd("MAV_CMD_COMPONENT_ARM_DISARM"),
             0,
-            1,
             0,
+            1 if force else 0,
             0,
             0,
             0,
             0,
             0,
         )
-        self.ack("COMMAND_ACK")
+        # self.ack("COMMAND_ACK")
+
+    def arm(self, force=False):
+        self.connection.mav.command_long_send(
+            self.connection.target_system,
+            self.connection.target_component,
+            self.get_cmd("MAV_CMD_COMPONENT_ARM_DISARM"),
+            0,
+            1,
+            1 if force else 0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+        # self.ack("COMMAND_ACK")
 
     def reposition(self, lat, long):
         # self.connection.mav.command_long_send(
@@ -480,7 +523,7 @@ class Drone:
             0,
             0,
         )
-        self.ack("COMMAND_ACK")
+        # self.ack("COMMAND_ACK")
 
     def upload_waypoints(self):
         wp = mavwp.MAVWPLoader()
@@ -589,7 +632,12 @@ class Drone:
 
     def handle_HEARTBEAT(self, msg):
         self.mav_states = lookup_exact(msg.system_status, mav_states_list)
-        self.mav_mode = self.mav_mode_mapping_num2name[msg.custom_mode]
+        self.mav_mode = custom_mode_mapping[
+            msg.custom_mode
+        ]  # self.mav_mode_mapping_num2name[msg.base_mode]
+        self.armed = (
+            msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
+        ) == mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
         if (
             not self.drone_ready
             and (
@@ -598,7 +646,7 @@ class Drone:
             )
             and self.gps is not None
             and "MAV_SYS_STATUS_SENSOR_GPS" in self.sensors_health
-            and self.mav_mode == "GUIDED"
+            and self.mav_mode == "ROVER_MODE_GUIDED"
             and self.ekf_healthy
         ):
             self.drone_ready = True

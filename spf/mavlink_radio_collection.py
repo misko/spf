@@ -56,6 +56,7 @@ if __name__ == "__main__":
         required=True,
     ),
     parser.add_argument("--fake-drone", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--fake-radio", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
     run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
@@ -193,7 +194,8 @@ if __name__ == "__main__":
         )
 
     logging.info("Starting data collector...")
-    data_collector.radios_to_online()  # blocking
+    if not args.fake_radio:
+        data_collector.radios_to_online()  # blocking
 
     while not args.fake_drone and not drone.has_planner_started_moving():
         logging.info(f"waiting for drone to start moving {time.time()}")
@@ -201,9 +203,13 @@ if __name__ == "__main__":
 
     logging.info("DRONE IS READY!!! LETS GOOO!!!")
 
-    data_collector.start()
-    while data_collector.is_collecting():
-        time.sleep(5)
+    if not args.fake_radio:
+        data_collector.start()
+        while data_collector.is_collecting():
+            time.sleep(5)
+    else:
+        while True:
+            time.sleep(5)
 
     # we finished lets move files out to final positions
     for idx in range(len(temp_filenames)):

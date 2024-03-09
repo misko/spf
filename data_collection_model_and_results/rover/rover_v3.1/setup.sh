@@ -18,6 +18,7 @@ source ~/spf-virtualenv/bin/activate
 git clone https://github.com/misko/spf.git
 cd spf
 pip install -r requirements.txt
+pip install RPi.GPIO
 
 grep -v spf ~/.bashrc | grep -v lsusb  > /tmp/bashrc && mv /tmp/bashrc ~/.bashrc
 echo export PYTHONPATH=/home/pi/spf >> ~/.bashrc
