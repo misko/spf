@@ -329,6 +329,7 @@ class Drone:
                 self.gps is not None
                 and "MAV_SYS_STATUS_SENSOR_GPS" in self.sensors_health
                 and self.ekf_healthy
+                and not self.armed
             ):
                 self.arm()
             else:
