@@ -213,7 +213,7 @@ class Drone:
             "BATTERY_STATUS",
             # "EKF_STATUS_REPORT",
             "ESC_TELEMETRY_1_TO_4",
-            "GPS_RAW_INT",
+            # "GPS_RAW_INT",
             "HWSTATUS",
             "LOCAL_POSITION_NED",
             "MEMINFO",
