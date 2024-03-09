@@ -38,6 +38,18 @@ EKF_STATUS_DEC_TO_STRING = {
 }
 EKF_STATUS_STRING_TO_DEC = {v: k for k, v in EKF_STATUS_DEC_TO_STRING.items()}
 
+gps_fix_type = {
+    0: "GPS_FIX_TYPE_NO_GPS",
+    1: "GPS_FIX_TYPE_NO_FIX",
+    2: "GPS_FIX_TYPE_2D_FIX",
+    3: "GPS_FIX_TYPE_3D_FIX",
+    4: "GPS_FIX_TYPE_DGPS",
+    5: "GPS_FIX_TYPE_RTK_FLOAT",
+    6: "GPS_FIX_TYPE_RTK_FIXED",
+    7: "GPS_FIX_TYPE_STATIC",
+    8: "GPS_FIX_TYPE_PPP",
+}
+
 mav_states_list = [
     "MAV_STATE_UNINIT",
     "MAV_STATE_BOOT",
@@ -239,6 +251,9 @@ class Drone:
         self.planner_started_moving = False
         self.last_heartbeat_log = None
         self.armed = False
+
+        self.gps_satellites = -1
+        self.gps_fix_type = "NOT_SET_YET"
         # self.mission_item_condition = threading.Condition()
         # self.mission_item_reached = False
 
@@ -619,6 +634,10 @@ class Drone:
         self.gps = np.array([self.long, self.lat])
         self.heading = msg.hdg / 100
 
+    def handle_GPS_RAW_INT(self, msg):
+        self.gps_satellites = msg.satellites_visible
+        self.gps_fix_type = gps_fix_type[msg.fix_type]
+
     def handle_EKF_STATUS_REPORT(self, msg):
         if msg.flags & self.healthy_ekf_flag == self.healthy_ekf_flag:
             self.ekf_healthy = True
@@ -653,7 +672,8 @@ class Drone:
                 or time.time() - self.last_heartbeat_log > log_interval
             ):
                 logging.info(
-                    f"HEARTBEAT STATUS: mav_state:{mav_state_check}, gps:{gps_check},"
+                    f"HEARTBEAT STATUS: mav_state:{mav_state_check}"
+                    + f"gps:{gps_check}({self.gps_satellites}sats,{self.gps_fix_type}),"
                     + f"gps_healthy:{gps_healthy}, guided_mode:{guided_mode}, ekf:{self.ekf_healthy}"
                 )
                 self.last_heartbeat_log = time.time()
