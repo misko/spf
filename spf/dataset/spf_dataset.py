@@ -13,20 +13,24 @@ from compress_pickle import load
 from deepdiff import DeepDiff
 from torch.utils.data import Dataset
 
-from spf.dataset.spf_generate import generate_session
-from spf.plot.image_utils import (
-    detector_positions_to_theta_grid,
-    labels_to_source_images,
-    radio_to_image,
+from spf.dataset.rover_idxs import (  # v3rx_column_names,
+    v3rx_avg_phase_diff_idxs,
+    v3rx_beamformer_start_idx,
+    v3rx_column_names,
+    v3rx_gain_idxs,
+    v3rx_rssi_idxs,
+    v3rx_rx_pos_idxs,
+    v3rx_rx_theta_idx,
+    v3rx_time_idx,
 )
-from spf.rf import ULADetector
-from spf.wall_array_v1 import (
+from spf.dataset.spf_generate import generate_session
+from spf.dataset.wall_array_v1_idxs import (
     v1_beamformer_start_idx,
     v1_column_names,
     v1_time_idx,
     v1_tx_pos_idxs,
 )
-from spf.wall_array_v2 import (
+from spf.dataset.wall_array_v2_idxs import (  # v3rx_column_names,
     v2_avg_phase_diff_idxs,
     v2_beamformer_start_idx,
     v2_column_names,
@@ -37,6 +41,12 @@ from spf.wall_array_v2 import (
     v2_time_idx,
     v2_tx_pos_idxs,
 )
+from spf.plot.image_utils import (
+    detector_positions_to_theta_grid,
+    labels_to_source_images,
+    radio_to_image,
+)
+from spf.rf import ULADetector
 
 
 def pi_norm(x):
@@ -485,6 +495,70 @@ class SessionsDatasetRealV2(SessionsDatasetRealExtension):
             "rssi": m[:, [v2_rssi_idxs()[receiver_idx]]],
             "other_gain": m[:, [v2_gain_idxs()[1 - receiver_idx]]],
             "other_rssi": m[:, [v2_rssi_idxs()[1 - receiver_idx]]],
+        }
+
+
+class SessionsDatasetRealV3Rx(SessionsDatasetRealExtension):
+    def __init__(self, *args, **kwargs):
+        super(SessionsDatasetRealV3Rx, self).__init__(
+            col_names=v3rx_column_names(), *args, **kwargs
+        )
+
+    def __getitem__(self, idx):
+        if idx is None:
+            return None
+        if type(idx) is tuple:
+            # need to figure out which receiver A/B we are using here
+            fileidx, unadjusted_startidx = self.idx_to_fileidx_and_startidx(idx[1])
+            sessions_per_receiver = self.sessions_per_file[fileidx] // 2
+            if idx[1] < 0 or idx[1] >= sessions_per_receiver:
+                raise IndexError
+            return self[idx[0] * sessions_per_receiver + idx[1]]
+        if idx < 0 or idx >= self.len:
+            raise IndexError
+
+        # need to figure out which receiver A/B we are using here
+        fileidx, unadjusted_startidx = self.idx_to_fileidx_and_startidx(idx)
+        sessions_per_receiver = self.sessions_per_file[fileidx] // 2
+
+        receiver_idx = 0  # assume A
+        startidx = unadjusted_startidx
+        if unadjusted_startidx >= sessions_per_receiver:  # use B
+            receiver_idx = 1
+            startidx = unadjusted_startidx - sessions_per_receiver
+        # receiver_idx = 1 - receiver_idx
+        m = self.get_m(self.filenames[fileidx])[
+            receiver_idx,
+            startidx : startidx
+            + self.snapshots_in_session * self.step_size : self.step_size,
+        ]
+
+        rx_position_at_t = m[:, v3rx_rx_pos_idxs()]
+        rx_orientation_at_t = m[:, v3rx_rx_theta_idx()]
+        rx_antenna_positions_at_t = (
+            rx_position_at_t[:, None] + self.rx_antenna_offsets[receiver_idx]
+        )
+
+        return {
+            "broadcasting_positions_at_t": self.ones[:, [0]][
+                :, None
+            ],  # TODO multi source
+            "source_velocities_at_t": self.zeros[:, :2][:, None],  # TODO calc velocity,
+            "receiver_positions_at_t": rx_antenna_positions_at_t,
+            "beam_former_outputs_at_t": m[:, v3rx_beamformer_start_idx() :],
+            "thetas_at_t": np.broadcast_to(
+                self.thetas[None], (m.shape[0], self.thetas.shape[0])
+            ),
+            "time_stamps": m[:, [v3rx_time_idx()]],
+            "width_at_t": self.widths,
+            "detector_orientation_at_t": rx_orientation_at_t,  # self.halfpis*0,#np.arctan2(1,0)=np.pi/2
+            "detector_position_at_t": rx_position_at_t,
+            "source_distance_at_t": self.zeros[:, [0]][:, None],
+            "avg_phase_diffs": m[:, v3rx_avg_phase_diff_idxs()],
+            "gain": m[:, [v3rx_gain_idxs()[receiver_idx]]],
+            "rssi": m[:, [v3rx_rssi_idxs()[receiver_idx]]],
+            "other_gain": m[:, [v3rx_gain_idxs()[1 - receiver_idx]]],
+            "other_rssi": m[:, [v3rx_rssi_idxs()[1 - receiver_idx]]],
         }
 
 

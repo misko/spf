@@ -16,6 +16,7 @@ from grbl.grbl_interactive import get_default_gm, stop_grbl
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
+from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import beamformer
 from spf.sdrpluto.sdr_controller import (
     EmitterConfig,
@@ -27,7 +28,6 @@ from spf.sdrpluto.sdr_controller import (
     setup_rxtx,
     shutdown_radios,
 )
-from spf.wall_array_v2 import v2_column_names
 
 faulthandler.enable()
 

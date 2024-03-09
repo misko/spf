@@ -8,6 +8,8 @@ import numpy as np
 from attr import dataclass
 from tqdm import tqdm
 
+from spf.dataset.rover_idxs import v3rx_column_names
+from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import beamformer_given_steering, precompute_steering_vectors
 from spf.sdrpluto.sdr_controller import (
     EmitterConfig,
@@ -18,7 +20,6 @@ from spf.sdrpluto.sdr_controller import (
     setup_rx,
     setup_rxtx,
 )
-from spf.wall_array_v2 import v2_column_names, v3_column_names
 
 
 @dataclass
@@ -314,7 +315,7 @@ class DataCollector:
 class DroneDataCollector(DataCollector):
     def __init__(self, *args, **kwargs):
         super(DroneDataCollector, self).__init__(*args, **kwargs)
-        self.column_names = v3_column_names(nthetas=self.yaml_config["n-thetas"])
+        self.column_names = v3rx_column_names(nthetas=self.yaml_config["n-thetas"])
 
     def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
         current_pos_heading_and_time = (

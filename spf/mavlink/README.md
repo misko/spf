@@ -15,6 +15,7 @@ For example forward to 192.168.1.139 UDP port 14551
 ```
 mavproxy.py --master=udp:192.168.1.139:14551 --out 127.0.0.1:14550 --out 192.168.1.139:14552
 mavproxy.py --master=tcp:192.168.1.127:14560 --out 127.0.0.1:14550 --out 127.0.0.1:14552
+mavproxy.py --master=tcp:192.168.1.127:14560 --out 127.0.0.1:14550 --out 127.0.0.1:14552
 ```
 
 #### Mavlink controller script
