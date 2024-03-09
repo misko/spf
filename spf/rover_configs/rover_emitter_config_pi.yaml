@@ -37,7 +37,7 @@ receivers:
 
 distance-finder:
   trigger: 2
-  echo: 
+  echo: 3
 
 n-thetas: 65
 n-records-per-receiver: 600000
