@@ -299,11 +299,10 @@ class Drone:
                 elif not self.armed and not collision_soon:
                     logging.info("RESUMING FROM NEAR COLLISION!")
                     self.arm()
-                    time.sleep(2)
                 elif self.armed and not self.motor_active:
                     logging.info("Are we sleeping somwehere?")
                     self.reposition(lat=point[1], long=point[0])
-                    time.sleep(2)
+                    time.sleep(0.5)
             time.sleep(0.1)
         logging.info(f"REACHED TARGET {str(point)} Current {str(self.gps)}")
         return True
