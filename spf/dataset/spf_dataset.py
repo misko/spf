@@ -4,6 +4,7 @@
 
 import bisect
 import os
+from typing import List
 
 import numpy as np
 import torch
@@ -301,7 +302,7 @@ class SessionsDatasetRealV1(SessionsDatasetReal):
         }
 
 
-class SessionsDatasetRealV2(SessionsDatasetReal):
+class SessionsDatasetRealExtension(SessionsDatasetReal):
     def file_shape(self):
         return (2, self.snapshots_in_file, len(self.column_names))
 
@@ -319,12 +320,13 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
 
     def __init__(
         self,
-        root_dir,
-        snapshots_in_session=128,  # how many points we consider a session
-        nsources=1,
-        step_size=1,  # how far apart snapshots_in_session are spaced out
-        seed=1337,
-        check_files=True,
+        root_dir: str,
+        col_names: List[str],
+        snapshots_in_session: int = 128,  # how many points we consider a session
+        nsources: int = 1,
+        step_size: int = 1,  # how far apart snapshots_in_session are spaced out
+        seed: int = 1337,
+        check_files: bool = True,
         filenames=None,
     ):
         # time_step,x,y,mean_angle,_mean_angle #0,1,2,3,4
@@ -409,6 +411,13 @@ class SessionsDatasetRealV2(SessionsDatasetReal):
             np.ones((self.snapshots_in_session, 1), dtype=np.int32) * self.args.width
         )
         self.halfpis = -np.ones((self.snapshots_in_session, 1)) * np.pi / 2
+
+
+class SessionsDatasetRealV2(SessionsDatasetRealExtension):
+    def __init__(self, *args, **kwargs):
+        super(SessionsDatasetRealV2, self).__init__(
+            col_names=v2_column_names(), *args, **kwargs
+        )
 
     def __getitem__(self, idx):
         if idx is None:
@@ -565,9 +574,9 @@ def collate_fn_beamformer(_in):
     for _b in torch.arange(b):
         for _s in torch.arange(s):
             for smooth in range(-smooth_bins, smooth_bins + 1):
-                perfect_labels[
-                    _b, _s, (idxs[_b, _s] + smooth) % beam_former_bins
-                ] = 1 / (1 + smooth**2)
+                perfect_labels[_b, _s, (idxs[_b, _s] + smooth) % beam_former_bins] = (
+                    1 / (1 + smooth**2)
+                )
             perfect_labels[_b, _s] /= perfect_labels[_b, _s].sum() + 1e-9
     r = {
         "input": torch.concatenate(
