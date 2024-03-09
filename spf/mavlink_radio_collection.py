@@ -9,7 +9,7 @@ from datetime import datetime
 import yaml
 from pymavlink import mavutil
 
-from spf.data_collector import DroneDataCollector
+from spf.data_collector import DroneDataCollector, FakeDroneDataCollector
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
 from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
 from spf.grbl.grbl_interactive import (
@@ -54,12 +54,9 @@ if __name__ == "__main__":
         help="Device mapping file",
         default=None,
         required=True,
-    )
+    ),
+    parser.add_argument("--fake-drone", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
-
-    # rover_id = 1
-    # with open("/home/pi/rover_id", "r") as f:
-    #    rover_id = int(f.readline().strip())
 
     run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     # read YAML
@@ -175,21 +172,30 @@ if __name__ == "__main__":
             step_size=0.1,
         )
 
-    drone = Drone(
-        connection,
-        planner=planner,
-        boundary=boundary,
-        distance_finder=distance_finder,
-    )
-    drone.start()
+    if not args.fake_drone:
+        drone = Drone(
+            connection,
+            planner=planner,
+            boundary=boundary,
+            distance_finder=distance_finder,
+        )
+        drone.start()
+
+        logging.info("Starting data collector...")
+        data_collector = DroneDataCollector(
+            filename_npy=filename_npy,
+            yaml_config=yaml_config,
+            position_controller=drone,
+        )
+    else:
+        data_collector = FakeDroneDataCollector(
+            filename_npy=filename_npy, yaml_config=yaml_config, position_controller=None
+        )
 
     logging.info("Starting data collector...")
-    data_collector = DroneDataCollector(
-        filename_npy=filename_npy, yaml_config=yaml_config, position_controller=drone
-    )
     data_collector.radios_to_online()  # blocking
 
-    while not drone.has_planner_started_moving():
+    while not args.fake_drone and not drone.has_planner_started_moving():
         logging.info(f"waiting for drone to start moving {time.time()}")
         time.sleep(5)  # easy poll this
 

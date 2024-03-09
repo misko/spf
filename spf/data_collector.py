@@ -402,10 +402,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # rover_id = 1
-    # with open("/home/pi/rover_id", "r") as f:
-    #    rover_id = int(f.readline().strip())
-
     run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     # read YAML
     with open(args.yaml_config, "r") as stream:

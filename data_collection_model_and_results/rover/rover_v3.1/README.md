@@ -124,13 +124,46 @@ CH 10 -> 100 SC -> Mag calibration [ Nothing, Mag cal, Nothing ]
 ```
 
 
+
 ### 3D printed parts
 
 See [here](https://www.dropbox.com/s/egpfn434aox6vvk/roverv3_3dparts.zip?dl=0)
 
+## Lab checks
+
+### SDR
+
+Emit from an SDR
+
+```
+python sdr_controller.py --emitter-uri ip:192.168.1.15 --receiver-uri ip:192.168.1.17 --mode tx  --fc 2467000000
+```
+
+Receive frmo an SDR
+
+```
+python sdr_controller.py --receiver-uri usb:2.11.5 --mode rx --fc 2500000000 --rx-mode fast_attack
+```
+
+Use a fake drone and real configuration to receive
+
+```
+python mavlink_radio_collection.py -c rover_configs/rover_receiver_config_simulator.yaml -m device_mapping -r center --fake-drone
+```
+
+Use a fake drone and real configuration to emit (and receive)
+
+```
+python mavlink_radio_collection.py -c rover_configs/rover_emitter_config_pi_simulator.yaml -m device_mapping -r center --fake-drone
+```
+
+Can also use the above with a simulated drone [instructions](/spf/mavlink/README.md)
+
+
 ## Missions
 
 ### Lab check
+
 
 ### Mission 1
 
