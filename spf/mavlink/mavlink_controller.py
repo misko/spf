@@ -237,7 +237,7 @@ class Drone:
         self.planner = planner
 
         self.planner_started_moving = False
-
+        self.last_heartbeat_log = None
         # self.mission_item_condition = threading.Condition()
         # self.mission_item_reached = False
 
@@ -630,7 +630,7 @@ class Drone:
         #    logging.info(f"COMMAND {self.mav_cmd_num2name[msg.command]}")
         pass
 
-    def handle_HEARTBEAT(self, msg):
+    def handle_HEARTBEAT(self, msg, log_interval=5):
         self.mav_states = lookup_exact(msg.system_status, mav_states_list)
         self.mav_mode = custom_mode_mapping[
             msg.custom_mode
@@ -638,18 +638,33 @@ class Drone:
         self.armed = (
             msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
         ) == mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
-        if (
-            not self.drone_ready
-            and (
+
+        if not self.drone_ready:
+            mav_state_check = (
                 "MAV_STATE_STANDBY" in self.mav_states
                 or "MAV_STATE_ACTIVE" in self.mav_states
             )
-            and self.gps is not None
-            and "MAV_SYS_STATUS_SENSOR_GPS" in self.sensors_health
-            and self.mav_mode == "ROVER_MODE_GUIDED"
-            and self.ekf_healthy
-        ):
-            self.drone_ready = True
+            gps_check = self.gps is not None and self.gps[0] != 0
+            gps_healthy = "MAV_SYS_STATUS_SENSOR_GPS" in self.sensors_health
+            guided_mode = self.mav_mode == "ROVER_MODE_GUIDED"
+            if (
+                self.last_heartbeat_log is None
+                or time.time() - self.last_heartbeat_log > log_interval
+            ):
+                logging.info(
+                    f"HEARTBEAT STATUS: mav_state:{mav_state_check}, gps:{gps_check}, \
+                        gps_healthy:{gps_healthy}, guided_mode:{guided_mode}, ekf:{self.ekf_healthy}"
+                )
+                self.last_heartbeat_log = time.time()
+            if (
+                mav_state_check
+                and gps_check
+                and gps_healthy
+                and guided_mode
+                and self.ekf_healthy
+            ):
+                logging.info("SETTING DRONE TO READY!")
+                self.drone_ready = True
 
     def handle_SYSTEM_TIME(self, msg):
         self.gps_time = msg.time_unix_usec / 1e6  # time in seconds since epoch
