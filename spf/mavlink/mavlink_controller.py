@@ -238,6 +238,7 @@ class Drone:
 
         self.planner_started_moving = False
         self.last_heartbeat_log = None
+        self.armed = False
         # self.mission_item_condition = threading.Condition()
         # self.mission_item_reached = False
 
