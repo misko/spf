@@ -95,6 +95,7 @@ XJT D16
 Ch Range CH1-16
 
 Binding
+(change receiver #) and have previous drones online to make sure we dont over bind the channel
 With receiver off, hold down F/S button, power on while holding, let go 1 second later
 Solid green/red -> no connection
 Press bind on controller, beeping starts
@@ -113,9 +114,11 @@ CH 1 -> 100 Ail
 CH 2 -> 100 Ele
 CH 3 -> 100 Thr
 CH 4 -> 100 Rud
-CH 5 -> 100 SF
-CH 8 -> 100 SA
-CH 9 -> 100 SH
+CH 5 -> 100 SF -> Arm [ Disarm, Arm ]
+CH 8 -> 100 SA -> Flight mode [ Manual , Guided, RTL ]
+CH 9 -> 100 SH -> Shutdown [ Momentary -> shutdown ]
+CH 10 -> 100 SC -> Mag calibration [ Nothing, Mag cal, Nothing ]
+#CH 11 -> 100 S2 -> Speed [ Middle is normal speed, down is slower, up is faster ]
 
 ```
 

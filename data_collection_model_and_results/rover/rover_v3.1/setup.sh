@@ -10,7 +10,7 @@ rover_id=$1
 echo ${rover_id} > ~/rover_id
 
 sudo apt-get update
-sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev -y
+sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev uhubctl -y
 
 # virtual enviornment setup
 python -m venv ~/spf-virtualenv
@@ -19,6 +19,7 @@ git clone https://github.com/misko/spf.git
 cd spf
 pip install -r requirements.txt
 
+grep -v spf ~/.bashrc | grep -v lsusb  > /tmp/bashrc && mv /tmp/bashrc ~/.bashrc
 echo export PYTHONPATH=/home/pi/spf >> ~/.bashrc
 echo 'test -z "$VIRTUAL_ENV" && source ~/spf-virtualenv/bin/activate' >> ~/.bashrc
 echo "lsusb -t | grep usb-storage | sed 's/.*Port \([0-9]*\): Dev \([0-9]*\),.*/\1 \2/g' > ~/device_mapping" >> ~/.bashrc
@@ -36,9 +37,11 @@ sed -i "s/__ROVERID__/$(expr 40 + ${rover_id})/g" interfaces
 sudo cp -f interfaces /etc/network/interfaces
 
 # add USB permissions for all users
+grep -v usb_device /etc/udev/rules.d/99-com.rules > /tmp/99-com.rules && sudo cp /tmp/99-com.rules /etc/udev/rules.d/99-com.rules
 sudo sh -c 'echo SUBSYSTEM=="usb_device", MODE="0664", GROUP="usb" >> /etc/udev/rules.d/99-com.rules'
 
 # disable wifi so it wont interfere
+grep -v disable-wifi /boot/config.txt > /tmp/config.txt && sudo cp /tmp/config.txt /boot/config.txt
 sudo sh -c 'echo dtoverlay=disable-wifi >> /boot/config.txt'
 
 # flash pluto
@@ -79,11 +82,16 @@ for mount in $mounts; do
         fi
 done
 
+
+# flash rover
+wget https://raw.githubusercontent.com/ArduPilot/ardupilot/master/Tools/scripts/uploader.py
+wget https://firmware.ardupilot.org/Rover/stable-4.4.0/fmuv3/ardurover.apj
+python uploader.py ardurover.apj | tee > ardurover_flash.log
+
 #mavlink controller service
 sudo cp /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable mavlink_controller.service
-
 
 #will come back up with new static IP
 sudo reboot

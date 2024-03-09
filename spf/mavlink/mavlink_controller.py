@@ -195,7 +195,7 @@ class Drone:
             "POWER_STATUS",
             "RAW_IMU",
             # "RC_CHANNELS",
-            "RC_CHANNELS_SCALED",
+            # "RC_CHANNELS_SCALED",
             "SCALED_IMU2",
             "SCALED_IMU3",
             "SCALED_PRESSURE",
@@ -265,22 +265,23 @@ class Drone:
         logging.info(f"CURRENT {self.gps} TARGET {str(point)}")
         self.reposition(lat=point[1], long=point[0])
         while self.distance_to_target(point) > self.tolerance_in_m:
-            # logging.info(
-            #    f"distance (m) TO TARGET {str(self.distance_to_target(point))}"
-            # )
-            if self.distance_finder is not None:
-                logging.info(f"distance finder {self.distance_finder.distance}")
-                if self.distance_finder.distance < 170:
-                    if self.mav_mode == "GUIDED":
-                        self.set_mode("HOLD")
-                elif self.mav_mode != "GUIDED" and self.mav_mode != "MANUAL":
-                    self.set_mode("GUIDED")
-                    time.sleep(0.1)
-                    self.reposition(lat=point[1], long=point[0])
-                elif self.mav_mode == "GUIDED" and not self.motor_active:
-                    self.reposition(lat=point[1], long=point[0])
-                    time.sleep(0.5)
-            #
+            logging.info(
+                f"distance (m) TO TARGET {str(self.distance_to_target(point))} {self.motor_active} {self.mav_mode}"
+            )
+            # safety
+            if (
+                self.distance_finder is not None
+                and self.distance_finder.distance < 170
+                and self.mav_mode == "GUIDED"
+            ):
+                self.set_mode("HOLD")
+            if self.mav_mode == "GUIDED" and not self.motor_active:
+                self.reposition(lat=point[1], long=point[0])
+                time.sleep(0.5)
+            elif self.mav_mode != "GUIDED" and self.mav_mode != "MANUAL":
+                self.set_mode("GUIDED")
+                time.sleep(0.1)
+                self.reposition(lat=point[1], long=point[0])
             time.sleep(0.1)
         logging.info(f"REACHED TARGET {str(point)} Current {str(self.gps)}")
         return True
@@ -333,6 +334,22 @@ class Drone:
         self.mav_cmd_num2name[v] = cmd
         return v
 
+    def run_compass_calibration(self):
+        message = self.connection.mav.command_long_encode(
+            self.connection.target_system,  # Target system ID
+            self.connection.target_component,  # Target component ID
+            self.get_cmd("MAV_CMD_DO_START_MAG_CAL"),  # ID of command to send
+            0,
+            3,  # first two
+            0,
+            1,
+            0,
+            1,
+            0,
+            0,
+        )
+        self.connection.mav.send(message)
+
     def request_home(self):
         message = self.connection.mav.command_long_encode(
             self.connection.target_system,  # Target system ID
@@ -361,8 +378,8 @@ class Drone:
             self.connection.target_system,
             self.connection.target_component,
             self.get_cmd("MAV_CMD_DO_SET_HOME"),
-            1,  # set position
-            0,  # param1
+            0,  # set position
+            1,  # param1
             0,  # param2
             0,  # param3
             0,  # param4
@@ -376,6 +393,29 @@ class Drone:
         self.connection.mav.set_mode_send(
             self.connection.target_system,
             mavutil.mavlink.MAV_MODE_FLAG_DECODE_POSITION_SAFETY,
+            0,
+        )
+
+    def reboot(self, force=False, hold_in_bootloader=False):
+        if not force:
+            self.connection.reboot_autopilot()
+            return
+        if hold_in_bootloader:
+            param1 = 3
+        else:
+            param1 = 1
+        param6 = 20190226
+        self.connection.mav.command_long_send(
+            self.connection.target_system,
+            self.connection.target_component,
+            mavutil.mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
+            0,
+            param1,
+            0,
+            0,
+            0,
+            0,
+            param6,
             0,
         )
 
@@ -579,13 +619,25 @@ class Drone:
         )
 
     def handle_STATUSTEXT(self, msg):
-        logging.info("\n\n")
         logging.info(msg.text)
-        logging.info("\n\n")
+
+    def handle_RC_CHANNELS_SCALED(self, msg):
+        # print(msg.to_dict())
+        pass
 
     def handle_RC_CHANNELS(self, msg):
+        # print(msg.to_dict())
         if msg.chan9_raw > 1500:
             subprocess.run(["sudo", "shutdown", "0"])
+        if msg.chan10_raw > 1500:  # run compass calibration
+            self.run_compass_calibration()
+        if msg.chan7_raw > 1500:
+            # reboot ardupilot
+            logging.info("Request force reboot")
+            self.reboot(force=True)
+        elif msg.chan7_raw > 1000:
+            logging.info("Request reboot")
+            self.reboot()
 
     def handle_SERVO_OUTPUT_RAW(self, msg):
         if msg.servo1_raw == 1500 and msg.servo3_raw == 1500:
@@ -604,6 +656,7 @@ class Drone:
         "RC_CHANNELS": handle_RC_CHANNELS,
         "SERVO_OUTPUT_RAW": handle_SERVO_OUTPUT_RAW,
         "NAV_CONTROLLER_OUTPUT": handle_NAV_CONTROLLER_OUTPUT,
+        "RC_CHANNELS_SCALED": handle_RC_CHANNELS_SCALED,
     }
 
     def process_message(self, msg):

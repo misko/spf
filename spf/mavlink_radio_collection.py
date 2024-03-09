@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import sys
-import tempfile
 import time
 from datetime import datetime
 
@@ -95,8 +94,9 @@ if __name__ == "__main__":
         output_files_prefix += f"_tag_{args.tag}"
 
     # setup filename
-    tmpdir = tempfile.TemporaryDirectory()
-    temp_dir_name = tmpdir.name
+    # tmpdir = tempfile.TemporaryDirectory()
+    # temp_dir_name = tmpdir.name
+    temp_dir_name = "./"
     filename_log = f"{temp_dir_name}/{output_files_prefix}.log.tmp"
     filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
     filename_npy = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
@@ -165,16 +165,14 @@ if __name__ == "__main__":
             step_size=0.0002,
         )
     elif yaml_config["routine"] == "bounce":
-        planner = (
-            BouncePlanner(
-                dynamics=Dynamics(
-                    bounding_box=boundary,
-                    bounds_radius=0.000000001,
-                ),
-                start_point=boundary.mean(axis=0),
-                epsilon=0.0000001,
-                step_size=0.1,
+        planner = BouncePlanner(
+            dynamics=Dynamics(
+                bounding_box=boundary,
+                bounds_radius=0.000000001,
             ),
+            start_point=boundary.mean(axis=0),
+            epsilon=0.0000001,
+            step_size=0.1,
         )
 
     drone = Drone(

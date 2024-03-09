@@ -71,7 +71,7 @@ if __name__ == "__main__":
     filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
     filename_npy = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
     temp_filenames = [filename_log, filename_yaml, filename_npy]
-    final_filenames = [x.replace(".tmp", "") for x in temp_filenames]
+    final_filenames = [os.path.basename(x.replace(".tmp", "")) for x in temp_filenames]
 
     logger = logging.getLogger(__name__)
 
@@ -115,3 +115,5 @@ if __name__ == "__main__":
     # we finished lets move files out to final positions
     for idx in range(len(temp_filenames)):
         os.rename(temp_filenames[idx], final_filenames[idx])
+
+    data_collector.done()

@@ -80,8 +80,11 @@ class ThreadedRX:
         self.nthetas = nthetas
         assert self.pplus.rx_config.rx_pos is not None
 
+    def join(self):
+        self.t.join()
+
     def start_read_thread(self):
-        self.t = threading.Thread(target=self.read_forever)
+        self.t = threading.Thread(target=self.read_forever, daemon=True)
         self.run = True
         self.t.start()
 
@@ -278,11 +281,34 @@ class DataCollector:
     def start(self):
         self.collector_thread.start()
 
-    def run_collector_thread(self):
-        raise NotImplementedError
+    def done(self):
+        self.collector_thread.join()
 
     def is_collecting(self):
         return not self.finished_collecting
+
+    def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
+        raise NotImplementedError
+
+    def run_collector_thread(self):
+        for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
+            for read_thread_idx, read_thread in enumerate(self.read_threads):
+                while not read_thread.ready_lock.acquire(timeout=0.5):
+                    pass
+                ###
+                # copy the data out
+                self.write_to_record_matrix(
+                    read_thread_idx, record_idx=record_index, read_thread=read_thread
+                )
+
+                read_thread.read_lock.release()
+        logging.info("Collector thread is exiting!")
+        self.finished_collecting = True
+
+        for read_thread_idx, read_thread in enumerate(self.read_threads):
+            read_thread.run = False
+        for read_thread_idx, read_thread in enumerate(self.read_threads):
+            read_thread.join()
 
 
 class DroneDataCollector(DataCollector):
@@ -290,28 +316,15 @@ class DroneDataCollector(DataCollector):
         super(DroneDataCollector, self).__init__(*args, **kwargs)
         self.column_names = v3_column_names(nthetas=self.yaml_config["n-thetas"])
 
-    def run_collector_thread(self):
-        record_index = 0
-        for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
-            for read_thread_idx, read_thread in enumerate(self.read_threads):
-                while not read_thread.ready_lock.acquire(timeout=0.5):
-                    pass
-                ###
-                # copy the data out
-                current_pos_heading_and_time = (
-                    self.position_controller.get_position_bearing_and_time()
-                )
+    def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
+        current_pos_heading_and_time = (
+            self.position_controller.get_position_bearing_and_time()
+        )
 
-                self.record_matrix[read_thread_idx, record_index] = (
-                    prepare_record_entry_v3(
-                        ds=read_thread.data,
-                        current_pos_heading_and_time=current_pos_heading_and_time,
-                    )
-                )
-
-                read_thread.read_lock.release()
-
-        self.finished_collecting = True
+        self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v3(
+            ds=read_thread.data,
+            current_pos_heading_and_time=current_pos_heading_and_time,
+        )
 
 
 class GrblDataCollector(DataCollector):
@@ -319,27 +332,14 @@ class GrblDataCollector(DataCollector):
         super(GrblDataCollector, self).__init__(*args, **kwargs)
         self.column_names = v2_column_names(nthetas=self.yaml_config["n-thetas"])
 
-    def run_collector_thread(self):
-        record_index = 0
-        for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
-            for read_thread_idx, read_thread in enumerate(self.read_threads):
-                while not read_thread.ready_lock.acquire(timeout=0.5):
-                    pass
-                ###
-                # copy the data out
+    def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
+        tx_pos = self.position_controller.controller.position["xy"][
+            self.yaml_config["emitter"]["motor_channel"]
+        ]
+        rx_pos = self.position_controller.controller.position["xy"][
+            read_thread.pplus.rx_config.motor_channel
+        ]
 
-                tx_pos = self.position_controller.controller.position["xy"][
-                    self.yaml_config["emitter"]["motor_channel"]
-                ]
-                rx_pos = self.position_controller.controller.position["xy"][
-                    read_thread.pplus.rx_config.motor_channel
-                ]
-
-                self.record_matrix[read_thread_idx, record_index] = (
-                    prepare_record_entry_v2(
-                        ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
-                    )
-                )
-
-                read_thread.read_lock.release()
-        self.finished_collecting = True
+        self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v2(
+            ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
+        )
