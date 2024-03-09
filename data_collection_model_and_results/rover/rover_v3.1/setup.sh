@@ -10,7 +10,7 @@ rover_id=$1
 echo ${rover_id} > ~/rover_id
 
 sudo apt-get update
-sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev uhubctl -y
+sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev -y
 
 # virtual enviornment setup
 python -m venv ~/spf-virtualenv
@@ -84,12 +84,33 @@ done
 
 
 # flash rover
+#sudo uhubctl  -a 0
+#sleep 2
+#sudo uhubctl  -a 1
+#sleep 2
+sudo systemctl stop mavlink_controller.service # might fail but just in case
+sleep 5
 wget https://raw.githubusercontent.com/ArduPilot/ardupilot/master/Tools/scripts/uploader.py
 wget https://firmware.ardupilot.org/Rover/stable-4.4.0/fmuv3/ardurover.apj
 python uploader.py ardurover.apj | tee > ardurover_flash.log
-sleep 20
-cat rover3_base_parameters.params | sed -i "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
-mavproxy.py --cmd="param load this_rover.params;"
+sleep 5
+#cmd for mavproxy does not work
+# go in by hand and do this a few times
+#     param set FORMAT_VERSION 0
+#     param show FORMAT_VERSION
+#  then
+#     reboot
+# and restart mavproxy
+
+#mavproxy.py  --cmd 'set requireexit True; param set FORMAT_VERSION 0; reboot; exit; exit;' # reset to default parameters
+#sleep 5
+cat /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/rover3_base_parameters.params | sed "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
+#load these a few times, 
+#should see HOLD> Loaded 256 parameters from this_rover.params (changed 0)
+
+
+#mkfifo tmp_file
+#cat tmp_file |  mavproxy.py &
 
 #mavlink controller service
 sudo cp /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
