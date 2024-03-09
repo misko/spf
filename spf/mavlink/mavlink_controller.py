@@ -652,8 +652,8 @@ class Drone:
                 or time.time() - self.last_heartbeat_log > log_interval
             ):
                 logging.info(
-                    f"HEARTBEAT STATUS: mav_state:{mav_state_check}, gps:{gps_check}, \
-                        gps_healthy:{gps_healthy}, guided_mode:{guided_mode}, ekf:{self.ekf_healthy}"
+                    f"HEARTBEAT STATUS: mav_state:{mav_state_check}, gps:{gps_check},"
+                    + f"gps_healthy:{gps_healthy}, guided_mode:{guided_mode}, ekf:{self.ekf_healthy}"
                 )
                 self.last_heartbeat_log = time.time()
             if (
