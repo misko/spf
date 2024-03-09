@@ -638,6 +638,7 @@ class Drone:
         elif msg.chan7_raw > 1000:
             logging.info("Request reboot")
             self.reboot()
+            sys.exit(1)
 
     def handle_SERVO_OUTPUT_RAW(self, msg):
         if msg.servo1_raw == 1500 and msg.servo3_raw == 1500:

@@ -115,10 +115,11 @@ CH 2 -> 100 Ele
 CH 3 -> 100 Thr
 CH 4 -> 100 Rud
 CH 5 -> 100 SF -> Arm [ Disarm, Arm ]
+CH 6 -> 100 S2
+CH 7 -> 100 SD
 CH 8 -> 100 SA -> Flight mode [ Manual , Guided, RTL ]
 CH 9 -> 100 SH -> Shutdown [ Momentary -> shutdown ]
 CH 10 -> 100 SC -> Mag calibration [ Nothing, Mag cal, Nothing ]
-#CH 11 -> 100 S2 -> Speed [ Middle is normal speed, down is slower, up is faster ]
 
 ```
 
