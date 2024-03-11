@@ -23,6 +23,8 @@ fi
 popd
 
 
+echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+
 if [ ${rover_id} -eq 1 ]; then
     routine=bounce
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
