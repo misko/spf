@@ -8,6 +8,12 @@ Youtube [link](https://youtu.be/6D6IM0DY81c)
 
 ## Construction
 
+A is the right side when looking at the front of rover (?)
+
+### GPS cable routing
+
+Very sensitive to noise from pi + SDR , route it away from the inside!
+
 ### Flash rpi firmware
 
 ![select lite os](./flash_pi1.png)
@@ -176,6 +182,19 @@ python mavlink_radio_collection.py -c rover_configs/rover_emitter_config_pi_simu
 
 Can also use the above with a simulated drone [instructions](/spf/mavlink/README.md)
 
+
+## devpi mission control
+
+```
+#rover1
+mavproxy.py --master /dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0G4IOK-if00-port0 
+
+#rover2
+mavproxy.py --master /dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0G4W25-if00-port0 
+
+#rover3
+mavproxy.py --master /dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0G5WCE-if00-port0
+```
 
 ## Missions
 
