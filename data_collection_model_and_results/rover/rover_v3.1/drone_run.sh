@@ -38,4 +38,4 @@ else
 fi
 
 /home/pi/spf-virtualenv/bin/python3 ${repo_root}/spf/mavlink_radio_collection.py \
-    -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}"
+    -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n 20000
