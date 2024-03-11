@@ -4,6 +4,22 @@ export PYTHONPATH=${repo_root}
 
 rover_id=`cat /home/pi/rover_id`
 
+echo "checking if updates available"
+pushd /home/pi/spf/
+current_hash=`git rev-parse --short HEAD`
+git pull
+new_hash=`git rev-parse --short HEAD`
+if [ "${current_hash}" != "${new_hash}" ]; then
+    echo "Detected git update going to try and reboot"
+    echo "waiting for interrupt 15s..."
+    sleep 15
+    sudo cp /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable mavlink_controller.service
+fi
+popd
+
+
 if [ ${rover_id} -eq 1 ]; then
     routine=bounce
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
