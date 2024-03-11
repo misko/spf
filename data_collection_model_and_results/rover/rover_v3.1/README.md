@@ -65,7 +65,15 @@ RPi script installs Arudpilot settings!
 
 ### PI setup
 
+```
 setup.sh
+```
+
+Get temperature
+
+```
+vcgencmd measure_temp
+```
 
 ### Flash PlutoPlus
 
