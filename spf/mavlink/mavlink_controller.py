@@ -157,7 +157,12 @@ def lookup_exact(x, table):
 
 class Drone:
     def __init__(
-        self, connection, planner, boundary, tolerance_in_m=5, distance_finder=None
+        self,
+        connection,
+        planner=None,
+        boundary=None,
+        tolerance_in_m=5,
+        distance_finder=None,
     ):
         self.connection = connection
         self.boundary = boundary
@@ -244,11 +249,12 @@ class Drone:
             target=self.process_messages, daemon=True
         )
 
-        self.planner_thread = threading.Thread(target=self.run_planner, daemon=True)
-
         self.planner = planner
-
         self.planner_started_moving = False
+
+        if self.planner is not None:
+            self.planner_thread = threading.Thread(target=self.run_planner, daemon=True)
+
         self.last_heartbeat_log = None
         self.armed = False
 
@@ -260,7 +266,14 @@ class Drone:
     # motion interface
     def start(self):
         self.message_loop_thread.start()
-        self.planner_thread.start()
+        if self.planner is not None:
+            self.planner_thread.start()
+        return self
+
+    def send_status(self, text):
+        self.connection.mav.statustext_send(
+            mavutil.mavlink.MAV_SEVERITY_CRITICAL, text.encode()
+        )
 
     def has_planner_started_moving(self):
         return self.planner_started_moving
@@ -703,7 +716,9 @@ class Drone:
         )
 
     def handle_STATUSTEXT(self, msg):
-        logging.info(msg.text)
+        logging.info(
+            f"{self.connection.target_system}:{self.connection.target_component}:{msg.text}"
+        )
 
     def handle_RC_CHANNELS_SCALED(self, msg):
         # print(msg.to_dict())
