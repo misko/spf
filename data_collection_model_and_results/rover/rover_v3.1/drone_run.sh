@@ -16,6 +16,7 @@ if [ "${current_hash}" != "${new_hash}" ]; then
     sudo cp /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
     sudo systemctl daemon-reload
     sudo systemctl enable mavlink_controller.service
+    sudo reboot
 else
     echo "no updates (or maybe no internet) detected!"
 fi
