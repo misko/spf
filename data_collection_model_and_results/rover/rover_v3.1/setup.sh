@@ -106,6 +106,7 @@ sleep 5
 
 #mavproxy.py  --cmd 'set requireexit True; param set FORMAT_VERSION 0; reboot; exit; exit;' # reset to default parameters
 #sleep 5
+rover_id=`cat ~/rover_id`
 cat /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/rover3_base_parameters.params | sed "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
 #load these a few times, 
 #should see HOLD> Loaded 256 parameters from this_rover.params (changed 0)

@@ -55,6 +55,14 @@ if __name__ == "__main__":
         default=None,
         required=True,
     ),
+    parser.add_argument(
+        "-n",
+        "--records-per-receiver",
+        type=int,
+        help="how many records to get per receiver",
+        default=None,
+    ),
+
     parser.add_argument("--fake-drone", action=argparse.BooleanOptionalAction)
     parser.add_argument("--fake-radio", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
@@ -78,6 +86,9 @@ if __name__ == "__main__":
         yaml_config["emitter"]["emitter-uri"] = port_to_uri[
             yaml_config["emitter"]["emitter-port"]
         ]
+
+    if args.records_per_receiver is not None:
+        yaml_config["n-records-per-receiver"] = args.records_per_receiver
 
     # add in our current config
     if args.routine is not None:

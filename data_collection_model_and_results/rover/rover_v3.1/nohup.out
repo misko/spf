@@ -1,0 +1,59 @@
+Connect /dev/tty.usbserial-DK0G4IOK source_system=255
+Log Directory: 
+Telemetry log: mav.tlog
+Waiting for heartbeat from /dev/tty.usbserial-DK0G4IOK
+MAV> GPS lock at 17 meters
+AP: IMU0: fast sampling enabled 8.0kHz/1.0kHz
+Detected vehicle 1:1 on link 0
+online system 1
+ARMED
+MANUAL> Mode MANUAL
+Arming checks disabled
+fence present
+MANUAL> AP: RCOut: PWM:1-14
+AP: IMU0: fast sampling enabled 8.0kHz/1.0kHz
+AP: ArduRover V4.4.0 (9279df61)
+AP: ChibiOS: 17a50e3a
+AP: fmuv3 004C0022 34395102 30323935
+AP: RCOut: PWM:1-14
+AP: IMU0: fast sampling enabled 8.0kHz/1.0kHz
+Exception in thread log_writer:
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.11/3.11.7_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/threading.py", line 1045, in _bootstrap_inner
+Connect /dev/tty.usbserial-DK0G4IOK source_system=255
+Log Directory: 
+Telemetry log: mav.tlog
+Waiting for heartbeat from /dev/tty.usbserial-DK0G4IOK
+MAV> GPS lock at 17 meters
+Detected vehicle 1:1 on link 0
+online system 1
+ARMED
+MANUAL> Mode MANUAL
+Arming checks disabled
+fence present
+Exception in thread log_writer:
+Traceback (most recent call last):
+Fatal Python error: _enter_buffered_busy: could not acquire lock for <ascii(self) failed> at interpreter shutdown, possibly due to daemon threads
+Python runtime state: finalizing (tstate=0x0000000100fba9a0)
+Connect /dev/tty.usbserial-DK0G4IOK source_system=255
+Log Directory: 
+Telemetry log: mav.tlog
+Waiting for heartbeat from /dev/tty.usbserial-DK0G4IOK
+MAV> GPS lock at 17 meters
+Detected vehicle 1:1 on link 0
+online system 1
+ARMED
+MANUAL> Mode MANUAL
+Arming checks disabled
+Got COMMAND_ACK: REQUEST_MESSAGE: ACCEPTED
+Got COMMAND_ACK: SET_MESSAGE_INTERVAL: ACCEPTED
+Got COMMAND_ACK: REQUEST_MESSAGE: FAILED
+AP: ArduRover V4.4.0 (9279df61)
+AP: ChibiOS: 17a50e3a
+AP: fmuv3 004C0022 34395102 30323935
+AP: RCOut: PWM:1-14
+Got COMMAND_ACK: REQUEST_MESSAGE: FAILED
+fence present
+Exception in thread log_writer:
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.11/3.11.7_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/threading.py", line 1045, in _bootstrap_inner
