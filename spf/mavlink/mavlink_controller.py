@@ -189,7 +189,7 @@ class Drone:
         self.motor_active = False
 
         self.ekf_healthy = False
-
+        self.disable_distance_finder = False
         self.mav_states = []
         self.gps = np.zeros(2)
         self.mav_mode = None
@@ -317,12 +317,15 @@ class Drone:
                 )
                 last_message = time.time()
             # safety
+            distance = self.distance_finder.distance
             collision_soon = (
-                self.distance_finder is not None and self.distance_finder.distance < 170
+                (not self.disable_distance_finder)
+                and self.distance_finder is not None
+                and distance < 130
             )
             if self.mav_mode == "ROVER_MODE_GUIDED":
                 if self.armed and collision_soon:
-                    logging.info("AVOIDING COLLISION!")
+                    logging.info(f"AVOIDING COLLISION! {distance}")
                     self.disarm()
                     time.sleep(2)
                 elif not self.armed and not collision_soon:
@@ -738,6 +741,9 @@ class Drone:
             logging.info("Request reboot")
             self.reboot()
             sys.exit(1)
+        elif msg.chan12_raw > 1000:
+            logging.info("DISABLE ULTRASONIC")
+            self.disable_distance_finder = True
 
     def handle_SERVO_OUTPUT_RAW(self, msg):
         if msg.servo1_raw == 1500 and msg.servo3_raw == 1500:

@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -225,3 +226,6 @@ if __name__ == "__main__":
     # we finished lets move files out to final positions
     for idx in range(len(temp_filenames)):
         os.rename(temp_filenames[idx], final_filenames[idx])
+
+    time.sleep(5)
+    subprocess.getoutput("sudo halt")
