@@ -30,7 +30,7 @@ receivers:
     bandwidth: 300000 #3.0e5
   #radio B
   - receiver-port: 1
-    theta-in-pis: 1
+    theta-in-pis: 0.5
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
     array-type: linear
