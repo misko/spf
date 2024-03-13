@@ -20,6 +20,20 @@ Connect (over USB) to the device, load firmware SP32_RFTest_190 , load to flash,
 
 ![Load to flash](load_flash_1.png)
 
+## Pin connections
+
+![XIAO pin out](./xinpin.jpg)
+
+```
+XIAO->ESP32 VCC->5v , GND->GND, 7->TX, 6->RX
+```
+
+## Testing
+
+```
+python sdr_controller.py --fc 2467000000 --receiver-uri usb:2.13.5 --mode rx
+```
+
 ## Intercepting commands 
 
 Windows -> (USB) -> ESP32
