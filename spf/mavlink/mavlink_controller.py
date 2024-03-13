@@ -742,8 +742,9 @@ class Drone:
             self.reboot()
             sys.exit(1)
         elif msg.chan12_raw > 1000:
-            logging.info("DISABLE ULTRASONIC")
-            self.disable_distance_finder = True
+            if not self.disable_distance_finder:
+                logging.info("DISABLE ULTRASONIC")
+                self.disable_distance_finder = True
 
     def handle_SERVO_OUTPUT_RAW(self, msg):
         if msg.servo1_raw == 1500 and msg.servo3_raw == 1500:
