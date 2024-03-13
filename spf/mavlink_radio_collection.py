@@ -184,6 +184,8 @@ if __name__ == "__main__":
             epsilon=0.0000001,
             step_size=0.1,
         )
+    else:
+        raise Exception("Missing planner")
 
     if not args.fake_drone:
         drone = Drone(

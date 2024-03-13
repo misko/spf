@@ -15,7 +15,7 @@ distance-finder:
 #USB  2   (Radio A)  |     USB 1 (Radio B)
 receivers:
   #radio A
-  - receiver-uri: usb:2.11.5
+  - receiver-uri: usb:2.13.5
     theta-in-pis: 0
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
@@ -35,6 +35,6 @@ width: 4000
 calibration-frames: 800
 routine: null
 
-drone-uri: udpin:127.0.0.1:14552
+drone-uri: udpin:127.0.0.1:14532
 
 dry-run: False

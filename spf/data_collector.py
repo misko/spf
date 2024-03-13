@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import struct
 import sys
 import threading
 import time
@@ -43,10 +44,16 @@ class DataSnapshot:
 
 def prepare_record_entry_v3(ds: DataSnapshot, current_pos_heading_and_time):
     # t,rx,ry,rtheta,rspacing,avgphase,sds
+
+    gps_time_1, gps_time_2 = struct.unpack(
+        "ff", struct.pack("d", current_pos_heading_and_time["gps_time"])
+    )
+    # _z = struct.unpack("d", struct.pack("ff", a, b))[0]
     return np.hstack(
         [
             ds.timestamp,
-            current_pos_heading_and_time["gps_time"],  # 1
+            gps_time_1,  # 1
+            gps_time_2,  # 1
             current_pos_heading_and_time["gps"],  # 2
             current_pos_heading_and_time["heading"],  # 1
             ds.rx_theta_in_pis * np.pi,  # 1

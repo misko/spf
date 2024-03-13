@@ -9,7 +9,8 @@ def v3rx_column_names(nthetas=65):
     thetas = np.linspace(-np.pi, np.pi, nthetas)
     return [
         "system_timestamp",
-        "gps_timestamp",
+        "gps_timestamp_1",
+        "gps_timestamp_2",
         "lat",
         "long",
         "heading",
