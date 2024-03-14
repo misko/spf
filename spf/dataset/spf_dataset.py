@@ -331,7 +331,7 @@ class SessionsDatasetRealExtension(SessionsDatasetReal):
     def __init__(
         self,
         root_dir: str,
-        col_names: List[str],
+        column_names: List[str],
         snapshots_in_session: int = 128,  # how many points we consider a session
         nsources: int = 1,
         step_size: int = 1,  # how far apart snapshots_in_session are spaced out
@@ -364,7 +364,8 @@ class SessionsDatasetRealExtension(SessionsDatasetReal):
         self.nthetas = yaml_config["n-thetas"]
         self.thetas = np.linspace(-np.pi, np.pi, self.nthetas)
 
-        self.column_names = v2_column_names(nthetas=self.nthetas)
+        # self.column_names = v2_column_names(nthetas=self.nthetas)
+        self.column_names = column_names
 
         if filenames is not None:
             assert len(filenames) > 0
@@ -426,7 +427,7 @@ class SessionsDatasetRealExtension(SessionsDatasetReal):
 class SessionsDatasetRealV2(SessionsDatasetRealExtension):
     def __init__(self, *args, **kwargs):
         super(SessionsDatasetRealV2, self).__init__(
-            col_names=v2_column_names(), *args, **kwargs
+            column_names=v2_column_names(), *args, **kwargs
         )
 
     def __getitem__(self, idx):
@@ -501,7 +502,7 @@ class SessionsDatasetRealV2(SessionsDatasetRealExtension):
 class SessionsDatasetRealV3Rx(SessionsDatasetRealExtension):
     def __init__(self, *args, **kwargs):
         super(SessionsDatasetRealV3Rx, self).__init__(
-            col_names=v3rx_column_names(), *args, **kwargs
+            column_names=v3rx_column_names(), *args, **kwargs
         )
 
     def __getitem__(self, idx):

@@ -204,6 +204,19 @@ mavproxy.py --master /dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0G4W25-if00-
 mavproxy.py --master /dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0G5WCE-if00-port0
 ```
 
+## Flash ESP32
+
+```
+
+arduino-cli core update-index
+
+```
+
+## debug
+```
+/home/pi/spf-virtualenv/bin/python3 ${repo_root}/spf/mavlink_radio_collection.py -c ${config} -m ~/device_mapping --fake-drone -r center -n 4000
+```
+
 ## Missions
 
 ### Lab check

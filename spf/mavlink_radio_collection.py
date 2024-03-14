@@ -229,5 +229,6 @@ if __name__ == "__main__":
     for idx in range(len(temp_filenames)):
         os.rename(temp_filenames[idx], final_filenames[idx])
 
-    time.sleep(5)
-    subprocess.getoutput("sudo halt")
+    if not args.fake_drone:
+        time.sleep(5)
+        subprocess.getoutput("sudo halt")

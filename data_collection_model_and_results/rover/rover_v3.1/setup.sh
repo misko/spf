@@ -120,6 +120,14 @@ sudo cp /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/mavlink_
 sudo systemctl daemon-reload
 sudo systemctl enable mavlink_controller.service
 
+mkdir -p /home/pi/arduino
+pushd /home/pi/arduino
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+popd
+echo export PATH=${PATH}:/home/pi/arduino/bin >> ~/.bashrc
+/home/pi/arduino/bin/arduino-cli config init
+/home/pi/arduino/bin/arduino-cli config add board_manager.additional_urls https://files.seeedstudio.com/arduino/package_seeeduino_boards_index.json
+/home/pi/arduino/bin/arduino-cli core update-index
 #will come back up with new static IP
 sudo reboot
 

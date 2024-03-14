@@ -15,7 +15,7 @@ distance-finder:
 #USB  2   (Radio A)  |     USB 1 (Radio B)
 receivers:
   #radio A
-  - receiver-uri: usb:2.13.5
+  - receiver-uri: usb:1.1.5
     theta-in-pis: 0
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
