@@ -428,7 +428,7 @@ def beamformer_given_steering_core(
     return np.absolute(phase_adjusted)
 
 
-@njit
+# @njit
 def beamformer_given_steering(
     steering_vectors,
     signal_matrix,
