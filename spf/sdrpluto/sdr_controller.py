@@ -820,7 +820,7 @@ if __name__ == "__main__":
                 spacing=args.nthetas,
             )
             for _ in tqdm(range(int(1e6))):
-                signal_matrix = pplus_rx.sdr.rx()
+                signal_matrix = np.vstack(pplus_rx.sdr.rx())
 
                 beam_sds = beamformer_given_steering(
                     steering_vectors=steering_vectors, signal_matrix=signal_matrix

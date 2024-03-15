@@ -2,8 +2,7 @@
 import functools
 
 import numpy as np
-
-# from numba import njit
+from numba import jit, njit
 
 # numba = False
 
@@ -417,8 +416,8 @@ def precompute_steering_vectors(
     return steering_vectors
 
 
-# @njit
-def beamformer_given_steering_core(
+@njit
+def beamformer_given_steering(
     steering_vectors,
     signal_matrix,
 ):
@@ -426,16 +425,8 @@ def beamformer_given_steering_core(
     phase_adjusted = np.dot(
         steering_vectors, signal_matrix
     )  # this is adjust and sum in one step
-    return np.absolute(phase_adjusted)
-
-
-def beamformer_given_steering(
-    steering_vectors,
-    signal_matrix,
-):
-    return beamformer_given_steering_core(steering_vectors, signal_matrix).mean(
-        axis=1
-    )  # mean over samples
+    r = np.absolute(phase_adjusted)
+    return r.sum(axis=1) / r.shape[1]
 
 
 def beamformer_thetas(spacing):
