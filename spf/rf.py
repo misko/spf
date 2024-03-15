@@ -417,7 +417,7 @@ def precompute_steering_vectors(
 
 
 @njit
-def beamformer_given_steering(
+def beamformer_given_steering_core(
     steering_vectors,
     signal_matrix,
 ):
@@ -425,7 +425,15 @@ def beamformer_given_steering(
     phase_adjusted = np.dot(
         steering_vectors, signal_matrix
     )  # this is adjust and sum in one step
-    r = np.absolute(phase_adjusted)
+    return np.absolute(phase_adjusted)
+
+
+@njit
+def beamformer_given_steering(
+    steering_vectors,
+    signal_matrix,
+):
+    r = beamformer_given_steering_core(steering_vectors, signal_matrix)
     return r.sum(axis=1) / r.shape[1]
 
 
