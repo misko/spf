@@ -9,6 +9,7 @@ from typing import List, Optional
 import adi
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 from spf.dataset.spf_dataset import pi_norm
 from spf.rf import (
@@ -774,6 +775,7 @@ if __name__ == "__main__":
         required=False,
         default=0.065,
     )  # 12
+    parser.add_argument("--benchmark", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
     # calibrate the receiver
@@ -811,8 +813,11 @@ if __name__ == "__main__":
         # pplus_rx.setup_rx_config()
         pplus_rx = setup_rx(rx_config=args_to_rx_config(args))
         # pplus_rx.phase_calibration = args.cal0
-
-        plot_recv_signal(pplus_rx, args.nthetas)
+        if args.benchmark:
+            for _ in tqdm(range(int(1e6))):
+                pplus_rx.sdr.rx()
+        else:
+            plot_recv_signal(pplus_rx, args.nthetas)
     elif args.mode == "tx":
         pplus_rx, pplus_tx = setup_rxtx(
             rx_config=args_to_rx_config(args),
