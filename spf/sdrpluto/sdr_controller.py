@@ -814,8 +814,17 @@ if __name__ == "__main__":
         pplus_rx = setup_rx(rx_config=args_to_rx_config(args))
         # pplus_rx.phase_calibration = args.cal0
         if args.benchmark:
+            steering_vectors = precompute_steering_vectors(
+                receiver_positions=pplus_rx.rx_config.rx_pos,
+                carrier_frequency=pplus_rx.rx_config.lo,
+                spacing=args.nthetas,
+            )
             for _ in tqdm(range(int(1e6))):
-                pplus_rx.sdr.rx()
+                signal_matrix = pplus_rx.sdr.rx()
+
+                beam_sds = beamformer_given_steering(
+                    steering_vectors=steering_vectors, signal_matrix=signal_matrix
+                )
         else:
             plot_recv_signal(pplus_rx, args.nthetas)
     elif args.mode == "tx":
