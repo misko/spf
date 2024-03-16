@@ -1,12 +1,13 @@
 #!/bin/bash
 repo_root=/home/pi/spf
 export PYTHONPATH=${repo_root}
+test -z "$VIRTUAL_ENV" && source ~/spf-virtualenv/bin/activate
 
 rover_id=`cat /home/pi/rover_id`
 
 
 echo "checking if updates available"
-pushd /home/pi/spf/
+pushd ${repo_root}
 current_hash=`git rev-parse --short HEAD`
 git pull
 new_hash=`git rev-parse --short HEAD`
@@ -14,7 +15,7 @@ if [ "${current_hash}" != "${new_hash}" ]; then
     echo "Detected git update going to try and reboot"
     echo "waiting for interrupt 15s..."
     sleep 15
-    sudo cp /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
+    sudo cp ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
     sudo systemctl daemon-reload
     sudo systemctl enable mavlink_controller.service
     sudo reboot
@@ -26,8 +27,8 @@ popd
 
 
 rover_id=`cat ~/rover_id`
-params_root=/home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/
-cat ${params_root}/rover3_base_parameters.params ${params_root}/rover3_rc_servo.params | sed "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
+params_root=${repo_root}/data_collection_model_and_results/rover/rover_v3.1/
+cat ${params_root}/rover3_base_parameters.params ${params_root}/rover3_rc_servo_parameters.params | sed "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
 python mavlink_controller.py --diff-params this_params
 if [ $? -ne 0 ]; then
     echo "DIFFERENCES DETECTED!!!"
@@ -51,5 +52,5 @@ else
     exit
 fi
 
-/home/pi/spf-virtualenv/bin/python3 ${repo_root}/spf/mavlink_radio_collection.py \
+python3 ${repo_root}/spf/mavlink_radio_collection.py \
     -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n 20000
