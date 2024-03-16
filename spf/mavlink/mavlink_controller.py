@@ -11,7 +11,7 @@ from datetime import datetime
 
 import numpy as np
 from haversine import Unit, haversine
-from pymavlink import mavutil, mavwp
+from pymavlink import mavutil
 
 from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
 from spf.gps.gps_utils import swap_lat_long
@@ -151,6 +151,14 @@ custom_mode_mapping = {
 mav_cmds_num2name = {}
 
 
+tones = {
+    "gps-time": "MFT240L8 C C C P4 C C C P4 L8dcdcdcdc",
+    "check-diff": "MFT240L8 A B P4 A B P4 L8dcdc",
+    "git": "MFT240L4 < F P2 F P4 L8dcdc",
+    "boot": "MFT240L8 G G F F P4 G G F F P4 L8dc",
+    "ready": "MFT240L8 G P8 < G P8 < G P8 > > G P8 < G P8 < G",
+}
+
 LOG_ERASE = 121
 
 
@@ -203,13 +211,11 @@ class Drone:
         self,
         connection,
         planner=None,
-        boundary=None,
         tolerance_in_m=5,
         distance_finder=None,
         fake=False,
     ):
         self.connection = connection
-        self.boundary = boundary
 
         self.heading = 0
         self.gps_time = 0
@@ -311,6 +317,11 @@ class Drone:
         self.gps_fix_type = "NOT_SET_YET"
         # self.mission_item_condition = threading.Condition()
         # self.mission_item_reached = False
+
+    def buzzer(self, tone_bytes):
+        self.connection.mav.play_tune_send(
+            connection.target_system, connection.target_component, tone_bytes
+        )
 
     def reset_params(self):
         self.params = MAVParmDict()
@@ -414,7 +425,7 @@ class Drone:
         logging.info("Start planner")
         # self.single_operation_mode_on()
         # logging.info("SINGLE OPERATION MODE")
-        home = self.boundary.mean(axis=0)
+        home = self.planner.dynamics.bounding_box.mean(axis=0)
 
         self.single_operation_mode_on()
         # self.connection.waypoint_clear_all_send()
@@ -426,25 +437,20 @@ class Drone:
         # self.single_operation_mode_off()
         # drone.request_home()
         logging.info("Planer main loop")
-        while not self.drone_ready or not self.armed:
-            if (
-                self.gps is not None
-                and "MAV_SYS_STATUS_SENSOR_GPS" in self.sensors_health
-                and self.ekf_healthy
-                and not self.armed
-            ):
-                logging.info("ARMING!!")
-                self.arm()
-            else:
-                logging.info(
-                    f"wait for ready: gps:{str(self.gps)} , ekf:{str(self.ekf_healthy)}"
-                )
+        while not self.drone_ready:
+            logging.info(
+                f"wait for drone ready: gps:{str(self.gps)} , ekf:{str(self.ekf_healthy)}"
+            )
             time.sleep(10)
-        logging.info("DRONE IS READY TO ROLL")
 
-        # for point in self.boundary:
-        #    self.move_to_point(point)
-        # self.move_to_point(self.boundary[0])
+        while self.mav_mode != "ROVER_MODE_GUIDED":
+            time.sleep(10)
+            self.buzzer(tones["ready"])
+
+        if not self.armed:
+            self.arm()
+            time.sleep(0.1)
+        logging.info("DRONE IS READY TO ROLL")
 
         self.move_to_point(home)
         time.sleep(2)
@@ -627,52 +633,6 @@ class Drone:
             0,
         )
         # self.ack("COMMAND_ACK")
-
-    def upload_waypoints(self):
-        wp = mavwp.MAVWPLoader()
-        seq = 1
-        radius = 10
-        for long, lat in self.boundary:
-            wp.add(
-                mavutil.mavlink.MAVLink_mission_item_message(
-                    self.connection.target_system,
-                    self.onnection.target_component,
-                    seq,
-                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-                    self.get_cmd("MAV_CMD_NAV_WAYPOINT"),
-                    0,
-                    0,
-                    0,
-                    radius,
-                    0,
-                    0,
-                    lat,
-                    long,
-                    0.0,
-                )
-            )  # altitude = 0.0
-            seq += 1
-        self.connection.waypoint_clear_all_send()
-        self.connection.waypoint_count_send(wp.count())
-
-        assert wp.count() > 0
-
-        msg = self.connection.recv_match(type=["MISSION_ACK"], blocking=True, timeout=3)
-        if msg is None or mav_mission_states[msg.type] != "MAV_MISSION_ACCEPTED":
-            return False
-
-        while True:
-            msg = self.connection.recv_match(
-                type=["MISSION_REQUEST", "MISSION_ACK"], blocking=True
-            )
-            if msg.get_type() == "MISSION_ACK":
-                if mav_mission_states[msg.type] == "MAV_MISSION_ACCEPTED":
-                    break
-                continue
-            logging.info(f"Sending waypoint {msg.seq}")
-            self.connection.mav.send(wp.wp(msg.seq))
-
-        logging.info("DONE UPLOAD")
 
     def ack(self, keyword):
         return (
@@ -918,8 +878,15 @@ if __name__ == "__main__":
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "--buzzer",
+        type=str,
+        help="buzz",
+        required=False,
+        default=None,
+    )
+    parser.add_argument("--skip-heartbeat", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
-    logging.info("WTF")
     # Create the connection
     # Need to provide the serial port and baudrate
     if args.serial == "" and args.ip == "":
@@ -940,9 +907,21 @@ if __name__ == "__main__":
         exit(1)
 
     logging.info("Wait heartbeat...")
-    while True:
+    while not args.skip_heartbeat:
         if connection.wait_heartbeat(blocking=True, timeout=1):
             break
+
+    if args.buzzer is not None:
+        if args.buzzer.lower() in tones:
+            tone_bytes = tones[args.buzzer.lower()].replace(" ", "").encode()
+        else:
+            tone_bytes = args.buzzer.replace(" ", "").encode()
+        drone = Drone(
+            connection=connection,
+            planner=None,
+        )
+        drone.buzzer(tone_bytes)
+        sys.exit(0)
 
     logging.info("Listening...")
 
@@ -962,7 +941,6 @@ if __name__ == "__main__":
     drone = Drone(
         connection,
         planner=planner,
-        boundary=boundary,
     )
 
     logging.info("drone object created")

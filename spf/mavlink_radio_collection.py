@@ -158,7 +158,6 @@ if __name__ == "__main__":
     planner = drone_get_planner(yaml_config["routine"], boundary=boundary)
 
     if not args.fake_drone:
-
         if yaml_config["drone-uri"] == "serial":
             serial = get_ardupilot_serial()
             if serial is None:
@@ -171,7 +170,6 @@ if __name__ == "__main__":
         drone = Drone(
             connection,
             planner=planner,
-            boundary=boundary,
             distance_finder=distance_finder,
         )
         drone.start()
@@ -186,7 +184,6 @@ if __name__ == "__main__":
         drone = Drone(
             None,
             planner=planner,
-            boundary=boundary,
             distance_finder=distance_finder,
             fake=True,
         )

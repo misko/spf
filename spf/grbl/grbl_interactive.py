@@ -107,6 +107,7 @@ class Dynamics:
     def __init__(self, bounding_box, unsafe=False, bounds_radius=0.00001):
         self.bounds_radius = bounds_radius
         self.unsafe = unsafe
+        self.bounding_box = bounding_box
         if len(bounding_box) >= 3:
             hull = ConvexHull(bounding_box)
             if len(np.unique(hull.simplices)) != len(bounding_box):

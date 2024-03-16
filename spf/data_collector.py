@@ -178,7 +178,6 @@ class DataCollector:
         self.finished_collecting = False
 
     def radios_to_online(self):
-
         # lets open all the radios
         radio_uris = []
         if self.yaml_config["emitter"]["type"] == "sdr":
@@ -350,7 +349,6 @@ class FakeDroneDataCollector(DataCollector):
         self.column_names = v3rx_column_names(nthetas=self.yaml_config["n-thetas"])
 
     def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
-
         self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v3(
             ds=read_thread.data,
             current_pos_heading_and_time={
