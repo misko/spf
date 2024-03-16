@@ -29,10 +29,14 @@ popd
 rover_id=`cat ~/rover_id`
 params_root=${repo_root}/data_collection_model_and_results/rover/rover_v3.1/
 cat ${params_root}/rover3_base_parameters.params ${params_root}/rover3_rc_servo_parameters.params | sed "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
-python mavlink_controller.py --diff-params this_params
+python ${repo_root}/spf/mavlink/mavlink_controller.py --diff-params this_rover.params 
 if [ $? -ne 0 ]; then
-    echo "DIFFERENCES DETECTED!!!"
-    exit
+    echo "Differences detected in adrupilot parameters!!!"
+    python ${repo_root}/spf/mavlink/mavlink_controller.py --load-params this_rover.params 
+    python ${repo_root}/spf/mavlink/mavlink_controller.py --diff-params this_rover.params 
+    if [ $? -ne 0 ]; then
+        echo "FAILED TO RESOLVE DIFFERENCES!!!"
+    fi
 fi
 
 echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
