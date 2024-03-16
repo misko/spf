@@ -313,14 +313,14 @@ class Drone:
 
     def update_all_parameters(self):
         self.connection.param_fetch_all()
-        time.sleep(0.5)
+        time.sleep(5)
         n = len(self.params)
         while n < self.param_count:
             logging.info(
                 f"Loading drone parameters: have {n} , need {self.param_count}"
             )
             n = len(self.params)
-            time.sleep(2)
+            time.sleep(10)
             if n == len(self.params):
                 break
         logging.info(
@@ -979,8 +979,6 @@ if __name__ == "__main__":
             time.sleep(3)
         drone.update_all_parameters()
         if args.diff_params is not None:
-            time.sleep(0.1)
-            drone.update_all_parameters()
             diffs = drone.params.diff(args.diff_params)
             sys.exit(diffs)
         if args.save_params is not None:
