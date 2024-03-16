@@ -179,7 +179,7 @@ class Drone:
             connection.sysid_state[connection.sysid].mav_type
         )
         # breakpoint()
-
+        self.params = {}
         self.healthy_ekf_flag = (
             EKF_STATUS_STRING_TO_DEC["EKF_ATTITUDE"]
             | EKF_STATUS_STRING_TO_DEC["EKF_POS_HORIZ_REL"]
@@ -239,7 +239,7 @@ class Drone:
             "SYS_STATUS",
             "VFR_HUD",
             "VIBRATION",
-            "PARAM_VALUE",
+            # "PARAM_VALUE",
             "BAD_DATA",
         ]
 
@@ -321,7 +321,7 @@ class Drone:
             collision_soon = (
                 (not self.disable_distance_finder)
                 and self.distance_finder is not None
-                and distance < 100
+                and distance < 70
             )
             if self.mav_mode == "ROVER_MODE_GUIDED":
                 if self.armed and collision_soon:
@@ -666,6 +666,15 @@ class Drone:
         #    logging.info(f"COMMAND {self.mav_cmd_num2name[msg.command]}")
         pass
 
+    def handle_PARAM_VALUE(self, msg):
+        print("param", msg.param_id)
+        self.params[msg.param_id] = {
+            "value": msg.param_value,
+            "index": msg.param_index,
+            "type": msg.param_type,
+        }
+        self.param_count = msg.param_count
+
     def handle_HEARTBEAT(self, msg, log_interval=5):
         self.mav_states = lookup_exact(msg.system_status, mav_states_list)
         self.mav_mode = custom_mode_mapping[
@@ -719,6 +728,7 @@ class Drone:
         )
 
     def handle_STATUSTEXT(self, msg):
+        print(msg)
         logging.info(
             f"{self.connection.target_system}:{self.connection.target_component}:{msg.text}"
         )
@@ -769,6 +779,7 @@ class Drone:
         "SERVO_OUTPUT_RAW": handle_SERVO_OUTPUT_RAW,
         "NAV_CONTROLLER_OUTPUT": handle_NAV_CONTROLLER_OUTPUT,
         "RC_CHANNELS_SCALED": handle_RC_CHANNELS_SCALED,
+        "PARAM_VALUE": handle_PARAM_VALUE,
     }
 
     def process_message(self, msg):
