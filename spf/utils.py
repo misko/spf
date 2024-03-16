@@ -13,5 +13,5 @@ def is_pi():
         import RPi.GPIO as GPIO  # noqa
 
         return True
-    except ImportError:
+    except (RuntimeError, ImportError):
         return False
