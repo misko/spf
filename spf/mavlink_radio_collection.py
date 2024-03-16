@@ -13,13 +13,11 @@ from pymavlink import mavutil
 from spf.data_collector import DroneDataCollector, FakeDroneDataCollector
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
 from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
-from spf.grbl.grbl_interactive import (
-    BouncePlanner,
-    CirclePlanner,
-    Dynamics,
-    StationaryPlanner,
+from spf.mavlink.mavlink_controller import (
+    Drone,
+    drone_get_planner,
+    get_ardupilot_serial,
 )
-from spf.mavlink.mavlink_controller import Drone, get_ardupilot_serial
 from spf.utils import is_pi
 
 if __name__ == "__main__":
@@ -68,7 +66,7 @@ if __name__ == "__main__":
     parser.add_argument("--fake-radio", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
-    run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    run_started_at = datetime.now().timestamp()  #
     # read YAML
     with open(args.yaml_config, "r") as stream:
         yaml_config = yaml.safe_load(stream)
@@ -99,26 +97,40 @@ if __name__ == "__main__":
         assert yaml_config["emitter"]["type"] == "sdr"
         yaml_config["emitter"]["tx-gain"] = args.tx_gain
 
-    output_files_prefix = f"rover_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
-    if args.tag != "":
-        output_files_prefix += f"_tag_{args.tag}"
+    def filenames_from_time_in_seconds(time_in_seconds, temp_dir_name, yaml_config):
+        os.makedirs(temp_dir_name, exist_ok=True)
+        dt = datetime.fromtimestamp(time_in_seconds)
+        date_str = dt.strftime("%Y_%m_%d_%H_%M_%S")
+
+        output_files_prefix = f"rover_{date_str}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
+        if args.tag != "":
+            output_files_prefix += f"_tag_{args.tag}"
+
+        filename_log = f"{temp_dir_name}/{output_files_prefix}.log.tmp"
+        filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
+        filename_npy = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
+        temp_filenames = {
+            "log": filename_log,
+            "yaml": filename_yaml,
+            "npy": filename_npy,
+        }
+        final_filenames = {k: v.replace(".tmp", "") for k, v in temp_filenames.items()}
+
+        return temp_filenames, final_filenames
 
     # setup filename
     # tmpdir = tempfile.TemporaryDirectory()
     # temp_dir_name = tmpdir.name
-    temp_dir_name = "./"
-    filename_log = f"{temp_dir_name}/{output_files_prefix}.log.tmp"
-    filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
-    filename_npy = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
-    temp_filenames = [filename_log, filename_yaml, filename_npy]
-    final_filenames = [x.replace(".tmp", "") for x in temp_filenames]
+    temp_filenames, final_filenames = filenames_from_time_in_seconds(
+        run_started_at, "./temp", yaml_config
+    )
 
     logger = logging.getLogger(__name__)
 
     # setup logging
     handlers = [
         logging.StreamHandler(),
-        logging.FileHandler(filename_log),
+        logging.FileHandler(temp_filenames["log"]),
     ]
     logging.basicConfig(
         handlers=handlers,
@@ -127,7 +139,7 @@ if __name__ == "__main__":
     )
 
     # make a copy of the YAML
-    with open(filename_yaml, "w") as outfile:
+    with open(temp_filenames["yaml"], "w") as outfile:
         yaml.dump(yaml_config, outfile, default_flow_style=False)
 
     logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
@@ -153,39 +165,7 @@ if __name__ == "__main__":
             echo=yaml_config["distance-finder"]["echo"],
         )
 
-    if yaml_config["routine"] == "circle":
-        planner = CirclePlanner(
-            dynamics=Dynamics(
-                bounding_box=boundary,
-                bounds_radius=0.000001,
-            ),
-            start_point=boundary.mean(axis=0),
-            step_size=0.0001,
-            circle_diameter=0.0003,
-            circle_center=boundary.mean(axis=0),
-        )
-    elif yaml_config["routine"] == "center":
-        planner = StationaryPlanner(
-            dynamics=Dynamics(
-                bounding_box=boundary,
-                bounds_radius=0.000001,
-            ),
-            start_point=boundary.mean(axis=0),
-            stationary_point=boundary.mean(axis=0),
-            step_size=0.0002,
-        )
-    elif yaml_config["routine"] == "bounce":
-        planner = BouncePlanner(
-            dynamics=Dynamics(
-                bounding_box=boundary,
-                bounds_radius=0.000000001,
-            ),
-            start_point=boundary.mean(axis=0),
-            epsilon=0.0000001,
-            step_size=0.1,
-        )
-    else:
-        raise Exception("Missing planner")
+    planner = drone_get_planner(yaml_config["routine"])
 
     if not args.fake_drone:
         drone = Drone(
@@ -198,13 +178,15 @@ if __name__ == "__main__":
 
         logging.info("Starting data collector...")
         data_collector = DroneDataCollector(
-            filename_npy=filename_npy,
+            filename_npy=temp_filenames["npy"],
             yaml_config=yaml_config,
             position_controller=drone,
         )
     else:
         data_collector = FakeDroneDataCollector(
-            filename_npy=filename_npy, yaml_config=yaml_config, position_controller=None
+            filename_npy=temp_filenames["npy"],
+            yaml_config=yaml_config,
+            position_controller=None,
         )
 
     logging.info("Starting data collector...")
@@ -217,6 +199,14 @@ if __name__ == "__main__":
 
     logging.info("DRONE IS READY!!! LETS GOOO!!!")
 
+    system_time = datetime.datetime.fromtimestamp(
+        datetime.datetime.now().timestamp()
+    ).strftime("%Y_%m_%d_%H_%M_%S")
+    gps_time = datetime.datetime.fromtimestamp(drone.gps_time).strftime(
+        "%Y_%m_%d_%H_%M_%S"
+    )
+    logging.info("Current system time: {system_time} current gps time {gps_time}")
+
     if not args.fake_radio:
         data_collector.start()
         while data_collector.is_collecting():
@@ -226,8 +216,8 @@ if __name__ == "__main__":
             time.sleep(5)
 
     # we finished lets move files out to final positions
-    for idx in range(len(temp_filenames)):
-        os.rename(temp_filenames[idx], final_filenames[idx])
+    for k in temp_filenames:
+        os.rename(temp_filenames[k], final_filenames[k])
 
     if not args.fake_drone:
         time.sleep(5)

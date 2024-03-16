@@ -14,7 +14,13 @@ from pymavlink import mavutil, mavwp
 
 from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
 from spf.gps.gps_utils import swap_lat_long
-from spf.grbl.grbl_interactive import BouncePlanner, Dynamics
+from spf.grbl.grbl_interactive import (
+    BouncePlanner,
+    CirclePlanner,
+    Dynamics,
+    StationaryPlanner,
+)
+from spf.mavlink.mavparm import MAVParmDict
 
 logging.basicConfig(
     filename="logs.log",
@@ -147,6 +153,42 @@ mav_cmds_num2name = {}
 LOG_ERASE = 121
 
 
+def drone_get_planner(routine):
+    if routine == "circle":
+        return CirclePlanner(
+            dynamics=Dynamics(
+                bounding_box=boundary,
+                bounds_radius=0.000001,
+            ),
+            start_point=boundary.mean(axis=0),
+            step_size=0.0001,
+            circle_diameter=0.0003,
+            circle_center=boundary.mean(axis=0),
+        )
+    elif routine == "center":
+        return StationaryPlanner(
+            dynamics=Dynamics(
+                bounding_box=boundary,
+                bounds_radius=0.000001,
+            ),
+            start_point=boundary.mean(axis=0),
+            stationary_point=boundary.mean(axis=0),
+            step_size=0.0002,
+        )
+    elif routine == "bounce":
+        return BouncePlanner(
+            dynamics=Dynamics(
+                bounding_box=boundary,
+                bounds_radius=0.000000001,
+            ),
+            start_point=boundary.mean(axis=0),
+            epsilon=0.0000001,
+            step_size=0.1,
+        )
+    else:
+        raise Exception("Missing planner")
+
+
 def lookup_bits(x, table):
     return [y for y in table if x & getattr(mavutil.mavlink, y)]
 
@@ -179,7 +221,8 @@ class Drone:
             connection.sysid_state[connection.sysid].mav_type
         )
         # breakpoint()
-        self.params = {}
+        self.reset_params()
+
         self.healthy_ekf_flag = (
             EKF_STATUS_STRING_TO_DEC["EKF_ATTITUDE"]
             | EKF_STATUS_STRING_TO_DEC["EKF_POS_HORIZ_REL"]
@@ -209,6 +252,8 @@ class Drone:
         self.sensors_present = []
         self.sensors_enabled = []
         self.sensors_health = []
+
+        self.last_heartbeat = 0
 
         self.timeout = 0.5
         self.tolerance_in_m = tolerance_in_m
@@ -262,6 +307,26 @@ class Drone:
         self.gps_fix_type = "NOT_SET_YET"
         # self.mission_item_condition = threading.Condition()
         # self.mission_item_reached = False
+
+    def reset_params(self):
+        self.params = MAVParmDict()
+
+    def update_all_parameters(self):
+        self.connection.param_fetch_all()
+        time.sleep(0.5)
+        n = len(self.params)
+        while n < self.param_count:
+            logging.info(
+                f"Loading drone parameters: have {n} , need {self.param_count}"
+            )
+            n = len(self.params)
+            time.sleep(0.5)
+            if n == len(self.params):
+                break
+        logging.info(
+            f"Done loading drone parameters: have {len(self.params)} , wanted {self.param_count}"
+        )
+        return len(self.params) == self.param_count
 
     # motion interface
     def start(self):
@@ -317,24 +382,25 @@ class Drone:
                 )
                 last_message = time.time()
             # safety
-            distance = self.distance_finder.distance
-            collision_soon = (
-                (not self.disable_distance_finder)
-                and self.distance_finder is not None
-                and distance < 70
-            )
-            if self.mav_mode == "ROVER_MODE_GUIDED":
-                if self.armed and collision_soon:
-                    logging.info(f"AVOIDING COLLISION! {distance}")
-                    self.disarm()
-                    time.sleep(2)
-                elif not self.armed and not collision_soon:
-                    logging.info("RESUMING FROM NEAR COLLISION!")
-                    self.arm()
-                elif self.armed and not self.motor_active:
-                    logging.info("Are we sleeping somwehere?")
-                    self.reposition(lat=point[1], long=point[0])
-                    time.sleep(0.5)
+            if self.distance_finder is not None:
+                distance = self.distance_finder.distance
+                collision_soon = (
+                    (not self.disable_distance_finder)
+                    and self.distance_finder is not None
+                    and distance < 70
+                )
+                if self.mav_mode == "ROVER_MODE_GUIDED":
+                    if self.armed and collision_soon:
+                        logging.info(f"AVOIDING COLLISION! {distance}")
+                        self.disarm()
+                        time.sleep(2)
+                    elif not self.armed and not collision_soon:
+                        logging.info("RESUMING FROM NEAR COLLISION!")
+                        self.arm()
+                    elif self.armed and not self.motor_active:
+                        logging.info("Are we sleeping somwehere?")
+                        self.reposition(lat=point[1], long=point[0])
+                        time.sleep(0.5)
             time.sleep(0.1)
         logging.info(f"REACHED TARGET {str(point)} Current {str(self.gps)}")
         return True
@@ -356,13 +422,14 @@ class Drone:
         # self.single_operation_mode_off()
         # drone.request_home()
         logging.info("Planer main loop")
-        while not self.drone_ready:
+        while not self.drone_ready or not self.armed:
             if (
                 self.gps is not None
                 and "MAV_SYS_STATUS_SENSOR_GPS" in self.sensors_health
                 and self.ekf_healthy
                 and not self.armed
             ):
+                logging.info("ARMING!!")
                 self.arm()
             else:
                 logging.info(
@@ -385,7 +452,7 @@ class Drone:
             point = next(yp)
             self.move_to_point(point)
             self.planner_started_moving = True
-            time.sleep(2)
+            # time.sleep(2)
 
     def get_cmd(self, cmd):
         v = getattr(mavutil.mavlink, cmd)
@@ -667,15 +734,17 @@ class Drone:
         pass
 
     def handle_PARAM_VALUE(self, msg):
-        print("param", msg.param_id)
-        self.params[msg.param_id] = {
-            "value": msg.param_value,
-            "index": msg.param_index,
-            "type": msg.param_type,
-        }
+        # print("param", msg.param_id)
+        self.params[msg.param_id] = msg.param_value
+        # {
+        #    "value": msg.param_value,
+        #    "index": msg.param_index,
+        #    "type": msg.param_type,
+        # }
         self.param_count = msg.param_count
 
     def handle_HEARTBEAT(self, msg, log_interval=5):
+        self.last_heartbeat = time.time()
         self.mav_states = lookup_exact(msg.system_status, mav_states_list)
         self.mav_mode = custom_mode_mapping[
             msg.custom_mode
@@ -809,6 +878,34 @@ if __name__ == "__main__":
     )
     parser.add_argument("--ip", type=str, help="ip address", required=False, default="")
     parser.add_argument("--port", type=int, help="port", required=False, default=14552)
+    parser.add_argument(
+        "--save-params",
+        type=str,
+        help="save params to this file",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--load-params",
+        type=str,
+        help="save params to this file",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--diff-params",
+        type=str,
+        help="save params to this file",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--planner",
+        type=str,
+        help="which planner",
+        required=False,
+        default=None,
+    )
 
     args = parser.parse_args()
     logging.info("WTF")
@@ -846,17 +943,14 @@ if __name__ == "__main__":
     logging.info("really listening")
 
     boundary = franklin_safe
+
+    planner = None
+    if args.planner is not None:
+        planner = drone_get_planner(args.planner)
+
     drone = Drone(
         connection,
-        planner=BouncePlanner(
-            dynamics=Dynamics(
-                bounding_box=boundary,
-                bounds_radius=0.000000001,
-            ),
-            start_point=boundary.mean(axis=0),
-            epsilon=0.0000001,
-            step_size=0.1,
-        ),
+        planner=planner,
         boundary=boundary,
     )
 
@@ -875,6 +969,29 @@ if __name__ == "__main__":
     # logging.info("Waiting for the vehicle to arm")
     # connection.motors_armed_wait()
     # logging.info("Armed!")
+
+    if (
+        args.save_params is not None
+        or args.load_params is not None
+        or args.diff_params is not None
+    ):
+        while drone.last_heartbeat == 0:
+            time.sleep(3)
+        drone.update_all_parameters()
+        if args.diff_params is not None:
+            time.sleep(0.1)
+            drone.update_all_parameters()
+            diffs = drone.params.diff(args.diff_params)
+            sys.exit(diffs)
+        if args.save_params is not None:
+            drone.params.save(args.save_params)
+        if args.load_params is not None:
+            drone.single_operation_mode_on()
+            drone.disarm()
+            time.sleep(0.1)
+            count, changed = drone.params.load(args.load_params, mav=drone.connection)
+            drone.single_operation_mode_off()
+        sys.exit(0)
 
     while True:
         time.sleep(200)
