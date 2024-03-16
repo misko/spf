@@ -4,6 +4,7 @@ export PYTHONPATH=${repo_root}
 
 rover_id=`cat /home/pi/rover_id`
 
+
 echo "checking if updates available"
 pushd /home/pi/spf/
 current_hash=`git rev-parse --short HEAD`
@@ -20,6 +21,7 @@ if [ "${current_hash}" != "${new_hash}" ]; then
 else
     echo "no updates (or maybe no internet) detected!"
 fi
+pip install -r requirements.txt
 popd
 
 
