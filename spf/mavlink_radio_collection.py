@@ -210,6 +210,7 @@ if __name__ == "__main__":
         "%Y_%m_%d_%H_%M_%S"
     )
     gps_time = datetime.fromtimestamp(drone.gps_time).strftime("%Y_%m_%d_%H_%M_%S")
+
     logging.info(f"Current system time: {system_time} current gps time {gps_time}")
 
     if not args.fake_radio:

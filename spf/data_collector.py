@@ -178,18 +178,6 @@ class DataCollector:
         self.finished_collecting = False
 
     def radios_to_online(self):
-        # record matrix
-        if not self.yaml_config["dry-run"]:
-            self.record_matrix = np.memmap(
-                self.filename_npy,
-                dtype="float32",
-                mode="w+",
-                shape=(
-                    2,  # TODO should be nreceivers
-                    self.yaml_config["n-records-per-receiver"],
-                    len(self.column_names),
-                ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
-            )
 
         # lets open all the radios
         radio_uris = []
@@ -331,6 +319,19 @@ class DroneDataCollector(DataCollector):
     def __init__(self, *args, **kwargs):
         super(DroneDataCollector, self).__init__(*args, **kwargs)
         self.column_names = v3rx_column_names(nthetas=self.yaml_config["n-thetas"])
+
+        # record matrix
+        if not self.yaml_config["dry-run"]:
+            self.record_matrix = np.memmap(
+                self.filename_npy,
+                dtype="float32",
+                mode="w+",
+                shape=(
+                    2,  # TODO should be nreceivers
+                    self.yaml_config["n-records-per-receiver"],
+                    len(self.column_names),
+                ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
+            )
 
     def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
         current_pos_heading_and_time = (

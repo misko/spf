@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 
 import numpy as np
 from haversine import Unit, haversine
@@ -910,6 +911,13 @@ if __name__ == "__main__":
         default=None,
     )
 
+    parser.add_argument(
+        "--get-time",
+        type=str,
+        help="time to file",
+        required=False,
+        default=None,
+    )
     args = parser.parse_args()
     logging.info("WTF")
     # Create the connection
@@ -972,6 +980,21 @@ if __name__ == "__main__":
     # logging.info("Waiting for the vehicle to arm")
     # connection.motors_armed_wait()
     # logging.info("Armed!")
+
+    if args.get_time is not None:
+        with open(args.get_time, "w") as f:
+            logging.info("waiting for heartbeat")
+            while drone.last_heartbeat == 0:
+                time.sleep(0.1)
+            logging.info("waiting for gps time")
+            while drone.gps_time == 0:
+                time.sleep(0.1)
+
+            gps_time = datetime.fromtimestamp(drone.gps_time).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            f.write(gps_time + "\n")
+            sys.exit(0)
 
     if (
         args.save_params is not None
