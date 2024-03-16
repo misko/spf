@@ -25,6 +25,15 @@ pip install -r requirements.txt
 popd
 
 
+rover_id=`cat ~/rover_id`
+params_root=/home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/
+cat ${params_root}/rover3_base_parameters.params ${params_root}/rover3_rc_servo.params | sed "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
+python mavlink_controller.py --diff-params this_params
+if [ $? -ne 0 ]; then
+    echo "DIFFERENCES DETECTED!!!"
+    exit
+fi
+
 echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 
 if [ ${rover_id} -eq 1 ]; then
