@@ -36,7 +36,7 @@ fi
 
 #get GPS time
 python ${repo_root}/spf/mavlink/mavlink_controller.py --get-time time
-sudo date -s `cat time`
+sudo date -s "$(cat time)"
 
 echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 
