@@ -34,6 +34,10 @@ if [ $? -ne 0 ]; then
     echo "FAILED TO RESOLVE DIFFERENCES!!! running with incorrect params"
 fi
 
+#get GPS time
+python ${repo_root}/spf/mavlink/mavlink_controller.py --get-time time
+sudo date -s `cat time`
+
 echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 
 if [ ${rover_id} -eq 1 ]; then
