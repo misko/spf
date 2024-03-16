@@ -21,7 +21,7 @@ from spf.dataset.rover_idxs import (  # v3rx_column_names,
     v3rx_rssi_idxs,
     v3rx_rx_pos_idxs,
     v3rx_rx_theta_idx,
-    v3rx_time_idx,
+    v3rx_time_idxs,
 )
 from spf.dataset.spf_generate import generate_session
 from spf.dataset.wall_array_v1_idxs import (
@@ -505,6 +505,9 @@ class SessionsDatasetRealV3Rx(SessionsDatasetRealExtension):
             column_names=v3rx_column_names(), *args, **kwargs
         )
 
+    def times2x32_to_64(self, m):
+        return np.frombuffer(m[:, v3rx_time_idxs()].copy(), dtype=np.float64)
+
     def __getitem__(self, idx):
         if idx is None:
             return None
@@ -539,7 +542,7 @@ class SessionsDatasetRealV3Rx(SessionsDatasetRealExtension):
         rx_antenna_positions_at_t = (
             rx_position_at_t[:, None] + self.rx_antenna_offsets[receiver_idx]
         )
-
+        # _z = struct.unpack("d", struct.pack("ff", a, b))[0]
         return {
             "broadcasting_positions_at_t": self.ones[:, [0]][
                 :, None
@@ -550,7 +553,7 @@ class SessionsDatasetRealV3Rx(SessionsDatasetRealExtension):
             "thetas_at_t": np.broadcast_to(
                 self.thetas[None], (m.shape[0], self.thetas.shape[0])
             ),
-            "time_stamps": m[:, [v3rx_time_idx()]],
+            "time_stamps": self.times2x32_to_64(m),
             "width_at_t": self.widths,
             "detector_orientation_at_t": rx_orientation_at_t,  # self.halfpis*0,#np.arctan2(1,0)=np.pi/2
             "detector_position_at_t": rx_position_at_t,

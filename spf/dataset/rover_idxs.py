@@ -26,8 +26,10 @@ def v3rx_column_names(nthetas=65):
 
 
 @cache
-def v3rx_time_idx():
-    return v3rx_column_names().index("gps_timestamp_1")
+def v3rx_time_idxs():
+    return v3rx_column_names().index("gps_timestamp_1"), v3rx_column_names().index(
+        "gps_timestamp_2"
+    )
 
 
 @cache
