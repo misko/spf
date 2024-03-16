@@ -33,9 +33,9 @@ if [ ${rover_id} -eq 1 ]; then
 elif [ ${rover_id} -eq 2 ]; then
     #config=${repo_root}/spf/rover_configs/rover_emitter_config_pi.yaml 
     config=${repo_root}/spf/rover_configs/rover_single_receiver_config_pi.yaml
-    routine=center
-elif [ ${rover_id} -eq 3 ]; then
     routine=circle
+elif [ ${rover_id} -eq 3 ]; then
+    routine=center
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
 else
     echo Invalid rover_id 
