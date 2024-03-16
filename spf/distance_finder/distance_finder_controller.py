@@ -5,7 +5,7 @@ import time
 
 try:
     import RPi.GPIO as GPIO
-except ImportError:
+except (RuntimeError, ImportError):
     pass
 
 
