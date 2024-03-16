@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -171,6 +172,7 @@ class DataCollector:
     def __init__(self, yaml_config, filename_npy, position_controller, tag=""):
         self.yaml_config = yaml_config
         self.filename_npy = filename_npy
+        Path(self.filename_npy).touch()
         self.record_matrix = None
         self.position_controller = position_controller
         self.finished_collecting = False

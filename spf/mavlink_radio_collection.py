@@ -64,6 +64,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--fake-drone", action=argparse.BooleanOptionalAction)
     parser.add_argument("--fake-radio", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--exit", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
     run_started_at = datetime.now().timestamp()  #
@@ -144,19 +145,7 @@ if __name__ == "__main__":
 
     logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
 
-    boundary = franklin_safe
-
     logging.info("Connecting to drone...")
-
-    if yaml_config["drone-uri"] == "serial":
-        serial = get_ardupilot_serial()
-        if serial is None:
-            print("Failed to get serial")
-            sys.exit(1)
-        yaml_config["drone-uri"] = serial
-        connection = mavutil.mavlink_connection(serial, baud=115200)
-    else:
-        connection = mavutil.mavlink_connection(yaml_config["drone-uri"])
 
     distance_finder = None
     if is_pi():
@@ -165,9 +154,20 @@ if __name__ == "__main__":
             echo=yaml_config["distance-finder"]["echo"],
         )
 
-    planner = drone_get_planner(yaml_config["routine"])
+    boundary = franklin_safe
+    planner = drone_get_planner(yaml_config["routine"], boundary=boundary)
 
     if not args.fake_drone:
+
+        if yaml_config["drone-uri"] == "serial":
+            serial = get_ardupilot_serial()
+            if serial is None:
+                print("Failed to get serial")
+                sys.exit(1)
+            yaml_config["drone-uri"] = serial
+            connection = mavutil.mavlink_connection(serial, baud=115200)
+        else:
+            connection = mavutil.mavlink_connection(yaml_config["drone-uri"])
         drone = Drone(
             connection,
             planner=planner,
@@ -183,6 +183,13 @@ if __name__ == "__main__":
             position_controller=drone,
         )
     else:
+        drone = Drone(
+            None,
+            planner=planner,
+            boundary=boundary,
+            distance_finder=distance_finder,
+            fake=True,
+        )
         data_collector = FakeDroneDataCollector(
             filename_npy=temp_filenames["npy"],
             yaml_config=yaml_config,
@@ -199,20 +206,18 @@ if __name__ == "__main__":
 
     logging.info("DRONE IS READY!!! LETS GOOO!!!")
 
-    system_time = datetime.datetime.fromtimestamp(
-        datetime.datetime.now().timestamp()
-    ).strftime("%Y_%m_%d_%H_%M_%S")
-    gps_time = datetime.datetime.fromtimestamp(drone.gps_time).strftime(
+    system_time = datetime.fromtimestamp(datetime.now().timestamp()).strftime(
         "%Y_%m_%d_%H_%M_%S"
     )
-    logging.info("Current system time: {system_time} current gps time {gps_time}")
+    gps_time = datetime.fromtimestamp(drone.gps_time).strftime("%Y_%m_%d_%H_%M_%S")
+    logging.info(f"Current system time: {system_time} current gps time {gps_time}")
 
     if not args.fake_radio:
         data_collector.start()
         while data_collector.is_collecting():
             time.sleep(5)
     else:
-        while True:
+        while not args.exit:
             time.sleep(5)
 
     # we finished lets move files out to final positions

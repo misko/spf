@@ -153,7 +153,7 @@ mav_cmds_num2name = {}
 LOG_ERASE = 121
 
 
-def drone_get_planner(routine):
+def drone_get_planner(routine, boundary):
     if routine == "circle":
         return CirclePlanner(
             dynamics=Dynamics(
@@ -205,6 +205,7 @@ class Drone:
         boundary=None,
         tolerance_in_m=5,
         distance_finder=None,
+        fake=False,
     ):
         self.connection = connection
         self.boundary = boundary
@@ -216,10 +217,12 @@ class Drone:
             self.distance_finder.run_in_new_thread()
 
         logging.getLogger("numba").setLevel(logging.WARNING)
-        self.mav_mode_mapping_name2num = connection.mode_mapping()
-        self.mav_mode_mapping_num2name = mavutil.mode_mapping_bynumber(
-            connection.sysid_state[connection.sysid].mav_type
-        )
+        self.fake = fake
+        if not self.fake:
+            self.mav_mode_mapping_name2num = connection.mode_mapping()
+            self.mav_mode_mapping_num2name = mavutil.mode_mapping_bynumber(
+                connection.sysid_state[connection.sysid].mav_type
+            )
         # breakpoint()
         self.reset_params()
 
@@ -946,7 +949,7 @@ if __name__ == "__main__":
 
     planner = None
     if args.planner is not None:
-        planner = drone_get_planner(args.planner)
+        planner = drone_get_planner(args.planner, boundary=boundary)
 
     drone = Drone(
         connection,
@@ -980,6 +983,20 @@ if __name__ == "__main__":
         drone.update_all_parameters()
         if args.diff_params is not None:
             diffs = drone.params.diff(args.diff_params)
+            if diffs > 0 and args.load_params:
+                logging.info("Differences detected, trying to load changes")
+                drone.single_operation_mode_on()
+                drone.disarm()
+                time.sleep(0.1)
+                count, changed = drone.params.load(
+                    args.load_params, mav=drone.connection
+                )
+                drone.single_operation_mode_off()
+                drone.reset_params()
+                time.sleep(5)
+                drone.update_all_parameters()
+                diffs = drone.params.diff(args.diff_params)
+            logging.info(f"Detected {diffs} differences")
             sys.exit(diffs)
         if args.save_params is not None:
             drone.params.save(args.save_params)

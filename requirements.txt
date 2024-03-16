@@ -57,6 +57,7 @@ pymavlink==2.4.41
 pyparsing==3.0.9
 pyserial==3.5
 pytest==7.4.3
+pytest-console-scripts==1.4.1
 python-dateutil==2.8.2
 PyYAML==6.0.1
 requests==2.31.0
