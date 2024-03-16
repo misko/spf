@@ -320,7 +320,7 @@ class Drone:
                 f"Loading drone parameters: have {n} , need {self.param_count}"
             )
             n = len(self.params)
-            time.sleep(0.5)
+            time.sleep(2)
             if n == len(self.params):
                 break
         logging.info(
