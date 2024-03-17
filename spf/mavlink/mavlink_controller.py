@@ -323,7 +323,7 @@ class Drone:
 
     def buzzer(self, tone_bytes):
         self.connection.mav.play_tune_send(
-            connection.target_system, connection.target_component, tone_bytes
+            self.connection.target_system, self.connection.target_component, tone_bytes
         )
 
     def reset_params(self):
