@@ -45,7 +45,7 @@ EKF_STATUS_DEC_TO_STRING = {
 }
 EKF_STATUS_STRING_TO_DEC = {v: k for k, v in EKF_STATUS_DEC_TO_STRING.items()}
 
-gps_fix_type = {
+gps_fix_type_str_to_num = {
     0: "GPS_FIX_TYPE_NO_GPS",
     1: "GPS_FIX_TYPE_NO_FIX",
     2: "GPS_FIX_TYPE_2D_FIX",
@@ -56,6 +56,7 @@ gps_fix_type = {
     7: "GPS_FIX_TYPE_STATIC",
     8: "GPS_FIX_TYPE_PPP",
 }
+gps_fix_type_num_to_str = {v: k for k, v in gps_fix_type_str_to_num.items()}
 
 mav_states_list = [
     "MAV_STATE_UNINIT",
@@ -322,9 +323,18 @@ class Drone:
         # self.mission_item_reached = False
 
     def buzzer(self, tone_bytes):
-        self.connection.mav.play_tune_send(
-            self.connection.target_system, self.connection.target_component, tone_bytes
-        )
+        for _ in range(5):
+            try:
+                self.connection.mav.play_tune_send(
+                    self.connection.target_system,
+                    self.connection.target_component,
+                    tone_bytes,
+                )
+                return True
+            except AttributeError:
+                pass
+            time.sleep(0.1)
+        return False
 
     def reset_params(self):
         self.params = MAVParmDict()
@@ -686,7 +696,7 @@ class Drone:
 
     def handle_GPS_RAW_INT(self, msg):
         self.gps_satellites = msg.satellites_visible
-        self.gps_fix_type = gps_fix_type[msg.fix_type]
+        self.gps_fix_type = gps_fix_type_str_to_num[msg.fix_type]
 
     def handle_EKF_STATUS_REPORT(self, msg):
         if msg.flags & self.healthy_ekf_flag == self.healthy_ekf_flag:
@@ -970,8 +980,9 @@ if __name__ == "__main__":
             while drone.last_heartbeat == 0:
                 time.sleep(0.1)
             logging.info("waiting for gps time")
-            while drone.gps_time == 0:
-                time.sleep(0.1)
+            while drone.gps_time == 0 and drone.gps_fix_type != "GPS_FIX_TYPE_3D_FIX":
+                drone.buzzer(tones["gps-time"])
+                time.sleep(5)
 
             gps_time = datetime.fromtimestamp(drone.gps_time).strftime(
                 "%Y-%m-%d %H:%M:%S"
