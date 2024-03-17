@@ -17,6 +17,7 @@ from spf.mavlink.mavlink_controller import (
     Drone,
     drone_get_planner,
     get_ardupilot_serial,
+    tones,
 )
 from spf.utils import is_pi
 
@@ -172,6 +173,7 @@ if __name__ == "__main__":
             planner=planner,
             distance_finder=distance_finder,
         )
+        drone.buzzer(tones["boot"])
         drone.start()
 
         logging.info("Starting data collector...")

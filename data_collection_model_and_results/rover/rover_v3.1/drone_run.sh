@@ -5,7 +5,7 @@ test -z "$VIRTUAL_ENV" && source ~/spf-virtualenv/bin/activate
 
 rover_id=`cat /home/pi/rover_id`
 
-python ${repo_root}/spf/mavlink/mavlink_controller.py mavlink_controller.py --buzzer git
+python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer git
 
 echo "checking if updates available"
 pushd ${repo_root}
@@ -29,7 +29,6 @@ popd
 
 rover_id=`cat ~/rover_id`
 
-python ${repo_root}/spf/mavlink/mavlink_controller.py mavlink_controller.py --buzzer check-diff
 #make sure parameters are set correctly on ardupilot
 params_root=${repo_root}/data_collection_model_and_results/rover/rover_v3.1/
 cat ${params_root}/rover3_base_parameters.params ${params_root}/rover3_rc_servo_parameters.params | sed "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
@@ -39,7 +38,6 @@ if [ $? -ne 0 ]; then
 fi
 
 #get GPS time
-python ${repo_root}/spf/mavlink/mavlink_controller.py mavlink_controller.py --buzzer gps-time
 python ${repo_root}/spf/mavlink/mavlink_controller.py --get-time time
 sudo date -s "$(cat time)"
 
@@ -60,6 +58,5 @@ else
     exit
 fi
 
-python ${repo_root}/spf/mavlink/mavlink_controller.py mavlink_controller.py --buzzer boot
 python3 ${repo_root}/spf/mavlink_radio_collection.py \
     -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n 20000

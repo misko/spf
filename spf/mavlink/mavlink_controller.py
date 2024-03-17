@@ -961,6 +961,7 @@ if __name__ == "__main__":
 
     if args.get_time is not None:
         with open(args.get_time, "w") as f:
+            drone.buzzer(tones["gps-time"])
             logging.info("waiting for heartbeat")
             while drone.last_heartbeat == 0:
                 time.sleep(0.1)
@@ -983,6 +984,7 @@ if __name__ == "__main__":
             time.sleep(3)
         drone.update_all_parameters()
         if args.diff_params is not None:
+            drone.buzzer(tones["check-diff"])
             diffs = drone.params.diff(args.diff_params)
             if diffs > 0 and args.load_params:
                 logging.info("Differences detected, trying to load changes")
