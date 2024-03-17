@@ -424,7 +424,6 @@ class Drone:
     def run_planner(self):
         # self.single_operation_mode_on()
         logging.info("Start planner")
-        self.buzzer(tones["planner"])
         # self.single_operation_mode_on()
         # logging.info("SINGLE OPERATION MODE")
         home = self.planner.dynamics.bounding_box.mean(axis=0)
@@ -985,9 +984,9 @@ if __name__ == "__main__":
     ):
         while drone.last_heartbeat == 0:
             time.sleep(3)
+        drone.buzzer(tones["check-diff"])
         drone.update_all_parameters()
         if args.diff_params is not None:
-            drone.buzzer(tones["check-diff"])
             diffs = drone.params.diff(args.diff_params)
             if diffs > 0 and args.load_params:
                 logging.info("Differences detected, trying to load changes")
