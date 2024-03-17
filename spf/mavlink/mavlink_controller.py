@@ -255,7 +255,9 @@ class Drone:
         self.message_condition = threading.Condition()  # can set message_loop=False,
         self.single_condition = threading.Condition()  # can set message_loop=True
         # self.drone_ready_condition = threading.Condition()
-        self.drone_ready = False
+        self.drone_ready = (
+            False  # Are all the systems good (outside of armed and guided mode)
+        )
 
         self.message_loop = True
         self.single_operation = False
@@ -740,7 +742,7 @@ class Drone:
                 mav_state_check
                 and gps_check
                 and gps_healthy
-                and guided_mode
+                # and guided_mode
                 and self.ekf_healthy
             ):
                 logging.info("SETTING DRONE TO READY!")
