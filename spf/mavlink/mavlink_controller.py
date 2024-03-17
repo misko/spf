@@ -149,6 +149,8 @@ custom_mode_mapping = {
     16: "ROVER_MODE_INITIALIZING",
 }
 
+switchable_modes = {"GUIDED": "ROVER_MODE_GUIDED", "MANUAL": "ROVER_MODE_MANUAL"}
+
 mav_cmds_num2name = {}
 
 
@@ -883,6 +885,13 @@ if __name__ == "__main__":
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "--proto",
+        type=str,
+        help="udpin/tcp",
+        required=False,
+        default="udpin",
+    )
 
     parser.add_argument(
         "--get-time",
@@ -895,6 +904,13 @@ if __name__ == "__main__":
         "--buzzer",
         type=str,
         help="buzz",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        help="set mode to this and exit",
         required=False,
         default=None,
     )
@@ -912,7 +928,7 @@ if __name__ == "__main__":
         connection = mavutil.mavlink_connection(args.serial, baud=115200)
     elif args.ip != "":
         connection = mavutil.mavlink_connection(
-            f"udpin:{args.ip}:{args.port}"
+            f"{args.proto}:{args.ip}:{args.port}"
         )  # tcp is 5670
         # connection = mavutil.mavlink_connection(f"udpout:{args.ip}:14550")
     else:
@@ -1025,6 +1041,22 @@ if __name__ == "__main__":
             count, changed = drone.params.load(args.load_params, mav=drone.connection)
             drone.single_operation_mode_off()
         sys.exit(0)
+
+    if args.mode is not None:
+        target_mode = args.mode.upper()
+        if target_mode not in switchable_modes:
+            logging.error("Not a valid switchable mode")
+            sys.exit(1)
+        result_mode = switchable_modes[target_mode]
+        return_code = 1
+        for _ in range(3):  # 3 retries
+            drone.set_mode(target_mode)
+            time.sleep(2)
+            if drone.mav_mode == result_mode:
+                return_code = 0
+                break
+
+        sys.exit(return_code)
 
     while True:
         time.sleep(200)
