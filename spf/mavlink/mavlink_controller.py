@@ -155,7 +155,7 @@ tones = {
     "gps-time": "MFT240L8 C C C P4 C C C P4 L8dcdcdcdc",
     "check-diff": "MFT240L8 A B P4 A B P4 L8dcdc",
     "git": "MFT240L4 < F P2 F P4 L8dcdc",
-    "boot": "MFT240L8 G G F F P4 G G F F P4 L8dc",
+    "planner": "MFT240L8 G G F F P4 G G F F P4 L8dc",
     "ready": "MFT240L8 G P8 < G P8 < G P8 > > G P8 < G P8 < G",
 }
 tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
@@ -424,6 +424,7 @@ class Drone:
     def run_planner(self):
         # self.single_operation_mode_on()
         logging.info("Start planner")
+        self.buzzer(tones["planner"])
         # self.single_operation_mode_on()
         # logging.info("SINGLE OPERATION MODE")
         home = self.planner.dynamics.bounding_box.mean(axis=0)
@@ -913,6 +914,7 @@ if __name__ == "__main__":
             break
 
     if args.buzzer is not None:
+        assert not args.skip_heartbeat
         if args.buzzer.lower() in tones:
             tone_bytes = tones[args.buzzer.lower()]
         else:
