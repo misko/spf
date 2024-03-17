@@ -158,6 +158,7 @@ tones = {
     "boot": "MFT240L8 G G F F P4 G G F F P4 L8dc",
     "ready": "MFT240L8 G P8 < G P8 < G P8 > > G P8 < G P8 < G",
 }
+tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
 
 LOG_ERASE = 121
 
@@ -913,7 +914,7 @@ if __name__ == "__main__":
 
     if args.buzzer is not None:
         if args.buzzer.lower() in tones:
-            tone_bytes = tones[args.buzzer.lower()].replace(" ", "").encode()
+            tone_bytes = tones[args.buzzer.lower()]
         else:
             tone_bytes = args.buzzer.replace(" ", "").encode()
         drone = Drone(
