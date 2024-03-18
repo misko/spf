@@ -1,5 +1,4 @@
 import argparse
-import json
 import logging
 import os
 import subprocess
@@ -45,6 +44,17 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-r", "--routine", type=str, help="GRBL routine", required=False, default=None
+    )
+    parser.add_argument(
+        "--temp", type=str, help="temp dirname", required=False, default="./temp"
+    )
+    parser.add_argument(
+        "-s",
+        "--run-for-seconds",
+        type=int,
+        help="run for this long and exit",
+        required=False,
+        default=0,
     )
     parser.add_argument(
         "-m",
@@ -123,7 +133,7 @@ if __name__ == "__main__":
     # tmpdir = tempfile.TemporaryDirectory()
     # temp_dir_name = tmpdir.name
     temp_filenames, final_filenames = filenames_from_time_in_seconds(
-        run_started_at, "./temp", yaml_config
+        run_started_at, args.temp, yaml_config
     )
 
     logger = logging.getLogger(__name__)
@@ -143,10 +153,6 @@ if __name__ == "__main__":
     with open(temp_filenames["yaml"], "w") as outfile:
         yaml.dump(yaml_config, outfile, default_flow_style=False)
 
-    logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
-
-    logging.info("Connecting to drone...")
-
     distance_finder = None
     if is_pi():
         distance_finder = DistanceFinderController(
@@ -157,6 +163,7 @@ if __name__ == "__main__":
     boundary = franklin_safe
     planner = drone_get_planner(yaml_config["routine"], boundary=boundary)
 
+    logging.info("MavRadioCollection: Starting data collector...")
     if not args.fake_drone:
         if yaml_config["drone-uri"] == "serial":
             serial = get_ardupilot_serial()
@@ -175,7 +182,6 @@ if __name__ == "__main__":
 
         drone.start()
 
-        logging.info("Starting data collector...")
         data_collector = DroneDataCollector(
             filename_npy=temp_filenames["npy"],
             yaml_config=yaml_config,
@@ -194,35 +200,47 @@ if __name__ == "__main__":
             position_controller=None,
         )
 
-    logging.info("Starting data collector...")
+    logging.info("MavRadioCollection: Radios online...")
     if not args.fake_radio:
         data_collector.radios_to_online()  # blocking
 
     while not args.fake_drone and not drone.has_planner_started_moving():
-        logging.info(f"waiting for drone to start moving {time.time()}")
+        logging.info(
+            f"MavRadioCollection: Waiting for drone to start moving {time.time()}"
+        )
+        if args.run_for_seconds != 0:
+            time.sleep(args.run_for_seconds)
+            sys.exit(0)
         time.sleep(5)  # easy poll this
 
-    logging.info("DRONE IS READY!!! LETS GOOO!!!")
+    logging.info("MavRadioCollection: Planner has started controling the drone...")
 
     system_time = datetime.fromtimestamp(datetime.now().timestamp()).strftime(
         "%Y_%m_%d_%H_%M_%S"
     )
     gps_time = datetime.fromtimestamp(drone.gps_time).strftime("%Y_%m_%d_%H_%M_%S")
 
-    logging.info(f"Current system time: {system_time} current gps time {gps_time}")
+    logging.info(
+        f"MavRadioCollection: Current system time: {system_time} current gps time {gps_time}"
+    )
 
     if not args.fake_radio:
         data_collector.start()
         while data_collector.is_collecting():
             time.sleep(5)
     else:
-        while not args.exit:
-            time.sleep(5)
+        if args.run_for_seconds == 0:
+            while not args.exit:
+                time.sleep(5)
+        else:
+            time.sleep(args.run_for_seconds)
 
     # we finished lets move files out to final positions
+
+    logging.info("MavRadioCollection: Moving files to final location ...")
     for k in temp_filenames:
         os.rename(temp_filenames[k], final_filenames[k])
 
-    if not args.fake_drone:
+    if is_pi() and not args.fake_drone and not args.fake_radio:
         time.sleep(5)
         subprocess.getoutput("sudo halt")

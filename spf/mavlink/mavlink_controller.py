@@ -402,13 +402,13 @@ class Drone:
 
     # point long/lat
     def move_to_point(self, point, log_interval=5):
-        logging.info(f"CURRENT {self.gps} TARGET {str(point)}")
+        # logging.info(f"GPS: current position {self.gps} target position {str(point)}")
         self.reposition(lat=point[1], long=point[0])
         last_message = None
         while self.distance_to_target(point) > self.tolerance_in_m:
             if last_message is None or time.time() - last_message > log_interval:
                 logging.info(
-                    f"distance (m) TO TARGET {str(self.distance_to_target(point))} {self.motor_active} {self.mav_mode}"
+                    f"\tDist (m) to target {str(self.distance_to_target(point))} {self.motor_active} {self.mav_mode}"
                 )
                 last_message = time.time()
             # safety
@@ -432,12 +432,12 @@ class Drone:
                         self.reposition(lat=point[1], long=point[0])
                         time.sleep(0.5)
             time.sleep(0.1)
-        logging.info(f"REACHED TARGET {str(point)} Current {str(self.gps)}")
+        logging.info(f"\tReached target {str(point)} , current gps {str(self.gps)}")
         return True
 
     def run_planner(self):
         # self.single_operation_mode_on()
-        logging.info("Start planner")
+        logging.info("Start planner...")
         # self.single_operation_mode_on()
         # logging.info("SINGLE OPERATION MODE")
         home = self.planner.dynamics.bounding_box.mean(axis=0)
@@ -451,10 +451,10 @@ class Drone:
 
         # self.single_operation_mode_off()
         # drone.request_home()
-        logging.info("Planer main loop")
+        logging.info("Planer main loop...")
         while not self.drone_ready:
             logging.info(
-                f"wait for drone ready: gps:{str(self.gps)} , ekf:{str(self.ekf_healthy)}"
+                f"Planner wait for drone ready: gps:{str(self.gps)} , ekf:{str(self.ekf_healthy)}"
             )
             time.sleep(10)
 
@@ -465,7 +465,7 @@ class Drone:
         if not self.armed:
             self.arm()
             time.sleep(0.1)
-        logging.info("DRONE IS READY TO ROLL")
+        logging.info("Planner starting to issue move commands...")
 
         self.move_to_point(home)
         time.sleep(2)
@@ -745,7 +745,7 @@ class Drone:
                 or time.time() - self.last_heartbeat_log > log_interval
             ):
                 logging.info(
-                    f"HEARTBEAT STATUS: mav_state:{mav_state_check}"
+                    f"HEARTBEAT: mav_state:{mav_state_check}"
                     + f"gps:{gps_check}({self.gps_satellites}sats,{self.gps_fix_type}),"
                     + f"gps_healthy:{gps_healthy}, guided_mode:{guided_mode}, ekf:{self.ekf_healthy}"
                 )
@@ -757,7 +757,7 @@ class Drone:
                 # and guided_mode
                 and self.ekf_healthy
             ):
-                logging.info("SETTING DRONE TO READY!")
+                logging.info("Drone ready (gps + gps_healthy + ekf_healthy)")
                 self.drone_ready = True
 
     def handle_SYSTEM_TIME(self, msg):
@@ -776,7 +776,6 @@ class Drone:
         )
 
     def handle_STATUSTEXT(self, msg):
-        print(msg)
         logging.info(
             f"{self.connection.target_system}:{self.connection.target_component}:{msg.text}"
         )
@@ -923,7 +922,7 @@ if __name__ == "__main__":
         if args.serial is None:
             sys.exit(1)
 
-    logging.info("Connecting...")
+    logging.info("Connecting to mavlink (drone)...")
     if args.serial != "":
         connection = mavutil.mavlink_connection(args.serial, baud=115200)
     elif args.ip != "":
@@ -935,7 +934,7 @@ if __name__ == "__main__":
         logging.error("need ip or serial")
         exit(1)
 
-    logging.info("Wait heartbeat...")
+    logging.info("Waiting for heartbeat...")
     while not args.skip_heartbeat:
         if connection.wait_heartbeat(blocking=True, timeout=1):
             break
@@ -960,8 +959,6 @@ if __name__ == "__main__":
     while msg is None or msg.get_type() == "BAD_DATA":
         msg = connection.recv_match(blocking=True, timeout=0.5)
 
-    logging.info("really listening")
-
     boundary = franklin_safe
 
     planner = None
@@ -973,7 +970,7 @@ if __name__ == "__main__":
         planner=planner,
     )
 
-    logging.info("drone object created")
+    logging.info("Drone start()")
     drone.start()
     # upload_waypoints(connection)
 
@@ -992,10 +989,10 @@ if __name__ == "__main__":
     if args.get_time is not None:
         with open(args.get_time, "w") as f:
             drone.buzzer(tones["gps-time"])
-            logging.info("waiting for heartbeat")
+            logging.info("GPS-time: waiting for heartbeat")
             while drone.last_heartbeat == 0:
                 time.sleep(0.1)
-            logging.info("waiting for gps time")
+            logging.info("GPS-time: waiting for gps time")
             while drone.gps_time == 0 and drone.gps_fix_type != "GPS_FIX_TYPE_3D_FIX":
                 drone.buzzer(tones["gps-time"])
                 time.sleep(5)
