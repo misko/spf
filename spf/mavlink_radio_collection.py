@@ -181,12 +181,6 @@ if __name__ == "__main__":
         )
 
         drone.start()
-
-        data_collector = DroneDataCollector(
-            filename_npy=temp_filenames["npy"],
-            yaml_config=yaml_config,
-            position_controller=drone,
-        )
     else:
         drone = Drone(
             None,
@@ -194,6 +188,14 @@ if __name__ == "__main__":
             distance_finder=distance_finder,
             fake=True,
         )
+
+    if not args.fake_radio:
+        data_collector = DroneDataCollector(
+            filename_npy=temp_filenames["npy"],
+            yaml_config=yaml_config,
+            position_controller=drone,
+        )
+    else:
         data_collector = FakeDroneDataCollector(
             filename_npy=temp_filenames["npy"],
             yaml_config=yaml_config,
@@ -201,8 +203,7 @@ if __name__ == "__main__":
         )
 
     logging.info("MavRadioCollection: Radios online...")
-    if not args.fake_radio:
-        data_collector.radios_to_online()  # blocking
+    data_collector.radios_to_online()  # blocking
 
     while not args.fake_drone and not drone.has_planner_started_moving():
         logging.info(
@@ -225,16 +226,9 @@ if __name__ == "__main__":
         f"MavRadioCollection: Current system time: {system_time} current gps time {gps_time}"
     )
 
-    if not args.fake_radio:
-        data_collector.start()
-        while data_collector.is_collecting():
-            time.sleep(5)
-    else:
-        if args.run_for_seconds == 0:
-            while not args.exit:
-                time.sleep(5)
-        else:
-            time.sleep(args.run_for_seconds)
+    data_collector.start()
+    while data_collector.is_collecting():
+        time.sleep(5)
 
     # we finished lets move files out to final positions
 

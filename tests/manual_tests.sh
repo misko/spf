@@ -14,7 +14,7 @@ function mavlink_controller() {
 }
 
 function mavlink_radio_collection () {
-  $py ${repo_root}/spf/mavlink_radio_collection.py -c ${repo_root}/tests/rover_config.yaml -m ${repo_root}/tests/device_mapping --fake-radio $@ > mavlink_radio_collection.log 2>&1 
+  $py ${repo_root}/spf/mavlink_radio_collection.py -c ${repo_root}/tests/rover_config.yaml -m ${repo_root}/tests/device_mapping --fake-radio $@ > mavlink_radio_collection.log -n 500 2>&1 
 }
 
 echo "Test time since boot + reboot"  

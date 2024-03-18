@@ -52,7 +52,7 @@ def prepare_record_entry_v3(ds: DataSnapshot, current_pos_heading_and_time):
     # _z = struct.unpack("d", struct.pack("ff", a, b))[0]
     return np.hstack(
         [
-            ds.timestamp,
+            ds.timestamp,  # 1
             gps_time_1,  # 1
             gps_time_2,  # 1
             current_pos_heading_and_time["gps"],  # 2
@@ -82,6 +82,109 @@ def prepare_record_entry_v2(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array
             ds.beam_sds,  # 65
         ]
     )
+
+
+class FakeThreadedRX:
+    def __init__(
+        self,
+        thread_idx,
+        time_offset,
+        nthetas,
+        rx_config,
+        records_per_second=20,
+    ):
+        self.thread_idx = thread_idx
+        self.read_lock = threading.Lock()
+        self.ready_lock = threading.Lock()
+        self.ready_lock.acquire()
+        self.run = False
+        self.time_offset = time_offset
+        self.nthetas = nthetas
+        self.rx_config = rx_config
+        self.records_per_second = records_per_second
+
+    def join(self):
+        self.t.join()
+
+    def start_read_thread(self):
+        self.t = threading.Thread(target=self.read_forever, daemon=True)
+        self.run = True
+        self.t.start()
+
+    def random_signal_matrix(self):
+        return np.random.uniform(
+            -1, 1, (self.rx_config.buffer_size,)
+        ) + 1.0j * np.random.uniform(-1, 1, (self.rx_config.buffer_size,))
+
+    def read_forever(self):
+        logging.info(f"{self.thread_idx} fake read_forever()")
+        steering_vectors = precompute_steering_vectors(
+            receiver_positions=self.rx_config.rx_pos,
+            carrier_frequency=self.rx_config.lo,
+            spacing=self.nthetas,
+        )
+
+        while self.run:
+            if self.read_lock.acquire(blocking=True, timeout=0.5):
+                # got the semaphore, read some data!
+
+                tries = 0
+                try:
+                    signal_matrix = [self.random_signal_matrix() for x in range(2)]
+                    rssis = np.random.rand(
+                        2,
+                    )
+                    gains = np.random.rand(
+                        2,
+                    )
+                    time.sleep(1.0 / self.records_per_second)
+                    # rssi_and_gain = self.pplus.get_rssi_and_gain()
+                except Exception as e:
+                    logging.error(
+                        f"Failed to receive RX data! removing file : retry {tries} {e}",
+                    )
+                    time.sleep(0.1)
+                    tries += 1
+                    if tries > 15:
+                        logging.error("GIVE UP")
+                        sys.exit(1)
+
+                # process the data
+                current_time = time.time() - self.time_offset  # timestamp
+                # _, beam_sds, _ = beamformer(
+                #     self.pplus.rx_config.rx_pos,
+                #     signal_matrix,
+                #     self.pplus.rx_config.lo,
+                #     spacing=self.nthetas,
+                # )
+                signal_matrix = np.vstack(signal_matrix)
+                beam_sds = beamformer_given_steering(
+                    steering_vectors=steering_vectors, signal_matrix=signal_matrix
+                )
+                # assert np.isclose(beam_sds, beam_sds2).all()
+
+                avg_phase_diff = get_avg_phase(signal_matrix)
+
+                self.data = DataSnapshot(
+                    timestamp=current_time,
+                    rx_center_pos=self.rx_config.rx_spacing,
+                    rx_theta_in_pis=self.rx_config.rx_theta_in_pis,
+                    rx_spacing=self.rx_config.rx_spacing,
+                    beam_sds=beam_sds,
+                    avg_phase_diff=avg_phase_diff,
+                    signal_matrix=None,
+                    rssis=rssis,
+                    gains=gains,
+                )
+
+                try:
+                    self.ready_lock.release()  # tell the parent we are ready to provide
+                except Exception as e:
+                    logging.error(f"Thread encountered an issue exiting {str(e)}")
+                    self.run = False
+                # logging.info(f"{self.pplus.rx_config.uri} READY")
+
+        logging.info(f"{str(self.rx_config.uri)} PPlus read_forever() exit!")
 
 
 class ThreadedRX:
@@ -169,13 +272,29 @@ class ThreadedRX:
 
 
 class DataCollector:
-    def __init__(self, yaml_config, filename_npy, position_controller, tag=""):
+    def __init__(
+        self, yaml_config, filename_npy, position_controller, column_names, tag=""
+    ):
+        self.column_names = column_names
         self.yaml_config = yaml_config
         self.filename_npy = filename_npy
         Path(self.filename_npy).touch()
         self.record_matrix = None
         self.position_controller = position_controller
         self.finished_collecting = False
+
+        # record matrix
+        if not self.yaml_config["dry-run"]:
+            self.record_matrix = np.memmap(
+                self.filename_npy,
+                dtype="float32",
+                mode="w+",
+                shape=(
+                    2,  # TODO should be nreceivers
+                    self.yaml_config["n-records-per-receiver"],
+                    len(self.column_names),
+                ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
+            )
 
     def radios_to_online(self):
         # lets open all the radios
@@ -316,21 +435,11 @@ class DataCollector:
 
 class DroneDataCollector(DataCollector):
     def __init__(self, *args, **kwargs):
-        super(DroneDataCollector, self).__init__(*args, **kwargs)
-        self.column_names = v3rx_column_names(nthetas=self.yaml_config["n-thetas"])
-
-        # record matrix
-        if not self.yaml_config["dry-run"]:
-            self.record_matrix = np.memmap(
-                self.filename_npy,
-                dtype="float32",
-                mode="w+",
-                shape=(
-                    2,  # TODO should be nreceivers
-                    self.yaml_config["n-records-per-receiver"],
-                    len(self.column_names),
-                ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
-            )
+        super(DroneDataCollector, self).__init__(
+            *args,
+            column_names=v3rx_column_names(nthetas=kwargs["yaml_config"]["n-thetas"]),
+            **kwargs,
+        )
 
     def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
         current_pos_heading_and_time = (
@@ -345,10 +454,15 @@ class DroneDataCollector(DataCollector):
 
 class FakeDroneDataCollector(DataCollector):
     def __init__(self, *args, **kwargs):
-        super(FakeDroneDataCollector, self).__init__(*args, **kwargs)
-        self.column_names = v3rx_column_names(nthetas=self.yaml_config["n-thetas"])
+        super(FakeDroneDataCollector, self).__init__(
+            *args,
+            column_names=v3rx_column_names(nthetas=kwargs["yaml_config"]["n-thetas"]),
+            **kwargs,
+        )
 
-    def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
+    def write_to_record_matrix(
+        self, thread_idx, record_idx, read_thread: FakeThreadedRX
+    ):
         self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v3(
             ds=read_thread.data,
             current_pos_heading_and_time={
@@ -356,6 +470,47 @@ class FakeDroneDataCollector(DataCollector):
                 "gps_time": time.time(),
                 "heading": 0.0,
             },
+        )
+
+    def radios_to_online(self):
+        rx_configs = []
+        for receiver in self.yaml_config["receivers"]:
+            rx_config = ReceiverConfig(
+                lo=receiver["f-carrier"],
+                rf_bandwidth=receiver["bandwidth"],
+                sample_rate=receiver["f-sampling"],
+                gains=[receiver["rx-gain"], receiver["rx-gain"]],
+                gain_control_modes=[
+                    receiver["rx-gain-mode"],
+                    receiver["rx-gain-mode"],
+                ],
+                enabled_channels=[0, 1],
+                buffer_size=receiver["buffer-size"],
+                intermediate=receiver["f-intermediate"],
+                uri=receiver["receiver-uri"],
+                rx_spacing=receiver["antenna-spacing-m"],
+                rx_theta_in_pis=receiver["theta-in-pis"],
+                motor_channel=(
+                    receiver["motor_channel"] if "motor_channel" in receiver else None
+                ),
+                rx_buffers=receiver["rx-buffers"],
+            )
+            rx_configs.append(rx_config)
+
+        self.read_threads = []
+        time_offset = time.time()
+        for receiver_idx, rx_config in enumerate(rx_configs):
+            read_thread = FakeThreadedRX(
+                thread_idx=receiver_idx,
+                rx_config=rx_config,
+                time_offset=time_offset,
+                nthetas=self.yaml_config["n-thetas"],
+            )
+            read_thread.start_read_thread()
+            self.read_threads.append(read_thread)
+
+        self.collector_thread = threading.Thread(
+            target=self.run_collector_thread, daemon=True
         )
 
 
