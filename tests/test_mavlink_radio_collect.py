@@ -11,6 +11,8 @@ def test_foo_bar(script_runner):
             "./tests/test_device_mapping",
             "-r",
             "center",
+            "-n",
+            50,
         ]
     )
 
