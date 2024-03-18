@@ -220,9 +220,10 @@ class Drone:
         fake=False,
     ):
         self.connection = connection
-
+        self.param_count = 0
         self.heading = 0
         self.gps_time = 0
+        self.time_since_boot = 0
         self.distance_finder = distance_finder
         if self.distance_finder is not None:
             self.distance_finder.run_in_new_thread()
@@ -341,17 +342,19 @@ class Drone:
     def reset_params(self):
         self.params = MAVParmDict()
 
-    def update_all_parameters(self):
+    def update_all_parameters(self, timeout=50):
         self.connection.param_fetch_all()
-        time.sleep(5)
+        start_time = time.time()
         n = len(self.params)
-        while n < self.param_count:
-            logging.info(
-                f"Loading drone parameters: have {n} , need {self.param_count}"
-            )
+        while self.param_count == 0 or n < self.param_count:
+            if time.time() - start_time > timeout:
+                logging.error(
+                    f"Failed to pull parameters! timeout, have {n} , need {self.param_count}"
+                )
+                sys.exit(1)
             n = len(self.params)
-            time.sleep(10)
-            if n == len(self.params):
+            time.sleep(0.1)
+            if n > 0 and n == len(self.params):
                 break
         logging.info(
             f"Done loading drone parameters: have {len(self.params)} , wanted {self.param_count}"
@@ -914,6 +917,14 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument("--skip-heartbeat", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--reboot", action=argparse.BooleanOptionalAction)
+    parser.add_argument(
+        "--time-since-boot",
+        type=str,
+        help="write time since boot to file",
+        required=False,
+        default=None,
+    )
     args = parser.parse_args()
     # Create the connection
     # Need to provide the serial port and baudrate
@@ -974,6 +985,18 @@ if __name__ == "__main__":
     drone.start()
     # upload_waypoints(connection)
 
+    if args.time_since_boot is not None:
+        with open(args.time_since_boot, "w") as f:
+            while drone.time_since_boot == 0:
+                time.sleep(0.01)
+            f.write("%d\n" % int(drone.time_since_boot))
+        sys.exit(0)
+
+    if args.reboot:
+        drone.reboot(force=True)
+        time.sleep(0.1)
+        sys.exit(0)
+
     # do_mission(connection)
 
     #   connection.set_mode_auto()  # MAV_CMD_MISSION_START
@@ -1014,19 +1037,6 @@ if __name__ == "__main__":
         drone.update_all_parameters()
         if args.diff_params is not None:
             diffs = drone.params.diff(args.diff_params)
-            if diffs > 0 and args.load_params:
-                logging.info("Differences detected, trying to load changes")
-                drone.single_operation_mode_on()
-                drone.disarm()
-                time.sleep(0.1)
-                count, changed = drone.params.load(
-                    args.load_params, mav=drone.connection
-                )
-                drone.single_operation_mode_off()
-                drone.reset_params()
-                time.sleep(5)
-                drone.update_all_parameters()
-                diffs = drone.params.diff(args.diff_params)
             logging.info(f"Detected {diffs} differences")
             sys.exit(diffs)
         if args.save_params is not None:
@@ -1034,7 +1044,7 @@ if __name__ == "__main__":
         if args.load_params is not None:
             drone.single_operation_mode_on()
             drone.disarm()
-            time.sleep(0.1)
+            time.sleep(0.02)
             count, changed = drone.params.load(args.load_params, mav=drone.connection)
             drone.single_operation_mode_off()
         sys.exit(0)

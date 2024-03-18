@@ -32,7 +32,8 @@ rover_id=`cat ~/rover_id`
 #make sure parameters are set correctly on ardupilot
 params_root=${repo_root}/data_collection_model_and_results/rover/rover_v3.1/
 cat ${params_root}/rover3_base_parameters.params ${params_root}/rover3_rc_servo_parameters.params | sed "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
-python ${repo_root}/spf/mavlink/mavlink_controller.py --diff-params this_rover.params --load-params this_rover.params
+python ${repo_root}/spf/mavlink/mavlink_controller.py --load-params this_rover.params
+python ${repo_root}/spf/mavlink/mavlink_controller.py --diff-params this_rover.params 
 if [ $? -ne 0 ]; then
     echo "FAILED TO RESOLVE DIFFERENCES!!! running with incorrect params"
 fi

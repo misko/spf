@@ -210,7 +210,8 @@ if __name__ == "__main__":
         )
         if args.run_for_seconds != 0:
             time.sleep(args.run_for_seconds)
-            sys.exit(0)
+            if not drone.has_planner_started_moving():
+                sys.exit(0)
         time.sleep(5)  # easy poll this
 
     logging.info("MavRadioCollection: Planner has started controling the drone...")
