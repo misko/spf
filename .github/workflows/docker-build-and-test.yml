@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Login to Docker Hub
@@ -20,7 +20,8 @@ jobs:
         with:
           push: true
           tags: csmisko/ardupilotspf:latest
-  build:
+  pytest:
+    neeeds: build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
