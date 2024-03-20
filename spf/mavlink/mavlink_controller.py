@@ -3,6 +3,7 @@ import argparse
 import glob
 import logging
 import math
+import os
 import subprocess
 import sys
 import threading
@@ -989,7 +990,7 @@ if __name__ == "__main__":
         with open(args.time_since_boot, "w") as f:
             while drone.time_since_boot == 0:
                 time.sleep(0.01)
-            f.write("%d\n" % int(drone.time_since_boot))
+            f.write("%0.2f\n" % drone.time_since_boot)
         sys.exit(0)
 
     if args.reboot:
@@ -1035,13 +1036,20 @@ if __name__ == "__main__":
             time.sleep(3)
         drone.buzzer(tones["check-diff"])
         drone.update_all_parameters()
+
         if args.diff_params is not None:
+            if not os.path.isfile(args.diff_params):
+                logging.error(f"File {args.diff_params} does not exist!")
+                sys.exit(1)
             diffs = drone.params.diff(args.diff_params)
             logging.info(f"Detected {diffs} differences")
             sys.exit(diffs)
         if args.save_params is not None:
             drone.params.save(args.save_params)
         if args.load_params is not None:
+            if not os.path.isfile(args.load_params):
+                logging.error(f"File {args.load_params} does not exist!")
+                sys.exit(1)
             drone.single_operation_mode_on()
             drone.disarm()
             time.sleep(0.02)

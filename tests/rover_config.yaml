@@ -44,7 +44,7 @@ receivers:
     bandwidth: 300000 #3.0e5
 
 n-thetas: 65
-n-records-per-receiver: 500
+n-records-per-receiver: 200
 width: 4000
 calibration-frames: 800
 routine: null

@@ -205,14 +205,16 @@ if __name__ == "__main__":
     logging.info("MavRadioCollection: Radios online...")
     data_collector.radios_to_online()  # blocking
 
+    def check_exit():
+        if args.run_for_seconds > 0 and time.time() - start_time > args.run_for_seconds:
+            sys.exit(0)
+
+    start_time = time.time()
     while not args.fake_drone and not drone.has_planner_started_moving():
         logging.info(
             f"MavRadioCollection: Waiting for drone to start moving {time.time()}"
         )
-        if args.run_for_seconds != 0:
-            time.sleep(args.run_for_seconds)
-            if not drone.has_planner_started_moving():
-                sys.exit(0)
+        check_exit()
         time.sleep(5)  # easy poll this
 
     logging.info("MavRadioCollection: Planner has started controling the drone...")
@@ -228,6 +230,7 @@ if __name__ == "__main__":
 
     data_collector.start()
     while data_collector.is_collecting():
+        check_exit()
         time.sleep(5)
 
     # we finished lets move files out to final positions
