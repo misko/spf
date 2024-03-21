@@ -2,7 +2,6 @@ import argparse
 import json
 import logging
 import os
-import queue
 import struct
 import sys
 import threading
@@ -109,8 +108,8 @@ def data_to_snapshot(
 
 
 class BaseRX:
-    def __init__(self, queue_size=8):
-        self.queue = queue.Queue(queue_size)
+    def get_data(self):
+        pass
 
     def read_forever(self):
         logging.info(f"{str(self.rx_config.uri)} PPlus read_forever()")
@@ -121,7 +120,15 @@ class BaseRX:
         )
 
         while self.run:
-            self.queue.put(self.get_data())
+            if self.read_lock.acquire(blocking=True, timeout=0.5):
+                # got the semaphore, read some data!
+                self.get_data()
+                try:
+                    self.ready_lock.release()  # tell the parent we are ready to provide
+                except Exception as e:
+                    logging.error(f"Thread encountered an issue exiting {str(e)}")
+                    self.run = False
+                # logging.info(f"{self.pplus.rx_config.uri} READY")
 
         logging.info(f"{str(self.rx_config.uri)} PPlus read_forever() exit!")
 
@@ -135,8 +142,10 @@ class FakeThreadedRX(BaseRX):
         rx_config,
         records_per_second=20,
     ):
-        super(FakeThreadedRX, self).__init__()
         self.thread_idx = thread_idx
+        self.read_lock = threading.Lock()
+        self.ready_lock = threading.Lock()
+        self.ready_lock.acquire()
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
@@ -170,7 +179,7 @@ class FakeThreadedRX(BaseRX):
         signal_matrix = np.vstack(signal_matrix)
         current_time = time.time() - self.time_offset  # timestamp
 
-        return data_to_snapshot(
+        self.data = data_to_snapshot(
             current_time=current_time,
             signal_matrix=signal_matrix,
             steering_vectors=self.steering_vectors,
@@ -182,8 +191,10 @@ class FakeThreadedRX(BaseRX):
 
 class ThreadedRX(BaseRX):
     def __init__(self, pplus: PPlus, time_offset, nthetas):
-        super(ThreadedRX, self).__init__()
         self.pplus = pplus
+        self.read_lock = threading.Lock()
+        self.ready_lock = threading.Lock()
+        self.ready_lock.acquire()
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
@@ -219,7 +230,7 @@ class ThreadedRX(BaseRX):
         signal_matrix = np.vstack(signal_matrix)
         current_time = time.time() - self.time_offset  # timestamp
 
-        return data_to_snapshot(
+        self.data = data_to_snapshot(
             current_time=current_time,
             signal_matrix=signal_matrix,
             steering_vectors=self.steering_vectors,
@@ -381,9 +392,11 @@ class DataCollector:
     def run_collector_thread(self):
         for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
             for read_thread_idx, read_thread in enumerate(self.read_threads):
+                while not read_thread.ready_lock.acquire(timeout=0.5):
+                    pass
                 ###
                 # copy the data out
-                data = read_thread.queue.get()
+                data = read_thread.data
 
                 self.write_to_record_matrix(
                     read_thread_idx,
@@ -391,6 +404,7 @@ class DataCollector:
                     data=data,
                 )
 
+                read_thread.read_lock.release()
         logging.info("Collector thread is exiting!")
         self.finished_collecting = True
 
