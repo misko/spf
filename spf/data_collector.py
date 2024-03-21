@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import queue
 import struct
 import sys
 import threading
@@ -108,8 +109,8 @@ def data_to_snapshot(
 
 
 class BaseRX:
-    def get_data(self):
-        pass
+    def __init__(self, queue_size=8):
+        self.queue = queue.Queue(queue_size)
 
     def read_forever(self):
         logging.info(f"{str(self.rx_config.uri)} PPlus read_forever()")
@@ -120,17 +121,9 @@ class BaseRX:
         )
 
         while self.run:
-            if self.read_lock.acquire(blocking=True, timeout=0.5):
-                # got the semaphore, read some data!
-                self.get_data()
-                try:
-                    self.ready_lock.release()  # tell the parent we are ready to provide
-                except Exception as e:
-                    logging.error(f"Thread encountered an issue exiting {str(e)}")
-                    self.run = False
-                # logging.info(f"{self.pplus.rx_config.uri} READY")
+            self.queue.put(self.get_data())
 
-        logging.info(f"{str(self.pplus.rx_config.uri)} PPlus read_forever() exit!")
+        logging.info(f"{str(self.rx_config.uri)} PPlus read_forever() exit!")
 
 
 class FakeThreadedRX(BaseRX):
@@ -142,10 +135,8 @@ class FakeThreadedRX(BaseRX):
         rx_config,
         records_per_second=20,
     ):
+        super(FakeThreadedRX, self).__init__()
         self.thread_idx = thread_idx
-        self.read_lock = threading.Lock()
-        self.ready_lock = threading.Lock()
-        self.ready_lock.acquire()
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
@@ -179,7 +170,7 @@ class FakeThreadedRX(BaseRX):
         signal_matrix = np.vstack(signal_matrix)
         current_time = time.time() - self.time_offset  # timestamp
 
-        self.data = data_to_snapshot(
+        return data_to_snapshot(
             current_time=current_time,
             signal_matrix=signal_matrix,
             steering_vectors=self.steering_vectors,
@@ -191,10 +182,8 @@ class FakeThreadedRX(BaseRX):
 
 class ThreadedRX(BaseRX):
     def __init__(self, pplus: PPlus, time_offset, nthetas):
+        super(FakeThreadedRX, self).__init__()
         self.pplus = pplus
-        self.read_lock = threading.Lock()
-        self.ready_lock = threading.Lock()
-        self.ready_lock.acquire()
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
@@ -230,7 +219,7 @@ class ThreadedRX(BaseRX):
         signal_matrix = np.vstack(signal_matrix)
         current_time = time.time() - self.time_offset  # timestamp
 
-        self.data = data_to_snapshot(
+        return data_to_snapshot(
             current_time=current_time,
             signal_matrix=signal_matrix,
             steering_vectors=self.steering_vectors,
@@ -323,6 +312,7 @@ class DataCollector:
 
         # get radios online
         self.receiver_pplus = {}
+        self.rx_configs = []
         for receiver in self.yaml_config["receivers"]:
             rx_config = ReceiverConfig(
                 lo=receiver["f-carrier"],
@@ -344,6 +334,7 @@ class DataCollector:
                 ),
                 rx_buffers=receiver["rx-buffers"],
             )
+            self.rx_configs.append(rx_config)
             assert "emitter-uri" not in receiver
             assert (
                 "skip_phase_calibration" not in self.yaml_config
@@ -390,15 +381,16 @@ class DataCollector:
     def run_collector_thread(self):
         for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
             for read_thread_idx, read_thread in enumerate(self.read_threads):
-                while not read_thread.ready_lock.acquire(timeout=0.5):
-                    pass
                 ###
                 # copy the data out
+                data = read_thread.queue.get()
+
                 self.write_to_record_matrix(
-                    read_thread_idx, record_idx=record_index, read_thread=read_thread
+                    read_thread_idx,
+                    record_idx=record_index,
+                    data=data,
                 )
 
-                read_thread.read_lock.release()
         logging.info("Collector thread is exiting!")
         self.finished_collecting = True
 
@@ -416,13 +408,13 @@ class DroneDataCollector(DataCollector):
             **kwargs,
         )
 
-    def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
+    def write_to_record_matrix(self, thread_idx, record_idx, data):
         current_pos_heading_and_time = (
             self.position_controller.get_position_bearing_and_time()
         )
 
         self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v3(
-            ds=read_thread.data,
+            ds=data,
             current_pos_heading_and_time=current_pos_heading_and_time,
         )
 
@@ -435,11 +427,9 @@ class FakeDroneDataCollector(DataCollector):
             **kwargs,
         )
 
-    def write_to_record_matrix(
-        self, thread_idx, record_idx, read_thread: FakeThreadedRX
-    ):
+    def write_to_record_matrix(self, thread_idx, record_idx, data):
         self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v3(
-            ds=read_thread.data,
+            ds=data,
             current_pos_heading_and_time={
                 "gps": [0.0, 0.0],
                 "gps_time": time.time(),
@@ -448,7 +438,7 @@ class FakeDroneDataCollector(DataCollector):
         )
 
     def radios_to_online(self):
-        rx_configs = []
+        self.rx_configs = []
         for receiver in self.yaml_config["receivers"]:
             rx_config = ReceiverConfig(
                 lo=receiver["f-carrier"],
@@ -470,11 +460,11 @@ class FakeDroneDataCollector(DataCollector):
                 ),
                 rx_buffers=receiver["rx-buffers"],
             )
-            rx_configs.append(rx_config)
+            self.rx_configs.append(rx_config)
 
         self.read_threads = []
         time_offset = time.time()
-        for receiver_idx, rx_config in enumerate(rx_configs):
+        for receiver_idx, rx_config in enumerate(self.rx_configs):
             read_thread = FakeThreadedRX(
                 thread_idx=receiver_idx,
                 rx_config=rx_config,
@@ -494,16 +484,16 @@ class GrblDataCollector(DataCollector):
         super(GrblDataCollector, self).__init__(*args, **kwargs)
         self.column_names = v2_column_names(nthetas=self.yaml_config["n-thetas"])
 
-    def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
+    def write_to_record_matrix(self, thread_idx, record_idx, data):
         tx_pos = self.position_controller.controller.position["xy"][
             self.yaml_config["emitter"]["motor_channel"]
         ]
         rx_pos = self.position_controller.controller.position["xy"][
-            read_thread.pplus.rx_config.motor_channel
+            self.rx_configs[0].motor_channel
         ]
 
         self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v2(
-            ds=read_thread.data, rx_pos=rx_pos, tx_pos=tx_pos
+            ds=data, rx_pos=rx_pos, tx_pos=tx_pos
         )
 
 
