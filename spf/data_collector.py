@@ -182,7 +182,7 @@ class FakeThreadedRX(BaseRX):
 
 class ThreadedRX(BaseRX):
     def __init__(self, pplus: PPlus, time_offset, nthetas):
-        super(FakeThreadedRX, self).__init__()
+        super(ThreadedRX, self).__init__()
         self.pplus = pplus
         self.run = False
         self.time_offset = time_offset
