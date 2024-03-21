@@ -84,7 +84,56 @@ def prepare_record_entry_v2(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array
     )
 
 
-class FakeThreadedRX:
+def data_to_snapshot(
+    current_time, signal_matrix, steering_vectors, rssis, gains, rx_config
+):
+
+    beam_sds = beamformer_given_steering(
+        steering_vectors=steering_vectors, signal_matrix=signal_matrix
+    )
+
+    avg_phase_diff = get_avg_phase(signal_matrix)
+
+    return DataSnapshot(
+        timestamp=current_time,
+        rx_center_pos=rx_config.rx_spacing,
+        rx_theta_in_pis=rx_config.rx_theta_in_pis,
+        rx_spacing=rx_config.rx_spacing,
+        beam_sds=beam_sds,
+        avg_phase_diff=avg_phase_diff,
+        signal_matrix=None,
+        rssis=rssis,
+        gains=gains,
+    )
+
+
+class BaseRX:
+    def get_data(self):
+        pass
+
+    def read_forever(self):
+        logging.info(f"{str(self.rx_config.uri)} PPlus read_forever()")
+        self.steering_vectors = precompute_steering_vectors(
+            receiver_positions=self.rx_config.rx_pos,
+            carrier_frequency=self.rx_config.lo,
+            spacing=self.nthetas,
+        )
+
+        while self.run:
+            if self.read_lock.acquire(blocking=True, timeout=0.5):
+                # got the semaphore, read some data!
+                self.get_data()
+                try:
+                    self.ready_lock.release()  # tell the parent we are ready to provide
+                except Exception as e:
+                    logging.error(f"Thread encountered an issue exiting {str(e)}")
+                    self.run = False
+                # logging.info(f"{self.pplus.rx_config.uri} READY")
+
+        logging.info(f"{str(self.pplus.rx_config.uri)} PPlus read_forever() exit!")
+
+
+class FakeThreadedRX(BaseRX):
     def __init__(
         self,
         thread_idx,
@@ -116,101 +165,31 @@ class FakeThreadedRX:
             -1, 1, (self.rx_config.buffer_size,)
         ) + 1.0j * np.random.uniform(-1, 1, (self.rx_config.buffer_size,))
 
-    def read_forever(self):
-        logging.info(f"{self.thread_idx} fake read_forever()")
-        steering_vectors = precompute_steering_vectors(
-            receiver_positions=self.rx_config.rx_pos,
-            carrier_frequency=self.rx_config.lo,
-            spacing=self.nthetas,
+    def get_data(self):
+        signal_matrix = [self.random_signal_matrix() for x in range(2)]
+        rssis = np.random.rand(
+            2,
+        )
+        gains = np.random.rand(
+            2,
+        )
+        time.sleep(1.0 / self.records_per_second)
+
+        # process the data
+        signal_matrix = np.vstack(signal_matrix)
+        current_time = time.time() - self.time_offset  # timestamp
+
+        self.data = data_to_snapshot(
+            current_time=current_time,
+            signal_matrix=signal_matrix,
+            steering_vectors=self.steering_vectors,
+            rssis=rssis,
+            gains=gains,
+            rx_config=self.rx_config,
         )
 
-        while self.run:
-            if self.read_lock.acquire(blocking=True, timeout=0.5):
-                # got the semaphore, read some data!
 
-                tries = 0
-                try:
-                    signal_matrix = [self.random_signal_matrix() for x in range(2)]
-                    rssis = np.random.rand(
-                        2,
-                    )
-                    gains = np.random.rand(
-                        2,
-                    )
-                    time.sleep(1.0 / self.records_per_second)
-                    # rssi_and_gain = self.pplus.get_rssi_and_gain()
-                except Exception as e:
-                    logging.error(
-                        f"Failed to receive RX data! removing file : retry {tries} {e}",
-                    )
-                    time.sleep(0.1)
-                    tries += 1
-                    if tries > 15:
-                        logging.error("GIVE UP")
-                        sys.exit(1)
-
-                # process the data
-                current_time = time.time() - self.time_offset  # timestamp
-                # _, beam_sds, _ = beamformer(
-                #     self.pplus.rx_config.rx_pos,
-                #     signal_matrix,
-                #     self.pplus.rx_config.lo,
-                #     spacing=self.nthetas,
-                # )
-                signal_matrix = np.vstack(signal_matrix)
-                beam_sds = beamformer_given_steering(
-                    steering_vectors=steering_vectors, signal_matrix=signal_matrix
-                )
-                # assert np.isclose(beam_sds, beam_sds2).all()
-
-                avg_phase_diff = get_avg_phase(signal_matrix)
-
-                self.data = DataSnapshot(
-                    timestamp=current_time,
-                    rx_center_pos=self.rx_config.rx_spacing,
-                    rx_theta_in_pis=self.rx_config.rx_theta_in_pis,
-                    rx_spacing=self.rx_config.rx_spacing,
-                    beam_sds=beam_sds,
-                    avg_phase_diff=avg_phase_diff,
-                    signal_matrix=None,
-                    rssis=rssis,
-                    gains=gains,
-                )
-
-                try:
-                    self.ready_lock.release()  # tell the parent we are ready to provide
-                except Exception as e:
-                    logging.error(f"Thread encountered an issue exiting {str(e)}")
-                    self.run = False
-                # logging.info(f"{self.pplus.rx_config.uri} READY")
-
-        logging.info(f"{str(self.rx_config.uri)} PPlus read_forever() exit!")
-
-
-def data_to_snapshot(
-    current_time, signal_matrix, steering_vectors, rssis, gains, rx_config
-):
-
-    beam_sds = beamformer_given_steering(
-        steering_vectors=steering_vectors, signal_matrix=signal_matrix
-    )
-
-    avg_phase_diff = get_avg_phase(signal_matrix)
-
-    return DataSnapshot(
-        timestamp=current_time,
-        rx_center_pos=rx_config.rx_spacing,
-        rx_theta_in_pis=rx_config.rx_theta_in_pis,
-        rx_spacing=rx_config.rx_spacing,
-        beam_sds=beam_sds,
-        avg_phase_diff=avg_phase_diff,
-        signal_matrix=None,
-        rssis=rssis,
-        gains=gains,
-    )
-
-
-class ThreadedRX:
+class ThreadedRX(BaseRX):
     def __init__(self, pplus: PPlus, time_offset, nthetas):
         self.pplus = pplus
         self.read_lock = threading.Lock()
@@ -219,6 +198,7 @@ class ThreadedRX:
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
+        self.rx_config = self.pplus.rx_config
         assert self.pplus.rx_config.rx_pos is not None
 
     def join(self):
@@ -229,60 +209,41 @@ class ThreadedRX:
         self.run = True
         self.t.start()
 
-    def read_forever(self):
-        logging.info(f"{str(self.pplus.rx_config.uri)} PPlus read_forever()")
-        steering_vectors = precompute_steering_vectors(
-            receiver_positions=self.pplus.rx_config.rx_pos,
-            carrier_frequency=self.pplus.rx_config.lo,
-            spacing=self.nthetas,
+    def get_data(self):
+        tries = 0
+        try:
+            signal_matrix = self.pplus.sdr.rx()
+            rssis = self.pplus.rssis()
+            gains = self.pplus.gains()
+            # rssi_and_gain = self.pplus.get_rssi_and_gain()
+        except Exception as e:
+            logging.error(
+                f"Failed to receive RX data! removing file : retry {tries} {e}",
+            )
+            time.sleep(0.1)
+            tries += 1
+            if tries > 15:
+                logging.error("GIVE UP")
+                sys.exit(1)
+
+        # process the data
+        signal_matrix = np.vstack(signal_matrix)
+        current_time = time.time() - self.time_offset  # timestamp
+
+        self.data = data_to_snapshot(
+            current_time=current_time,
+            signal_matrix=signal_matrix,
+            steering_vectors=self.steering_vectors,
+            rssis=rssis,
+            gains=gains,
+            rx_config=self.pplus.rx_config,
         )
 
-        while self.run:
-            if self.read_lock.acquire(blocking=True, timeout=0.5):
-                # got the semaphore, read some data!
-                tries = 0
-                try:
-                    signal_matrix = self.pplus.sdr.rx()
-                    rssis = self.pplus.rssis()
-                    gains = self.pplus.gains()
-                    # rssi_and_gain = self.pplus.get_rssi_and_gain()
-                except Exception as e:
-                    logging.error(
-                        f"Failed to receive RX data! removing file : retry {tries} {e}",
-                    )
-                    time.sleep(0.1)
-                    tries += 1
-                    if tries > 15:
-                        logging.error("GIVE UP")
-                        sys.exit(1)
-
-                # process the data
-                signal_matrix = np.vstack(signal_matrix)
-                current_time = time.time() - self.time_offset  # timestamp
-
-                self.data = self.data_to_snapshot(
-                    current_time=current_time,
-                    signal_matrix=signal_matrix,
-                    steering_vectors=steering_vectors,
-                    rssis=rssis,
-                    gains=gains,
-                    rx_config=self.pplus.rx_config,
-                )
-
-                self.data = {
-                    "current_time": current_time,
-                    "signal_matrix": signal_matrix,
-                    "steering_vectors": steering_vectors,
-                }
-
-                try:
-                    self.ready_lock.release()  # tell the parent we are ready to provide
-                except Exception as e:
-                    logging.error(f"Thread encountered an issue exiting {str(e)}")
-                    self.run = False
-                # logging.info(f"{self.pplus.rx_config.uri} READY")
-
-        logging.info(f"{str(self.pplus.rx_config.uri)} PPlus read_forever() exit!")
+        # self.data = {
+        #    "current_time": current_time,
+        #    "signal_matrix": signal_matrix,
+        #    "steering_vectors": steering_vectors,
+        # }
 
 
 class DataCollector:
