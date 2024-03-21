@@ -187,6 +187,29 @@ class FakeThreadedRX:
         logging.info(f"{str(self.rx_config.uri)} PPlus read_forever() exit!")
 
 
+def data_to_snapshot(
+    current_time, signal_matrix, steering_vectors, rssis, gains, rx_config
+):
+
+    beam_sds = beamformer_given_steering(
+        steering_vectors=steering_vectors, signal_matrix=signal_matrix
+    )
+
+    avg_phase_diff = get_avg_phase(signal_matrix)
+
+    return DataSnapshot(
+        timestamp=current_time,
+        rx_center_pos=rx_config.rx_spacing,
+        rx_theta_in_pis=rx_config.rx_theta_in_pis,
+        rx_spacing=rx_config.rx_spacing,
+        beam_sds=beam_sds,
+        avg_phase_diff=avg_phase_diff,
+        signal_matrix=None,
+        rssis=rssis,
+        gains=gains,
+    )
+
+
 class ThreadedRX:
     def __init__(self, pplus: PPlus, time_offset, nthetas):
         self.pplus = pplus
@@ -234,32 +257,23 @@ class ThreadedRX:
                         sys.exit(1)
 
                 # process the data
-                current_time = time.time() - self.time_offset  # timestamp
-                # _, beam_sds, _ = beamformer(
-                #     self.pplus.rx_config.rx_pos,
-                #     signal_matrix,
-                #     self.pplus.rx_config.lo,
-                #     spacing=self.nthetas,
-                # )
                 signal_matrix = np.vstack(signal_matrix)
-                beam_sds = beamformer_given_steering(
-                    steering_vectors=steering_vectors, signal_matrix=signal_matrix
-                )
-                # assert np.isclose(beam_sds, beam_sds2).all()
+                current_time = time.time() - self.time_offset  # timestamp
 
-                avg_phase_diff = get_avg_phase(signal_matrix)
-
-                self.data = DataSnapshot(
-                    timestamp=current_time,
-                    rx_center_pos=self.pplus.rx_config.rx_spacing,
-                    rx_theta_in_pis=self.pplus.rx_config.rx_theta_in_pis,
-                    rx_spacing=self.pplus.rx_config.rx_spacing,
-                    beam_sds=beam_sds,
-                    avg_phase_diff=avg_phase_diff,
-                    signal_matrix=None,
+                self.data = self.data_to_snapshot(
+                    current_time=current_time,
+                    signal_matrix=signal_matrix,
+                    steering_vectors=steering_vectors,
                     rssis=rssis,
                     gains=gains,
+                    rx_config=self.pplus.rx_config,
                 )
+
+                self.data = {
+                    "current_time": current_time,
+                    "signal_matrix": signal_matrix,
+                    "steering_vectors": steering_vectors,
+                }
 
                 try:
                     self.ready_lock.release()  # tell the parent we are ready to provide
