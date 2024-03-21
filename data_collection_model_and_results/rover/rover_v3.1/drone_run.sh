@@ -47,17 +47,20 @@ echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_gover
 if [ ${rover_id} -eq 1 ]; then
     routine=bounce
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
+    n=40000
 elif [ ${rover_id} -eq 2 ]; then
     #config=${repo_root}/spf/rover_configs/rover_emitter_config_pi.yaml 
     config=${repo_root}/spf/rover_configs/rover_single_receiver_config_pi.yaml
     routine=circle
+    n=20000
 elif [ ${rover_id} -eq 3 ]; then
     routine=center
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
+    n=40000
 else
     echo Invalid rover_id 
     exit
 fi
 
 python3 ${repo_root}/spf/mavlink_radio_collection.py \
-    -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n 20000
+    -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n $n
