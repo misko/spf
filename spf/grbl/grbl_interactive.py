@@ -628,10 +628,10 @@ class GRBLManager:
         }
         self.ready = threading.Lock()
         self.ready.acquire()
-        assert routine is not None
         self.routine = routine
         self.planner_started_moving = False
-        self.planner_thread = threading.Thread(target=self.run_planner, daemon=True)
+        if self.routine is not None:
+            self.planner_thread = threading.Thread(target=self.run_planner, daemon=True)
 
     def has_planner_started_moving(self):
         return self.planner_started_moving
@@ -784,7 +784,7 @@ if __name__ == "__main__":
         level=logging.DEBUG,
     )
 
-    gm = get_default_gm(args.serial, unsafe=args.unsafe)
+    gm = get_default_gm(args.serial, unsafe=args.unsafe, routine=None)
 
     if gm.controller.position["is_moving"]:
         print("Waiting for grbl to stop moving before starting...")
