@@ -437,7 +437,7 @@ def setup_rx(rx_config, provided_pplus_rx=None):
         pplus_rx = provided_pplus_rx
     time.sleep(2)
     # get RX and drop it
-    for _ in range(400):
+    for _ in range(10):
         pplus_rx.sdr.rx()
 
     logging.info(f"RX came online with config\nRX_config:{pplus_rx.rx_config}")
@@ -650,13 +650,15 @@ def plot_recv_signal(
             axs[idx][0].clear()
             axs[idx][1].clear()
 
-            axs[idx][0].scatter(t, signal_matrix[idx].real, s=1)
+            axs[idx][0].scatter(t, signal_matrix[idx].real, s=1, alpha=0.1)
             axs[idx][0].set_xlabel("Time")
             axs[idx][0].set_ylabel("Real(signal)")
             axs[idx][0].set_ylim([-1000, 1000])
 
             sp = np.fft.fft(signal_matrix[idx])
-            axs[idx][1].scatter(freq, np.log(np.abs(sp.real)), s=1)  # , freq, sp.imag)
+            axs[idx][1].scatter(
+                freq, np.log(np.abs(sp.real)), s=1, alpha=0.1
+            )  # , freq, sp.imag)
             axs[idx][1].set_xlabel("Frequency bin")
             axs[idx][1].set_ylabel("Power")
             axs[idx][1].set_ylim([-30, 30])
@@ -665,7 +667,9 @@ def plot_recv_signal(
             axs[idx][1].legend()
 
             axs[idx][2].clear()
-            axs[idx][2].scatter(signal_matrix[idx].real, signal_matrix[idx].imag, s=1)
+            axs[idx][2].scatter(
+                signal_matrix[idx].real, signal_matrix[idx].imag, s=1, alpha=0.1
+            )
             axs[idx][2].set_xlabel("I real(signal)")
             axs[idx][2].set_ylabel("Q imag(signal)")
             axs[idx][2].set_title("IQ plot recv (%d)" % idx)
