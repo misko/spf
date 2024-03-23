@@ -42,6 +42,11 @@ MacOSX -> (USB) -> USB/Serial converted -> (TX/RX/GND) -> ESP32 (TX/RX/GND)
 Issue commands for testing and intercept using minicom on laptop,
 
 ```
+minicom -D /dev/tty.usbserial-A5XK3RJT
+# once open , meta key z (esc-z) , A to add line feed
+```
+
+```
 #TX continous chan1
 cbw40m_en 0                                                                                                    
 tx_contin_en 1                                                                                                 
@@ -80,7 +85,7 @@ tx_contin_en 0
 esp_tx 1 0 30 
 
 #TX packet with 30*0.25db atten + 50 % duty cycle
-cbw40m_en 0
+cbw40m_en 0                                                                                                   
 tx_contin_en 0
 tx_cbw40m_en 0 
 RFChannelSel 1 0
@@ -100,6 +105,26 @@ target_power_backoff 30
 WifiTxStart 655360 0 67 0 0 1 0
 
 cmdstop #STOP
+
+#TX packet with 30*0.25db atten + 10 % duty cycle                                                                                                     
+cbw40m_en 0                                                                                                   
+tx_contin_en 0                                                                                                
+tx_cbw40m_en 0                                                                                                
+RFChannelSel 1 0                                                                                              
+cmdstop                                                                                                       
+FillTxPacket 655410 4 0 0 0 0 1 2 3 4 5 6                                                                     
+target_power_backoff 30                                                                                       
+WifiTxStart 655360 0 5354 0 0 1 0 
+
+#TX packet with 30*0.25db atten + 90 % duty cycle (channel 12)
+cbw40m_en 0
+tx_contin_en 0
+tx_cbw40m_en 0 
+RFChannelSel 12 0
+cmdstop
+FillTxPacket 655462 4 0 0 0 0 1 2 3 4 5 6
+target_power_backoff 30
+WifiTxStart 655360 0 67 0 0 1 0
 
 #TX tone
 cbw40m_en 0
