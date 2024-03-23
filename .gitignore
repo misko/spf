@@ -19,3 +19,4 @@ test_data.txt
 *.tmp
 **/*.tmp
 **/mav.*
+**/testdata*
