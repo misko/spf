@@ -5,7 +5,7 @@ import adi
 from tqdm import tqdm
 
 
-def get_sdr(uri, rx_buffer_size=2 * 16):
+def get_sdr(uri, rx_buffer_size=2 * 16, rx_buffers=None):
     sdr = adi.ad9361(uri=uri)
     # Create radio
     # Configure properties
@@ -18,11 +18,14 @@ def get_sdr(uri, rx_buffer_size=2 * 16):
     sdr.gain_control_mode_chan0 = "fast_attack"
     sdr.gain_control_mode_chan1 = "fast_attack"
     sdr.tx_enabled_channels = [0]
+    if rx_buffers is not None:
+        sdr._rxadc.set_kernel_buffers_count(rx_buffers)
+
     return sdr
 
 
-def benchmark(uri, rx_buffer_size, total_samples=2**24):
-    sdr = get_sdr(uri, rx_buffer_size=rx_buffer_size)
+def benchmark(uri, rx_buffer_size, total_samples=2**24, rx_buffers=None):
+    sdr = get_sdr(uri, rx_buffer_size=rx_buffer_size, rx_buffers=rx_buffers)
     assert total_samples % rx_buffer_size == 0
     assert sdr.rx()[0].shape[0] == rx_buffer_size
     start_time = time.time()
@@ -49,11 +52,22 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--buffer-size",
+        type=str,
+        help="buffer size  (can use 2**X)",
+        required=True,
+    )
+    parser.add_argument(
+        "--rx-buffers",
         type=int,
-        help="buffer size",
+        help="how many rx buffers",
         required=True,
     )
     args = parser.parse_args()
+
+    if "2**" in args.buffer_size:
+        args.buffer_size = 2 ** (int(args.buffer_size.split("**")[1]))
+    else:
+        args.buffer_size = int(args.buffer_size)
 
     for k, v in benchmark(args.uri, args.buffer_size).items():
         print(f"{k}: {v}")
