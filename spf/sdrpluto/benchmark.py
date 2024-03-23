@@ -35,6 +35,7 @@ def benchmark(uri, rx_buffer_size, total_samples=2**24):
         "total_time": elapsed_time,
         "samples_per_second": total_samples / elapsed_time,
         "bits_per_second": total_bits / elapsed_time,
+        "Mbits_per_second": total_bits / (elapsed_time * 1024 * 1024),
     }
 
 
