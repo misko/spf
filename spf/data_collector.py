@@ -495,8 +495,11 @@ class FakeDroneDataCollector(DataCollector):
 
 class GrblDataCollector(DataCollector):
     def __init__(self, *args, **kwargs):
-        super(GrblDataCollector, self).__init__(*args, **kwargs)
-        self.column_names = v2_column_names(nthetas=self.yaml_config["n-thetas"])
+        super(GrblDataCollector, self).__init__(
+            *args,
+            column_names=v2_column_names(nthetas=kwargs["yaml_config"]["n-thetas"]),
+            **kwargs,
+        )
 
     def write_to_record_matrix(self, thread_idx, record_idx, data):
         tx_pos = self.position_controller.controller.position["xy"][
