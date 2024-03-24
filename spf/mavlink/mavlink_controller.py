@@ -353,6 +353,8 @@ class Drone:
                     f"Failed to pull parameters! timeout, have {n} , need {self.param_count}"
                 )
                 sys.exit(1)
+            if len(self.params) != n:  # if we got an update reset the clock
+                start_time = time.time()
             n = len(self.params)
             time.sleep(0.1)
             if n > 0 and n == len(self.params):
