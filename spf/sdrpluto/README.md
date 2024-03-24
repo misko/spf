@@ -1,6 +1,7 @@
 # PlutoPlus SDR
 
 ## Introduction 
+
 The PlutoPlus SDR [ link ](https://www.youtube.com/watch?v=higdhj46aUk) is a Adalm-Pluto like device based on the AD9361 [ link ](https://www.analog.com/en/products/ad9361.html). PlutoPlus has two coherent TX and RX ports. This allows the PlutoPlus to simultaneously sample from both RX ports and use the output to measure phase difference of an incoming signal.
 
 ## Interface
@@ -27,6 +28,10 @@ Turn on the receiver + emitter SDRs using setup_rxtx. Then assuming the emitter 
 
 This returns open objects to both receiver and emitter SDR. The emitter is not actively transmitting and the receiver SDR object has a phase_calibration field set.
 
+
+## Benchmarking
+
+[ Laptop / rpi4 ](https://docs.google.com/spreadsheets/d/1kEzWVTT2jg84SchoqwFrf9tJ0UjC-6dh6JA90qW3eL0/edit?usp=sharing)
 
 ## Command line client
 
