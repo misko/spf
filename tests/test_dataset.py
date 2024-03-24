@@ -6,8 +6,9 @@ from compress_pickle import dump
 
 from spf.dataset.spf_dataset import SessionsDatasetSimulated
 from spf.dataset.spf_generate import generate_session_and_dump
+from spf.dataset.v4_data import v4rx_f64_keys, v4rx_new_dataset
 from spf.rf import get_peaks_for_2rx
-from spf.utils import dotdict
+from spf.utils import dotdict, random_signal_matrix
 
 
 @pytest.fixture
@@ -126,3 +127,22 @@ def test_live_data_generation(default_args):
             "/".join([args.output, "onesession.pkl"]),
             compression="lzma",
         )
+
+
+def testv4_data_create():
+    with tempfile.TemporaryDirectory() as tmp:
+        timesteps = 11
+        buffer_size = 2**13
+        z = v4rx_new_dataset(
+            tmp + "/testdata",
+            timesteps=timesteps,
+            buffer_size=buffer_size,
+            n_receivers=2,
+        )
+        for time_idx in range(timesteps):
+            for receiver_idx in range(2):
+                z.receivers[f"r{receiver_idx}"].signal_matrix[time_idx, :] = (
+                    random_signal_matrix(2 * buffer_size).reshape(2, buffer_size)
+                )
+                for k in v4rx_f64_keys:
+                    z.receivers[f"r{receiver_idx}"][k][time_idx] = np.random.rand()

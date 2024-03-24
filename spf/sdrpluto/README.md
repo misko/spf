@@ -32,6 +32,10 @@ This returns open objects to both receiver and emitter SDR. The emitter is not a
 ## Benchmarking
 
 [ Laptop / rpi4 ](https://docs.google.com/spreadsheets/d/1kEzWVTT2jg84SchoqwFrf9tJ0UjC-6dh6JA90qW3eL0/edit?usp=sharing)
+```
+python spf/sdrpluto/benchmark.py --uri ip:192.168.1.17 --buffer-sizes '2**16' '2**18' '2**20' --rx-buffers 2 --write-to-file testdata  --chunk-size 512 1024 4096 --compress blosc1 blosc4  none zstd1 zstd4
+```
+
 
 ## Command line client
 

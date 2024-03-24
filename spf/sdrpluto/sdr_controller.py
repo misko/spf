@@ -139,6 +139,7 @@ def args_to_rx_config(args):
         intermediate=args.fi,
         uri=args.receiver_uri,
         rx_spacing=args.rx_spacing,
+        rx_buffers=args.kernel_buffers,
         # rx_theta_in_pis=0.25,
     )
 
@@ -680,7 +681,7 @@ def plot_recv_signal(
             axs[idx][1].set_title("Power recv (%d)" % idx)
         diff = pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
         axs[0][3].clear()
-        axs[0][3].scatter(t, diff, s=1)
+        axs[0][3].scatter(t, diff, s=0.3, alpha=0.1)
         mean, _mean = circular_mean(diff)
         axs[0][3].axhline(y=mean, color="black", label="circular mean")
         axs[0][3].axhline(y=_mean, color="red", label="trimmed circular mean")
@@ -771,6 +772,13 @@ if __name__ == "__main__":
         help="RX buffer size",
         required=False,
         default=int(2**9),
+    )  # 12
+    parser.add_argument(
+        "--kernel-buffers",
+        type=int,
+        help="kernel buffers",
+        required=False,
+        default=2,
     )  # 12
     parser.add_argument(
         "--rx-spacing",

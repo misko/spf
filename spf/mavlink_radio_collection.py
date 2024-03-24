@@ -191,13 +191,13 @@ if __name__ == "__main__":
 
     if not args.fake_radio:
         data_collector = DroneDataCollector(
-            filename_npy=temp_filenames["npy"],
+            data_filename=temp_filenames["npy"],
             yaml_config=yaml_config,
             position_controller=drone,
         )
     else:
         data_collector = FakeDroneDataCollector(
-            filename_npy=temp_filenames["npy"],
+            data_filename=temp_filenames["npy"],
             yaml_config=yaml_config,
             position_controller=None,
         )

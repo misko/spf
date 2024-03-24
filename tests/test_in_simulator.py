@@ -13,14 +13,16 @@ from spf import mavlink_radio_collection
 
 root_dir = os.path.dirname(os.path.dirname(spf.__file__))
 
+simulator_speedup = 5
+
 
 @pytest.fixture(scope="session")
 def adrupilot_simulator():
     client = docker.from_env()
     container = client.containers.run(
         "csmisko/ardupilotspf:latest",
-        "/ardupilot/Tools/autotest/sim_vehicle.py  -l 37.76509485,-122.40940127,0,0 \
-            -v rover -f rover-skid --out tcpin:0.0.0.0:14590  --out tcpin:0.0.0.0:14591 -S 5",
+        f"/ardupilot/Tools/autotest/sim_vehicle.py  -l 37.76509485,-122.40940127,0,0 \
+            -v rover -f rover-skid --out tcpin:0.0.0.0:14590  --out tcpin:0.0.0.0:14591 -S {simulator_speedup}",
         stdin_open=True,
         ports={
             "14590/tcp": ("127.0.0.1", 14590),
@@ -111,12 +113,12 @@ def test_time_since_boot(adrupilot_simulator):
 
 
 def test_reboot(adrupilot_simulator):
-    time1 = float(get_time_since_boot()[0])
+    time1 = float(get_time_since_boot()[0]) / simulator_speedup
     start_time = time.time()
     time.sleep(1)
     end_time = time.time()
     time.sleep(1)
-    time2 = float(get_time_since_boot()[0])
+    time2 = float(get_time_since_boot()[0]) / simulator_speedup
     assert (time2 - time1) > (end_time - start_time)
     assert (end_time - start_time) - (time2 - time1) < 20
 
@@ -128,7 +130,7 @@ def test_reboot(adrupilot_simulator):
         stderr=subprocess.STDOUT,
         env=get_env(),
     )
-    time_since_boot = float(get_time_since_boot()[0])
+    time_since_boot = float(get_time_since_boot()[0]) / simulator_speedup
     time.sleep(0.5)  # takes some time to write to disk
     end_time = time.time()
     assert (end_time - start_time) > time_since_boot
