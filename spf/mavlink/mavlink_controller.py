@@ -356,7 +356,7 @@ class Drone:
             if len(self.params) != params_read:  # if we got an update reset the clock
                 start_time = time.time()
             params_read = len(self.params)
-            if params_read > 0 and params_read == len(self.param_count):
+            if params_read > 0 and params_read == self.param_count:
                 break
             time.sleep(0.1)
         logging.info(
