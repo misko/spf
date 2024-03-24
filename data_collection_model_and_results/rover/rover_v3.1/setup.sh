@@ -6,11 +6,15 @@ if [ $# -ne 1 ]; then
 fi
 
 #assign the rover its ID
+repo_root="/home/pi/spf/"
+
 rover_id=$1
 echo ${rover_id} > ~/rover_id
 
-sudo apt-get update
-sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev -y
+
+bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/install_deps.sh
+#sudo apt-get update
+#sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev sshpass -y
 
 # virtual enviornment setup
 python -m venv ~/spf-virtualenv
