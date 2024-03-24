@@ -5,9 +5,14 @@ test -z "$VIRTUAL_ENV" && source ~/spf-virtualenv/bin/activate
 
 rover_id=`cat /home/pi/rover_id`
 
+if [ ! -f "/home/pi/.ssh/config" ]; then
+	cp ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/ssh_config /home/pi/.ssh/config
+fi
+
 python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer git
 
 echo "checking if updates available"
+bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/install_deps.sh
 pushd ${repo_root}
 current_hash=`git rev-parse --short HEAD`
 git pull
@@ -26,6 +31,9 @@ fi
 pip install -r requirements.txt
 popd
 
+# do this a bit later to give them time to boot
+echo "check pluto radios"
+bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/check_and_set_pluto.sh
 
 rover_id=`cat ~/rover_id`
 
