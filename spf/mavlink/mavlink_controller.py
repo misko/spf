@@ -346,19 +346,19 @@ class Drone:
     def update_all_parameters(self, timeout=50):
         self.connection.param_fetch_all()
         start_time = time.time()
-        n = len(self.params)
-        while self.param_count == 0 or n < self.param_count:
+        params_read = len(self.params)
+        while self.param_count == 0 or params_read < self.param_count:
             if time.time() - start_time > timeout:
                 logging.error(
-                    f"Failed to pull parameters! timeout, have {n} , need {self.param_count}"
+                    f"Failed to pull parameters! timeout, have {params_read} , need {self.param_count}"
                 )
                 sys.exit(1)
-            if len(self.params) != n:  # if we got an update reset the clock
+            if len(self.params) != params_read:  # if we got an update reset the clock
                 start_time = time.time()
-            n = len(self.params)
-            time.sleep(0.1)
-            if n > 0 and n == len(self.params):
+            params_read = len(self.params)
+            if params_read > 0 and params_read == len(self.param_count):
                 break
+            time.sleep(0.1)
         logging.info(
             f"Done loading drone parameters: have {len(self.params)} , wanted {self.param_count}"
         )
