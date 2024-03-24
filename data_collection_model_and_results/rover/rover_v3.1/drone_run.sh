@@ -31,6 +31,9 @@ fi
 pip install -r requirements.txt
 popd
 
+# do this a bit later to give them time to boot
+echo "check pluto radios"
+bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/check_and_set_pluto.sh
 
 rover_id=`cat ~/rover_id`
 
