@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import tempfile
 import time
 
 import matplotlib.path as pltpath
@@ -145,3 +146,15 @@ def test_grbl_bounce(script_runner):
         env=get_env(),
         stderr=subprocess.STDOUT,
     ).decode()
+
+
+def test_grbl_radio_collection_bounce(script_runner):
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        subprocess.check_output(
+            f"python3 {root_dir}/spf/grbl_radio_collection.py -c {root_dir}/tests/wall_array_v2_external_test.yaml"
+            + f" -r bounce -o {tmpdirname}",
+            timeout=180,
+            shell=True,
+            env=get_env(),
+            stderr=subprocess.STDOUT,
+        ).decode()

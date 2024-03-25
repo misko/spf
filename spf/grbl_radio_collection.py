@@ -41,6 +41,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "-r", "--routine", type=str, help="GRBL routine", required=False, default=None
     )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        help="output dir",
+        required=False,
+        default=None,
+    )
     args = parser.parse_args()
 
     run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
@@ -57,7 +65,7 @@ if __name__ == "__main__":
         assert yaml_config["emitter"]["type"] == "sdr"
         yaml_config["emitter"]["tx-gain"] = args.tx_gain
 
-    output_files_prefix = f"rover_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
+    output_files_prefix = f"grbl_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
     if args.tag != "":
         output_files_prefix += f"_tag_{args.tag}"
 
@@ -71,7 +79,11 @@ if __name__ == "__main__":
     filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
     filename_npy = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
     temp_filenames = [filename_log, filename_yaml, filename_npy]
-    final_filenames = [os.path.basename(x.replace(".tmp", "")) for x in temp_filenames]
+    os.makedirs(args.output_dir, exist_ok=True)
+    final_filenames = [
+        args.output_dir + "/" + os.path.basename(x.replace(".tmp", ""))
+        for x in temp_filenames
+    ]
 
     logger = logging.getLogger(__name__)
 
@@ -94,12 +106,11 @@ if __name__ == "__main__":
 
     # setup GRBL
     gm = get_default_gm(yaml_config["grbl-serial"], yaml_config["routine"])
-    if yaml_config["grbl-serial"] is not None:
-        gm.start()
+    gm.start()
 
     logging.info("Starting data collector...")
     data_collector = GrblDataCollector(
-        filename_npy=filename_npy, yaml_config=yaml_config, position_controller=gm
+        data_filename=filename_npy, yaml_config=yaml_config, position_controller=gm
     )
     data_collector.radios_to_online()  # blocking
 

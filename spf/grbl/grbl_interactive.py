@@ -336,21 +336,37 @@ class BouncePlanner(Planner):
         self.current_direction /= np.linalg.norm(self.current_direction)
 
         n_bounce = 0
+        stall = 0
+        last_point = None
         while total_bounces < 0 or n_bounce < total_bounces:
+            print("BOUNCING")
             if not run_grbl:
                 logging.info("Exiting bounce early")
                 break
             to_points, new_direction = self.single_bounce(
                 self.current_direction, current_p
             )
+
             logging.info(
                 f"{str(self)},{str(to_points[0])},{str(to_points[-1])},{str(new_direction)},{len(to_points)}"
             )
             assert len(to_points) > 0
             yield from to_points
             current_p = to_points[-1]
-            # if len(to_points) == 1:
-            #    self.current_direction = self.random_direction()
+            if len(to_points) == 1:
+                if last_point is None:
+                    last_point = to_points[0]
+                elif (last_point == to_points[0]).all():
+                    stall += 1
+                    if stall > 3:
+                        new_direction = self.random_direction()
+                        logging.info("Stalled and picking random direction")
+                else:
+                    last_point = None
+                    stall = 0
+            else:
+                last_point = None
+                stall = 0
             # else:
             self.current_direction = new_direction
             n_bounce += 1
@@ -491,7 +507,7 @@ class GRBLController:
         # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
         self.position = {"time": time.time(), "xy": np.zeros((2, 2))}
         self.serial_fn = serial_fn
-        if "none" in serial_fn or serial is None:
+        if serial_fn is None or "none" in serial_fn:
 
             #
             self._commands_queue = queue.Queue()
@@ -513,6 +529,7 @@ class GRBLController:
             self._move_thread.start()
 
             self.s = FakeStream(self._commands_queue, self._response_queue)
+            print("STARTED FAKE GRBL")
         elif serial_fn is not None:
             self.s = serial.Serial(
                 serial_fn, 115200, timeout=0.3, write_timeout=0.3

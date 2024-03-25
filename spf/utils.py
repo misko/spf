@@ -33,7 +33,7 @@ def zarr_new_dataset(
     n_receivers,
     keys_f64,
     keys_2xf64,
-    chunk_size=4096,
+    chunk_size=512,  # tested , blosc1 / chunk_size=512 / buffer_size (2^18~20) = seems pretty good
     compressor=None,
 ):
     z = zarr.open(
@@ -43,7 +43,7 @@ def zarr_new_dataset(
     if compressor is None:
         compressor = Blosc(
             cname="zstd",
-            clevel=1,
+            clevel=4,
             shuffle=Blosc.BITSHUFFLE,
         )
     z.create_group("receivers")
