@@ -43,7 +43,7 @@ def zarr_new_dataset(
     if compressor is None:
         compressor = Blosc(
             cname="zstd",
-            clevel=4,
+            clevel=1,
             shuffle=Blosc.BITSHUFFLE,
         )
     z.create_group("receivers")
