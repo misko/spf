@@ -1,5 +1,6 @@
 import argparse
 import logging
+import queue
 import sys
 import threading
 import time
@@ -468,22 +469,112 @@ class CalibrationV1Planner(Planner):
                 current_p = next_p
 
 
+class FakeStream:
+    def __init__(self, cq, rq):
+        self.cq = cq
+        self.rq = rq
+
+    def write(self, x):
+        self.cq.put(x)
+
+    def readline(self):
+        return self.rq.get()
+
+
 class GRBLController:
     def __init__(self, serial_fn, dynamics, channel_to_motor_map):
         self.dynamics = dynamics
         # Open grbl serial port ==> CHANGE THIS BELOW TO MATCH YOUR USB LOCATION
         self.position = {"time": time.time(), "xy": np.zeros((2, 2))}
         self.serial_fn = serial_fn
-        if serial_fn is not None:
+        if "none" in serial_fn or serial is None:
+
+            #
+            self._commands_queue = queue.Queue()
+            self._move_queue = queue.Queue()
+            self._response_queue = queue.Queue()
+            self._max_speed = 4000  # mm/s
+            self._timestep = 0.1
+            self._current_position = {"X": 0.0, "Y": 0.0, "Z": 0.0, "A": 0.0}
+            self._targets = self._current_position.copy()
+
+            self._fake_grbl_thread = threading.Thread(
+                target=self._run_fake_grbl, daemon=True
+            )
+            self._fake_grbl_thread.start()
+
+            self._move_thread = threading.Thread(
+                target=self._move_fake_grbl, daemon=True
+            )
+            self._move_thread.start()
+
+            self.s = FakeStream(self._commands_queue, self._response_queue)
+        elif serial_fn is not None:
             self.s = serial.Serial(
                 serial_fn, 115200, timeout=0.3, write_timeout=0.3
             )  # GRBL operates at 115200 baud. Leave that part alone.
             self.s.write("?".encode())
             grbl_out = self.s.readline()  # get the response
             logging.info(f"GRBL ONLINE {grbl_out}")
-            self.update_status()
+
+        self.update_status()
         time.sleep(0.05)
         self.channel_to_motor_map = channel_to_motor_map
+
+    def _should_move(self):
+        for k in self._targets:
+            if self._current_position[k] != self._targets[k]:
+                return True
+        return False
+
+    def _move_fake_grbl(self):
+        step_size = self._timestep * self._max_speed
+        while True:
+            if self._should_move():  # lets move
+                updated_position = self._current_position.copy()
+                for k in self._targets:
+                    max_diff = 0.0
+                    if self._current_position[k] != self._targets[k]:
+                        max_diff = max(
+                            abs(self._current_position[k] - self._targets[k]), max_diff
+                        )
+                        if self._current_position[k] > self._targets[k]:
+                            # need to decrease
+                            updated_position[k] = max(
+                                self._targets[k], self._current_position[k] - step_size
+                            )
+                        else:
+                            # need to increase
+                            updated_position[k] = min(
+                                self._targets[k], self._current_position[k] + step_size
+                            )
+                self._current_position = updated_position
+                # time.sleep(min(max_diff / self._max_speed, self._timestep))
+            else:
+                command = self._move_queue.get().decode().strip()
+                targets = self._current_position.copy()
+                # G0 X4.54 Y-1.64 Z4.54 A-1.64
+                for move_str in command.split()[1:]:
+                    channel = move_str[0]
+                    targets[channel] = float(move_str[1:])
+                self._targets = targets
+                # breakpoint()
+
+    def _run_fake_grbl(self):
+        while True:
+            command = self._commands_queue.get().decode().strip()
+            response = "OK"
+            if command.strip() == "?":
+                response = (
+                    f"<Idle|WPos:{self._current_position['X']},{self._current_position['Y']},"
+                    + f"{self._current_position['Z']},{self._current_position['A']}|FS:0,0|Ov:100,100,100>"
+                )
+            elif command.split()[0] == "G0":
+                self._move_queue.put(command.encode())
+            else:
+                print("FAKE GRBL WEIRD COMMAND", command)
+
+            self._response_queue.put(response.encode())
 
     def push_reset(self):
         self.s.write(b"\x18")
@@ -806,6 +897,8 @@ if __name__ == "__main__":
             gm.routines[line]()
             gm.get_ready()
             gm.run()
+        elif len(line) == 0:
+            continue
         elif line == "q":
             sys.exit(1)
         elif line == "s":

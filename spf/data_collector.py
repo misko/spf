@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from spf.dataset.rover_idxs import v3rx_column_names
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
+from spf.dataset.v5_data import v5rx_new_dataset
 from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import beamformer_given_steering, precompute_steering_vectors
 from spf.sdrpluto.sdr_controller import (
@@ -25,7 +26,7 @@ from spf.sdrpluto.sdr_controller import (
 
 
 @dataclass
-class DataSnapshotV4:
+class DataSnapshotRaw:
     signal_matrix: np.array
     system_timestamp: float
     rssis: np.array
@@ -33,6 +34,18 @@ class DataSnapshotV4:
     rx_theta_in_pis: float
     rx_spacing: float
     avg_phase_diff: float
+
+
+@dataclass
+class DataSnapshotV4(DataSnapshotRaw):
+    gps_timestamp: Optional[float] = None
+    gps_lat: Optional[float] = None
+    gps_long: Optional[float] = None
+    heading: Optional[float] = None
+
+
+@dataclass
+class DataSnapshotV5(DataSnapshotRaw):
     gps_timestamp: Optional[float] = None
     gps_lat: Optional[float] = None
     gps_long: Optional[float] = None
@@ -193,8 +206,7 @@ class ThreadedRX:
         )
 
 
-class ThreadedRXV4(ThreadedRX):
-
+class ThreadedRXRaw(ThreadedRX):
     def get_data(self):
         self.data = None
 
@@ -206,7 +218,7 @@ class ThreadedRXV4(ThreadedRX):
 
         avg_phase_diff = get_avg_phase(signal_matrix)
 
-        self.data = DataSnapshotV4(
+        self.data = self.snapshot_class(
             signal_matrix=signal_matrix,
             system_timestamp=current_time,
             rssis=sdr_rx["rssis"],
@@ -214,6 +226,22 @@ class ThreadedRXV4(ThreadedRX):
             rx_theta_in_pis=self.pplus.rx_config.rx_theta_in_pis,
             rx_spacing=self.pplus.rx_config.rx_spacing,
             avg_phase_diff=avg_phase_diff,
+        )
+
+
+class ThreadedRXRawV4(ThreadedRXRaw):
+    def __init__(self, **kwargs):
+        self.snapshot_class = DataSnapshotV4
+        super(ThreadedRXRawV4, self).__init__(
+            **kwargs,
+        )
+
+
+class ThreadedRXRawV5(ThreadedRXRaw):
+    def __init__(self, **kwargs):
+        self.snapshot_class = DataSnapshotV5
+        super(ThreadedRXRawV4, self).__init__(
+            **kwargs,
         )
 
 
@@ -385,11 +413,12 @@ class DataCollector:
             read_thread.join()
 
 
+# V4 data format
 class DroneDataCollectorRaw(DataCollector):
     def __init__(self, *args, **kwargs):
         super(DroneDataCollectorRaw, self).__init__(
             *args,
-            thread_class=ThreadedRXV4,
+            thread_class=ThreadedRXRawV4,
             **kwargs,
         )
 
@@ -426,6 +455,7 @@ class DroneDataCollectorRaw(DataCollector):
             z[k][record_idx] = getattr(data, k)  # getattr(data, k)
 
 
+# V3 data format
 class DroneDataCollector(DataCollector):
     def __init__(self, *args, **kwargs):
         super(DroneDataCollector, self).__init__(
@@ -458,6 +488,61 @@ class DroneDataCollector(DataCollector):
         )
 
 
+# V5 data format
+class GrblDataCollectorRaw(DataCollector):
+    def __init__(self, *args, **kwargs):
+        super(GrblDataCollectorRaw, self).__init__(
+            *args,
+            thread_class=ThreadedRXRawV5,
+            **kwargs,
+        )
+
+    def setup_record_matrix(self):
+        # make sure all receivers are sharing a common buffer size
+        buffer_size = None
+        for receiver in self.yaml_config["receivers"]:
+            assert "buffer-size" in receiver
+            if buffer_size is None:
+                buffer_size = receiver["buffer-size"]
+            else:
+                assert buffer_size == receiver["buffer-size"]
+        # record matrix
+        self.zarr = v5rx_new_dataset(
+            filename=self.data_filename,
+            timesteps=self.yaml_config["n-records-per-receiver"],
+            buffer_size=buffer_size,
+            n_receivers=len(self.yaml_config["receivers"]),
+            chunk_size=4096,
+            compressor=None,
+        )
+
+    # def write_to_record_matrix(self, thread_idx, record_idx, data):
+    #     tx_pos = self.position_controller.controller.position["xy"][
+    #         self.yaml_config["emitter"]["motor_channel"]
+    #     ]
+    #     rx_pos = self.position_controller.controller.position["xy"][
+    #         self.rx_configs[0].motor_channel
+    #     ]
+    #     current_pos_heading_and_time = (
+    #         self.position_controller.get_position_bearing_and_time()
+    #     )
+    #     data.heading = current_pos_heading_and_time["heading"]
+    #     data.gps_long = current_pos_heading_and_time["gps"][0]
+    #     data.gps_lat = current_pos_heading_and_time["gps"][1]
+
+    #     z = self.zarr[f"receivers/r{thread_idx}"]
+    #     z.signal_matrix[record_idx] = data.signal_matrix
+    #     for k in v4rx_f64_keys + v4rx_2xf64_keys:
+    #         z[k][record_idx] = getattr(data, k)  # getattr(data, k)
+
+    # def write_to_record_matrix(self, thread_idx, record_idx, data):
+
+    #     self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v2(
+    #         ds=data, rx_pos=rx_pos, tx_pos=tx_pos
+    #     )
+
+
+# V2 data format
 class GrblDataCollector(DataCollector):
     def __init__(self, *args, **kwargs):
         super(GrblDataCollector, self).__init__(
