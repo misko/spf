@@ -15,6 +15,12 @@ root_dir = os.path.dirname(os.path.dirname(spf.__file__))
 
 simulator_speedup = 5
 
+"""
+docker run --rm -it -p 14590-14595:14590-14595 ardupilot_spf /ardupilot/Tools/autotest/sim_vehicle.py \
+   -l 37.76509485,-122.40940127,0,0 -v rover -f rover-skid \
+    --out tcpin:0.0.0.0:14590  --out tcpin:0.0.0.0:14591 -S 1 
+    """
+
 
 @pytest.fixture(scope="session")
 def adrupilot_simulator():
@@ -197,7 +203,7 @@ def test_mode(adrupilot_simulator):
 
 def mavlink_radio_collection_base_command():
     return f"python3 {mavlink_radio_collection.__file__} -c {root_dir}/tests/rover_config.yaml -m \
-          {root_dir}/tests/device_mapping --fake-radio"
+          {root_dir}/tests/device_mapping"
 
 
 def test_manual_mode_stationary(adrupilot_simulator):
@@ -212,7 +218,7 @@ def test_manual_mode_stationary(adrupilot_simulator):
         ).decode()
         assert "MavRadioCollection: Waiting for drone to start moving" in output
         assert "Planner starting to issue move commands" not in output
-        assert glob.glob(f"{tmpdirname}/*.npy.tmp")
+        assert glob.glob(f"{tmpdirname}/*.zarr.tmp")
         assert glob.glob(f"{tmpdirname}/*.log.tmp")
         assert glob.glob(f"{tmpdirname}/*.yaml.tmp")
 
@@ -228,6 +234,6 @@ def test_guided_mode_moving_and_recording(adrupilot_simulator):
             stderr=subprocess.STDOUT,
         ).decode()
         assert "Planner starting to issue move commands" in output
-        assert glob.glob(f"{tmpdirname}/*.npy")
+        assert glob.glob(f"{tmpdirname}/*.zarr")
         assert glob.glob(f"{tmpdirname}/*.log")
         assert glob.glob(f"{tmpdirname}/*.yaml")

@@ -19,6 +19,7 @@ from spf.rf import (
     beamformer_thetas,
     precompute_steering_vectors,
 )
+from spf.utils import random_signal_matrix
 
 # TODO close SDR on exit
 # import signal
@@ -182,19 +183,91 @@ def get_pplus(
     uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
     global pplus_online
     if uri not in pplus_online:
-        pplus_online[uri] = PPlus(rx_config=rx_config, tx_config=tx_config, uri=uri)
+        if "fake" in uri:
+            pplus_online[uri] = FakePPlus(
+                rx_config=rx_config, tx_config=tx_config, uri=uri
+            )
+        else:
+            pplus_online[uri] = PPlus(rx_config=rx_config, tx_config=tx_config, uri=uri)
     else:
         pplus_online[uri].set_config(rx_config=rx_config, tx_config=tx_config)
     logging.debug(f"{uri}: get_pplus PlutoPlus")
     return pplus_online[uri]
 
 
+class FakeSdr:
+    def set_buffer_size(self, buffer_size):
+        self.buffer_size = buffer_size
+
+    def rx(self):
+        return random_signal_matrix(2 * self.buffer_size).reshape(2, self.buffer_size)
+
+    def tx(self, _):
+        pass
+
+
+class FakePPlus:
+    def __init__(
+        self,
+        uri: str,
+        rx_config: ReceiverConfig = None,
+        tx_config: EmitterConfig = None,
+        phase_calibration=0.0,
+    ):
+        super(FakePPlus, self).__init__()
+        self.uri = uri
+
+        self.tx_config = None
+        self.rx_config = None
+        self.set_config(rx_config=rx_config, tx_config=tx_config)
+        self.sdr = FakeSdr()
+
+    def rssis(self):
+        return np.random.rand(2)
+
+    def gains(self):
+        return np.random.rand(2)
+
+    def set_config(
+        self, rx_config: ReceiverConfig = None, tx_config: EmitterConfig = None
+    ):
+        logging.debug(f"{self.uri}: set_config RX{str(rx_config)} TX{str(tx_config)})")
+        # RX should be setup like this
+        if rx_config is not None:
+            assert self.rx_config is None
+            self.rx_config = rx_config
+            self.sdr = FakeSdr()
+
+        # TX should be setup like this
+        if tx_config is not None:
+            assert self.tx_config is None
+            self.tx_config = tx_config
+
+    def close(self):
+        pass
+
+    def setup_rx_config(self):
+        self.sdr.set_buffer_size(self.rx_config.buffer_size)
+
+    def setup_tx_config(self):
+        pass
+
+    def close_rx(self):
+        pass
+
+    def close_tx(self):
+        pass
+
+    def check_for_freq_peak(self):
+        return True
+
+
 class PPlus:
     def __init__(
         self,
+        uri: str,
         rx_config: ReceiverConfig = None,
         tx_config: EmitterConfig = None,
-        uri: str = None,
         phase_calibration=0.0,
     ):
         super(PPlus, self).__init__()

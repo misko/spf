@@ -6,7 +6,7 @@ from compress_pickle import dump
 
 from spf.dataset.spf_dataset import SessionsDatasetSimulated
 from spf.dataset.spf_generate import generate_session_and_dump
-from spf.dataset.v4_data import v4rx_f64_keys, v4rx_new_dataset
+from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.rf import get_peaks_for_2rx
 from spf.utils import dotdict, random_signal_matrix
 
@@ -146,3 +146,5 @@ def testv4_data_create():
                 )
                 for k in v4rx_f64_keys:
                     z.receivers[f"r{receiver_idx}"][k][time_idx] = np.random.rand()
+                for k in v4rx_2xf64_keys:
+                    z.receivers[f"r{receiver_idx}"][k][time_idx, :] = np.random.rand()

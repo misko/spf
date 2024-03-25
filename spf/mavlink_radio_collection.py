@@ -9,7 +9,7 @@ from datetime import datetime
 import yaml
 from pymavlink import mavutil
 
-from spf.data_collector import DroneDataCollector, FakeDroneDataCollector
+from spf.data_collector import DroneDataCollector, DroneDataCollectorRaw
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
 from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
 from spf.mavlink.mavlink_controller import (
@@ -18,6 +18,38 @@ from spf.mavlink.mavlink_controller import (
     get_ardupilot_serial,
 )
 from spf.utils import is_pi
+
+
+def filenames_from_time_in_seconds(
+    time_in_seconds, temp_dir_name, yaml_config, data_version
+):
+    os.makedirs(temp_dir_name, exist_ok=True)
+    dt = datetime.fromtimestamp(time_in_seconds)
+    date_str = dt.strftime("%Y_%m_%d_%H_%M_%S")
+
+    output_files_prefix = (
+        f"rover_{date_str}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
+    )
+    if args.tag != "":
+        output_files_prefix += f"_tag_{args.tag}"
+
+    filename_log = f"{temp_dir_name}/{output_files_prefix}.log.tmp"
+    filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
+    if data_version == 3:
+        filename_data = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
+    elif data_version == 4:
+        filename_data = f"{temp_dir_name}/{output_files_prefix}.zarr.tmp"
+    else:
+        raise NotImplementedError
+    temp_filenames = {
+        "log": filename_log,
+        "yaml": filename_yaml,
+        "data": filename_data,
+    }
+    final_filenames = {k: v.replace(".tmp", "") for k, v in temp_filenames.items()}
+
+    return temp_filenames, final_filenames
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -73,7 +105,6 @@ if __name__ == "__main__":
     ),
 
     parser.add_argument("--fake-drone", action=argparse.BooleanOptionalAction)
-    parser.add_argument("--fake-radio", action=argparse.BooleanOptionalAction)
     parser.add_argument("--exit", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
@@ -108,32 +139,12 @@ if __name__ == "__main__":
         assert yaml_config["emitter"]["type"] == "sdr"
         yaml_config["emitter"]["tx-gain"] = args.tx_gain
 
-    def filenames_from_time_in_seconds(time_in_seconds, temp_dir_name, yaml_config):
-        os.makedirs(temp_dir_name, exist_ok=True)
-        dt = datetime.fromtimestamp(time_in_seconds)
-        date_str = dt.strftime("%Y_%m_%d_%H_%M_%S")
-
-        output_files_prefix = f"rover_{date_str}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
-        if args.tag != "":
-            output_files_prefix += f"_tag_{args.tag}"
-
-        filename_log = f"{temp_dir_name}/{output_files_prefix}.log.tmp"
-        filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
-        filename_npy = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
-        temp_filenames = {
-            "log": filename_log,
-            "yaml": filename_yaml,
-            "npy": filename_npy,
-        }
-        final_filenames = {k: v.replace(".tmp", "") for k, v in temp_filenames.items()}
-
-        return temp_filenames, final_filenames
-
     # setup filename
     # tmpdir = tempfile.TemporaryDirectory()
     # temp_dir_name = tmpdir.name
+
     temp_filenames, final_filenames = filenames_from_time_in_seconds(
-        run_started_at, args.temp, yaml_config
+        run_started_at, args.temp, yaml_config, data_version=yaml_config["data-version"]
     )
 
     logger = logging.getLogger(__name__)
@@ -189,18 +200,20 @@ if __name__ == "__main__":
             fake=True,
         )
 
-    if not args.fake_radio:
+    if yaml_config["data-version"] == 3:
         data_collector = DroneDataCollector(
-            data_filename=temp_filenames["npy"],
+            data_filename=temp_filenames["data"],
+            yaml_config=yaml_config,
+            position_controller=drone,
+        )
+    elif yaml_config["data-version"] == 4:
+        data_collector = DroneDataCollectorRaw(
+            data_filename=temp_filenames["data"],
             yaml_config=yaml_config,
             position_controller=drone,
         )
     else:
-        data_collector = FakeDroneDataCollector(
-            data_filename=temp_filenames["npy"],
-            yaml_config=yaml_config,
-            position_controller=None,
-        )
+        raise NotImplementedError
 
     logging.info("MavRadioCollection: Radios online...")
     data_collector.radios_to_online()  # blocking
@@ -239,6 +252,6 @@ if __name__ == "__main__":
     for k in temp_filenames:
         os.rename(temp_filenames[k], final_filenames[k])
 
-    if is_pi() and not args.fake_drone and not args.fake_radio:
+    if is_pi() and not args.fake_drone:
         time.sleep(5)
         subprocess.getoutput("sudo halt")

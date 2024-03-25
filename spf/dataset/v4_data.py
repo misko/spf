@@ -2,19 +2,21 @@ import zarr
 from numcodecs import Blosc
 
 v4rx_f64_keys = [
-    "system_timestamps",
-    "gps_timestamps",
-    "lat",
-    "long",
+    "system_timestamp",
+    "gps_timestamp",
+    "gps_lat",
+    "gps_long",
     "heading",
+]
+v4rx_2xf64_keys = [
     "avg_phase_diff",
-    "rssi",
-    "gain",
+    "rssis",
+    "gains",
 ]
 
 
 def v4rx_keys():
-    return v4rx_f64_keys + ["signal_matrix"]
+    return v4rx_f64_keys + v4rx_2xf64_keys + ["signal_matrix"]
 
 
 def v4rx_new_dataset(
@@ -44,8 +46,16 @@ def v4rx_new_dataset(
             receiver_z.create_dataset(
                 key,
                 shape=(timesteps,),
-                chunks=(1024 * chunk_size),
+                # chunks=(1024 * chunk_size),
                 dtype="float64",
-                compressor=compressor,
+                # compressor=compressor,
+            )
+        for key in v4rx_2xf64_keys:
+            receiver_z.create_dataset(
+                key,
+                shape=(timesteps, 2),
+                # chunks=(1024 * chunk_size, 1),
+                dtype="float64",
+                # compressor=compressor,
             )
     return z

@@ -3,7 +3,6 @@ def test_foo_bar(script_runner):
         [
             "./spf/mavlink_radio_collection.py",
             "--fake-drone",
-            "--fake-radio",
             "--exit",
             "-c",
             "./tests/test_config.yaml",

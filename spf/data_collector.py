@@ -3,14 +3,14 @@ import struct
 import sys
 import threading
 import time
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 from attr import dataclass
 from tqdm import tqdm
 
 from spf.dataset.rover_idxs import v3rx_column_names
-from spf.dataset.v4_data import v4rx_new_dataset
+from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import beamformer_given_steering, precompute_steering_vectors
 from spf.sdrpluto.sdr_controller import (
@@ -22,6 +22,21 @@ from spf.sdrpluto.sdr_controller import (
     setup_rx,
     setup_rxtx,
 )
+
+
+@dataclass
+class DataSnapshotV4:
+    signal_matrix: np.array
+    system_timestamp: float
+    rssis: np.array
+    gains: np.array
+    rx_theta_in_pis: float
+    rx_spacing: float
+    avg_phase_diff: float
+    gps_timestamp: Optional[float] = None
+    gps_lat: Optional[float] = None
+    gps_long: Optional[float] = None
+    heading: Optional[float] = None
 
 
 @dataclass
@@ -101,9 +116,17 @@ def data_to_snapshot(
     )
 
 
-class BaseRX:
-    def get_data(self):
-        pass
+class ThreadedRX:
+    def __init__(self, pplus: PPlus, time_offset, nthetas):
+        self.pplus = pplus
+        self.read_lock = threading.Lock()
+        self.ready_lock = threading.Lock()
+        self.ready_lock.acquire()
+        self.run = False
+        self.time_offset = time_offset
+        self.nthetas = nthetas
+        self.rx_config = self.pplus.rx_config
+        assert self.pplus.rx_config.rx_pos is not None
 
     def read_forever(self):
         logging.info(f"{str(self.rx_config.uri)} PPlus read_forever()")
@@ -126,26 +149,6 @@ class BaseRX:
 
         logging.info(f"{str(self.rx_config.uri)} PPlus read_forever() exit!")
 
-
-class FakeThreadedRX(BaseRX):
-    def __init__(
-        self,
-        thread_idx,
-        time_offset,
-        nthetas,
-        rx_config,
-        records_per_second=20,
-    ):
-        self.thread_idx = thread_idx
-        self.read_lock = threading.Lock()
-        self.ready_lock = threading.Lock()
-        self.ready_lock.acquire()
-        self.run = False
-        self.time_offset = time_offset
-        self.nthetas = nthetas
-        self.rx_config = rx_config
-        self.records_per_second = records_per_second
-
     def join(self):
         self.t.join()
 
@@ -154,63 +157,13 @@ class FakeThreadedRX(BaseRX):
         self.run = True
         self.t.start()
 
-    def random_signal_matrix(self):
-        return np.random.uniform(
-            -1, 1, (self.rx_config.buffer_size,)
-        ) + 1.0j * np.random.uniform(-1, 1, (self.rx_config.buffer_size,))
-
-    def get_data(self):
-        signal_matrix = [self.random_signal_matrix() for x in range(2)]
-        rssis = np.random.rand(
-            2,
-        )
-        gains = np.random.rand(
-            2,
-        )
-        time.sleep(1.0 / self.records_per_second)
-
-        # process the data
-        signal_matrix = np.vstack(signal_matrix)
-        current_time = time.time() - self.time_offset  # timestamp
-
-        self.data = data_to_snapshot(
-            current_time=current_time,
-            signal_matrix=signal_matrix,
-            steering_vectors=self.steering_vectors,
-            rssis=rssis,
-            gains=gains,
-            rx_config=self.rx_config,
-        )
-
-
-class ThreadedRX(BaseRX):
-    def __init__(self, pplus: PPlus, time_offset, nthetas):
-        self.pplus = pplus
-        self.read_lock = threading.Lock()
-        self.ready_lock = threading.Lock()
-        self.ready_lock.acquire()
-        self.run = False
-        self.time_offset = time_offset
-        self.nthetas = nthetas
-        self.rx_config = self.pplus.rx_config
-        assert self.pplus.rx_config.rx_pos is not None
-
-    def join(self):
-        self.t.join()
-
-    def start_read_thread(self):
-        self.t = threading.Thread(target=self.read_forever, daemon=True)
-        self.run = True
-        self.t.start()
-
-    def get_rx(self, max_retries=15):
+    def get_rx(self, max_retries=15) -> Dict[str, Any]:
         tries = 0
         while tries < max_retries:
             try:
                 signal_matrix = self.pplus.sdr.rx()
                 rssis = self.pplus.rssis()
                 gains = self.pplus.gains()
-                # rssi_and_gain = self.pplus.get_rssi_and_gain()
                 return {"signal_matrix": signal_matrix, "rssis": rssis, "gains": gains}
             except Exception as e:
                 logging.error(
@@ -234,25 +187,55 @@ class ThreadedRX(BaseRX):
             current_time=current_time,
             signal_matrix=signal_matrix,
             steering_vectors=self.steering_vectors,
-            rssis=sdr_rx(["rssis"]),
-            gains=sdr_rx(["gains"]),
+            rssis=sdr_rx["rssis"],
+            gains=sdr_rx["gains"],
             rx_config=self.pplus.rx_config,
         )
 
 
+class ThreadedRXV4(ThreadedRX):
+
+    def get_data(self):
+        self.data = None
+
+        sdr_rx = self.get_rx()
+
+        # process the data
+        signal_matrix = np.vstack(sdr_rx["signal_matrix"])
+        current_time = time.time() - self.time_offset  # timestamp
+
+        avg_phase_diff = get_avg_phase(signal_matrix)
+
+        self.data = DataSnapshotV4(
+            signal_matrix=signal_matrix,
+            system_timestamp=current_time,
+            rssis=sdr_rx["rssis"],
+            gains=sdr_rx["gains"],
+            rx_theta_in_pis=self.pplus.rx_config.rx_theta_in_pis,
+            rx_spacing=self.pplus.rx_config.rx_spacing,
+            avg_phase_diff=avg_phase_diff,
+        )
+
+
 class DataCollector:
-    def __init__(self, yaml_config, data_filename, position_controller, tag=""):
+    def __init__(
+        self,
+        yaml_config,
+        data_filename,
+        position_controller,
+        thread_class,
+        tag="",
+    ):
         self.yaml_config = yaml_config
         self.data_filename = data_filename
         #
         self.record_matrix = None
         self.position_controller = position_controller
         self.finished_collecting = False
-
+        self.thread_class = thread_class
         self.setup_record_matrix()
 
     def radios_to_online(self):
-        # lets open all the radios
         radio_uris = []
         if self.yaml_config["emitter"]["type"] == "sdr":
             radio_uris.append(self.yaml_config["emitter"]["receiver-uri"])
@@ -295,9 +278,10 @@ class DataCollector:
                     else None
                 ),
             )
-
             pplus_rx, _ = setup_rxtx(
-                rx_config=target_rx_config, tx_config=target_tx_config, leave_tx_on=True
+                rx_config=target_rx_config,
+                tx_config=target_tx_config,
+                leave_tx_on=True,
             )
             pplus_rx.close_rx()
 
@@ -341,14 +325,18 @@ class DataCollector:
                 logging.debug("RX online!")
                 self.receiver_pplus[pplus_rx.uri] = pplus_rx
                 assert pplus_rx.rx_config.rx_pos is not None
+        self.prepare_threads()
 
+    def prepare_threads(self):
         self.read_threads = []
         time_offset = time.time()
         for _, pplus_rx in self.receiver_pplus.items():
             if pplus_rx is None:
                 continue
-            read_thread = ThreadedRX(
-                pplus_rx, time_offset, nthetas=self.yaml_config["n-thetas"]
+            read_thread = self.thread_class(
+                pplus=pplus_rx,
+                time_offset=time_offset,
+                nthetas=self.yaml_config["n-thetas"],
             )
             read_thread.start_read_thread()
             self.read_threads.append(read_thread)
@@ -397,10 +385,11 @@ class DataCollector:
             read_thread.join()
 
 
-class DroneDataCollectorChunked(DataCollector):
+class DroneDataCollectorRaw(DataCollector):
     def __init__(self, *args, **kwargs):
-        super(DroneDataCollectorChunked, self).__init__(
+        super(DroneDataCollectorRaw, self).__init__(
             *args,
+            thread_class=ThreadedRXV4,
             **kwargs,
         )
 
@@ -408,36 +397,40 @@ class DroneDataCollectorChunked(DataCollector):
         # make sure all receivers are sharing a common buffer size
         buffer_size = None
         for receiver in self.yaml_config["receivers"]:
-            assert "buffer_size" in receiver
+            assert "buffer-size" in receiver
             if buffer_size is None:
-                buffer_size = self.yaml_config["buffer_size"]
+                buffer_size = receiver["buffer-size"]
             else:
-                assert buffer_size == self.yaml_config["buffer_size"]
+                assert buffer_size == receiver["buffer-size"]
         # record matrix
         self.zarr = v4rx_new_dataset(
-            self.data_filename,
-            self.yaml_config["timesteps"],
-            buffer_size,
-            len(self.yaml_config["receivers"]),
+            filename=self.data_filename,
+            timesteps=self.yaml_config["n-records-per-receiver"],
+            buffer_size=buffer_size,
+            n_receivers=len(self.yaml_config["receivers"]),
             chunk_size=4096,
             compressor=None,
         )
 
-    # def write_to_record_matrix(self, thread_idx, record_idx, data):
-    #     current_pos_heading_and_time = (
-    #         self.position_controller.get_position_bearing_and_time()
-    #     )
+    def write_to_record_matrix(self, thread_idx, record_idx, data):
+        current_pos_heading_and_time = (
+            self.position_controller.get_position_bearing_and_time()
+        )
+        data.heading = current_pos_heading_and_time["heading"]
+        data.gps_long = current_pos_heading_and_time["gps"][0]
+        data.gps_lat = current_pos_heading_and_time["gps"][1]
 
-    #     self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v3(
-    #         ds=data,
-    #         current_pos_heading_and_time=current_pos_heading_and_time,
-    #     )
+        z = self.zarr[f"receivers/r{thread_idx}"]
+        z.signal_matrix[record_idx] = data.signal_matrix
+        for k in v4rx_f64_keys + v4rx_2xf64_keys:
+            z[k][record_idx] = getattr(data, k)  # getattr(data, k)
 
 
 class DroneDataCollector(DataCollector):
     def __init__(self, *args, **kwargs):
         super(DroneDataCollector, self).__init__(
             *args,
+            thread_class=ThreadedRX,
             **kwargs,
         )
 
@@ -450,7 +443,7 @@ class DroneDataCollector(DataCollector):
             shape=(
                 2,  # TODO should be nreceivers
                 self.yaml_config["n-records-per-receiver"],
-                v3rx_column_names(nthetas=self.yaml_config["n-thetas"]),
+                len(v3rx_column_names(nthetas=self.yaml_config["n-thetas"])),
             ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
         )
 
@@ -465,84 +458,11 @@ class DroneDataCollector(DataCollector):
         )
 
 
-class FakeDroneDataCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        super(FakeDroneDataCollector, self).__init__(
-            *args,
-            **kwargs,
-        )
-
-    def setup_record_matrix(self):
-        # record matrix
-        self.record_matrix = np.memmap(
-            self.data_filename,
-            dtype="float32",
-            mode="w+",
-            shape=(
-                2,  # TODO should be nreceivers
-                self.yaml_config["n-records-per-receiver"],
-                len(
-                    v3rx_column_names(nthetas=self.yaml_config["n-thetas"]),
-                ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
-            ),
-        )
-
-    def write_to_record_matrix(self, thread_idx, record_idx, data):
-        self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v3(
-            ds=data,
-            current_pos_heading_and_time={
-                "gps": [0.0, 0.0],
-                "gps_time": time.time(),
-                "heading": 0.0,
-            },
-        )
-
-    def radios_to_online(self):
-        self.rx_configs = []
-        for receiver in self.yaml_config["receivers"]:
-            rx_config = ReceiverConfig(
-                lo=receiver["f-carrier"],
-                rf_bandwidth=receiver["bandwidth"],
-                sample_rate=receiver["f-sampling"],
-                gains=[receiver["rx-gain"], receiver["rx-gain"]],
-                gain_control_modes=[
-                    receiver["rx-gain-mode"],
-                    receiver["rx-gain-mode"],
-                ],
-                enabled_channels=[0, 1],
-                buffer_size=receiver["buffer-size"],
-                intermediate=receiver["f-intermediate"],
-                uri=receiver["receiver-uri"],
-                rx_spacing=receiver["antenna-spacing-m"],
-                rx_theta_in_pis=receiver["theta-in-pis"],
-                motor_channel=(
-                    receiver["motor_channel"] if "motor_channel" in receiver else None
-                ),
-                rx_buffers=receiver["rx-buffers"],
-            )
-            self.rx_configs.append(rx_config)
-
-        self.read_threads = []
-        time_offset = time.time()
-        for receiver_idx, rx_config in enumerate(self.rx_configs):
-            read_thread = FakeThreadedRX(
-                thread_idx=receiver_idx,
-                rx_config=rx_config,
-                time_offset=time_offset,
-                nthetas=self.yaml_config["n-thetas"],
-            )
-            read_thread.start_read_thread()
-            self.read_threads.append(read_thread)
-
-        self.collector_thread = threading.Thread(
-            target=self.run_collector_thread, daemon=True
-        )
-
-
 class GrblDataCollector(DataCollector):
     def __init__(self, *args, **kwargs):
         super(GrblDataCollector, self).__init__(
             *args,
+            thread_class=ThreadedRX,
             **kwargs,
         )
 
@@ -555,7 +475,7 @@ class GrblDataCollector(DataCollector):
             shape=(
                 2,  # TODO should be nreceivers
                 self.yaml_config["n-records-per-receiver"],
-                v2_column_names(nthetas=self.yaml_config["n-thetas"]),
+                len(v2_column_names(nthetas=self.yaml_config["n-thetas"])),
             ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
         )
 

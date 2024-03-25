@@ -15,7 +15,7 @@ distance-finder:
 #USB  2   (Radio A)  |     USB 1 (Radio B)
 receivers:
   #radio A
-  - receiver-port: 2
+  - receiver-uri: fake:A
     theta-in-pis: 0
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
@@ -29,7 +29,7 @@ receivers:
     f-sampling: 16000000 # 16.0e6
     bandwidth: 300000 #3.0e5
   #radio B
-  - receiver-port: 1
+  - receiver-uri: fake:B
     theta-in-pis: 0.5
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
@@ -52,3 +52,5 @@ routine: null
 drone-uri: serial
 
 dry-run: False
+
+data-version: 4
