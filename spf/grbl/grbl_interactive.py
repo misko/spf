@@ -1,6 +1,7 @@
 import argparse
 import logging
 import queue
+import select
 import sys
 import threading
 import time
@@ -480,6 +481,9 @@ class FakeStream:
     def readline(self):
         return self.rq.get()
 
+    def close(self):
+        pass
+
 
 class GRBLController:
     def __init__(self, serial_fn, dynamics, channel_to_motor_map):
@@ -839,6 +843,9 @@ class GRBLManager:
             ),
         ]
 
+    def close(self):
+        self.controller.close()
+
 
 def get_default_dynamics(unsafe=False):
     return GRBLDynamics(
@@ -860,6 +867,13 @@ def get_default_gm(serial_fn, routine, unsafe=False):
     )
 
     return GRBLManager(controller, routine=routine)
+
+
+def exit_fine():
+    global run_grbl
+    run_grbl = False
+    print("EXIT!!")
+    sys.exit(0)
 
 
 if __name__ == "__main__":
@@ -891,43 +905,55 @@ if __name__ == "__main__":
     )
     for k in gm.routines:
         print("        ", k)
-    for line in sys.stdin:
-        line = line.strip()
-        if line in gm.routines:
-            gm.routines[line]()
-            gm.get_ready()
-            gm.run()
-        elif len(line) == 0:
-            continue
-        elif line == "q":
-            sys.exit(1)
-        elif line == "s":
-            p = gm.controller.update_status()
-            print(p)
-        elif len(line.split()) == 3:
-            target_channel = int(line.split()[0])
-            points_iter = {
-                target_channel: iter(
-                    a_to_b_in_stepsize(
-                        gm.controller.update_status()["xy"][target_channel],
-                        np.array([float(x) for x in line.split()[1:]]),
-                        5,
+    while run_grbl:
+        if select.select(
+            [
+                sys.stdin,
+            ],
+            [],
+            [],
+            0.1,
+        )[0]:
+            line = sys.stdin.readline()
+            line = line.strip()
+            if line in gm.routines:
+                gm.routines[line]()
+                gm.get_ready()
+                gm.run()
+            elif line.split()[0] == "timer":
+                t = threading.Timer(float(line.split()[1]), exit_fine)
+                t.start()
+            elif len(line) == 0:
+                continue
+            elif line == "q":
+                sys.exit(0)
+            elif line == "s":
+                p = gm.controller.update_status()
+                print(p)
+            elif len(line.split()) == 3:
+                target_channel = int(line.split()[0])
+                points_iter = {
+                    target_channel: iter(
+                        a_to_b_in_stepsize(
+                            gm.controller.update_status()["xy"][target_channel],
+                            np.array([float(x) for x in line.split()[1:]]),
+                            5,
+                        )
                     )
-                )
-            }
-            gm.controller.move_to_iter(points_iter)
-        else:
-            points_iter = {
-                c: iter(
-                    a_to_b_in_stepsize(
-                        gm.controller.update_status()["xy"][c],
-                        np.array([float(x) for x in line.split()]),
-                        5,
+                }
+                gm.controller.move_to_iter(points_iter)
+            else:
+                points_iter = {
+                    c: iter(
+                        a_to_b_in_stepsize(
+                            gm.controller.update_status()["xy"][c],
+                            np.array([float(x) for x in line.split()]),
+                            5,
+                        )
                     )
-                )
-                for c in [0, 1]
-            }
-            gm.controller.move_to_iter(points_iter)
-        time.sleep(0.01)
+                    for c in [0, 1]
+                }
+                gm.controller.move_to_iter(points_iter)
+            time.sleep(0.01)
 
     gm.close()

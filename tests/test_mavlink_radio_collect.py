@@ -1,4 +1,4 @@
-def test_foo_bar(script_runner):
+def test_mavlink_radio_collect(script_runner):
     result = script_runner.run(
         [
             "./spf/mavlink_radio_collection.py",

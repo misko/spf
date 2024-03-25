@@ -1,9 +1,13 @@
+import os
+import subprocess
+import sys
 import time
 
 import matplotlib.path as pltpath
 import numpy as np
 from shapely import geometry
 
+import spf
 from spf.grbl.grbl_interactive import (
     BouncePlanner,
     GRBLDynamics,
@@ -12,6 +16,14 @@ from spf.grbl.grbl_interactive import (
     home_pA,
     home_pB,
 )
+
+root_dir = os.path.dirname(os.path.dirname(spf.__file__))
+
+
+def get_env():
+    env = os.environ.copy()
+    env["PYTHONPATH"] = ":".join(sys.path)
+    return env
 
 
 def test_steps_and_steps_inverse():
@@ -113,3 +125,23 @@ def test_binary_search_edge():
     lp, nd = planner.get_bounce_pos_and_new_direction(lp, nd)
     planner.single_bounce(direction, p)
     [x for x in planner.bounce(p, 10)]
+
+
+def test_grbl_simple_move(script_runner):
+    subprocess.check_output(
+        f"cat {root_dir}/tests/grbl_test_simple_move | python3 {root_dir}/spf/grbl/grbl_interactive.py none",
+        timeout=180,
+        shell=True,
+        env=get_env(),
+        stderr=subprocess.STDOUT,
+    ).decode()
+
+
+def test_grbl_bounce(script_runner):
+    subprocess.check_output(
+        f"cat {root_dir}/tests/grbl_test_bounce | python3 {root_dir}/spf/grbl/grbl_interactive.py none",
+        timeout=180,
+        shell=True,
+        env=get_env(),
+        stderr=subprocess.STDOUT,
+    ).decode()
