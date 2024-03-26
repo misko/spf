@@ -76,7 +76,7 @@ if __name__ == "__main__":
         args.temp,
         yaml_config,
         data_version=yaml_config["data-version"],
-        craft="rover",
+        craft="wallarrayv3",
         tag=args.tag,
     )
 
