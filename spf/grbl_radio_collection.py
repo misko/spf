@@ -2,14 +2,14 @@ import argparse
 import json
 import logging
 import os
-import tempfile
 import time
 from datetime import datetime
 
 import yaml
 
-from spf.data_collector import GrblDataCollector
+from spf.data_collector import GrblDataCollector, GrblDataCollectorRaw
 from spf.grbl.grbl_interactive import get_default_gm
+from spf.utils import DataVersionNotImplemented, filenames_from_time_in_seconds
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -49,9 +49,12 @@ if __name__ == "__main__":
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "--temp", type=str, help="temp dirname", required=False, default="./temp"
+    )
     args = parser.parse_args()
 
-    run_started_at = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    run_started_at = datetime.now().timestamp()  #
     # read YAML
     with open(args.yaml_config, "r") as stream:
         yaml_config = yaml.safe_load(stream)
@@ -65,32 +68,24 @@ if __name__ == "__main__":
         assert yaml_config["emitter"]["type"] == "sdr"
         yaml_config["emitter"]["tx-gain"] = args.tx_gain
 
-    output_files_prefix = f"grbl_{run_started_at}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
-    if args.tag != "":
-        output_files_prefix += f"_tag_{args.tag}"
-
     if "dry-run" not in yaml_config or args.dry_run:
         yaml_config["dry-run"] = args.dry_run
 
-    # setup filename
-    tmpdir = tempfile.TemporaryDirectory()
-    temp_dir_name = tmpdir.name
-    filename_log = f"{temp_dir_name}/{output_files_prefix}.log.tmp"
-    filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
-    filename_npy = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
-    temp_filenames = [filename_log, filename_yaml, filename_npy]
-    os.makedirs(args.output_dir, exist_ok=True)
-    final_filenames = [
-        args.output_dir + "/" + os.path.basename(x.replace(".tmp", ""))
-        for x in temp_filenames
-    ]
+    temp_filenames, final_filenames = filenames_from_time_in_seconds(
+        run_started_at,
+        args.temp,
+        yaml_config,
+        data_version=yaml_config["data-version"],
+        craft="rover",
+        tag=args.tag,
+    )
 
     logger = logging.getLogger(__name__)
 
     # setup logging
     handlers = [
         logging.StreamHandler(),
-        logging.FileHandler(filename_log),
+        logging.FileHandler(temp_filenames["log"]),
     ]
     logging.basicConfig(
         handlers=handlers,
@@ -99,7 +94,7 @@ if __name__ == "__main__":
     )
 
     # make a copy of the YAML
-    with open(filename_yaml, "w") as outfile:
+    with open(temp_filenames["yaml"], "w") as outfile:
         yaml.dump(yaml_config, outfile, default_flow_style=False)
 
     logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
@@ -109,15 +104,27 @@ if __name__ == "__main__":
     gm.start()
 
     logging.info("Starting data collector...")
-    data_collector = GrblDataCollector(
-        data_filename=filename_npy, yaml_config=yaml_config, position_controller=gm
-    )
+    if yaml_config["data-version"] == 2:
+        data_collector = GrblDataCollector(
+            data_filename=temp_filenames["data"],
+            yaml_config=yaml_config,
+            position_controller=gm,
+        )
+    elif yaml_config["data-version"] == 5:
+        data_collector = GrblDataCollectorRaw(
+            data_filename=temp_filenames["data"],
+            yaml_config=yaml_config,
+            position_controller=gm,
+        )
+    else:
+        raise DataVersionNotImplemented
+
     data_collector.radios_to_online()  # blocking
 
     while not gm.has_planner_started_moving():
         logging.info(f"waiting for grbl to start moving {time.time()}")
         time.sleep(5)  # easy poll this
-    logging.info("DRONE IS READY!!! LETS GOOO!!!")
+    logging.info("GRBL IS READY!!! LETS GOOO!!!")
 
     data_collector.start()
     while data_collector.is_collecting():

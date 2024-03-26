@@ -9,3 +9,12 @@ python 12_task2_model_training.py --dataset ./sessions_sigma0.0_sources3_n8192_t
 
 #just fly without radio
 python mavlink_controller.py --ip 192.168.1.140 --port 14532 --planner circle
+
+
+#!/bin/bash
+repo_root=/home/pi/spf
+export PYTHONPATH=${repo_root}
+test -z "$VIRTUAL_ENV" && source ~/spf-virtualenv/bin/activate
+routine=circle
+config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
+python3 ${repo_root}/spf/mavlink_radio_collection.py -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n 2000 --fake-drone

@@ -1,13 +1,13 @@
 from spf.utils import zarr_new_dataset
 
 v5rx_f64_keys = [
-    "timestamp",
+    "system_timestamp",
     "tx_pos_x_mm",
     "tx_pos_y_mm",
     "rx_pos_x_mm",
     "rx_pos_y_mm",
-    "rx_theta",
-    "rx_spacing_m",
+    "rx_theta_in_pis",
+    "rx_spacing",
 ]
 
 

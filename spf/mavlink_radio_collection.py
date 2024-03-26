@@ -17,39 +17,7 @@ from spf.mavlink.mavlink_controller import (
     drone_get_planner,
     get_ardupilot_serial,
 )
-from spf.utils import is_pi
-
-
-def filenames_from_time_in_seconds(
-    time_in_seconds, temp_dir_name, yaml_config, data_version
-):
-    os.makedirs(temp_dir_name, exist_ok=True)
-    dt = datetime.fromtimestamp(time_in_seconds)
-    date_str = dt.strftime("%Y_%m_%d_%H_%M_%S")
-
-    output_files_prefix = (
-        f"rover_{date_str}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
-    )
-    if args.tag != "":
-        output_files_prefix += f"_tag_{args.tag}"
-
-    filename_log = f"{temp_dir_name}/{output_files_prefix}.log.tmp"
-    filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
-    if data_version == 3:
-        filename_data = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
-    elif data_version == 4:
-        filename_data = f"{temp_dir_name}/{output_files_prefix}.zarr.tmp"
-    else:
-        raise NotImplementedError
-    temp_filenames = {
-        "log": filename_log,
-        "yaml": filename_yaml,
-        "data": filename_data,
-    }
-    final_filenames = {k: v.replace(".tmp", "") for k, v in temp_filenames.items()}
-
-    return temp_filenames, final_filenames
-
+from spf.utils import DataVersionNotImplemented, filenames_from_time_in_seconds, is_pi
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -144,7 +112,12 @@ if __name__ == "__main__":
     # temp_dir_name = tmpdir.name
 
     temp_filenames, final_filenames = filenames_from_time_in_seconds(
-        run_started_at, args.temp, yaml_config, data_version=yaml_config["data-version"]
+        run_started_at,
+        args.temp,
+        yaml_config,
+        data_version=yaml_config["data-version"],
+        craft="rover",
+        tag=args.tag,
     )
 
     logger = logging.getLogger(__name__)
@@ -213,7 +186,7 @@ if __name__ == "__main__":
             position_controller=drone,
         )
     else:
-        raise NotImplementedError
+        raise DataVersionNotImplemented
 
     logging.info("MavRadioCollection: Radios online...")
     data_collector.radios_to_online()  # blocking

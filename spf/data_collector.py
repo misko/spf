@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from spf.dataset.rover_idxs import v3rx_column_names
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
-from spf.dataset.v5_data import v5rx_new_dataset
+from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import beamformer_given_steering, precompute_steering_vectors
 from spf.sdrpluto.sdr_controller import (
@@ -46,10 +46,10 @@ class DataSnapshotV4(DataSnapshotRaw):
 
 @dataclass
 class DataSnapshotV5(DataSnapshotRaw):
-    gps_timestamp: Optional[float] = None
-    gps_lat: Optional[float] = None
-    gps_long: Optional[float] = None
-    heading: Optional[float] = None
+    tx_pos_x_mm: Optional[float] = None
+    tx_pos_y_mm: Optional[float] = None
+    rx_pos_x_mm: Optional[float] = None
+    rx_pos_y_mm: Optional[float] = None
 
 
 @dataclass
@@ -240,7 +240,7 @@ class ThreadedRXRawV4(ThreadedRXRaw):
 class ThreadedRXRawV5(ThreadedRXRaw):
     def __init__(self, **kwargs):
         self.snapshot_class = DataSnapshotV5
-        super(ThreadedRXRawV4, self).__init__(
+        super(ThreadedRXRawV5, self).__init__(
             **kwargs,
         )
 
@@ -516,30 +516,23 @@ class GrblDataCollectorRaw(DataCollector):
             compressor=None,
         )
 
-    # def write_to_record_matrix(self, thread_idx, record_idx, data):
-    #     tx_pos = self.position_controller.controller.position["xy"][
-    #         self.yaml_config["emitter"]["motor_channel"]
-    #     ]
-    #     rx_pos = self.position_controller.controller.position["xy"][
-    #         self.rx_configs[0].motor_channel
-    #     ]
-    #     current_pos_heading_and_time = (
-    #         self.position_controller.get_position_bearing_and_time()
-    #     )
-    #     data.heading = current_pos_heading_and_time["heading"]
-    #     data.gps_long = current_pos_heading_and_time["gps"][0]
-    #     data.gps_lat = current_pos_heading_and_time["gps"][1]
+    def write_to_record_matrix(self, thread_idx, record_idx, data):
+        tx_pos = self.position_controller.controller.position["xy"][
+            self.yaml_config["emitter"]["motor_channel"]
+        ]
+        rx_pos = self.position_controller.controller.position["xy"][
+            self.rx_configs[0].motor_channel
+        ]
 
-    #     z = self.zarr[f"receivers/r{thread_idx}"]
-    #     z.signal_matrix[record_idx] = data.signal_matrix
-    #     for k in v4rx_f64_keys + v4rx_2xf64_keys:
-    #         z[k][record_idx] = getattr(data, k)  # getattr(data, k)
+        data.tx_pos_x_mm = tx_pos[0]
+        data.tx_pos_y_mm = tx_pos[1]
+        data.rx_pos_x_mm = rx_pos[0]
+        data.rx_pos_y_mm = rx_pos[1]
 
-    # def write_to_record_matrix(self, thread_idx, record_idx, data):
-
-    #     self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v2(
-    #         ds=data, rx_pos=rx_pos, tx_pos=tx_pos
-    #     )
+        z = self.zarr[f"receivers/r{thread_idx}"]
+        z.signal_matrix[record_idx] = data.signal_matrix
+        for k in v5rx_f64_keys + v5rx_2xf64_keys:
+            z[k][record_idx] = getattr(data, k)
 
 
 # V2 data format
