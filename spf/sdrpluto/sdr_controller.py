@@ -673,6 +673,10 @@ def circular_mean(angles, trim=50.0):
     return pi_norm(cm), pi_norm(_cm)
 
 
+def get_phase_diff(signal_matrix):
+    return np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])
+
+
 def get_avg_phase(signal_matrix, trim=0.0):
     return circular_mean(
         np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]), trim=50.0

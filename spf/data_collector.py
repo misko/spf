@@ -130,7 +130,7 @@ def data_to_snapshot(
 
 
 class ThreadedRX:
-    def __init__(self, pplus: PPlus, time_offset, nthetas):
+    def __init__(self, pplus: PPlus, time_offset, nthetas, seconds_per_sample=0):
         self.pplus = pplus
         self.read_lock = threading.Lock()
         self.ready_lock = threading.Lock()
@@ -139,6 +139,7 @@ class ThreadedRX:
         self.time_offset = time_offset
         self.nthetas = nthetas
         self.rx_config = self.pplus.rx_config
+        self.seconds_per_sample = seconds_per_sample
         assert self.pplus.rx_config.rx_pos is not None
 
     def read_forever(self):
@@ -149,7 +150,10 @@ class ThreadedRX:
             spacing=self.nthetas,
         )
 
+        average_time_per_loop = -1
+        alpha = 0.99
         while self.run:
+            start_time = time.time()
             if self.read_lock.acquire(blocking=True, timeout=0.5):
                 # got the semaphore, read some data!
                 self.get_data()
@@ -159,6 +163,19 @@ class ThreadedRX:
                     logging.error(f"Thread encountered an issue exiting {str(e)}")
                     self.run = False
                 # logging.info(f"{self.pplus.rx_config.uri} READY")
+            finish_time = time.time()
+            elapsed_time = finish_time - start_time
+            if average_time_per_loop < 0:
+                average_time_per_loop = elapsed_time
+            else:
+                average_time_per_loop = (
+                    average_time_per_loop * alpha + (1 - alpha) * elapsed_time
+                )
+            if (
+                self.seconds_per_sample >= 0
+                and average_time_per_loop < self.seconds_per_sample
+            ):
+                time.sleep(self.seconds_per_sample - average_time_per_loop)
 
         logging.info(f"{str(self.rx_config.uri)} PPlus read_forever() exit!")
 
@@ -245,6 +262,29 @@ class ThreadedRXRawV5(ThreadedRXRaw):
         )
 
 
+def rx_config_from_receiver_yaml(receiver_yaml):
+    return ReceiverConfig(
+        lo=receiver_yaml["f-carrier"],
+        rf_bandwidth=receiver_yaml["bandwidth"],
+        sample_rate=receiver_yaml["f-sampling"],
+        gains=[receiver_yaml["rx-gain"], receiver_yaml["rx-gain"]],
+        gain_control_modes=[
+            receiver_yaml["rx-gain-mode"],
+            receiver_yaml["rx-gain-mode"],
+        ],
+        enabled_channels=[0, 1],
+        buffer_size=receiver_yaml["buffer-size"],
+        intermediate=receiver_yaml["f-intermediate"],
+        uri=receiver_yaml["receiver-uri"],
+        rx_spacing=receiver_yaml["antenna-spacing-m"],
+        rx_theta_in_pis=receiver_yaml["theta-in-pis"],
+        motor_channel=(
+            receiver_yaml["motor_channel"] if "motor_channel" in receiver_yaml else None
+        ),
+        rx_buffers=receiver_yaml["rx-buffers"],
+    )
+
+
 class DataCollector:
     def __init__(
         self,
@@ -317,26 +357,7 @@ class DataCollector:
         self.receiver_pplus = {}
         self.rx_configs = []
         for receiver in self.yaml_config["receivers"]:
-            rx_config = ReceiverConfig(
-                lo=receiver["f-carrier"],
-                rf_bandwidth=receiver["bandwidth"],
-                sample_rate=receiver["f-sampling"],
-                gains=[receiver["rx-gain"], receiver["rx-gain"]],
-                gain_control_modes=[
-                    receiver["rx-gain-mode"],
-                    receiver["rx-gain-mode"],
-                ],
-                enabled_channels=[0, 1],
-                buffer_size=receiver["buffer-size"],
-                intermediate=receiver["f-intermediate"],
-                uri=receiver["receiver-uri"],
-                rx_spacing=receiver["antenna-spacing-m"],
-                rx_theta_in_pis=receiver["theta-in-pis"],
-                motor_channel=(
-                    receiver["motor_channel"] if "motor_channel" in receiver else None
-                ),
-                rx_buffers=receiver["rx-buffers"],
-            )
+            rx_config = rx_config_from_receiver_yaml(receiver)
             self.rx_configs.append(rx_config)
             assert "emitter-uri" not in receiver
             assert (
@@ -361,10 +382,14 @@ class DataCollector:
         for _, pplus_rx in self.receiver_pplus.items():
             if pplus_rx is None:
                 continue
+            seconds_per_sample = -1
+            if "seconds-per-sample" in self.yaml_config:
+                seconds_per_sample = self.yaml_config["seconds-per-sample"]
             read_thread = self.thread_class(
                 pplus=pplus_rx,
                 time_offset=time_offset,
                 nthetas=self.yaml_config["n-thetas"],
+                seconds_per_sample=seconds_per_sample,
             )
             read_thread.start_read_thread()
             self.read_threads.append(read_thread)

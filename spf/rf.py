@@ -417,7 +417,7 @@ def precompute_steering_vectors(
 
 
 @njit
-def beamformer_given_steering_core(
+def beamformer_given_steering_nomean(
     steering_vectors,
     signal_matrix,
 ):
@@ -433,7 +433,9 @@ def beamformer_given_steering(
     steering_vectors,
     signal_matrix,
 ):
-    return beamformer_given_steering_core(steering_vectors, signal_matrix).mean(axis=1)
+    return beamformer_given_steering_nomean(steering_vectors, signal_matrix).mean(
+        axis=1
+    )
 
 
 def beamformer_thetas(spacing):
