@@ -43,7 +43,7 @@ receivers:
 
 
 n-thetas: 65
-n-records-per-receiver: 10000
+n-records-per-receiver: 5000
 width: 4000
 calibration-frames: 10
 routine: null
@@ -51,3 +51,4 @@ skip_phase_calibration: true
   
 
 data-version: 5
+samples-per-second: 0.1
