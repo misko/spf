@@ -51,4 +51,4 @@ skip_phase_calibration: true
   
 
 data-version: 5
-seconds-per-sample: 10.0
+seconds-per-sample: 5.0
