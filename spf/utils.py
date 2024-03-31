@@ -39,8 +39,9 @@ def zarr_new_dataset(
     chunk_size=512,  # tested , blosc1 / chunk_size=512 / buffer_size (2^18~20) = seems pretty good
     compressor=None,
 ):
+    store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
     z = zarr.open(
-        filename,
+        store=store,
         mode="w",
     )
     if compressor is None:
