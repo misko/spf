@@ -2,7 +2,7 @@
 
 [see it in action!](https://youtube.com/shorts/b038KuCyPF4)
 
-Instead of simulations we can collect real world data by moving a emitter around in 2D space while keeping our receiver in a fixed location.
+Instead of simulations we can collect real world data by moving an emitter and receiver around in 2D space independently.
 
 ![v2 hardware setup](https://www.dropbox.com/scl/fi/9y2xf46r71b6mdybov16p/v2_hardware_setup.jpeg?rlkey=aa345dnhjz9b14sy8g4uebel9&raw=1)
 
