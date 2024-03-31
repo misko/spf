@@ -6,6 +6,12 @@ Instead of simulations we can collect real world data by moving several rovers a
 
 Youtube [link](https://youtu.be/6D6IM0DY81c)
 
+Youtube (mission) [link](https://youtu.be/8VCVYs3H9HY)
+
+![Rover 3.1](./rover_3p1_A.jpeg)
+
+![Rover 3.1](./rover_3p1_B.jpeg)
+
 ## Construction
 
 A is the right side when looking at the front of rover (?)
