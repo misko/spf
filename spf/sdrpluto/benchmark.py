@@ -101,7 +101,7 @@ def benchmark(
     write_thread.join()
     elapsed_time = time.time() - start_time
     total_bits = total_samples * 2 * 128
-    return {
+    ret = {
         "total_time": elapsed_time,
         "samples_per_second": total_samples / elapsed_time,
         "bits_per_second": total_bits / elapsed_time,
@@ -111,6 +111,8 @@ def benchmark(
         "data_ratio": z.nbytes / (z.nbytes_stored + 1.0),
         "data": z,
     }
+    store.close()
+    return ret
 
 
 if __name__ == "__main__":
