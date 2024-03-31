@@ -38,6 +38,7 @@ def benchmark(
     filename=None,
     compress=None,
     chunk_size=1024,
+    store=None,
 ):
 
     z = None
@@ -56,8 +57,16 @@ def benchmark(
                 )
             else:
                 raise NotImplementedError
+        if store is None or store == "directory":
+            store = zarr.DirectoryStore(filename)
+        elif store == "lmdb":
+            store = zarr.LMDBStore(
+                filename, map_size=2**38, writemap=True, map_async=True
+            )
+        else:
+            raise NotImplementedError
         z = zarr.open(
-            filename,
+            store=store,
             mode="w",
             shape=(2, total_samples),
             chunks=(1, 1024 * chunk_size),
@@ -144,6 +153,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--compress", type=str, help="file", required=False, default="none", nargs="+"
     )
+    parser.add_argument(
+        "--stores",
+        type=str,
+        help="store",
+        required=False,
+        default="directory",
+        nargs="+",
+    )
 
     args = parser.parse_args()
 
@@ -155,15 +172,19 @@ if __name__ == "__main__":
 
     buffer_sizes = [numify(buffer_size) for buffer_size in args.buffer_sizes]
     args.total_samples = numify(args.total_samples)
-    print("compression\tbuffer_size\tchunk_size\tproperty\tvalue")
+    print("compression\tstore\tbuffer_size\tchunk_size\tproperty\tvalue")
     for compress in args.compress:
-        for buffer_size in buffer_sizes:
-            for chunk_size in args.chunk_sizes:
-                for k, v in benchmark(
-                    args.uri,
-                    buffer_size,
-                    filename=args.write_to_file,
-                    compress=compress,
-                    chunk_size=chunk_size,
-                ).items():
-                    print(f"{compress}\t{buffer_size}\t{chunk_size}\t{k}\t{v}")
+        for store in args.stores:
+            for buffer_size in buffer_sizes:
+                for chunk_size in args.chunk_sizes:
+                    for k, v in benchmark(
+                        args.uri,
+                        buffer_size,
+                        store=store,
+                        filename=args.write_to_file,
+                        compress=compress,
+                        chunk_size=chunk_size,
+                    ).items():
+                        print(
+                            f"{compress}\t{store}\t{buffer_size}\t{chunk_size}\t{k}\t{v}"
+                        )

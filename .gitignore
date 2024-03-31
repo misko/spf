@@ -4,7 +4,6 @@
 spf/data
 **/*.npy
 **/*.zip
-test_data
 test_data.zip
 test_data_dl.zip
 test_data.txt
@@ -21,3 +20,4 @@ test_data.txt
 **/mav.*
 **/testdata*
 **/temp
+**/sessions*
