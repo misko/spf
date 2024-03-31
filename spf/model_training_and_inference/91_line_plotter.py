@@ -13,7 +13,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    ds = SessionsDatasetSimulated(args.dataset, snapshots_in_sample=args.steps)
+    ds = SessionsDatasetSimulated(args.dataset, snapshots_per_session=args.steps)
     session = ds[args.session_idx]
     filenames = plot_lines(session, args.steps, args.output_prefix)
 

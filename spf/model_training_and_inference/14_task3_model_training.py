@@ -584,7 +584,7 @@ if __name__ == "__main__":
         )
     else:
         ds = SessionsDatasetTask2(
-            args.dataset, snapshots_in_sample=max(args.snapshots_per_sample)
+            args.dataset, snapshots_per_session=max(args.snapshots_per_sample)
         )
     # ds_test=SessionsDatasetTask2(args.test_dataset,snapshots_in_sample=max(args.snapshots_per_sample))
     train_size = int(len(ds) * args.test_fraction)

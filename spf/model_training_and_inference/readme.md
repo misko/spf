@@ -70,13 +70,38 @@ or second (idx=1) session.
 
 
 ## Generate some basic data
+
+This uses the defaults, one receiver moving around in a bounce pattern with an 11 element radio array in a linear pattern, with two stationary source elements that randomly emitt (only ever one at a time, XOR).
+```
 python 01_generate_data.py
+```
+
+more realistically, we can generate data using one receiver moving along in a bounce pattern with a 2 element radio array in a linear pattern
+
+```
+python3 01_generate_data.py --array-type linear --elements 2 --sources 1 --width 128 --detector-trajectory bounce --detector-speed 0.0 --time-steps 256 --time-interval 0.3 --live true --output sessions-twoelement --sessions 200000000 --seed 1337  --source-speed 4.0 --beam-former-spacing 65  --fixed-detector 64 10 --sigma 0.2
+```
 
 ## Load and visualize the first session (png and gif output)
-python 90_session_plotter.py --session ./sessions-default/session_00000000.pkl 
+
+Plot the first examples output with the 11 element receiver array.
+
+```
+python 90_session_plotter.py --dataset sessions-default --session-idx 1
+```
+
+Plot the second examples output with the 2 element receiver array. 
+```
+python 90_session_plotter.py --dataset sessions-twoelement --session-idx 1 --snapshots-per-session 32
+```
+
 
 ## Train a model
+```
 python 12_task2_model_training.py --dataset ./sessions-default
+```
 
 ## Generate more data
+```
 bash 00_setup.sh
+```

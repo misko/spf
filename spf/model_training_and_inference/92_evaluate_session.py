@@ -64,7 +64,7 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
 
     ds = SessionsDatasetTask2(
-        args.dataset, snapshots_in_sample=args.snapshots_per_sample
+        args.dataset, snapshots_per_session=args.snapshots_per_sample
     )
     train_size = int(len(ds) * args.test_fraction)
     test_size = len(ds) - train_size

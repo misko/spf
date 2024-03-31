@@ -82,16 +82,16 @@ class dotdict(dict):
 
 
 class SessionsDatasetSimulated(Dataset):
-    def __init__(self, root_dir, snapshots_in_sample=5):
+    def __init__(self, root_dir, snapshots_per_session=5):
         """
         Arguments:
           root_dir (string): Directory with all the images.
         """
         self.root_dir = root_dir
         self.args = load("/".join([self.root_dir, "args.pkl"]), compression="lzma")
-        assert self.args.time_steps >= snapshots_in_sample
-        self.samples_per_session = self.args.time_steps - snapshots_in_sample + 1
-        self.snapshots_in_sample = snapshots_in_sample
+        assert self.args.time_steps >= snapshots_per_session
+        self.samples_per_session = self.args.time_steps - snapshots_per_session + 1
+        self.snapshots_in_sample = snapshots_per_session
         if not self.args.live:
             print("NOT LIVE")
             self.filenames = sorted(
@@ -579,9 +579,9 @@ class SessionsDatasetRealTask2(SessionsDatasetRealV1):
         d["detector_position_at_t_normalized_centered"] = 2 * (
             d["detector_position_at_t"] / self.args.width - 0.5
         )
-        d["source_distance_at_t_normalized"] = d["source_distance_at_t"].mean(
-            axis=2
-        ) / (self.args.width / 2)
+        d["source_distance_at_t_normalized"] = d["source_distance_at_t"] / (
+            self.args.width / 2
+        )
         return d  # ,d['source_positions_at_t']
 
 
@@ -598,9 +598,9 @@ class SessionsDatasetTask2(SessionsDatasetSimulated):
         d["detector_position_at_t_normalized_centered"] = 2 * (
             d["detector_position_at_t"] / self.args.width - 0.5
         )
-        d["source_distance_at_t_normalized"] = d["source_distance_at_t"].mean(
-            axis=2
-        ) / (self.args.width / 2)
+        d["source_distance_at_t_normalized"] = d["source_distance_at_t"] / (
+            self.args.width / 2
+        )
         return d  # ,d['source_positions_at_t']
 
 

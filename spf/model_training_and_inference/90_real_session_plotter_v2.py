@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 from spf.dataset.spf_dataset import SessionsDatasetRealV2
-from spf.plot.plot import filenames_to_gif, plot_full_session, plot_full_session_v2
+from spf.plot.plot import filenames_to_gif, plot_full_session_v2
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
