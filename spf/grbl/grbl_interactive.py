@@ -16,7 +16,7 @@ home_pA = np.array([3568, 0])
 home_pB = np.array([0, 0])
 home_bounding_box = np.array(
     [
-        [500, 450],
+        [500, 400],
         [3000, 450],
         [3000, 2800],
         [1900, 2800],
@@ -65,7 +65,7 @@ impossible to get the payload to MotorMountB , because there
 would be no tension on the GT2 belts
 
 """
-home_calibration_point = np.array([500, 450])
+home_calibration_point = np.array([500, 400])
 
 
 def a_to_b_in_stepsize_np(a, b, step_size):
