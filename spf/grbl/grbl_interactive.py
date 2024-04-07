@@ -65,7 +65,7 @@ impossible to get the payload to MotorMountB , because there
 would be no tension on the GT2 belts
 
 """
-home_calibration_point = np.array([500, 400])
+home_calibration_point = np.array([500, 450])
 
 
 def a_to_b_in_stepsize_np(a, b, step_size):
