@@ -11,6 +11,7 @@ import torch
 import yaml
 from compress_pickle import load
 from deepdiff import DeepDiff
+from numba import njit
 from torch.utils.data import Dataset
 
 from spf.dataset.rover_idxs import (  # v3rx_column_names,
@@ -49,6 +50,7 @@ from spf.plot.image_utils import (
 from spf.rf import ULADetector
 
 
+@njit
 def pi_norm(x):
     return ((x + np.pi) % (2 * np.pi)) - np.pi
 
