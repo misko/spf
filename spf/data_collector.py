@@ -23,6 +23,7 @@ from spf.sdrpluto.sdr_controller import (
     setup_rx,
     setup_rxtx,
 )
+from spf.utils import zarr_shrink
 
 
 @dataclass
@@ -437,6 +438,11 @@ class DataCollector:
         for read_thread_idx, read_thread in enumerate(self.read_threads):
             read_thread.join()
 
+        self.close()
+
+    def close(self):
+        pass
+
 
 # V4 data format
 class DroneDataCollectorRaw(DataCollector):
@@ -478,6 +484,11 @@ class DroneDataCollectorRaw(DataCollector):
         z.signal_matrix[record_idx] = data.signal_matrix
         for k in v4rx_f64_keys + v4rx_2xf64_keys:
             z[k][record_idx] = getattr(data, k)  # getattr(data, k)
+
+    def close(self):
+        self.zarr.store.close()
+        self.zarr = None
+        zarr_shrink(self.data_filename)
 
 
 # V3 data format
@@ -558,6 +569,11 @@ class GrblDataCollectorRaw(DataCollector):
         z.signal_matrix[record_idx] = data.signal_matrix
         for k in v5rx_f64_keys + v5rx_2xf64_keys:
             z[k][record_idx] = getattr(data, k)
+
+    def close(self):
+        self.zarr.store.close()
+        self.zarr = None
+        zarr_shrink(self.data_filename)
 
 
 # V2 data format

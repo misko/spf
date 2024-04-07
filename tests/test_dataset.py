@@ -9,7 +9,12 @@ from spf.dataset.spf_generate import generate_session_and_dump
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.rf import get_peaks_for_2rx
-from spf.utils import dotdict, random_signal_matrix
+from spf.utils import (
+    dotdict,
+    random_signal_matrix,
+    zarr_open_from_lmdb_store,
+    zarr_shrink,
+)
 
 
 @pytest.fixture
@@ -155,8 +160,9 @@ def testv5_data_create():
     with tempfile.TemporaryDirectory() as tmp:
         timesteps = 11
         buffer_size = 2**13
+        fn = tmp + "/testdata"
         z = v5rx_new_dataset(
-            tmp + "/testdata",
+            fn,
             timesteps=timesteps,
             buffer_size=buffer_size,
             n_receivers=2,
@@ -170,3 +176,12 @@ def testv5_data_create():
                     z.receivers[f"r{receiver_idx}"][k][time_idx] = np.random.rand()
                 for k in v5rx_2xf64_keys:
                     z.receivers[f"r{receiver_idx}"][k][time_idx, :] = np.random.rand()
+
+        z1 = z.receivers.r1.signal_matrix[:]
+        z.store.close()
+        z = None
+
+        zarr_shrink(fn)
+
+        z = zarr_open_from_lmdb_store(fn)
+        assert np.isclose(z1, z.receivers.r1.signal_matrix[:]).all()

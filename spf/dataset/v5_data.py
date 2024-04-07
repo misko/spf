@@ -23,7 +23,7 @@ def v5rx_keys():
 
 
 def v5rx_new_dataset(
-    filename, timesteps, buffer_size, n_receivers, chunk_size=4096, compressor=None
+    filename, timesteps, buffer_size, n_receivers, chunk_size=1024, compressor=None
 ):
     return zarr_new_dataset(
         filename=filename,
@@ -32,4 +32,6 @@ def v5rx_new_dataset(
         n_receivers=n_receivers,
         keys_f64=v5rx_f64_keys,
         keys_2xf64=v5rx_2xf64_keys,
+        chunk_size=chunk_size,
+        compressor=compressor,
     )

@@ -29,6 +29,32 @@ def random_signal_matrix(n):
     return np.random.uniform(-1, 1, (n,)) + 1.0j * np.random.uniform(-1, 1, (n,))
 
 
+def zarr_remove_if_exists(zarr_fn):
+    for fn in ["data.mdb", "lock.mdb"]:
+        if os.path.exists(zarr_fn + "/" + fn):
+            os.remove(zarr_fn + "/" + fn)
+
+
+def zarr_shrink(filename):
+    store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
+    store.db.set_mapsize(1)
+    print(store.db.info())
+    store.close()
+
+
+def zarr_open_from_lmdb_store(filename, mode="r"):
+    if mode == "r":
+        store = zarr.LMDBStore(filename, map_size=2**38, writemap=False, readonly=True)
+    elif mode == "w":
+        store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
+    else:
+        raise NotImplementedError
+    return zarr.open(
+        store=store,
+        mode=mode,
+    )
+
+
 def zarr_new_dataset(
     filename,
     timesteps,
@@ -39,17 +65,16 @@ def zarr_new_dataset(
     chunk_size=512,  # tested , blosc1 / chunk_size=512 / buffer_size (2^18~20) = seems pretty good
     compressor=None,
 ):
-    store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
-    z = zarr.open(
-        store=store,
-        mode="w",
-    )
+    zarr_remove_if_exists(filename)
+    z = zarr_open_from_lmdb_store(filename, mode="w")
     if compressor is None:
         compressor = Blosc(
             cname="zstd",
             clevel=1,
             shuffle=Blosc.BITSHUFFLE,
         )
+    else:
+        raise NotImplementedError
     z.create_group("receivers")
     for receiver_idx in range(n_receivers):
         receiver_z = z["receivers"].create_group(f"r{receiver_idx}")
