@@ -661,6 +661,22 @@ def setup_rxtx_and_phase_calibration(
     return None, None
 
 
+# returns circular_stddev and trimmed cricular stddev
+def circular_stddev(v, u, trim=50.0):
+    diff_from_mean = np.abs(
+        np.vstack([v - (u - 2 * np.pi), v - u, v - (u + 2 * np.pi)])
+    ).min(axis=0)
+    _diff_from_mean = diff_from_mean[
+        diff_from_mean <= np.percentile(diff_from_mean, 100.0 - trim)
+    ]
+    stddev = np.sqrt((diff_from_mean**2).sum() / (diff_from_mean.shape[0] - 1))
+    trimmed_stddev = np.sqrt(
+        (_diff_from_mean**2).sum() / (_diff_from_mean.shape[0] - 1)
+    )
+    return stddev, trimmed_stddev
+
+
+# returns circular mean and trimmed circular mean
 def circular_mean(angles, trim=50.0):
     # n = angles.shape[0]
     # assert angles.ndim == 1 or np.prod(a.shape[1:]) == 1
@@ -673,14 +689,68 @@ def circular_mean(angles, trim=50.0):
     return pi_norm(cm), pi_norm(_cm)
 
 
+def chunkify_array_start_end_idxs(v, window_size, stride):
+    assert (v.shape[0] - window_size) % stride == 0
+    steps = 1 + (v.shape[0] - window_size) // stride
+    for step in range(steps):
+        yield step * stride, step * stride + window_size
+
+
+def windowed_trimmed_circular_mean_and_stddev(v, window_size, stride, trim=50.0):
+    windows = []
+    for start_idx, end_idx in chunkify_array_start_end_idxs(
+        v, window_size=window_size, stride=stride
+    ):
+        _v = v[start_idx:end_idx]
+        assert _v.shape[0] > 0
+        trimmed_cm = circular_mean(_v, trim=trim)[1]
+        windows.append(
+            {
+                "start_idx": start_idx,
+                "end_idx": end_idx,
+                "mean": trimmed_cm,
+                "stddev": circular_stddev(_v, trimmed_cm, trim=trim)[1],
+            }
+        )
+    return windows
+
+
+def simple_segment(
+    v, window_size, stride, trim, mean_diff_threshold, max_stddev_threshold
+):
+    valid_windows = []
+    for window in windowed_trimmed_circular_mean_and_stddev(
+        v, window_size=window_size, stride=stride, trim=trim
+    ):
+        # is this a valid region
+        if window["stddev"] < max_stddev_threshold:
+            if (
+                len(valid_windows) > 0  # if this is the first window
+                and valid_windows[-1]["end_idx"]
+                >= window["start_idx"]  # check for overlap
+                and abs(valid_windows[-1]["mean"] - window["mean"])
+                <= mean_diff_threshold  # if not within tolerance
+            ):
+                # append to previous window
+                valid_windows[-1]["end_idx"] = window["end_idx"]
+                valid_windows[-1]["mean"] = window["mean"]  # recompute later
+            else:
+                # add  a new window
+                valid_windows.append(window.copy())
+    # re-compute final stats as they are off
+    for window in valid_windows:
+        _v = v[window["start_idx"] : window["end_idx"]]
+        window["mean"] = circular_mean(_v, trim=trim)[1]
+        window["stddev"] = circular_stddev(_v, window["mean"], trim=trim)[1]
+    return valid_windows
+
+
 def get_phase_diff(signal_matrix):
-    return np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])
+    return pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
 
 
 def get_avg_phase(signal_matrix, trim=0.0):
-    return circular_mean(
-        np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]), trim=50.0
-    )
+    return circular_mean(get_phase_diff(signal_matrix=signal_matrix), trim=50.0)
 
 
 def plot_recv_signal(

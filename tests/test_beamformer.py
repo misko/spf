@@ -1,6 +1,7 @@
 import numpy as np
 
 from spf.rf import IQSource, UCADetector, ULADetector, beamformer, c, rotation_matrix
+from spf.sdrpluto.sdr_controller import simple_segment
 
 
 def test_beamformer():
@@ -80,4 +81,93 @@ def test_beamformer():
                     # plt.axvline(x=-rot_theta)
                     # plt.axhline(y=beam_former_outputs_at_t.max()-potential_error)
                     # plt.show()
-    print("PASS!")
+
+
+def test_simple_segment():
+    rng = np.random.default_rng(12345)
+    fake_signal = rng.standard_normal(400)
+
+    ground_truth_windows = [
+        {"start_idx": 0, "end_idx": 100, "mean": 0.5},
+        {"start_idx": 200, "end_idx": 300, "mean": 1.3},
+        {"start_idx": 300, "end_idx": 400, "mean": 1.25},
+    ]
+
+    for window in ground_truth_windows:
+        fake_signal[window["start_idx"] : window["end_idx"]] /= 10
+        fake_signal[window["start_idx"] : window["end_idx"]] += window["mean"]
+
+    mean_diff_threshold = 0.05
+    segmented_windows = simple_segment(
+        fake_signal,
+        window_size=100,
+        stride=50,
+        trim=10,
+        mean_diff_threshold=mean_diff_threshold,
+        max_stddev_threshold=0.1,
+    )
+
+    assert segmented_windows[0]["start_idx"] == ground_truth_windows[0]["start_idx"]
+    assert segmented_windows[0]["end_idx"] == ground_truth_windows[0]["end_idx"]
+    assert np.isclose(
+        segmented_windows[0]["mean"],
+        ground_truth_windows[0]["mean"],
+        mean_diff_threshold,
+    )
+
+    assert segmented_windows[1]["start_idx"] == ground_truth_windows[1]["start_idx"]
+    assert segmented_windows[1]["end_idx"] == ground_truth_windows[2]["end_idx"]
+    assert np.isclose(
+        segmented_windows[1]["mean"],
+        ground_truth_windows[1]["mean"],
+        mean_diff_threshold,
+    )
+
+
+def test_simple_segment_separate():
+    rng = np.random.default_rng(12345)
+    fake_signal = rng.standard_normal(400)
+
+    ground_truth_windows = [
+        {"start_idx": 0, "end_idx": 100, "mean": 0.5},
+        {"start_idx": 200, "end_idx": 300, "mean": 1.3},
+        {"start_idx": 300, "end_idx": 400, "mean": 1.1},
+    ]
+
+    for window in ground_truth_windows:
+        fake_signal[window["start_idx"] : window["end_idx"]] /= 10
+        fake_signal[window["start_idx"] : window["end_idx"]] += window["mean"]
+
+    mean_diff_threshold = 0.05
+    segmented_windows = simple_segment(
+        fake_signal,
+        window_size=100,
+        stride=50,
+        trim=10,
+        mean_diff_threshold=mean_diff_threshold,
+        max_stddev_threshold=0.1,
+    )
+
+    assert segmented_windows[0]["start_idx"] == ground_truth_windows[0]["start_idx"]
+    assert segmented_windows[0]["end_idx"] == ground_truth_windows[0]["end_idx"]
+    assert np.isclose(
+        segmented_windows[0]["mean"],
+        ground_truth_windows[0]["mean"],
+        mean_diff_threshold,
+    )
+
+    assert segmented_windows[1]["start_idx"] == ground_truth_windows[1]["start_idx"]
+    assert segmented_windows[1]["end_idx"] == ground_truth_windows[1]["end_idx"]
+    assert np.isclose(
+        segmented_windows[1]["mean"],
+        ground_truth_windows[1]["mean"],
+        mean_diff_threshold,
+    )
+
+    assert segmented_windows[2]["start_idx"] == ground_truth_windows[2]["start_idx"]
+    assert segmented_windows[2]["end_idx"] == ground_truth_windows[2]["end_idx"]
+    assert np.isclose(
+        segmented_windows[2]["mean"],
+        ground_truth_windows[2]["mean"],
+        mean_diff_threshold,
+    )
