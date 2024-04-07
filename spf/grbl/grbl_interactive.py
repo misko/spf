@@ -16,12 +16,12 @@ home_pA = np.array([3568, 0])
 home_pB = np.array([0, 0])
 home_bounding_box = np.array(
     [
-        [500, 400],
-        [3000, 400],
+        [500, 450],
+        [3000, 450],
         [3000, 2800],
         [1900, 2800],
         [900, 2000],
-        [500, 450],
+        [500, 500],
     ]
 )
 rx_calibration_point = np.array([1930, 2770])
