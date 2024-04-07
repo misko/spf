@@ -20,7 +20,7 @@ from spf.rf import (
     beamformer_thetas,
     precompute_steering_vectors,
 )
-from spf.utils import random_signal_matrix
+from spf.utils import random_signal_matrix, zarr_open_from_lmdb_store_cm
 
 # TODO close SDR on exit
 # import signal
@@ -711,8 +711,12 @@ def circular_mean(angles, trim=50.0):
     return pi_norm(cm), pi_norm(_cm)
 
 
+def segment_session_star(args):
+    return segment_session(*args)
+
+
 def segment_session(
-    z,
+    zarr_fn,
     receiver,
     session_idx,
     window_size,
@@ -721,16 +725,17 @@ def segment_session(
     mean_diff_threshold,
     max_stddev_threshold,
 ):
-    signal_matrix = z.receivers[receiver].signal_matrix[session_idx]
-    pd = get_phase_diff(signal_matrix)
-    return simple_segment(
-        pd,
-        window_size=window_size,
-        stride=stride,
-        trim=trim,
-        mean_diff_threshold=mean_diff_threshold,  #
-        max_stddev_threshold=max_stddev_threshold,  # just eyeballed this
-    )
+    with zarr_open_from_lmdb_store_cm(zarr_fn) as z:
+        signal_matrix = z.receivers[receiver].signal_matrix[session_idx]
+        pd = get_phase_diff(signal_matrix)
+        return simple_segment(
+            pd,
+            window_size=window_size,
+            stride=stride,
+            trim=trim,
+            mean_diff_threshold=mean_diff_threshold,  #
+            max_stddev_threshold=max_stddev_threshold,  # just eyeballed this
+        )
 
 
 @njit

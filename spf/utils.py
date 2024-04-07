@@ -1,4 +1,5 @@
 import os
+from contextlib import contextmanager
 from datetime import datetime
 
 import numpy as np
@@ -42,9 +43,24 @@ def zarr_shrink(filename):
     store.close()
 
 
+@contextmanager
+def zarr_open_from_lmdb_store_cm(filename, mode="r"):
+    try:
+        z = zarr_open_from_lmdb_store(filename, mode)
+        yield z
+    finally:
+        z.store.close()
+
+
 def zarr_open_from_lmdb_store(filename, mode="r"):
     if mode == "r":
-        store = zarr.LMDBStore(filename, map_size=2**38, writemap=False, readonly=True)
+        store = zarr.LMDBStore(
+            filename,
+            map_size=2**38,
+            writemap=False,
+            readonly=True,
+            max_readers=1024 * 1024,
+        )
     elif mode == "w":
         store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
     else:
