@@ -6,6 +6,8 @@ v4rx_f64_keys = [
     "gps_lat",
     "gps_long",
     "heading",
+    "rx_theta_in_pis",
+    "rx_spacing",
     "rx_lo",
     "rx_bandwidth",
 ]
