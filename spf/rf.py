@@ -154,6 +154,7 @@ class Detector(object):
     def n_receivers(self):
         return self.receiver_positions.shape[0]
 
+    # returns n_receivers, 2(x,y)
     def all_receiver_pos(self, with_offset=True):
         if with_offset:
             return (

@@ -34,6 +34,8 @@ class DataSnapshotRaw:
     gains: np.array
     rx_theta_in_pis: float
     rx_spacing: float
+    rx_lo: float
+    rx_bandwidth: float
     avg_phase_diff: float
 
 
@@ -244,6 +246,8 @@ class ThreadedRXRaw(ThreadedRX):
             rx_theta_in_pis=self.pplus.rx_config.rx_theta_in_pis,
             rx_spacing=self.pplus.rx_config.rx_spacing,
             avg_phase_diff=avg_phase_diff,
+            rx_lo=self.pplus.rx_config.lo,
+            rx_bandwidth=self.pplus.rx_config.rf_bandwidth,
         )
 
 

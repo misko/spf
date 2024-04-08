@@ -1,9 +1,12 @@
 import argparse
 import logging
+import os
+import pickle
 import sys
 import time
 from datetime import datetime
 from math import gcd
+from multiprocessing import Pool
 from typing import List, Optional
 
 import adi
@@ -20,7 +23,11 @@ from spf.rf import (
     beamformer_thetas,
     precompute_steering_vectors,
 )
-from spf.utils import random_signal_matrix, zarr_open_from_lmdb_store_cm
+from spf.utils import (
+    random_signal_matrix,
+    zarr_open_from_lmdb_store,
+    zarr_open_from_lmdb_store_cm,
+)
 
 # TODO close SDR on exit
 # import signal
@@ -711,8 +718,48 @@ def circular_mean(angles, trim=50.0):
     return pi_norm(cm), pi_norm(_cm)
 
 
-def segment_session_star(args):
-    return segment_session(*args)
+def get_segmentation_for_zarr(
+    zarr_fn,
+    nprocs=4,
+    window_size=2048,
+    stride=1024,
+    trim=20.0,
+    mean_diff=0.2,
+    max_stddev=0.15,
+):
+    segmentation_fn = zarr_fn.replace(".zarr", "_seg.pkl")
+    if not os.path.exists(segmentation_fn):
+        z = zarr_open_from_lmdb_store(zarr_fn)
+        n_sessions, _, samples_per_buffer = z.receivers["r0"].signal_matrix.shape
+        results_by_receiver = {}
+        for r_idx in [0, 1]:
+            r_name = f"r{r_idx}"
+            inputs = [
+                {
+                    "zarr_fn": zarr_fn,
+                    "receiver": r_name,
+                    "session_idx": idx,
+                    "window_size": window_size,
+                    "stride": stride,
+                    "trim": trim,
+                    "mean_diff_threshold": mean_diff,
+                    "max_stddev_threshold": max_stddev,
+                }
+                for idx in range(n_sessions)
+            ]
+            with Pool(nprocs) as pool:
+                results_by_receiver[r_name] = list(
+                    tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
+                )
+
+        pickle.dump(results_by_receiver, open(segmentation_fn, "wb"))
+        return results_by_receiver
+    else:
+        return pickle.load(open(segmentation_fn, "rb"))
+
+
+def segment_session_star(arg_dict):
+    return segment_session(**arg_dict)
 
 
 def segment_session(
@@ -797,6 +844,25 @@ def simple_segment(
         window["mean"] = circular_mean(_v, trim=trim)[1]
         window["stddev"] = circular_stddev(_v, window["mean"], trim=trim)[1]
     return valid_windows
+
+
+@njit
+def phase_diff_to_theta(
+    phase_diff, wavelength, distance_between_receivers, large_phase_goes_right
+):
+    if not large_phase_goes_right:
+        phase_diff = phase_diff.copy()
+        phase_diff *= -1
+    phase_diff = pi_norm(phase_diff)
+    # clip the values to reasonable?
+    edge = 1 - 1e-8
+    sin_arg = np.clip(
+        wavelength * phase_diff / (distance_between_receivers * np.pi * 2),
+        -edge,
+        edge,
+    )
+    x = np.arcsin(sin_arg)
+    return x, np.pi - x
 
 
 @njit

@@ -6,6 +6,8 @@ v4rx_f64_keys = [
     "gps_lat",
     "gps_long",
     "heading",
+    "rx_lo",
+    "rx_bandwidth",
 ]
 v4rx_2xf64_keys = [
     "avg_phase_diff",
