@@ -42,6 +42,8 @@ def stop_grbl():
     run_grbl = False
 
 
+GRBL_STEP_SIZE = 8
+
 """
 MotorMountA                         MotorMountB
         .                           .
@@ -268,7 +270,9 @@ class GRBLDynamics(Dynamics):
 
 
 class Planner(ABC):
-    def __init__(self, dynamics, start_point, step_size=5, epsilon=1, seed=None):
+    def __init__(
+        self, dynamics, start_point, step_size=GRBL_STEP_SIZE, epsilon=1, seed=None
+    ):
         self.dynamics = dynamics
         self.current_direction = None
         self.epsilon = epsilon  # original was 0.001
@@ -374,7 +378,9 @@ class BouncePlanner(Planner):
 
 
 class StationaryPlanner(Planner):
-    def __init__(self, dynamics, start_point, stationary_point, step_size=5):
+    def __init__(
+        self, dynamics, start_point, stationary_point, step_size=GRBL_STEP_SIZE
+    ):
         super().__init__(
             dynamics=dynamics, start_point=start_point, step_size=step_size
         )
@@ -400,7 +406,7 @@ class CirclePlanner(Planner):
         self,
         dynamics,
         start_point,
-        step_size=5,
+        step_size=GRBL_STEP_SIZE,
         circle_diameter=max_circle_diameter,
         circle_center=[0, 0],
     ):
@@ -437,7 +443,7 @@ class CirclePlanner(Planner):
 
 
 class CalibrationV1Planner(Planner):
-    def __init__(self, dynamics, start_point, step_size=5, y_bump=150):
+    def __init__(self, dynamics, start_point, step_size=GRBL_STEP_SIZE, y_bump=150):
         super().__init__(
             dynamics=dynamics, start_point=start_point, step_size=step_size
         )
@@ -532,7 +538,7 @@ class GRBLController:
             print("STARTED FAKE GRBL")
         elif serial_fn is not None:
             self.s = serial.Serial(
-                serial_fn, 115200, timeout=0.3, write_timeout=0.3
+                serial_fn, 115200, timeout=3, write_timeout=3
             )  # GRBL operates at 115200 baud. Leave that part alone.
             self.s.write("?".encode())
             grbl_out = self.s.readline()  # get the response
@@ -604,7 +610,11 @@ class GRBLController:
     def update_status(self, skip_write=False):
         if not skip_write:
             time.sleep(0.01)
-            self.s.write("?".encode())
+            try:
+                self.s.write("?".encode())
+            except Exception as e:
+                logging.error("FAILED UPDATE STATUS!!!" + str(e))
+                raise ValueError
         time.sleep(0.01)
 
         response = self.s.readline().decode().strip()
@@ -663,7 +673,11 @@ class GRBLController:
             ]
         cmd = " ".join(gcode_move)
         time.sleep(0.01)
-        self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
+        try:
+            self.s.write((cmd + "\n").encode())  # Send g-code block to grbl
+        except Exception as e:
+            logging.error("FAIL MOVE TO" + str(e))
+            raise ValueError
         time.sleep(0.01)
         grbl_out = (  # noqa
             self.s.readline()
@@ -691,7 +705,7 @@ class GRBLController:
             for c in target_points
         }
 
-    def targets_far_out(self, target_points, tolerance=80):
+    def targets_far_out(self, target_points, tolerance=50):
         dists = self.distance_to_targets(target_points)
         for c in dists:
             if dists[c] >= tolerance:
