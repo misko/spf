@@ -810,7 +810,7 @@ def windowed_trimmed_circular_mean_and_stddev(v, window_size, stride, trim=50.0)
 def simple_segment(
     v, window_size, stride, trim, mean_diff_threshold, max_stddev_threshold
 ):
-    valid_windows = []
+    candidate_windows = []
     window_idxs, window_stats = windowed_trimmed_circular_mean_and_stddev(
         v, window_size=window_size, stride=stride, trim=trim
     )
@@ -818,32 +818,74 @@ def simple_segment(
         start_idx, end_idx = window_idxs[step]
         mean, stddev = window_stats[step]
         # is this a valid region
-        if stddev < max_stddev_threshold:
-            if (
-                len(valid_windows) > 0  # if this is the first window
-                and valid_windows[-1]["end_idx"] >= start_idx  # check for overlap
-                and abs(valid_windows[-1]["mean"] - mean)
-                <= mean_diff_threshold  # if not within tolerance
-            ):
-                # append to previous window
-                valid_windows[-1]["end_idx"] = end_idx
-                valid_windows[-1]["mean"] = mean  # recompute later
+        if (
+            len(candidate_windows) > 0
+            and candidate_windows[-1]["end_idx"] >= start_idx
+            and abs(candidate_windows[-1]["mean"] - mean) <= mean_diff_threshold
+            and abs(candidate_windows[-1]["stddev"] - stddev) <= 0.2
+        ):
+            candidate_windows[-1]["end_idx"] = end_idx
+            candidate_windows[-1]["mean"] = mean  # recompute later
+        else:
+            candidate_windows.append(
+                {
+                    "start_idx": int(start_idx),
+                    "end_idx": int(end_idx),
+                    "mean": mean,
+                    "stddev": stddev,
+                }
+            )
+
+    # re-compute final stats as they are off
+    new_windows = []
+    for window in candidate_windows:
+        _v = v[window["start_idx"] : window["end_idx"]]
+        window["mean"] = circular_mean(_v, trim=trim)[1]
+        window["stddev"] = circular_stddev(_v, window["mean"], trim=trim)[1]
+        if window["stddev"] < max_stddev_threshold:
+            window["type"] = "signal"
+            new_windows.append(window)
+        else:
+            # previous window was also noise
+            if len(new_windows) > 0 and new_windows[-1]["type"] == "noise":
+                new_windows[-1]["end_idx"] = window["end_idx"]
             else:
-                # add  a new window
-                valid_windows.append(
-                    {
-                        "start_idx": int(start_idx),
-                        "end_idx": int(end_idx),
-                        "mean": mean,
-                        "stddev": stddev,
-                    }
-                )
+                window["type"] = "noise"
+                new_windows.append(window)
+    candidate_windows = new_windows
+
+    # drop all noise windows less than 3windows in size
+    candidate_windows = [
+        w
+        for w in candidate_windows
+        if w["type"] != "noise" or (w["end_idx"] - w["start_idx"]) > 3 * window_size
+    ]
+
+    # only keep signal windows surounded by noise
+    valid_windows = []
+    for window_idx, window in enumerate(candidate_windows):
+        if window["type"] == "signal":
+            # check if one before was signal
+            if window_idx > 0 and candidate_windows[window_idx - 1]["type"] == "signal":
+                continue
+            # check if one after was signal
+            if (
+                window_idx + 1 < len(candidate_windows)
+                and candidate_windows[window_idx + 1]["type"] == "signal"
+            ):
+                continue
+            valid_windows.append(window)
+
     # re-compute final stats as they are off
     for window in valid_windows:
         _v = v[window["start_idx"] : window["end_idx"]]
         window["mean"] = circular_mean(_v, trim=trim)[1]
         window["stddev"] = circular_stddev(_v, window["mean"], trim=trim)[1]
-    return valid_windows
+
+    # valid_windows=[]
+    # for window_idx in range(candidate_windows):
+
+    return valid_windows  # if window["type"] == "signal"]
 
 
 @njit
@@ -862,13 +904,17 @@ def phase_diff_to_theta(
         edge,
     )
     x = np.arcsin(sin_arg)
-    return x, np.pi - x
+    return x, np.pi - x, (pi_norm(x) + pi_norm(np.pi - x)) / 2 - np.pi
+
+
+# """
+# Do not use pi_norm here!! this can flip the sign on observations near the edge
+# """
 
 
 @njit
 def get_phase_diff(signal_matrix):
-    diffs = (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])).astype(np.float64)
-    return pi_norm(diffs)
+    return pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
 
 
 @njit

@@ -130,9 +130,9 @@ if __name__ == "__main__":
     while data_collector.is_collecting():
         time.sleep(5)
 
+    data_collector.done()
+
     # we finished lets move files out to final positions
     logging.info("GRBLRadioCollection: Moving files to final location ...")
     for k in temp_filenames:
         os.rename(temp_filenames[k], final_filenames[k])
-
-    data_collector.done()

@@ -437,12 +437,13 @@ class DataCollector:
         logging.info("Collector thread is exiting!")
         self.finished_collecting = True
 
+        self.close()
+
+        # clean up lost threads
         for read_thread_idx, read_thread in enumerate(self.read_threads):
             read_thread.run = False
         for read_thread_idx, read_thread in enumerate(self.read_threads):
             read_thread.join()
-
-        self.close()
 
     def close(self):
         pass

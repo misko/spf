@@ -219,6 +219,8 @@ if __name__ == "__main__":
         check_exit()
         time.sleep(5)
 
+    data_collector.done()
+
     # we finished lets move files out to final positions
 
     logging.info("MavRadioCollection: Moving files to final location ...")
