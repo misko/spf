@@ -744,6 +744,7 @@ def get_segmentation_for_zarr(
                     "trim": trim,
                     "mean_diff_threshold": mean_diff,
                     "max_stddev_threshold": max_stddev,
+                    "drop_less_than_size": 3 * window_size,
                 }
                 for idx in range(n_sessions)
             ]
@@ -771,6 +772,7 @@ def segment_session(
     trim,
     mean_diff_threshold,
     max_stddev_threshold,
+    drop_less_than_size,
 ):
     with zarr_open_from_lmdb_store_cm(zarr_fn) as z:
         signal_matrix = z.receivers[receiver].signal_matrix[session_idx]
@@ -782,6 +784,7 @@ def segment_session(
             trim=trim,
             mean_diff_threshold=mean_diff_threshold,  #
             max_stddev_threshold=max_stddev_threshold,  # just eyeballed this
+            drop_less_than_size=drop_less_than_size,
         )
 
 
@@ -808,7 +811,13 @@ def windowed_trimmed_circular_mean_and_stddev(v, window_size, stride, trim=50.0)
 
 
 def simple_segment(
-    v, window_size, stride, trim, mean_diff_threshold, max_stddev_threshold
+    v,
+    window_size,
+    stride,
+    trim,
+    mean_diff_threshold,
+    max_stddev_threshold,
+    drop_less_than_size,
 ):
     candidate_windows = []
     window_idxs, window_stats = windowed_trimmed_circular_mean_and_stddev(
@@ -858,7 +867,7 @@ def simple_segment(
     candidate_windows = [
         w
         for w in candidate_windows
-        if w["type"] != "noise" or (w["end_idx"] - w["start_idx"]) > 3 * window_size
+        if w["type"] != "noise" or (w["end_idx"] - w["start_idx"]) > drop_less_than_size
     ]
 
     # only keep signal windows surounded by noise
