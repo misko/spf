@@ -18,15 +18,15 @@ home_bounding_box = np.array(
     [
         [500, 400],
         [3000, 450],
-        [3000, 2800],
-        [1900, 2800],
-        [900, 2000],
+        [3000, 2700],
+        [1900, 2700],
+        [900, 1900],
         [500, 500],
     ]
 )
 rx_calibration_point = np.array([1930, 2770])
 tx_calibration_point = np.array([550, 450])
-circle_center = np.array([2000, 1600])
+circle_center = np.array([2000, 1500])
 max_circle_diameter = 1900
 
 run_grbl = True
