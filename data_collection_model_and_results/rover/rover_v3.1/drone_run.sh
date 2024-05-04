@@ -10,6 +10,7 @@ if [ ! -f "/home/pi/.ssh/config" ]; then
 fi
 
 #check for internet
+sleep 10
 ping -c 1 8.8.8.8
 if [ $? -eq 0 ]; then
     python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer git
