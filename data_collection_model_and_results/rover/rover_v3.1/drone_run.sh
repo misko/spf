@@ -9,27 +9,31 @@ if [ ! -f "/home/pi/.ssh/config" ]; then
 	cp ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/ssh_config /home/pi/.ssh/config
 fi
 
-python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer git
+#check for internet
+ping -c 1 8.8.8.8
+if [ $? -eq 0 ]; then
+    python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer git
 
-echo "checking if updates available"
-bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/install_deps.sh
-pushd ${repo_root}
-current_hash=`git rev-parse --short HEAD`
-git pull
-new_hash=`git rev-parse --short HEAD`
-if [ "${current_hash}" != "${new_hash}" ]; then
-    echo "Detected git update going to try and reboot"
-    echo "waiting for interrupt 15s..."
-    sleep 15
-    sudo cp ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
-    sudo systemctl daemon-reload
-    sudo systemctl enable mavlink_controller.service
-    sudo reboot
-else
-    echo "no updates (or maybe no internet) detected!"
+    echo "checking if updates available"
+    bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/install_deps.sh
+    pushd ${repo_root}
+    current_hash=`git rev-parse --short HEAD`
+    git pull
+    new_hash=`git rev-parse --short HEAD`
+    if [ "${current_hash}" != "${new_hash}" ]; then
+        echo "Detected git update going to try and reboot"
+        echo "waiting for interrupt 15s..."
+        sleep 15
+        sudo cp ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
+        sudo systemctl daemon-reload
+        sudo systemctl enable mavlink_controller.service
+        sudo reboot
+    else
+        echo "no updates (or maybe no internet) detected!"
+    fi
+    pip install -r requirements.txt
+    popd
 fi
-pip install -r requirements.txt
-popd
 
 # do this a bit later to give them time to boot
 echo "check pluto radios"
