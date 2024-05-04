@@ -53,7 +53,7 @@ function wait_for_pluto {
 for eth in ${eths}; do
 	turn_off_eths
 	sudo ifconfig ${eth} up
-	echo "Wait for pluto on $eth"
+	echo "Wait for pluto on $eth (might be usb eth)"
 	wait_for_pluto
 	check_pluto
 	if [ $? -ne 0 ]; then
