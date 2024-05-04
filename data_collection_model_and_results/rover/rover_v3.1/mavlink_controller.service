@@ -1,6 +1,7 @@
 [Unit]
 Description=Run mavlink controller
-After=multi-user.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 WorkingDirectory=/home/pi/

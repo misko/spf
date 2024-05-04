@@ -42,7 +42,8 @@ function set_and_reboot_pluto {
 
 function wait_for_pluto {
 	while [ 0 -eq 0 ]; do
-		sshpass -panalog ssh -o ConnectTimeout=1 root@192.168.2.1 uptime > /dev/null 2>&1 
+		ssh-keygen -f "/home/pi/.ssh/known_hosts" -R "192.168.2.1"
+		sshpass -panalog ssh -o ConnectTimeout=1 root@192.168.2.1 -o StrictHostKeyChecking=no uptime > /dev/null 2>&1 
 		if [ $? -eq 0 ]; then
 			return 0
 		fi 
