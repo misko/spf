@@ -71,6 +71,12 @@ if __name__ == "__main__":
         help="how many records to get per receiver",
         default=None,
     ),
+    parser.add_argument(
+        "-d",
+        "--drone-uri",
+        type=str,
+        default=None,
+    ),
 
     parser.add_argument("--fake-drone", action=argparse.BooleanOptionalAction)
     parser.add_argument("--exit", action=argparse.BooleanOptionalAction)
@@ -107,6 +113,8 @@ if __name__ == "__main__":
         assert yaml_config["emitter"]["type"] == "sdr"
         yaml_config["emitter"]["tx-gain"] = args.tx_gain
 
+    if args.drone_uri is not None:
+        yaml_config["drone-uri"] = args.drone_uri
     # setup filename
     # tmpdir = tempfile.TemporaryDirectory()
     # temp_dir_name = tmpdir.name
