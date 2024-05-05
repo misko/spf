@@ -2,6 +2,7 @@ import numpy as np
 
 from spf.rf import IQSource, UCADetector, ULADetector, beamformer, c, rotation_matrix
 from spf.sdrpluto.sdr_controller import simple_segment
+from spf.utils import random_signal_matrix
 
 
 def test_beamformer():
@@ -85,7 +86,7 @@ def test_beamformer():
 
 def test_simple_segment():
     rng = np.random.default_rng(12345)
-    fake_signal = rng.standard_normal(600)
+    signal_matrix = random_signal_matrix(1200, rng=rng).reshape(2, 600)
 
     ground_truth_windows = [
         {"start_idx": 0, "end_idx": 100, "mean": 0.5},
@@ -94,18 +95,21 @@ def test_simple_segment():
     ]
 
     for window in ground_truth_windows:
-        fake_signal[window["start_idx"] : window["end_idx"]] /= 10
-        fake_signal[window["start_idx"] : window["end_idx"]] += window["mean"]
+        signal_matrix[0, window["start_idx"] : window["end_idx"]] *= 10
+        signal_matrix[1, window["start_idx"] : window["end_idx"]] = signal_matrix[
+            0, window["start_idx"] : window["end_idx"]
+        ] * np.exp(-1j * window["mean"])
 
     mean_diff_threshold = 0.05
     segmented_windows = simple_segment(
-        fake_signal,
+        signal_matrix,
         window_size=100,
         stride=50,
         trim=10,
         mean_diff_threshold=mean_diff_threshold,
         max_stddev_threshold=0.1,
         drop_less_than_size=0,
+        min_abs_signal=10,
     )
 
     assert segmented_windows[0]["start_idx"] == ground_truth_windows[0]["start_idx"]
@@ -127,7 +131,7 @@ def test_simple_segment():
 
 def test_simple_segment_separate():
     rng = np.random.default_rng(12345)
-    fake_signal = rng.standard_normal(400)
+    signal_matrix = random_signal_matrix(800, rng=rng).reshape(2, 400)
 
     ground_truth_windows = [
         {"start_idx": 0, "end_idx": 100, "mean": 0.5},
@@ -136,18 +140,21 @@ def test_simple_segment_separate():
     ]
 
     for window in ground_truth_windows:
-        fake_signal[window["start_idx"] : window["end_idx"]] /= 10
-        fake_signal[window["start_idx"] : window["end_idx"]] += window["mean"]
+        signal_matrix[0, window["start_idx"] : window["end_idx"]] *= 10
+        signal_matrix[1, window["start_idx"] : window["end_idx"]] = signal_matrix[
+            0, window["start_idx"] : window["end_idx"]
+        ] * np.exp(-1j * window["mean"])
 
     mean_diff_threshold = 0.05
     segmented_windows = simple_segment(
-        fake_signal,
+        signal_matrix,
         window_size=100,
         stride=50,
         trim=10,
         mean_diff_threshold=mean_diff_threshold,
         max_stddev_threshold=0.1,
         drop_less_than_size=0,
+        min_abs_signal=10,
     )
 
     assert segmented_windows[0]["start_idx"] == ground_truth_windows[0]["start_idx"]

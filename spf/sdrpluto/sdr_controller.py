@@ -713,7 +713,7 @@ def circular_mean(angles, trim=50.0):
     # JIT version
     dists = circular_diff_to_mean(angles=angles, mean=cm)
 
-    mask = dists < np.percentile(dists, 100.0 - trim)
+    mask = dists <= np.percentile(dists, 100.0 - trim)
     _cm = np.arctan2(_sin_angles[mask].sum(), _cos_angles[mask].sum()) % (2 * np.pi)
     return pi_norm(cm), pi_norm(_cm)
 
@@ -722,10 +722,12 @@ def get_segmentation_for_zarr(
     zarr_fn,
     nprocs=4,
     window_size=2048,
-    stride=1024,
+    stride=2048,
     trim=20.0,
-    mean_diff=0.2,
-    max_stddev=0.15,
+    mean_diff_threshold=0.2,
+    max_stddev_threshold=0.5,
+    drop_less_than_size=3000,
+    min_abs_signal=40,
 ):
     segmentation_fn = zarr_fn.replace(".zarr", "_seg.pkl")
     if not os.path.exists(segmentation_fn):
@@ -742,9 +744,10 @@ def get_segmentation_for_zarr(
                     "window_size": window_size,
                     "stride": stride,
                     "trim": trim,
-                    "mean_diff_threshold": mean_diff,
-                    "max_stddev_threshold": max_stddev,
-                    "drop_less_than_size": 3 * window_size,
+                    "mean_diff_threshold": mean_diff_threshold,
+                    "max_stddev_threshold": max_stddev_threshold,
+                    "drop_less_than_size": drop_less_than_size,
+                    "min_abs_signal": min_abs_signal,
                 }
                 for idx in range(n_sessions)
             ]
@@ -763,51 +766,99 @@ def segment_session_star(arg_dict):
     return segment_session(**arg_dict)
 
 
-def segment_session(
-    zarr_fn,
-    receiver,
-    session_idx,
-    window_size,
-    stride,
-    trim,
-    mean_diff_threshold,
-    max_stddev_threshold,
-    drop_less_than_size,
-):
+def segment_session(zarr_fn, receiver, session_idx, **kwrgs):
     with zarr_open_from_lmdb_store_cm(zarr_fn) as z:
-        signal_matrix = z.receivers[receiver].signal_matrix[session_idx]
-        pd = get_phase_diff(signal_matrix)
-        return simple_segment(
-            pd,
-            window_size=window_size,
-            stride=stride,
-            trim=trim,
-            mean_diff_threshold=mean_diff_threshold,  #
-            max_stddev_threshold=max_stddev_threshold,  # just eyeballed this
-            drop_less_than_size=drop_less_than_size,
-        )
+        return simple_segment(z.receivers[receiver].signal_matrix[session_idx], **kwrgs)
 
 
 @njit
-def windowed_trimmed_circular_mean_and_stddev(v, window_size, stride, trim=50.0):
-    assert (v.shape[0] - window_size) % stride == 0
-    n_steps = 1 + (v.shape[0] - window_size) // stride
-    # for step in range(steps):
-    #    yield
-    step_stats = np.zeros((n_steps, 2), dtype=np.float64)
+def get_stats_for_signal(v, pd, trim):
+    trimmed_cm = circular_mean(pd, trim=trim)[1]
+    trimmed_stddev = circular_stddev(pd, trimmed_cm, trim=trim)[1]
+    abs_signal_median = np.median(np.abs(v).reshape(-1)) if v.size > 0 else 0
+    return trimmed_cm, trimmed_stddev, abs_signal_median
+
+
+@njit
+def windowed_trimmed_circular_mean_and_stddev(v, pd, window_size, stride, trim=50.0):
+    assert (pd.shape[0] - window_size) % stride == 0
+    n_steps = 1 + (pd.shape[0] - window_size) // stride
+
     step_idxs = np.zeros((n_steps, 2), dtype=np.int64)
+    step_stats = np.zeros((n_steps, 3), dtype=np.float64)
     steps = np.arange(n_steps)
+
     # start_idx, end_idx
     step_idxs[:, 0] = steps * stride
     step_idxs[:, 1] = step_idxs[:, 0] + window_size
     for step in range(n_steps):
-        start_idx, end_idx = step_idxs[step]
-        _v = v[start_idx:end_idx]
-        trimmed_cm = circular_mean(_v, trim=trim)[1]
-        step_stats[step, 0] = trimmed_cm
-        step_stats[step, 1] = circular_stddev(_v, trimmed_cm, trim=trim)[1]
+        start_idx, end_idx = step_idxs[step][:2]
+        _pd = pd[start_idx:end_idx]
+        _v = v[:, start_idx:end_idx]
+        # trimmed_cm, trimmed_stddev, abs_signal_median
+        step_stats[step] = get_stats_for_signal(_v, _pd, trim)
 
     return step_idxs, step_stats
+
+
+def keep_signal_surrounded_by_noise(windows):
+    valid_windows = []
+    for window_idx, window in enumerate(windows):
+        if window["type"] == "signal":
+            # check if one before was signal
+            if window_idx > 0 and windows[window_idx - 1]["type"] == "signal":
+                continue
+            # check if one after was signal
+            if (
+                window_idx + 1 < len(windows)
+                and windows[window_idx + 1]["type"] == "signal"
+            ):
+                continue
+            valid_windows.append(window)
+    return valid_windows
+
+
+def drop_windows_smaller_than(windows, drop_less_than_size):
+    return [w for w in windows if (w["end_idx"] - w["start_idx"]) > drop_less_than_size]
+
+
+def combine_windows(windows, max_stddev_threshold, min_abs_signal):
+    # combine windows
+    new_windows = []
+    for window in windows:
+        if (
+            window["stddev"] < max_stddev_threshold
+            or window["abs_signal_median"] >= min_abs_signal
+        ):
+            if (
+                len(new_windows) > 0
+                and new_windows[-1]["type"] == "signal"
+                and pi_norm(abs(new_windows[-1]["mean"] - window["mean"])) < 0.2
+                and abs(new_windows[-1]["stddev"] - window["stddev"]) < 0.1
+            ):
+                new_windows[-1]["end_idx"] = window["end_idx"]
+            else:
+                window["type"] = "signal"
+                new_windows.append(window)
+        else:
+            # previous window was also noise
+            if len(new_windows) > 0 and new_windows[-1]["type"] == "noise":
+                new_windows[-1]["end_idx"] = window["end_idx"]
+            else:
+                window["type"] = "noise"
+                new_windows.append(window)
+    return new_windows
+
+
+def recompute_stats_for_windows(windows, v, pd, trim):
+    for window in windows:
+        _pd = pd[window["start_idx"] : window["end_idx"]]
+        _v = v[window["start_idx"] : window["end_idx"]]
+        r = get_stats_for_signal(_v, _pd, trim)
+        window["mean"] = r[0]
+        window["stddev"] = r[1]
+        window["abs_signal_median"] = r[2]
+    return windows
 
 
 def simple_segment(
@@ -818,83 +869,39 @@ def simple_segment(
     mean_diff_threshold,
     max_stddev_threshold,
     drop_less_than_size,
+    min_abs_signal,
 ):
+    pd = get_phase_diff(v)
     candidate_windows = []
-    window_idxs, window_stats = windowed_trimmed_circular_mean_and_stddev(
-        v, window_size=window_size, stride=stride, trim=trim
+    window_idxs_and_stats = windowed_trimmed_circular_mean_and_stddev(
+        v, pd, window_size=window_size, stride=stride, trim=trim
     )
-    for step in range(window_idxs.shape[0]):
-        start_idx, end_idx = window_idxs[step]
-        mean, stddev = window_stats[step]
-        # is this a valid region
-        if (
-            len(candidate_windows) > 0
-            and candidate_windows[-1]["end_idx"] >= start_idx
-            and abs(candidate_windows[-1]["mean"] - mean) <= mean_diff_threshold
-            and abs(candidate_windows[-1]["stddev"] - stddev) <= 0.2
-        ):
-            candidate_windows[-1]["end_idx"] = end_idx
-            candidate_windows[-1]["mean"] = mean  # recompute later
-        else:
-            candidate_windows.append(
-                {
-                    "start_idx": int(start_idx),
-                    "end_idx": int(end_idx),
-                    "mean": mean,
-                    "stddev": stddev,
-                }
-            )
 
-    # re-compute final stats as they are off
-    new_windows = []
-    for window in candidate_windows:
-        _v = v[window["start_idx"] : window["end_idx"]]
-        window["mean"] = circular_mean(_v, trim=trim)[1]
-        window["stddev"] = circular_stddev(_v, window["mean"], trim=trim)[1]
-        if window["stddev"] < max_stddev_threshold:
-            window["type"] = "signal"
-            new_windows.append(window)
-        else:
-            # previous window was also noise
-            if len(new_windows) > 0 and new_windows[-1]["type"] == "noise":
-                new_windows[-1]["end_idx"] = window["end_idx"]
-            else:
-                window["type"] = "noise"
-                new_windows.append(window)
-    candidate_windows = new_windows
-
-    # drop all noise windows less than 3windows in size
     candidate_windows = [
-        w
-        for w in candidate_windows
-        if w["type"] != "noise" or (w["end_idx"] - w["start_idx"]) > drop_less_than_size
+        {
+            "start_idx": idx[0],
+            "end_idx": idx[1],
+            "mean": stats[0],
+            "stddev": stats[1],
+            "abs_signal_median": stats[2],
+        }
+        for idx, stats in zip(window_idxs_and_stats[0], window_idxs_and_stats[1])
     ]
 
+    # combine windows
+    candidate_windows = combine_windows(
+        candidate_windows, max_stddev_threshold, min_abs_signal
+    )
+
+    # drop all noise windows less than 3windows in size
+    candidate_windows = drop_windows_smaller_than(
+        candidate_windows, drop_less_than_size
+    )
+
     # only keep signal windows surounded by noise
-    valid_windows = []
-    for window_idx, window in enumerate(candidate_windows):
-        if window["type"] == "signal":
-            # check if one before was signal
-            if window_idx > 0 and candidate_windows[window_idx - 1]["type"] == "signal":
-                continue
-            # check if one after was signal
-            if (
-                window_idx + 1 < len(candidate_windows)
-                and candidate_windows[window_idx + 1]["type"] == "signal"
-            ):
-                continue
-            valid_windows.append(window)
+    candidate_windows = keep_signal_surrounded_by_noise(candidate_windows)
 
-    # re-compute final stats as they are off
-    for window in valid_windows:
-        _v = v[window["start_idx"] : window["end_idx"]]
-        window["mean"] = circular_mean(_v, trim=trim)[1]
-        window["stddev"] = circular_stddev(_v, window["mean"], trim=trim)[1]
-
-    # valid_windows=[]
-    # for window_idx in range(candidate_windows):
-
-    return valid_windows  # if window["type"] == "signal"]
+    return recompute_stats_for_windows(candidate_windows, v, pd, trim)
 
 
 @njit

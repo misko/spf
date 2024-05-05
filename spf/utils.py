@@ -26,7 +26,9 @@ def is_pi():
         return False
 
 
-def random_signal_matrix(n):
+def random_signal_matrix(n, rng=None):
+    if rng is not None:
+        return rng.uniform(-1, 1, (n,)) + 1.0j * rng.uniform(-1, 1, (n,))
     return np.random.uniform(-1, 1, (n,)) + 1.0j * np.random.uniform(-1, 1, (n,))
 
 
