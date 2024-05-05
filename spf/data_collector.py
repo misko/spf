@@ -473,7 +473,7 @@ class DroneDataCollectorRaw(DataCollector):
             timesteps=self.yaml_config["n-records-per-receiver"],
             buffer_size=buffer_size,
             n_receivers=len(self.yaml_config["receivers"]),
-            chunk_size=4096,
+            chunk_size=512,
             compressor=None,
         )
 
@@ -553,7 +553,7 @@ class GrblDataCollectorRaw(DataCollector):
             timesteps=self.yaml_config["n-records-per-receiver"],
             buffer_size=buffer_size,
             n_receivers=len(self.yaml_config["receivers"]),
-            chunk_size=4096,
+            chunk_size=512,
             compressor=None,
         )
 

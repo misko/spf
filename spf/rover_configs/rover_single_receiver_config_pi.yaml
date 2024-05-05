@@ -23,7 +23,7 @@ receivers:
     rx-gain-mode: fast_attack
     rx-buffers: 4
     rx-gain: -3
-    buffer-size: 4096 # 2**12
+    buffer-size: 524288 # 2**12
     f-intermediate: 100000 #1.0e5
     f-carrier: 2467000000 #2.5e9
     f-sampling: 16000000 # 16.0e6
