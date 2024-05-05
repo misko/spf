@@ -55,4 +55,4 @@ dry-run: False
 
 data-version: 4
 
-seconds-per-sample: 5.0
+seconds-per-sample: 2.5
