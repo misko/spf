@@ -154,7 +154,8 @@ class ThreadedRX:
         )
 
         average_time_per_loop = -1
-        alpha = 0.99
+        alpha = 0.9
+        idx = 0
         while self.run:
             start_time = time.time()
             if self.read_lock.acquire(blocking=True, timeout=0.5):
@@ -168,17 +169,19 @@ class ThreadedRX:
                 # logging.info(f"{self.pplus.rx_config.uri} READY")
             finish_time = time.time()
             elapsed_time = finish_time - start_time
-            if average_time_per_loop < 0:
-                average_time_per_loop = elapsed_time
-            else:
-                average_time_per_loop = (
-                    average_time_per_loop * alpha + (1 - alpha) * elapsed_time
-                )
-            if (
-                self.seconds_per_sample >= 0
-                and average_time_per_loop < self.seconds_per_sample
-            ):
-                time.sleep(self.seconds_per_sample - average_time_per_loop)
+            if idx > 20:  # skip first 20 for timing
+                if average_time_per_loop < 0:
+                    average_time_per_loop = elapsed_time
+                else:
+                    average_time_per_loop = (
+                        average_time_per_loop * alpha + (1 - alpha) * elapsed_time
+                    )
+                if (
+                    self.seconds_per_sample >= 0
+                    and average_time_per_loop < self.seconds_per_sample
+                ):
+                    time.sleep(self.seconds_per_sample - average_time_per_loop)
+            idx += 1
 
         logging.info(f"{str(self.rx_config.uri)} PPlus read_forever() exit!")
 
