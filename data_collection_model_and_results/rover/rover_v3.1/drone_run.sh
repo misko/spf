@@ -77,3 +77,5 @@ fi
 
 python3 ${repo_root}/spf/mavlink_radio_collection.py \
     -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n $n
+
+#python spf/spf/mavlink_radio_collection.py -c spf/spf/rover_configs/rover_receiver_config_pi.yaml  -m /home/pi/device_mapping -r  bounce -t "RO1" -n 40000 --drone-uri tcp:192.168.1.142:14591
