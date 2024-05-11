@@ -125,14 +125,15 @@ def mp_segment_zarr(zarr_fn, results_fn):
 def v5_prepare_session(session):  # session -> x,y
     abs_signal = session["signal_matrix"].abs().to(torch.float32)
     pd = torch_get_phase_diff(session["signal_matrix"]).to(torch.float32)
-    if session["ground_truth_theta"].item() < 0:
+    gt_theta = session["ground_truth_theta"]
+    if abs(gt_theta.item()) > torch.pi / 2:
         return (
             torch.vstack([abs_signal[1], abs_signal[0], -pd])[None],
-            -session["ground_truth_theta"],
+            gt_theta.sign().item() * torch.pi - gt_theta[None],
         )
     return (
         torch.vstack([abs_signal[0], abs_signal[1], pd])[None],
-        session["ground_truth_theta"][None],
+        gt_theta[None],
     )
 
 
@@ -141,7 +142,13 @@ def v5_thetas_to_targets(target_thetas, nthetas):
     if target_thetas.ndim == 1:
         target_thetas = target_thetas.reshape(-1, 1)
     return torch.exp(
-        -((target_thetas - torch.linspace(0, torch.pi, nthetas).reshape(1, -1)) ** 2)
+        -(
+            (
+                target_thetas
+                - torch.linspace(-torch.pi / 2, torch.pi / 2, nthetas).reshape(1, -1)
+            )
+            ** 2
+        )
     )
 
 
