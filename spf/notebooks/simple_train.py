@@ -62,7 +62,7 @@ if __name__ == "__main__":
     lr = 0.001
 
     dataloader_params = {
-        "batch_size": args.batch_size,
+        "batch_size": args.batch,
         "shuffle": True,
         "num_workers": args.workers,
         "collate_fn": v5_collate_beamsegnet,
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         # track hyperparameters and run metadata
         config={
             "learning_rate": args.lr,
-            "batch": args.batch_size,
+            "batch": args.batch,
             "architecture": "beamsegnet1",
         },
     )
