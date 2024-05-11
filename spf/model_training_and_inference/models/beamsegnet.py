@@ -101,34 +101,6 @@ class UNet1D(nn.Module):
 
 class BeamNet(nn.Module):
     def __init__(self, nthetas, hidden, magA_track=0, magB_track=1, pd_track=2):
-        self.nthetas = nthetas
-        self.hidden = hidden
-        self.beam_net = nn.Sequential(
-            OrderedDict(
-                [
-                    ("linear1", nn.Linear(3, hidden)),
-                    ("relu1", nn.ReLU(inplace=True)),
-                    ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
-                    ("linear2", nn.Linear(hidden, hidden)),
-                    ("relu2", nn.ReLU(inplace=True)),
-                    ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
-                    ("linear3", nn.Linear(hidden, hidden)),
-                    ("relu3", nn.ReLU(inplace=True)),
-                    ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
-                    ("linear4", nn.Linear(hidden, self.nthetas)),
-                    ("relu4", nn.ReLU(inplace=True)),
-                    ("softmax", nn.Softmax(dim=1)),  # output a probability distribution
-                ]
-            )
-        )
-
-    def forward(self,x):
-        #split into pd>=0 and pd<0
-
-
-
-class BeamNet(nn.Module):
-    def __init__(self, nthetas, hidden, magA_track=0, magB_track=1, pd_track=2):
         super(BeamNet, self).__init__()
         self.nthetas = nthetas
         self.hidden = hidden
@@ -160,19 +132,19 @@ class BeamNet(nn.Module):
         n_pos = pd_pos_mask.sum().item()
 
         _x = x.new(x.shape)
-        #copy over the pd>0
-        _x[:n_pos]=x[pd_pos_mask]
-        #flip the magnitudes and phase diffs so all now have phase diff >0
-        _x[n_pos:,self.magA_track]=x[~pd_pos_mask,self.magB_track]
-        _x[n_pos:,self.magB_track]=x[~pd_pos_mask,self.magA_track]
-        _x[n_pos:,self.pd_track]=-x[~pd_pos_mask,self.pd_track]
+        # copy over the pd>0
+        _x[:n_pos] = x[pd_pos_mask]
+        # flip the magnitudes and phase diffs so all now have phase diff >0
+        _x[n_pos:, self.magA_track] = x[~pd_pos_mask, self.magB_track]
+        _x[n_pos:, self.magB_track] = x[~pd_pos_mask, self.magA_track]
+        _x[n_pos:, self.pd_track] = -x[~pd_pos_mask, self.pd_track]
 
         _y = self.beam_net(_x)
 
         y = _y.new(_y.shape)
-        #copy over results for pd>0
+        # copy over results for pd>0
         y[pd_pos_mask] = _y[:n_pos]
-        #flip distributions over theta for ones that had pd<0
+        # flip distributions over theta for ones that had pd<0
         y[~pd_pos_mask] = _y[n_pos:].flip(1)
 
         return y
