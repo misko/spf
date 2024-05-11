@@ -58,9 +58,6 @@ if __name__ == "__main__":
         ds.get_segmentation()
     ds = torch.utils.data.ConcatDataset(datasets)
 
-    nthetas = 11
-    lr = 0.001
-
     dataloader_params = {
         "batch_size": args.batch,
         "shuffle": True,
@@ -86,7 +83,7 @@ if __name__ == "__main__":
         return f.normalize(torch.ones(shape), p=1, dim=1)
 
     loss_fn = torch.nn.MSELoss()
-    m = BeamNSegNet(nthetas=nthetas).to(torch_device)
+    m = BeamNSegNet(nthetas=args.nthetas).to(torch_device)
     optimizer = torch.optim.AdamW(m.parameters(), lr=args.lr)
     step = 0
     for epoch in range(10):
