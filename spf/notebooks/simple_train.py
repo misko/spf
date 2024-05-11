@@ -22,7 +22,7 @@ if __name__ == "__main__":
         "--nthetas",
         type=int,
         required=False,
-        default=11,
+        default=33,
     )
     parser.add_argument(
         "--device",
@@ -88,6 +88,7 @@ if __name__ == "__main__":
     loss_fn = torch.nn.MSELoss()
     m = BeamNSegNet(nthetas=nthetas).to(torch_device)
     optimizer = torch.optim.AdamW(m.parameters(), lr=args.lr)
+    step = 0
     for epoch in range(10):
         for X, Y in train_dataloader:
             optimizer.zero_grad()
@@ -99,8 +100,22 @@ if __name__ == "__main__":
 
             mean_loss = loss_fn(mean_guess(Y.shape), Y)
 
-            wandb.log({"loss": loss.item(), "mean_loss": mean_loss.item()})
-            # print("LOSS", l.item())
+            to_log = {"loss": loss.item(), "mean_loss": mean_loss.item()}
+            if step % 500 == 0:
+                train_target_image = torch.zeros(
+                    (output.shape[0] * 2, output.shape[1])
+                ).byte()
+                _output = (output * 255).cpu().byte()
+                _Y = (Y * 255).cpu().byte()
+                for row_idx in range(output.shape[0]):
+                    train_target_image[row_idx * 2] = _output[row_idx]
+                    train_target_image[row_idx * 2 + 1] = _Y[row_idx]
+                output_image = wandb.Image(
+                    train_target_image, caption="train vs target (interleaved)"
+                )
+                to_log["output"] = output_image
+            wandb.log(to_log)
+            step += 1
 
     # [optional] finish the wandb run, necessary in notebooks
     wandb.finish()
