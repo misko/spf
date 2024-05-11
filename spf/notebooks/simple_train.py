@@ -1,0 +1,106 @@
+import argparse
+from functools import cache
+
+import torch
+import torch.nn.functional as f
+import wandb
+
+from spf.dataset.spf_dataset import v5_collate_beamsegnet, v5spfdataset
+from spf.model_training_and_inference.models.beamsegnet import BeamNSegNet
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-d",
+        "--datasets",
+        type=str,
+        help="dataset prefixes",
+        nargs="+",
+        required=True,
+    )
+    parser.add_argument(
+        "--nthetas",
+        type=int,
+        required=False,
+        default=11,
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        required=False,
+        default="cpu",
+    )
+    parser.add_argument(
+        "--batch",
+        type=int,
+        required=False,
+        default=4,
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        required=False,
+        default=4,
+    )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        required=False,
+        default=0.001,
+    )
+    # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
+    args = parser.parse_args()
+    torch_device = torch.device(args.device)
+
+    # loop over and concat datasets here
+    datasets = [v5spfdataset(prefix, nthetas=args.nthetas) for prefix in args.datasets]
+    for ds in datasets:
+        ds.get_segmentation()
+    ds = torch.utils.data.ConcatDataset(datasets)
+
+    nthetas = 11
+    lr = 0.001
+
+    dataloader_params = {
+        "batch_size": args.batch_size,
+        "shuffle": True,
+        "num_workers": args.workers,
+        "collate_fn": v5_collate_beamsegnet,
+    }
+    train_dataloader = torch.utils.data.DataLoader(ds, **dataloader_params)
+
+    # start a new wandb run to track this script
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="projectspf",
+        # track hyperparameters and run metadata
+        config={
+            "learning_rate": args.lr,
+            "batch": args.batch_size,
+            "architecture": "beamsegnet1",
+        },
+    )
+
+    @cache
+    def mean_guess(shape):
+        return f.normalize(torch.ones(shape), p=1, dim=1)
+
+    loss_fn = torch.nn.MSELoss()
+    m = BeamNSegNet(nthetas=nthetas).to(torch_device)
+    optimizer = torch.optim.AdamW(m.parameters(), lr=args.lr)
+    for epoch in range(10):
+        for X, Y in train_dataloader:
+            optimizer.zero_grad()
+            output = m(X.to(torch_device))
+            loss = loss_fn(output, Y.to(torch_device))
+            loss.backward()
+            mean_loss = output
+            optimizer.step()
+
+            mean_loss = loss_fn(mean_guess(Y.shape), Y)
+
+            wandb.log({"loss": loss.item(), "mean_loss": mean_loss.item()})
+            # print("LOSS", l.item())
+
+    # [optional] finish the wandb run, necessary in notebooks
+    wandb.finish()

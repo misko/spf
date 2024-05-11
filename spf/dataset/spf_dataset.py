@@ -4,14 +4,17 @@
 
 import bisect
 import os
+import pickle
+import time
+from multiprocessing import Pool
 from typing import List
 
 import numpy as np
 import torch
+import tqdm
 import yaml
 from compress_pickle import load
 from deepdiff import DeepDiff
-from numba import njit
 from torch.utils.data import Dataset
 
 from spf.dataset.rover_idxs import (  # v3rx_column_names,
@@ -25,6 +28,7 @@ from spf.dataset.rover_idxs import (  # v3rx_column_names,
     v3rx_time_idxs,
 )
 from spf.dataset.spf_generate import generate_session
+from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
 from spf.dataset.wall_array_v1_idxs import (
     v1_beamformer_start_idx,
     v1_column_names,
@@ -47,12 +51,17 @@ from spf.plot.image_utils import (
     labels_to_source_images,
     radio_to_image,
 )
-from spf.rf import ULADetector
-
-
-@njit
-def pi_norm(x):
-    return ((x + np.pi) % (2 * np.pi)) - np.pi
+from spf.rf import (
+    ULADetector,
+    phase_diff_to_theta,
+    pi_norm,
+    precompute_steering_vectors,
+    segment_session_star,
+    speed_of_light,
+    torch_get_phase_diff,
+)
+from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
+from spf.utils import zarr_open_from_lmdb_store
 
 
 # from Stackoverflow
@@ -81,6 +90,194 @@ class dotdict(dict):
     __getattr__ = dict.get
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
+
+
+def mp_segment_zarr(zarr_fn, results_fn):
+    z = zarr_open_from_lmdb_store(zarr_fn)
+    n_sessions, _, _ = z.receivers["r0"].signal_matrix.shape
+
+    start = time.time()
+    results_by_receiver = {}
+    for r_idx in [0, 1]:
+        r_name = f"r{r_idx}"
+        inputs = [
+            {
+                "zarr_fn": zarr_fn,
+                "receiver": r_name,
+                "session_idx": idx,
+                "window_size": 2048,
+                "stride": 2048,
+                "trim": 20.0,
+                "mean_diff_threshold": 0.2,
+                "max_stddev_threshold": 0.5,
+                "drop_less_than_size": 3000,
+                "min_abs_signal": 40,
+            }
+            for idx in range(n_sessions)
+        ]
+        with Pool(8) as pool:
+            results_by_receiver[r_name] = list(
+                tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
+            )
+    pickle.dump(results_by_receiver, open(results_fn, "wb"))
+
+
+def v5_prepare_session(session):  # session -> x,y
+    abs_signal = session["signal_matrix"].abs().to(torch.float32)
+    pd = torch_get_phase_diff(session["signal_matrix"]).to(torch.float32)
+    if session["ground_truth_theta"].item() < 0:
+        return (
+            torch.vstack([abs_signal[1], abs_signal[0], -pd])[None],
+            -session["ground_truth_theta"],
+        )
+    return (
+        torch.vstack([abs_signal[0], abs_signal[1], pd])[None],
+        session["ground_truth_theta"][None],
+    )
+
+
+# target_thetas (N,1)
+def v5_thetas_to_targets(target_thetas, nthetas):
+    if target_thetas.ndim == 1:
+        target_thetas = target_thetas.reshape(-1, 1)
+    return torch.exp(
+        -((target_thetas - torch.linspace(0, torch.pi, nthetas).reshape(1, -1)) ** 2)
+    )
+
+
+def v5_collate_beamsegnet(batch):
+    return torch.vstack([x["x"] for x in batch]), torch.vstack([x["y"] for x in batch])
+
+
+class v5spfdataset(Dataset):
+    def __init__(self, prefix, nthetas):
+        prefix = prefix.replace(".zarr", "")
+        self.nthetas = nthetas
+        self.prefix = prefix
+        self.zarr_fn = f"{prefix}.zarr"
+        self.yaml_fn = f"{prefix}.yaml"
+        self.z = zarr_open_from_lmdb_store(self.zarr_fn)
+        self.yaml_config = yaml.safe_load(open(self.yaml_fn, "r"))
+
+        self.n_receivers = len(self.yaml_config["receivers"])
+
+        self.rx_configs = [
+            rx_config_from_receiver_yaml(receiver)
+            for receiver in self.yaml_config["receivers"]
+        ]
+
+        self.receiver_data = [
+            self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
+        ]
+
+        self.signal_matrices = [
+            self.z.receivers[f"r{ridx}"].signal_matrix
+            for ridx in range(self.n_receivers)
+        ]
+
+        self.n_sessions, self.n_antennas_per_receiver, self.session_length = (
+            self.signal_matrices[0].shape
+        )
+        assert self.n_antennas_per_receiver == 2
+        for ridx in range(self.n_receivers):
+            assert self.signal_matrices[ridx].shape == (
+                self.n_sessions,
+                self.n_antennas_per_receiver,
+                self.session_length,
+            )
+
+        self.steering_vectors = [
+            precompute_steering_vectors(
+                receiver_positions=rx_config.rx_pos,
+                carrier_frequency=rx_config.lo,
+                spacing=nthetas,
+            )
+            for rx_config in self.rx_configs
+        ]
+
+        self.keys_per_session = v5rx_f64_keys + v5rx_2xf64_keys + ["signal_matrix"]
+
+        self.ground_truth_thetas = self.get_ground_truth_thetas()
+
+    def __len__(self):
+        return self.n_sessions * self.n_receivers
+
+    def render_session(self, receiver_idx, session_idx):
+        r = self.receiver_data[receiver_idx]
+        data = {key: r[key][session_idx] for key in self.keys_per_session}
+
+        data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][session_idx]
+        data = {
+            k: (
+                torch.from_numpy(v)
+                if type(v) not in (np.float64, float)
+                else torch.Tensor([v])
+            )
+            for k, v in data.items()
+        }
+        data["x"], data["raw_y"] = v5_prepare_session(data)
+        data["y"] = v5_thetas_to_targets(data["raw_y"], self.nthetas)
+        return data
+
+    def get_ground_truth_thetas(self):
+        ground_truth_thetas = []
+        for ridx in range(self.n_receivers):
+            rx_theta_in_pis = self.receiver_data[ridx]["rx_theta_in_pis"]
+            tx_pos = np.array(
+                [
+                    self.receiver_data[ridx]["tx_pos_x_mm"],
+                    self.receiver_data[ridx]["tx_pos_y_mm"],
+                ]
+            )
+            rx_pos = np.array(
+                [
+                    self.receiver_data[ridx]["rx_pos_x_mm"],
+                    self.receiver_data[ridx]["rx_pos_y_mm"],
+                ]
+            )
+
+            # compute the angle of the tx with respect to rx
+            d = tx_pos - rx_pos
+
+            rx_to_tx_theta = np.arctan2(d[0], d[1])
+            ground_truth_thetas.append(
+                pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * np.pi)
+            )
+        return ground_truth_thetas
+
+    def __getitem__(self, idx):
+        assert idx < self.n_sessions * self.n_receivers
+        receiver_idx = idx % self.n_receivers
+        return self.render_session(receiver_idx, idx // self.n_receivers)
+
+    def get_segmentation_mean_phase(self):
+        segmentation_by_receiver = self.get_segmentation()
+        mean_phase_results = {}
+        for receiver, results in segmentation_by_receiver.items():
+            mean_phase_results[receiver] = np.array(
+                [np.array([x["mean"] for x in result]).mean() for result in results]
+            )
+        return mean_phase_results
+
+    def get_estimated_thetas(self):
+        mean_phase = self.get_segmentation_mean_phase()
+        estimated_thetas = {}
+        for ridx in range(self.n_receivers):
+            carrier_freq = self.yaml_config["receivers"][ridx]["f-carrier"]
+            antenna_spacing = self.yaml_config["receivers"][ridx]["antenna-spacing-m"]
+            estimated_thetas[f"r{ridx}"] = phase_diff_to_theta(
+                mean_phase[f"r{ridx}"],
+                speed_of_light / carrier_freq,
+                antenna_spacing,
+                large_phase_goes_right=False,
+            )
+        return estimated_thetas
+
+    def get_segmentation(self):
+        results_fn = self.prefix + "_segmentation.pkl"
+        if not os.path.exists(results_fn):
+            mp_segment_zarr(self.zarr_fn, results_fn)
+        return pickle.load(open(results_fn, "rb"))
 
 
 class SessionsDatasetSimulated(Dataset):
