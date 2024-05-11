@@ -96,7 +96,6 @@ def mp_segment_zarr(zarr_fn, results_fn):
     z = zarr_open_from_lmdb_store(zarr_fn)
     n_sessions, _, _ = z.receivers["r0"].signal_matrix.shape
 
-    start = time.time()
     results_by_receiver = {}
     for r_idx in [0, 1]:
         r_name = f"r{r_idx}"
@@ -141,7 +140,7 @@ def v5_prepare_session(session):  # session -> x,y
 def v5_thetas_to_targets(target_thetas, nthetas):
     if target_thetas.ndim == 1:
         target_thetas = target_thetas.reshape(-1, 1)
-    return torch.exp(
+    p = torch.exp(
         -(
             (
                 target_thetas
@@ -150,6 +149,7 @@ def v5_thetas_to_targets(target_thetas, nthetas):
             ** 2
         )
     )
+    return torch.nn.functional.normalize(p, p=1, dim=1)
 
 
 def v5_collate_beamsegnet(batch):
