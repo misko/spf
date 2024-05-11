@@ -49,12 +49,23 @@ if __name__ == "__main__":
         default=0.001,
     )
     parser.add_argument(
+        "--seed",
+        type=int,
+        required=False,
+        default=1337,
+    )
+    parser.add_argument(
         "--compile",
         action=argparse.BooleanOptionalAction,
     )
     # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
     args = parser.parse_args()
     torch_device = torch.device(args.device)
+
+    torch.manual_seed(args.seed)
+    import random
+
+    random.seed(args.seed)
 
     # loop over and concat datasets here
     datasets = [v5spfdataset(prefix, nthetas=args.nthetas) for prefix in args.datasets]
