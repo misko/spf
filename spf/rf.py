@@ -1,8 +1,15 @@
 # from numba import jit
 import functools
+import os
+import pickle
+from multiprocessing import Pool
 
 import numpy as np
-from numba import njit
+import torch
+from numba import jit, njit
+from tqdm import tqdm
+
+from spf.utils import zarr_open_from_lmdb_store, zarr_open_from_lmdb_store_cm
 
 # numba = False
 
@@ -28,6 +35,288 @@ If we are left multiplying then its a right (clockwise) rotation
 """
 
 
+@njit
+def pi_norm(x):
+    return ((x + np.pi) % (2 * np.pi)) - np.pi
+
+
+def torch_pi_norm(x):
+    return ((x + torch.pi) % (2 * torch.pi)) - torch.pi
+
+
+@njit
+def circular_diff_to_mean(angles, mean):
+    a = np.abs(mean - angles) % (2 * np.pi)
+    b = 2 * np.pi - a
+    dists = np.empty(a.shape[0])
+    for i in range(a.shape[0]):
+        dists[i] = min(a[i], b[i])
+    return dists
+
+
+# returns circular_stddev and trimmed cricular stddev
+@njit
+def circular_stddev(v, u, trim=50.0):
+    diff_from_mean = circular_diff_to_mean(angles=v, mean=u)
+
+    diff_from_mean_squared = diff_from_mean**2
+    stddev = np.sqrt(diff_from_mean_squared.sum() / (diff_from_mean.shape[0] - 1))
+
+    mask = diff_from_mean <= np.percentile(diff_from_mean, 100.0 - trim)
+    _diff_from_mean_squared = diff_from_mean_squared[mask]
+
+    trimmed_stddev = np.sqrt(
+        _diff_from_mean_squared.sum() / (_diff_from_mean_squared.shape[0] - 1)
+    )
+    return stddev, trimmed_stddev
+
+
+# returns circular mean and trimmed circular mean
+@njit
+def circular_mean(angles, trim=50.0):
+    # n = angles.shape[0]
+    # assert angles.ndim == 1 or np.prod(a.shape[1:]) == 1
+    _sin_angles = np.sin(angles)
+    _cos_angles = np.cos(angles)
+    cm = np.arctan2(_sin_angles.sum(), _cos_angles.sum()) % (2 * np.pi)
+
+    ##non JIT
+    # dists = np.vstack((2 * np.pi - np.abs(cm - angles), np.abs(cm - angles))).min(
+    #     axis=0
+    # )
+
+    # JIT version
+    dists = circular_diff_to_mean(angles=angles, mean=cm)
+
+    mask = dists <= np.percentile(dists, 100.0 - trim)
+    _cm = np.arctan2(_sin_angles[mask].sum(), _cos_angles[mask].sum()) % (2 * np.pi)
+    return pi_norm(cm), pi_norm(_cm)
+
+
+def get_segmentation_for_zarr(
+    zarr_fn,
+    nprocs=4,
+    window_size=2048,
+    stride=2048,
+    trim=20.0,
+    mean_diff_threshold=0.2,
+    max_stddev_threshold=0.5,
+    drop_less_than_size=3000,
+    min_abs_signal=40,
+):
+    segmentation_fn = zarr_fn.replace(".zarr", "_seg.pkl")
+    if not os.path.exists(segmentation_fn):
+        z = zarr_open_from_lmdb_store(zarr_fn)
+        n_sessions, _, samples_per_buffer = z.receivers["r0"].signal_matrix.shape
+        results_by_receiver = {}
+        for r_idx in [0, 1]:
+            r_name = f"r{r_idx}"
+            inputs = [
+                {
+                    "zarr_fn": zarr_fn,
+                    "receiver": r_name,
+                    "session_idx": idx,
+                    "window_size": window_size,
+                    "stride": stride,
+                    "trim": trim,
+                    "mean_diff_threshold": mean_diff_threshold,
+                    "max_stddev_threshold": max_stddev_threshold,
+                    "drop_less_than_size": drop_less_than_size,
+                    "min_abs_signal": min_abs_signal,
+                }
+                for idx in range(n_sessions)
+            ]
+            with Pool(nprocs) as pool:
+                results_by_receiver[r_name] = list(
+                    tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
+                )
+
+        pickle.dump(results_by_receiver, open(segmentation_fn, "wb"))
+        return results_by_receiver
+    else:
+        return pickle.load(open(segmentation_fn, "rb"))
+
+
+def segment_session_star(arg_dict):
+    return segment_session(**arg_dict)
+
+
+def segment_session(zarr_fn, receiver, session_idx, **kwrgs):
+    with zarr_open_from_lmdb_store_cm(zarr_fn) as z:
+        return simple_segment(z.receivers[receiver].signal_matrix[session_idx], **kwrgs)
+
+
+@njit
+def get_stats_for_signal(v, pd, trim):
+    trimmed_cm = circular_mean(pd, trim=trim)[1]
+    trimmed_stddev = circular_stddev(pd, trimmed_cm, trim=trim)[1]
+    abs_signal_median = np.median(np.abs(v).reshape(-1)) if v.size > 0 else 0
+    return trimmed_cm, trimmed_stddev, abs_signal_median
+
+
+@njit
+def windowed_trimmed_circular_mean_and_stddev(v, pd, window_size, stride, trim=50.0):
+    assert (pd.shape[0] - window_size) % stride == 0
+    n_steps = 1 + (pd.shape[0] - window_size) // stride
+
+    step_idxs = np.zeros((n_steps, 2), dtype=np.int64)
+    step_stats = np.zeros((n_steps, 3), dtype=np.float64)
+    steps = np.arange(n_steps)
+
+    # start_idx, end_idx
+    step_idxs[:, 0] = steps * stride
+    step_idxs[:, 1] = step_idxs[:, 0] + window_size
+    for step in range(n_steps):
+        start_idx, end_idx = step_idxs[step][:2]
+        _pd = pd[start_idx:end_idx]
+        _v = v[:, start_idx:end_idx]
+        # trimmed_cm, trimmed_stddev, abs_signal_median
+        step_stats[step] = get_stats_for_signal(_v, _pd, trim)
+
+    return step_idxs, step_stats
+
+
+def keep_signal_surrounded_by_noise(windows):
+    valid_windows = []
+    for window_idx, window in enumerate(windows):
+        if window["type"] == "signal":
+            # check if one before was signal
+            if window_idx > 0 and windows[window_idx - 1]["type"] == "signal":
+                continue
+            # check if one after was signal
+            if (
+                window_idx + 1 < len(windows)
+                and windows[window_idx + 1]["type"] == "signal"
+            ):
+                continue
+            valid_windows.append(window)
+    return valid_windows
+
+
+def drop_windows_smaller_than(windows, drop_less_than_size):
+    return [w for w in windows if (w["end_idx"] - w["start_idx"]) > drop_less_than_size]
+
+
+def combine_windows(windows, max_stddev_threshold, min_abs_signal):
+    # combine windows
+    new_windows = []
+    for window in windows:
+        if (
+            window["stddev"] < max_stddev_threshold
+            or window["abs_signal_median"] >= min_abs_signal
+        ):
+            if (
+                len(new_windows) > 0
+                and new_windows[-1]["type"] == "signal"
+                and pi_norm(abs(new_windows[-1]["mean"] - window["mean"])) < 0.2
+                and abs(new_windows[-1]["stddev"] - window["stddev"]) < 0.1
+            ):
+                new_windows[-1]["end_idx"] = window["end_idx"]
+            else:
+                window["type"] = "signal"
+                new_windows.append(window)
+        else:
+            # previous window was also noise
+            if len(new_windows) > 0 and new_windows[-1]["type"] == "noise":
+                new_windows[-1]["end_idx"] = window["end_idx"]
+            else:
+                window["type"] = "noise"
+                new_windows.append(window)
+    return new_windows
+
+
+def recompute_stats_for_windows(windows, v, pd, trim):
+    for window in windows:
+        _pd = pd[window["start_idx"] : window["end_idx"]]
+        _v = v[window["start_idx"] : window["end_idx"]]
+        r = get_stats_for_signal(_v, _pd, trim)
+        window["mean"] = r[0]
+        window["stddev"] = r[1]
+        window["abs_signal_median"] = r[2]
+    return windows
+
+
+def simple_segment(
+    v,
+    window_size,
+    stride,
+    trim,
+    mean_diff_threshold,
+    max_stddev_threshold,
+    drop_less_than_size,
+    min_abs_signal,
+):
+    pd = get_phase_diff(v)
+    candidate_windows = []
+    window_idxs_and_stats = windowed_trimmed_circular_mean_and_stddev(
+        v, pd, window_size=window_size, stride=stride, trim=trim
+    )
+
+    candidate_windows = [
+        {
+            "start_idx": idx[0],
+            "end_idx": idx[1],
+            "mean": stats[0],
+            "stddev": stats[1],
+            "abs_signal_median": stats[2],
+        }
+        for idx, stats in zip(window_idxs_and_stats[0], window_idxs_and_stats[1])
+    ]
+
+    # combine windows
+    candidate_windows = combine_windows(
+        candidate_windows, max_stddev_threshold, min_abs_signal
+    )
+
+    # drop all noise windows less than 3windows in size
+    candidate_windows = drop_windows_smaller_than(
+        candidate_windows, drop_less_than_size
+    )
+
+    # only keep signal windows surounded by noise
+    candidate_windows = keep_signal_surrounded_by_noise(candidate_windows)
+
+    return recompute_stats_for_windows(candidate_windows, v, pd, trim)
+
+
+@njit
+def phase_diff_to_theta(
+    phase_diff, wavelength, distance_between_receivers, large_phase_goes_right
+):
+    if not large_phase_goes_right:
+        phase_diff = phase_diff.copy()
+        phase_diff *= -1
+    phase_diff = pi_norm(phase_diff)
+    # clip the values to reasonable?
+    edge = 1 - 1e-8
+    sin_arg = np.clip(
+        wavelength * phase_diff / (distance_between_receivers * np.pi * 2),
+        -edge,
+        edge,
+    )
+    x = np.arcsin(sin_arg)
+    return x, np.pi - x, (pi_norm(x) + pi_norm(np.pi - x)) / 2 - np.pi
+
+
+# """
+# Do not use pi_norm here!! this can flip the sign on observations near the edge
+# """
+
+
+@njit
+def get_phase_diff(signal_matrix):
+    return pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
+
+
+def torch_get_phase_diff(signal_matrix):
+    return torch_pi_norm(signal_matrix[0].angle() - signal_matrix[1].angle())
+
+
+@njit
+def get_avg_phase(signal_matrix, trim=0.0):
+    return circular_mean(get_phase_diff(signal_matrix=signal_matrix), trim=50.0)
+
+
 @functools.lru_cache(maxsize=1024)
 def rotation_matrix(orientation):
     s = np.sin(orientation)
@@ -35,7 +324,8 @@ def rotation_matrix(orientation):
     return np.array([c, s, -s, c]).reshape(2, 2)
 
 
-c = 3e8  # speed of light
+speed_of_light = 299792458  # m/s speed of light
+c = speed_of_light  # speed of light
 
 
 class Source(object):

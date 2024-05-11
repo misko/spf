@@ -20,6 +20,7 @@ from spf.sdrpluto.sdr_controller import (
     ReceiverConfig,
     get_avg_phase,
     get_pplus,
+    rx_config_from_receiver_yaml,
     setup_rx,
     setup_rxtx,
 )
@@ -268,29 +269,6 @@ class ThreadedRXRawV5(ThreadedRXRaw):
         super(ThreadedRXRawV5, self).__init__(
             **kwargs,
         )
-
-
-def rx_config_from_receiver_yaml(receiver_yaml):
-    return ReceiverConfig(
-        lo=receiver_yaml["f-carrier"],
-        rf_bandwidth=receiver_yaml["bandwidth"],
-        sample_rate=receiver_yaml["f-sampling"],
-        gains=[receiver_yaml["rx-gain"], receiver_yaml["rx-gain"]],
-        gain_control_modes=[
-            receiver_yaml["rx-gain-mode"],
-            receiver_yaml["rx-gain-mode"],
-        ],
-        enabled_channels=[0, 1],
-        buffer_size=receiver_yaml["buffer-size"],
-        intermediate=receiver_yaml["f-intermediate"],
-        uri=receiver_yaml["receiver-uri"],
-        rx_spacing=receiver_yaml["antenna-spacing-m"],
-        rx_theta_in_pis=receiver_yaml["theta-in-pis"],
-        motor_channel=(
-            receiver_yaml["motor_channel"] if "motor_channel" in receiver_yaml else None
-        ),
-        rx_buffers=receiver_yaml["rx-buffers"],
-    )
 
 
 class DataCollector:
