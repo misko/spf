@@ -62,6 +62,7 @@ def zarr_open_from_lmdb_store(filename, mode="r"):
             writemap=False,
             readonly=True,
             max_readers=1024 * 1024,
+            lock=False,
         )
     elif mode == "w":
         store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
