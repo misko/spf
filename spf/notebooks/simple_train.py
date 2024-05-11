@@ -48,6 +48,10 @@ if __name__ == "__main__":
         required=False,
         default=0.001,
     )
+    parser.add_argument(
+        "--compile",
+        action=argparse.BooleanOptionalAction,
+    )
     # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
     args = parser.parse_args()
     torch_device = torch.device(args.device)
@@ -84,6 +88,8 @@ if __name__ == "__main__":
 
     loss_fn = torch.nn.MSELoss()
     m = BeamNSegNet(nthetas=args.nthetas).to(torch_device)
+    if args.compile:
+        m = torch.compile(m)
     optimizer = torch.optim.AdamW(m.parameters(), lr=args.lr)
     step = 0
     for epoch in range(10):
