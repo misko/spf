@@ -270,14 +270,14 @@ class BeamNSegNetDirect(nn.Module):
         return torch.mul(beam_former, mask_weights[..., None]).sum(axis=1)
 
     def likelihood(self, x, y):
-        # mu_likelihood = x[:, 3] * torch.exp(-((x[:, 0] - y) ** 2) / x[:, 1])
-        # other_likelihood = x[:, 4] * torch.exp(
-        #    -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / x[:, 2]
-        # )
-        mu_likelihood = torch.exp(-((x[:, 0] - y) ** 2) / 1)
-        other_likelihood = 0 * torch.exp(
-            -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
+        mu_likelihood = x[:, 3] * torch.exp(-((x[:, 0] - y) ** 2) / x[:, 1])
+        other_likelihood = x[:, 4] * torch.exp(
+            -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / x[:, 2]
         )
+        # mu_likelihood = torch.exp(-((x[:, 0] - y) ** 2) / 1)
+        # other_likelihood = 0 * torch.exp(
+        #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
+        # )
         return mu_likelihood + other_likelihood
 
     def loglikelihood(self, x, y):
