@@ -144,7 +144,9 @@ def v5_thetas_to_targets(target_thetas, nthetas):
         -(
             (
                 target_thetas
-                - torch.linspace(-torch.pi / 2, torch.pi / 2, nthetas).reshape(1, -1)
+                - torch.linspace(
+                    -torch.pi / 2, torch.pi / 2, nthetas, device=target_thetas.device
+                ).reshape(1, -1)
             )
             ** 2
         )

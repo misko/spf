@@ -125,11 +125,11 @@ if __name__ == "__main__":
             optimizer.step()
 
             to_log = {"loss": loss.item()}
-            if step % 500 == 0:
-                _output = (m.render_discrete_x(output) * 255).byte()
-                _Y = (m.render_discrete_y(Y_rad) * 255).byte()
+            if step % 200 == 0:
+                _output = (m.render_discrete_x(output) * 255).cpu().byte()
+                _Y = (m.render_discrete_y(Y_rad) * 255).cpu().byte()
                 train_target_image = torch.zeros(
-                    (_output.shape[0] * 2, _output.shape[1])
+                    (_output.shape[0] * 2, _output.shape[1]),
                 ).byte()
                 for row_idx in range(_output.shape[0]):
                     train_target_image[row_idx * 2] = _output[row_idx]
