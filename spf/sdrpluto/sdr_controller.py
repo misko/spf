@@ -16,6 +16,8 @@ from spf.rf import (
     beamformer,
     beamformer_given_steering,
     beamformer_thetas,
+    circular_mean,
+    pi_norm,
     precompute_steering_vectors,
 )
 from spf.utils import random_signal_matrix
