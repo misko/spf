@@ -153,7 +153,11 @@ def v5_thetas_to_targets(target_thetas, nthetas):
 
 
 def v5_collate_beamsegnet(batch):
-    return torch.vstack([x["x"] for x in batch]), torch.vstack([x["y"] for x in batch])
+    return (
+        torch.vstack([x["x"] for x in batch]),
+        # torch.vstack([x["y_discrete"] for x in batch]),
+        torch.vstack([x["y_rad"] for x in batch]),
+    )
 
 
 class v5spfdataset(Dataset):
@@ -222,8 +226,8 @@ class v5spfdataset(Dataset):
             )
             for k, v in data.items()
         }
-        data["x"], data["raw_y"] = v5_prepare_session(data)
-        data["y"] = v5_thetas_to_targets(data["raw_y"], self.nthetas)
+        data["x"], data["y_rad"] = v5_prepare_session(data)
+        # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
         return data
 
     def get_ground_truth_thetas(self):

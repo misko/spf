@@ -6,7 +6,10 @@ import torch.nn.functional as f
 import wandb
 
 from spf.dataset.spf_dataset import v5_collate_beamsegnet, v5spfdataset
-from spf.model_training_and_inference.models.beamsegnet import BeamNSegNet
+from spf.model_training_and_inference.models.beamsegnet import (
+    BeamNSegNetDirect,
+    BeamNSegNetDiscrete,
+)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -55,6 +58,11 @@ if __name__ == "__main__":
         default=1337,
     )
     parser.add_argument(
+        "--type",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
         "--compile",
         action=argparse.BooleanOptionalAction,
     )
@@ -90,6 +98,7 @@ if __name__ == "__main__":
             "learning_rate": args.lr,
             "batch": args.batch,
             "architecture": "beamsegnet1",
+            "type": args.type,
         },
     )
 
@@ -97,31 +106,32 @@ if __name__ == "__main__":
     def mean_guess(shape):
         return f.normalize(torch.ones(shape), p=1, dim=1)
 
-    loss_fn = torch.nn.MSELoss()
-    m = BeamNSegNet(nthetas=args.nthetas).to(torch_device)
+    if args.type == "discrete":
+        m = BeamNSegNetDiscrete(nthetas=args.nthetas).to(torch_device)
+    elif args.type == "direct":
+        m = BeamNSegNetDirect(nthetas=args.nthetas).to(torch_device)
+    else:
+        raise NotImplementedError
     if args.compile:
         m = torch.compile(m)
     optimizer = torch.optim.AdamW(m.parameters(), lr=args.lr)
     step = 0
     for epoch in range(10):
-        for X, Y in train_dataloader:
+        for X, Y_rad in train_dataloader:
             optimizer.zero_grad()
             output = m(X.to(torch_device))
-            loss = loss_fn(output, Y.to(torch_device))
+            loss = -m.loglikelihood(output, Y_rad.to(torch_device)).sum()
             loss.backward()
-            mean_loss = output
             optimizer.step()
 
-            mean_loss = loss_fn(mean_guess(Y.shape), Y)
-
-            to_log = {"loss": loss.item(), "mean_loss": mean_loss.item()}
+            to_log = {"loss": loss.item()}
             if step % 500 == 0:
+                _output = (m.render_discrete_x(output) * 255).byte()
+                _Y = (m.render_discrete_y(Y_rad) * 255).byte()
                 train_target_image = torch.zeros(
-                    (output.shape[0] * 2, output.shape[1])
+                    (_output.shape[0] * 2, _output.shape[1])
                 ).byte()
-                _output = (output * 255).cpu().byte()
-                _Y = (Y * 255).cpu().byte()
-                for row_idx in range(output.shape[0]):
+                for row_idx in range(_output.shape[0]):
                     train_target_image[row_idx * 2] = _output[row_idx]
                     train_target_image[row_idx * 2 + 1] = _Y[row_idx]
                 output_image = wandb.Image(
