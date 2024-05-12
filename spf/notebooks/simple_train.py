@@ -58,6 +58,12 @@ if __name__ == "__main__":
         default=1337,
     )
     parser.add_argument(
+        "--epochs",
+        type=int,
+        required=False,
+        default=1000,
+    )
+    parser.add_argument(
         "--type",
         type=str,
         required=True,
@@ -116,7 +122,7 @@ if __name__ == "__main__":
         m = torch.compile(m)
     optimizer = torch.optim.AdamW(m.parameters(), lr=args.lr)
     step = 0
-    for epoch in range(10):
+    for epoch in range(args.epochs):
         for X, Y_rad in train_dataloader:
             optimizer.zero_grad()
             output = m(X.to(torch_device))
