@@ -126,7 +126,7 @@ if __name__ == "__main__":
         for X, Y_rad in train_dataloader:
             optimizer.zero_grad()
             output = m(X.to(torch_device))
-            loss = -m.loglikelihood(output, Y_rad.to(torch_device)).sum()
+            loss = -m.loglikelihood(output, Y_rad.to(torch_device)).mean()
             loss.backward()
             optimizer.step()
 
