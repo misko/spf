@@ -4,3 +4,14 @@ gcloud init
 #gh auth login
 git config --global user.email misko@cs.toronto.edu
 git config --global user.name misko 
+
+
+#!/bin/bash
+sudo apt-get update
+sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev sshpass -y
+python -m venv ~/spf_venv
+source ~/spf_venv/bin/activate
+git clone https://github.com/misko/spf.git
+cd spf
+export PYTHONPATH=`pwd`
+pip install -r requirements.txt

@@ -197,6 +197,7 @@ class BeamNetDirect(nn.Module):
         self.magB_track = magB_track
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
+        self.flip_mu = torch.Tensor([[-1, 1, 1, 1, 1]])
         self.beam_net = nn.Sequential(
             OrderedDict(
                 [
@@ -213,6 +214,16 @@ class BeamNetDirect(nn.Module):
                     ("relu4", nn.ReLU(inplace=True)),
                 ]
             )
+        )
+
+    def fixify(self, _y, sign):
+        _y_sig = self.sigmoid(_y) * 2  # in [0,1]
+        return torch.hstack(
+            [
+                sign * (_y_sig[:, [0]] - 0.5) * 2 * torch.pi / 2,  # in
+                _y_sig[:, [1, 2]] * 3 + 0.00001,  # sigmas
+                self.softmax(_y[:, [3, 4]]),
+            ]
         )
 
     def forward(self, x):
@@ -232,14 +243,8 @@ class BeamNetDirect(nn.Module):
 
         y = _y.new(_y.shape)
         # copy over results for pd>0
-        y[pd_pos_mask] = _y[:n_pos]
-        y[~pd_pos_mask] = torch.hstack(
-            [
-                -_y[n_pos:, [0]],  # flip mu theta, since phase was opposite
-                self.sigmoid(_y[n_pos:, [1, 2]]) * 3 + 0.00001,  # sigmas
-                self.softmax(_y[n_pos:, [3, 4]]),
-            ]
-        )
+        y[pd_pos_mask] = self.fixify(_y[:n_pos], sign=1)
+        y[~pd_pos_mask] = self.fixify(_y[n_pos:], sign=-1)
 
         return y  # [theta_u, sigma1, sigma2, k1, k2]
 
