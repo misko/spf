@@ -83,7 +83,8 @@ class UNet1D(nn.Module):
                         ),
                     ),
                     # (name + "norm1", nn.BatchNorm1d(num_features=features)),
-                    (name + "relu1", nn.ReLU(inplace=True)),
+                    # (name + "relu1", nn.ReLU(inplace=True)),
+                    (name + "relu1", nn.SELU()),
                     (
                         name + "conv2",
                         nn.Conv1d(
@@ -95,7 +96,8 @@ class UNet1D(nn.Module):
                         ),
                     ),
                     # (name + "norm2", nn.BatchNorm1d(num_features=features)),
-                    (name + "relu2", nn.ReLU(inplace=True)),
+                    # (name + "relu2", nn.ReLU(inplace=True)),
+                    (name + "relu2", nn.SELU()),
                 ]
             )
         )
@@ -107,22 +109,23 @@ class BeamNetDiscrete(nn.Module):
         self.nthetas = nthetas
         self.hidden = hidden
         self.pd_track = pd_track
+        self.act = nn.SELU
         self.magA_track = magA_track
         self.magB_track = magB_track
         self.beam_net = nn.Sequential(
             OrderedDict(
                 [
                     ("linear1", nn.Linear(3, hidden)),
-                    ("relu1", nn.ReLU(inplace=True)),
-                    ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu1", self.act()),
+                    # ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
                     ("linear2", nn.Linear(hidden, hidden)),
-                    ("relu2", nn.ReLU(inplace=True)),
-                    ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu2", self.act()),
+                    # ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
                     ("linear3", nn.Linear(hidden, hidden)),
-                    ("relu3", nn.ReLU(inplace=True)),
-                    ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu3", self.act()),
+                    # ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
                     ("linear4", nn.Linear(hidden, self.nthetas)),
-                    ("relu4", nn.ReLU(inplace=True)),
+                    ("relu4", self.act()),
                     ("softmax", nn.Softmax(dim=1)),  # output a probability distribution
                 ]
             )
@@ -161,6 +164,7 @@ class BeamNSegNetDiscrete(nn.Module):
         self.beam_net = BeamNetDiscrete(nthetas=nthetas, hidden=hidden)
 
     def forward(self, x):
+        x[:, :2] /= 500
         batch_size, input_channels, session_size = x.shape
         beam_former_input = x.transpose(1, 2).reshape(
             batch_size * session_size, input_channels
@@ -193,6 +197,7 @@ class BeamNetDirect(nn.Module):
         self.outputs = 1 + 2 + 2  # u, o1, o2, k1, k2
         self.hidden = hidden
         self.pd_track = pd_track
+        self.act = nn.SELU
         self.magA_track = magA_track
         self.magB_track = magB_track
         self.softmax = nn.Softmax(dim=1)
@@ -202,16 +207,16 @@ class BeamNetDirect(nn.Module):
             OrderedDict(
                 [
                     ("linear1", nn.Linear(3, hidden)),
-                    ("relu1", nn.ReLU(inplace=True)),
-                    ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu1", self.act()),
+                    # ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
                     ("linear2", nn.Linear(hidden, hidden)),
-                    ("relu2", nn.ReLU(inplace=True)),
-                    ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu2", self.act()),
+                    # ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
                     ("linear3", nn.Linear(hidden, hidden)),
-                    ("relu3", nn.ReLU(inplace=True)),
-                    ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu3", self.act()),
+                    # ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
                     ("linear4", nn.Linear(hidden, self.outputs)),
-                    ("relu4", nn.ReLU(inplace=True)),
+                    ("relu4", self.act()),
                 ]
             )
         )
@@ -259,6 +264,7 @@ class BeamNSegNetDirect(nn.Module):
 
     def forward(self, x):
         batch_size, input_channels, session_size = x.shape
+        x[:, :2] /= 500
         beam_former_input = x.transpose(1, 2).reshape(
             batch_size * session_size, input_channels
         )
@@ -270,15 +276,16 @@ class BeamNSegNetDirect(nn.Module):
         return torch.mul(beam_former, mask_weights[..., None]).sum(axis=1)
 
     def likelihood(self, x, y):
-        mu_likelihood = x[:, 3] * torch.exp(-((x[:, 0] - y) ** 2) / x[:, 1])
-        other_likelihood = x[:, 4] * torch.exp(
-            -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / x[:, 2]
-        )
+        # mu_likelihood = x[:, 3] * torch.exp(-((x[:, 0] - y) ** 2) / x[:, 1])
+        mu_likelihood = torch.exp(-((x[:, 0] - y) ** 2))
+        # other_likelihood = x[:, 4] * torch.exp(
+        #    -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / x[:, 2]
+        # )
         # mu_likelihood = torch.exp(-((x[:, 0] - y) ** 2) / 1)
         # other_likelihood = 0 * torch.exp(
         #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
         # )
-        return mu_likelihood + other_likelihood
+        return mu_likelihood  # + other_likelihood
 
     def loglikelihood(self, x, y):
         return torch.log(self.likelihood(x, y))
