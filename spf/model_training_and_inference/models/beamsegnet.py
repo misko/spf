@@ -156,12 +156,12 @@ class UNet1D(nn.Module):
                             out_channels=features,
                             kernel_size=15,
                             padding=7,
-                            bias=False,
+                            bias=True,
                         ),
                     ),
                     # (name + "norm1", nn.BatchNorm1d(num_features=features)),
                     # (name + "relu1", nn.ReLU(inplace=True)),
-                    (name + "relu1", nn.SELU()),
+                    (name + "relu1", nn.LeakyReLU()),
                     (
                         name + "conv2",
                         nn.Conv1d(
@@ -169,12 +169,12 @@ class UNet1D(nn.Module):
                             out_channels=features,
                             kernel_size=15,
                             padding=7,
-                            bias=False,
+                            bias=True,
                         ),
                     ),
                     # (name + "norm2", nn.BatchNorm1d(num_features=features)),
                     # (name + "relu2", nn.ReLU(inplace=True)),
-                    (name + "relu2", nn.SELU()),
+                    (name + "relu2", nn.LeakyReLU()),
                 ]
             )
         )
@@ -364,7 +364,9 @@ class BeamNSegNetDirect(nn.Module):
 
     def likelihood(self, x, y):
         # mu_likelihood = x[:, 3] * torch.exp(-((x[:, 0] - y) ** 2) / x[:, 1])
-        mu_likelihood = torch.exp(-((x[:, 0] - y) ** 2))
+
+        ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
+        mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
         # other_likelihood = x[:, 4] * torch.exp(
         #    -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / x[:, 2]
         # )
