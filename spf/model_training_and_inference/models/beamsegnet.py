@@ -6,6 +6,83 @@ import torch.nn as nn
 from spf.dataset.spf_dataset import v5_thetas_to_targets
 
 
+class ConvNet(nn.Module):
+    def __init__(self, in_channels, out_channels, hidden):
+        super(ConvNet, self).__init__()
+        print("BUILD CONV NET!!!")
+        self.ks = 17
+        self.act = nn.LeakyReLU
+        self.net = nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        "conv1",
+                        nn.Conv1d(
+                            in_channels=in_channels,
+                            out_channels=hidden,
+                            kernel_size=self.ks,
+                            padding=self.ks // 2,
+                            # bias=False,
+                        ),
+                    ),
+                    # ("norm1", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu1", self.act()),
+                    (
+                        "conv2",
+                        nn.Conv1d(
+                            in_channels=hidden,
+                            out_channels=hidden,
+                            kernel_size=self.ks,
+                            padding=self.ks // 2,
+                            # bias=False,
+                        ),
+                    ),
+                    # ("norm2", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu2", self.act()),
+                    (
+                        "conv3",
+                        nn.Conv1d(
+                            in_channels=hidden,
+                            out_channels=hidden,
+                            kernel_size=self.ks,
+                            padding=self.ks // 2,
+                            # bias=False,
+                        ),
+                    ),
+                    # ("norm3", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu3", self.act()),
+                    (
+                        "conv4",
+                        nn.Conv1d(
+                            in_channels=hidden,
+                            out_channels=hidden,
+                            kernel_size=self.ks,
+                            padding=self.ks // 2,
+                            # bias=False,
+                        ),
+                    ),
+                    # ("norm4", nn.BatchNorm1d(num_features=hidden)),
+                    ("relu4", self.act()),
+                    (
+                        "conv5",
+                        nn.Conv1d(
+                            in_channels=hidden,
+                            out_channels=out_channels,
+                            kernel_size=self.ks,
+                            padding=self.ks // 2,
+                            # bias=False,
+                        ),
+                    ),
+                    # ("norm5", nn.BatchNorm1d(num_features=hidden)),
+                    # ("relu5", self.act()),
+                ]
+            )
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
 # largely copied from https://raw.githubusercontent.com/mateuszbuda/brain-segmentation-pytorch/master/unet.py
 class UNet1D(nn.Module):
 
@@ -77,8 +154,8 @@ class UNet1D(nn.Module):
                         nn.Conv1d(
                             in_channels=in_channels,
                             out_channels=features,
-                            kernel_size=3,
-                            padding=1,
+                            kernel_size=15,
+                            padding=7,
                             bias=False,
                         ),
                     ),
@@ -90,8 +167,8 @@ class UNet1D(nn.Module):
                         nn.Conv1d(
                             in_channels=features,
                             out_channels=features,
-                            kernel_size=3,
-                            padding=1,
+                            kernel_size=15,
+                            padding=7,
                             bias=False,
                         ),
                     ),
@@ -164,6 +241,7 @@ class BeamNSegNetDiscrete(nn.Module):
         self.beam_net = BeamNetDiscrete(nthetas=nthetas, hidden=hidden)
 
     def forward(self, x):
+        x = x.clone()
         x[:, :2] /= 500
         batch_size, input_channels, session_size = x.shape
         beam_former_input = x.transpose(1, 2).reshape(
@@ -192,7 +270,7 @@ class BeamNSegNetDiscrete(nn.Module):
 
 
 class BeamNetDirect(nn.Module):
-    def __init__(self, hidden, magA_track=0, magB_track=1, pd_track=2):
+    def __init__(self, hidden, symmetry, magA_track=0, magB_track=1, pd_track=2):
         super(BeamNetDirect, self).__init__()
         self.outputs = 1 + 2 + 2  # u, o1, o2, k1, k2
         self.hidden = hidden
@@ -200,6 +278,7 @@ class BeamNetDirect(nn.Module):
         self.act = nn.SELU
         self.magA_track = magA_track
         self.magB_track = magB_track
+        self.symmetry = symmetry
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
         self.flip_mu = torch.Tensor([[-1, 1, 1, 1, 1]])
@@ -237,33 +316,41 @@ class BeamNetDirect(nn.Module):
         n_pos = pd_pos_mask.sum().item()
 
         _x = x.new(x.shape)
-        # copy over the pd>0
-        _x[:n_pos] = x[pd_pos_mask]
-        # flip the magnitudes and phase diffs so all now have phase diff >0
-        _x[n_pos:, self.magA_track] = x[~pd_pos_mask, self.magB_track]
-        _x[n_pos:, self.magB_track] = x[~pd_pos_mask, self.magA_track]
-        _x[n_pos:, self.pd_track] = -x[~pd_pos_mask, self.pd_track]
+
+        if self.symmetry:
+            # copy over the pd>0
+            _x[:n_pos] = x[pd_pos_mask]
+            # flip the magnitudes and phase diffs so all now have phase diff >0
+            _x[n_pos:, self.magA_track] = x[~pd_pos_mask, self.magB_track]
+            _x[n_pos:, self.magB_track] = x[~pd_pos_mask, self.magA_track]
+            _x[n_pos:, self.pd_track] = -x[~pd_pos_mask, self.pd_track]
+        else:
+            _x = x
 
         _y = self.beam_net(_x)
 
         y = _y.new(_y.shape)
-        # copy over results for pd>0
-        y[pd_pos_mask] = self.fixify(_y[:n_pos], sign=1)
-        y[~pd_pos_mask] = self.fixify(_y[n_pos:], sign=-1)
+        if self.symmetry:
+            # copy over results for pd>0
+            y[pd_pos_mask] = self.fixify(_y[:n_pos], sign=1)
+            y[~pd_pos_mask] = self.fixify(_y[n_pos:], sign=-1)
+        else:
+            y = self.fixify(_y, sign=1)
 
         return y  # [theta_u, sigma1, sigma2, k1, k2]
 
 
 class BeamNSegNetDirect(nn.Module):
-    def __init__(self, nthetas=65, hidden=16):
+    def __init__(self, nthetas=65, hidden=16, symmetry=True):
         super(BeamNSegNetDirect, self).__init__()
         self.nthetas = nthetas
         self.unet1d = UNet1D()
         self.softmax = nn.Softmax(dim=1)
-        self.beam_net = BeamNetDirect(hidden=hidden)
+        self.beam_net = BeamNetDirect(hidden=hidden, symmetry=symmetry)
 
     def forward(self, x):
         batch_size, input_channels, session_size = x.shape
+        x = x.clone()
         x[:, :2] /= 500
         beam_former_input = x.transpose(1, 2).reshape(
             batch_size * session_size, input_channels

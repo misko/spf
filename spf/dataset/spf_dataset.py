@@ -52,6 +52,7 @@ from spf.plot.image_utils import (
     radio_to_image,
 )
 from spf.rf import (
+    SEGMENTATION_VERSION,
     ULADetector,
     phase_diff_to_theta,
     pi_norm,
@@ -118,7 +119,13 @@ def mp_segment_zarr(zarr_fn, results_fn):
             results_by_receiver[r_name] = list(
                 tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
             )
-    pickle.dump(results_by_receiver, open(results_fn, "wb"))
+    pickle.dump(
+        {
+            "version": SEGMENTATION_VERSION,
+            "segmentation_by_receiver": results_by_receiver,
+        },
+        open(results_fn, "wb"),
+    )
 
 
 def v5_prepare_session(session):  # session -> x,y
@@ -159,6 +166,7 @@ def v5_collate_beamsegnet(batch):
         torch.vstack([x["x"] for x in batch]),
         # torch.vstack([x["y_discrete"] for x in batch]),
         torch.vstack([x["y_rad"] for x in batch]),
+        [x["simple_segementation"] for x in batch],
     )
 
 
@@ -211,6 +219,7 @@ class v5spfdataset(Dataset):
         self.keys_per_session = v5rx_f64_keys + v5rx_2xf64_keys + ["signal_matrix"]
 
         self.ground_truth_thetas = self.get_ground_truth_thetas()
+        self.get_segmentation()
 
     def __len__(self):
         return self.n_sessions * self.n_receivers
@@ -230,6 +239,9 @@ class v5spfdataset(Dataset):
         }
         data["x"], data["y_rad"] = v5_prepare_session(data)
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
+        data["simple_segementation"] = self.segmentation["segmentation_by_receiver"][
+            f"r{receiver_idx}"
+        ][session_idx]
         return data
 
     def get_ground_truth_thetas(self):
@@ -264,11 +276,14 @@ class v5spfdataset(Dataset):
         return self.render_session(receiver_idx, idx // self.n_receivers)
 
     def get_segmentation_mean_phase(self):
-        segmentation_by_receiver = self.get_segmentation()
+        segmentation = self.get_segmentation()
         mean_phase_results = {}
-        for receiver, results in segmentation_by_receiver.items():
+        for receiver, results in segmentation['segmentation_by_receiver'].items():
             mean_phase_results[receiver] = np.array(
-                [np.array([x["mean"] for x in result]).mean() for result in results]
+                [
+                    np.array([x["mean"] for x in result["simple_segmentation"]]).mean()
+                    for result in results
+                ]
             )
         return mean_phase_results
 
@@ -287,10 +302,19 @@ class v5spfdataset(Dataset):
         return estimated_thetas
 
     def get_segmentation(self):
-        results_fn = self.prefix + "_segmentation.pkl"
-        if not os.path.exists(results_fn):
-            mp_segment_zarr(self.zarr_fn, results_fn)
-        return pickle.load(open(results_fn, "rb"))
+        if not hasattr(self, "segmentation"):
+            results_fn = self.prefix + "_segmentation.pkl"
+            if not os.path.exists(results_fn):
+                mp_segment_zarr(self.zarr_fn, results_fn)
+            segmentation = pickle.load(open(results_fn, "rb"))
+            if (
+                "version" not in segmentation
+                or segmentation["version"] != SEGMENTATION_VERSION
+            ):
+                os.remove(results_fn)
+                return self.get_segmentation()
+            self.segmentation = segmentation
+        return self.segmentation
 
 
 class SessionsDatasetSimulated(Dataset):

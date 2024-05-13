@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from spf.utils import zarr_open_from_lmdb_store, zarr_open_from_lmdb_store_cm
 
+SEGMENTATION_VERSION = 1.2
 # numba = False
 
 """
@@ -252,7 +253,7 @@ def simple_segment(
         v, pd, window_size=window_size, stride=stride, trim=trim
     )
 
-    candidate_windows = [
+    original_windows = [
         {
             "start_idx": idx[0],
             "end_idx": idx[1],
@@ -265,7 +266,7 @@ def simple_segment(
 
     # combine windows
     candidate_windows = combine_windows(
-        candidate_windows, max_stddev_threshold, min_abs_signal
+        original_windows, max_stddev_threshold, min_abs_signal
     )
 
     # drop all noise windows less than 3windows in size
@@ -276,7 +277,13 @@ def simple_segment(
     # only keep signal windows surounded by noise
     candidate_windows = keep_signal_surrounded_by_noise(candidate_windows)
 
-    return recompute_stats_for_windows(candidate_windows, v, pd, trim)
+    return {
+        "simple_segmentation": recompute_stats_for_windows(
+            candidate_windows, v, pd, trim
+        ),
+        # "all_windows": original_windows,
+        "all_windows_stats": window_idxs_and_stats[1],
+    }
 
 
 @njit
