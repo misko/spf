@@ -1,1 +1,1 @@
-*.ipynb linguist-vendored
+*.ipynb filter=strip-notebook-output
