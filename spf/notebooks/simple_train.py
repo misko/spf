@@ -64,12 +64,22 @@ if __name__ == "__main__":
         default=1000,
     )
     parser.add_argument(
+        "--weight-decay",
+        type=float,
+        required=False,
+        default=0.0,
+    )
+    parser.add_argument(
         "--type",
         type=str,
         required=True,
     )
     parser.add_argument(
         "--compile",
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--symmetry",
         action=argparse.BooleanOptionalAction,
     )
     # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
@@ -115,15 +125,19 @@ if __name__ == "__main__":
     if args.type == "discrete":
         m = BeamNSegNetDiscrete(nthetas=args.nthetas).to(torch_device)
     elif args.type == "direct":
-        m = BeamNSegNetDirect(nthetas=args.nthetas).to(torch_device)
+        m = BeamNSegNetDirect(nthetas=args.nthetas, symmetry=args.symmetry).to(
+            torch_device
+        )
     else:
         raise NotImplementedError
     if args.compile:
         m = torch.compile(m)
-    optimizer = torch.optim.AdamW(m.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(
+        m.parameters(), lr=args.lr, weight_decay=args.weight_decay
+    )
     step = 0
     for epoch in range(args.epochs):
-        for X, Y_rad in train_dataloader:
+        for X, Y_rad, segmentation in train_dataloader:
             optimizer.zero_grad()
             output = m(X.to(torch_device))
             loss = -m.loglikelihood(output, Y_rad.to(torch_device)).mean()

@@ -159,7 +159,7 @@ class UNet1D(nn.Module):
                             bias=True,
                         ),
                     ),
-                    # (name + "norm1", nn.BatchNorm1d(num_features=features)),
+                    (name + "norm1", nn.BatchNorm1d(num_features=features)),
                     # (name + "relu1", nn.ReLU(inplace=True)),
                     (name + "relu1", nn.LeakyReLU()),
                     (
@@ -172,7 +172,7 @@ class UNet1D(nn.Module):
                             bias=True,
                         ),
                     ),
-                    # (name + "norm2", nn.BatchNorm1d(num_features=features)),
+                    (name + "norm2", nn.BatchNorm1d(num_features=features)),
                     # (name + "relu2", nn.ReLU(inplace=True)),
                     (name + "relu2", nn.LeakyReLU()),
                 ]
@@ -276,7 +276,7 @@ class BeamNetDirect(nn.Module):
         self.outputs = 1 + 2 + 2  # u, o1, o2, k1, k2
         self.hidden = hidden
         self.pd_track = pd_track
-        self.act = nn.SELU
+        self.act = nn.LeakyReLU
         self.magA_track = magA_track
         self.magB_track = magB_track
         self.symmetry = symmetry
@@ -288,13 +288,13 @@ class BeamNetDirect(nn.Module):
                 [
                     ("linear1", nn.Linear(3, hidden)),
                     ("relu1", self.act()),
-                    # ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
+                    ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
                     ("linear2", nn.Linear(hidden, hidden)),
                     ("relu2", self.act()),
-                    # ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
+                    ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
                     ("linear3", nn.Linear(hidden, hidden)),
                     ("relu3", self.act()),
-                    # ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
+                    ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
                     ("linear4", nn.Linear(hidden, self.outputs)),
                     ("relu4", self.act()),
                 ]
@@ -306,7 +306,7 @@ class BeamNetDirect(nn.Module):
         return torch.hstack(
             [
                 sign * (_y_sig[:, [0]] - 0.5) * 2 * torch.pi / 2,  # in
-                _y_sig[:, [1, 2]] * 3 + 0.00001,  # sigmas
+                _y_sig[:, [1, 2]] * 1 + 0.01,  # sigmas
                 self.softmax(_y[:, [3, 4]]),
             ]
         )
@@ -366,16 +366,15 @@ class BeamNSegNetDirect(nn.Module):
     def likelihood(self, x, y):
 
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
-        mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
-        # mu_likelihood = x[:, [3]] * torch.exp(-((x[:, [0]] - y) ** 2) / x[:, [1]])
-        # other_likelihood = x[:, [4]] * torch.exp(
-        #     -((-x[:, [0]].sign() * torch.pi / 2 - y) ** 2) / x[:, [2]]
-        # )
+        # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
+        mu_likelihood = x[:, [3]] * torch.exp(-((x[:, [0]] - y) ** 2) / x[:, [1]])
+        other_likelihood = x[:, [4]] * torch.exp(
+            -((-x[:, [0]].sign() * torch.pi / 2 - y) ** 2) / x[:, [2]]
+        )
         # mu_likelihood = torch.exp(-((x[:, 0] - y) ** 2) / 1)
         # other_likelihood = 0 * torch.exp(
         #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
         # )
-        print(other_likelihood.shape, mu_likelihood.shape)
         return mu_likelihood + other_likelihood
 
     def loglikelihood(self, x, y):
@@ -383,7 +382,13 @@ class BeamNSegNetDirect(nn.Module):
 
     # this is discrete its already rendered
     def render_discrete_x(self, x):
-        return v5_thetas_to_targets(x[:, 0], self.nthetas)
+        mu_discrete = x[:, [3]] * v5_thetas_to_targets(
+            x[:, 0], self.nthetas, sigma=x[:, [1]]
+        )
+        other_discrete = x[:, [4]] * v5_thetas_to_targets(
+            -x[:, [0]].sign() * torch.pi / 2, self.nthetas, sigma=x[:, [2]]
+        )
+        return mu_discrete + other_discrete
 
     # this is discrete its already rendered
     def render_discrete_y(self, y):

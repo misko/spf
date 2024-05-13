@@ -144,7 +144,7 @@ def v5_prepare_session(session):  # session -> x,y
 
 
 # target_thetas (N,1)
-def v5_thetas_to_targets(target_thetas, nthetas):
+def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
     if target_thetas.ndim == 1:
         target_thetas = target_thetas.reshape(-1, 1)
     p = torch.exp(
@@ -157,6 +157,7 @@ def v5_thetas_to_targets(target_thetas, nthetas):
             )
             ** 2
         )
+        / sigma
     )
     return torch.nn.functional.normalize(p, p=1, dim=1)
 
@@ -278,7 +279,7 @@ class v5spfdataset(Dataset):
     def get_segmentation_mean_phase(self):
         segmentation = self.get_segmentation()
         mean_phase_results = {}
-        for receiver, results in segmentation['segmentation_by_receiver'].items():
+        for receiver, results in segmentation["segmentation_by_receiver"].items():
             mean_phase_results[receiver] = np.array(
                 [
                     np.array([x["mean"] for x in result["simple_segmentation"]]).mean()
