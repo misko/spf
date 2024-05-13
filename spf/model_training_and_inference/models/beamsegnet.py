@@ -242,7 +242,7 @@ class BeamNSegNetDiscrete(nn.Module):
 
     def forward(self, x):
         x = x.clone()
-        x[:, :2] /= 500
+        # x[:, :2] /= 500
         batch_size, input_channels, session_size = x.shape
         beam_former_input = x.transpose(1, 2).reshape(
             batch_size * session_size, input_channels
@@ -255,6 +255,7 @@ class BeamNSegNetDiscrete(nn.Module):
         return torch.mul(beam_former, mask_weights[..., None]).sum(axis=1)
 
     def likelihood(self, x, y):
+        print(x.shape, self.render_discrete_y(y).shape)
         return torch.einsum("bk,bk->b", x, self.render_discrete_y(y))
 
     def loglikelihood(self, x, y):
@@ -351,7 +352,7 @@ class BeamNSegNetDirect(nn.Module):
     def forward(self, x):
         batch_size, input_channels, session_size = x.shape
         x = x.clone()
-        x[:, :2] /= 500
+        # x[:, :2] /= 500
         beam_former_input = x.transpose(1, 2).reshape(
             batch_size * session_size, input_channels
         )
@@ -363,18 +364,19 @@ class BeamNSegNetDirect(nn.Module):
         return torch.mul(beam_former, mask_weights[..., None]).sum(axis=1)
 
     def likelihood(self, x, y):
-        # mu_likelihood = x[:, 3] * torch.exp(-((x[:, 0] - y) ** 2) / x[:, 1])
 
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
         mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
-        # other_likelihood = x[:, 4] * torch.exp(
-        #    -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / x[:, 2]
+        # mu_likelihood = x[:, [3]] * torch.exp(-((x[:, [0]] - y) ** 2) / x[:, [1]])
+        # other_likelihood = x[:, [4]] * torch.exp(
+        #     -((-x[:, [0]].sign() * torch.pi / 2 - y) ** 2) / x[:, [2]]
         # )
         # mu_likelihood = torch.exp(-((x[:, 0] - y) ** 2) / 1)
         # other_likelihood = 0 * torch.exp(
         #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
         # )
-        return mu_likelihood  # + other_likelihood
+        print(other_likelihood.shape, mu_likelihood.shape)
+        return mu_likelihood + other_likelihood
 
     def loglikelihood(self, x, y):
         return torch.log(self.likelihood(x, y))
