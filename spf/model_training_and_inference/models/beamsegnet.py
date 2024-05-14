@@ -248,7 +248,7 @@ class BeamNetDiscrete(nn.Module):
 
 class BeamNetDirect(nn.Module):
     def __init__(
-        self, nthetas, hidden, symmetry, magA_track=0, magB_track=1, pd_track=2
+        self, nthetas, hidden, symmetry, depth=3, magA_track=0, magB_track=1, pd_track=2
     ):
         super(BeamNetDirect, self).__init__()
         self.outputs = 1 + 2 + 2  # u, o1, o2, k1, k2
@@ -262,23 +262,19 @@ class BeamNetDirect(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.flip_mu = torch.Tensor([[-1, 1, 1, 1, 1]])
         self.nthetas = nthetas
-        self.beam_net = nn.Sequential(
-            OrderedDict(
-                [
-                    ("linear1", nn.Linear(3, hidden)),
-                    ("relu1", self.act()),
-                    ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
-                    ("linear2", nn.Linear(hidden, hidden)),
-                    ("relu2", self.act()),
-                    ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
-                    ("linear3", nn.Linear(hidden, hidden)),
-                    ("relu3", self.act()),
-                    ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
-                    ("linear4", nn.Linear(hidden, self.outputs)),
-                    ("relu4", self.act()),
-                ]
-            )
-        )
+        net_layout = [
+            nn.Linear(3, hidden),
+            self.act(),
+            nn.BatchNorm1d(num_features=hidden),
+        ]
+        for layer in range(depth):
+            net_layout += [
+                nn.Linear(hidden, hidden),
+                self.act(),
+                nn.BatchNorm1d(num_features=hidden),
+            ]
+        net_layout += [nn.Linear(hidden, self.outputs)]
+        self.beam_net = nn.Sequential(net_layout)
 
     def fixify(self, _y, sign):
         _y_sig = self.sigmoid(_y) * 2  # in [0,1]

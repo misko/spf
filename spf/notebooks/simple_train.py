@@ -68,6 +68,18 @@ if __name__ == "__main__":
         default=1000,
     )
     parser.add_argument(
+        "--depth",
+        type=int,
+        required=False,
+        default=3,
+    )
+    parser.add_argument(
+        "--hidden",
+        type=int,
+        required=False,
+        default=32,
+    )
+    parser.add_argument(
         "--weight-decay",
         type=float,
         required=False,
@@ -137,7 +149,10 @@ if __name__ == "__main__":
 
     if args.type == "direct":
         beam_m = BeamNetDirect(
-            nthetas=args.nthetas, hidden=16, symmetry=args.symmetry
+            nthetas=args.nthetas,
+            depth=args.depth,
+            hidden=args.hidden,
+            symmetry=args.symmetry,
         ).to(torch_device)
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(nthetas=args.nthetas).to(torch_device)
