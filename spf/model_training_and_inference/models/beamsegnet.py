@@ -329,7 +329,7 @@ class BeamNetDirect(nn.Module):
         # other_likelihood = 0 * torch.exp(
         #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
         # )
-        return mu_likelihood  # + other_likelihood
+        return mu_likelihood + other_likelihood
 
     def loglikelihood(self, x, y):
         return torch.log(self.likelihood(x, y))
@@ -342,7 +342,7 @@ class BeamNetDirect(nn.Module):
         other_discrete = x[:, [4]] * v5_thetas_to_targets(
             -x[:, [0]].sign() * torch.pi / 2, self.nthetas, sigma=x[:, [2]]
         )
-        return mu_discrete  # + other_discrete
+        return mu_discrete + other_discrete
 
     # this is discrete its already rendered
     def render_discrete_y(self, y):
