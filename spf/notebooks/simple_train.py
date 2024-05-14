@@ -38,6 +38,12 @@ if __name__ == "__main__":
         default="cpu",
     )
     parser.add_argument(
+        "--seg-start",
+        type=int,
+        required=False,
+        default=1000,
+    )
+    parser.add_argument(
         "--batch",
         type=int,
         required=False,
@@ -219,9 +225,9 @@ if __name__ == "__main__":
             )
             x_to_segmentation_loss = x_to_segmentation_loss.mean()
 
-            loss = (
-                x_to_beamformer_loss + args.segmentation_lambda * x_to_segmentation_loss
-            )
+            loss = args.segmentation_lambda * x_to_segmentation_loss
+            if step >= args.seg_start:
+                loss += x_to_beamformer_loss
 
             loss.backward()
             optimizer.step()
