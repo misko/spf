@@ -207,7 +207,7 @@ if __name__ == "__main__":
             elif args.segmentation_level == "downsampled":
                 x = batch_data["all_windows_stats"].to(torch_device)
                 x[:, 2] /= 200
-                x[:, :2] /= 3
+                x[:, 0] /= 3
                 y_rad = batch_data["y_rad"].to(torch_device)
                 seg_mask = batch_data["downsampled_segmentation_mask"].to(torch_device)
             else:
