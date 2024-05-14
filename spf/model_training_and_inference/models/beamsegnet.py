@@ -87,16 +87,16 @@ class ConvNet(nn.Module):
 class UNet1D(nn.Module):
 
     def __init__(
-        self, in_channels=3, out_channels=1, init_features=4, act=nn.LeakyReLU
+        self, in_channels=3, out_channels=1, hidden=4, act=nn.LeakyReLU, step=8
     ):
         super(UNet1D, self).__init__()
-        features = init_features
+        features = hidden
         self.encoder1 = UNet1D._block(in_channels, features, name="enc1", act=act)
-        self.pool1 = nn.MaxPool1d(kernel_size=8, stride=8)
+        self.pool1 = nn.MaxPool1d(kernel_size=step, stride=step)
         self.encoder2 = UNet1D._block(features, features * 2, name="enc2", act=act)
-        self.pool2 = nn.MaxPool1d(kernel_size=8, stride=8)
+        self.pool2 = nn.MaxPool1d(kernel_size=step, stride=step)
         self.encoder3 = UNet1D._block(features * 2, features * 4, name="enc3", act=act)
-        self.pool3 = nn.MaxPool1d(kernel_size=8, stride=8)
+        self.pool3 = nn.MaxPool1d(kernel_size=step, stride=step)
         self.encoder4 = UNet1D._block(features * 4, features * 8, name="enc4", act=act)
         self.pool4 = nn.MaxPool1d(kernel_size=2, stride=2)
 
@@ -111,19 +111,19 @@ class UNet1D(nn.Module):
             (features * 8) * 2, features * 8, name="dec4", act=act
         )
         self.upconv3 = nn.ConvTranspose1d(
-            features * 8, features * 4, kernel_size=8, stride=8
+            features * 8, features * 4, kernel_size=step, stride=step
         )
         self.decoder3 = UNet1D._block(
             (features * 4) * 2, features * 4, name="dec3", act=act
         )
         self.upconv2 = nn.ConvTranspose1d(
-            features * 4, features * 2, kernel_size=8, stride=8
+            features * 4, features * 2, kernel_size=step, stride=step
         )
         self.decoder2 = UNet1D._block(
             (features * 2) * 2, features * 2, name="dec2", act=act
         )
         self.upconv1 = nn.ConvTranspose1d(
-            features * 2, features, kernel_size=8, stride=8
+            features * 2, features, kernel_size=step, stride=step
         )
         self.decoder1 = UNet1D._block(features * 2, features, name="dec1", act=act)
 

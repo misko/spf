@@ -108,6 +108,11 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
+        "--seg-net",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
         "--segmentation-level",
         type=str,
         required=True,
@@ -169,7 +174,12 @@ if __name__ == "__main__":
         seg_m = UNet1D().to(torch_device, act=act)
     elif args.segmentation_level == "downsampled":
         first_n = 256
-        seg_m = ConvNet(3, 1, 32, act=act).to(torch_device)
+        if args.seg_net == "conv":
+            seg_m = ConvNet(3, 1, 32, act=act, hidden=args.hidden).to(torch_device)
+        elif args.seg_net == "unet":
+            seg_m = UNet1D(step=4, act=act, hidden=args.hidden).to(torch_device)
+        else:
+            raise NotImplementedError
 
     if args.type == "direct":
         beam_m = BeamNetDirect(
