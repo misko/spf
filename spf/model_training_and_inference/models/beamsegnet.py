@@ -231,31 +231,7 @@ class BeamNetDiscrete(nn.Module):
 
         return y
 
-
-class BeamNSegNetDiscrete(nn.Module):
-    def __init__(self, nthetas=65, hidden=16):
-        super(BeamNSegNetDiscrete, self).__init__()
-        self.nthetas = nthetas
-        self.unet1d = UNet1D()
-        self.softmax = nn.Softmax(dim=1)
-        self.beam_net = BeamNetDiscrete(nthetas=nthetas, hidden=hidden)
-
-    def forward(self, x):
-        x = x.clone()
-        # x[:, :2] /= 500
-        batch_size, input_channels, session_size = x.shape
-        beam_former_input = x.transpose(1, 2).reshape(
-            batch_size * session_size, input_channels
-        )
-
-        beam_former = self.beam_net(beam_former_input).reshape(
-            batch_size, session_size, self.nthetas
-        )
-        mask_weights = self.softmax(self.unet1d(x)[:, 0])
-        return torch.mul(beam_former, mask_weights[..., None]).sum(axis=1)
-
     def likelihood(self, x, y):
-        print(x.shape, self.render_discrete_y(y).shape)
         return torch.einsum("bk,bk->b", x, self.render_discrete_y(y))
 
     def loglikelihood(self, x, y):
@@ -271,7 +247,9 @@ class BeamNSegNetDiscrete(nn.Module):
 
 
 class BeamNetDirect(nn.Module):
-    def __init__(self, hidden, symmetry, magA_track=0, magB_track=1, pd_track=2):
+    def __init__(
+        self, nthetas, hidden, symmetry, magA_track=0, magB_track=1, pd_track=2
+    ):
         super(BeamNetDirect, self).__init__()
         self.outputs = 1 + 2 + 2  # u, o1, o2, k1, k2
         self.hidden = hidden
@@ -283,6 +261,7 @@ class BeamNetDirect(nn.Module):
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
         self.flip_mu = torch.Tensor([[-1, 1, 1, 1, 1]])
+        self.nthetas = nthetas
         self.beam_net = nn.Sequential(
             OrderedDict(
                 [
@@ -337,34 +316,9 @@ class BeamNetDirect(nn.Module):
             y[~pd_pos_mask] = self.fixify(_y[n_pos:], sign=-1)
         else:
             y = self.fixify(_y, sign=1)
-
         return y  # [theta_u, sigma1, sigma2, k1, k2]
 
-
-class BeamNSegNetDirect(nn.Module):
-    def __init__(self, nthetas=65, hidden=16, symmetry=True):
-        super(BeamNSegNetDirect, self).__init__()
-        self.nthetas = nthetas
-        self.unet1d = UNet1D()
-        self.softmax = nn.Softmax(dim=1)
-        self.beam_net = BeamNetDirect(hidden=hidden, symmetry=symmetry)
-
-    def forward(self, x):
-        batch_size, input_channels, session_size = x.shape
-        x = x.clone()
-        # x[:, :2] /= 500
-        beam_former_input = x.transpose(1, 2).reshape(
-            batch_size * session_size, input_channels
-        )
-
-        beam_former = self.beam_net(beam_former_input).reshape(
-            batch_size, session_size, 5  # mu, o1, o2, k1, k2
-        )
-        mask_weights = self.softmax(self.unet1d(x)[:, 0])
-        return torch.mul(beam_former, mask_weights[..., None]).sum(axis=1)
-
     def likelihood(self, x, y):
-
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
         mu_likelihood = x[:, [3]] * torch.exp(-((x[:, [0]] - y) ** 2) / x[:, [1]])
@@ -375,7 +329,7 @@ class BeamNSegNetDirect(nn.Module):
         # other_likelihood = 0 * torch.exp(
         #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
         # )
-        return mu_likelihood + other_likelihood
+        return mu_likelihood  # + other_likelihood
 
     def loglikelihood(self, x, y):
         return torch.log(self.likelihood(x, y))
@@ -388,8 +342,45 @@ class BeamNSegNetDirect(nn.Module):
         other_discrete = x[:, [4]] * v5_thetas_to_targets(
             -x[:, [0]].sign() * torch.pi / 2, self.nthetas, sigma=x[:, [2]]
         )
-        return mu_discrete + other_discrete
+        return mu_discrete  # + other_discrete
 
     # this is discrete its already rendered
     def render_discrete_y(self, y):
         return v5_thetas_to_targets(y, self.nthetas)
+
+
+class BeamNSegNet(nn.Module):
+    def __init__(
+        self,
+        beamnet,
+        segnet,
+    ):
+        super(BeamNSegNet, self).__init__()
+        self.beamnet = beamnet
+        self.segnet = segnet
+        self.softmax = nn.Softmax(dim=2)
+
+    def forward(self, x):
+        mask_weights = self.segnet(x)
+        assert mask_weights.ndim == 3 and mask_weights.shape[1] == 1
+
+        batch_size, input_channels, session_size = x.shape
+        beam_former_input = x.transpose(1, 2).reshape(
+            batch_size * session_size, input_channels
+        )
+
+        beamnet_output = self.beamnet(beam_former_input)
+        assert (
+            beamnet_output.ndim == 2
+            and beamnet_output.shape[0] == batch_size * session_size
+        )
+
+        beam_former = beamnet_output.reshape(
+            batch_size, session_size, beamnet_output.shape[1]
+        ).transpose(1, 2)
+        p_mask_weights = self.softmax(mask_weights)
+
+        return {
+            "pred_theta": torch.mul(beam_former, p_mask_weights).sum(axis=2),
+            "segmentation": p_mask_weights,
+        }

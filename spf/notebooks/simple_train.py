@@ -139,8 +139,22 @@ if __name__ == "__main__":
     for epoch in range(args.epochs):
         for X, Y_rad, segmentation in train_dataloader:
             optimizer.zero_grad()
-            output = m(X.to(torch_device))
-            loss = -m.loglikelihood(output, Y_rad.to(torch_device)).mean()
+
+            X = X.to(torch_device)
+
+            # compute the loss for full segmentation and beam loss
+            output = m(X)
+            full_segmentation_and_beam_loss = -m.loglikelihood(
+                output, Y_rad.to(torch_device)
+            ).mean()
+
+            # compute segmentation loss
+            input = X.clone().to(torch_device)
+            output = m(input)
+
+            seg_mask = segmentation_mask(X, segmentation)
+
+            loss = full_segmentation_and_beam_loss
             loss.backward()
             optimizer.step()
 

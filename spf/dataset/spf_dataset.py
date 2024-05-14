@@ -163,12 +163,49 @@ def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
 
 
 def v5_collate_beamsegnet(batch):
-    return (
-        torch.vstack([x["x"] for x in batch]),
-        # torch.vstack([x["y_discrete"] for x in batch]),
-        torch.vstack([x["y_rad"] for x in batch]),
-        [x["simple_segementation"] for x in batch],
-    )
+    return {
+        "x": torch.vstack([x["x"] for x in batch]),
+        "y_rad": torch.vstack([x["y_rad"] for x in batch]),
+        "simple_segmentation": [x["simple_segmentation"] for x in batch],
+        "all_windows_stats": torch.vstack(
+            [
+                torch.from_numpy(x["all_windows_stats"].astype(np.float32).transpose())[
+                    None
+                ]
+                for x in batch
+            ]
+        ),
+        "segmentation_mask": torch.vstack([v5_segmentation_mask(x) for x in batch]),
+        "downsampled_segmentation_mask": torch.vstack(
+            [v5_downsampled_segmentation_mask(x) for x in batch]
+        ),
+    }
+
+
+def v5_downsampled_segmentation_mask(session):
+    window_size = 2048
+    stride = 2048
+    assert window_size == stride
+    _, _, samples_per_session = session["x"].shape
+    assert samples_per_session % window_size == 0
+    n_windows = samples_per_session // window_size
+
+    seg_mask = torch.zeros(1, 1, n_windows)
+    for window in session["simple_segmentation"]:
+        seg_mask[
+            0,
+            0,
+            window["start_idx"] // window_size : window["end_idx"] // window_size,
+        ] = 1
+    return seg_mask
+
+
+def v5_segmentation_mask(session):
+    _, _, samples_per_session = session["x"].shape
+    seg_mask = torch.zeros(1, 1, samples_per_session)
+    for w in session["simple_segmentation"]:
+        seg_mask[0, 0, w["start_idx"] : w["end_idx"]] = 1
+    return seg_mask[:, None]
 
 
 class v5spfdataset(Dataset):
@@ -240,9 +277,11 @@ class v5spfdataset(Dataset):
         }
         data["x"], data["y_rad"] = v5_prepare_session(data)
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
-        data["simple_segementation"] = self.segmentation["segmentation_by_receiver"][
-            f"r{receiver_idx}"
-        ][session_idx]
+        d = self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
+            session_idx
+        ]
+        data["simple_segmentation"] = d["simple_segmentation"]
+        data["all_windows_stats"] = d["all_windows_stats"]
         return data
 
     def get_ground_truth_thetas(self):
