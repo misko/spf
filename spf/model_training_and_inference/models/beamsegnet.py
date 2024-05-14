@@ -7,11 +7,11 @@ from spf.dataset.spf_dataset import v5_thetas_to_targets
 
 
 class ConvNet(nn.Module):
-    def __init__(self, in_channels, out_channels, hidden):
+    def __init__(self, in_channels, out_channels, hidden, act=nn.LeakyReLU):
         super(ConvNet, self).__init__()
         print("BUILD CONV NET!!!")
         self.ks = 17
-        self.act = nn.LeakyReLU
+        self.act = act
         self.net = nn.Sequential(
             OrderedDict(
                 [
@@ -86,37 +86,46 @@ class ConvNet(nn.Module):
 # largely copied from https://raw.githubusercontent.com/mateuszbuda/brain-segmentation-pytorch/master/unet.py
 class UNet1D(nn.Module):
 
-    def __init__(self, in_channels=3, out_channels=1, init_features=4):
+    def __init__(
+        self, in_channels=3, out_channels=1, init_features=4, act=nn.LeakyReLU
+    ):
         super(UNet1D, self).__init__()
-
         features = init_features
-        self.encoder1 = UNet1D._block(in_channels, features, name="enc1")
+        self.encoder1 = UNet1D._block(in_channels, features, name="enc1", act=act)
         self.pool1 = nn.MaxPool1d(kernel_size=8, stride=8)
-        self.encoder2 = UNet1D._block(features, features * 2, name="enc2")
+        self.encoder2 = UNet1D._block(features, features * 2, name="enc2", act=act)
         self.pool2 = nn.MaxPool1d(kernel_size=8, stride=8)
-        self.encoder3 = UNet1D._block(features * 2, features * 4, name="enc3")
+        self.encoder3 = UNet1D._block(features * 2, features * 4, name="enc3", act=act)
         self.pool3 = nn.MaxPool1d(kernel_size=8, stride=8)
-        self.encoder4 = UNet1D._block(features * 4, features * 8, name="enc4")
+        self.encoder4 = UNet1D._block(features * 4, features * 8, name="enc4", act=act)
         self.pool4 = nn.MaxPool1d(kernel_size=2, stride=2)
 
-        self.bottleneck = UNet1D._block(features * 8, features * 16, name="bottleneck")
+        self.bottleneck = UNet1D._block(
+            features * 8, features * 16, name="bottleneck", act=act
+        )
 
         self.upconv4 = nn.ConvTranspose1d(
             features * 16, features * 8, kernel_size=2, stride=2
         )
-        self.decoder4 = UNet1D._block((features * 8) * 2, features * 8, name="dec4")
+        self.decoder4 = UNet1D._block(
+            (features * 8) * 2, features * 8, name="dec4", act=act
+        )
         self.upconv3 = nn.ConvTranspose1d(
             features * 8, features * 4, kernel_size=8, stride=8
         )
-        self.decoder3 = UNet1D._block((features * 4) * 2, features * 4, name="dec3")
+        self.decoder3 = UNet1D._block(
+            (features * 4) * 2, features * 4, name="dec3", act=act
+        )
         self.upconv2 = nn.ConvTranspose1d(
             features * 4, features * 2, kernel_size=8, stride=8
         )
-        self.decoder2 = UNet1D._block((features * 2) * 2, features * 2, name="dec2")
+        self.decoder2 = UNet1D._block(
+            (features * 2) * 2, features * 2, name="dec2", act=act
+        )
         self.upconv1 = nn.ConvTranspose1d(
             features * 2, features, kernel_size=8, stride=8
         )
-        self.decoder1 = UNet1D._block(features * 2, features, name="dec1")
+        self.decoder1 = UNet1D._block(features * 2, features, name="dec1", act=act)
 
         self.conv = nn.Conv1d(
             in_channels=features, out_channels=out_channels, kernel_size=1
@@ -145,7 +154,7 @@ class UNet1D(nn.Module):
         return self.conv(dec1)
 
     @staticmethod
-    def _block(in_channels, features, name):
+    def _block(in_channels, features, name, act):
         return nn.Sequential(
             OrderedDict(
                 [
@@ -161,7 +170,7 @@ class UNet1D(nn.Module):
                     ),
                     (name + "norm1", nn.BatchNorm1d(num_features=features)),
                     # (name + "relu1", nn.ReLU(inplace=True)),
-                    (name + "relu1", nn.LeakyReLU()),
+                    (name + "relu1", act()),
                     (
                         name + "conv2",
                         nn.Conv1d(
@@ -174,19 +183,21 @@ class UNet1D(nn.Module):
                     ),
                     (name + "norm2", nn.BatchNorm1d(num_features=features)),
                     # (name + "relu2", nn.ReLU(inplace=True)),
-                    (name + "relu2", nn.LeakyReLU()),
+                    (name + "relu2", act()),
                 ]
             )
         )
 
 
 class BeamNetDiscrete(nn.Module):
-    def __init__(self, nthetas, hidden, magA_track=0, magB_track=1, pd_track=2):
+    def __init__(
+        self, nthetas, hidden, magA_track=0, magB_track=1, pd_track=2, act=nn.LeakyReLU
+    ):
         super(BeamNetDiscrete, self).__init__()
         self.nthetas = nthetas
         self.hidden = hidden
         self.pd_track = pd_track
-        self.act = nn.SELU
+        self.act = act
         self.magA_track = magA_track
         self.magB_track = magB_track
         self.beam_net = nn.Sequential(
@@ -248,13 +259,21 @@ class BeamNetDiscrete(nn.Module):
 
 class BeamNetDirect(nn.Module):
     def __init__(
-        self, nthetas, hidden, symmetry, depth=3, magA_track=0, magB_track=1, pd_track=2
+        self,
+        nthetas,
+        hidden,
+        symmetry,
+        depth=3,
+        magA_track=0,
+        magB_track=1,
+        pd_track=2,
+        act=nn.LeakyReLU,
     ):
         super(BeamNetDirect, self).__init__()
         self.outputs = 1 + 2 + 2  # u, o1, o2, k1, k2
         self.hidden = hidden
         self.pd_track = pd_track
-        self.act = nn.LeakyReLU
+        self.act = act
         self.magA_track = magA_track
         self.magB_track = magB_track
         self.symmetry = symmetry

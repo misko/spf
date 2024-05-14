@@ -97,6 +97,11 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
+        "--act",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
         "--segmentation-level",
         type=str,
         required=True,
@@ -140,12 +145,21 @@ if __name__ == "__main__":
         config=args,
     )
 
+    if args.act == "relu":
+        act = torch.nn.ReLU
+    elif args.act == "selu":
+        act = torch.nn.SELU
+    elif args.act == "leaky":
+        act = torch.nn.LeakyReLU
+    else:
+        raise NotImplementedError
+
     if args.segmentation_level == "full":
         first_n = 10000
-        seg_m = UNet1D().to(torch_device)
+        seg_m = UNet1D().to(torch_device, act=act)
     elif args.segmentation_level == "downsampled":
         first_n = 256
-        seg_m = ConvNet(3, 1, 32).to(torch_device)
+        seg_m = ConvNet(3, 1, 32, act=act).to(torch_device)
 
     if args.type == "direct":
         beam_m = BeamNetDirect(
@@ -153,9 +167,10 @@ if __name__ == "__main__":
             depth=args.depth,
             hidden=args.hidden,
             symmetry=args.symmetry,
+            act=act,
         ).to(torch_device)
     elif args.type == "discrete":
-        beam_m = BeamNetDiscrete(nthetas=args.nthetas).to(torch_device)
+        beam_m = BeamNetDiscrete(nthetas=args.nthetas, act=act).to(torch_device)
     m = BeamNSegNet(segnet=seg_m, beamnet=beam_m).to(torch_device)
 
     optimizer = torch.optim.AdamW(m.parameters(), lr=0.001, weight_decay=0)
