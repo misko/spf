@@ -274,7 +274,7 @@ class BeamNetDirect(nn.Module):
                 nn.BatchNorm1d(num_features=hidden),
             ]
         net_layout += [nn.Linear(hidden, self.outputs)]
-        self.beam_net = nn.Sequential(net_layout)
+        self.beam_net = nn.Sequential(*net_layout)
 
     def fixify(self, _y, sign):
         _y_sig = self.sigmoid(_y) * 2  # in [0,1]
