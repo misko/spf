@@ -120,6 +120,10 @@ if __name__ == "__main__":
         "--symmetry",
         action=argparse.BooleanOptionalAction,
     )
+    parser.add_argument(
+        "--other",
+        action=argparse.BooleanOptionalAction,
+    )
     # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
     args = parser.parse_args()
     torch_device = torch.device(args.device)
@@ -174,9 +178,12 @@ if __name__ == "__main__":
             hidden=args.hidden,
             symmetry=args.symmetry,
             act=act,
+            other=args.other,
         ).to(torch_device)
     elif args.type == "discrete":
-        beam_m = BeamNetDiscrete(nthetas=args.nthetas, act=act).to(torch_device)
+        beam_m = BeamNetDiscrete(nthetas=args.nthetas, hidden=args.hidden, act=act).to(
+            torch_device
+        )
     m = BeamNSegNet(segnet=seg_m, beamnet=beam_m).to(torch_device)
 
     optimizer = torch.optim.AdamW(m.parameters(), lr=0.001, weight_decay=0)

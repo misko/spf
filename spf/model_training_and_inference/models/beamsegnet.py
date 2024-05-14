@@ -267,6 +267,7 @@ class BeamNetDirect(nn.Module):
         magA_track=0,
         magB_track=1,
         pd_track=2,
+        other=True,
         act=nn.LeakyReLU,
     ):
         super(BeamNetDirect, self).__init__()
@@ -281,6 +282,7 @@ class BeamNetDirect(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.flip_mu = torch.Tensor([[-1, 1, 1, 1, 1]])
         self.nthetas = nthetas
+        self.other = other
         net_layout = [
             nn.Linear(3, hidden),
             self.act(),
@@ -344,7 +346,10 @@ class BeamNetDirect(nn.Module):
         # other_likelihood = 0 * torch.exp(
         #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
         # )
-        return mu_likelihood + other_likelihood
+        l = mu_likelihood
+        if self.other:
+            l += other_likelihood
+        return l
 
     def loglikelihood(self, x, y):
         return torch.log(self.likelihood(x, y))
@@ -357,7 +362,10 @@ class BeamNetDirect(nn.Module):
         other_discrete = x[:, [4]] * v5_thetas_to_targets(
             -x[:, [0]].sign() * torch.pi / 2, self.nthetas, sigma=x[:, [2]]
         )
-        return mu_discrete + other_discrete
+        d = mu_discrete
+        if self.other:
+            d += other_discrete
+        return d
 
     # this is discrete its already rendered
     def render_discrete_y(self, y):
