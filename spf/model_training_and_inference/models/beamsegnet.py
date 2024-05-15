@@ -25,7 +25,7 @@ class ConvNet(nn.Module):
                             # bias=False,
                         ),
                     ),
-                    # ("norm1", nn.BatchNorm1d(num_features=hidden)),
+                    ("norm1", nn.BatchNorm1d(num_features=hidden)),
                     ("relu1", self.act()),
                     (
                         "conv2",
@@ -37,7 +37,7 @@ class ConvNet(nn.Module):
                             # bias=False,
                         ),
                     ),
-                    # ("norm2", nn.BatchNorm1d(num_features=hidden)),
+                    ("norm2", nn.BatchNorm1d(num_features=hidden)),
                     ("relu2", self.act()),
                     (
                         "conv3",
@@ -49,7 +49,7 @@ class ConvNet(nn.Module):
                             # bias=False,
                         ),
                     ),
-                    # ("norm3", nn.BatchNorm1d(num_features=hidden)),
+                    ("norm3", nn.BatchNorm1d(num_features=hidden)),
                     ("relu3", self.act()),
                     (
                         "conv4",
@@ -61,7 +61,7 @@ class ConvNet(nn.Module):
                             # bias=False,
                         ),
                     ),
-                    # ("norm4", nn.BatchNorm1d(num_features=hidden)),
+                    ("norm4", nn.BatchNorm1d(num_features=hidden)),
                     ("relu4", self.act()),
                     (
                         "conv5",
@@ -181,7 +181,7 @@ class UNet1D(nn.Module):
                             bias=True,
                         ),
                     ),
-                    (name + "norm2", nn.BatchNorm1d(num_features=features)),
+                    # (name + "norm2", nn.BatchNorm1d(num_features=features)),
                     # (name + "relu2", nn.ReLU(inplace=True)),
                     (name + "relu2", act()),
                 ]
@@ -205,13 +205,13 @@ class BeamNetDiscrete(nn.Module):
                 [
                     ("linear1", nn.Linear(3, hidden)),
                     ("relu1", self.act()),
-                    # ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
+                    ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
                     ("linear2", nn.Linear(hidden, hidden)),
                     ("relu2", self.act()),
-                    # ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
+                    ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
                     ("linear3", nn.Linear(hidden, hidden)),
                     ("relu3", self.act()),
-                    # ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
+                    ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
                     ("linear4", nn.Linear(hidden, self.nthetas)),
                     ("relu4", self.act()),
                     ("softmax", nn.Softmax(dim=1)),  # output a probability distribution
@@ -335,14 +335,18 @@ class BeamNetDirect(nn.Module):
             y = self.fixify(_y, sign=1)
         return y  # [theta_u, sigma1, sigma2, k1, k2]
 
-    def likelihood(self, x, y):
+    def likelihood(self, x, y, sigma_eps=0.00001):
+        assert y.ndim == 2 and y.shape[1] == 1
+        assert x.ndim == 2 and x.shape[1] == 5
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
-        mu_likelihood = x[:, [3]] * torch.exp(-((x[:, [0]] - y) ** 2) / x[:, [1]])
-        other_likelihood = x[:, [4]] * torch.exp(
-            -((-x[:, [0]].sign() * torch.pi / 2 - y) ** 2) / x[:, [2]]
+        mu_likelihood = x[:, [3]] * torch.exp(
+            -((x[:, [0]] - y) ** 2) / (x[:, [1]] + sigma_eps)
         )
-        # mu_likelihood = torch.exp(-((x[:, 0] - y) ** 2) / 1)
+        other_likelihood = x[:, [4]] * torch.exp(
+            -((-x[:, [0]].sign() * torch.pi / 2 - y) ** 2) / (x[:, [2]] + sigma_eps)
+        )
+        # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2) / (x[:, [1]] + sigma_eps))
         # other_likelihood = 0 * torch.exp(
         #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
         # )
@@ -351,8 +355,8 @@ class BeamNetDirect(nn.Module):
             l += other_likelihood
         return l
 
-    def loglikelihood(self, x, y):
-        return torch.log(self.likelihood(x, y))
+    def loglikelihood(self, x, y, log_eps=0.000000001):
+        return torch.log(self.likelihood(x, y) + log_eps)
 
     # this is discrete its already rendered
     def render_discrete_x(self, x):
@@ -373,37 +377,51 @@ class BeamNetDirect(nn.Module):
 
 
 class BeamNSegNet(nn.Module):
-    def __init__(
-        self,
-        beamnet,
-        segnet,
-    ):
+    def __init__(self, beamnet, segnet, average_before=True):
         super(BeamNSegNet, self).__init__()
         self.beamnet = beamnet
         self.segnet = segnet
         self.softmax = nn.Softmax(dim=2)
+        self.sigmoid = nn.Sigmoid()
+        self.average_before = average_before
 
-    def forward(self, x):
-        mask_weights = self.segnet(x)
-        assert mask_weights.ndim == 3 and mask_weights.shape[1] == 1
+    def forward(self, x, b_mask_weights=None):
+        if b_mask_weights is None:
+            mask_weights = self.segnet(x)
+            b_mask_weights = self.sigmoid(mask_weights)
+        assert b_mask_weights.ndim == 3 and b_mask_weights.shape[1] == 1
 
-        batch_size, input_channels, session_size = x.shape
-        beam_former_input = x.transpose(1, 2).reshape(
-            batch_size * session_size, input_channels
-        )
+        # taking the average after beam_former
+        if not self.average_before:
+            batch_size, input_channels, session_size = x.shape
+            beam_former_input = x.transpose(1, 2).reshape(
+                batch_size * session_size, input_channels
+            )
+            assert beam_former_input.isfinite().all()
+            beamnet_output = self.beamnet(beam_former_input)
+            assert (
+                beamnet_output.ndim == 2
+                and beamnet_output.shape[0] == batch_size * session_size
+            )
+            assert beamnet_output.isfinite().all()
 
-        beamnet_output = self.beamnet(beam_former_input)
-        assert (
-            beamnet_output.ndim == 2
-            and beamnet_output.shape[0] == batch_size * session_size
-        )
+            beam_former = beamnet_output.reshape(
+                batch_size, session_size, beamnet_output.shape[1]
+            ).transpose(1, 2)
 
-        beam_former = beamnet_output.reshape(
-            batch_size, session_size, beamnet_output.shape[1]
-        ).transpose(1, 2)
-        p_mask_weights = self.softmax(mask_weights)
+            pred_theta = torch.mul(beam_former, b_mask_weights).sum(axis=2) / (
+                b_mask_weights.sum(axis=2) + 0.001
+            )
+        else:
+            weighted_input = torch.mul(x, b_mask_weights).sum(axis=2) / (
+                b_mask_weights.sum(axis=2) + 0.001
+            )
+            pred_theta = self.beamnet(weighted_input)
+        # p_mask_weights = self.softmax(mask_weights)
 
         return {
-            "pred_theta": torch.mul(beam_former, p_mask_weights).sum(axis=2),
-            "segmentation": p_mask_weights,
+            # "pred_theta": torch.mul(beam_former, p_mask_weights).sum(axis=2),
+            # "beam_former": beam_former,
+            "pred_theta": pred_theta,
+            "segmentation": b_mask_weights,
         }

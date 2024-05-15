@@ -15,6 +15,24 @@ from spf.model_training_and_inference.models.beamsegnet import (
     UNet1D,
 )
 
+
+def plot_instance(_x, _output_seg, _seg_mask, idx):
+    fig, axs = plt.subplots(1, 3, figsize=(8, 3))
+    s = 0.3
+    idx = 0
+    axs[0].set_title("input (track 0/1)")
+    axs[0].scatter(range(first_n), _x[idx, 0, :first_n], s=s)
+    axs[0].scatter(range(first_n), _x[idx, 1, :first_n], s=s)
+    axs[1].set_title("input (track 2)")
+    axs[1].scatter(range(first_n), _x[idx, 2, :first_n], s=s)
+    # mw = mask_weights.cpu().detach().numpy()
+
+    axs[2].set_title("output vs gt")
+    axs[2].scatter(range(first_n), _output_seg[idx, 0, :first_n], s=s)
+    axs[2].scatter(range(first_n), _seg_mask[idx, 0, :first_n], s=s)
+    return fig
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -129,6 +147,10 @@ if __name__ == "__main__":
         "--other",
         action=argparse.BooleanOptionalAction,
     )
+    parser.add_argument(
+        "--skip-segmentation",
+        action=argparse.BooleanOptionalAction,
+    )
     # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
     args = parser.parse_args()
     torch_device = torch.device(args.device)
@@ -216,8 +238,6 @@ if __name__ == "__main__":
                 seg_mask = batch_data["segmentation_mask"].to(torch_device)
             elif args.segmentation_level == "downsampled":
                 x = batch_data["all_windows_stats"].to(torch_device)
-                x[:, 2] /= 200
-                x[:, 0] /= 3
                 y_rad = batch_data["y_rad"].to(torch_device)
                 seg_mask = batch_data["downsampled_segmentation_mask"].to(torch_device)
             else:
@@ -226,27 +246,32 @@ if __name__ == "__main__":
             assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
 
             # run beamformer and segmentation
-            output = m(x)
+            if not args.skip_segmentation:
+                output = m(x)
+            else:
+                output = m(x, seg_mask)
+
+            assert output["pred_theta"].isfinite().all()
 
             # x to beamformer loss (indirectly including segmentation)
             x_to_beamformer_loss = -beam_m.loglikelihood(output["pred_theta"], y_rad)
             assert x_to_beamformer_loss.shape == (args.batch, 1)
             x_to_beamformer_loss = x_to_beamformer_loss.mean()
 
-            # x to segmentation loss
-            output_segmentation_upscaled = output["segmentation"] * seg_mask.sum(
-                axis=2, keepdim=True
-            )
-            x_to_segmentation_loss = (output_segmentation_upscaled - seg_mask) ** 2
+            # segmentation loss
+            x_to_segmentation_loss = (output["segmentation"] - seg_mask) ** 2
             assert (
                 x_to_segmentation_loss.ndim == 3
                 and x_to_segmentation_loss.shape[1] == 1
             )
             x_to_segmentation_loss = x_to_segmentation_loss.mean()
 
-            loss = args.segmentation_lambda * x_to_segmentation_loss
-            if step >= args.seg_start:
-                loss += x_to_beamformer_loss
+            if args.skip_segmentation:
+                loss = x_to_beamformer_loss
+            else:
+                loss = x_to_beamformer_loss + 10 * x_to_segmentation_loss
+
+            assert loss.isfinite().all()
 
             loss.backward()
             optimizer.step()
@@ -276,21 +301,9 @@ if __name__ == "__main__":
                 # segmentation output
                 _x = x.detach().cpu().numpy()
                 _seg_mask = seg_mask.detach().cpu().numpy()
-                _output_seg = output_segmentation_upscaled.detach().cpu().numpy()
-                fig, axs = plt.subplots(1, 3, figsize=(8, 3))
-                s = 0.3
-                idx = 0
-                axs[0].set_title("input (track 0/1)")
-                axs[0].scatter(range(first_n), _x[idx, 0, :first_n], s=s)
-                axs[0].scatter(range(first_n), _x[idx, 1, :first_n], s=s)
-                axs[1].set_title("input (track 2)")
-                axs[1].scatter(range(first_n), _x[idx, 2, :first_n], s=s)
-                # mw = mask_weights.cpu().detach().numpy()
+                _output_seg = output["segmentation"].detach().cpu().numpy()
 
-                axs[2].set_title("output vs gt")
-                axs[2].scatter(range(first_n), _output_seg[idx, 0, :first_n], s=s)
-                axs[2].scatter(range(first_n), _seg_mask[idx, 0, :first_n], s=s)
-                to_log["fig"] = fig
+                to_log["fig"] = plot_instance(_x, _output_seg, _seg_mask, idx=0)
             wandb.log(to_log)
             step += 1
 
