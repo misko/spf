@@ -191,13 +191,21 @@ class UNet1D(nn.Module):
 
 class BeamNetDiscrete(nn.Module):
     def __init__(
-        self, nthetas, hidden, magA_track=0, magB_track=1, pd_track=2, act=nn.LeakyReLU
+        self,
+        nthetas,
+        hidden,
+        symmetry,
+        magA_track=0,
+        magB_track=1,
+        pd_track=2,
+        act=nn.LeakyReLU,
     ):
         super(BeamNetDiscrete, self).__init__()
         self.nthetas = nthetas
         self.hidden = hidden
         self.pd_track = pd_track
         self.act = act
+        self.symmetry = symmetry
         self.magA_track = magA_track
         self.magB_track = magB_track
         self.beam_net = nn.Sequential(
@@ -213,7 +221,7 @@ class BeamNetDiscrete(nn.Module):
                     ("relu3", self.act()),
                     ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
                     ("linear4", nn.Linear(hidden, self.nthetas)),
-                    ("relu4", self.act()),
+                    # ("relu4", self.act()),
                     ("softmax", nn.Softmax(dim=1)),  # output a probability distribution
                 ]
             )
@@ -226,24 +234,30 @@ class BeamNetDiscrete(nn.Module):
 
         _x = x.new(x.shape)
         # copy over the pd>0
-        _x[:n_pos] = x[pd_pos_mask]
-        # flip the magnitudes and phase diffs so all now have phase diff >0
-        _x[n_pos:, self.magA_track] = x[~pd_pos_mask, self.magB_track]
-        _x[n_pos:, self.magB_track] = x[~pd_pos_mask, self.magA_track]
-        _x[n_pos:, self.pd_track] = -x[~pd_pos_mask, self.pd_track]
+        if self.symmetry:
+            _x[:n_pos] = x[pd_pos_mask]
+            # flip the magnitudes and phase diffs so all now have phase diff >0
+            _x[n_pos:, self.magA_track] = x[~pd_pos_mask, self.magB_track]
+            _x[n_pos:, self.magB_track] = x[~pd_pos_mask, self.magA_track]
+            _x[n_pos:, self.pd_track] = -x[~pd_pos_mask, self.pd_track]
+        else:
+            _x = x
 
         _y = self.beam_net(_x)
 
         y = _y.new(_y.shape)
-        # copy over results for pd>0
-        y[pd_pos_mask] = _y[:n_pos]
-        # flip distributions over theta for ones that had pd<0
-        y[~pd_pos_mask] = _y[n_pos:].flip(1)
 
+        if self.symmetry:
+            # copy over results for pd>0
+            y[pd_pos_mask] = _y[:n_pos]
+            # flip distributions over theta for ones that had pd<0
+            y[~pd_pos_mask] = _y[n_pos:].flip(1)
+        else:
+            y = _y
         return y
 
     def likelihood(self, x, y):
-        return torch.einsum("bk,bk->b", x, self.render_discrete_y(y))
+        return torch.einsum("bk,bk->b", x, self.render_discrete_y(y))[:, None]
 
     def loglikelihood(self, x, y):
         return torch.log(self.likelihood(x, y))

@@ -213,9 +213,9 @@ if __name__ == "__main__":
             other=args.other,
         ).to(torch_device)
     elif args.type == "discrete":
-        beam_m = BeamNetDiscrete(nthetas=args.nthetas, hidden=args.hidden, act=act).to(
-            torch_device
-        )
+        beam_m = BeamNetDiscrete(
+            nthetas=args.nthetas, hidden=args.hidden, act=act, symmetry=args.symmetry
+        ).to(torch_device)
     m = BeamNSegNet(segnet=seg_m, beamnet=beam_m).to(torch_device)
 
     optimizer = torch.optim.AdamW(m.parameters(), lr=0.001, weight_decay=0)
