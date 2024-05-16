@@ -36,9 +36,9 @@ if [ $depth -ne 2 -a "${seg_net}" == "unet" ]; then
 fi
 python simple_train.py  -d ~/data/*.zarr  --device cuda \
  --batch 64 --workers 28 --type $type --lr $lr \
- --segmentation-level downsampled --epochs 20 --depth ${depth} \
+ --segmentation-level downsampled --epochs 5 --depth ${depth} \
  --hidden ${hidden} --act $act $other $sym --seg-start ${start} \
- --seg-net ${seg_net} ${bn_flag}
+ --seg-net ${seg_net} ${bn_flag} --skip-segmentation
  done
  done
  done
