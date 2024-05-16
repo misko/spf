@@ -148,6 +148,10 @@ if __name__ == "__main__":
         action=argparse.BooleanOptionalAction,
     )
     parser.add_argument(
+        "--batch-norm",
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
         "--skip-segmentation",
         action=argparse.BooleanOptionalAction,
     )
@@ -193,13 +197,17 @@ if __name__ == "__main__":
 
     if args.segmentation_level == "full":
         first_n = 10000
-        seg_m = UNet1D().to(torch_device, act=act)
+        seg_m = UNet1D(bn=args.batch_norm).to(torch_device, act=act)
     elif args.segmentation_level == "downsampled":
         first_n = 256
         if args.seg_net == "conv":
-            seg_m = ConvNet(3, 1, 32, act=act, hidden=args.hidden).to(torch_device)
+            seg_m = ConvNet(3, 1, hidden=args.hidden, act=act, bn=args.batch_norm).to(
+                torch_device
+            )
         elif args.seg_net == "unet":
-            seg_m = UNet1D(step=4, act=act, hidden=args.hidden).to(torch_device)
+            seg_m = UNet1D(step=4, act=act, hidden=args.hidden, bn=args.batch_norm).to(
+                torch_device
+            )
         else:
             raise NotImplementedError
 
@@ -211,10 +219,15 @@ if __name__ == "__main__":
             symmetry=args.symmetry,
             act=act,
             other=args.other,
+            bn=args.batch_norm,
         ).to(torch_device)
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
-            nthetas=args.nthetas, hidden=args.hidden, act=act, symmetry=args.symmetry
+            nthetas=args.nthetas,
+            hidden=args.hidden,
+            act=act,
+            symmetry=args.symmetry,
+            bn=args.batch_norm,
         ).to(torch_device)
     m = BeamNSegNet(segnet=seg_m, beamnet=beam_m).to(torch_device)
 

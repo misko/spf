@@ -220,6 +220,11 @@ class v5spfdataset(Dataset):
 
         self.n_receivers = len(self.yaml_config["receivers"])
 
+        self.wavelengths = [
+            speed_of_light / receiver["f-carrier"]
+            for receiver in self.yaml_config["receivers"]
+        ]
+
         self.rx_configs = [
             rx_config_from_receiver_yaml(receiver)
             for receiver in self.yaml_config["receivers"]
@@ -257,6 +262,11 @@ class v5spfdataset(Dataset):
         self.keys_per_session = v5rx_f64_keys + v5rx_2xf64_keys + ["signal_matrix"]
 
         self.ground_truth_thetas = self.get_ground_truth_thetas()
+        self.ground_truth_phis = self.get_ground_truth_phis()
+        self.all_phi_drifts = self.get_all_phi_drifts()
+        self.phi_drifts = [
+            np.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts
+        ]
         self.get_segmentation()
 
     def __len__(self):
@@ -283,6 +293,30 @@ class v5spfdataset(Dataset):
         data["simple_segmentation"] = d["simple_segmentation"]
         data["all_windows_stats"] = d["all_windows_stats"]
         return data
+
+    def get_ground_truth_phis(self):
+        ground_truth_phis = []
+        for ridx in range(self.n_receivers):
+            ground_truth_phis.append(
+                pi_norm(
+                    -np.sin(
+                        self.ground_truth_thetas[ridx]
+                    )  # up to negative sign, which way do we spin?
+                    * self.receiver_data[ridx]["rx_spacing"]
+                    * 2
+                    * np.pi
+                    / self.wavelengths[ridx]
+                )
+            )
+        return ground_truth_phis
+
+    def get_all_phi_drifts(self):
+        all_phi_drifts = []
+        for ridx in range(self.n_receivers):
+            a = self.ground_truth_phis[0]
+            b = self.get_segmentation_mean_phase()[f"r{ridx}"]
+            all_phi_drifts.append(np.vstack([a - b, b + np.pi - a]).min(axis=0))
+        return all_phi_drifts
 
     def get_ground_truth_thetas(self):
         ground_truth_thetas = []

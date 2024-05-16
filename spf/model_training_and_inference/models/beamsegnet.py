@@ -1,5 +1,6 @@
 from collections import OrderedDict
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -7,9 +8,8 @@ from spf.dataset.spf_dataset import v5_thetas_to_targets
 
 
 class ConvNet(nn.Module):
-    def __init__(self, in_channels, out_channels, hidden, act=nn.LeakyReLU):
+    def __init__(self, in_channels, out_channels, hidden, act=nn.LeakyReLU, bn=False):
         super(ConvNet, self).__init__()
-        print("BUILD CONV NET!!!")
         self.ks = 17
         self.act = act
         self.net = nn.Sequential(
@@ -25,7 +25,10 @@ class ConvNet(nn.Module):
                             # bias=False,
                         ),
                     ),
-                    ("norm1", nn.BatchNorm1d(num_features=hidden)),
+                    (
+                        "norm1",
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ),
                     ("relu1", self.act()),
                     (
                         "conv2",
@@ -37,7 +40,10 @@ class ConvNet(nn.Module):
                             # bias=False,
                         ),
                     ),
-                    ("norm2", nn.BatchNorm1d(num_features=hidden)),
+                    (
+                        "norm2",
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ),
                     ("relu2", self.act()),
                     (
                         "conv3",
@@ -49,7 +55,10 @@ class ConvNet(nn.Module):
                             # bias=False,
                         ),
                     ),
-                    ("norm3", nn.BatchNorm1d(num_features=hidden)),
+                    (
+                        "norm3",
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ),
                     ("relu3", self.act()),
                     (
                         "conv4",
@@ -61,7 +70,10 @@ class ConvNet(nn.Module):
                             # bias=False,
                         ),
                     ),
-                    ("norm4", nn.BatchNorm1d(num_features=hidden)),
+                    (
+                        "norm4",
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ),
                     ("relu4", self.act()),
                     (
                         "conv5",
@@ -87,45 +99,61 @@ class ConvNet(nn.Module):
 class UNet1D(nn.Module):
 
     def __init__(
-        self, in_channels=3, out_channels=1, hidden=4, act=nn.LeakyReLU, step=8
+        self,
+        in_channels=3,
+        out_channels=1,
+        hidden=4,
+        act=nn.LeakyReLU,
+        step=8,
+        bn=False,
     ):
         super(UNet1D, self).__init__()
         features = hidden
-        self.encoder1 = UNet1D._block(in_channels, features, name="enc1", act=act)
+        self.encoder1 = UNet1D._block(
+            in_channels, features, name="enc1", act=act, bn=bn
+        )
         self.pool1 = nn.MaxPool1d(kernel_size=step, stride=step)
-        self.encoder2 = UNet1D._block(features, features * 2, name="enc2", act=act)
+        self.encoder2 = UNet1D._block(
+            features, features * 2, name="enc2", act=act, bn=bn
+        )
         self.pool2 = nn.MaxPool1d(kernel_size=step, stride=step)
-        self.encoder3 = UNet1D._block(features * 2, features * 4, name="enc3", act=act)
+        self.encoder3 = UNet1D._block(
+            features * 2, features * 4, name="enc3", act=act, bn=bn
+        )
         self.pool3 = nn.MaxPool1d(kernel_size=step, stride=step)
-        self.encoder4 = UNet1D._block(features * 4, features * 8, name="enc4", act=act)
+        self.encoder4 = UNet1D._block(
+            features * 4, features * 8, name="enc4", act=act, bn=bn
+        )
         self.pool4 = nn.MaxPool1d(kernel_size=2, stride=2)
 
         self.bottleneck = UNet1D._block(
-            features * 8, features * 16, name="bottleneck", act=act
+            features * 8, features * 16, name="bottleneck", act=act, bn=bn
         )
 
         self.upconv4 = nn.ConvTranspose1d(
             features * 16, features * 8, kernel_size=2, stride=2
         )
         self.decoder4 = UNet1D._block(
-            (features * 8) * 2, features * 8, name="dec4", act=act
+            (features * 8) * 2, features * 8, name="dec4", act=act, bn=bn
         )
         self.upconv3 = nn.ConvTranspose1d(
             features * 8, features * 4, kernel_size=step, stride=step
         )
         self.decoder3 = UNet1D._block(
-            (features * 4) * 2, features * 4, name="dec3", act=act
+            (features * 4) * 2, features * 4, name="dec3", act=act, bn=bn
         )
         self.upconv2 = nn.ConvTranspose1d(
             features * 4, features * 2, kernel_size=step, stride=step
         )
         self.decoder2 = UNet1D._block(
-            (features * 2) * 2, features * 2, name="dec2", act=act
+            (features * 2) * 2, features * 2, name="dec2", act=act, bn=bn
         )
         self.upconv1 = nn.ConvTranspose1d(
             features * 2, features, kernel_size=step, stride=step
         )
-        self.decoder1 = UNet1D._block(features * 2, features, name="dec1", act=act)
+        self.decoder1 = UNet1D._block(
+            features * 2, features, name="dec1", act=act, bn=bn
+        )
 
         self.conv = nn.Conv1d(
             in_channels=features, out_channels=out_channels, kernel_size=1
@@ -154,7 +182,7 @@ class UNet1D(nn.Module):
         return self.conv(dec1)
 
     @staticmethod
-    def _block(in_channels, features, name, act):
+    def _block(in_channels, features, name, act, bn):
         return nn.Sequential(
             OrderedDict(
                 [
@@ -168,7 +196,10 @@ class UNet1D(nn.Module):
                             bias=True,
                         ),
                     ),
-                    (name + "norm1", nn.BatchNorm1d(num_features=features)),
+                    (
+                        name + "norm1",
+                        nn.BatchNorm1d(num_features=features) if bn else nn.Identity(),
+                    ),
                     # (name + "relu1", nn.ReLU(inplace=True)),
                     (name + "relu1", act()),
                     (
@@ -181,7 +212,10 @@ class UNet1D(nn.Module):
                             bias=True,
                         ),
                     ),
-                    # (name + "norm2", nn.BatchNorm1d(num_features=features)),
+                    (
+                        name + "norm2",
+                        nn.BatchNorm1d(num_features=features) if bn else nn.Identity(),
+                    ),
                     # (name + "relu2", nn.ReLU(inplace=True)),
                     (name + "relu2", act()),
                 ]
@@ -199,6 +233,7 @@ class BeamNetDiscrete(nn.Module):
         magB_track=1,
         pd_track=2,
         act=nn.LeakyReLU,
+        bn=False,
     ):
         super(BeamNetDiscrete, self).__init__()
         self.nthetas = nthetas
@@ -213,13 +248,22 @@ class BeamNetDiscrete(nn.Module):
                 [
                     ("linear1", nn.Linear(3, hidden)),
                     ("relu1", self.act()),
-                    ("batchnorm1", nn.BatchNorm1d(num_features=hidden)),
+                    (
+                        "batchnorm1",
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ),
                     ("linear2", nn.Linear(hidden, hidden)),
                     ("relu2", self.act()),
-                    ("batchnorm2", nn.BatchNorm1d(num_features=hidden)),
+                    (
+                        "batchnorm2",
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ),
                     ("linear3", nn.Linear(hidden, hidden)),
                     ("relu3", self.act()),
-                    ("batchnorm3", nn.BatchNorm1d(num_features=hidden)),
+                    (
+                        "batchnorm3",
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ),
                     ("linear4", nn.Linear(hidden, self.nthetas)),
                     # ("relu4", self.act()),
                     ("softmax", nn.Softmax(dim=1)),  # output a probability distribution
@@ -271,6 +315,14 @@ class BeamNetDiscrete(nn.Module):
         return v5_thetas_to_targets(y, self.nthetas)
 
 
+def normal_dist(x, y, sigma):
+    assert x.ndim == 1
+    assert y.ndim == 1
+    assert sigma.ndim == 1
+    d = (x - y) / sigma
+    return (1 / (sigma * np.sqrt(2 * np.pi))) * torch.exp(-0.5 * d**2)
+
+
 class BeamNetDirect(nn.Module):
     def __init__(
         self,
@@ -282,6 +334,7 @@ class BeamNetDirect(nn.Module):
         magB_track=1,
         pd_track=2,
         other=True,
+        bn=False,
         act=nn.LeakyReLU,
     ):
         super(BeamNetDirect, self).__init__()
@@ -300,13 +353,13 @@ class BeamNetDirect(nn.Module):
         net_layout = [
             nn.Linear(3, hidden),
             self.act(),
-            nn.BatchNorm1d(num_features=hidden),
+            nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
         ]
         for layer in range(depth):
             net_layout += [
                 nn.Linear(hidden, hidden),
                 self.act(),
-                nn.BatchNorm1d(num_features=hidden),
+                nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
             ]
         net_layout += [nn.Linear(hidden, self.outputs)]
         self.beam_net = nn.Sequential(*net_layout)
@@ -315,7 +368,7 @@ class BeamNetDirect(nn.Module):
         _y_sig = self.sigmoid(_y) * 2  # in [0,1]
         return torch.hstack(
             [
-                sign * (_y_sig[:, [0]] - 0.5) * 2 * torch.pi / 2,  # in
+                sign * (_y_sig[:, [0]] - 0.5) * 2 * torch.pi / 2,  # mu
                 _y_sig[:, [1, 2]] * 1 + 0.01,  # sigmas
                 self.softmax(_y[:, [3, 4]]),
             ]
@@ -354,11 +407,13 @@ class BeamNetDirect(nn.Module):
         assert x.ndim == 2 and x.shape[1] == 5
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
-        mu_likelihood = x[:, [3]] * torch.exp(
-            -((x[:, [0]] - y) ** 2) / (x[:, [1]] + sigma_eps)
+        mu_likelihood = x[:, 3] * normal_dist(
+            x=x[:, 0], y=y[:, 0], sigma=x[:, 1].clamp(min=sigma_eps)
         )
-        other_likelihood = x[:, [4]] * torch.exp(
-            -((-x[:, [0]].sign() * torch.pi / 2 - y) ** 2) / (x[:, [2]] + sigma_eps)
+        other_likelihood = x[:, 4] * normal_dist(
+            x=-x[:, 0].sign() * torch.pi / 2,
+            y=y[:, 0],
+            sigma=x[:, 2].clamp(min=sigma_eps),
         )
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2) / (x[:, [1]] + sigma_eps))
         # other_likelihood = 0 * torch.exp(
@@ -367,7 +422,7 @@ class BeamNetDirect(nn.Module):
         l = mu_likelihood
         if self.other:
             l += other_likelihood
-        return l
+        return l.reshape(-1, 1)
 
     def loglikelihood(self, x, y, log_eps=0.000000001):
         return torch.log(self.likelihood(x, y) + log_eps)
