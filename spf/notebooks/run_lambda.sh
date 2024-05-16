@@ -8,8 +8,7 @@ depths="2 5 8"
 hiddens="16 32 64"
 head_starts="0 1000 4000"
 seg_nets="unet conv"
-for $bn in $bns; do
-for other in others; do 
+for bn in $bns; do
 for symmetry in $symmetrys; do 
 for act in $acts; do 
 for type in $types; do 
@@ -39,7 +38,6 @@ python simple_train.py  -d ~/data/*.zarr  --device cuda \
  --segmentation-level downsampled --epochs 5 --depth ${depth} \
  --hidden ${hidden} --act $act $other $sym --seg-start ${start} \
  --seg-net ${seg_net} ${bn_flag} --skip-segmentation
- done
  done
  done
  done
