@@ -355,7 +355,13 @@ class v5spfdataset(Dataset):
         for receiver, results in segmentation["segmentation_by_receiver"].items():
             mean_phase_results[receiver] = np.array(
                 [
-                    np.array([x["mean"] for x in result["simple_segmentation"]]).mean()
+                    (
+                        np.array(
+                            [x["mean"] for x in result["simple_segmentation"]]
+                        ).mean()
+                        if len(result["simple_segmentation"]) > 0
+                        else 0.0
+                    )
                     for result in results
                 ]
             )

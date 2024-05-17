@@ -9,3 +9,4 @@ if __name__ == "__main__":
         sys.argv[1],
         nthetas=11,
     )
+    print(sys.argv[1], ds.phi_drifts[0], ds.phi_drifts[1])
