@@ -1,7 +1,7 @@
 import numpy as np
 
 from spf.rf import IQSource, UCADetector, ULADetector, beamformer, c, rotation_matrix
-from spf.sdrpluto.sdr_controller import simple_segment
+from spf.rf import simple_segment
 from spf.utils import random_signal_matrix
 
 
