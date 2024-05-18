@@ -315,7 +315,13 @@ class v5spfdataset(Dataset):
         for ridx in range(self.n_receivers):
             a = self.ground_truth_phis[0]
             b = self.get_segmentation_mean_phase()[f"r{ridx}"]
-            all_phi_drifts.append(np.vstack([a - b, b + np.pi - a]).min(axis=0))
+            fwd = pi_norm(a - b)
+            bwd = pi_norm(b + np.pi - a)
+            mask = np.abs(fwd) < np.abs(bwd)
+            c = np.zeros(a.shape)
+            c[mask] = fwd[mask]
+            c[~mask] = bwd[~mask]
+            all_phi_drifts.append(c)
         return all_phi_drifts
 
     def get_ground_truth_thetas(self):
