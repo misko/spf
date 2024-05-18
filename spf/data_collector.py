@@ -13,12 +13,11 @@ from spf.dataset.rover_idxs import v3rx_column_names
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.dataset.wall_array_v2_idxs import v2_column_names
-from spf.rf import beamformer_given_steering, precompute_steering_vectors
+from spf.rf import beamformer_given_steering, precompute_steering_vectors, get_avg_phase
 from spf.sdrpluto.sdr_controller import (
     EmitterConfig,
     PPlus,
     ReceiverConfig,
-    get_avg_phase,
     get_pplus,
     rx_config_from_receiver_yaml,
     setup_rx,
