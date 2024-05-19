@@ -77,6 +77,10 @@ def circular_mean(angles, trim, weights=None):
         _cos_angles = _cos_angles * weights
     cm = np.arctan2(_sin_angles.sum(axis=1), _cos_angles.sum(axis=1)) % (2 * np.pi)
 
+    if trim == 0.0:
+        r = pi_norm(cm)
+        return r, r
+
     dists = circular_diff_to_mean(angles=angles, means=cm)
 
     mask = dists <= np.percentile(dists, 100.0 - trim, axis=1, keepdims=True)
@@ -109,6 +113,10 @@ def torch_circular_mean(angles, trim, weights=None):
     cm = torch.arctan2(_sin_angles.sum(axis=1), _cos_angles.sum(axis=1)) % (
         2 * torch.pi
     )
+
+    if trim == 0.0:
+        r = torch_pi_norm(cm)
+        return r, r
 
     dists = torch_circular_diff_to_mean(angles=angles, means=cm)
 
