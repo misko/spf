@@ -1,16 +1,16 @@
 import argparse
 from functools import cache
 
-from matplotlib import pyplot as plt
 import torch
 import torch.nn.functional as f
 import wandb
+from matplotlib import pyplot as plt
 
 from spf.dataset.spf_dataset import v5_collate_beamsegnet, v5spfdataset
 from spf.model_training_and_inference.models.beamsegnet import (
-    BeamNSegNet,
     BeamNetDirect,
     BeamNetDiscrete,
+    BeamNSegNet,
     ConvNet,
     UNet1D,
 )
@@ -141,6 +141,10 @@ if __name__ == "__main__":
         action=argparse.BooleanOptionalAction,
     )
     parser.add_argument(
+        "--circular-mean",
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
         "--symmetry",
         action=argparse.BooleanOptionalAction,
     )
@@ -231,7 +235,9 @@ if __name__ == "__main__":
             symmetry=args.symmetry,
             bn=args.batch_norm,
         ).to(torch_device)
-    m = BeamNSegNet(segnet=seg_m, beamnet=beam_m).to(torch_device)
+    m = BeamNSegNet(segnet=seg_m, beamnet=beam_m, circular_mean=args.circular_mean).to(
+        torch_device
+    )
 
     optimizer = torch.optim.AdamW(m.parameters(), lr=0.001, weight_decay=0)
 

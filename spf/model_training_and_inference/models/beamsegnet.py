@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 
 from spf.dataset.spf_dataset import v5_thetas_to_targets
+from spf.rf import torch_circular_mean
 
 
 class ConvNet(nn.Module):
@@ -446,13 +447,14 @@ class BeamNetDirect(nn.Module):
 
 
 class BeamNSegNet(nn.Module):
-    def __init__(self, beamnet, segnet, average_before=True):
+    def __init__(self, beamnet, segnet, average_before=True, circular_mean=False):
         super(BeamNSegNet, self).__init__()
         self.beamnet = beamnet
         self.segnet = segnet
         self.softmax = nn.Softmax(dim=2)
         self.sigmoid = nn.Sigmoid()
         self.average_before = average_before
+        self.circular_mean = circular_mean
 
     def forward(self, x, b_mask_weights=None):
         if b_mask_weights is None:
@@ -485,6 +487,10 @@ class BeamNSegNet(nn.Module):
             weighted_input = torch.mul(x, b_mask_weights).sum(axis=2) / (
                 b_mask_weights.sum(axis=2) + 0.001
             )
+            if self.circular_mean:
+                weighted_input[:, self.beamnet.pd_track] = torch_circular_mean(
+                    x[:, self.beamnet.pd_track], weights=b_mask_weights[:, 0], trim=0
+                )[0]
             pred_theta = self.beamnet(weighted_input)
         # p_mask_weights = self.softmax(mask_weights)
 
