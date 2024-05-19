@@ -1,6 +1,16 @@
 import numpy as np
+import torch
 
-from spf.rf import IQSource, UCADetector, ULADetector, beamformer, c, rotation_matrix
+from spf.rf import (
+    IQSource,
+    UCADetector,
+    ULADetector,
+    beamformer,
+    c,
+    circular_mean,
+    rotation_matrix,
+    torch_circular_mean,
+)
 from spf.rf import simple_segment
 from spf.utils import random_signal_matrix
 
@@ -180,3 +190,38 @@ def test_simple_segment_separate():
         ground_truth_windows[2]["mean"],
         mean_diff_threshold,
     )
+
+
+def test_circular_mean():
+    gt_mean = np.array([0, np.pi / 2]).reshape(-1, 1)
+
+    gt_mean = np.random.uniform(low=-np.pi, high=np.pi, size=(128, 1))
+
+    for n in [1000]:
+        angles = np.random.randn(gt_mean.shape[0], n) * 0.2 + gt_mean
+        m, _m = circular_mean(angles, 20)
+        assert np.isclose(_m, gt_mean[:, 0], atol=1e-1).all()
+
+        _angles = torch.from_numpy(angles)
+        m, _m = torch_circular_mean(_angles, 20)
+        assert torch.isclose(
+            _m.double(), torch.from_numpy(gt_mean[:, 0]), atol=1e-1
+        ).all()
+
+        # try with and without weights
+        add_noise_angles = np.hstack(
+            [angles, np.random.randn(gt_mean.shape[0], n * 10) + 0.5]
+        )
+        # add_noise_angles = 10*np.random.randn(2, n*40)
+        weights = np.zeros(add_noise_angles.shape)
+        weights[:, :n] = 1
+
+        m, _m = circular_mean(add_noise_angles, 20, weights=weights)
+        assert np.isclose(_m, gt_mean[:, 0], atol=1e-1).all()
+
+        m, _m = torch_circular_mean(
+            torch.from_numpy(add_noise_angles), 20, weights=weights
+        )
+        assert torch.isclose(
+            _m.double(), torch.from_numpy(gt_mean[:, 0]), atol=1e-1
+        ).all()

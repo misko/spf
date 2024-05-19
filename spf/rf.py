@@ -68,10 +68,13 @@ def circular_diff_to_mean(angles, means):
     return np.min(np.vstack([a[None], b[None]]), axis=0)
 
 
-def circular_mean(angles, trim):
+def circular_mean(angles, trim, weights=None):
     assert angles.ndim == 2
     _sin_angles = np.sin(angles)
     _cos_angles = np.cos(angles)
+    if weights is not None:
+        _sin_angles = _sin_angles * weights
+        _cos_angles = _cos_angles * weights
     cm = np.arctan2(_sin_angles.sum(axis=1), _cos_angles.sum(axis=1)) % (2 * np.pi)
 
     dists = circular_diff_to_mean(angles=angles, means=cm)
@@ -95,10 +98,14 @@ def torch_circular_diff_to_mean(angles, means):
     return m
 
 
-def torch_circular_mean(angles, trim):
+def torch_circular_mean(angles, trim, weights=None):
     assert angles.ndim == 2
     _sin_angles = torch.sin(angles)
     _cos_angles = torch.cos(angles)
+    if weights is not None:
+        _sin_angles = _sin_angles * weights
+        _cos_angles = _cos_angles * weights
+
     cm = torch.arctan2(_sin_angles.sum(axis=1), _cos_angles.sum(axis=1)) % (
         2 * torch.pi
     )
@@ -106,7 +113,7 @@ def torch_circular_mean(angles, trim):
     dists = torch_circular_diff_to_mean(angles=angles, means=cm)
 
     mask = dists <= torch.quantile(dists, (1.0 - trim / 100), axis=1, keepdims=True)
-    _cm = np.zeros(angles.shape[0])
+    _cm = torch.zeros(angles.shape[0])
     for idx in range(angles.shape[0]):
         _cm[idx] = torch.arctan2(
             _sin_angles[idx][mask[idx]].sum(),
