@@ -45,20 +45,9 @@ def torch_pi_norm(x):
     return ((x + torch.pi) % (2 * torch.pi)) - torch.pi
 
 
-@njit
-def circular_diff_to_mean(angles, mean):
-    a = np.abs(mean - angles) % (2 * np.pi)
-    b = 2 * np.pi - a
-    dists = np.empty(a.shape[0])
-    for i in range(a.shape[0]):
-        dists[i] = min(a[i], b[i])
-    return dists
-
-
 # returns circular_stddev and trimmed cricular stddev
-@njit
 def circular_stddev(v, u, trim=50.0):
-    diff_from_mean = circular_diff_to_mean(angles=v, mean=u)
+    diff_from_mean = circular_diff_to_mean(angles=v, means=np.array(u).reshape(-1))
 
     diff_from_mean_squared = diff_from_mean**2
     stddev = np.sqrt(diff_from_mean_squared.sum() / (diff_from_mean.shape[0] - 1))
@@ -72,26 +61,59 @@ def circular_stddev(v, u, trim=50.0):
     return stddev, trimmed_stddev
 
 
-# returns circular mean and trimmed circular mean
-@njit
-def circular_mean(angles, trim=50.0):
-    # n = angles.shape[0]
-    # assert angles.ndim == 1 or np.prod(a.shape[1:]) == 1
+def circular_diff_to_mean(angles, means):
+    assert means.ndim == 1
+    a = np.abs(means[:, None] - angles) % (2 * np.pi)
+    b = 2 * np.pi - a
+    return np.min(np.vstack([a[None], b[None]]), axis=0)
+
+
+def circular_mean(angles, trim):
+    assert angles.ndim == 2
     _sin_angles = np.sin(angles)
     _cos_angles = np.cos(angles)
-    cm = np.arctan2(_sin_angles.sum(), _cos_angles.sum()) % (2 * np.pi)
+    cm = np.arctan2(_sin_angles.sum(axis=1), _cos_angles.sum(axis=1)) % (2 * np.pi)
 
-    ##non JIT
-    # dists = np.vstack((2 * np.pi - np.abs(cm - angles), np.abs(cm - angles))).min(
-    #     axis=0
-    # )
+    dists = circular_diff_to_mean(angles=angles, means=cm)
 
-    # JIT version
-    dists = circular_diff_to_mean(angles=angles, mean=cm)
+    mask = dists <= np.percentile(dists, 100.0 - trim, axis=1, keepdims=True)
+    _cm = np.zeros(angles.shape[0])
+    for idx in range(angles.shape[0]):
+        _cm[idx] = np.arctan2(
+            _sin_angles[idx][mask[idx]].sum(),
+            _cos_angles[idx][mask[idx]].sum(),
+        ) % (2 * np.pi)
 
-    mask = dists <= np.percentile(dists, 100.0 - trim)
-    _cm = np.arctan2(_sin_angles[mask].sum(), _cos_angles[mask].sum()) % (2 * np.pi)
     return pi_norm(cm), pi_norm(_cm)
+
+
+def torch_circular_diff_to_mean(angles, means):
+    assert means.ndim == 1
+    a = torch.abs(means[:, None] - angles) % (2 * torch.pi)
+    b = 2 * torch.pi - a
+    m, _ = torch.min(torch.vstack([a[None], b[None]]), axis=0)
+    return m
+
+
+def torch_circular_mean(angles, trim):
+    assert angles.ndim == 2
+    _sin_angles = torch.sin(angles)
+    _cos_angles = torch.cos(angles)
+    cm = torch.arctan2(_sin_angles.sum(axis=1), _cos_angles.sum(axis=1)) % (
+        2 * torch.pi
+    )
+
+    dists = torch_circular_diff_to_mean(angles=angles, means=cm)
+
+    mask = dists <= torch.quantile(dists, (1.0 - trim / 100), axis=1, keepdims=True)
+    _cm = np.zeros(angles.shape[0])
+    for idx in range(angles.shape[0]):
+        _cm[idx] = torch.arctan2(
+            _sin_angles[idx][mask[idx]].sum(),
+            _cos_angles[idx][mask[idx]].sum(),
+        ) % (2 * torch.pi)
+
+    return torch_pi_norm(cm), torch_pi_norm(_cm)
 
 
 def get_segmentation_for_zarr(
@@ -147,15 +169,15 @@ def segment_session(zarr_fn, receiver, session_idx, **kwrgs):
         return simple_segment(z.receivers[receiver].signal_matrix[session_idx], **kwrgs)
 
 
-@njit
 def get_stats_for_signal(v, pd, trim):
-    trimmed_cm = circular_mean(pd, trim=trim)[1]
+    trimmed_cm = circular_mean(pd.reshape(1, -1), trim=trim)[1][
+        0
+    ]  # get the value for trimmed
     trimmed_stddev = circular_stddev(pd, trimmed_cm, trim=trim)[1]
     abs_signal_median = np.median(np.abs(v).reshape(-1)) if v.size > 0 else 0
     return trimmed_cm, trimmed_stddev, abs_signal_median
 
 
-@njit
 def windowed_trimmed_circular_mean_and_stddev(v, pd, window_size, stride, trim=50.0):
     assert (pd.shape[0] - window_size) % stride == 0
     n_steps = 1 + (pd.shape[0] - window_size) // stride

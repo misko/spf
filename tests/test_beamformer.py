@@ -110,7 +110,7 @@ def test_simple_segment():
         max_stddev_threshold=0.1,
         drop_less_than_size=0,
         min_abs_signal=10,
-    )
+    )["simple_segmentation"]
 
     assert segmented_windows[0]["start_idx"] == ground_truth_windows[0]["start_idx"]
     assert segmented_windows[0]["end_idx"] == ground_truth_windows[0]["end_idx"]
@@ -155,7 +155,7 @@ def test_simple_segment_separate():
         max_stddev_threshold=0.1,
         drop_less_than_size=0,
         min_abs_signal=10,
-    )
+    )["simple_segmentation"]
 
     assert segmented_windows[0]["start_idx"] == ground_truth_windows[0]["start_idx"]
     assert segmented_windows[0]["end_idx"] == ground_truth_windows[0]["end_idx"]
