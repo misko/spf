@@ -130,11 +130,7 @@ if __name__ == "__main__":
         type=str,
         required=True,
     )
-    parser.add_argument(
-        "--wandb-project",
-        type=str,
-        required=True,
-    )
+    parser.add_argument("--wandb-project", type=str, required=False, default=None)
     parser.add_argument(
         "--segmentation-level",
         type=str,
@@ -183,13 +179,14 @@ if __name__ == "__main__":
     }
     train_dataloader = torch.utils.data.DataLoader(ds, **dataloader_params)
 
-    # start a new wandb run to track this script
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project=args.wandb_project,
-        # track hyperparameters and run metadata
-        config=args,
-    )
+    if args.wandb_project:
+        # start a new wandb run to track this script
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project=args.wandb_project,
+            # track hyperparameters and run metadata
+            config=args,
+        )
 
     if args.act == "relu":
         act = torch.nn.ReLU
@@ -311,10 +308,11 @@ if __name__ == "__main__":
                 for row_idx in range(img_beam_output.shape[0]):
                     train_target_image[row_idx * 2] = img_beam_output[row_idx]
                     train_target_image[row_idx * 2 + 1] = img_beam_gt[row_idx]
-                output_image = wandb.Image(
-                    train_target_image, caption="train vs target (interleaved)"
-                )
-                to_log["output"] = output_image
+                if args.wandb_project:
+                    output_image = wandb.Image(
+                        train_target_image, caption="train vs target (interleaved)"
+                    )
+                    to_log["output"] = output_image
 
                 # segmentation output
                 _x = x.detach().cpu().numpy()
@@ -322,8 +320,10 @@ if __name__ == "__main__":
                 _output_seg = output["segmentation"].detach().cpu().numpy()
 
                 to_log["fig"] = plot_instance(_x, _output_seg, _seg_mask, idx=0)
-            wandb.log(to_log)
+            if args.wandb_project:
+                wandb.log(to_log)
             step += 1
 
     # [optional] finish the wandb run, necessary in notebooks
-    wandb.finish()
+    if args.wandb_project:
+        wandb.finish()
