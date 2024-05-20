@@ -50,14 +50,20 @@ def circular_stddev(v, u, trim=50.0):
     diff_from_mean = circular_diff_to_mean(angles=v, means=np.array(u).reshape(-1))
 
     diff_from_mean_squared = diff_from_mean**2
-    stddev = np.sqrt(diff_from_mean_squared.sum() / (diff_from_mean.shape[0] - 1))
+
+    stddev = 0
+    trimmed_stddev = 0
+
+    if diff_from_mean.shape[0] > 1:
+        stddev = np.sqrt(diff_from_mean_squared.sum() / (diff_from_mean.shape[0] - 1))
 
     mask = diff_from_mean <= np.percentile(diff_from_mean, 100.0 - trim)
     _diff_from_mean_squared = diff_from_mean_squared[mask]
 
-    trimmed_stddev = np.sqrt(
-        _diff_from_mean_squared.sum() / (_diff_from_mean_squared.shape[0] - 1)
-    )
+    if _diff_from_mean_squared.shape[0]>1:
+        trimmed_stddev = np.sqrt(
+            _diff_from_mean_squared.sum() / (_diff_from_mean_squared.shape[0] - 1)
+        )
     return stddev, trimmed_stddev
 
 
@@ -356,9 +362,10 @@ def torch_get_phase_diff(signal_matrix):
     return torch_pi_norm(signal_matrix[0].angle() - signal_matrix[1].angle())
 
 
-@njit
 def get_avg_phase(signal_matrix, trim=0.0):
-    return circular_mean(get_phase_diff(signal_matrix=signal_matrix), trim=50.0)
+    return np.array(
+        circular_mean(get_phase_diff(signal_matrix=signal_matrix)[None], trim=trim)
+    ).reshape(-1)
 
 
 @functools.lru_cache(maxsize=1024)

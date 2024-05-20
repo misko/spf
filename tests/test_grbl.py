@@ -166,7 +166,7 @@ def test_grbl_radio_collection_bounce(script_runner):
             f"python3 {root_dir}/spf/grbl_radio_collection.py "
             + f"-c {root_dir}/tests/wall_array_v2_external_test_secondspersample.yaml"
             + f" -r bounce -o {tmpdirname}",
-            timeout=180 * 2,
+            timeout=180,
             shell=True,
             env=get_env(),
             stderr=subprocess.STDOUT,
