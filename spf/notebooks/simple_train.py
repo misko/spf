@@ -264,6 +264,8 @@ if __name__ == "__main__":
             else:
                 raise NotImplementedError
 
+            current_batch_size = x.shape[0]
+
             assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
 
             # run beamformer and segmentation
@@ -276,7 +278,7 @@ if __name__ == "__main__":
 
             # x to beamformer loss (indirectly including segmentation)
             x_to_beamformer_loss = -beam_m.loglikelihood(output["pred_theta"], y_rad)
-            assert x_to_beamformer_loss.shape == (args.batch, 1)
+            assert x_to_beamformer_loss.shape == (current_batch_size, 1)
             x_to_beamformer_loss = x_to_beamformer_loss.mean()
 
             # segmentation loss
