@@ -336,6 +336,7 @@ class BeamNetDirect(nn.Module):
         pd_track=2,
         other=True,
         bn=False,
+        no_sigmoid=False,
         act=nn.LeakyReLU,
     ):
         super(BeamNetDirect, self).__init__()
@@ -351,6 +352,7 @@ class BeamNetDirect(nn.Module):
         self.flip_mu = torch.Tensor([[-1, 1, 1, 1, 1]])
         self.nthetas = nthetas
         self.other = other
+        self.no_sigmoid = no_sigmoid
         net_layout = [
             nn.Linear(3, hidden),
             self.act(),
@@ -367,9 +369,12 @@ class BeamNetDirect(nn.Module):
 
     def fixify(self, _y, sign):
         _y_sig = self.sigmoid(_y) * 2  # in [0,1]
+        mean_values = sign * (_y_sig[:, [0]] - 0.5) * 2 * torch.pi / 2
+        if self.no_sigmoid:
+            mean_values = sign * _y[:, [0]]
         return torch.hstack(
             [
-                sign * (_y_sig[:, [0]] - 0.5) * 2 * torch.pi / 2,  # mu
+                mean_values,  # mu
                 _y_sig[:, [1, 2]] * 1 + 0.01,  # sigmas
                 self.softmax(_y[:, [3, 4]]),
             ]

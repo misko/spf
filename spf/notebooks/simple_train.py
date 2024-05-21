@@ -160,6 +160,10 @@ if __name__ == "__main__":
         "--skip-segmentation",
         action=argparse.BooleanOptionalAction,
     )
+    parser.add_argument(
+        "--no-sigmoid",
+        action=argparse.BooleanOptionalAction,
+    )
     # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
     args = parser.parse_args()
     torch_device = torch.device(args.device)
@@ -226,6 +230,7 @@ if __name__ == "__main__":
             act=act,
             other=args.other,
             bn=args.batch_norm,
+            no_sigmoid=args.no_sigmoid,
         ).to(torch_device)
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
