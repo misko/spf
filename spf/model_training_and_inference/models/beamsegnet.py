@@ -331,9 +331,9 @@ class BeamNetDirect(nn.Module):
         hidden,
         symmetry,
         depth=3,
-        magA_track=0,
-        magB_track=1,
-        pd_track=2,
+        mag_track=2,
+        stddev_track=1,
+        pd_track=0,
         other=True,
         bn=False,
         no_sigmoid=False,
@@ -344,8 +344,8 @@ class BeamNetDirect(nn.Module):
         self.hidden = hidden
         self.pd_track = pd_track
         self.act = act
-        self.magA_track = magA_track
-        self.magB_track = magB_track
+        self.mag_track = mag_track
+        self.stddev_track = stddev_track
         self.symmetry = symmetry
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
@@ -391,8 +391,10 @@ class BeamNetDirect(nn.Module):
             # copy over the pd>0
             _x[:n_pos] = x[pd_pos_mask]
             # flip the magnitudes and phase diffs so all now have phase diff >0
-            _x[n_pos:, self.magA_track] = x[~pd_pos_mask, self.magB_track]
-            _x[n_pos:, self.magB_track] = x[~pd_pos_mask, self.magA_track]
+            # _x[n_pos:, self.magA_track] = x[~pd_pos_mask, self.magB_track]
+            # _x[n_pos:, self.magB_track] = x[~pd_pos_mask, self.magA_track]
+            _x[n_pos:, self.mag_track] = x[~pd_pos_mask, self.mag_track]
+            _x[n_pos:, self.stddev_track] = x[~pd_pos_mask, self.stddev_track]
             _x[n_pos:, self.pd_track] = -x[~pd_pos_mask, self.pd_track]
         else:
             _x = x

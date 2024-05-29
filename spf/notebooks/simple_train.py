@@ -16,7 +16,7 @@ from spf.model_training_and_inference.models.beamsegnet import (
 )
 
 
-def plot_instance(_x, _output_seg, _seg_mask, idx):
+def plot_instance(_x, _output_seg, _seg_mask, idx, first_n):
     fig, axs = plt.subplots(1, 3, figsize=(8, 3))
     s = 0.3
     idx = 0
@@ -33,7 +33,194 @@ def plot_instance(_x, _output_seg, _seg_mask, idx):
     return fig
 
 
-if __name__ == "__main__":
+def simple_train(args):
+    # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
+    torch_device = torch.device(args.device)
+
+    torch.manual_seed(args.seed)
+    import random
+
+    random.seed(args.seed)
+
+    # loop over and concat datasets here
+    datasets = [v5spfdataset(prefix, nthetas=args.nthetas) for prefix in args.datasets]
+    for ds in datasets:
+        ds.get_segmentation()
+    ds = torch.utils.data.ConcatDataset(datasets)
+
+    dataloader_params = {
+        "batch_size": args.batch,
+        "shuffle": not args.no_shuffle,
+        "num_workers": args.workers,
+        "collate_fn": v5_collate_beamsegnet,
+    }
+    train_dataloader = torch.utils.data.DataLoader(ds, **dataloader_params)
+
+    if args.wandb_project:
+        # start a new wandb run to track this script
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project=args.wandb_project,
+            # track hyperparameters and run metadata
+            config=args,
+        )
+
+    if args.act == "relu":
+        act = torch.nn.ReLU
+    elif args.act == "selu":
+        act = torch.nn.SELU
+    elif args.act == "leaky":
+        act = torch.nn.LeakyReLU
+    else:
+        raise NotImplementedError
+
+    if args.segmentation_level == "full":
+        first_n = 10000
+        seg_m = UNet1D(bn=args.batch_norm).to(torch_device, act=act)
+    elif args.segmentation_level == "downsampled":
+        first_n = 256
+        if args.seg_net == "conv":
+            seg_m = ConvNet(3, 1, hidden=args.hidden, act=act, bn=args.batch_norm).to(
+                torch_device
+            )
+        elif args.seg_net == "unet":
+            seg_m = UNet1D(step=4, act=act, hidden=args.hidden, bn=args.batch_norm).to(
+                torch_device
+            )
+        else:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
+
+    if args.type == "direct":
+        beam_m = BeamNetDirect(
+            nthetas=args.nthetas,
+            depth=args.depth,
+            hidden=args.hidden,
+            symmetry=args.symmetry,
+            act=act,
+            other=args.other,
+            bn=args.batch_norm,
+            no_sigmoid=args.no_sigmoid,
+        ).to(torch_device)
+    elif args.type == "discrete":
+        beam_m = BeamNetDiscrete(
+            nthetas=args.nthetas,
+            hidden=args.hidden,
+            act=act,
+            symmetry=args.symmetry,
+            bn=args.batch_norm,
+        ).to(torch_device)
+    m = BeamNSegNet(segnet=seg_m, beamnet=beam_m, circular_mean=args.circular_mean).to(
+        torch_device
+    )
+
+    optimizer = torch.optim.AdamW(m.parameters(), lr=0.001, weight_decay=0)
+
+    if args.compile:
+        m = torch.compile(m)
+    optimizer = torch.optim.AdamW(
+        m.parameters(), lr=args.lr, weight_decay=args.weight_decay
+    )
+    step = 0
+    losses = []
+    for epoch in range(args.epochs):
+        for batch_data in train_dataloader:
+            # for X, Y_rad in train_dataloader:
+            optimizer.zero_grad()
+
+            # copy to torch device
+            if args.segmentation_level == "full":
+                x = batch_data["x"].to(torch_device)
+                y_rad = batch_data["y_rad"].to(torch_device)
+                seg_mask = batch_data["segmentation_mask"].to(torch_device)
+            elif args.segmentation_level == "downsampled":
+                x = batch_data["all_windows_stats"].to(torch_device)
+                y_rad = batch_data["y_rad"].to(torch_device)
+                seg_mask = batch_data["downsampled_segmentation_mask"].to(torch_device)
+            else:
+                raise NotImplementedError
+
+            current_batch_size = x.shape[0]
+
+            assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
+
+            # run beamformer and segmentation
+            if not args.skip_segmentation:
+                output = m(x)
+            else:
+                output = m(x, seg_mask)
+
+            assert output["pred_theta"].isfinite().all()
+            # x to beamformer loss (indirectly including segmentation)
+            x_to_beamformer_loss = -beam_m.loglikelihood(output["pred_theta"], y_rad)
+            assert x_to_beamformer_loss.shape == (current_batch_size, 1)
+            x_to_beamformer_loss = x_to_beamformer_loss.mean()
+
+            # segmentation loss
+            x_to_segmentation_loss = (output["segmentation"] - seg_mask) ** 2
+            assert (
+                x_to_segmentation_loss.ndim == 3
+                and x_to_segmentation_loss.shape[1] == 1
+            )
+            x_to_segmentation_loss = x_to_segmentation_loss.mean()
+
+            if args.skip_segmentation:
+                loss = x_to_beamformer_loss
+            else:
+                loss = x_to_beamformer_loss + 10 * x_to_segmentation_loss
+
+            assert loss.isfinite().all()
+
+            loss.backward()
+            losses.append(loss.item())
+            optimizer.step()
+
+            to_log = {
+                "loss": loss.item(),
+                "segmentation_loss": x_to_segmentation_loss.item(),
+                "beam_former_loss": x_to_beamformer_loss.item(),
+            }
+            if step % args.plot_every == 0:
+                # beam outputs
+                img_beam_output = (
+                    (beam_m.render_discrete_x(output["pred_theta"]) * 255).cpu().byte()
+                )
+                img_beam_gt = (beam_m.render_discrete_y(y_rad) * 255).cpu().byte()
+                train_target_image = torch.zeros(
+                    (img_beam_output.shape[0] * 3, img_beam_output.shape[1]),
+                ).byte()
+                for row_idx in range(img_beam_output.shape[0]):
+                    train_target_image[row_idx * 3] = img_beam_output[row_idx]
+                    train_target_image[row_idx * 3 + 1] = img_beam_gt[row_idx]
+                if args.wandb_project:
+                    output_image = wandb.Image(
+                        train_target_image, caption="train vs target (interleaved)"
+                    )
+                    to_log["output"] = output_image
+                else:
+                    ax, fig = plt.subplots(1, 1)
+                    fig.imshow(train_target_image)
+
+                # segmentation output
+                _x = x.detach().cpu().numpy()
+                _seg_mask = seg_mask.detach().cpu().numpy()
+                _output_seg = output["segmentation"].detach().cpu().numpy()
+
+                to_log["fig"] = plot_instance(
+                    _x, _output_seg, _seg_mask, idx=0, first_n=first_n
+                )
+            if args.wandb_project:
+                wandb.log(to_log)
+            step += 1
+
+    # [optional] finish the wandb run, necessary in notebooks
+    if args.wandb_project:
+        wandb.finish()
+    return {"losses": losses}
+
+
+def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d",
@@ -116,6 +303,12 @@ if __name__ == "__main__":
         default=10.0,
     )
     parser.add_argument(
+        "--plot-every",
+        type=int,
+        required=False,
+        default=200,
+    )
+    parser.add_argument(
         "--type",
         type=str,
         required=True,
@@ -138,6 +331,10 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--compile",
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--no-shuffle",
         action=argparse.BooleanOptionalAction,
     )
     parser.add_argument(
@@ -164,179 +361,10 @@ if __name__ == "__main__":
         "--no-sigmoid",
         action=argparse.BooleanOptionalAction,
     )
-    # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
+    return parser
+
+
+if __name__ == "__main__":
+    parser = get_parser()
     args = parser.parse_args()
-    torch_device = torch.device(args.device)
-
-    torch.manual_seed(args.seed)
-    import random
-
-    random.seed(args.seed)
-
-    # loop over and concat datasets here
-    datasets = [v5spfdataset(prefix, nthetas=args.nthetas) for prefix in args.datasets]
-    for ds in datasets:
-        ds.get_segmentation()
-    ds = torch.utils.data.ConcatDataset(datasets)
-
-    dataloader_params = {
-        "batch_size": args.batch,
-        "shuffle": True,
-        "num_workers": args.workers,
-        "collate_fn": v5_collate_beamsegnet,
-    }
-    train_dataloader = torch.utils.data.DataLoader(ds, **dataloader_params)
-
-    if args.wandb_project:
-        # start a new wandb run to track this script
-        wandb.init(
-            # set the wandb project where this run will be logged
-            project=args.wandb_project,
-            # track hyperparameters and run metadata
-            config=args,
-        )
-
-    if args.act == "relu":
-        act = torch.nn.ReLU
-    elif args.act == "selu":
-        act = torch.nn.SELU
-    elif args.act == "leaky":
-        act = torch.nn.LeakyReLU
-    else:
-        raise NotImplementedError
-
-    if args.segmentation_level == "full":
-        first_n = 10000
-        seg_m = UNet1D(bn=args.batch_norm).to(torch_device, act=act)
-    elif args.segmentation_level == "downsampled":
-        first_n = 256
-        if args.seg_net == "conv":
-            seg_m = ConvNet(3, 1, hidden=args.hidden, act=act, bn=args.batch_norm).to(
-                torch_device
-            )
-        elif args.seg_net == "unet":
-            seg_m = UNet1D(step=4, act=act, hidden=args.hidden, bn=args.batch_norm).to(
-                torch_device
-            )
-        else:
-            raise NotImplementedError
-
-    if args.type == "direct":
-        beam_m = BeamNetDirect(
-            nthetas=args.nthetas,
-            depth=args.depth,
-            hidden=args.hidden,
-            symmetry=args.symmetry,
-            act=act,
-            other=args.other,
-            bn=args.batch_norm,
-            no_sigmoid=args.no_sigmoid,
-        ).to(torch_device)
-    elif args.type == "discrete":
-        beam_m = BeamNetDiscrete(
-            nthetas=args.nthetas,
-            hidden=args.hidden,
-            act=act,
-            symmetry=args.symmetry,
-            bn=args.batch_norm,
-        ).to(torch_device)
-    m = BeamNSegNet(segnet=seg_m, beamnet=beam_m, circular_mean=args.circular_mean).to(
-        torch_device
-    )
-
-    optimizer = torch.optim.AdamW(m.parameters(), lr=0.001, weight_decay=0)
-
-    if args.compile:
-        m = torch.compile(m)
-    optimizer = torch.optim.AdamW(
-        m.parameters(), lr=args.lr, weight_decay=args.weight_decay
-    )
-    step = 0
-    for epoch in range(args.epochs):
-        for batch_data in train_dataloader:
-            # for X, Y_rad in train_dataloader:
-            optimizer.zero_grad()
-
-            # copy to torch device
-            if args.segmentation_level == "full":
-                x = batch_data["x"].to(torch_device)
-                y_rad = batch_data["y_rad"].to(torch_device)
-                seg_mask = batch_data["segmentation_mask"].to(torch_device)
-            elif args.segmentation_level == "downsampled":
-                x = batch_data["all_windows_stats"].to(torch_device)
-                y_rad = batch_data["y_rad"].to(torch_device)
-                seg_mask = batch_data["downsampled_segmentation_mask"].to(torch_device)
-            else:
-                raise NotImplementedError
-
-            current_batch_size = x.shape[0]
-
-            assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
-
-            # run beamformer and segmentation
-            if not args.skip_segmentation:
-                output = m(x)
-            else:
-                output = m(x, seg_mask)
-
-            assert output["pred_theta"].isfinite().all()
-
-            # x to beamformer loss (indirectly including segmentation)
-            x_to_beamformer_loss = -beam_m.loglikelihood(output["pred_theta"], y_rad)
-            assert x_to_beamformer_loss.shape == (current_batch_size, 1)
-            x_to_beamformer_loss = x_to_beamformer_loss.mean()
-
-            # segmentation loss
-            x_to_segmentation_loss = (output["segmentation"] - seg_mask) ** 2
-            assert (
-                x_to_segmentation_loss.ndim == 3
-                and x_to_segmentation_loss.shape[1] == 1
-            )
-            x_to_segmentation_loss = x_to_segmentation_loss.mean()
-
-            if args.skip_segmentation:
-                loss = x_to_beamformer_loss
-            else:
-                loss = x_to_beamformer_loss + 10 * x_to_segmentation_loss
-
-            assert loss.isfinite().all()
-
-            loss.backward()
-            optimizer.step()
-
-            to_log = {
-                "loss": loss.item(),
-                "segmentation_loss": x_to_segmentation_loss.item(),
-                "beam_former_loss": x_to_beamformer_loss.item(),
-            }
-            if step % 200 == 0:
-                # beam outputs
-                img_beam_output = (
-                    (beam_m.render_discrete_x(output["pred_theta"]) * 255).cpu().byte()
-                )
-                img_beam_gt = (beam_m.render_discrete_y(y_rad) * 255).cpu().byte()
-                train_target_image = torch.zeros(
-                    (img_beam_output.shape[0] * 2, img_beam_output.shape[1]),
-                ).byte()
-                for row_idx in range(img_beam_output.shape[0]):
-                    train_target_image[row_idx * 2] = img_beam_output[row_idx]
-                    train_target_image[row_idx * 2 + 1] = img_beam_gt[row_idx]
-                if args.wandb_project:
-                    output_image = wandb.Image(
-                        train_target_image, caption="train vs target (interleaved)"
-                    )
-                    to_log["output"] = output_image
-
-                # segmentation output
-                _x = x.detach().cpu().numpy()
-                _seg_mask = seg_mask.detach().cpu().numpy()
-                _output_seg = output["segmentation"].detach().cpu().numpy()
-
-                to_log["fig"] = plot_instance(_x, _output_seg, _seg_mask, idx=0)
-            if args.wandb_project:
-                wandb.log(to_log)
-            step += 1
-
-    # [optional] finish the wandb run, necessary in notebooks
-    if args.wandb_project:
-        wandb.finish()
+    simple_train(args)

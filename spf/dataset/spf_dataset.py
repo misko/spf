@@ -132,6 +132,7 @@ def v5_prepare_session(session):  # session -> x,y
     abs_signal = session["signal_matrix"].abs().to(torch.float32)
     pd = torch_get_phase_diff(session["signal_matrix"]).to(torch.float32)
     gt_theta = session["ground_truth_theta"]
+    # breakpoint()
     if abs(gt_theta.item()) > torch.pi / 2:
         return (
             torch.vstack([abs_signal[1], abs_signal[0], -pd])[None],
@@ -167,7 +168,7 @@ def v5_collate_beamsegnet(batch):
         "x": torch.vstack([x["x"] for x in batch]),
         "y_rad": torch.vstack([x["y_rad"] for x in batch]),
         "simple_segmentation": [x["simple_segmentation"] for x in batch],
-        "all_windows_stats": torch.vstack(
+        "all_windows_stats": torch.vstack(  # trimmed_cm, trimmed_stddev, abs_signal_median
             [
                 torch.from_numpy(x["all_windows_stats"].astype(np.float32).transpose())[
                     None
@@ -291,7 +292,9 @@ class v5spfdataset(Dataset):
             session_idx
         ]
         data["simple_segmentation"] = d["simple_segmentation"]
-        data["all_windows_stats"] = d["all_windows_stats"]
+        data["all_windows_stats"] = d[
+            "all_windows_stats"
+        ]  # trimmed_cm, trimmed_stddev, abs_signal_median
         return data
 
     def get_ground_truth_phis(self):

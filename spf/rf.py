@@ -60,7 +60,7 @@ def circular_stddev(v, u, trim=50.0):
     mask = diff_from_mean <= np.percentile(diff_from_mean, 100.0 - trim)
     _diff_from_mean_squared = diff_from_mean_squared[mask]
 
-    if _diff_from_mean_squared.shape[0]>1:
+    if _diff_from_mean_squared.shape[0] > 1:
         trimmed_stddev = np.sqrt(
             _diff_from_mean_squared.sum() / (_diff_from_mean_squared.shape[0] - 1)
         )
@@ -215,8 +215,9 @@ def windowed_trimmed_circular_mean_and_stddev(v, pd, window_size, stride, trim=5
         _pd = pd[start_idx:end_idx]
         _v = v[:, start_idx:end_idx]
         # trimmed_cm, trimmed_stddev, abs_signal_median
-        step_stats[step] = get_stats_for_signal(_v, _pd, trim)
-
+        step_stats[step] = get_stats_for_signal(
+            _v, _pd, trim
+        )  # trimmed_cm, trimmed_stddev, abs_signal_median
     return step_idxs, step_stats
 
 
@@ -295,6 +296,7 @@ def simple_segment(
     window_idxs_and_stats = windowed_trimmed_circular_mean_and_stddev(
         v, pd, window_size=window_size, stride=stride, trim=trim
     )
+    # window_idxs_and_stats[1]= trimmed_cm, trimmed_stddev, abs_signal_median
 
     original_windows = [
         {
@@ -325,7 +327,9 @@ def simple_segment(
             candidate_windows, v, pd, trim
         ),
         # "all_windows": original_windows,
-        "all_windows_stats": window_idxs_and_stats[1],
+        "all_windows_stats": window_idxs_and_stats[
+            1
+        ],  # trimmed_cm, trimmed_stddev, abs_signal_median
     }
 
 
