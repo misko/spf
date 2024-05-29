@@ -5,7 +5,7 @@ types="direct"
 others="x other"
 symmetrys="x symmetry"
 circles="x circular-mean"
-nosigs="x no-sigmoid"
+sigs="x no-sigmoid"
 depths="5" # 8"
 hiddens="64" # 128"
 head_starts="0 1000 4000"
@@ -20,7 +20,7 @@ for symmetry in $symmetrys; do
 for act in $acts; do 
 for other in $others; do
 for circular in $circles; do
-for nosig in ${nosigs}; do
+for sig in ${sigs}; do
 #for start in ${head_starts}; do
 bn_flag="--batch-norm" 
 if [ $bn ==  "x" ]; then
@@ -37,9 +37,9 @@ fi
 if [ $depth -ne 2 -a "${seg_net}" == "unet" ]; then
   continue
 fi
-nos="--no-sigmoid"
-if [ "$other" == "x" ]; then
-  nos=""
+sigf="--sigmoid"
+if [ "$sig" == "x" ]; then
+  sigf=""
 fi
 cir="--circular-mean"
 if [ "$circular" == "x" ]; then
@@ -48,7 +48,7 @@ fi
 python simple_train.py  -d ~/data/*.zarr  --device cuda \
  --batch 64 --workers 28 --type $type --lr $lr \
  --segmentation-level downsampled --epochs 3 --depth ${depth} \
- --hidden ${hidden} --act $act $oth $sym $cir $nos \
+ --hidden ${hidden} --act $act $oth $sym $cir $sigf \
  --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may17run #--seg-start ${start}
  done
  done
