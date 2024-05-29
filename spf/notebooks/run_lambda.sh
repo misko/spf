@@ -46,7 +46,7 @@ if [ "$circular" == "x" ]; then
   cir=""
 fi
 python simple_train.py  -d ~/data/*.zarr  --device cuda \
- --batch 64 --workers 28 --type $type --lr $lr \
+ --batch 64 --workers 28 --type $type --lr $lr --shuffle \
  --segmentation-level downsampled --epochs 3 --depth ${depth} \
  --hidden ${hidden} --act $act $oth $sym $cir $sigf \
  --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may17run #--seg-start ${start}
