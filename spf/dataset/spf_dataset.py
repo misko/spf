@@ -132,12 +132,6 @@ def v5_prepare_session(session):  # session -> x,y
     abs_signal = session["signal_matrix"].abs().to(torch.float32)
     pd = torch_get_phase_diff(session["signal_matrix"]).to(torch.float32)
     gt_theta = session["ground_truth_theta"]
-    # breakpoint()
-    if abs(gt_theta.item()) > torch.pi / 2:
-        return (
-            torch.vstack([abs_signal[1], abs_signal[0], -pd])[None],
-            gt_theta.sign().item() * torch.pi - gt_theta[None],
-        )
     return (
         torch.vstack([abs_signal[0], abs_signal[1], pd])[None],
         gt_theta[None],
@@ -351,6 +345,26 @@ class v5spfdataset(Dataset):
             ground_truth_thetas.append(
                 pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * np.pi)
             )
+        # reduce GT thetas in case of two antennas
+        # in 2D there are generally two spots that satisfy phase diff
+        # lets pick the one thats infront of the craft (array)
+        assert self.n_receivers == 2
+
+        ground_truth_thetas = np.array(ground_truth_thetas)
+        ground_truth_thetas_mask = abs(ground_truth_thetas) > np.pi / 2
+        ground_truth_thetas_at_mask = ground_truth_thetas[ground_truth_thetas_mask]
+        ground_truth_thetas[ground_truth_thetas_mask] = (
+            np.sign(ground_truth_thetas_at_mask) * np.pi - ground_truth_thetas_at_mask
+        )
+        # if abs(gt_theta.item()) > torch.pi / 2:
+        # #     return (
+        # #         torch.vstack([abs_signal[0], abs_signal[1], pd])[None],
+        # #         gt_theta.sign().item() * torch.pi - gt_theta[None],
+        # #     )
+        # return (
+        #     torch.vstack([abs_signal[0], abs_signal[1], pd])[None],
+        #     gt_theta[None],
+        # )
         return ground_truth_thetas
 
     def __getitem__(self, idx):
