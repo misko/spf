@@ -115,10 +115,9 @@ def simple_train(args):
         torch_device
     )
 
-    optimizer = torch.optim.AdamW(m.parameters(), lr=0.001, weight_decay=0)
-
     if args.compile:
         m = torch.compile(m)
+
     optimizer = torch.optim.AdamW(
         m.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
