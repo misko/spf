@@ -6,10 +6,10 @@ others="x other"
 symmetrys="x symmetry"
 circles="x circular-mean"
 nosigs="x no-sigmoid"
-depths="5 8"
-hiddens="64 128"
+depths="5" # 8"
+hiddens="64" # 128"
 head_starts="0 1000 4000"
-seg_nets="unet conv"
+seg_nets="conv" # "conv"
 for type in $types; do 
 for lr in $lrs; do 
 for seg_net in ${seg_nets}; do
