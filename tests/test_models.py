@@ -19,8 +19,10 @@ def test_beamnet_downsampled():
         "128",
         "--workers",
         "0",
+        "--batch-norm",
         "--act",
         "selu",
+        "--shuffle",
         "--segmentation-level",
         "downsampled",
         "--type",
@@ -32,11 +34,12 @@ def test_beamnet_downsampled():
         "--skip-segmentation",
         "--no-shuffle",
         "--symmetry",
+        "--sigmoid",
         # "--no-sigmoid",
         "--plot-every",
         "50",
         "--lr",
-        "0.0002",
+        "0.0005",
     ]
     args = get_parser().parse_args(args_list)
 
