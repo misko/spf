@@ -50,7 +50,7 @@ def simple_train(args):
 
     dataloader_params = {
         "batch_size": args.batch,
-        "shuffle": not args.no_shuffle,
+        "shuffle": args.shuffle,
         "num_workers": args.workers,
         "collate_fn": v5_collate_beamsegnet,
     }
@@ -101,7 +101,7 @@ def simple_train(args):
             act=act,
             other=args.other,
             bn=args.batch_norm,
-            no_sigmoid=args.no_sigmoid,
+            no_sigmoid=not args.sigmoid,
         ).to(torch_device)
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
@@ -331,34 +331,42 @@ def get_parser():
     parser.add_argument(
         "--compile",
         action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument(
-        "--no-shuffle",
+        "--shuffle",
         action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument(
         "--circular-mean",
         action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument(
         "--symmetry",
         action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument(
         "--other",
         action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument(
         "--batch-norm",
         action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument(
         "--skip-segmentation",
         action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument(
-        "--no-sigmoid",
+        "--sigmoid",
         action=argparse.BooleanOptionalAction,
+        default=False,
     )
     return parser
 
