@@ -1,9 +1,16 @@
+# python simple_train.py -d /home/ubuntu/data/wallarrayv3_2024_05_17_17_50_39_nRX2_rx_circle.zarr /home/ubuntu/data/wallarrayv3_2024_05_18_00_55_58_nRX2_bounce.zarr /home/ubuntu/data/wallarrayv3_2024_05_18_07_53_17_nRX2_bounce.zarr /home/ubuntu/data/wallarrayv3_2024_05_18_16_29_28_nRX2_rx_circle.zarr /home/ubuntu/data/wallarrayv3_2024_05_18_23_32_12_nRX2_bounce.zarr 
+# --device cuda --batch 64 --workers 28 --type direct 
+# --lr 0.001 --shuffle --segmentation-level downsampled 
+# --epochs 3 --depth 5 --hidden 128 --act leaky --other  --seg-net conv
+#  --skip-segmentation --wandb-project may29run_WTF --batch-norm --block 
+
+
 bns="x bn"
-acts="selu"
+acts="leaky selu"
 lrs="0.001 0.0001 0.01"
 types="direct"
-others="other"
-symmetrys="symmetry"
+others="x other"
+symmetrys="x symmetry"
 circles="x circular-mean"
 sigs="x no-sigmoid"
 blocks="x block"
@@ -51,11 +58,11 @@ blk="--block"
 if [ "$block" == "x" ]; then
   blk=""
 fi
-python simple_train.py  -d ~/data/*.zarr  --device cuda \
- --batch 64 --workers 16 --type $type --lr $lr --shuffle \
- --segmentation-level downsampled --epochs 16 --depth ${depth} \
+echo python simple_train.py  -d ~/data/*.zarr  --device cuda \
+ --batch 128 --workers 16 --type $type --lr $lr --shuffle \
+ --segmentation-level downsampled --epochs 8 --depth ${depth} \
  --hidden ${hidden} --act $act $oth $sym $cir $sigf $blk \
- --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may29v13 #--seg-start ${start}
+ --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may29v15 #--seg-start ${start}
  done
  done
  done

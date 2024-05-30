@@ -403,7 +403,7 @@ class BeamNetDirect(nn.Module):
         return torch.hstack(
             [
                 mean_values,  # mu
-                _y_sig[:, [1, 2]] * 1.0 + 0.01,  # sigmas
+                _y_sig[:, [1, 2]] * 1.0 + 0.1,  # sigmas
                 self.softmax(_y[:, [3, 4]]),
             ]
         )
@@ -412,7 +412,6 @@ class BeamNetDirect(nn.Module):
         # split into pd>=0 and pd<0
         pd_pos_mask = x[:, self.pd_track] >= 0
         n_pos = pd_pos_mask.sum().item()
-
         _x = x.new(x.shape)
 
         if self.symmetry:
@@ -426,6 +425,9 @@ class BeamNetDirect(nn.Module):
             _x[n_pos:, self.pd_track] = -x[~pd_pos_mask, self.pd_track]
         else:
             _x = x
+
+        _x[:, self.pd_track] = _x[:, self.pd_track] / (torch.pi / 2)
+        _x[:, self.mag_track] = _x[:, self.mag_track] / 200
 
         _y = self.beam_net(_x)
 
