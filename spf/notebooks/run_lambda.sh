@@ -1,9 +1,9 @@
 bns="x bn"
-acts="selu leaky"
+acts="selu"
 lrs="0.001 0.0001 0.01"
 types="direct"
-others="x other"
-symmetrys="x symmetry"
+others="other"
+symmetrys="symmetry"
 circles="x circular-mean"
 sigs="x no-sigmoid"
 depths="5" # 8"
@@ -47,9 +47,9 @@ if [ "$circular" == "x" ]; then
 fi
 python simple_train.py  -d ~/data/*.zarr  --device cuda \
  --batch 64 --workers 28 --type $type --lr $lr --shuffle \
- --segmentation-level downsampled --epochs 3 --depth ${depth} \
+ --segmentation-level downsampled --epochs 4 --depth ${depth} \
  --hidden ${hidden} --act $act $oth $sym $cir $sigf \
- --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may17run #--seg-start ${start}
+ --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may29v10 #--seg-start ${start}
  done
  done
  done
