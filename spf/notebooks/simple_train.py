@@ -109,6 +109,7 @@ def simple_train(args):
             other=args.other,
             bn=args.batch_norm,
             no_sigmoid=not args.sigmoid,
+            block=args.block,
         ).to(torch_device)
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
@@ -347,6 +348,11 @@ def get_parser():
     )
     parser.add_argument(
         "--circular-mean",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--block",
         action=argparse.BooleanOptionalAction,
         default=False,
     )

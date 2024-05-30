@@ -145,14 +145,19 @@ def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
     p = torch.exp(
         -(
             (
-                target_thetas
-                - torch.linspace(
-                    -torch.pi / 2, torch.pi / 2, nthetas, device=target_thetas.device
-                ).reshape(1, -1)
+                (
+                    target_thetas
+                    - torch.linspace(
+                        -torch.pi / 2,
+                        torch.pi / 2,
+                        nthetas,
+                        device=target_thetas.device,
+                    ).reshape(1, -1)
+                )
+                / sigma
             )
             ** 2
         )
-        / sigma
     )
     return torch.nn.functional.normalize(p, p=1, dim=1)
 

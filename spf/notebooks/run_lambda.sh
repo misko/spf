@@ -6,7 +6,8 @@ others="other"
 symmetrys="symmetry"
 circles="x circular-mean"
 sigs="x no-sigmoid"
-depths="5" # 8"
+blocks="x block"
+depths="8" # 8"
 hiddens="64" # 128"
 head_starts="0 1000 4000"
 seg_nets="conv" # "conv"
@@ -21,6 +22,7 @@ for act in $acts; do
 for other in $others; do
 for circular in $circles; do
 for sig in ${sigs}; do
+for block in $blocks; do
 #for start in ${head_starts}; do
 bn_flag="--batch-norm" 
 if [ $bn ==  "x" ]; then
@@ -45,11 +47,16 @@ cir="--circular-mean"
 if [ "$circular" == "x" ]; then
   cir=""
 fi
+blk="--block"
+if [ "$block" == "x" ]; then
+  blk=""
+fi
 python simple_train.py  -d ~/data/*.zarr  --device cuda \
- --batch 64 --workers 28 --type $type --lr $lr --shuffle \
- --segmentation-level downsampled --epochs 4 --depth ${depth} \
- --hidden ${hidden} --act $act $oth $sym $cir $sigf \
- --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may29v10 #--seg-start ${start}
+ --batch 64 --workers 16 --type $type --lr $lr --shuffle \
+ --segmentation-level downsampled --epochs 16 --depth ${depth} \
+ --hidden ${hidden} --act $act $oth $sym $cir $sigf $blk \
+ --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may29v13 #--seg-start ${start}
+ done
  done
  done
  done
