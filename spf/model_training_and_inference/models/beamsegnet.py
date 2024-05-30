@@ -404,7 +404,7 @@ class BeamNetDirect(nn.Module):
             [
                 mean_values,  # mu
                 # _y_sig[:, [1, 2]] * 5.0 + 0.01,  # sigmas
-                _y[:, [1, 2]].abs() + 0.01,  # sigmas
+                self.sigmoid(_y[:, [1, 2]]) * 0.5 + 0.2,  # sigmas
                 self.softmax(_y[:, [3, 4]]),
             ]
         )
