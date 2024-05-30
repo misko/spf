@@ -329,6 +329,22 @@ def normal_dist(x, y, sigma, d=None):
     return normal_dist_d(sigma, (x - y))
 
 
+class BasicBlock(nn.Module):
+    def __init__(self, hidden, act, bn=True):
+        super(BasicBlock, self).__init__()
+        self.linear1 = nn.Linear(hidden, hidden)
+        self.linear2 = nn.Linear(hidden, hidden)
+        self.bn1 = nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity()
+        self.bn2 = nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity()
+        self.act = act()
+
+    def forward(self, x):
+        identity = x
+        out = self.act(self.bn1(self.linear1(x)))
+        out = self.act(self.bn2(self.linear2(out)))
+        return self.act(out + identity)
+
+
 class BeamNetDirect(nn.Module):
     def __init__(
         self,
@@ -343,6 +359,7 @@ class BeamNetDirect(nn.Module):
         bn=False,
         no_sigmoid=False,
         act=nn.LeakyReLU,
+        block=False,
     ):
         super(BeamNetDirect, self).__init__()
         self.outputs = 1 + 2 + 2  # u, o1, o2, k1, k2
@@ -352,6 +369,7 @@ class BeamNetDirect(nn.Module):
         self.mag_track = mag_track
         self.stddev_track = stddev_track
         self.symmetry = symmetry
+        self.block = block
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
         self.flip_mu = torch.Tensor([[-1, 1, 1, 1, 1]])
@@ -363,12 +381,15 @@ class BeamNetDirect(nn.Module):
             self.act(),
             nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
         ]
-        for layer in range(depth):
-            net_layout += [
-                nn.Linear(hidden, hidden),
-                self.act(),
-                nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
-            ]
+        for _ in range(depth):
+            if self.block:
+                net_layout += [BasicBlock(hidden, self.act, bn=bn)]
+            else:
+                net_layout += [
+                    nn.Linear(hidden, hidden),
+                    self.act(),
+                    nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                ]
         net_layout += [nn.Linear(hidden, self.outputs)]
         self.beam_net = nn.Sequential(*net_layout)
 
@@ -451,16 +472,24 @@ class BeamNetDirect(nn.Module):
 
     # this is discrete its already rendered
     def render_discrete_x(self, x):
-        mu_discrete = x[:, [3]] * v5_thetas_to_targets(
-            x[:, 0], self.nthetas, sigma=x[:, [1]]
-        )
-        other_discrete = x[:, [4]] * v5_thetas_to_targets(
-            -x[:, [0]].sign() * torch.pi / 2, self.nthetas, sigma=x[:, [2]]
-        )
-        d = mu_discrete
-        if self.other:
-            d += other_discrete
-        return d
+
+        thetas = torch.linspace(
+            -torch.pi / 2,
+            torch.pi / 2,
+            self.nthetas,
+            device=x.device,
+        ).reshape(1, -1)
+        _thetas = thetas.expand(x.shape[0], -1).reshape(-1, 1)
+        _x = (
+            x.clone()
+            .detach()[:, None]
+            .expand(-1, self.nthetas, -1)
+            .reshape(-1, x.shape[1])
+        )  # reshape to eval for all thetas
+        likelihoods = self.likelihood(_x, _thetas).reshape(x.shape[0], self.nthetas)
+        likelihoods = likelihoods / likelihoods.sum(axis=1, keepdim=True)
+
+        return likelihoods
 
     # this is discrete its already rendered
     def render_discrete_y(self, y):
