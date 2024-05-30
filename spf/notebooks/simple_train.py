@@ -43,7 +43,14 @@ def simple_train(args):
     random.seed(args.seed)
 
     # loop over and concat datasets here
-    datasets = [v5spfdataset(prefix, nthetas=args.nthetas) for prefix in args.datasets]
+    datasets = [
+        v5spfdataset(
+            prefix,
+            nthetas=args.nthetas,
+            skip_signal_matrix=args.segmentation_level == "downsampled",
+        )
+        for prefix in args.datasets
+    ]
     for ds in datasets:
         ds.get_segmentation()
     ds = torch.utils.data.ConcatDataset(datasets)
