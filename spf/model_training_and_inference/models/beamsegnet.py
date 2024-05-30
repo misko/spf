@@ -394,17 +394,16 @@ class BeamNetDirect(nn.Module):
         self.beam_net = nn.Sequential(*net_layout)
 
     def fixify(self, _y, sign):
+        _y_sig = self.sigmoid(_y)  # in [0,1]
         if self.no_sigmoid:
             mean_values = sign * _y[:, [0]]
         else:
-            _y_sig = self.sigmoid(_y)  # in [0,1]
             _y_sig_centered = (_y_sig[:, [0]] - 0.5) * 4  # in [-2,2]
             mean_values = sign * _y_sig_centered * torch.pi / 2
         return torch.hstack(
             [
                 mean_values,  # mu
-                # _y_sig[:, [1, 2]] * 5.0 + 0.01,  # sigmas
-                self.sigmoid(_y[:, [1, 2]]) * 0.5 + 0.2,  # sigmas
+                _y_sig[:, [1, 2]] * 1.0 + 0.01,  # sigmas
                 self.softmax(_y[:, [3, 4]]),
             ]
         )
