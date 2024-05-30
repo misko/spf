@@ -159,7 +159,8 @@ def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
             ** 2
         )
     )
-    return torch.nn.functional.normalize(p, p=1, dim=1)
+    return p / p.sum(axis=1, keepdim=True)
+    # return torch.nn.functional.normalize(p, p=1, dim=1)
 
 
 def v5_collate_beamsegnet(batch):
