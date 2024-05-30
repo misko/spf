@@ -128,14 +128,14 @@ def mp_segment_zarr(zarr_fn, results_fn):
     )
 
 
-def v5_prepare_session(session):  # session -> x,y
+def v5_prepare_session_y(session):  # session -> x,y
+    return session["ground_truth_theta"][None]
+
+
+def v5_prepare_session_x(session):  # session -> x,y
     abs_signal = session["signal_matrix"].abs().to(torch.float32)
     pd = torch_get_phase_diff(session["signal_matrix"]).to(torch.float32)
-    gt_theta = session["ground_truth_theta"]
-    return (
-        torch.vstack([abs_signal[0], abs_signal[1], pd])[None],
-        gt_theta[None],
-    )
+    return torch.vstack([abs_signal[0], abs_signal[1], pd])[None]
 
 
 # target_thetas (N,1)
@@ -158,8 +158,8 @@ def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
 
 
 def v5_collate_beamsegnet(batch):
-    return {
-        "x": torch.vstack([x["x"] for x in batch]),
+    n_windows = batch[0]["all_windows_stats"].shape[0]
+    d = {
         "y_rad": torch.vstack([x["y_rad"] for x in batch]),
         "simple_segmentation": [x["simple_segmentation"] for x in batch],
         "all_windows_stats": torch.vstack(  # trimmed_cm, trimmed_stddev, abs_signal_median
@@ -170,20 +170,23 @@ def v5_collate_beamsegnet(batch):
                 for x in batch
             ]
         ),
-        "segmentation_mask": torch.vstack([v5_segmentation_mask(x) for x in batch]),
         "downsampled_segmentation_mask": torch.vstack(
-            [v5_downsampled_segmentation_mask(x) for x in batch]
+            [v5_downsampled_segmentation_mask(x, n_windows=n_windows) for x in batch]
         ),
     }
+    if "x" in batch[0]:
+        d["x"] = torch.vstack([x["x"] for x in batch])
+        d["segmentation_mask"] = torch.vstack([v5_segmentation_mask(x) for x in batch])
+    return d
 
 
-def v5_downsampled_segmentation_mask(session):
+def v5_downsampled_segmentation_mask(session, n_windows):
     window_size = 2048
-    stride = 2048
-    assert window_size == stride
-    _, _, samples_per_session = session["x"].shape
-    assert samples_per_session % window_size == 0
-    n_windows = samples_per_session // window_size
+    # stride = 2048
+    # assert window_size == stride
+    # _, _, samples_per_session = session["x"].shape
+    # assert samples_per_session % window_size == 0
+    # n_windows = samples_per_session // window_size
 
     seg_mask = torch.zeros(1, 1, n_windows)
     for window in session["simple_segmentation"]:
@@ -204,10 +207,11 @@ def v5_segmentation_mask(session):
 
 
 class v5spfdataset(Dataset):
-    def __init__(self, prefix, nthetas):
+    def __init__(self, prefix, nthetas, skip_signal_matrix=False):
         prefix = prefix.replace(".zarr", "")
         self.nthetas = nthetas
         self.prefix = prefix
+        self.skip_signal_matrix = skip_signal_matrix
         self.zarr_fn = f"{prefix}.zarr"
         self.yaml_fn = f"{prefix}.yaml"
         self.z = zarr_open_from_lmdb_store(self.zarr_fn)
@@ -229,17 +233,18 @@ class v5spfdataset(Dataset):
             self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
         ]
 
-        self.signal_matrices = [
-            self.z.receivers[f"r{ridx}"].signal_matrix
-            for ridx in range(self.n_receivers)
-        ]
+        if not self.skip_signal_matrix:
+            self.signal_matrices = [
+                self.z.receivers[f"r{ridx}"].signal_matrix
+                for ridx in range(self.n_receivers)
+            ]
 
         self.n_sessions, self.n_antennas_per_receiver, self.session_length = (
-            self.signal_matrices[0].shape
+            self.z.receivers["r0"].signal_matrix.shape
         )
         assert self.n_antennas_per_receiver == 2
         for ridx in range(self.n_receivers):
-            assert self.signal_matrices[ridx].shape == (
+            assert self.z.receivers[f"r{ridx}"].signal_matrix.shape == (
                 self.n_sessions,
                 self.n_antennas_per_receiver,
                 self.session_length,
@@ -254,7 +259,9 @@ class v5spfdataset(Dataset):
             for rx_config in self.rx_configs
         ]
 
-        self.keys_per_session = v5rx_f64_keys + v5rx_2xf64_keys + ["signal_matrix"]
+        self.keys_per_session = v5rx_f64_keys + v5rx_2xf64_keys
+        if not self.skip_signal_matrix:
+            self.keys_per_session.append("signal_matrix")
 
         self.ground_truth_thetas = self.get_ground_truth_thetas()
         self.ground_truth_phis = self.get_ground_truth_phis()
@@ -280,7 +287,9 @@ class v5spfdataset(Dataset):
             )
             for k, v in data.items()
         }
-        data["x"], data["y_rad"] = v5_prepare_session(data)
+        if not self.skip_signal_matrix:
+            data["x"] = v5_prepare_session_x(data)
+        data["y_rad"] = v5_prepare_session_y(data)
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
         d = self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
             session_idx
