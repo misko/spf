@@ -316,12 +316,17 @@ class BeamNetDiscrete(nn.Module):
         return v5_thetas_to_targets(y, self.nthetas)
 
 
-def normal_dist(x, y, sigma):
+def normal_dist_d(sigma, d):
+    assert sigma.ndim == 1
+    d = d / sigma
+    return (1 / (sigma * np.sqrt(2 * np.pi))) * torch.exp(-0.5 * d**2)
+
+
+def normal_dist(x, y, sigma, d=None):
     assert x.ndim == 1
     assert y.ndim == 1
     assert sigma.ndim == 1
-    d = (x - y) / sigma
-    return (1 / (sigma * np.sqrt(2 * np.pi))) * torch.exp(-0.5 * d**2)
+    return normal_dist_d(sigma, (x - y))
 
 
 class BeamNetDirect(nn.Module):
@@ -369,14 +374,14 @@ class BeamNetDirect(nn.Module):
 
     def fixify(self, _y, sign):
         _y_sig = self.sigmoid(_y)  # in [0,1]
-        _y_sig_centered = (_y_sig[:, [0]] - 0.5) * 2  # in [-1,1]
+        _y_sig_centered = (_y_sig[:, [0]] - 0.5) * 4  # in [-1.5,1.5]
         mean_values = sign * _y_sig_centered * torch.pi / 2
         if self.no_sigmoid:
             mean_values = sign * _y[:, [0]]
         return torch.hstack(
             [
                 mean_values,  # mu
-                _y_sig[:, [1, 2]] * 1 + 0.01,  # sigmas
+                _y_sig[:, [1, 2]] * 0.3 + 0.01,  # sigmas
                 self.softmax(_y[:, [3, 4]]),
             ]
         )
@@ -418,6 +423,14 @@ class BeamNetDirect(nn.Module):
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
         mu_likelihood = x[:, 3] * normal_dist(
             x=x[:, 0], y=y[:, 0], sigma=x[:, 1].clamp(min=sigma_eps)
+        )
+        mu_likelihood += x[:, 3] * normal_dist_d(
+            d=(x[:, 0] - torch.pi / 2).abs() + (y[:, 0] - torch.pi / 2).abs(),
+            sigma=x[:, 1].clamp(min=sigma_eps),
+        )
+        mu_likelihood += x[:, 3] * normal_dist_d(
+            d=(x[:, 0] + torch.pi / 2).abs() + (y[:, 0] + torch.pi / 2).abs(),
+            sigma=x[:, 1].clamp(min=sigma_eps),
         )
         other_likelihood = x[:, 4] * normal_dist(
             x=-x[:, 0].sign() * torch.pi / 2,
