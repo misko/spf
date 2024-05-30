@@ -1,6 +1,7 @@
 import argparse
 from functools import cache
 
+import numpy as np
 import torch
 import torch.nn.functional as f
 import wandb
@@ -131,8 +132,16 @@ def simple_train(args):
     )
     step = 0
     losses = []
+    to_log = None
     for epoch in range(args.epochs):
         for batch_data in train_dataloader:
+
+            if to_log is None:
+                to_log = {
+                    "loss": [],
+                    "segmentation_loss": [],
+                    "beam_former_loss": [],
+                }
             # for X, Y_rad in train_dataloader:
             optimizer.zero_grad()
 
@@ -183,11 +192,13 @@ def simple_train(args):
             losses.append(loss.item())
             optimizer.step()
 
-            to_log = {
-                "loss": loss.item(),
-                "segmentation_loss": x_to_segmentation_loss.item(),
-                "beam_former_loss": x_to_beamformer_loss.item(),
-            }
+            for key, value in {
+                "loss": [loss.item()],
+                "segmentation_loss": [x_to_segmentation_loss.item()],
+                "beam_former_loss": [x_to_beamformer_loss.item()],
+            }.items():
+                to_log[key].append(value)
+
             if step % args.plot_every == 0:
                 # beam outputs
                 img_beam_output = (
@@ -217,8 +228,12 @@ def simple_train(args):
                 to_log["fig"] = plot_instance(
                     _x, _output_seg, _seg_mask, idx=0, first_n=first_n
                 )
-            if args.wandb_project:
-                wandb.log(to_log)
+            if args.wandb_project and step % args.log_every == 0:
+                for key, value in to_log.items():
+                    if "loss" in key:
+                        to_log[key] = np.array(value).mean()
+                wandb.log(to_log, step=step)
+                to_log = None
             step += 1
 
     # [optional] finish the wandb run, necessary in notebooks
@@ -314,6 +329,12 @@ def get_parser():
         type=int,
         required=False,
         default=200,
+    )
+    parser.add_argument(
+        "--log-every",
+        type=int,
+        required=False,
+        default=50,
     )
     parser.add_argument(
         "--type",
