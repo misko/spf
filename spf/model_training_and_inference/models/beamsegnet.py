@@ -302,7 +302,9 @@ class BeamNetDiscrete(nn.Module):
         return y
 
     def likelihood(self, x, y):
-        return torch.einsum("bk,bk->b", x, self.render_discrete_y(y))[:, None]
+        r = torch.einsum("bk,bk->b", x, self.render_discrete_y(y))[:, None]
+        assert r.shape == (x.shape[0], 1)
+        return r
 
     def loglikelihood(self, x, y):
         return torch.log(self.likelihood(x, y))
@@ -468,7 +470,9 @@ class BeamNetDirect(nn.Module):
         l = mu_likelihood
         if self.other:
             l += other_likelihood
-        return l.reshape(-1, 1)
+        l = l.reshape(-1, 1)
+        assert l.shape == (x.shape[0], 1)
+        return l
 
     def loglikelihood(self, x, y, log_eps=0.000000001):
         return torch.log(self.likelihood(x, y) + log_eps)
@@ -500,7 +504,14 @@ class BeamNetDirect(nn.Module):
 
 
 class BeamNSegNet(nn.Module):
-    def __init__(self, beamnet, segnet, average_before=True, circular_mean=False):
+    def __init__(
+        self,
+        beamnet,
+        segnet,
+        average_before=True,
+        circular_mean=False,
+        skip_segmentation=False,
+    ):
         super(BeamNSegNet, self).__init__()
         self.beamnet = beamnet
         self.segnet = segnet
@@ -508,8 +519,35 @@ class BeamNSegNet(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.average_before = average_before
         self.circular_mean = circular_mean
+        self.skip_segmentation = skip_segmentation
+
+    def loss(self, output, y_rad, seg_mask):
+        # x to beamformer loss (indirectly including segmentation)
+        beamformer_loss = -self.beamnet.loglikelihood(
+            output["pred_theta"], y_rad
+        ).mean()
+
+        # segmentation loss
+        segmentation_loss = ((output["segmentation"] - seg_mask) ** 2).mean()
+
+        if self.skip_segmentation:
+            loss = beamformer_loss
+        else:
+            loss = beamformer_loss + 10 * segmentation_loss
+
+        assert loss.isfinite().all()
+        return {
+            "beamformer_loss": beamformer_loss,
+            "segmentation_loss": segmentation_loss,
+            "loss": loss,
+        }
 
     def forward(self, x, b_mask_weights=None):
+        if self.skip_segmentation:
+            assert b_mask_weights is not None
+        else:
+            b_mask_weights = None
+
         if b_mask_weights is None:
             mask_weights = self.segnet(x)
             b_mask_weights = self.sigmoid(mask_weights)
@@ -547,6 +585,8 @@ class BeamNSegNet(nn.Module):
             pred_theta = self.beamnet(weighted_input)
         # p_mask_weights = self.softmax(mask_weights)
 
+        assert pred_theta.isfinite().all()
+        assert b_mask_weights.ndim == 3 and b_mask_weights.shape[1] == 1
         return {
             # "pred_theta": torch.mul(beam_former, p_mask_weights).sum(axis=2),
             # "beam_former": beam_former,

@@ -54,7 +54,18 @@ def simple_train(args):
     ]
     for ds in datasets:
         ds.get_segmentation()
-    ds = torch.utils.data.ConcatDataset(datasets)
+    complete_ds = torch.utils.data.ConcatDataset(datasets)
+
+    if args.val_on_train:
+        train_ds = complete_ds
+        val_ds = complete_ds
+    else:
+        n = len(complete_ds)
+        train_idxs = range(int(args.val_holdout_fraction * n))
+        val_idxs = range(train_idxs[-1] + 1, n)
+
+        train_ds = torch.utils.data.Subset(complete_ds, train_idxs)
+        val_ds = torch.utils.data.Subset(complete_ds, val_idxs)
 
     dataloader_params = {
         "batch_size": args.batch,
@@ -62,7 +73,8 @@ def simple_train(args):
         "num_workers": args.workers,
         "collate_fn": v5_collate_beamsegnet,
     }
-    train_dataloader = torch.utils.data.DataLoader(ds, **dataloader_params)
+    train_dataloader = torch.utils.data.DataLoader(train_ds, **dataloader_params)
+    val_dataloader = torch.utils.data.DataLoader(val_ds, **dataloader_params)
 
     if args.wandb_project:
         # start a new wandb run to track this script
@@ -120,9 +132,12 @@ def simple_train(args):
             symmetry=args.symmetry,
             bn=args.batch_norm,
         ).to(torch_device)
-    m = BeamNSegNet(segnet=seg_m, beamnet=beam_m, circular_mean=args.circular_mean).to(
-        torch_device
-    )
+    m = BeamNSegNet(
+        segnet=seg_m,
+        beamnet=beam_m,
+        circular_mean=args.circular_mean,
+        skip_segmentation=args.skip_segmentation,
+    ).to(torch_device)
 
     if args.compile:
         m = torch.compile(m)
@@ -130,74 +145,85 @@ def simple_train(args):
     optimizer = torch.optim.AdamW(
         m.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
+
+    def batch_data_to_x_y_seg(batch_data, segmentation_level):
+        if segmentation_level == "full":
+            x = batch_data["x"].to(torch_device)
+            y_rad = batch_data["y_rad"].to(torch_device)
+            seg_mask = batch_data["segmentation_mask"].to(torch_device)
+        elif segmentation_level == "downsampled":
+            x = batch_data["all_windows_stats"].to(torch_device)
+            y_rad = batch_data["y_rad"].to(torch_device)
+            seg_mask = batch_data["downsampled_segmentation_mask"].to(torch_device)
+        else:
+            raise NotImplementedError
+        assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
+        return x, y_rad, seg_mask
+
     step = 0
     losses = []
     to_log = None
     for epoch in range(args.epochs):
         for batch_data in train_dataloader:
+            if step % args.val_every == 0:
+                m.eval()
+                with torch.no_grad():
+                    val_losses = {
+                        "loss": [],
+                        "segmentation_loss": [],
+                        "beamformer_loss": [],
+                    }
+                    for val_batch_data in val_dataloader:
+                        x, y_rad, seg_mask = batch_data_to_x_y_seg(
+                            val_batch_data, args.segmentation_level
+                        )
+                        # run beamformer and segmentation
+                        output = m(x, seg_mask)
+
+                        # compute the loss
+                        loss_d = m.loss(output, y_rad, seg_mask)
+
+                        # for accumulaing and averaging
+                        for key, value in loss_d.items():
+                            val_losses[key].append(value.item())
+                    if args.wandb_project:
+                        wandb.log(
+                            {f"val_{key}": value for key, value in loss_d.items()},
+                            step=step,
+                        )
+
+            m.train()
 
             if to_log is None:
                 to_log = {
                     "loss": [],
                     "segmentation_loss": [],
-                    "beam_former_loss": [],
+                    "beamformer_loss": [],
                 }
             # for X, Y_rad in train_dataloader:
             optimizer.zero_grad()
 
             # copy to torch device
-            if args.segmentation_level == "full":
-                x = batch_data["x"].to(torch_device)
-                y_rad = batch_data["y_rad"].to(torch_device)
-                seg_mask = batch_data["segmentation_mask"].to(torch_device)
-            elif args.segmentation_level == "downsampled":
-                x = batch_data["all_windows_stats"].to(torch_device)
-                y_rad = batch_data["y_rad"].to(torch_device)
-                seg_mask = batch_data["downsampled_segmentation_mask"].to(torch_device)
-            else:
-                raise NotImplementedError
-
-            current_batch_size = x.shape[0]
-
-            assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
+            x, y_rad, seg_mask = batch_data_to_x_y_seg(
+                batch_data, args.segmentation_level
+            )
 
             # run beamformer and segmentation
-            if not args.skip_segmentation:
-                output = m(x)
-            else:
-                output = m(x, seg_mask)
+            output = m(x, seg_mask)
 
-            assert output["pred_theta"].isfinite().all()
-            # x to beamformer loss (indirectly including segmentation)
-            x_to_beamformer_loss = -beam_m.loglikelihood(output["pred_theta"], y_rad)
-            assert x_to_beamformer_loss.shape == (current_batch_size, 1)
-            x_to_beamformer_loss = x_to_beamformer_loss.mean()
+            # compute the loss
+            loss_d = m.loss(output, y_rad, seg_mask)
 
-            # segmentation loss
-            x_to_segmentation_loss = (output["segmentation"] - seg_mask) ** 2
-            assert (
-                x_to_segmentation_loss.ndim == 3
-                and x_to_segmentation_loss.shape[1] == 1
-            )
-            x_to_segmentation_loss = x_to_segmentation_loss.mean()
-
-            if args.skip_segmentation:
-                loss = x_to_beamformer_loss
-            else:
-                loss = x_to_beamformer_loss + 10 * x_to_segmentation_loss
-
-            assert loss.isfinite().all()
-
-            loss.backward()
-            losses.append(loss.item())
+            # backprop the loss
+            loss_d["loss"].backward()
             optimizer.step()
 
-            for key, value in {
-                "loss": [loss.item()],
-                "segmentation_loss": [x_to_segmentation_loss.item()],
-                "beam_former_loss": [x_to_beamformer_loss.item()],
-            }.items():
-                to_log[key].append(value)
+            # accumulate the loss for returning to caller
+            losses.append(loss_d["loss"].item())
+
+            # for accumulaing and averaging
+            for key, value in loss_d.items():
+                to_log[key].append(value.item())
 
             if step % args.plot_every == 0:
                 # beam outputs
@@ -307,6 +333,12 @@ def get_parser():
         default=3,
     )
     parser.add_argument(
+        "--val-holdout-fraction",
+        type=float,
+        required=False,
+        default=0.2,
+    )
+    parser.add_argument(
         "--hidden",
         type=int,
         required=False,
@@ -342,6 +374,11 @@ def get_parser():
         required=True,
     )
     parser.add_argument(
+        "--val-every",
+        type=int,
+        default=1000,
+    )
+    parser.add_argument(
         "--act",
         type=str,
         required=True,
@@ -369,6 +406,11 @@ def get_parser():
     )
     parser.add_argument(
         "--circular-mean",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--val-on-train",
         action=argparse.BooleanOptionalAction,
         default=False,
     )
