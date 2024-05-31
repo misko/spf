@@ -8,12 +8,13 @@
 bns="x bn"
 acts="leaky selu"
 lrs="0.001 0.0001 0.01"
+wd="0.0 0.00001 0.0001"
 types="direct"
-others="x other"
-symmetrys="x symmetry"
-circles="x circular-mean"
-sigs="x no-sigmoid"
-blocks="x block"
+others="other" # x"
+symmetrys="symmetry" # x"
+circles="x" # circular-mean"
+sigs="x" # no-sigmoid"
+blocks="x" # block"
 depths="5" # 8"
 hiddens="64" # 128"
 head_starts="0 1000 4000"
@@ -62,7 +63,7 @@ echo python simple_train.py  -d ~/data/*.zarr  --device cuda \
  --batch 128 --workers 16 --type $type --lr $lr --shuffle \
  --segmentation-level downsampled --epochs 8 --depth ${depth} \
  --hidden ${hidden} --act $act $oth $sym $cir $sigf $blk \
- --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may29v15 #--seg-start ${start}
+ --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may30v1 #--seg-start ${start}
  done
  done
  done
