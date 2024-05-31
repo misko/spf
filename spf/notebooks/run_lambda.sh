@@ -63,7 +63,7 @@ echo python simple_train.py  -d ~/data/*.zarr  --device cuda \
  --batch 128 --workers 16 --type $type --lr $lr --shuffle \
  --segmentation-level downsampled --epochs 8 --depth ${depth} \
  --hidden ${hidden} --act $act $oth $sym $cir $sigf $blk \
- --seg-net ${seg_net} ${bn_flag} --skip-segmentation --wandb-project may30v1 #--seg-start ${start}
+ --seg-net ${seg_net} ${bn_flag} --wandb-project may30v1 #--seg-start ${start}
  done
  done
  done
