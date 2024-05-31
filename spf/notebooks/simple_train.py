@@ -4,9 +4,9 @@ from functools import cache
 import numpy as np
 import torch
 import torch.nn.functional as f
-import wandb
 from matplotlib import pyplot as plt
 
+import wandb
 from spf.dataset.spf_dataset import v5_collate_beamsegnet, v5spfdataset
 from spf.model_training_and_inference.models.beamsegnet import (
     BeamNetDirect,
@@ -136,7 +136,8 @@ def simple_train(args):
         segnet=seg_m,
         beamnet=beam_m,
         circular_mean=args.circular_mean,
-        skip_segmentation=args.skip_segmentation,
+        segmentation_lambda=args.segmentation_lambda,
+        independent=args.independent,
     ).to(torch_device)
 
     if args.compile:
@@ -163,7 +164,7 @@ def simple_train(args):
     step = 0
     losses = []
     to_log = None
-    for epoch in range(args.epochs):
+    for _ in range(args.epochs):
         for batch_data in train_dataloader:
             if step % args.val_every == 0:
                 m.eval()
@@ -200,66 +201,65 @@ def simple_train(args):
                     "segmentation_loss": [],
                     "beamformer_loss": [],
                 }
-            # for X, Y_rad in train_dataloader:
+
             optimizer.zero_grad()
 
-            # copy to torch device
             x, y_rad, seg_mask = batch_data_to_x_y_seg(
                 batch_data, args.segmentation_level
             )
 
-            # run beamformer and segmentation
             output = m(x, seg_mask)
 
-            # compute the loss
             loss_d = m.loss(output, y_rad, seg_mask)
 
-            # backprop the loss
             loss_d["loss"].backward()
+
             optimizer.step()
 
-            # accumulate the loss for returning to caller
-            losses.append(loss_d["loss"].item())
+            with torch.no_grad():
+                # accumulate the loss for returning to caller
+                losses.append(loss_d["loss"].item())
 
-            # for accumulaing and averaging
-            for key, value in loss_d.items():
-                to_log[key].append(value.item())
+                # for accumulaing and averaging
+                for key, value in loss_d.items():
+                    to_log[key].append(value.item())
 
-            if step % args.plot_every == 0:
-                # beam outputs
-                img_beam_output = (
-                    (beam_m.render_discrete_x(output["pred_theta"]) * 255).cpu().byte()
-                )
-                img_beam_gt = (beam_m.render_discrete_y(y_rad) * 255).cpu().byte()
-                train_target_image = torch.zeros(
-                    (img_beam_output.shape[0] * 3, img_beam_output.shape[1]),
-                ).byte()
-                for row_idx in range(img_beam_output.shape[0]):
-                    train_target_image[row_idx * 3] = img_beam_output[row_idx]
-                    train_target_image[row_idx * 3 + 1] = img_beam_gt[row_idx]
-                if args.wandb_project:
-                    output_image = wandb.Image(
-                        train_target_image, caption="train vs target (interleaved)"
+                if step % args.plot_every == 0:
+                    img_beam_output = (
+                        (beam_m.render_discrete_x(output["pred_theta"]) * 255)
+                        .cpu()
+                        .byte()
                     )
-                    to_log["output"] = output_image
-                else:
-                    ax, fig = plt.subplots(1, 1)
-                    fig.imshow(train_target_image)
+                    img_beam_gt = (beam_m.render_discrete_y(y_rad) * 255).cpu().byte()
+                    train_target_image = torch.zeros(
+                        (img_beam_output.shape[0] * 3, img_beam_output.shape[1]),
+                    ).byte()
+                    for row_idx in range(img_beam_output.shape[0]):
+                        train_target_image[row_idx * 3] = img_beam_output[row_idx]
+                        train_target_image[row_idx * 3 + 1] = img_beam_gt[row_idx]
+                    if args.wandb_project:
+                        output_image = wandb.Image(
+                            train_target_image, caption="train vs target (interleaved)"
+                        )
+                        to_log["output"] = output_image
+                    else:
+                        ax, fig = plt.subplots(1, 1)
+                        fig.imshow(train_target_image)
 
-                # segmentation output
-                _x = x.detach().cpu().numpy()
-                _seg_mask = seg_mask.detach().cpu().numpy()
-                _output_seg = output["segmentation"].detach().cpu().numpy()
+                    # segmentation output
+                    _x = x.detach().cpu().numpy()
+                    _seg_mask = seg_mask.detach().cpu().numpy()
+                    _output_seg = output["segmentation"].detach().cpu().numpy()
 
-                to_log["fig"] = plot_instance(
-                    _x, _output_seg, _seg_mask, idx=0, first_n=first_n
-                )
-            if args.wandb_project and step % args.log_every == 0:
-                for key, value in to_log.items():
-                    if "loss" in key:
-                        to_log[key] = np.array(value).mean()
-                wandb.log(to_log, step=step)
-                to_log = None
+                    to_log["fig"] = plot_instance(
+                        _x, _output_seg, _seg_mask, idx=0, first_n=first_n
+                    )
+                if args.wandb_project and step % args.log_every == 0:
+                    for key, value in to_log.items():
+                        if "loss" in key:
+                            to_log[key] = np.array(value).mean()
+                    wandb.log(to_log, step=step)
+                    to_log = None
             step += 1
 
     # [optional] finish the wandb run, necessary in notebooks
@@ -435,9 +435,9 @@ def get_parser():
         default=False,
     )
     parser.add_argument(
-        "--skip-segmentation",
+        "--independent",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
     )
     parser.add_argument(
         "--sigmoid",

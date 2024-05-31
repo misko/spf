@@ -511,6 +511,8 @@ class BeamNSegNet(nn.Module):
         average_before=True,
         circular_mean=False,
         skip_segmentation=False,
+        segmentation_lambda=10.0,
+        independent=True,
     ):
         super(BeamNSegNet, self).__init__()
         self.beamnet = beamnet
@@ -520,6 +522,8 @@ class BeamNSegNet(nn.Module):
         self.average_before = average_before
         self.circular_mean = circular_mean
         self.skip_segmentation = skip_segmentation
+        self.segmentation_lambda = segmentation_lambda
+        self.independent = independent
 
     def loss(self, output, y_rad, seg_mask):
         # x to beamformer loss (indirectly including segmentation)
@@ -533,7 +537,7 @@ class BeamNSegNet(nn.Module):
         if self.skip_segmentation:
             loss = beamformer_loss
         else:
-            loss = beamformer_loss + 10 * segmentation_loss
+            loss = beamformer_loss + self.segmentation_lambda * segmentation_loss
 
         assert loss.isfinite().all()
         return {
@@ -542,16 +546,16 @@ class BeamNSegNet(nn.Module):
             "loss": loss,
         }
 
-    def forward(self, x, b_mask_weights=None):
-        if self.skip_segmentation:
-            assert b_mask_weights is not None
-        else:
-            b_mask_weights = None
+    def forward(self, x, gt_seg_mask=None):
+        mask_weights = self.segnet(x)
+        pred_seg_mask = self.sigmoid(mask_weights)
 
-        if b_mask_weights is None:
-            mask_weights = self.segnet(x)
-            b_mask_weights = self.sigmoid(mask_weights)
-        assert b_mask_weights.ndim == 3 and b_mask_weights.shape[1] == 1
+        if self.independent:
+            seg_mask = gt_seg_mask
+        else:
+            seg_mask = pred_seg_mask
+
+        assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
 
         # taking the average after beam_former
         if not self.average_before:
@@ -571,25 +575,25 @@ class BeamNSegNet(nn.Module):
                 batch_size, session_size, beamnet_output.shape[1]
             ).transpose(1, 2)
 
-            pred_theta = torch.mul(beam_former, b_mask_weights).sum(axis=2) / (
-                b_mask_weights.sum(axis=2) + 0.001
+            pred_theta = torch.mul(beam_former, seg_mask).sum(axis=2) / (
+                seg_mask.sum(axis=2) + 0.001
             )
         else:
-            weighted_input = torch.mul(x, b_mask_weights).sum(axis=2) / (
-                b_mask_weights.sum(axis=2) + 0.001
+            weighted_input = torch.mul(x, seg_mask).sum(axis=2) / (
+                seg_mask.sum(axis=2) + 0.001
             )
             if self.circular_mean:
                 weighted_input[:, self.beamnet.pd_track] = torch_circular_mean(
-                    x[:, self.beamnet.pd_track], weights=b_mask_weights[:, 0], trim=0
+                    x[:, self.beamnet.pd_track], weights=seg_mask[:, 0], trim=0
                 )[0]
             pred_theta = self.beamnet(weighted_input)
         # p_mask_weights = self.softmax(mask_weights)
 
         assert pred_theta.isfinite().all()
-        assert b_mask_weights.ndim == 3 and b_mask_weights.shape[1] == 1
+        assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
         return {
             # "pred_theta": torch.mul(beam_former, p_mask_weights).sum(axis=2),
             # "beam_former": beam_former,
             "pred_theta": pred_theta,
-            "segmentation": b_mask_weights,
+            "segmentation": pred_seg_mask,
         }
