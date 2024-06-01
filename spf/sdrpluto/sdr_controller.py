@@ -246,6 +246,9 @@ class FakePPlus:
         self.set_config(rx_config=rx_config, tx_config=tx_config)
         self.sdr = FakeSdr()
 
+    def soft_reset_radio(self):
+        time.sleep(0.1)
+
     def rssis(self):
         return np.random.rand(2)
 
@@ -318,6 +321,13 @@ class PPlus:
             self.sdr.tx_destroy_buffer()
             self.sdr.rx_destroy_buffer()
             self.sdr.tx_enabled_channels = []
+
+    def soft_reset_radio(self):
+        old_freq = self.sdr.rx_lo
+        self.sdr.rx_lo = 700000
+        time.sleep(0.05)
+        self.sdr.rx_lo = old_freq
+        time.sleep(0.05)
 
     def get_rssi_and_gain(self):
         v0 = self.sdr._ctrl.find_channel("voltage0")

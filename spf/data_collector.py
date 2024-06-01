@@ -169,7 +169,9 @@ class ThreadedRX:
                 # logging.info(f"{self.pplus.rx_config.uri} READY")
             finish_time = time.time()
             elapsed_time = finish_time - start_time
-            if idx > 20:  # skip first 20 for timing
+            if idx % 100 == 0:
+                self.pplus.soft_reset_radio()  # try to calibrate
+            elif idx > 20:  # skip first 20 for timing
                 if average_time_per_loop < 0:
                     average_time_per_loop = elapsed_time
                 else:
