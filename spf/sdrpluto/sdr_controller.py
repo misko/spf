@@ -324,7 +324,7 @@ class PPlus:
 
     def soft_reset_radio(self):
         old_freq = self.sdr.rx_lo
-        self.sdr.rx_lo = 700000
+        self.sdr.rx_lo = 700_0000_000  # 700Mhz
         time.sleep(0.05)
         self.sdr.rx_lo = old_freq
         time.sleep(0.05)
