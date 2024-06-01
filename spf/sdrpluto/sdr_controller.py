@@ -662,7 +662,10 @@ def setup_rxtx_and_phase_calibration(
                 pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
             ).mean()  # TODO THIS BREAKS if diff is near 2*np.pi...
             phase_calibrations_cm[idx], _ = circular_mean(
-                np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])
+                (np.angle(signal_matrix[0]) - np.angle(signal_matrix[1])).reshape(
+                    1, -1
+                ),
+                20,
             )
         phase_calibration_u = phase_calibrations.mean()
         phase_calibration_std = phase_calibrations.std()
@@ -672,7 +675,9 @@ def setup_rxtx_and_phase_calibration(
         )
 
         # TODO this part should also get replaced by circular mean
-        phase_calibration_cm_u = circular_mean(phase_calibrations_cm)[0]
+        phase_calibration_cm_u = circular_mean(
+            phase_calibrations_cm.reshape(1, -1), 20
+        )[0]
         phase_calibration_cm_std = phase_calibrations_cm.std()
         logging.info(
             f"{rx_config.uri}: Phase calibration mean CM \
@@ -686,7 +691,9 @@ def setup_rxtx_and_phase_calibration(
                 f"{rx_config.uri}: Final phase calibration (radians) is {phase_calibration_u:0.4f}\
                  (fraction of 2pi) {(phase_calibration_u / (2 * np.pi)):0.4f}"
             )
-            pplus_rx.phase_calibration = circular_mean(phase_calibrations_cm)[
+            pplus_rx.phase_calibration = circular_mean(
+                phase_calibrations_cm.reshape(1, -1), 20
+            )[
                 0
             ]  # .mean()
             return pplus_rx, pplus_tx
@@ -771,7 +778,7 @@ def plot_recv_signal(
         diff = pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
         axs[0][3].clear()
         axs[0][3].scatter(t, diff, s=0.3, alpha=0.1)
-        mean, _mean = circular_mean(diff)
+        mean, _mean = circular_mean(diff.reshape(1, -1), 20)
         axs[0][3].axhline(y=mean, color="black", label="circular mean")
         axs[0][3].axhline(y=_mean, color="red", label="trimmed circular mean")
         axs[0][3].set_ylim([-np.pi, np.pi])

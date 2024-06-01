@@ -1,5 +1,6 @@
-from spf.dataset.spf_dataset import v5spfdataset
 import sys
+
+from spf.dataset.spf_dataset import v5spfdataset
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

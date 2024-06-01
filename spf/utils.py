@@ -83,6 +83,7 @@ def zarr_new_dataset(
     keys_2xf64,
     chunk_size=512,  # tested , blosc1 / chunk_size=512 / buffer_size (2^18~20) = seems pretty good
     compressor=None,
+    skip_signal_matrix=False,
 ):
     zarr_remove_if_exists(filename)
     z = zarr_open_from_lmdb_store(filename, mode="w")
@@ -97,13 +98,14 @@ def zarr_new_dataset(
     z.create_group("receivers")
     for receiver_idx in range(n_receivers):
         receiver_z = z["receivers"].create_group(f"r{receiver_idx}")
-        receiver_z.create_dataset(
-            "signal_matrix",
-            shape=(timesteps, 2, buffer_size),
-            chunks=(1, 1, 1024 * chunk_size),
-            dtype="complex128",
-            compressor=compressor,
-        )
+        if not skip_signal_matrix:
+            receiver_z.create_dataset(
+                "signal_matrix",
+                shape=(timesteps, 2, buffer_size),
+                chunks=(1, 1, 1024 * chunk_size),
+                dtype="complex128",
+                compressor=compressor,
+            )
         for key in keys_f64:
             receiver_z.create_dataset(
                 key,

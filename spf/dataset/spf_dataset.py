@@ -213,7 +213,15 @@ def v5_segmentation_mask(session):
 
 
 class v5spfdataset(Dataset):
-    def __init__(self, prefix, nthetas, skip_signal_matrix=False):
+    def __init__(
+        self,
+        prefix,
+        nthetas,
+        skip_signal_matrix=False,
+        phi_drift_max=0.2,
+        min_mean_windows=10,
+        ignore_qc=False,
+    ):
         prefix = prefix.replace(".zarr", "")
         self.nthetas = nthetas
         self.prefix = prefix
@@ -272,10 +280,43 @@ class v5spfdataset(Dataset):
         self.ground_truth_thetas = self.get_ground_truth_thetas()
         self.ground_truth_phis = self.get_ground_truth_phis()
         self.all_phi_drifts = self.get_all_phi_drifts()
-        self.phi_drifts = [
-            np.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts
-        ]
+        self.phi_drifts = np.array(
+            [np.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts]
+        )
         self.get_segmentation()
+        self.average_windows_in_segmentation = np.array(
+            [
+                [
+                    len(x["simple_segmentation"])
+                    for x in self.segmentation["segmentation_by_receiver"][f"r{rx_idx}"]
+                ]
+                for rx_idx in range(self.n_receivers)
+            ]
+        ).mean()
+
+        self.mean_sessions_with_maybe_valid_segmentation = np.array(
+            [
+                [
+                    len(x["simple_segmentation"]) > 2
+                    for x in self.segmentation["segmentation_by_receiver"][f"r{rx_idx}"]
+                ]
+                for rx_idx in [0, 1]
+            ]
+        ).mean()
+
+        if not ignore_qc:
+            if abs(self.phi_drifts).max() > phi_drift_max:
+                raise ValueError(
+                    f"Phi-drift is too high! max acceptable is {phi_drift_max}, actual is {abs(self.phi_drifts).max()}"
+                )
+            if self.average_windows_in_segmentation < min_mean_windows:
+                raise ValueError(
+                    f"Min average windows ({self.average_windows_in_segmentation}) is below the min expected ({min_mean_windows})"
+                )
+            if self.mean_sessions_with_maybe_valid_segmentation < 0.2:
+                raise ValueError(
+                    "It looks like too few windows have a valid segmentation"
+                )
 
     def __len__(self):
         return self.n_sessions * self.n_receivers

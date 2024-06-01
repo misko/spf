@@ -31,7 +31,7 @@ def test_beamnet_downsampled():
         "conv",
         "--epochs",
         "1200",
-        "--skip-segmentation",
+        # "--skip-segmentation",
         "--no-shuffle",
         "--symmetry",
         # "--sigmoid",

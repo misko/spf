@@ -11,6 +11,13 @@ if __name__ == "__main__":
         sys.exit(1)
     zarr_fn = sys.argv[1]
     output_fn = sys.argv[2]
+
+    # make sure its segmented
+    v5spfdataset(
+        sys.argv[1],
+        nthetas=11,
+    )
+
     z = zarr_open_from_lmdb_store(zarr_fn)
 
     n_records_per_receiver, n_receivers, buffer_size = (
