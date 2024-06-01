@@ -413,33 +413,22 @@ class BeamNetDirect(nn.Module):
     def forward(self, x):
         # split into pd>=0 and pd<0
         pd_pos_mask = x[:, self.pd_track] >= 0
-        n_pos = pd_pos_mask.sum().item()
-        _x = x.new(x.shape)
 
         if self.symmetry:
-            # copy over the pd>0
-            _x[:n_pos] = x[pd_pos_mask]
-            # flip the magnitudes and phase diffs so all now have phase diff >0
-            # _x[n_pos:, self.magA_track] = x[~pd_pos_mask, self.magB_track]
-            # _x[n_pos:, self.magB_track] = x[~pd_pos_mask, self.magA_track]
-            _x[n_pos:, self.mag_track] = x[~pd_pos_mask, self.mag_track]
-            _x[n_pos:, self.stddev_track] = x[~pd_pos_mask, self.stddev_track]
-            _x[n_pos:, self.pd_track] = -x[~pd_pos_mask, self.pd_track]
-        else:
-            _x = x
+            x = x.abs()
 
-        _x[:, self.pd_track] = _x[:, self.pd_track] / (torch.pi / 2)
-        _x[:, self.mag_track] = _x[:, self.mag_track] / 200
+        # try to normalize
+        x[:, self.pd_track] = x[:, self.pd_track] / (torch.pi / 2)
+        x[:, self.mag_track] = x[:, self.mag_track] / 200
 
-        _y = self.beam_net(_x)
+        y = self.beam_net(x)
 
-        y = _y.new(_y.shape)
         if self.symmetry:
             # copy over results for pd>0
-            y[pd_pos_mask] = self.fixify(_y[:n_pos], sign=1)
-            y[~pd_pos_mask] = self.fixify(_y[n_pos:], sign=-1)
+            y[pd_pos_mask] = self.fixify(y[pd_pos_mask], sign=1)
+            y[~pd_pos_mask] = self.fixify(y[~pd_pos_mask], sign=-1)
         else:
-            y = self.fixify(_y, sign=1)
+            y = self.fixify(y, sign=1)
         return y  # [theta_u, sigma1, sigma2, k1, k2]
 
     def likelihood(self, x, y, sigma_eps=0.00001):

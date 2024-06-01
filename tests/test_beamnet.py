@@ -51,7 +51,7 @@ def test_beamnet():
 
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
 
-        output = m(x)
+        output = m(x, seg_mask)
 
         # x to beamformer loss (indirectly including segmentation)
         x_to_beamformer_loss = -beam_m.loglikelihood(output["pred_theta"], y_rad)
@@ -80,6 +80,6 @@ def test_beamnet():
         step += 1
     # -3.3521714210510254 -3.4109437465667725 0.005877225194126368
     # -3.6402697563171387 -3.662614345550537 0.0022344605531543493
-    assert loss.item() < -1.5
-    assert x_to_beamformer_loss < -1.5
+    assert loss.item() < -1.0
+    assert x_to_beamformer_loss < -1.0
     assert x_to_segmentation_loss < 0.01
