@@ -239,22 +239,22 @@ class v5spfdataset(Dataset):
             self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
         ]
 
+        self.n_sessions, self.n_antennas_per_receiver = self.z.receivers.r0.gains.shape
+        assert self.n_antennas_per_receiver == 2
+
         if not self.skip_signal_matrix:
             self.signal_matrices = [
                 self.z.receivers[f"r{ridx}"].signal_matrix
                 for ridx in range(self.n_receivers)
             ]
+            _, _, self.session_length = self.z.receivers["r0"].signal_matrix.shape
 
-        self.n_sessions, self.n_antennas_per_receiver, self.session_length = (
-            self.z.receivers["r0"].signal_matrix.shape
-        )
-        assert self.n_antennas_per_receiver == 2
-        for ridx in range(self.n_receivers):
-            assert self.z.receivers[f"r{ridx}"].signal_matrix.shape == (
-                self.n_sessions,
-                self.n_antennas_per_receiver,
-                self.session_length,
-            )
+            for ridx in range(self.n_receivers):
+                assert self.z.receivers[f"r{ridx}"].signal_matrix.shape == (
+                    self.n_sessions,
+                    self.n_antennas_per_receiver,
+                    self.session_length,
+                )
 
         self.steering_vectors = [
             precompute_steering_vectors(
