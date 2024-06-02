@@ -109,6 +109,7 @@ def create_fake_dataset(yaml_config_str, filename, orbits=1, n=50):
         n_receivers=len(yaml_config["receivers"]),
         chunk_size=512,
         compressor=None,
+        config=yaml_config,
     )
 
     thetas = pi_norm(

@@ -727,6 +727,7 @@ def plot_recv_signal(
     )
 
     while run_radios and frame_idx != frames:
+        pplus_rx.soft_reset_radio()
         if signal_matrixs is None:
             signal_matrix = np.vstack(pplus_rx.sdr.rx())
             # signal_matrix[1] *= np.exp(1j * pplus_rx.phase_calibration)

@@ -457,6 +457,7 @@ class DroneDataCollectorRaw(DataCollector):
             n_receivers=len(self.yaml_config["receivers"]),
             chunk_size=512,
             compressor=None,
+            config=self.yaml_config,
         )
 
     def write_to_record_matrix(self, thread_idx, record_idx, data):
@@ -538,6 +539,7 @@ class GrblDataCollectorRaw(DataCollector):
                 n_receivers=len(self.yaml_config["receivers"]),
                 chunk_size=512,
                 compressor=None,
+                config=self.yaml_config,
             )
 
     def write_to_record_matrix(self, thread_idx, record_idx, data):

@@ -29,6 +29,7 @@ def v5rx_new_dataset(
     timesteps,
     buffer_size,
     n_receivers,
+    config,
     chunk_size=1024,
     compressor=None,
     skip_signal_matrix=False,
@@ -43,4 +44,5 @@ def v5rx_new_dataset(
         chunk_size=chunk_size,
         compressor=compressor,
         skip_signal_matrix=skip_signal_matrix,
+        config=config,
     )

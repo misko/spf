@@ -144,6 +144,7 @@ def testv4_data_create():
             timesteps=timesteps,
             buffer_size=buffer_size,
             n_receivers=2,
+            config="test_config",
         )
         for time_idx in range(timesteps):
             for receiver_idx in range(2):
@@ -166,6 +167,7 @@ def testv5_data_create():
             timesteps=timesteps,
             buffer_size=buffer_size,
             n_receivers=2,
+            config="test_config",
         )
         for time_idx in range(timesteps):
             for receiver_idx in range(2):

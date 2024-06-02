@@ -23,7 +23,13 @@ def v4rx_keys():
 
 
 def v4rx_new_dataset(
-    filename, timesteps, buffer_size, n_receivers, chunk_size=1024, compressor=None
+    filename,
+    timesteps,
+    buffer_size,
+    n_receivers,
+    config,
+    chunk_size=1024,
+    compressor=None,
 ):
     return zarr_new_dataset(
         filename=filename,
@@ -34,4 +40,5 @@ def v4rx_new_dataset(
         keys_2xf64=v4rx_2xf64_keys,
         chunk_size=chunk_size,
         compressor=compressor,
+        config=config,
     )

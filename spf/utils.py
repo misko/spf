@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from datetime import datetime
 
 import numpy as np
+import yaml
 import zarr
 from numcodecs import Blosc
 
@@ -81,6 +82,7 @@ def zarr_new_dataset(
     n_receivers,
     keys_f64,
     keys_2xf64,
+    config,
     chunk_size=512,  # tested , blosc1 / chunk_size=512 / buffer_size (2^18~20) = seems pretty good
     compressor=None,
     skip_signal_matrix=False,
@@ -95,6 +97,11 @@ def zarr_new_dataset(
         )
     else:
         raise NotImplementedError
+
+    if isinstance(config, dict):
+        z["config"] = yaml.dump(config)
+    else:
+        z["config"] = config
     z.create_group("receivers")
     for receiver_idx in range(n_receivers):
         receiver_z = z["receivers"].create_group(f"r{receiver_idx}")
