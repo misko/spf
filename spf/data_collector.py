@@ -529,15 +529,16 @@ class GrblDataCollectorRaw(DataCollector):
                 buffer_size = receiver["buffer-size"]
             else:
                 assert buffer_size == receiver["buffer-size"]
-        # record matrix
-        self.zarr = v5rx_new_dataset(
-            filename=self.data_filename,
-            timesteps=self.yaml_config["n-records-per-receiver"],
-            buffer_size=buffer_size,
-            n_receivers=len(self.yaml_config["receivers"]),
-            chunk_size=512,
-            compressor=None,
-        )
+        if not self.yaml_config["dry-run"]:
+            # record matrix
+            self.zarr = v5rx_new_dataset(
+                filename=self.data_filename,
+                timesteps=self.yaml_config["n-records-per-receiver"],
+                buffer_size=buffer_size,
+                n_receivers=len(self.yaml_config["receivers"]),
+                chunk_size=512,
+                compressor=None,
+            )
 
     def write_to_record_matrix(self, thread_idx, record_idx, data):
         tx_pos = self.position_controller.controller.position["xy"][
@@ -552,15 +553,17 @@ class GrblDataCollectorRaw(DataCollector):
         data.rx_pos_x_mm = rx_pos[0]
         data.rx_pos_y_mm = rx_pos[1]
 
-        z = self.zarr[f"receivers/r{thread_idx}"]
-        z.signal_matrix[record_idx] = data.signal_matrix
-        for k in v5rx_f64_keys + v5rx_2xf64_keys:
-            z[k][record_idx] = getattr(data, k)
+        if not self.yaml_config["dry-run"]:
+            z = self.zarr[f"receivers/r{thread_idx}"]
+            z.signal_matrix[record_idx] = data.signal_matrix
+            for k in v5rx_f64_keys + v5rx_2xf64_keys:
+                z[k][record_idx] = getattr(data, k)
 
     def close(self):
-        self.zarr.store.close()
-        self.zarr = None
-        zarr_shrink(self.data_filename)
+        if not self.yaml_config["dry-run"]:
+            self.zarr.store.close()
+            self.zarr = None
+            zarr_shrink(self.data_filename)
 
 
 # V2 data format

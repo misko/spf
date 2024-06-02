@@ -31,6 +31,9 @@ if __name__ == "__main__":
         "--tx-gain", type=int, help="tag files", required=False, default=None
     )
     parser.add_argument(
+        "--n-records", type=int, help="nrecords", required=False, default=None
+    )
+    parser.add_argument(
         "-l",
         "--logging-level",
         type=str,
@@ -70,6 +73,9 @@ if __name__ == "__main__":
 
     if "dry-run" not in yaml_config or args.dry_run:
         yaml_config["dry-run"] = args.dry_run
+
+    if "n-records-per-receiver" not in yaml_config or args.n_records:
+        yaml_config["n-records-per-receiver"] = args.n_records
 
     temp_filenames, final_filenames = filenames_from_time_in_seconds(
         run_started_at,
