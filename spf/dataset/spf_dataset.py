@@ -164,25 +164,38 @@ def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
 
 
 def v5_collate_beamsegnet(batch):
-    n_windows = batch[0]["all_windows_stats"].shape[0]
+    n_windows = batch[0][0]["all_windows_stats"].shape[0]
+    y_rad_list = []
+    simple_segmentation_list = []
+    all_window_stats_list = []
+    downsampled_segmentation_mask_list = []
+    x_list = []
+    segmentation_mask_list = []
+    for paired_sample in batch:
+        for x in paired_sample:
+            y_rad_list.append(x["y_rad"])
+            simple_segmentation_list.append(x["simple_segmentation"])
+            all_window_stats_list.append(
+                x["all_windows_stats"].transpose()[None].astype(np.float32)
+            )
+            downsampled_segmentation_mask_list.append(
+                v5_downsampled_segmentation_mask(x, n_windows=n_windows)
+            )
+            if "x" in batch[0][0]:
+                x_list.append(x["x"])
+                segmentation_mask_list.append(v5_segmentation_mask(x))
+
     d = {
-        "y_rad": torch.vstack([x["y_rad"] for x in batch]),
-        "simple_segmentation": [x["simple_segmentation"] for x in batch],
-        "all_windows_stats": torch.vstack(  # trimmed_cm, trimmed_stddev, abs_signal_median
-            [
-                torch.from_numpy(x["all_windows_stats"].astype(np.float32).transpose())[
-                    None
-                ]
-                for x in batch
-            ]
-        ),
+        "y_rad": torch.vstack(y_rad_list),
+        "simple_segmentation": simple_segmentation_list,
+        "all_windows_stats": torch.from_numpy(np.vstack(all_window_stats_list)),
         "downsampled_segmentation_mask": torch.vstack(
-            [v5_downsampled_segmentation_mask(x, n_windows=n_windows) for x in batch]
+            downsampled_segmentation_mask_list
         ),
     }
-    if "x" in batch[0]:
-        d["x"] = torch.vstack([x["x"] for x in batch])
-        d["segmentation_mask"] = torch.vstack([v5_segmentation_mask(x) for x in batch])
+    if "x" in batch[0][0]:
+        d["x"] = torch.vstack(x_list)
+        d["segmentation_mask"] = torch.vstack(segmentation_mask_list)
     return d
 
 
@@ -221,6 +234,7 @@ class v5spfdataset(Dataset):
         phi_drift_max=0.2,
         min_mean_windows=10,
         ignore_qc=False,
+        paired=False,
     ):
         prefix = prefix.replace(".zarr", "")
         self.nthetas = nthetas
@@ -230,7 +244,7 @@ class v5spfdataset(Dataset):
         self.yaml_fn = f"{prefix}.yaml"
         self.z = zarr_open_from_lmdb_store(self.zarr_fn)
         self.yaml_config = yaml.safe_load(open(self.yaml_fn, "r"))
-
+        self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
 
         self.wavelengths = [
@@ -319,6 +333,8 @@ class v5spfdataset(Dataset):
                 )
 
     def __len__(self):
+        if self.paired:
+            self.n_sessions
         return self.n_sessions * self.n_receivers
 
     def render_session(self, receiver_idx, session_idx):
@@ -424,9 +440,15 @@ class v5spfdataset(Dataset):
         return ground_truth_thetas
 
     def __getitem__(self, idx):
+        if self.paired:
+            assert idx < self.n_sessions
+            return [
+                self.render_session(receiver_idx, idx)
+                for receiver_idx in range(self.n_receivers)
+            ]
         assert idx < self.n_sessions * self.n_receivers
         receiver_idx = idx % self.n_receivers
-        return self.render_session(receiver_idx, idx // self.n_receivers)
+        return [self.render_session(receiver_idx, idx // self.n_receivers)]
 
     def get_segmentation_mean_phase(self):
         segmentation = self.get_segmentation()
