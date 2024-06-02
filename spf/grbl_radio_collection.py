@@ -139,6 +139,7 @@ if __name__ == "__main__":
     data_collector.done()
 
     # we finished lets move files out to final positions
-    logging.info("GRBLRadioCollection: Moving files to final location ...")
-    for k in temp_filenames:
-        os.rename(temp_filenames[k], final_filenames[k])
+    if not yaml_config["dry-run"]:
+        logging.info("GRBLRadioCollection: Moving files to final location ...")
+        for k in temp_filenames:
+            os.rename(temp_filenames[k], final_filenames[k])

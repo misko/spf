@@ -494,11 +494,14 @@ class PPlus:
     """
 
     def close_tx(self):
-        self.sdr.tx_hardwaregain_chan0 = -80
-        self.sdr.tx_hardwaregain_chan1 = -80
-        self.sdr.tx_enabled_channels = []
-        self.sdr.tx_destroy_buffer()
-        self.sdr.tx_cyclic_buffer = False
+        try:
+            self.sdr.tx_hardwaregain_chan0 = -80
+            self.sdr.tx_hardwaregain_chan1 = -80
+            self.sdr.tx_enabled_channels = []
+            self.sdr.tx_destroy_buffer()
+            self.sdr.tx_cyclic_buffer = False
+        except TypeError:
+            pass
         self.tx_config = None
         # time.sleep(1.0)
 
