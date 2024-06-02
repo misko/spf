@@ -26,12 +26,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "-t", "--tag", type=str, help="tag files", required=False, default=""
     )
-    parser.add_argument("-n", "--dry-run", action=argparse.BooleanOptionalAction)
+    parser.add_argument(
+        "-n", "--dry-run", action=argparse.BooleanOptionalAction, default=False
+    )
     parser.add_argument(
         "--tx-gain", type=int, help="tag files", required=False, default=None
     )
     parser.add_argument(
-        "--n-records", type=int, help="nrecords", required=False, default=None
+        "--n-records", type=int, help="nrecords", required=False, default=100
+    )
+    parser.add_argument(
+        "--seconds-per-sample",
+        type=float,
+        help="seconds per sample",
+        required=False,
+        default=0.0,
     )
     parser.add_argument(
         "-l",
