@@ -58,3 +58,4 @@ if [ $? -ne 0 ]; then
 else
 	echo "Successfully set params on $eth"
 fi
+sleep 5 # give it some time to calibrate

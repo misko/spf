@@ -157,7 +157,7 @@ def args_to_rx_config(args):
         lo=args.fc,
         rf_bandwidth=int(3 * args.fi),
         sample_rate=int(args.fs),
-        gains=[-30, -30],
+        gains=[args.rx_gain, args.rx_gain],
         gain_control_modes=[args.rx_mode, args.rx_mode],
         enabled_channels=[0, 1],
         buffer_size=int(args.rx_n),
@@ -323,6 +323,7 @@ class PPlus:
             self.sdr.tx_enabled_channels = []
 
     def soft_reset_radio(self):
+        return  # disable reset
         old_freq = self.sdr.rx_lo
         self.sdr.rx_lo = 700_000_000  # 700Mhz
         time.sleep(0.05)
@@ -410,6 +411,10 @@ class PPlus:
         self.sdr._ctrl.reg_write(0x22, reg22_value | (1 << 6))
         reg22_value = self.sdr._ctrl.reg_read(0x22)
         assert (reg22_value & (1 << 6)) != 0
+
+        # self.sdr._ctrl.reg_write(0x22, reg22_value & (~(1 << 6)))
+        # reg22_value = self.sdr._ctrl.reg_read(0x22)
+        # assert (reg22_value & (1 << 6)) == 0
 
         self.sdr.rx_rf_bandwidth = self.rx_config.rf_bandwidth
         assert self.sdr.rx_rf_bandwidth == self.rx_config.rf_bandwidth
