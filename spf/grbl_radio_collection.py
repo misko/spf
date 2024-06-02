@@ -91,8 +91,9 @@ if __name__ == "__main__":
     # setup logging
     handlers = [
         logging.StreamHandler(),
-        logging.FileHandler(temp_filenames["log"]),
     ]
+    if not yaml_config["dry-run"]:
+        handlers.append(logging.FileHandler(temp_filenames["log"]))
     logging.basicConfig(
         handlers=handlers,
         format="%(asctime)s:%(levelname)s:%(message)s",
@@ -100,8 +101,9 @@ if __name__ == "__main__":
     )
 
     # make a copy of the YAML
-    with open(temp_filenames["yaml"], "w") as outfile:
-        yaml.dump(yaml_config, outfile, default_flow_style=False)
+    if not yaml_config["dry-run"]:
+        with open(temp_filenames["yaml"], "w") as outfile:
+            yaml.dump(yaml_config, outfile, default_flow_style=False)
 
     logging.info(json.dumps(yaml_config, sort_keys=True, indent=4))
 
