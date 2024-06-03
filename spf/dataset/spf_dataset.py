@@ -129,7 +129,7 @@ def mp_segment_zarr(zarr_fn, results_fn):
 
 
 def v5_prepare_session_y(session):  # session -> x,y
-    return session["ground_truth_theta"][None]
+    return session["reduced_ground_truth_theta"][None]
 
 
 def v5_prepare_session_x(session):  # session -> x,y
@@ -291,7 +291,9 @@ class v5spfdataset(Dataset):
         if not self.skip_signal_matrix:
             self.keys_per_session.append("signal_matrix")
 
-        self.ground_truth_thetas = self.get_ground_truth_thetas()
+        self.ground_truth_thetas, self.reduced_ground_truth_thetas = (
+            self.get_ground_truth_thetas()
+        )
         self.ground_truth_phis = self.get_ground_truth_phis()
         self.all_phi_drifts = self.get_all_phi_drifts()
         self.phi_drifts = np.array(
@@ -342,6 +344,9 @@ class v5spfdataset(Dataset):
         data = {key: r[key][session_idx] for key in self.keys_per_session}
 
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][session_idx]
+        data["reduced_ground_truth_theta"] = self.reduced_ground_truth_thetas[
+            receiver_idx
+        ][session_idx]
         data = {
             k: (
                 torch.from_numpy(v)
@@ -417,16 +422,22 @@ class v5spfdataset(Dataset):
             ground_truth_thetas.append(
                 pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * np.pi)
             )
+
         # reduce GT thetas in case of two antennas
         # in 2D there are generally two spots that satisfy phase diff
         # lets pick the one thats infront of the craft (array)
         assert self.n_receivers == 2
 
         ground_truth_thetas = np.array(ground_truth_thetas)
-        ground_truth_thetas_mask = abs(ground_truth_thetas) > np.pi / 2
-        ground_truth_thetas_at_mask = ground_truth_thetas[ground_truth_thetas_mask]
-        ground_truth_thetas[ground_truth_thetas_mask] = (
-            np.sign(ground_truth_thetas_at_mask) * np.pi - ground_truth_thetas_at_mask
+        reduced_ground_truth_thetas = ground_truth_thetas.copy()
+
+        reduced_ground_truth_thetas_mask = abs(reduced_ground_truth_thetas) > np.pi / 2
+        reduced_ground_truth_thetas_at_mask = reduced_ground_truth_thetas[
+            reduced_ground_truth_thetas_mask
+        ]
+        reduced_ground_truth_thetas[reduced_ground_truth_thetas_mask] = (
+            np.sign(reduced_ground_truth_thetas_at_mask) * np.pi
+            - reduced_ground_truth_thetas_at_mask
         )
         # if abs(gt_theta.item()) > torch.pi / 2:
         # #     return (
@@ -437,7 +448,7 @@ class v5spfdataset(Dataset):
         #     torch.vstack([abs_signal[0], abs_signal[1], pd])[None],
         #     gt_theta[None],
         # )
-        return ground_truth_thetas
+        return ground_truth_thetas, reduced_ground_truth_thetas
 
     def __getitem__(self, idx):
         if self.paired:
