@@ -15,6 +15,7 @@ from spf.model_training_and_inference.models.beamsegnet import (
     ConvNet,
     UNet1D,
 )
+from spf.rf import reduce_theta_to_positive_y
 
 
 def plot_instance(_x, _output_seg, _seg_mask, idx, first_n):
@@ -43,12 +44,15 @@ def simple_train(args):
 
     random.seed(args.seed)
 
+    assert args.n_radios in [1, 2]
     # loop over and concat datasets here
     datasets = [
         v5spfdataset(
             prefix,
             nthetas=args.nthetas,
             skip_signal_matrix=args.segmentation_level == "downsampled",
+            paired=args.n_radios > 1,
+            ignore_qc=args.skip_qc,
         )
         for prefix in args.datasets
     ]
@@ -138,6 +142,7 @@ def simple_train(args):
         circular_mean=args.circular_mean,
         segmentation_lambda=args.segmentation_lambda,
         independent=args.independent,
+        n_radios=args.n_radios,
     ).to(torch_device)
 
     if args.compile:
@@ -150,14 +155,14 @@ def simple_train(args):
     def batch_data_to_x_y_seg(batch_data, segmentation_level):
         if segmentation_level == "full":
             x = batch_data["x"].to(torch_device)
-            y_rad = batch_data["y_rad"].to(torch_device)
             seg_mask = batch_data["segmentation_mask"].to(torch_device)
         elif segmentation_level == "downsampled":
             x = batch_data["all_windows_stats"].to(torch_device)
-            y_rad = batch_data["y_rad"].to(torch_device)
             seg_mask = batch_data["downsampled_segmentation_mask"].to(torch_device)
         else:
             raise NotImplementedError
+
+        y_rad = batch_data["y_rad"].to(torch_device)
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
         return x, y_rad, seg_mask
 
@@ -178,11 +183,13 @@ def simple_train(args):
                         x, y_rad, seg_mask = batch_data_to_x_y_seg(
                             val_batch_data, args.segmentation_level
                         )
+
+                        y_rad_reduced = reduce_theta_to_positive_y(y_rad)
                         # run beamformer and segmentation
                         output = m(x, seg_mask)
 
                         # compute the loss
-                        loss_d = m.loss(output, y_rad, seg_mask)
+                        loss_d = m.loss(output, y_rad_reduced, seg_mask)
 
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
@@ -207,10 +214,11 @@ def simple_train(args):
             x, y_rad, seg_mask = batch_data_to_x_y_seg(
                 batch_data, args.segmentation_level
             )
+            y_rad_reduced = reduce_theta_to_positive_y(y_rad)
 
             output = m(x, seg_mask)
 
-            loss_d = m.loss(output, y_rad, seg_mask)
+            loss_d = m.loss(output, y_rad_reduced, seg_mask)
 
             loss_d["loss"].backward()
 
@@ -379,6 +387,11 @@ def get_parser():
         default=1000,
     )
     parser.add_argument(
+        "--n-radios",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
         "--act",
         type=str,
         required=True,
@@ -426,6 +439,11 @@ def get_parser():
     )
     parser.add_argument(
         "--other",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--skip-qc",
         action=argparse.BooleanOptionalAction,
         default=False,
     )

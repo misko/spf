@@ -347,6 +347,10 @@ class BasicBlock(nn.Module):
         return self.act(out + identity)
 
 
+class PairedBeamNet(nn.Module):
+    pass
+
+
 class BeamNetDirect(nn.Module):
     def __init__(
         self,
@@ -502,6 +506,7 @@ class BeamNSegNet(nn.Module):
         skip_segmentation=False,
         segmentation_lambda=10.0,
         independent=True,
+        n_radios=1,
     ):
         super(BeamNSegNet, self).__init__()
         self.beamnet = beamnet
@@ -513,6 +518,7 @@ class BeamNSegNet(nn.Module):
         self.skip_segmentation = skip_segmentation
         self.segmentation_lambda = segmentation_lambda
         self.independent = independent
+        self.n_radios = n_radios
 
     def loss(self, output, y_rad, seg_mask):
         # x to beamformer loss (indirectly including segmentation)
@@ -577,6 +583,10 @@ class BeamNSegNet(nn.Module):
                 )[0]
             pred_theta = self.beamnet(weighted_input)
         # p_mask_weights = self.softmax(mask_weights)
+
+        if self.n_radios > 1:
+            # do a paired prediction
+            pass
 
         assert pred_theta.isfinite().all()
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1

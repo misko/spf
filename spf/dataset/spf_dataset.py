@@ -128,16 +128,6 @@ def mp_segment_zarr(zarr_fn, results_fn):
     )
 
 
-def v5_prepare_session_y(session):  # session -> x,y
-    return session["reduced_ground_truth_theta"][None]
-
-
-def v5_prepare_session_x(session):  # session -> x,y
-    abs_signal = session["signal_matrix"].abs().to(torch.float32)
-    pd = torch_get_phase_diff(session["signal_matrix"]).to(torch.float32)
-    return torch.vstack([abs_signal[0], abs_signal[1], pd])[None]
-
-
 # target_thetas (N,1)
 def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
     if target_thetas.ndim == 1:
@@ -291,9 +281,7 @@ class v5spfdataset(Dataset):
         if not self.skip_signal_matrix:
             self.keys_per_session.append("signal_matrix")
 
-        self.ground_truth_thetas, self.reduced_ground_truth_thetas = (
-            self.get_ground_truth_thetas()
-        )
+        self.ground_truth_thetas = self.get_ground_truth_thetas()
         self.ground_truth_phis = self.get_ground_truth_phis()
         self.all_phi_drifts = self.get_all_phi_drifts()
         self.phi_drifts = np.array(
@@ -344,9 +332,7 @@ class v5spfdataset(Dataset):
         data = {key: r[key][session_idx] for key in self.keys_per_session}
 
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][session_idx]
-        data["reduced_ground_truth_theta"] = self.reduced_ground_truth_thetas[
-            receiver_idx
-        ][session_idx]
+
         data = {
             k: (
                 torch.from_numpy(v)
@@ -356,8 +342,12 @@ class v5spfdataset(Dataset):
             for k, v in data.items()
         }
         if not self.skip_signal_matrix:
-            data["x"] = v5_prepare_session_x(data)
-        data["y_rad"] = v5_prepare_session_y(data)
+            abs_signal = data["signal_matrix"].abs().to(torch.float32)
+            pd = torch_get_phase_diff(data["signal_matrix"]).to(torch.float32)
+            data["x"] = torch.vstack([abs_signal[0], abs_signal[1], pd])[None]
+
+        data["y_rad"] = data["ground_truth_theta"][None]
+
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
         d = self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
             session_idx
@@ -428,27 +418,7 @@ class v5spfdataset(Dataset):
         # lets pick the one thats infront of the craft (array)
         assert self.n_receivers == 2
 
-        ground_truth_thetas = np.array(ground_truth_thetas)
-        reduced_ground_truth_thetas = ground_truth_thetas.copy()
-
-        reduced_ground_truth_thetas_mask = abs(reduced_ground_truth_thetas) > np.pi / 2
-        reduced_ground_truth_thetas_at_mask = reduced_ground_truth_thetas[
-            reduced_ground_truth_thetas_mask
-        ]
-        reduced_ground_truth_thetas[reduced_ground_truth_thetas_mask] = (
-            np.sign(reduced_ground_truth_thetas_at_mask) * np.pi
-            - reduced_ground_truth_thetas_at_mask
-        )
-        # if abs(gt_theta.item()) > torch.pi / 2:
-        # #     return (
-        # #         torch.vstack([abs_signal[0], abs_signal[1], pd])[None],
-        # #         gt_theta.sign().item() * torch.pi - gt_theta[None],
-        # #     )
-        # return (
-        #     torch.vstack([abs_signal[0], abs_signal[1], pd])[None],
-        #     gt_theta[None],
-        # )
-        return ground_truth_thetas, reduced_ground_truth_thetas
+        return np.array(ground_truth_thetas)
 
     def __getitem__(self, idx):
         if self.paired:
