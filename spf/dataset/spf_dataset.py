@@ -377,14 +377,15 @@ class v5spfdataset(Dataset):
     def get_all_phi_drifts(self):
         all_phi_drifts = []
         for ridx in range(self.n_receivers):
-            a = self.ground_truth_phis[0]
+            a = self.ground_truth_phis[ridx]
             b = self.get_segmentation_mean_phase()[f"r{ridx}"]
-            fwd = pi_norm(a - b)
-            bwd = pi_norm(b + np.pi - a)
-            mask = np.abs(fwd) < np.abs(bwd)
-            c = np.zeros(a.shape)
-            c[mask] = fwd[mask]
-            c[~mask] = bwd[~mask]
+            fwd = pi_norm(b - a)
+            # bwd = pi_norm(a + np.pi - b)
+            # mask = np.abs(fwd) < np.abs(bwd)
+            # c = np.zeros(a.shape)
+            # c[mask] = fwd[mask]
+            # c[~mask] = bwd[~mask]
+            c = fwd
             all_phi_drifts.append(c)
         return all_phi_drifts
 
@@ -447,7 +448,8 @@ class v5spfdataset(Dataset):
                     for result in results
                 ]
             )
-        return mean_phase_results
+        self.mean_phase = mean_phase_results
+        return self.mean_phase
 
     def get_estimated_thetas(self):
         mean_phase = self.get_segmentation_mean_phase()
@@ -456,7 +458,7 @@ class v5spfdataset(Dataset):
             carrier_freq = self.yaml_config["receivers"][ridx]["f-carrier"]
             antenna_spacing = self.yaml_config["receivers"][ridx]["antenna-spacing-m"]
             estimated_thetas[f"r{ridx}"] = phase_diff_to_theta(
-                mean_phase[f"r{ridx}"],
+                self.mean_phase[f"r{ridx}"],
                 speed_of_light / carrier_freq,
                 antenna_spacing,
                 large_phase_goes_right=False,

@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as f
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 import wandb
 from spf.dataset.spf_dataset import v5_collate_beamsegnet, v5spfdataset
@@ -65,11 +66,12 @@ def simple_train(args):
         val_ds = complete_ds
     else:
         n = len(complete_ds)
-        train_idxs = range(int(args.val_holdout_fraction * n))
+        train_idxs = range(int((1.0 - args.val_holdout_fraction) * n))
         val_idxs = range(train_idxs[-1] + 1, n)
 
         train_ds = torch.utils.data.Subset(complete_ds, train_idxs)
         val_ds = torch.utils.data.Subset(complete_ds, val_idxs)
+    print(f"Train-dataset size {len(train_ds)}, Val dataset size {len(val_ds)}")
 
     dataloader_params = {
         "batch_size": args.batch,
@@ -136,6 +138,18 @@ def simple_train(args):
             symmetry=args.symmetry,
             bn=args.batch_norm,
         ).to(torch_device)
+    paired_net = BeamNetDirect(
+        nthetas=args.nthetas,
+        depth=args.depth,
+        hidden=args.hidden,
+        symmetry=False,
+        act=act,
+        other=args.other,
+        bn=args.batch_norm,
+        no_sigmoid=not args.sigmoid,
+        block=args.block,
+        inputs=args.n_radios * beam_m.outputs,
+    )
     m = BeamNSegNet(
         segnet=seg_m,
         beamnet=beam_m,
@@ -143,6 +157,7 @@ def simple_train(args):
         segmentation_lambda=args.segmentation_lambda,
         independent=args.independent,
         n_radios=args.n_radios,
+        paired_net=paired_net,
     ).to(torch_device)
 
     if args.compile:
@@ -170,7 +185,9 @@ def simple_train(args):
     losses = []
     to_log = None
     for _ in range(args.epochs):
-        for batch_data in train_dataloader:
+        for _, batch_data in tqdm(
+            enumerate(train_dataloader), total=len(train_dataloader)
+        ):
             if step % args.val_every == 0:
                 m.eval()
                 with torch.no_grad():
@@ -178,8 +195,15 @@ def simple_train(args):
                         "loss": [],
                         "segmentation_loss": [],
                         "beamformer_loss": [],
+                        "paired_beamformer_loss": [],
                     }
-                    for val_batch_data in val_dataloader:
+                    # for  in val_dataloader:
+                    print("Running validation:")
+                    for _, val_batch_data in tqdm(
+                        enumerate(val_dataloader),
+                        total=len(val_dataloader),
+                        leave=False,
+                    ):
                         x, y_rad, seg_mask = batch_data_to_x_y_seg(
                             val_batch_data, args.segmentation_level
                         )
@@ -207,6 +231,7 @@ def simple_train(args):
                     "loss": [],
                     "segmentation_loss": [],
                     "beamformer_loss": [],
+                    "paired_beamformer_loss": [],
                 }
 
             optimizer.zero_grad()
@@ -268,6 +293,7 @@ def simple_train(args):
                             to_log[key] = np.array(value).mean()
                     wandb.log(to_log, step=step)
                     to_log = None
+
             step += 1
 
     # [optional] finish the wandb run, necessary in notebooks
@@ -374,7 +400,7 @@ def get_parser():
         "--log-every",
         type=int,
         required=False,
-        default=50,
+        default=5,
     )
     parser.add_argument(
         "--type",

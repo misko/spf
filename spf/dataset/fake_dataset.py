@@ -44,7 +44,7 @@ emitter:
 # multiples of pi
 receivers:
   - receiver-uri: fake
-    theta-in-pis: 0
+    theta-in-pis: -0.25
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
     array-type: linear
@@ -58,7 +58,7 @@ receivers:
     bandwidth: 300000 #3.0e5
     motor_channel: 0
   - receiver-uri: fake
-    theta-in-pis: 0
+    theta-in-pis: 1.25
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
     array-type: linear
@@ -74,7 +74,7 @@ receivers:
 
 
 n-thetas: 65
-n-records-per-receiver: 50
+n-records-per-receiver: 5
 width: 4000
 calibration-frames: 10
 routine: null
@@ -86,7 +86,9 @@ seconds-per-sample: 5.0
 """
 
 
-def create_fake_dataset(yaml_config_str, filename, orbits=1, n=50):
+def create_fake_dataset(
+    yaml_config_str, filename, orbits=1, n=50, noise=0.01, phi_drift=0.0, radius=10000
+):
     yaml_fn = f"{filename}.yaml"
     zarr_fn = f"{filename}.zar"
     seg_fn = f"{filename}_segmentation.pkl"
@@ -131,19 +133,23 @@ def create_fake_dataset(yaml_config_str, filename, orbits=1, n=50):
 
     rnd_noise = np.random.randn(thetas.shape[0])
 
-    noise = 0.01
-    phis_nonoise = theta_to_phi(thetas, rx_config.rx_spacing, _lambda)
-    phis = phis_nonoise + rnd_noise * noise
-    phis = pi_norm(phis)
-    _thetas = phi_to_theta(phis, rx_config.rx_spacing, _lambda, limit=True)
-
     # signal_matrix = np.vstack([np.exp(1j * phis), np.ones(phis.shape)])
 
     for receiver_idx in range(2):
+        receiver_thetas = (
+            thetas - yaml_config["receivers"][receiver_idx]["theta-in-pis"] * np.pi
+        )
+        phis_nonoise = theta_to_phi(receiver_thetas, rx_config.rx_spacing, _lambda)
+        phis = (
+            phis_nonoise
+            + rnd_noise * noise
+            + phi_drift * np.pi * (1 if receiver_idx == 0 else -1)
+        )
+        phis = pi_norm(phis)
+        _thetas = phi_to_theta(phis, rx_config.rx_spacing, _lambda, limit=True)
+
         for record_idx in range(yaml_config["n-records-per-receiver"]):
-            big_phi = phis_nonoise[[record_idx], None].repeat(
-                rx_config.buffer_size, axis=1
-            )
+            big_phi = phis[[record_idx], None].repeat(rx_config.buffer_size, axis=1)
             big_phi_with_noise = big_phi + np.random.randn(*big_phi.shape) * noise
             offsets = np.random.uniform(-np.pi, np.pi, big_phi.shape) * 0
             signal_matrix = (
@@ -164,10 +170,10 @@ def create_fake_dataset(yaml_config_str, filename, orbits=1, n=50):
                     ]
 
             data = {
-                "tx_pos_x_mm": np.sin(thetas[record_idx]),
-                "tx_pos_y_mm": np.cos(thetas[record_idx]),
-                "rx_pos_x_mm": 0,
-                "rx_pos_y_mm": 0,
+                "rx_pos_x_mm": np.sin(receiver_thetas[record_idx]) * radius,
+                "rx_pos_y_mm": np.cos(receiver_thetas[record_idx]) * radius,
+                "tx_pos_x_mm": 0,
+                "tx_pos_y_mm": 0,
                 "system_timestamp": record_idx * 5.0,
                 "rx_theta_in_pis": 0,
                 "rx_spacing": rx_config.rx_spacing,

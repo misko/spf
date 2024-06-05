@@ -366,9 +366,12 @@ class BeamNetDirect(nn.Module):
         no_sigmoid=False,
         act=nn.LeakyReLU,
         block=False,
+        latent=2,
+        inputs=3,
     ):
         super(BeamNetDirect, self).__init__()
-        self.outputs = 1 + 2 + 2  # u, o1, o2, k1, k2
+        self.latent = latent
+        self.outputs = 1 + 2 + 2 + latent  # u, o1, o2, k1, k2
         self.hidden = hidden
         self.pd_track = pd_track
         self.act = act
@@ -382,8 +385,9 @@ class BeamNetDirect(nn.Module):
         self.nthetas = nthetas
         self.other = other
         self.no_sigmoid = no_sigmoid
+        self.inputs = inputs
         net_layout = [
-            nn.Linear(3, hidden),
+            nn.Linear(self.inputs, hidden),
             self.act(),
             nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
         ]
@@ -411,6 +415,7 @@ class BeamNetDirect(nn.Module):
                 mean_values,  # mu
                 _y_sig[:, [1, 2]] * 1.0 + 0.1,  # sigmas
                 self.softmax(_y[:, [3, 4]]),
+                _y[:, 5:],
             ]
         )
 
@@ -437,7 +442,7 @@ class BeamNetDirect(nn.Module):
 
     def likelihood(self, x, y, sigma_eps=0.00001):
         assert y.ndim == 2 and y.shape[1] == 1
-        assert x.ndim == 2 and x.shape[1] == 5
+        assert x.ndim == 2 and x.shape[1] >= 5
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
         mu_likelihood = x[:, 3] * normal_dist(
@@ -505,8 +510,10 @@ class BeamNSegNet(nn.Module):
         circular_mean=False,
         skip_segmentation=False,
         segmentation_lambda=10.0,
+        paired_lambda=1.0,
         independent=True,
         n_radios=1,
+        paired_net=None,
     ):
         super(BeamNSegNet, self).__init__()
         self.beamnet = beamnet
@@ -519,6 +526,8 @@ class BeamNSegNet(nn.Module):
         self.segmentation_lambda = segmentation_lambda
         self.independent = independent
         self.n_radios = n_radios
+        self.paired_net = paired_net
+        self.paired_lambda = paired_lambda
 
     def loss(self, output, y_rad, seg_mask):
         # x to beamformer loss (indirectly including segmentation)
@@ -526,20 +535,33 @@ class BeamNSegNet(nn.Module):
             output["pred_theta"], y_rad
         ).mean()
 
+        paired_beamformer_loss = 0
+        if self.n_radios > 1:
+            paired_beamformer_loss = -self.paired_net.loglikelihood(
+                output["paired_pred_theta"], y_rad[::2]
+            ).mean()
+
         # segmentation loss
         segmentation_loss = ((output["segmentation"] - seg_mask) ** 2).mean()
 
         if self.skip_segmentation:
             loss = beamformer_loss
         else:
-            loss = beamformer_loss + self.segmentation_lambda * segmentation_loss
+            loss = (
+                beamformer_loss
+                + self.segmentation_lambda * segmentation_loss
+                + paired_beamformer_loss * self.paired_lambda
+            )
 
         assert loss.isfinite().all()
-        return {
+        results = {
             "beamformer_loss": beamformer_loss,
             "segmentation_loss": segmentation_loss,
             "loss": loss,
         }
+        if self.n_radios > 1:
+            results["paired_beamformer_loss"] = paired_beamformer_loss
+        return results
 
     def forward(self, x, gt_seg_mask=None):
         mask_weights = self.segnet(x)
@@ -583,16 +605,17 @@ class BeamNSegNet(nn.Module):
                 )[0]
             pred_theta = self.beamnet(weighted_input)
         # p_mask_weights = self.softmax(mask_weights)
-
-        if self.n_radios > 1:
-            # do a paired prediction
-            pass
-
         assert pred_theta.isfinite().all()
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
-        return {
+        results = {
             # "pred_theta": torch.mul(beam_former, p_mask_weights).sum(axis=2),
             # "beam_former": beam_former,
             "pred_theta": pred_theta,
             "segmentation": pred_seg_mask,
         }
+
+        if self.n_radios > 1:
+            # do a paired prediction
+            paired_input = pred_theta.reshape(-1, pred_theta.shape[-1] * self.n_radios)
+            results["paired_pred_theta"] = self.paired_net(paired_input)
+        return results

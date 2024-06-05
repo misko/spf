@@ -75,8 +75,12 @@ def reduce_theta_to_positive_y(ground_truth_thetas):
     reduced_ground_truth_thetas_at_mask = reduced_thetas[
         reduced_ground_truth_thetas_mask
     ]
+    # reduced_thetas[reduced_ground_truth_thetas_mask] = (
+    #     np.sign(reduced_ground_truth_thetas_at_mask) * np.pi
+    #     - reduced_ground_truth_thetas_at_mask
+    # )
     reduced_thetas[reduced_ground_truth_thetas_mask] = (
-        np.sign(reduced_ground_truth_thetas_at_mask) * np.pi
+        torch.sign(reduced_ground_truth_thetas_at_mask) * torch.pi
         - reduced_ground_truth_thetas_at_mask
     )
     return reduced_thetas
