@@ -324,7 +324,7 @@ class v5spfdataset(Dataset):
 
     def __len__(self):
         if self.paired:
-            self.n_sessions
+            return self.n_sessions
         return self.n_sessions * self.n_receivers
 
     def render_session(self, receiver_idx, session_idx):
