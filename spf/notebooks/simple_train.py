@@ -250,7 +250,13 @@ def simple_train(args):
 
             loss_d = m.loss(output, y_rad_reduced, seg_mask)
 
-            loss_d["loss"].backward()
+            loss = loss_d["beamformer_loss"]
+            if step > args.seg_start:
+                loss += loss_d["segmentation_loss"] * args.segmentation_lambda
+            if step > args.paired_start:
+                loss += loss_d["paired_beamformer_loss"] * args.paired_lambda
+
+            loss.backward()
 
             optimizer.step()
 
@@ -336,6 +342,12 @@ def get_parser():
         default=1000,
     )
     parser.add_argument(
+        "--paired-start",
+        type=int,
+        required=False,
+        default=1000,
+    )
+    parser.add_argument(
         "--batch",
         type=int,
         required=False,
@@ -394,6 +406,12 @@ def get_parser():
         type=float,
         required=False,
         default=10.0,
+    )
+    parser.add_argument(
+        "--paired-lambda",
+        type=float,
+        required=False,
+        default=1.0,
     )
     parser.add_argument(
         "--plot-every",
