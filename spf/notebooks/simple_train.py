@@ -129,6 +129,7 @@ def simple_train(args):
             bn=args.batch_norm,
             no_sigmoid=not args.sigmoid,
             block=args.block,
+            inputs=3 + (1 if args.rx_spacing else 0),
         ).to(torch_device)
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
@@ -158,6 +159,7 @@ def simple_train(args):
         independent=args.independent,
         n_radios=args.n_radios,
         paired_net=paired_net,
+        rx_spacing=args.rx_spacing,
     ).to(torch_device)
 
     if args.compile:
@@ -177,9 +179,11 @@ def simple_train(args):
         else:
             raise NotImplementedError
 
+        rx_spacing = batch_data["rx_spacing"].to(torch_device)
+
         y_rad = batch_data["y_rad"].to(torch_device)
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
-        return x, y_rad, seg_mask
+        return x, y_rad, seg_mask, rx_spacing
 
     step = 0
     losses = []
@@ -204,13 +208,14 @@ def simple_train(args):
                         total=len(val_dataloader),
                         leave=False,
                     ):
-                        x, y_rad, seg_mask = batch_data_to_x_y_seg(
+                        # for val_batch_data in val_dataloader:
+                        x, y_rad, seg_mask, rx_spacing = batch_data_to_x_y_seg(
                             val_batch_data, args.segmentation_level
                         )
 
                         y_rad_reduced = reduce_theta_to_positive_y(y_rad)
                         # run beamformer and segmentation
-                        output = m(x, seg_mask)
+                        output = m(x, seg_mask, rx_spacing)
 
                         # compute the loss
                         loss_d = m.loss(output, y_rad_reduced, seg_mask)
@@ -236,12 +241,12 @@ def simple_train(args):
 
             optimizer.zero_grad()
 
-            x, y_rad, seg_mask = batch_data_to_x_y_seg(
+            x, y_rad, seg_mask, rx_spacing = batch_data_to_x_y_seg(
                 batch_data, args.segmentation_level
             )
             y_rad_reduced = reduce_theta_to_positive_y(y_rad)
 
-            output = m(x, seg_mask)
+            output = m(x, seg_mask, rx_spacing)
 
             loss_d = m.loss(output, y_rad_reduced, seg_mask)
 
@@ -482,6 +487,11 @@ def get_parser():
         "--independent",
         action=argparse.BooleanOptionalAction,
         default=True,
+    )
+    parser.add_argument(
+        "--rx-spacing",
+        action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument(
         "--sigmoid",

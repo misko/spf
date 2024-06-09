@@ -358,6 +358,7 @@ class BeamNetDirect(nn.Module):
         hidden,
         symmetry,
         depth=3,
+        rx_spacing_track=3,
         mag_track=2,
         stddev_track=1,
         pd_track=0,
@@ -377,11 +378,11 @@ class BeamNetDirect(nn.Module):
         self.act = act
         self.mag_track = mag_track
         self.stddev_track = stddev_track
+        self.rx_spacing_track = rx_spacing_track
         self.symmetry = symmetry
         self.block = block
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
-        self.flip_mu = torch.Tensor([[-1, 1, 1, 1, 1]])
         self.nthetas = nthetas
         self.other = other
         self.no_sigmoid = no_sigmoid
@@ -429,6 +430,8 @@ class BeamNetDirect(nn.Module):
         # try to normalize
         x[:, self.pd_track] = x[:, self.pd_track] / (torch.pi / 2)
         x[:, self.mag_track] = x[:, self.mag_track] / 200
+        if (x.shape[1] - 1) >= self.rx_spacing_track:
+            x[:, self.rx_spacing_track] = x[:, self.rx_spacing_track] / 1000
 
         y = self.beam_net(x)
 
@@ -514,6 +517,7 @@ class BeamNSegNet(nn.Module):
         independent=True,
         n_radios=1,
         paired_net=None,
+        rx_spacing=False,
     ):
         super(BeamNSegNet, self).__init__()
         self.beamnet = beamnet
@@ -528,6 +532,7 @@ class BeamNSegNet(nn.Module):
         self.n_radios = n_radios
         self.paired_net = paired_net
         self.paired_lambda = paired_lambda
+        self.rx_spacing = rx_spacing
 
     def loss(self, output, y_rad, seg_mask):
         # x to beamformer loss (indirectly including segmentation)
@@ -563,7 +568,7 @@ class BeamNSegNet(nn.Module):
             results["paired_beamformer_loss"] = paired_beamformer_loss
         return results
 
-    def forward(self, x, gt_seg_mask=None):
+    def forward(self, x, gt_seg_mask, rx_spacing):
         mask_weights = self.segnet(x)
         pred_seg_mask = self.sigmoid(mask_weights)
 
@@ -603,7 +608,10 @@ class BeamNSegNet(nn.Module):
                 weighted_input[:, self.beamnet.pd_track] = torch_circular_mean(
                     x[:, self.beamnet.pd_track], weights=seg_mask[:, 0], trim=0
                 )[0]
-            pred_theta = self.beamnet(weighted_input)
+            if self.rx_spacing:
+                pred_theta = self.beamnet(torch.hstack([weighted_input, rx_spacing]))
+            else:
+                pred_theta = self.beamnet(weighted_input)
         # p_mask_weights = self.softmax(mask_weights)
         assert pred_theta.isfinite().all()
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1

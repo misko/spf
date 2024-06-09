@@ -161,9 +161,11 @@ def v5_collate_beamsegnet(batch):
     downsampled_segmentation_mask_list = []
     x_list = []
     segmentation_mask_list = []
+    rx_spacing_list = []
     for paired_sample in batch:
         for x in paired_sample:
             y_rad_list.append(x["y_rad"])
+            rx_spacing_list.append(x["rx_spacing"].reshape(1, 1))
             simple_segmentation_list.append(x["simple_segmentation"])
             all_window_stats_list.append(
                 x["all_windows_stats"].transpose()[None].astype(np.float32)
@@ -177,6 +179,7 @@ def v5_collate_beamsegnet(batch):
 
     d = {
         "y_rad": torch.vstack(y_rad_list),
+        "rx_spacing": torch.vstack(rx_spacing_list),
         "simple_segmentation": simple_segmentation_list,
         "all_windows_stats": torch.from_numpy(np.vstack(all_window_stats_list)),
         "downsampled_segmentation_mask": torch.vstack(
@@ -1235,7 +1238,7 @@ def collate_fn(_in):
         ],
         axis=2,
     ).float()  # .to(device)
-    # breakpoint()
+
     # create the features
     inputs = {
         "drone_state": torch.cat(
