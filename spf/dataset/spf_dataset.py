@@ -311,7 +311,7 @@ class v5spfdataset(Dataset):
         if not ignore_qc:
             if abs(self.phi_drifts).max() > phi_drift_max:
                 raise ValueError(
-                    f"Phi-drift is too high! max acceptable is {phi_drift_max}, actual is {abs(self.phi_drifts).max()}"
+                    f"Phi-drift is too high! max acceptable is {phi_drift_max}, actual is {self.phi_drifts}"
                 )
             if self.average_windows_in_segmentation < min_mean_windows:
                 raise ValueError(
@@ -413,7 +413,6 @@ class v5spfdataset(Dataset):
             ground_truth_thetas.append(
                 pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * np.pi)
             )
-
         # reduce GT thetas in case of two antennas
         # in 2D there are generally two spots that satisfy phase diff
         # lets pick the one thats infront of the craft (array)
@@ -452,7 +451,7 @@ class v5spfdataset(Dataset):
         return self.mean_phase
 
     def get_estimated_thetas(self):
-        mean_phase = self.get_segmentation_mean_phase()
+        self.get_segmentation_mean_phase()
         estimated_thetas = {}
         for ridx in range(self.n_receivers):
             carrier_freq = self.yaml_config["receivers"][ridx]["f-carrier"]
@@ -470,7 +469,11 @@ class v5spfdataset(Dataset):
             results_fn = self.prefix + "_segmentation.pkl"
             if not os.path.exists(results_fn):
                 mp_segment_zarr(self.zarr_fn, results_fn)
-            segmentation = pickle.load(open(results_fn, "rb"))
+            try:
+                segmentation = pickle.load(open(results_fn, "rb"))
+            except pickle.UnpicklingError:
+                os.remove(results_fn)
+                return self.get_segmentation()
             if (
                 "version" not in segmentation
                 or segmentation["version"] != SEGMENTATION_VERSION
