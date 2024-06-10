@@ -6,7 +6,7 @@ import bisect
 import os
 import pickle
 import time
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 from typing import List
 
 import numpy as np
@@ -115,7 +115,7 @@ def mp_segment_zarr(zarr_fn, results_fn):
             }
             for idx in range(n_sessions)
         ]
-        with Pool(8) as pool:
+        with Pool(cpu_count()) as pool:
             results_by_receiver[r_name] = list(
                 tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
             )

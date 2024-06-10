@@ -332,18 +332,25 @@ def normal_dist(x, y, sigma, d=None):
 
 
 class BasicBlock(nn.Module):
-    def __init__(self, hidden, act, bn=True):
+    def __init__(self, hidden, act, bn=True, norm="batch"):
         super(BasicBlock, self).__init__()
         self.linear1 = nn.Linear(hidden, hidden)
         self.linear2 = nn.Linear(hidden, hidden)
-        self.bn1 = nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity()
-        self.bn2 = nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity()
+        self.n1 = nn.Identity()
+        self.n2 = nn.Identity()
+        if bn:
+            if norm == "batch":
+                self.n1 = nn.BatchNorm1d(num_features=hidden)
+                self.n2 = nn.BatchNorm1d(num_features=hidden)
+            elif norm == "layer":
+                self.n1 = nn.LayerNorm(hidden)
+                self.n2 = nn.LayerNorm(hidden)
         self.act = act()
 
     def forward(self, x):
         identity = x
-        out = self.act(self.bn1(self.linear1(x)))
-        out = self.act(self.bn2(self.linear2(out)))
+        out = self.act(self.n1(self.linear1(x)))
+        out = self.act(self.n2(self.linear2(out)))
         return self.act(out + identity)
 
 
@@ -369,6 +376,7 @@ class BeamNetDirect(nn.Module):
         block=False,
         latent=2,
         inputs=3,
+        norm="batch",
     ):
         super(BeamNetDirect, self).__init__()
         self.latent = latent
@@ -387,21 +395,41 @@ class BeamNetDirect(nn.Module):
         self.other = other
         self.no_sigmoid = no_sigmoid
         self.inputs = inputs
-        net_layout = [
-            nn.Linear(self.inputs, hidden),
-            self.act(),
-            nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
-        ]
-        for _ in range(depth):
-            if self.block:
-                net_layout += [BasicBlock(hidden, self.act, bn=bn)]
-            else:
-                net_layout += [
-                    nn.Linear(hidden, hidden),
-                    self.act(),
-                    nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
-                ]
-        net_layout += [nn.Linear(hidden, self.outputs)]
+        self.norm = norm
+        if self.norm == "batch":
+            net_layout = [
+                nn.Linear(self.inputs, hidden),
+                self.act(),
+                nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+            ]
+            for _ in range(depth):
+                if self.block:
+                    net_layout += [BasicBlock(hidden, self.act, bn=bn, norm=self.norm)]
+                else:
+                    net_layout += [
+                        nn.Linear(hidden, hidden),
+                        self.act(),
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ]
+            net_layout += [nn.Linear(hidden, self.outputs)]
+        elif self.norm == "layer":
+            net_layout = [
+                nn.Linear(self.inputs, hidden),
+                self.act(),
+                nn.LayerNorm(normalized_shape=hidden) if bn else nn.Identity(),
+            ]
+            for _ in range(depth):
+                if self.block:
+                    net_layout += [BasicBlock(hidden, self.act, bn=bn, norm=self.norm)]
+                else:
+                    net_layout += [
+                        nn.Linear(hidden, hidden),
+                        self.act(),
+                        nn.LayerNorm(normalized_shape=hidden) if bn else nn.Identity(),
+                    ]
+            net_layout += [nn.Linear(hidden, self.outputs)]
+        else:
+            raise ValueError("Norm not implemented {self.norm}")
         self.beam_net = nn.Sequential(*net_layout)
 
     def fixify(self, _y, sign):
@@ -422,16 +450,20 @@ class BeamNetDirect(nn.Module):
 
     def forward(self, x):
         # split into pd>=0 and pd<0
-        pd_pos_mask = x[:, self.pd_track] >= 0
 
         if self.symmetry:
+            assert self.pd_track >= 0
+            pd_pos_mask = x[:, self.pd_track] >= 0
             x = x.abs()
 
         # try to normalize
-        x[:, self.pd_track] = x[:, self.pd_track] / (torch.pi / 2)
-        x[:, self.mag_track] = x[:, self.mag_track] / 200
-        if (x.shape[1] - 1) >= self.rx_spacing_track:
+        if self.pd_track >= 0:
+            x[:, self.pd_track] = x[:, self.pd_track] / (torch.pi / 2)
+        if self.mag_track >= 0:
+            x[:, self.mag_track] = x[:, self.mag_track] / 200
+        if self.rx_spacing_track >= 0 and x.shape[1] > self.rx_spacing_track:
             x[:, self.rx_spacing_track] = x[:, self.rx_spacing_track] / 1000
+        # breakpoint()
 
         y = self.beam_net(x)
 
@@ -624,6 +656,16 @@ class BeamNSegNet(nn.Module):
 
         if self.n_radios > 1:
             # do a paired prediction
-            paired_input = pred_theta.reshape(-1, pred_theta.shape[-1] * self.n_radios)
+            detached_pred_theta = torch.hstack(
+                [
+                    pred_theta[
+                        :, : self.beamnet.outputs - self.beamnet.latent
+                    ].detach(),
+                    pred_theta[:, self.beamnet.outputs - self.beamnet.latent :],
+                ]
+            )
+            paired_input = detached_pred_theta.reshape(
+                -1, detached_pred_theta.shape[-1] * self.n_radios
+            )
             results["paired_pred_theta"] = self.paired_net(paired_input)
         return results

@@ -129,7 +129,8 @@ def simple_train(args):
             bn=args.batch_norm,
             no_sigmoid=not args.sigmoid,
             block=args.block,
-            inputs=3 + (1 if args.rx_spacing else 0),
+            inputs=3,  # + (1 if args.rx_spacing else 0),
+            norm=args.norm,
         ).to(torch_device)
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
@@ -149,7 +150,12 @@ def simple_train(args):
         bn=args.batch_norm,
         no_sigmoid=not args.sigmoid,
         block=args.block,
+        rx_spacing_track=-1,
+        pd_track=-1,
+        mag_track=-1,
+        stddev_track=-1,
         inputs=args.n_radios * beam_m.outputs,
+        norm=args.norm,
     )
     m = BeamNSegNet(
         segnet=seg_m,
@@ -434,6 +440,11 @@ def get_parser():
         "--val-every",
         type=int,
         default=1000,
+    )
+    parser.add_argument(
+        "--norm",
+        type=str,
+        default="batch",
     )
     parser.add_argument(
         "--n-radios",
