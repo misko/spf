@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spf"
+version = "0.0.1"
+dependencies = [
+ "pytest",
+ "numpy>=1.25",
+ "docker",
+ "matplotlib",
+ "pyyaml",
+ "haversine",
+ "torch>=2.2",
+ "shapely",
+ "attrs",
+ "pymavlink",
+ "serial",
+ "tqdm",
+ "numba",
+ "scipy",
+ "zarr",
+ "pyadi-iio",
+ "compress-pickle",
+ "deepdiff",
+ "torchvision",
+ "lmdb",
+ "pytest-console-scripts",
+ "pre-commit"
+]
+requires-python = ">=3.10"
+description = "Signal Processing Fun"
+readme = "README.md"
+
