@@ -224,113 +224,6 @@ class UNet1D(nn.Module):
         )
 
 
-class BeamNetDiscrete(nn.Module):
-    def __init__(
-        self,
-        nthetas,
-        hidden,
-        symmetry,
-        mag_track=2,
-        stddev_track=1,
-        pd_track=0,
-        act=nn.LeakyReLU,
-        bn=False,
-    ):
-        super(BeamNetDiscrete, self).__init__()
-        self.nthetas = nthetas
-        self.hidden = hidden
-        self.pd_track = pd_track
-        self.act = act
-        self.symmetry = symmetry
-        self.mag_track = mag_track
-        self.stddev_track = stddev_track
-        self.beam_net = nn.Sequential(
-            OrderedDict(
-                [
-                    ("linear1", nn.Linear(3, hidden)),
-                    ("relu1", self.act()),
-                    (
-                        "batchnorm1",
-                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
-                    ),
-                    ("linear2", nn.Linear(hidden, hidden)),
-                    ("relu2", self.act()),
-                    (
-                        "batchnorm2",
-                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
-                    ),
-                    ("linear3", nn.Linear(hidden, hidden)),
-                    ("relu3", self.act()),
-                    (
-                        "batchnorm3",
-                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
-                    ),
-                    ("linear4", nn.Linear(hidden, self.nthetas)),
-                    # ("relu4", self.act()),
-                    ("softmax", nn.Softmax(dim=1)),  # output a probability distribution
-                ]
-            )
-        )
-
-    def forward(self, x):
-        # split into pd>=0 and pd<0
-        pd_pos_mask = x[:, self.pd_track] >= 0
-        n_pos = pd_pos_mask.sum().item()
-
-        _x = x.new(x.shape)
-        # copy over the pd>0
-        if self.symmetry:
-            _x[:n_pos] = x[pd_pos_mask]
-            # flip the magnitudes and phase diffs so all now have phase diff >0
-            _x[n_pos:, self.mag_track] = x[~pd_pos_mask, self.mag_track]
-            _x[n_pos:, self.stddev_track] = x[~pd_pos_mask, self.stddev_track]
-            _x[n_pos:, self.pd_track] = -x[~pd_pos_mask, self.pd_track]
-        else:
-            _x = x
-
-        _y = self.beam_net(_x)
-
-        y = _y.new(_y.shape)
-
-        if self.symmetry:
-            # copy over results for pd>0
-            y[pd_pos_mask] = _y[:n_pos]
-            # flip distributions over theta for ones that had pd<0
-            y[~pd_pos_mask] = _y[n_pos:].flip(1)
-        else:
-            y = _y
-        return y
-
-    def likelihood(self, x, y):
-        r = torch.einsum("bk,bk->b", x, self.render_discrete_y(y))[:, None]
-        assert r.shape == (x.shape[0], 1)
-        return r
-
-    def loglikelihood(self, x, y):
-        return torch.log(self.likelihood(x, y))
-
-    # this is discrete its already rendered
-    def render_discrete_x(self, x):
-        return x
-
-    # this is discrete its already rendered
-    def render_discrete_y(self, y):
-        return v5_thetas_to_targets(y, self.nthetas)
-
-
-def normal_dist_d(sigma, d):
-    assert sigma.ndim == 1
-    d = d / sigma
-    return (1 / (sigma * np.sqrt(2 * np.pi))) * torch.exp(-0.5 * d**2)
-
-
-def normal_dist(x, y, sigma, d=None):
-    assert x.ndim == 1
-    assert y.ndim == 1
-    assert sigma.ndim == 1
-    return normal_dist_d(sigma, (x - y))
-
-
 class BasicBlock(nn.Module):
     def __init__(self, hidden, act, bn=True, norm="batch"):
         super(BasicBlock, self).__init__()
@@ -356,6 +249,154 @@ class BasicBlock(nn.Module):
 
 class PairedBeamNet(nn.Module):
     pass
+
+
+class FFNN(nn.Module):
+    def __init__(self, inputs, depth, hidden, outputs, block, bn, norm, act):
+        super(FFNN, self).__init__()
+        if norm == "batch":
+            net_layout = [
+                nn.Linear(inputs, hidden),
+                act(),
+                nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+            ]
+            for _ in range(depth):
+                if block:
+                    net_layout += [BasicBlock(hidden, act, bn=bn, norm=norm)]
+                else:
+                    net_layout += [
+                        nn.Linear(hidden, hidden),
+                        act(),
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ]
+            net_layout += [nn.Linear(hidden, outputs)]
+        elif norm == "layer":
+            net_layout = [
+                nn.Linear(inputs, hidden),
+                act(),
+                nn.LayerNorm(normalized_shape=hidden) if bn else nn.Identity(),
+            ]
+            for _ in range(depth):
+                if block:
+                    net_layout += [BasicBlock(hidden, act, bn=bn, norm=norm)]
+                else:
+                    net_layout += [
+                        nn.Linear(hidden, hidden),
+                        act(),
+                        nn.LayerNorm(normalized_shape=hidden) if bn else nn.Identity(),
+                    ]
+            net_layout += [nn.Linear(hidden, outputs)]
+        else:
+            raise ValueError("Norm not implemented {norm}")
+        self.net = nn.Sequential(*net_layout)
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class BeamNetDiscrete(nn.Module):
+    def __init__(
+        self,
+        nthetas,
+        hidden,
+        symmetry,
+        act=nn.LeakyReLU,
+        depth=3,
+        latent=2,
+        inputs=3,
+        norm="batch",
+        rx_spacing_track=3,
+        mag_track=2,
+        stddev_track=1,
+        pd_track=0,
+        bn=False,
+        block=False,
+        other=False,
+        no_sigmoid=False,
+    ):
+        super(BeamNetDiscrete, self).__init__()
+        self.nthetas = nthetas
+        self.hidden = hidden
+        self.pd_track = pd_track
+        self.act = act
+        self.symmetry = symmetry
+        self.mag_track = mag_track
+        self.stddev_track = stddev_track
+        self.rx_spacing_track = rx_spacing_track
+        self.latent = latent
+        self.outputs = nthetas + self.latent
+        self.beam_net = nn.Sequential(
+            FFNN(
+                inputs=inputs,
+                depth=depth,
+                hidden=hidden,
+                outputs=self.outputs,
+                block=block,
+                bn=bn,
+                norm=norm,
+                act=act,
+            ),
+            nn.Softmax(dim=1),
+        )
+
+    def forward(self, x):
+        # split into pd>=0 and pd<0
+
+        if self.symmetry:
+            assert self.pd_track >= 0
+            pd_pos_mask = x[:, self.pd_track] >= 0
+            x[:, self.pd_track] = x[:, self.pd_track].abs()
+
+        # try to normalize
+        if self.pd_track >= 0:
+            x[:, self.pd_track] = x[:, self.pd_track] / (torch.pi / 2)
+        if self.mag_track >= 0:
+            x[:, self.mag_track] = x[:, self.mag_track] / 200
+        if self.rx_spacing_track >= 0 and x.shape[1] > self.rx_spacing_track:
+            x[:, self.rx_spacing_track] = x[:, self.rx_spacing_track] / 1000
+
+        _y = self.beam_net(x)
+
+        y = _y.new(_y.shape)
+
+        if self.symmetry:
+            # copy over results for pd>0
+            y[pd_pos_mask] = _y[pd_pos_mask]
+            y[~pd_pos_mask] = _y[~pd_pos_mask].flip(1)
+        else:
+            y = _y
+        return y
+
+    def likelihood(self, x, y):
+        r = torch.einsum(
+            "bk,bk->b", self.render_discrete_x(x), self.render_discrete_y(y)
+        )[:, None]
+        assert r.shape == (x.shape[0], 1)
+        return r
+
+    def loglikelihood(self, x, y):
+        return torch.log(self.likelihood(x, y))
+
+    # this is discrete its already rendered
+    def render_discrete_x(self, x):
+        return x[:, : -self.latent]
+
+    # this is discrete its already rendered
+    def render_discrete_y(self, y):
+        return v5_thetas_to_targets(y, self.nthetas)
+
+
+def normal_dist_d(sigma, d):
+    assert sigma.ndim == 1
+    d = d / sigma
+    return (1 / (sigma * np.sqrt(2 * np.pi))) * torch.exp(-0.5 * d**2)
+
+
+def normal_dist(x, y, sigma, d=None):
+    assert x.ndim == 1
+    assert y.ndim == 1
+    assert sigma.ndim == 1
+    return normal_dist_d(sigma, (x - y))
 
 
 class BeamNetDirect(nn.Module):
@@ -396,41 +437,17 @@ class BeamNetDirect(nn.Module):
         self.no_sigmoid = no_sigmoid
         self.inputs = inputs
         self.norm = norm
-        if self.norm == "batch":
-            net_layout = [
-                nn.Linear(self.inputs, hidden),
-                self.act(),
-                nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
-            ]
-            for _ in range(depth):
-                if self.block:
-                    net_layout += [BasicBlock(hidden, self.act, bn=bn, norm=self.norm)]
-                else:
-                    net_layout += [
-                        nn.Linear(hidden, hidden),
-                        self.act(),
-                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
-                    ]
-            net_layout += [nn.Linear(hidden, self.outputs)]
-        elif self.norm == "layer":
-            net_layout = [
-                nn.Linear(self.inputs, hidden),
-                self.act(),
-                nn.LayerNorm(normalized_shape=hidden) if bn else nn.Identity(),
-            ]
-            for _ in range(depth):
-                if self.block:
-                    net_layout += [BasicBlock(hidden, self.act, bn=bn, norm=self.norm)]
-                else:
-                    net_layout += [
-                        nn.Linear(hidden, hidden),
-                        self.act(),
-                        nn.LayerNorm(normalized_shape=hidden) if bn else nn.Identity(),
-                    ]
-            net_layout += [nn.Linear(hidden, self.outputs)]
-        else:
-            raise ValueError("Norm not implemented {self.norm}")
-        self.beam_net = nn.Sequential(*net_layout)
+
+        self.beam_net = FFNN(
+            inputs=inputs,
+            depth=depth,
+            hidden=hidden,
+            outputs=self.outputs,
+            block=block,
+            norm=norm,
+            act=act,
+            bn=bn,
+        )
 
     def fixify(self, _y, sign):
         _y_sig = self.sigmoid(_y)  # in [0,1]
@@ -454,7 +471,7 @@ class BeamNetDirect(nn.Module):
         if self.symmetry:
             assert self.pd_track >= 0
             pd_pos_mask = x[:, self.pd_track] >= 0
-            x = x.abs()
+            x[:, self.pd_track] = x[:, self.pd_track].abs()
 
         # try to normalize
         if self.pd_track >= 0:

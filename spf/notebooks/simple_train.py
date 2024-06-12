@@ -132,6 +132,23 @@ def simple_train(args):
             inputs=3,  # + (1 if args.rx_spacing else 0),
             norm=args.norm,
         ).to(torch_device)
+        paired_net = BeamNetDirect(
+            nthetas=args.nthetas,
+            depth=args.depth,
+            hidden=args.hidden,
+            symmetry=False,
+            act=act,
+            other=args.other,
+            bn=args.batch_norm,
+            no_sigmoid=not args.sigmoid,
+            block=args.block,
+            rx_spacing_track=-1,
+            pd_track=-1,
+            mag_track=-1,
+            stddev_track=-1,
+            inputs=args.n_radios * beam_m.outputs,
+            norm=args.norm,
+        )
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
             nthetas=args.nthetas,
@@ -140,23 +157,23 @@ def simple_train(args):
             symmetry=args.symmetry,
             bn=args.batch_norm,
         ).to(torch_device)
-    paired_net = BeamNetDirect(
-        nthetas=args.nthetas,
-        depth=args.depth,
-        hidden=args.hidden,
-        symmetry=False,
-        act=act,
-        other=args.other,
-        bn=args.batch_norm,
-        no_sigmoid=not args.sigmoid,
-        block=args.block,
-        rx_spacing_track=-1,
-        pd_track=-1,
-        mag_track=-1,
-        stddev_track=-1,
-        inputs=args.n_radios * beam_m.outputs,
-        norm=args.norm,
-    )
+        paired_net = BeamNetDiscrete(
+            nthetas=args.nthetas,
+            depth=args.depth,
+            hidden=args.hidden,
+            symmetry=False,
+            act=act,
+            other=args.other,
+            bn=args.batch_norm,
+            no_sigmoid=not args.sigmoid,
+            block=args.block,
+            rx_spacing_track=-1,
+            pd_track=-1,
+            mag_track=-1,
+            stddev_track=-1,
+            inputs=args.n_radios * beam_m.outputs,
+            norm=args.norm,
+        )
     m = BeamNSegNet(
         segnet=seg_m,
         beamnet=beam_m,
@@ -259,7 +276,7 @@ def simple_train(args):
             loss = loss_d["beamformer_loss"]
             if step > args.seg_start:
                 loss += loss_d["segmentation_loss"] * args.segmentation_lambda
-            if step > args.paired_start:
+            if args.n_radios > 1 and step > args.paired_start:
                 loss += loss_d["paired_beamformer_loss"] * args.paired_lambda
 
             loss.backward()
