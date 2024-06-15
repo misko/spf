@@ -9,7 +9,11 @@ import numpy as np
 import torch
 from numba import jit, njit
 from tqdm import tqdm
-import cupy as cp
+
+try:
+    import cupy as cp
+except:
+    pass
 from spf.utils import zarr_open_from_lmdb_store, zarr_open_from_lmdb_store_cm
 
 SEGMENTATION_VERSION = 1.3
@@ -196,6 +200,7 @@ def get_segmentation_for_zarr(
                     "max_stddev_threshold": max_stddev_threshold,
                     "drop_less_than_size": drop_less_than_size,
                     "min_abs_signal": min_abs_signal,
+                    "gpu": False,
                 }
                 for idx in range(n_sessions)
             ]

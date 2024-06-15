@@ -8,7 +8,11 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 import wandb
-from spf.dataset.spf_dataset import v5_collate_beamsegnet, v5spfdataset
+from spf.dataset.spf_dataset import (
+    v5_collate_beamsegnet,
+    v5_thetas_to_targets,
+    v5spfdataset,
+)
 from spf.model_training_and_inference.models.beamsegnet import (
     BeamNetDirect,
     BeamNetDiscrete,
@@ -157,6 +161,7 @@ def simple_train(args):
             act=act,
             symmetry=args.symmetry,
             bn=args.batch_norm,
+            positional_encoding=args.positional,
         ).to(torch_device)
         paired_net = BeamNetDiscrete(
             nthetas=args.nthetas,
@@ -174,6 +179,7 @@ def simple_train(args):
             stddev_track=-1,
             inputs=args.n_radios * beam_m.outputs,
             norm=args.norm,
+            # positional_encoding=args.positional,
         )
     m = BeamNSegNet(
         segnet=seg_m,
@@ -298,22 +304,73 @@ def simple_train(args):
                         .cpu()
                         .byte()
                     )
-                    img_beam_gt = (beam_m.render_discrete_y(y_rad) * 255).cpu().byte()
+                    # img_beam_gt = (beam_m.render_discrete_y(y_rad) * 255).cpu().byte()
+
+                    output_dim = img_beam_output.shape[1]
+                    assert output_dim % 2 == 1
+                    full_output_dim = output_dim * 2 + 1
+                    half_pi_output_offset = output_dim // 2 + 1
+
+                    # img_beam_gt_reduced = (
+                    #     (beam_m.render_discrete_y(y_rad_reduced) * 255).cpu().byte()
+                    # )
+
+                    img_beam_gt_reduced = (
+                        (
+                            v5_thetas_to_targets(
+                                y_rad_reduced, output_dim, range_in_rad=1, sigma=0.3
+                            )
+                            * 255
+                        )
+                        .cpu()
+                        .byte()
+                    )
+                    img_beam_gt = (
+                        (
+                            v5_thetas_to_targets(
+                                y_rad, full_output_dim, range_in_rad=2, sigma=0.3
+                            )
+                            * 255
+                        )
+                        .cpu()
+                        .byte()
+                    )
+
                     train_target_image = torch.zeros(
-                        (img_beam_output.shape[0] * 3, img_beam_output.shape[1]),
+                        (img_beam_output.shape[0] * 5, full_output_dim),
                     ).byte()
                     for row_idx in range(img_beam_output.shape[0]):
-                        train_target_image[row_idx * 3] = img_beam_output[row_idx]
-                        train_target_image[row_idx * 3 + 1] = img_beam_gt[row_idx]
+                        train_target_image[
+                            row_idx * 4,
+                            half_pi_output_offset : half_pi_output_offset + output_dim,
+                        ] = img_beam_output[row_idx]
+                        train_target_image[
+                            row_idx * 4 + 2,
+                            half_pi_output_offset : half_pi_output_offset + output_dim,
+                        ] = img_beam_gt_reduced[row_idx]
+                        train_target_image[row_idx * 4 + 3] = img_beam_gt[row_idx]
                     if args.wandb_project:
                         output_image = wandb.Image(
                             train_target_image, caption="train vs target (interleaved)"
                         )
                         to_log["output"] = output_image
                     else:
-                        ax, fig = plt.subplots(1, 1)
-                        fig.imshow(train_target_image)
+                        fig, ax = plt.subplots(
+                            1, 1, figsize=(16, img_beam_output.shape[0] / 2)
+                        )
+                        ax.imshow(train_target_image, interpolation="none")
 
+                        ax.set_xticks(np.linspace(0, full_output_dim - 1, 5))
+                        ax.set_xticklabels(["-pi", "-pi/2", "0", "pi/2", "pi"])
+
+                        # Labels for major ticks
+                        ax.grid(
+                            which="major",
+                            color="w",
+                            linestyle="-",
+                            linewidth=0.5,
+                            axis="x",
+                        )
                     # segmentation output
                     _x = x.detach().cpu().numpy()
                     _seg_mask = seg_mask.detach().cpu().numpy()
@@ -542,6 +599,11 @@ def get_parser():
     )
     parser.add_argument(
         "--sigmoid",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--positional",
         action=argparse.BooleanOptionalAction,
         default=False,
     )

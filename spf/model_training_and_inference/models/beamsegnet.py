@@ -294,6 +294,23 @@ class FFNN(nn.Module):
         return self.net(x)
 
 
+class HalfPiEncoding(nn.Module):
+    def __init__(self, index, nthetas):
+        super(HalfPiEncoding, self).__init__()
+        self.index = index
+        self.nthetas = nthetas
+
+    def forward(self, x):
+        return torch.hstack(
+            [
+                x,
+                v5_thetas_to_targets(
+                    x[:, self.index], nthetas=self.nthetas, range_in_rad=1
+                ),
+            ]
+        )
+
+
 class BeamNetDiscrete(nn.Module):
     def __init__(
         self,
@@ -302,7 +319,7 @@ class BeamNetDiscrete(nn.Module):
         symmetry,
         act=nn.LeakyReLU,
         depth=3,
-        latent=2,
+        latent=0,
         inputs=3,
         norm="batch",
         rx_spacing_track=3,
@@ -313,6 +330,7 @@ class BeamNetDiscrete(nn.Module):
         block=False,
         other=False,
         no_sigmoid=False,
+        positional_encoding=False,
     ):
         super(BeamNetDiscrete, self).__init__()
         self.nthetas = nthetas
@@ -325,9 +343,16 @@ class BeamNetDiscrete(nn.Module):
         self.rx_spacing_track = rx_spacing_track
         self.latent = latent
         self.outputs = nthetas + self.latent
+        self.sigmoid = torch.nn.Sigmoid()
+        self.softmax = nn.Softmax(dim=1)
         self.beam_net = nn.Sequential(
+            (
+                HalfPiEncoding(self.pd_track, self.nthetas)
+                if positional_encoding
+                else nn.Identity()
+            ),
             FFNN(
-                inputs=inputs,
+                inputs=inputs + self.nthetas if positional_encoding else inputs,
                 depth=depth,
                 hidden=hidden,
                 outputs=self.outputs,
@@ -336,10 +361,11 @@ class BeamNetDiscrete(nn.Module):
                 norm=norm,
                 act=act,
             ),
-            nn.Softmax(dim=1),
+            # nn.Softmax(dim=1),
         )
 
     def forward(self, x):
+        x = x.clone()
         # split into pd>=0 and pd<0
 
         if self.symmetry:
@@ -347,25 +373,45 @@ class BeamNetDiscrete(nn.Module):
             pd_pos_mask = x[:, self.pd_track] >= 0
             x[:, self.pd_track] = x[:, self.pd_track].abs()
 
-        # try to normalize
+        # # # try to normalize
         if self.pd_track >= 0:
             x[:, self.pd_track] = x[:, self.pd_track] / (torch.pi / 2)
         if self.mag_track >= 0:
-            x[:, self.mag_track] = x[:, self.mag_track] / 200
+            x[:, self.mag_track] = 0  # x[:, self.mag_track] / 10000
+        if self.stddev_track >= 0:
+            x[:, self.stddev_track] = 0  # x[:, self.stddev_track] / 1000
         if self.rx_spacing_track >= 0 and x.shape[1] > self.rx_spacing_track:
             x[:, self.rx_spacing_track] = x[:, self.rx_spacing_track] / 1000
+        # print(x)
+        __y = self.beam_net(x)
 
-        _y = self.beam_net(x)
+        # normalize the output part to sum to 1
+        _y = torch.hstack(
+            [
+                # torch.nn.functional.normalize(
+                #     self.sigmoid(__y[:, : self.outputs - self.latent]), p=1, dim=1
+                # ),
+                self.softmax(__y[:, : self.outputs - self.latent]),
+                __y[:, self.outputs - self.latent :],
+            ]
+        )
 
         y = _y.new(_y.shape)
 
         if self.symmetry:
             # copy over results for pd>0
             y[pd_pos_mask] = _y[pd_pos_mask]
-            y[~pd_pos_mask] = _y[~pd_pos_mask].flip(1)
+            y[~pd_pos_mask, : self.outputs - self.latent] = _y[
+                ~pd_pos_mask, : self.outputs - self.latent
+            ].flip(1)
         else:
             y = _y
-        return y
+        return y  # torch.nn.functional.normalize(__y.abs(), p=1, dim=1)
+
+    def mse(self, x, y):
+        return ((self.render_discrete_x(x) - self.render_discrete_y(y)) ** 2).sum(
+            axis=1, keepdim=True
+        )
 
     def likelihood(self, x, y):
         r = torch.einsum(
@@ -379,11 +425,12 @@ class BeamNetDiscrete(nn.Module):
 
     # this is discrete its already rendered
     def render_discrete_x(self, x):
-        return x[:, : -self.latent]
+        return x[:, : self.outputs - self.latent]
 
     # this is discrete its already rendered
     def render_discrete_y(self, y):
-        return v5_thetas_to_targets(y, self.nthetas)
+        assert y.abs().max() <= np.pi / 2
+        return v5_thetas_to_targets(y, self.nthetas, range_in_rad=1, sigma=0.1)
 
 
 def normal_dist_d(sigma, d):
@@ -460,7 +507,9 @@ class BeamNetDirect(nn.Module):
             [
                 mean_values,  # mu
                 _y_sig[:, [1, 2]] * 1.0 + 0.1,  # sigmas
-                self.softmax(_y[:, [3, 4]]),
+                # self.softmax(_y[:, [3, 4]]),
+                _y_sig[:, [3]],
+                1.0 - _y_sig[:, [4]],
                 _y[:, 5:],
             ]
         )
@@ -550,7 +599,8 @@ class BeamNetDirect(nn.Module):
 
     # this is discrete its already rendered
     def render_discrete_y(self, y):
-        return v5_thetas_to_targets(y, self.nthetas, sigma=0.5)
+        assert y.abs().max() <= np.pi / 2
+        return v5_thetas_to_targets(y, self.nthetas, sigma=0.5, range_in_rad=1)
 
 
 class BeamNSegNet(nn.Module):
@@ -627,7 +677,7 @@ class BeamNSegNet(nn.Module):
             seg_mask = pred_seg_mask
 
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
-
+        results = {}
         # taking the average after beam_former
         if not self.average_before:
             batch_size, input_channels, session_size = x.shape
@@ -661,15 +711,19 @@ class BeamNSegNet(nn.Module):
                 pred_theta = self.beamnet(torch.hstack([weighted_input, rx_spacing]))
             else:
                 pred_theta = self.beamnet(weighted_input)
+            results["weighted_input"] = weighted_input
+            # print(weighted_input[:, 0])
         # p_mask_weights = self.softmax(mask_weights)
         assert pred_theta.isfinite().all()
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
-        results = {
-            # "pred_theta": torch.mul(beam_former, p_mask_weights).sum(axis=2),
-            # "beam_former": beam_former,
-            "pred_theta": pred_theta,
-            "segmentation": pred_seg_mask,
-        }
+        results.update(
+            {
+                # "pred_theta": torch.mul(beam_former, p_mask_weights).sum(axis=2),
+                # "beam_former": beam_former,
+                "pred_theta": pred_theta,
+                "segmentation": pred_seg_mask,
+            }
+        )
 
         if self.n_radios > 1:
             # do a paired prediction

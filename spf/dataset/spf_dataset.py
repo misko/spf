@@ -93,7 +93,7 @@ class dotdict(dict):
     __delattr__ = dict.__delitem__
 
 
-def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers):
+def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu=False):
     print("Segmenting file", zarr_fn)
     z = zarr_open_from_lmdb_store(zarr_fn)
     n_sessions, _, _ = z.receivers["r0"].signal_matrix.shape
@@ -114,6 +114,7 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers):
                 "drop_less_than_size": 3000,
                 "min_abs_signal": 40,
                 "steering_vectors": steering_vectors_for_all_receivers[r_idx],
+                "gpu": gpu,
             }
             for idx in range(n_sessions)
         ]
@@ -154,7 +155,7 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers):
 
 
 # target_thetas (N,1)
-def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
+def v5_thetas_to_targets(target_thetas, nthetas, range_in_rad, sigma=1):
     if target_thetas.ndim == 1:
         target_thetas = target_thetas.reshape(-1, 1)
     p = torch.exp(
@@ -163,8 +164,8 @@ def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
                 (
                     target_thetas
                     - torch.linspace(
-                        -torch.pi / 2,
-                        torch.pi / 2,
+                        -torch.pi * range_in_rad / 2,
+                        torch.pi * range_in_rad / 2,
                         nthetas,
                         device=target_thetas.device,
                     ).reshape(1, -1)
@@ -259,6 +260,7 @@ class v5spfdataset(Dataset):
         min_mean_windows=10,
         ignore_qc=False,
         paired=False,
+        gpu=False,
     ):
         print("Open", prefix)
         self.precompute_cache = precompute_cache
@@ -272,6 +274,7 @@ class v5spfdataset(Dataset):
         self.yaml_config = yaml.safe_load(open(self.yaml_fn, "r"))
         self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
+        self.gpu = gpu
 
         self.wavelengths = [
             speed_of_light / receiver["f-carrier"]
@@ -515,9 +518,7 @@ class v5spfdataset(Dataset):
 
             if not os.path.exists(results_fn):
                 mp_segment_zarr(
-                    self.zarr_fn,
-                    results_fn,
-                    self.steering_vectors,
+                    self.zarr_fn, results_fn, self.steering_vectors, gpu=self.gpu
                 )
             try:
                 segmentation = pickle.load(open(results_fn, "rb"))

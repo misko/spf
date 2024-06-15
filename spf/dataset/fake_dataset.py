@@ -87,7 +87,13 @@ seconds-per-sample: 5.0
 
 
 def create_fake_dataset(
-    yaml_config_str, filename, orbits=1, n=50, noise=0.01, phi_drift=0.0, radius=10000
+    yaml_config_str,
+    filename,
+    orbits=1,
+    n=50,
+    noise=0.01,
+    phi_drift=0.0,
+    radius=10000,
 ):
     yaml_fn = f"{filename}.yaml"
     zarr_fn = f"{filename}.zar"
