@@ -62,9 +62,7 @@ from spf.rf import (
     torch_get_phase_diff,
 )
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
-from spf.utils import zarr_open_from_lmdb_store
-
-pool = Pool(12)  # cpu_count() // 4)
+from spf.utils import zarr_open_from_lmdb_store, zarr_shrink
 
 
 # from Stackoverflow
@@ -121,10 +119,31 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers):
         ]
 
         # with Pool(cpu_count()) as pool:
-        results_by_receiver[r_name] = list(
-            tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
-        )
+
+        with Pool(20) as pool:  # cpu_count())  # cpu_count() // 4)
+            results_by_receiver[r_name] = list(
+                tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
+            )
         # results_by_receiver[r_name] = list(map(segment_session_star, inputs))
+
+    segmentation_zarr_fn = results_fn.replace(".pkl", ".yarr")
+    z = zarr_open_from_lmdb_store(segmentation_zarr_fn, mode="w")
+    for r_idx in [0, 1]:
+        # collect all windows stats
+        z[f"r{r_idx}/all_windows_stats"] = np.vstack(
+            [x["all_windows_stats"][None] for x in results_by_receiver[f"r{r_idx}"]]
+        )
+        # collect windowed beamformer
+        z[f"r{r_idx}/windowed_beamformer"] = np.vstack(
+            [x["windowed_beamformer"][None] for x in results_by_receiver[f"r{r_idx}"]]
+        )
+        # remove from dictionary
+        for x in results_by_receiver[f"r{r_idx}"]:
+            x.pop("all_windows_stats")
+            x.pop("windowed_beamformer")
+    z.store.close()
+    z = None
+    zarr_shrink(segmentation_zarr_fn)
     pickle.dump(
         {
             "version": SEGMENTATION_VERSION,
@@ -160,10 +179,11 @@ def v5_thetas_to_targets(target_thetas, nthetas, sigma=1):
 
 
 def v5_collate_beamsegnet(batch):
-    n_windows = batch[0][0]["all_windows_stats"].shape[0]
+    n_windows = batch[0][0]["all_windows_stats"].shape[1]
     y_rad_list = []
     simple_segmentation_list = []
     all_window_stats_list = []
+    windowed_beamformers_list = []
     downsampled_segmentation_mask_list = []
     x_list = []
     segmentation_mask_list = []
@@ -174,7 +194,10 @@ def v5_collate_beamsegnet(batch):
             rx_spacing_list.append(x["rx_spacing"].reshape(1, 1))
             simple_segmentation_list.append(x["simple_segmentation"])
             all_window_stats_list.append(
-                x["all_windows_stats"].transpose()[None].astype(np.float32)
+                x["all_windows_stats"][None]  # .astype(np.float32)
+            )
+            windowed_beamformers_list.append(
+                x["windowed_beamformer"][None]  # .astype(np.float32)
             )
             downsampled_segmentation_mask_list.append(
                 v5_downsampled_segmentation_mask(x, n_windows=n_windows)
@@ -188,6 +211,7 @@ def v5_collate_beamsegnet(batch):
         "rx_spacing": torch.vstack(rx_spacing_list),
         "simple_segmentation": simple_segmentation_list,
         "all_windows_stats": torch.from_numpy(np.vstack(all_window_stats_list)),
+        "windowed_beamformer": torch.from_numpy(np.vstack(windowed_beamformers_list)),
         "downsampled_segmentation_mask": torch.vstack(
             downsampled_segmentation_mask_list
         ),
@@ -229,12 +253,15 @@ class v5spfdataset(Dataset):
         self,
         prefix,
         nthetas,
+        precompute_cache,
         skip_signal_matrix=False,
         phi_drift_max=0.2,
         min_mean_windows=10,
         ignore_qc=False,
         paired=False,
     ):
+        print("Open", prefix)
+        self.precompute_cache = precompute_cache
         prefix = prefix.replace(".zarr", "")
         self.nthetas = nthetas
         self.prefix = prefix
@@ -341,7 +368,6 @@ class v5spfdataset(Dataset):
         data = {key: r[key][session_idx] for key in self.keys_per_session}
 
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][session_idx]
-
         data = {
             k: (
                 torch.from_numpy(v)
@@ -361,9 +387,15 @@ class v5spfdataset(Dataset):
         d = self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
             session_idx
         ]
+        data["windowed_beamformer"] = self.precomputed_zarr[
+            f"r{receiver_idx}/windowed_beamformer"
+        ][session_idx]
+
         data["simple_segmentation"] = d["simple_segmentation"]
-        data["all_windows_stats"] = d[
-            "all_windows_stats"
+        data["all_windows_stats"] = self.precomputed_zarr[
+            f"r{receiver_idx}/all_windows_stats"
+        ][
+            session_idx
         ]  # trimmed_cm, trimmed_stddev, abs_signal_median
         return data
 
@@ -475,7 +507,12 @@ class v5spfdataset(Dataset):
 
     def get_segmentation(self):
         if not hasattr(self, "segmentation"):
-            results_fn = self.prefix + f"_segmentation_nthetas{self.nthetas}.pkl"
+            results_fn = os.path.join(
+                self.precompute_cache,
+                os.path.basename(self.prefix)
+                + f"_segmentation_nthetas{self.nthetas}.pkl",
+            )
+
             if not os.path.exists(results_fn):
                 mp_segment_zarr(
                     self.zarr_fn,
@@ -484,6 +521,9 @@ class v5spfdataset(Dataset):
                 )
             try:
                 segmentation = pickle.load(open(results_fn, "rb"))
+                precomputed_zarr = zarr_open_from_lmdb_store(
+                    results_fn.replace(".pkl", ".yarr")
+                )
             except pickle.UnpicklingError:
                 os.remove(results_fn)
                 return self.get_segmentation()
@@ -494,6 +534,7 @@ class v5spfdataset(Dataset):
                 os.remove(results_fn)
                 return self.get_segmentation()
             self.segmentation = segmentation
+            self.precomputed_zarr = precomputed_zarr
         return self.segmentation
 
 

@@ -2,6 +2,7 @@
 import functools
 import os
 import pickle
+import compress_pickle
 from multiprocessing import Pool
 
 import numpy as np
@@ -203,10 +204,12 @@ def get_segmentation_for_zarr(
                     tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
                 )
 
-        pickle.dump(results_by_receiver, open(segmentation_fn, "wb"))
+        compress_pickle.dump(
+            results_by_receiver, open(segmentation_fn, "wb"), compression="lzma"
+        )
         return results_by_receiver
     else:
-        return pickle.load(open(segmentation_fn, "rb"))
+        return compress_pickle.load(open(segmentation_fn, "rb"))
 
 
 def segment_session_star(arg_dict):
@@ -229,6 +232,7 @@ def segment_session(zarr_fn, receiver, session_idx, gpu=True, **kwrgs):
                 )
                 .reshape(nthetas, -1, kwrgs["window_size"])
                 .mean(axis=2)
+                .T
             )
         else:
             segmentation_results["windowed_beamformer"] = (
@@ -238,7 +242,14 @@ def segment_session(zarr_fn, receiver, session_idx, gpu=True, **kwrgs):
                 )
                 .reshape(nthetas, -1, kwrgs["window_size"])
                 .mean(axis=2)
+                .T
             )
+        segmentation_results["windowed_beamformer"] = segmentation_results[
+            "windowed_beamformer"
+        ].astype(np.float16)
+        segmentation_results["all_windows_stats"] = (
+            segmentation_results["all_windows_stats"].astype(np.float16).T
+        )
 
         return segmentation_results
 
@@ -343,7 +354,7 @@ def simple_segment(
     max_stddev_threshold,
     drop_less_than_size,
     min_abs_signal,
-    steering_vectors,
+    steering_vectors=None,  # not used but passed in
 ):
     pd = get_phase_diff(v)
     candidate_windows = []

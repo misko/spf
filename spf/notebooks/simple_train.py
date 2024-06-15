@@ -50,6 +50,7 @@ def simple_train(args):
     datasets = [
         v5spfdataset(
             prefix,
+            precompute_cache="/home/mouse9911/precompute_cache",
             nthetas=args.nthetas,
             skip_signal_matrix=args.segmentation_level == "downsampled",
             paired=args.n_radios > 1,
@@ -197,7 +198,7 @@ def simple_train(args):
             x = batch_data["x"].to(torch_device)
             seg_mask = batch_data["segmentation_mask"].to(torch_device)
         elif segmentation_level == "downsampled":
-            x = batch_data["all_windows_stats"].to(torch_device)
+            x = batch_data["all_windows_stats"].to(torch_device).to(torch.float32)
             seg_mask = batch_data["downsampled_segmentation_mask"].to(torch_device)
         else:
             raise NotImplementedError

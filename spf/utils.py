@@ -6,6 +6,9 @@ import numpy as np
 import yaml
 import zarr
 from numcodecs import Blosc
+import warnings
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 class dotdict(dict):
