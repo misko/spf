@@ -64,6 +64,8 @@ from spf.rf import (
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
 from spf.utils import zarr_open_from_lmdb_store
 
+pool = Pool(12)  # cpu_count() // 4)
+
 
 # from Stackoverflow
 def yaml_as_dict(my_file):
@@ -93,7 +95,8 @@ class dotdict(dict):
     __delattr__ = dict.__delitem__
 
 
-def mp_segment_zarr(zarr_fn, results_fn):
+def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers):
+    print("Segmenting file", zarr_fn)
     z = zarr_open_from_lmdb_store(zarr_fn)
     n_sessions, _, _ = z.receivers["r0"].signal_matrix.shape
 
@@ -112,13 +115,16 @@ def mp_segment_zarr(zarr_fn, results_fn):
                 "max_stddev_threshold": 0.5,
                 "drop_less_than_size": 3000,
                 "min_abs_signal": 40,
+                "steering_vectors": steering_vectors_for_all_receivers[r_idx],
             }
             for idx in range(n_sessions)
         ]
-        with Pool(cpu_count()) as pool:
-            results_by_receiver[r_name] = list(
-                tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
-            )
+
+        # with Pool(cpu_count()) as pool:
+        results_by_receiver[r_name] = list(
+            tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
+        )
+        # results_by_receiver[r_name] = list(map(segment_session_star, inputs))
     pickle.dump(
         {
             "version": SEGMENTATION_VERSION,
@@ -469,9 +475,13 @@ class v5spfdataset(Dataset):
 
     def get_segmentation(self):
         if not hasattr(self, "segmentation"):
-            results_fn = self.prefix + "_segmentation.pkl"
+            results_fn = self.prefix + f"_segmentation_nthetas{self.nthetas}.pkl"
             if not os.path.exists(results_fn):
-                mp_segment_zarr(self.zarr_fn, results_fn)
+                mp_segment_zarr(
+                    self.zarr_fn,
+                    results_fn,
+                    self.steering_vectors,
+                )
             try:
                 segmentation = pickle.load(open(results_fn, "rb"))
             except pickle.UnpicklingError:

@@ -8,10 +8,10 @@ import numpy as np
 import torch
 from numba import jit, njit
 from tqdm import tqdm
-
+import cupy as cp
 from spf.utils import zarr_open_from_lmdb_store, zarr_open_from_lmdb_store_cm
 
-SEGMENTATION_VERSION = 1.2
+SEGMENTATION_VERSION = 1.3
 # numba = False
 
 """
@@ -213,9 +213,34 @@ def segment_session_star(arg_dict):
     return segment_session(**arg_dict)
 
 
-def segment_session(zarr_fn, receiver, session_idx, **kwrgs):
+def segment_session(zarr_fn, receiver, session_idx, gpu=True, **kwrgs):
     with zarr_open_from_lmdb_store_cm(zarr_fn) as z:
-        return simple_segment(z.receivers[receiver].signal_matrix[session_idx], **kwrgs)
+        v = z.receivers[receiver].signal_matrix[session_idx][:]
+
+        segmentation_results = simple_segment(v, **kwrgs)
+
+        nthetas = kwrgs["steering_vectors"].shape[0]
+
+        if gpu:
+            segmentation_results["windowed_beamformer"] = cp.asnumpy(
+                beamformer_given_steering_nomean_cp(
+                    steering_vectors=cp.asarray(kwrgs["steering_vectors"]),
+                    signal_matrix=cp.asarray(v),
+                )
+                .reshape(nthetas, -1, kwrgs["window_size"])
+                .mean(axis=2)
+            )
+        else:
+            segmentation_results["windowed_beamformer"] = (
+                beamformer_given_steering_nomean(
+                    steering_vectors=kwrgs["steering_vectors"],
+                    signal_matrix=v,
+                )
+                .reshape(nthetas, -1, kwrgs["window_size"])
+                .mean(axis=2)
+            )
+
+        return segmentation_results
 
 
 def get_stats_for_signal(v, pd, trim):
@@ -318,6 +343,7 @@ def simple_segment(
     max_stddev_threshold,
     drop_less_than_size,
     min_abs_signal,
+    steering_vectors,
 ):
     pd = get_phase_diff(v)
     candidate_windows = []
@@ -788,6 +814,21 @@ def precompute_steering_vectors(
     if calibration is not None:
         steering_vectors = steering_vectors * calibration[None]
     return steering_vectors
+
+
+def thetas_from_nthetas(nthetas):
+    return np.linspace(-np.pi, np.pi, nthetas)
+
+
+def beamformer_given_steering_nomean_cp(
+    steering_vectors,
+    signal_matrix,
+):
+    # the delay sum is performed in the matmul step, the absolute is over the summed value
+    phase_adjusted = np.dot(
+        steering_vectors, signal_matrix
+    )  # this is adjust and sum in one step
+    return np.absolute(phase_adjusted)
 
 
 @njit
