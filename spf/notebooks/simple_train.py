@@ -54,7 +54,7 @@ def simple_train(args):
     datasets = [
         v5spfdataset(
             prefix,
-            precompute_cache="/home/mouse9911/precompute_cache",
+            precompute_cache=args.precompute_cache,
             nthetas=args.nthetas,
             skip_signal_matrix=args.segmentation_level == "downsampled",
             paired=args.n_radios > 1,
@@ -528,6 +528,11 @@ def get_parser():
     )
     parser.add_argument(
         "--act",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--precompute-cache",
         type=str,
         required=True,
     )
