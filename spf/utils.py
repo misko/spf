@@ -136,10 +136,12 @@ def zarr_new_dataset(
     else:
         raise NotImplementedError
 
+    z.create_dataset("config", dtype=str, shape=(1))
     if isinstance(config, dict):
-        z["config"] = yaml.dump(config)
-    else:
-        z["config"] = config
+        config = yaml.dump(config)
+    z["config"][0] = config
+    assert z["config"][0] == config
+
     z.create_group("receivers")
     for receiver_idx in range(n_receivers):
         receiver_z = z["receivers"].create_group(f"r{receiver_idx}")
