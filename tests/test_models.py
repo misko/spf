@@ -1,8 +1,45 @@
 import tempfile
 import numpy as np
-
+import pytest
 from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
 from spf.notebooks.simple_train import get_parser, simple_train
+
+
+@pytest.fixture
+def perfect_circle_dataset_n33():
+    n = 33
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        fn = tmpdirname + f"/perfect_circle_n{n}_noise0"
+        create_fake_dataset(filename=fn, yaml_config_str=fake_yaml, n=n, noise=0.0)
+        yield tmpdirname, fn
+
+
+def base_args():
+    return [
+        "--device",
+        "cpu",
+        "--seed",
+        "0",
+        "--nthetas",
+        "65",
+        "--batch",
+        "128",
+        "--workers",
+        "0",
+        "--act",
+        "leaky",
+        "--segmentation-level",
+        "downsampled",
+        "--seg-net",
+        "conv",
+        "--no-shuffle",
+        "--skip-qc",
+        "--no-sigmoid",
+        "--val-on-train",
+        "--segmentation-lambda",
+        "0",
+        "--independent",
+    ]
 
 
 def test_beamnet_downsampled():
@@ -53,3 +90,156 @@ def test_beamnet_downsampled():
 
         train_results = simple_train(args)
         assert np.array(train_results["losses"])[-10:].mean() < 0.2
+
+
+def test_beamnet_direct_positional(perfect_circle_dataset_n33):
+    root_dir, zarr_fn = perfect_circle_dataset_n33
+    args_list = base_args() + [
+        "--datasets",
+        zarr_fn,
+        "--positional",
+        "--type",
+        "direct",
+        "--hidden",
+        "16",  # "256",
+        "--depth",
+        "1",  # "6",
+        "--precompute-cache",
+        root_dir,
+        "--lr",
+        "0.001",
+        "--epochs",
+        "300",
+    ]
+    args = get_parser().parse_args(args_list)
+
+    train_results = simple_train(args)
+    assert train_results["losses"][-1] < -1.0
+
+
+def test_beamnet_direct_positional_and_symmetry(perfect_circle_dataset_n33):
+    root_dir, zarr_fn = perfect_circle_dataset_n33
+    args_list = base_args() + [
+        "--datasets",
+        zarr_fn,
+        "--positional",
+        "--type",
+        "direct",
+        "--symmetry",
+        "--hidden",
+        "16",  # "256",
+        "--depth",
+        "1",  # "6",
+        "--precompute-cache",
+        root_dir,
+        "--lr",
+        "0.001",
+        "--epochs",
+        "300",
+    ]
+    args = get_parser().parse_args(args_list)
+
+    train_results = simple_train(args)
+    assert train_results["losses"][-1] < -1.0
+
+
+def test_beamnet_direct(perfect_circle_dataset_n33):
+    root_dir, zarr_fn = perfect_circle_dataset_n33
+    args_list = base_args() + [
+        "--datasets",
+        zarr_fn,
+        "--type",
+        "direct",
+        "--hidden",
+        "16",  # "256",
+        "--depth",
+        "1",  # "6",
+        "--precompute-cache",
+        root_dir,
+        "--lr",
+        "0.001",
+        "--epochs",
+        "300",
+    ]
+    args = get_parser().parse_args(args_list)
+
+    train_results = simple_train(args)
+    assert train_results["losses"][-1] < -1.0
+
+
+def test_beamnet_discrete(perfect_circle_dataset_n33):
+    root_dir, zarr_fn = perfect_circle_dataset_n33
+    args_list = base_args() + [
+        "--datasets",
+        zarr_fn,
+        "--type",
+        "discrete",
+        "--precompute-cache",
+        root_dir,
+        "--batch-norm",  # important for discrete model
+        "--hidden",
+        "128",
+        "--depth",
+        "5",
+        "--lr",
+        "0.001",
+        "--epochs",
+        "75",
+    ]
+    args = get_parser().parse_args(args_list)
+
+    train_results = simple_train(args)
+    assert train_results["losses"][-1] < 1.5
+
+
+def test_beamnet_discrete_symmetry(perfect_circle_dataset_n33):
+    root_dir, zarr_fn = perfect_circle_dataset_n33
+    args_list = base_args() + [
+        "--datasets",
+        zarr_fn,
+        "--type",
+        "discrete",
+        "--precompute-cache",
+        root_dir,
+        "--batch-norm",  # important for discrete model
+        "--hidden",
+        "128",
+        "--depth",
+        "5",
+        "--lr",
+        "0.001",
+        "--epochs",
+        "75",
+        "--symmetry",
+    ]
+    args = get_parser().parse_args(args_list)
+
+    train_results = simple_train(args)
+    assert train_results["losses"][-1] < 1.5
+
+
+def test_beamnet_discrete_symmetry_and_positional(perfect_circle_dataset_n33):
+    root_dir, zarr_fn = perfect_circle_dataset_n33
+    args_list = base_args() + [
+        "--datasets",
+        zarr_fn,
+        "--type",
+        "discrete",
+        "--precompute-cache",
+        root_dir,
+        "--batch-norm",  # important for discrete model
+        "--hidden",
+        "128",
+        "--depth",
+        "5",
+        "--lr",
+        "0.001",
+        "--epochs",
+        "75",
+        "--symmetry",
+        "--positional",
+    ]
+    args = get_parser().parse_args(args_list)
+
+    train_results = simple_train(args)
+    assert train_results["losses"][-1] < 1.5

@@ -465,6 +465,7 @@ class BeamNetDirect(nn.Module):
         latent=2,
         inputs=3,
         norm="batch",
+        positional_encoding=False,
     ):
         super(BeamNetDirect, self).__init__()
         self.latent = latent
@@ -484,16 +485,22 @@ class BeamNetDirect(nn.Module):
         self.no_sigmoid = no_sigmoid
         self.inputs = inputs
         self.norm = norm
-
-        self.beam_net = FFNN(
-            inputs=inputs,
-            depth=depth,
-            hidden=hidden,
-            outputs=self.outputs,
-            block=block,
-            norm=norm,
-            act=act,
-            bn=bn,
+        self.beam_net = nn.Sequential(
+            (
+                HalfPiEncoding(self.pd_track, self.nthetas)
+                if positional_encoding
+                else nn.Identity()
+            ),
+            FFNN(
+                inputs=inputs + self.nthetas if positional_encoding else inputs,
+                depth=depth,
+                hidden=hidden,
+                outputs=self.outputs,
+                block=block,
+                norm=norm,
+                act=act,
+                bn=bn,
+            ),
         )
 
     def fixify(self, _y, sign):

@@ -137,6 +137,7 @@ def simple_train(args):
             block=args.block,
             inputs=3,  # + (1 if args.rx_spacing else 0),
             norm=args.norm,
+            positional_encoding=args.positional,
         ).to(torch_device)
         paired_net = BeamNetDirect(
             nthetas=args.nthetas,
@@ -192,6 +193,11 @@ def simple_train(args):
         paired_net=paired_net,
         rx_spacing=args.rx_spacing,
     ).to(torch_device)
+
+    print("model:")
+    print(m)
+    if args.wandb_project:
+        wandb.config.update({"pytorch_model": str(m)})
 
     if args.compile:
         m = torch.compile(m)
@@ -299,7 +305,7 @@ def simple_train(args):
                 for key, value in loss_d.items():
                     to_log[key].append(value.item())
 
-                if step % args.plot_every == 0:
+                if step == 0 or (step + 1) % args.plot_every == 0:
                     img_beam_output = (
                         (beam_m.render_discrete_x(output["pred_theta"]) * 255)
                         .cpu()
@@ -338,24 +344,25 @@ def simple_train(args):
                     )
 
                     train_target_image = torch.zeros(
-                        (img_beam_output.shape[0] * 5, full_output_dim),
+                        (img_beam_output.shape[0] * 7, full_output_dim),
                     ).byte()
                     for row_idx in range(img_beam_output.shape[0]):
                         train_target_image[
-                            row_idx * 4,
+                            row_idx * 7,
                             half_pi_output_offset : half_pi_output_offset + output_dim,
                         ] = img_beam_output[row_idx]
                         train_target_image[
-                            row_idx * 4 + 2,
+                            row_idx * 7 + 2,
                             half_pi_output_offset : half_pi_output_offset + output_dim,
                         ] = img_beam_gt_reduced[row_idx]
-                        train_target_image[row_idx * 4 + 3] = img_beam_gt[row_idx]
-                    if args.wandb_project:
-                        output_image = wandb.Image(
-                            train_target_image, caption="train vs target (interleaved)"
-                        )
-                        to_log["output"] = output_image
-                    else:
+                        train_target_image[row_idx * 7 + 3] = img_beam_gt[row_idx]
+                    # if args.wandb_project:
+                    #     output_image = wandb.Image(
+                    #         train_target_image, caption="train vs target (interleaved)"
+                    #     )
+                    #     to_log["output"] = output_image
+                    # else:
+                    if True:
                         fig, ax = plt.subplots(
                             1, 1, figsize=(16, img_beam_output.shape[0] / 2)
                         )
@@ -372,6 +379,8 @@ def simple_train(args):
                             linewidth=0.5,
                             axis="x",
                         )
+                        if args.wandb_project:
+                            to_log["output"] = fig
                     # segmentation output
                     _x = x.detach().cpu().numpy()
                     _seg_mask = seg_mask.detach().cpu().numpy()
@@ -380,9 +389,11 @@ def simple_train(args):
                     to_log["fig"] = plot_instance(
                         _x, _output_seg, _seg_mask, idx=0, first_n=first_n
                     )
-                if args.wandb_project and step % args.log_every == 0:
+                if args.wandb_project and (
+                    step == 0 or (step + 1) % args.log_every == 0
+                ):
                     for key, value in to_log.items():
-                        if "loss" in key:
+                        if "loss" in key and len(value) > 0:
                             to_log[key] = np.array(value).mean()
                     wandb.log(to_log, step=step)
                     to_log = None
