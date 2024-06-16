@@ -58,6 +58,40 @@ def zarr_open_from_lmdb_store_cm(filename, mode="r"):
         z.store.close()
 
 
+def new_yarr_dataset(
+    filename,
+    n_receivers,
+    all_windows_stats_shape,
+    windowed_beamformer_shape,
+    compressor=None,
+):
+    zarr_remove_if_exists(filename)
+    z = zarr_open_from_lmdb_store(filename, mode="w")
+    compressor = Blosc(
+        cname="zstd",
+        clevel=1,
+        shuffle=Blosc.BITSHUFFLE,
+    )
+
+    for receiver_idx in range(n_receivers):
+        receiver_z = z.create_group(f"r{receiver_idx}")
+        receiver_z.create_dataset(
+            "all_windows_stats",
+            shape=all_windows_stats_shape,
+            chunks=(128, -1, -1),
+            dtype="float16",
+            compressor=compressor,
+        )
+        receiver_z.create_dataset(
+            "windowed_beamformer",
+            shape=windowed_beamformer_shape,
+            chunks=(128, -1, -1),
+            dtype="float16",
+            compressor=compressor,
+        )
+    return z
+
+
 def zarr_open_from_lmdb_store(filename, mode="r"):
     if mode == "r":
         store = zarr.LMDBStore(
@@ -67,6 +101,7 @@ def zarr_open_from_lmdb_store(filename, mode="r"):
             readonly=True,
             max_readers=1024 * 1024,
             lock=False,
+            # readahead=False,
         )
     elif mode == "w":
         store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
@@ -121,12 +156,16 @@ def zarr_new_dataset(
                 key,
                 shape=(timesteps,),
                 dtype="float64",
+                chunks=(timesteps,),
+                compressor=None,
             )
         for key in keys_2xf64:
             receiver_z.create_dataset(
                 key,
                 shape=(timesteps, 2),
                 dtype="float64",
+                chunks=(timesteps,),
+                compressor=None,
             )
     return z
 

@@ -222,7 +222,7 @@ def segment_session_star(arg_dict):
 
 
 def segment_session(zarr_fn, receiver, session_idx, gpu=True, **kwrgs):
-    with zarr_open_from_lmdb_store_cm(zarr_fn) as z:
+    with zarr_open_from_lmdb_store_cm(zarr_fn, mode="r") as z:
         v = z.receivers[receiver].signal_matrix[session_idx][:]
 
         segmentation_results = simple_segment(v, **kwrgs)
