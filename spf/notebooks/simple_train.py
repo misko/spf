@@ -343,10 +343,12 @@ def simple_train(args):
                         .byte()
                     )
 
+                    examples_to_plot = min(128, img_beam_output.shape[0])
                     train_target_image = torch.zeros(
-                        (img_beam_output.shape[0] * 7, full_output_dim),
+                        (examples_to_plot * 7, full_output_dim),
                     ).byte()
-                    for row_idx in range(img_beam_output.shape[0]):
+
+                    for row_idx in range(examples_to_plot):
                         train_target_image[
                             row_idx * 7,
                             half_pi_output_offset : half_pi_output_offset + output_dim,
@@ -363,9 +365,7 @@ def simple_train(args):
                     #     to_log["output"] = output_image
                     # else:
                     if True:
-                        fig, ax = plt.subplots(
-                            1, 1, figsize=(16, img_beam_output.shape[0] / 2)
-                        )
+                        fig, ax = plt.subplots(1, 1, figsize=(16, examples_to_plot / 2))
                         ax.imshow(train_target_image, interpolation="none")
 
                         ax.set_xticks(np.linspace(0, full_output_dim - 1, 5))
