@@ -4,6 +4,13 @@ import numpy as np
 
 from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
 from spf.dataset.spf_dataset import v5spfdataset
+import tempfile
+
+
+from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
+from spf.dataset.spf_dataset import v5spfdataset
+
+import numpy as np
 
 
 def test_dataset_load():
@@ -41,3 +48,34 @@ def test_dataset_load_drift():
             assert np.isclose(
                 [phi_drift * np.pi, -phi_drift * np.pi], ds.phi_drifts, atol=0.05
             ).all()
+
+
+# is antenna1 or antenna0 on more x+
+def test_fake_data_array_orientation():
+    noise = 0.0
+    nthetas = 65
+    orbits = 2
+    n = 65
+
+    tmpdir = tempfile.TemporaryDirectory()
+    tmpdirname = tmpdir.name
+    ds_fn = f"{tmpdirname}/sample_dataset_for_ekf_n{n}_noise{noise}"
+
+    create_fake_dataset(
+        filename=ds_fn, yaml_config_str=fake_yaml, n=n, noise=noise, orbits=orbits
+    )
+    ds = v5spfdataset(
+        ds_fn,
+        nthetas=nthetas,
+        ignore_qc=True,
+        precompute_cache=tmpdirname,
+        paired=True,
+        skip_signal_matrix=True,
+    )
+
+    assert np.isclose(
+        ds.ground_truth_phis[0] - ds.mean_phase["r0"], 0, atol=0.00001
+    ).all()
+    assert np.isclose(
+        ds.ground_truth_phis[1] - ds.mean_phase["r1"], 0, atol=0.00001
+    ).all()

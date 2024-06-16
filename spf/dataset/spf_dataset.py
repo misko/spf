@@ -453,8 +453,13 @@ class v5spfdataset(Dataset):
             ground_truth_phis.append(
                 pi_norm(
                     -np.sin(
-                        self.ground_truth_thetas[ridx]
+                        self.ground_truth_thetas[
+                            ridx
+                        ]  # this is theta relative to our array!
+                        # + self.receiver_data[ridx]["rx_theta_in_pis"][:] * np.pi
                     )  # up to negative sign, which way do we spin?
+                    # or maybe this is the order of the receivers 0/1 vs 1/0 on the x-axis
+                    # pretty sure this (-) is more about which receiver is closer to x+/ish
                     * self.receiver_data[ridx]["rx_spacing"]
                     * 2
                     * np.pi
@@ -481,7 +486,6 @@ class v5spfdataset(Dataset):
     def get_ground_truth_thetas(self):
         ground_truth_thetas = []
         for ridx in range(self.n_receivers):
-            rx_theta_in_pis = self.receiver_data[ridx]["rx_theta_in_pis"]
             tx_pos = np.array(
                 [
                     self.receiver_data[ridx]["tx_pos_x_mm"],
@@ -499,6 +503,7 @@ class v5spfdataset(Dataset):
             d = tx_pos - rx_pos
 
             rx_to_tx_theta = np.arctan2(d[0], d[1])
+            rx_theta_in_pis = self.receiver_data[ridx]["rx_theta_in_pis"]
             ground_truth_thetas.append(
                 pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * np.pi)
             )

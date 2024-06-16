@@ -146,12 +146,7 @@ def create_fake_dataset(
             thetas - yaml_config["receivers"][receiver_idx]["theta-in-pis"] * np.pi
         )
         phis_nonoise = theta_to_phi(receiver_thetas, rx_config.rx_spacing, _lambda)
-        phis = (
-            phis_nonoise
-            + rnd_noise * noise
-            + phi_drift * np.pi * (1 if receiver_idx == 0 else -1)
-        )
-        phis = pi_norm(phis)
+        phis = pi_norm(phis_nonoise + rnd_noise * noise)
         _thetas = phi_to_theta(phis, rx_config.rx_spacing, _lambda, limit=True)
 
         for record_idx in range(yaml_config["n-records-per-receiver"]):
@@ -160,7 +155,16 @@ def create_fake_dataset(
             offsets = np.random.uniform(-np.pi, np.pi, big_phi.shape) * 0
             signal_matrix = (
                 np.vstack(
-                    [np.exp(1j * (offsets + big_phi_with_noise)), np.exp(1j * offsets)]
+                    [
+                        np.exp(
+                            1j
+                            * (
+                                offsets
+                                + phi_drift * np.pi * (1 if receiver_idx == 0 else -1)
+                            )
+                        ),
+                        np.exp(1j * (offsets + big_phi_with_noise)),
+                    ]
                 )
                 * 200
             )
@@ -176,12 +180,14 @@ def create_fake_dataset(
                     ]
 
             data = {
-                "rx_pos_x_mm": np.sin(receiver_thetas[record_idx]) * radius,
-                "rx_pos_y_mm": np.cos(receiver_thetas[record_idx]) * radius,
-                "tx_pos_x_mm": 0,
-                "tx_pos_y_mm": 0,
+                "rx_pos_x_mm": 0,
+                "rx_pos_y_mm": 0,
+                "tx_pos_x_mm": np.sin(thetas[record_idx]) * radius,
+                "tx_pos_y_mm": np.cos(thetas[record_idx]) * radius,
                 "system_timestamp": record_idx * 5.0,
-                "rx_theta_in_pis": 0,
+                "rx_theta_in_pis": yaml_config["receivers"][receiver_idx][
+                    "theta-in-pis"
+                ],
                 "rx_spacing": rx_config.rx_spacing,
                 "rx_lo": rx_config.lo,
                 "rx_bandwidth": rx_config.rf_bandwidth,
