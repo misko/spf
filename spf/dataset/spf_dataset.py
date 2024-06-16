@@ -211,9 +211,9 @@ def v5_collate_beamsegnet(batch):
             all_window_stats_list.append(
                 x["all_windows_stats"][None]  # .astype(np.float32)
             )
-            # windowed_beamformers_list.append(
-            #    x["windowed_beamformer"][None]  # .astype(np.float32)
-            # )
+            windowed_beamformers_list.append(
+                x["windowed_beamformer"][None]  # .astype(np.float32)
+            )
             downsampled_segmentation_mask_list.append(
                 x["downsampled_segmentation_mask"]
             )
@@ -226,7 +226,7 @@ def v5_collate_beamsegnet(batch):
         "rx_spacing": torch.vstack(rx_spacing_list),
         "simple_segmentation": simple_segmentation_list,
         "all_windows_stats": torch.from_numpy(np.vstack(all_window_stats_list)),
-        # "windowed_beamformer": torch.from_numpy(np.vstack(windowed_beamformers_list)),
+        "windowed_beamformer": torch.from_numpy(np.vstack(windowed_beamformers_list)),
         "downsampled_segmentation_mask": torch.vstack(
             downsampled_segmentation_mask_list
         ),
@@ -428,9 +428,9 @@ class v5spfdataset(Dataset):
         d = self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
             session_idx
         ]
-        # data["windowed_beamformer"] = self.precomputed_zarr[
-        #     f"r{receiver_idx}/windowed_beamformer"
-        # ][session_idx]
+        data["windowed_beamformer"] = self.precomputed_zarr[
+            f"r{receiver_idx}/windowed_beamformer"
+        ][session_idx]
 
         data["simple_segmentation"] = d["simple_segmentation"]
         data["all_windows_stats"] = self.precomputed_zarr[
