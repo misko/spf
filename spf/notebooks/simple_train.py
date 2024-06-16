@@ -59,6 +59,7 @@ def simple_train(args):
             skip_signal_matrix=args.segmentation_level == "downsampled",
             paired=args.n_radios > 1,
             ignore_qc=args.skip_qc,
+            gpu=args.device == "cuda",
         )
         for prefix in args.datasets
     ]

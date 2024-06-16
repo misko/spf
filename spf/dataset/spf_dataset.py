@@ -57,6 +57,7 @@ from spf.rf import (
     phase_diff_to_theta,
     pi_norm,
     precompute_steering_vectors,
+    reduce_theta_to_positive_y,
     segment_session_star,
     speed_of_light,
     torch_get_phase_diff,
@@ -201,7 +202,7 @@ def v5_collate_beamsegnet(batch):
                 x["windowed_beamformer"][None]  # .astype(np.float32)
             )
             downsampled_segmentation_mask_list.append(
-                v5_downsampled_segmentation_mask(x, n_windows=n_windows)
+                x["downsampled_segmentation_mask"]
             )
             if "x" in batch[0][0]:
                 x_list.append(x["x"])
@@ -322,11 +323,29 @@ class v5spfdataset(Dataset):
 
         self.ground_truth_thetas = self.get_ground_truth_thetas()
         self.ground_truth_phis = self.get_ground_truth_phis()
+        self.get_segmentation()
+
+        # get mean phase segmentation
+        self.mean_phase = {}
+        for receiver, results in self.segmentation["segmentation_by_receiver"].items():
+            self.mean_phase[receiver] = np.array(
+                [
+                    (
+                        np.array(
+                            [x["mean"] for x in result["simple_segmentation"]]
+                        ).mean()
+                        if len(result["simple_segmentation"]) > 0
+                        else 0.0
+                    )
+                    for result in results
+                ]
+            )
+
         self.all_phi_drifts = self.get_all_phi_drifts()
         self.phi_drifts = np.array(
             [np.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts]
         )
-        self.get_segmentation()
+
         self.average_windows_in_segmentation = np.array(
             [
                 [
@@ -360,6 +379,12 @@ class v5spfdataset(Dataset):
                 raise ValueError(
                     "It looks like too few windows have a valid segmentation"
                 )
+
+    def estimate_phi(self, data):
+        x = torch.tensor(data["all_windows_stats"])
+        seg_mask = torch.tensor(data["downsampled_segmentation_mask"])
+
+        return torch.mul(x, seg_mask).sum(axis=2) / (seg_mask.sum(axis=2) + 0.001)
 
     def __len__(self):
         if self.paired:
@@ -397,9 +422,16 @@ class v5spfdataset(Dataset):
         data["simple_segmentation"] = d["simple_segmentation"]
         data["all_windows_stats"] = self.precomputed_zarr[
             f"r{receiver_idx}/all_windows_stats"
-        ][
+        ][session_idx]
+
+        n_windows = data["all_windows_stats"].shape[1]
+        data["downsampled_segmentation_mask"] = v5_downsampled_segmentation_mask(
+            data, n_windows=n_windows
+        )
+        data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
             session_idx
-        ]  # trimmed_cm, trimmed_stddev, abs_signal_median
+        ]
+        # trimmed_cm, trimmed_stddev, abs_signal_median
         return data
 
     def get_ground_truth_phis(self):
@@ -422,7 +454,7 @@ class v5spfdataset(Dataset):
         all_phi_drifts = []
         for ridx in range(self.n_receivers):
             a = self.ground_truth_phis[ridx]
-            b = self.get_segmentation_mean_phase()[f"r{ridx}"]
+            b = self.mean_phase[f"r{ridx}"]
             fwd = pi_norm(b - a)
             # bwd = pi_norm(a + np.pi - b)
             # mask = np.abs(fwd) < np.abs(bwd)
@@ -475,27 +507,7 @@ class v5spfdataset(Dataset):
         receiver_idx = idx % self.n_receivers
         return [self.render_session(receiver_idx, idx // self.n_receivers)]
 
-    def get_segmentation_mean_phase(self):
-        segmentation = self.get_segmentation()
-        mean_phase_results = {}
-        for receiver, results in segmentation["segmentation_by_receiver"].items():
-            mean_phase_results[receiver] = np.array(
-                [
-                    (
-                        np.array(
-                            [x["mean"] for x in result["simple_segmentation"]]
-                        ).mean()
-                        if len(result["simple_segmentation"]) > 0
-                        else 0.0
-                    )
-                    for result in results
-                ]
-            )
-        self.mean_phase = mean_phase_results
-        return self.mean_phase
-
     def get_estimated_thetas(self):
-        self.get_segmentation_mean_phase()
         estimated_thetas = {}
         for ridx in range(self.n_receivers):
             carrier_freq = self.yaml_config["receivers"][ridx]["f-carrier"]
