@@ -78,14 +78,14 @@ def new_yarr_dataset(
         receiver_z.create_dataset(
             "all_windows_stats",
             shape=all_windows_stats_shape,
-            chunks=(128, -1, -1),
+            chunks=(16, -1, -1),
             dtype="float16",
             compressor=compressor,
         )
         receiver_z.create_dataset(
             "windowed_beamformer",
             shape=windowed_beamformer_shape,
-            chunks=(128, -1, -1),
+            chunks=(16, -1, -1),
             dtype="float16",
             compressor=compressor,
         )
