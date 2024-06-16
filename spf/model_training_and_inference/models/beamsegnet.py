@@ -548,7 +548,7 @@ class BeamNetDirect(nn.Module):
             y = self.fixify(y, sign=1)
         return y  # [theta_u, sigma1, sigma2, k1, k2]
 
-    def likelihood(self, x, y, sigma_eps=0.00001):
+    def likelihood(self, x, y, sigma_eps=0.00001, smoothing_prob=0.0001):
         assert y.ndim == 2 and y.shape[1] == 1
         assert x.ndim == 2 and x.shape[1] >= 5
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
@@ -578,7 +578,7 @@ class BeamNetDirect(nn.Module):
             l += other_likelihood
         l = l.reshape(-1, 1)
         assert l.shape == (x.shape[0], 1)
-        return l
+        return l + smoothing_prob
 
     def loglikelihood(self, x, y, log_eps=0.000000001):
         return torch.log(self.likelihood(x, y) + log_eps)
