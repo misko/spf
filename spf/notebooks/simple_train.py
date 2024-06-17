@@ -236,6 +236,7 @@ def simple_train(args):
             latent=args.latent,
             max_angle=np.pi / 2,
             linear_sigmas=args.linear_sigmas,
+            correction=args.normal_correction,
         ).to(torch_device)
         paired_net = BeamNetDirect(
             nthetas=args.nthetas,
@@ -255,6 +256,7 @@ def simple_train(args):
             norm=args.norm,
             max_angle=np.pi,
             linear_sigmas=args.linear_sigmas,
+            correction=args.normal_correction,
         )
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
@@ -662,6 +664,11 @@ def get_parser():
     )
     parser.add_argument(
         "--batch-norm",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--normal-correction",
         action=argparse.BooleanOptionalAction,
         default=False,
     )
