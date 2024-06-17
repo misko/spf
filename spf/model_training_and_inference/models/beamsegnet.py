@@ -567,6 +567,9 @@ class BeamNetDirect(nn.Module):
             y=y[:, 0],
             sigma=x[:, 1].clamp(min=sigma_eps),  # , max=self.max_angle / 5),
         )
+
+        # add in reflections to keep the density similar
+        # this might drive large sigmas?
         # mu_likelihood += x[:, 3] * normal_dist_d(
         #     d=(x[:, 0] - self.max_angle).abs() + (y[:, 0] - self.max_angle).abs(),
         #     sigma=x[:, 1].clamp(min=sigma_eps),
@@ -575,10 +578,16 @@ class BeamNetDirect(nn.Module):
         #     d=(x[:, 0] + self.max_angle).abs() + (y[:, 0] + self.max_angle).abs(),
         #     sigma=x[:, 1].clamp(min=sigma_eps),
         # )
-        other_likelihood = x[:, 4] * normal_dist(
-            x=-x[:, 0].sign() * self.max_angle,
-            y=y[:, 0],
-            sigma=x[:, 2].clamp(min=sigma_eps),  # , max=self.max_angle / 2),
+
+        # add in other gussian on the other side # TODO should this have 2x multiplier?
+        other_likelihood = (
+            2  # correction factor, we only get half this gaussian since its on the boundary
+            * x[:, 4]
+            * normal_dist(
+                x=-x[:, 0].sign() * self.max_angle,
+                y=y[:, 0],
+                sigma=x[:, 2].clamp(min=sigma_eps),  # , max=self.max_angle / 2),
+            )
         )
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2) / (x[:, [1]] + sigma_eps))
         # other_likelihood = 0 * torch.exp(
