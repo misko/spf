@@ -235,6 +235,7 @@ def simple_train(args):
             positional_encoding=args.positional,
             latent=args.latent,
             max_angle=np.pi / 2,
+            linear_sigmas=args.linear_sigmas,
         ).to(torch_device)
         paired_net = BeamNetDirect(
             nthetas=args.nthetas,
@@ -253,6 +254,7 @@ def simple_train(args):
             inputs=args.n_radios * beam_m.outputs,
             norm=args.norm,
             max_angle=np.pi,
+            linear_sigmas=args.linear_sigmas,
         )
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
@@ -635,6 +637,11 @@ def get_parser():
     )
     parser.add_argument(
         "--block",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--linear-sigmas",
         action=argparse.BooleanOptionalAction,
         default=False,
     )
