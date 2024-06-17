@@ -139,8 +139,9 @@ def zarr_new_dataset(
     z.create_dataset("config", dtype=str, shape=(1))
     if isinstance(config, dict):
         config = yaml.dump(config)
-    z["config"][0] = config
-    assert z["config"][0] == config
+    if isinstance(config, str) or config.shape != ():
+        z["config"][0] = config
+        assert z["config"][0] == config
 
     z.create_group("receivers")
     for receiver_idx in range(n_receivers):
