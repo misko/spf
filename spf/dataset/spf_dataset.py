@@ -203,9 +203,11 @@ def v5_collate_beamsegnet(batch):
     x_list = []
     segmentation_mask_list = []
     rx_spacing_list = []
+    craft_y_rad_list = []
     for paired_sample in batch:
         for x in paired_sample:
             y_rad_list.append(x["y_rad"])
+            craft_y_rad_list.append(x["craft_y_rad"])
             rx_spacing_list.append(x["rx_spacing"].reshape(1, 1))
             simple_segmentation_list.append(x["simple_segmentation"])
             all_window_stats_list.append(
@@ -217,12 +219,14 @@ def v5_collate_beamsegnet(batch):
             downsampled_segmentation_mask_list.append(
                 x["downsampled_segmentation_mask"]
             )
+
             if "x" in batch[0][0]:
                 x_list.append(x["x"])
                 segmentation_mask_list.append(v5_segmentation_mask(x))
 
     d = {
         "y_rad": torch.vstack(y_rad_list),
+        "craft_y_rad": torch.vstack(craft_y_rad_list),
         "rx_spacing": torch.vstack(rx_spacing_list),
         "simple_segmentation": simple_segmentation_list,
         "all_windows_stats": torch.from_numpy(np.vstack(all_window_stats_list)),
@@ -336,6 +340,7 @@ class v5spfdataset(Dataset):
 
         self.ground_truth_thetas = self.get_ground_truth_thetas()
         self.ground_truth_phis = self.get_ground_truth_phis()
+        self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
         self.get_segmentation()
 
         # get mean phase segmentation
@@ -409,6 +414,7 @@ class v5spfdataset(Dataset):
         data = {key: r[key][session_idx] for key in self.keys_per_session}
 
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][session_idx]
+        data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[session_idx]
         data = {
             k: (
                 torch.from_numpy(v)
@@ -423,6 +429,7 @@ class v5spfdataset(Dataset):
             data["x"] = torch.vstack([abs_signal[0], abs_signal[1], pd])[None]
 
         data["y_rad"] = data["ground_truth_theta"][None]
+        data["craft_y_rad"] = data["craft_ground_truth_theta"][None]
 
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
         d = self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
@@ -460,6 +467,7 @@ class v5spfdataset(Dataset):
                     )  # up to negative sign, which way do we spin?
                     # or maybe this is the order of the receivers 0/1 vs 1/0 on the x-axis
                     # pretty sure this (-) is more about which receiver is closer to x+/ish
+                    # a -1 here is the same as -rx_spacing!
                     * self.receiver_data[ridx]["rx_spacing"]
                     * 2
                     * np.pi
@@ -482,6 +490,24 @@ class v5spfdataset(Dataset):
             c = fwd
             all_phi_drifts.append(c)
         return all_phi_drifts
+
+    def get_craft_ground_truth_thetas(self):
+        craft_ground_truth_thetas = pi_norm(
+            self.ground_truth_thetas[0]
+            + self.receiver_data[0]["rx_theta_in_pis"][:] * np.pi
+        )
+        for ridx in range(1, self.n_receivers):
+            _craft_ground_truth_thetas = pi_norm(
+                self.ground_truth_thetas[ridx]
+                + self.receiver_data[ridx]["rx_theta_in_pis"][:] * np.pi
+            )
+            assert np.isclose(
+                pi_norm(craft_ground_truth_thetas - _craft_ground_truth_thetas),
+                0,
+                atol=0.1,  # this might not scale well to larger examples
+                # i think the error gets worse
+            ).all()
+        return craft_ground_truth_thetas
 
     def get_ground_truth_thetas(self):
         ground_truth_thetas = []
@@ -511,7 +537,6 @@ class v5spfdataset(Dataset):
         # in 2D there are generally two spots that satisfy phase diff
         # lets pick the one thats infront of the craft (array)
         assert self.n_receivers == 2
-
         return np.array(ground_truth_thetas)
 
     def __getitem__(self, idx):
