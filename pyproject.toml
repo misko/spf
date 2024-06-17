@@ -16,7 +16,7 @@ dependencies = [
  "shapely",
  "attrs",
  "pymavlink",
- "serial",
+ "pyserial",
  "tqdm",
  "numba",
  "scipy",
