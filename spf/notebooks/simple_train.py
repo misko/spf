@@ -142,6 +142,9 @@ def plot_instance(_x, _output_seg, _seg_mask, idx, first_n):
 
 
 def simple_train(args):
+    if args.n_radios == 1 and args.latent > 0:
+        raise ValueError("Cannot have latent space when n_radios==1")
+    # torch.autograd.detect_anomaly()
     # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
     torch_device = torch.device(args.device)
 
@@ -189,15 +192,6 @@ def simple_train(args):
     train_dataloader = torch.utils.data.DataLoader(train_ds, **dataloader_params)
     val_dataloader = torch.utils.data.DataLoader(val_ds, **dataloader_params)
 
-    if args.wandb_project:
-        # start a new wandb run to track this script
-        wandb.init(
-            # set the wandb project where this run will be logged
-            project=args.wandb_project,
-            # track hyperparameters and run metadata
-            config=args,
-        )
-
     if args.act == "relu":
         act = torch.nn.ReLU
     elif args.act == "selu":
@@ -239,6 +233,8 @@ def simple_train(args):
             inputs=3,  # + (1 if args.rx_spacing else 0),
             norm=args.norm,
             positional_encoding=args.positional,
+            latent=args.latent,
+            max_angle=np.pi / 2,
         ).to(torch_device)
         paired_net = BeamNetDirect(
             nthetas=args.nthetas,
@@ -256,6 +252,7 @@ def simple_train(args):
             stddev_track=-1,
             inputs=args.n_radios * beam_m.outputs,
             norm=args.norm,
+            max_angle=np.pi,
         )
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
@@ -265,6 +262,7 @@ def simple_train(args):
             symmetry=args.symmetry,
             bn=args.batch_norm,
             positional_encoding=args.positional,
+            latent=args.latent,
         ).to(torch_device)
         paired_net = BeamNetDiscrete(
             nthetas=args.nthetas,
@@ -295,10 +293,19 @@ def simple_train(args):
         rx_spacing=args.rx_spacing,
     ).to(torch_device)
 
-    print("model:")
-    print(m)
     if args.wandb_project:
-        wandb.config.update({"pytorch_model": str(m)})
+        # start a new wandb run to track this script
+        config = vars(args)
+        config["pytorch_model"] = str(m)
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project=args.wandb_project,
+            # track hyperparameters and run metadata
+            config=config,
+        )
+    else:
+        print("model:")
+        print(m)
 
     if args.compile:
         m = torch.compile(m)
@@ -320,8 +327,9 @@ def simple_train(args):
         rx_spacing = batch_data["rx_spacing"].to(torch_device)
 
         y_rad = batch_data["y_rad"].to(torch_device)
+        craft_y_rad = batch_data["craft_y_rad"].to(torch_device)
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
-        return x, y_rad, seg_mask, rx_spacing
+        return x, y_rad, craft_y_rad, seg_mask, rx_spacing
 
     step = 0
     losses = []
@@ -347,8 +355,10 @@ def simple_train(args):
                         leave=False,
                     ):
                         # for val_batch_data in val_dataloader:
-                        x, y_rad, seg_mask, rx_spacing = batch_data_to_x_y_seg(
-                            val_batch_data, args.segmentation_level
+                        x, y_rad, craft_y_rad, seg_mask, rx_spacing = (
+                            batch_data_to_x_y_seg(
+                                val_batch_data, args.segmentation_level
+                            )
                         )
 
                         y_rad_reduced = reduce_theta_to_positive_y(y_rad)
@@ -356,7 +366,7 @@ def simple_train(args):
                         output = m(x, seg_mask, rx_spacing)
 
                         # compute the loss
-                        loss_d = m.loss(output, y_rad_reduced, seg_mask)
+                        loss_d = m.loss(output, y_rad_reduced, craft_y_rad, seg_mask)
 
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
@@ -379,14 +389,14 @@ def simple_train(args):
 
             optimizer.zero_grad()
 
-            x, y_rad, seg_mask, rx_spacing = batch_data_to_x_y_seg(
+            x, y_rad, craft_y_rad, seg_mask, rx_spacing = batch_data_to_x_y_seg(
                 batch_data, args.segmentation_level
             )
             y_rad_reduced = reduce_theta_to_positive_y(y_rad)
 
             output = m(x, seg_mask, rx_spacing)
 
-            loss_d = m.loss(output, y_rad_reduced, seg_mask)
+            loss_d = m.loss(output, y_rad_reduced, craft_y_rad, seg_mask)
 
             loss = loss_d["beamformer_loss"]
             if step > args.seg_start:
@@ -407,81 +417,19 @@ def simple_train(args):
                     to_log[key].append(value.item())
 
                 if step == 0 or (step + 1) % args.plot_every == 0:
-                    img_beam_output = (
-                        (beam_m.render_discrete_x(output["pred_theta"]) * 255)
-                        .cpu()
-                        .byte()
+                    unpaired_fig = imshow_predictions_half_pi(
+                        beam_m, output["pred_theta"], y_rad
                     )
-                    # img_beam_gt = (beam_m.render_discrete_y(y_rad) * 255).cpu().byte()
-
-                    output_dim = img_beam_output.shape[1]
-                    assert output_dim % 2 == 1
-                    full_output_dim = output_dim * 2 + 1
-                    half_pi_output_offset = output_dim // 2 + 1
-
-                    # img_beam_gt_reduced = (
-                    #     (beam_m.render_discrete_y(y_rad_reduced) * 255).cpu().byte()
-                    # )
-
-                    img_beam_gt_reduced = (
-                        (
-                            v5_thetas_to_targets(
-                                y_rad_reduced, output_dim, range_in_rad=1, sigma=0.3
-                            )
-                            * 255
+                    if "paired_pred_theta" in output:
+                        paired_fig = imshow_predictions_pi(
+                            paired_net, output["paired_pred_theta"], craft_y_rad[::2]
                         )
-                        .cpu()
-                        .byte()
-                    )
-                    img_beam_gt = (
-                        (
-                            v5_thetas_to_targets(
-                                y_rad, full_output_dim, range_in_rad=2, sigma=0.3
-                            )
-                            * 255
-                        )
-                        .cpu()
-                        .byte()
-                    )
 
-                    examples_to_plot = min(128, img_beam_output.shape[0])
-                    train_target_image = torch.zeros(
-                        (examples_to_plot * 7, full_output_dim),
-                    ).byte()
+                    if args.wandb_project:
+                        to_log["unpaired_output"] = unpaired_fig
+                        if "paired_pred_theta" in output:
+                            to_log["paired_output"] = paired_fig
 
-                    for row_idx in range(examples_to_plot):
-                        train_target_image[
-                            row_idx * 7,
-                            half_pi_output_offset : half_pi_output_offset + output_dim,
-                        ] = img_beam_output[row_idx]
-                        train_target_image[
-                            row_idx * 7 + 2,
-                            half_pi_output_offset : half_pi_output_offset + output_dim,
-                        ] = img_beam_gt_reduced[row_idx]
-                        train_target_image[row_idx * 7 + 3] = img_beam_gt[row_idx]
-                    # if args.wandb_project:
-                    #     output_image = wandb.Image(
-                    #         train_target_image, caption="train vs target (interleaved)"
-                    #     )
-                    #     to_log["output"] = output_image
-                    # else:
-                    if True:
-                        fig, ax = plt.subplots(1, 1, figsize=(16, examples_to_plot / 2))
-                        ax.imshow(train_target_image, interpolation="none")
-
-                        ax.set_xticks(np.linspace(0, full_output_dim - 1, 5))
-                        ax.set_xticklabels(["-pi", "-pi/2", "0", "pi/2", "pi"])
-
-                        # Labels for major ticks
-                        ax.grid(
-                            which="major",
-                            color="w",
-                            linestyle="-",
-                            linewidth=0.5,
-                            axis="x",
-                        )
-                        if args.wandb_project:
-                            to_log["output"] = fig
                     # segmentation output
                     _x = x.detach().cpu().numpy()
                     _seg_mask = seg_mask.detach().cpu().numpy()
@@ -638,6 +586,11 @@ def get_parser():
         "--n-radios",
         type=int,
         default=1,
+    )
+    parser.add_argument(
+        "--latent",
+        type=int,
+        default=0,
     )
     parser.add_argument(
         "--act",

@@ -467,6 +467,7 @@ class BeamNetDirect(nn.Module):
         inputs=3,
         norm="batch",
         positional_encoding=False,
+        linear_sigmas=False,
     ):
         super(BeamNetDirect, self).__init__()
         self.latent = latent
@@ -481,12 +482,14 @@ class BeamNetDirect(nn.Module):
         self.block = block
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
+        self.relu = torch.nn.ReLU()
         self.nthetas = nthetas
         self.other = other
         self.no_sigmoid = no_sigmoid
         self.inputs = inputs
         self.norm = norm
         self.max_angle = max_angle
+        self.linear_sigmas = linear_sigmas
         self.beam_net = nn.Sequential(
             (
                 HalfPiEncoding(self.pd_track, self.nthetas)
@@ -511,11 +514,15 @@ class BeamNetDirect(nn.Module):
             mean_values = sign * _y[:, [0]]
         else:
             _y_sig_centered = (_y_sig[:, [0]] - 0.5) * 4  # in [-2,2]
-            mean_values = sign * _y_sig_centered * self.max_angle
+            mean_values = sign * _y_sig_centered * (2 * self.max_angle)
+        if not self.linear_sigmas:
+            sigmas = _y_sig[:, [1, 2]] * 1.0 + 0.1  # sigmas
+        else:
+            sigmas = self.relu(_y[:, [1, 2]]) * 1.0 + 0.1  # sigmas
         return torch.hstack(
             [
                 mean_values,  # mu
-                _y_sig[:, [1, 2]] * 1.0 + 0.1,  # sigmas
+                sigmas,
                 # self.softmax(_y[:, [3, 4]]),
                 _y_sig[:, [3]],
                 1.0 - _y_sig[:, [4]],
@@ -556,20 +563,22 @@ class BeamNetDirect(nn.Module):
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
         mu_likelihood = x[:, 3] * normal_dist(
-            x=x[:, 0], y=y[:, 0], sigma=x[:, 1].clamp(min=sigma_eps)
+            x=x[:, 0],
+            y=y[:, 0],
+            sigma=x[:, 1].clamp(min=sigma_eps),  # , max=self.max_angle / 5),
         )
-        mu_likelihood += x[:, 3] * normal_dist_d(
-            d=(x[:, 0] - self.max_angle).abs() + (y[:, 0] - self.max_angle).abs(),
-            sigma=x[:, 1].clamp(min=sigma_eps),
-        )
-        mu_likelihood += x[:, 3] * normal_dist_d(
-            d=(x[:, 0] + self.max_angle).abs() + (y[:, 0] + self.max_angle).abs(),
-            sigma=x[:, 1].clamp(min=sigma_eps),
-        )
+        # mu_likelihood += x[:, 3] * normal_dist_d(
+        #     d=(x[:, 0] - self.max_angle).abs() + (y[:, 0] - self.max_angle).abs(),
+        #     sigma=x[:, 1].clamp(min=sigma_eps),
+        # )
+        # mu_likelihood += x[:, 3] * normal_dist_d(
+        #     d=(x[:, 0] + self.max_angle).abs() + (y[:, 0] + self.max_angle).abs(),
+        #     sigma=x[:, 1].clamp(min=sigma_eps),
+        # )
         other_likelihood = x[:, 4] * normal_dist(
             x=-x[:, 0].sign() * self.max_angle,
             y=y[:, 0],
-            sigma=x[:, 2].clamp(min=sigma_eps),
+            sigma=x[:, 2].clamp(min=sigma_eps),  # , max=self.max_angle / 2),
         )
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2) / (x[:, [1]] + sigma_eps))
         # other_likelihood = 0 * torch.exp(
