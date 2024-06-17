@@ -23,6 +23,107 @@ from spf.model_training_and_inference.models.beamsegnet import (
 from spf.rf import reduce_theta_to_positive_y
 
 
+def imshow_predictions_pi(
+    beam_m,
+    output,
+    y_rad,
+):
+    img_beam_output = (beam_m.render_discrete_x(output) * 255).cpu().byte()
+
+    output_dim = img_beam_output.shape[1]
+
+    img_beam_gt = (
+        (v5_thetas_to_targets(y_rad, output_dim, range_in_rad=2, sigma=0.3) * 255)
+        .cpu()
+        .byte()
+    )
+
+    examples_to_plot = min(128, img_beam_output.shape[0])
+    train_target_image = torch.zeros(
+        (examples_to_plot * 4, output_dim),
+    ).byte()
+
+    for row_idx in range(examples_to_plot):
+        train_target_image[row_idx * 4] = img_beam_output[row_idx]
+        train_target_image[row_idx * 4 + 1] = img_beam_gt[row_idx]
+
+    fig, ax = plt.subplots(1, 1, figsize=(16, examples_to_plot / 2))
+    ax.imshow(train_target_image, interpolation="none")
+
+    ax.set_xticks(np.linspace(0, output_dim - 1, 5))
+    ax.set_xticklabels(["-pi", "-pi/2", "0", "pi/2", "pi"])
+
+    # Labels for major ticks
+    ax.grid(
+        which="major",
+        color="w",
+        linestyle="-",
+        linewidth=0.5,
+        axis="x",
+    )
+    return fig
+
+
+def imshow_predictions_half_pi(
+    beam_m,
+    output,
+    y_rad,
+):
+    img_beam_output = (beam_m.render_discrete_x(output) * 255).cpu().byte()
+
+    output_dim = img_beam_output.shape[1]
+    assert output_dim % 2 == 1
+    full_output_dim = output_dim * 2 - 1
+    half_pi_output_offset = output_dim // 2 + 1
+
+    y_rad_reduced = reduce_theta_to_positive_y(y_rad)
+    img_beam_gt_reduced = (
+        (
+            v5_thetas_to_targets(y_rad_reduced, output_dim, range_in_rad=1, sigma=0.3)
+            * 255
+        )
+        .cpu()
+        .byte()
+    )
+    img_beam_gt = (
+        (v5_thetas_to_targets(y_rad, full_output_dim, range_in_rad=2, sigma=0.3) * 255)
+        .cpu()
+        .byte()
+    )
+
+    examples_to_plot = min(128, img_beam_output.shape[0])
+    train_target_image = torch.zeros(
+        (examples_to_plot * 7, full_output_dim),
+    ).byte()
+
+    for row_idx in range(examples_to_plot):
+        train_target_image[
+            row_idx * 7,
+            half_pi_output_offset : half_pi_output_offset + output_dim,
+        ] = img_beam_output[row_idx]
+        train_target_image[
+            row_idx * 7 + 2,
+            half_pi_output_offset : half_pi_output_offset + output_dim,
+        ] = img_beam_gt_reduced[row_idx]
+        train_target_image[row_idx * 7 + 3] = img_beam_gt[row_idx]
+
+    fig, ax = plt.subplots(1, 1, figsize=(16, examples_to_plot / 2))
+    ax.imshow(train_target_image, interpolation="none")
+
+    ax.set_xticks(np.linspace(0, full_output_dim - 1, 5))
+    ax.set_xticklabels(["-pi", "-pi/2", "0", "pi/2", "pi"])
+
+    # Labels for major ticks
+    ax.grid(
+        which="major",
+        color="w",
+        linestyle="-",
+        linewidth=0.5,
+        axis="x",
+    )
+    return fig
+
+
 def plot_instance(_x, _output_seg, _seg_mask, idx, first_n):
     fig, axs = plt.subplots(1, 3, figsize=(8, 3))
     s = 0.3
