@@ -8,6 +8,10 @@ from spf.dataset.spf_dataset import v5_thetas_to_targets
 from spf.rf import torch_circular_mean
 
 
+import torch
+import math
+
+
 class ConvNet(nn.Module):
     def __init__(self, in_channels, out_channels, hidden, act=nn.LeakyReLU, bn=False):
         super(ConvNet, self).__init__()
@@ -433,6 +437,17 @@ class BeamNetDiscrete(nn.Module):
         return v5_thetas_to_targets(y, self.nthetas, range_in_rad=1, sigma=0.1)
 
 
+def cdf(mean, sigma, value):
+    return 0.5 * (1 + torch.erf((value - mean) * sigma.reciprocal() / math.sqrt(2)))
+
+
+def normal_correction_for_bounded_range(mean, sigma, max_y):
+    assert max_y > 0
+    left_p = cdf(mean, sigma, -max_y)
+    right_p = cdf(mean, sigma, max_y)
+    return (right_p - left_p).reciprocal()
+
+
 def normal_dist_d(sigma, d):
     assert sigma.ndim == 1
     d = d / sigma
@@ -468,6 +483,7 @@ class BeamNetDirect(nn.Module):
         norm="batch",
         positional_encoding=False,
         linear_sigmas=False,
+        correction=False,
     ):
         super(BeamNetDirect, self).__init__()
         self.latent = latent
@@ -490,6 +506,7 @@ class BeamNetDirect(nn.Module):
         self.norm = norm
         self.max_angle = max_angle
         self.linear_sigmas = linear_sigmas
+        self.correction = correction
         self.beam_net = nn.Sequential(
             (
                 HalfPiEncoding(self.pd_track, self.nthetas)
@@ -562,10 +579,15 @@ class BeamNetDirect(nn.Module):
         assert x.ndim == 2 and x.shape[1] >= 5
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2))  #
-        mu_likelihood = x[:, 3] * normal_dist(
-            x=x[:, 0],
-            y=y[:, 0],
-            sigma=x[:, 1].clamp(min=sigma_eps),  # , max=self.max_angle / 5),
+        main_scale = x[:, 3]
+        main_mean = x[:, 0]
+        main_sigma = x[:, 1].clamp(min=sigma_eps)
+        other_scale = x[:, 4]
+        other_mean = -x[:, 0].sign() * self.max_angle
+        other_sigma = x[:, 2].clamp(min=sigma_eps)
+
+        main_likelihood = main_scale * normal_dist(
+            x=main_mean, y=y[:, 0], sigma=main_sigma  # , max=self.max_angle / 5),
         )
 
         # add in reflections to keep the density similar
@@ -580,20 +602,29 @@ class BeamNetDirect(nn.Module):
         # )
 
         # add in other gussian on the other side # TODO should this have 2x multiplier?
-        other_likelihood = (
-            2  # correction factor, we only get half this gaussian since its on the boundary
-            * x[:, 4]
-            * normal_dist(
-                x=-x[:, 0].sign() * self.max_angle,
-                y=y[:, 0],
-                sigma=x[:, 2].clamp(min=sigma_eps),  # , max=self.max_angle / 2),
-            )
+
+        other_likelihood = other_scale * normal_dist(
+            x=other_mean,
+            y=y[:, 0],
+            sigma=other_sigma,  # , max=self.max_angle / 2),
         )
+
+        if self.correction:
+            main_likelihood *= normal_correction_for_bounded_range(
+                mean=main_mean, sigma=main_sigma, max_y=self.max_angle
+            )
+            other_likelihood *= (
+                2.0  # its always 2 for the other distribution since its on boundary
+            )
+            # other_likelihood *= normal_correction_for_bounded_range(
+            #     mean=other_mean, sigma=other_sigma, max_y=self.max_angle
+            # )
+
         # mu_likelihood = torch.exp(-((x[:, [0]] - y) ** 2) / (x[:, [1]] + sigma_eps))
         # other_likelihood = 0 * torch.exp(
         #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
         # )
-        l = mu_likelihood
+        l = main_likelihood
         if self.other:
             l += other_likelihood
         l = l.reshape(-1, 1)
