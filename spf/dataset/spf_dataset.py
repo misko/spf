@@ -501,12 +501,14 @@ class v5spfdataset(Dataset):
                 self.ground_truth_thetas[ridx]
                 + self.receiver_data[ridx]["rx_theta_in_pis"][:] * np.pi
             )
-            assert np.isclose(
-                pi_norm(craft_ground_truth_thetas - _craft_ground_truth_thetas),
-                0,
-                atol=0.1,  # this might not scale well to larger examples
-                # i think the error gets worse
-            ).all()
+            assert (
+                abs(
+                    pi_norm(craft_ground_truth_thetas - _craft_ground_truth_thetas)
+                ).mean()
+                < 0.01
+            )  # this might not scale well to larger examples
+            # i think the error gets worse
+
         return craft_ground_truth_thetas
 
     def get_ground_truth_thetas(self):
