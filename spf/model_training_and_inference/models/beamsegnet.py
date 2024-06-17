@@ -611,8 +611,10 @@ class BeamNetDirect(nn.Module):
 
         if self.correction:
             main_likelihood *= normal_correction_for_bounded_range(
-                mean=main_mean, sigma=main_sigma, max_y=self.max_angle
-            )
+                mean=main_mean.detach(), sigma=main_sigma.detach(), max_y=self.max_angle
+            ).clamp(
+                min=0.1, max=5
+            )  # what if mean is outside of box!
             other_likelihood *= (
                 2.0  # its always 2 for the other distribution since its on boundary
             )

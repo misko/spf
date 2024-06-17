@@ -74,7 +74,7 @@ def imshow_predictions_half_pi(
     output_dim = img_beam_output.shape[1]
     assert output_dim % 2 == 1
     full_output_dim = output_dim * 2 - 1
-    half_pi_output_offset = output_dim // 2 + 1
+    half_pi_output_offset = output_dim // 2
 
     y_rad_reduced = reduce_theta_to_positive_y(y_rad)
     img_beam_gt_reduced = (
