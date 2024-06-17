@@ -452,6 +452,7 @@ class BeamNetDirect(nn.Module):
         nthetas,
         hidden,
         symmetry,
+        max_angle=np.pi / 2,
         depth=3,
         rx_spacing_track=3,
         mag_track=2,
@@ -485,6 +486,7 @@ class BeamNetDirect(nn.Module):
         self.no_sigmoid = no_sigmoid
         self.inputs = inputs
         self.norm = norm
+        self.max_angle = max_angle
         self.beam_net = nn.Sequential(
             (
                 HalfPiEncoding(self.pd_track, self.nthetas)
@@ -509,7 +511,7 @@ class BeamNetDirect(nn.Module):
             mean_values = sign * _y[:, [0]]
         else:
             _y_sig_centered = (_y_sig[:, [0]] - 0.5) * 4  # in [-2,2]
-            mean_values = sign * _y_sig_centered * torch.pi / 2
+            mean_values = sign * _y_sig_centered * self.max_angle
         return torch.hstack(
             [
                 mean_values,  # mu
@@ -531,7 +533,7 @@ class BeamNetDirect(nn.Module):
 
         # try to normalize
         if self.pd_track >= 0:
-            x[:, self.pd_track] = x[:, self.pd_track] / (torch.pi / 2)
+            x[:, self.pd_track] = x[:, self.pd_track] / self.max_angle
         if self.mag_track >= 0:
             x[:, self.mag_track] = x[:, self.mag_track] / 200
         if self.rx_spacing_track >= 0 and x.shape[1] > self.rx_spacing_track:
@@ -557,15 +559,15 @@ class BeamNetDirect(nn.Module):
             x=x[:, 0], y=y[:, 0], sigma=x[:, 1].clamp(min=sigma_eps)
         )
         mu_likelihood += x[:, 3] * normal_dist_d(
-            d=(x[:, 0] - torch.pi / 2).abs() + (y[:, 0] - torch.pi / 2).abs(),
+            d=(x[:, 0] - self.max_angle).abs() + (y[:, 0] - self.max_angle).abs(),
             sigma=x[:, 1].clamp(min=sigma_eps),
         )
         mu_likelihood += x[:, 3] * normal_dist_d(
-            d=(x[:, 0] + torch.pi / 2).abs() + (y[:, 0] + torch.pi / 2).abs(),
+            d=(x[:, 0] + self.max_angle).abs() + (y[:, 0] + self.max_angle).abs(),
             sigma=x[:, 1].clamp(min=sigma_eps),
         )
         other_likelihood = x[:, 4] * normal_dist(
-            x=-x[:, 0].sign() * torch.pi / 2,
+            x=-x[:, 0].sign() * self.max_angle,
             y=y[:, 0],
             sigma=x[:, 2].clamp(min=sigma_eps),
         )
@@ -587,8 +589,8 @@ class BeamNetDirect(nn.Module):
     def render_discrete_x(self, x):
 
         thetas = torch.linspace(
-            -torch.pi / 2,
-            torch.pi / 2,
+            -self.max_angle,
+            self.max_angle,
             self.nthetas,
             device=x.device,
         ).reshape(1, -1)
@@ -606,7 +608,7 @@ class BeamNetDirect(nn.Module):
 
     # this is discrete its already rendered
     def render_discrete_y(self, y):
-        assert y.abs().max() <= np.pi / 2
+        assert y.abs().max() <= self.max_angle
         return v5_thetas_to_targets(y, self.nthetas, sigma=0.5, range_in_rad=1)
 
 
@@ -640,7 +642,7 @@ class BeamNSegNet(nn.Module):
         self.paired_lambda = paired_lambda
         self.rx_spacing = rx_spacing
 
-    def loss(self, output, y_rad, seg_mask):
+    def loss(self, output, y_rad, craft_y_rad, seg_mask):
         # x to beamformer loss (indirectly including segmentation)
         beamformer_loss = -self.beamnet.loglikelihood(
             output["pred_theta"], y_rad
@@ -649,7 +651,8 @@ class BeamNSegNet(nn.Module):
         paired_beamformer_loss = 0
         if self.n_radios > 1:
             paired_beamformer_loss = -self.paired_net.loglikelihood(
-                output["paired_pred_theta"], y_rad[::2]
+                output["paired_pred_theta"],
+                craft_y_rad[::2],
             ).mean()
 
         # segmentation loss
