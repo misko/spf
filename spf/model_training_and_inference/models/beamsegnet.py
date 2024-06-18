@@ -478,71 +478,57 @@ def normal_dist(x, y, sigma, d=None):
     return normal_dist_d(sigma, (x - y))
 
 
-class BeamNetDirect(nn.Module):
+def FFN_to_Normal(
+    inputs,
+    depth,
+    hidden,
+    latent,
+    block,
+    norm,
+    act,
+    bn,
+):
+    return FFNN(
+        inputs=inputs,
+        depth=depth,
+        hidden=hidden,
+        outputs=1 + 2 + 2 + latent,
+        block=block,
+        norm=norm,
+        act=act,
+        bn=bn,
+    )
+
+
+class NormalNet(nn.Module):
     def __init__(
         self,
         nthetas,
-        hidden,
-        symmetry,
-        max_angle=np.pi / 2,
-        depth=3,
-        rx_spacing_track=3,
-        mag_track=2,
-        stddev_track=1,
-        pd_track=0,
-        other=True,
-        bn=False,
-        no_sigmoid=False,
-        act=nn.LeakyReLU,
-        block=False,
-        latent=2,
-        inputs=3,
-        norm="batch",
-        positional_encoding=False,
-        linear_sigmas=False,
-        correction=False,
-        min_sigma=0.2,
+        max_angle,
+        other,
+        no_sigmoid,
+        linear_sigmas,
+        correction,
+        min_sigma,
+        beam_net,
+        outputs,
+        latent,
     ):
-        super(BeamNetDirect, self).__init__()
-        self.latent = latent
-        self.outputs = 1 + 2 + 2 + latent  # u, o1, o2, k1, k2
-        self.hidden = hidden
-        self.pd_track = pd_track
-        self.act = act
-        self.mag_track = mag_track
-        self.stddev_track = stddev_track
-        self.rx_spacing_track = rx_spacing_track
-        self.symmetry = symmetry
-        self.block = block
+        super(NormalNet, self).__init__()
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
         self.relu = torch.nn.ReLU()
         self.nthetas = nthetas
         self.other = other
         self.no_sigmoid = no_sigmoid
-        self.inputs = inputs
-        self.norm = norm
         self.max_angle = max_angle
         self.linear_sigmas = linear_sigmas
         self.correction = correction
         self.min_sigma = min_sigma
-        self.beam_net = nn.Sequential(
-            (
-                HalfPiEncoding(self.pd_track, self.nthetas)
-                if positional_encoding
-                else nn.Identity()
-            ),
-            FFNN(
-                inputs=inputs + self.nthetas if positional_encoding else inputs,
-                depth=depth,
-                hidden=hidden,
-                outputs=self.outputs,
-                block=block,
-                norm=norm,
-                act=act,
-                bn=bn,
-            ),
-        )
+        self.outputs = outputs
+        self.latent = latent
+
+        self.beam_net = beam_net
 
     def fixify(self, _y, sign):
         _y_sig = self.sigmoid(_y)  # in [0,1]
@@ -567,31 +553,7 @@ class BeamNetDirect(nn.Module):
         )
 
     def forward(self, x):
-        # split into pd>=0 and pd<0
-
-        if self.symmetry:
-            assert self.pd_track >= 0
-            pd_pos_mask = x[:, self.pd_track] >= 0
-            x[:, self.pd_track] = x[:, self.pd_track].abs()
-
-        # try to normalize
-        if self.pd_track >= 0:
-            x[:, self.pd_track] = x[:, self.pd_track] / self.max_angle
-        if self.mag_track >= 0:
-            x[:, self.mag_track] = x[:, self.mag_track] / 200
-        if self.rx_spacing_track >= 0 and x.shape[1] > self.rx_spacing_track:
-            x[:, self.rx_spacing_track] = x[:, self.rx_spacing_track] / 1000
-        # breakpoint()
-
-        y = self.beam_net(x)
-
-        if self.symmetry:
-            # copy over results for pd>0
-            y[pd_pos_mask] = self.fixify(y[pd_pos_mask], sign=1)
-            y[~pd_pos_mask] = self.fixify(y[~pd_pos_mask], sign=-1)
-        else:
-            y = self.fixify(y, sign=1)
-        return y  # [theta_u, sigma1, sigma2, k1, k2]
+        return self.fixify(self.beam_net(x), sign=1)
 
     def likelihood(self, x, y, sigma_eps=0.01, smoothing_prob=0.0001):
         assert y.ndim == 2 and y.shape[1] == 1
@@ -645,12 +607,12 @@ class BeamNetDirect(nn.Module):
         # other_likelihood = 0 * torch.exp(
         #     -((-x[:, 0].sign() * torch.pi / 2 - y) ** 2) / 1
         # )
-        l = main_likelihood
+        likelihood = main_likelihood
         if self.other:
-            l += other_likelihood
-        l = l.reshape(-1, 1)
-        assert l.shape == (x.shape[0], 1)
-        return l + smoothing_prob
+            likelihood += other_likelihood
+        likelihood = likelihood.reshape(-1, 1)
+        assert likelihood.shape == (x.shape[0], 1)
+        return likelihood + smoothing_prob
 
     def mse(self, x, y):
         return (torch_pi_norm(x[:, 0] - y[:, 0], max_angle=self.max_angle) ** 2).mean()
@@ -685,6 +647,100 @@ class BeamNetDirect(nn.Module):
         return v5_thetas_to_targets(y, self.nthetas, sigma=0.5, range_in_rad=1)
 
 
+class BeamNetDirect(NormalNet):
+    def __init__(
+        self,
+        # network architecture
+        hidden=16,
+        latent=2,
+        inputs=3,
+        depth=3,
+        act=nn.LeakyReLU,
+        block=False,
+        bn=False,
+        norm="batch",
+        # angle specific
+        nthetas=65,
+        max_angle=np.pi / 2,
+        # normal net params
+        other=True,
+        no_sigmoid=False,
+        linear_sigmas=False,
+        correction=False,
+        min_sigma=0.2,
+        # equivariance
+        positional_encoding=False,
+        rx_spacing_track=3,
+        mag_track=2,
+        stddev_track=1,
+        pd_track=0,
+        symmetry=False,
+    ):
+        self.outputs = 1 + 2 + 2 + latent  # u , o1 o2 , k1 k2
+        super(BeamNetDirect, self).__init__(
+            nthetas=nthetas,
+            other=other,
+            no_sigmoid=no_sigmoid,
+            linear_sigmas=linear_sigmas,
+            correction=correction,
+            min_sigma=min_sigma,
+            max_angle=max_angle,
+            beam_net=nn.Sequential(
+                (
+                    HalfPiEncoding(pd_track, nthetas)
+                    if positional_encoding
+                    else nn.Identity()
+                ),
+                FFNN(
+                    inputs=(inputs + nthetas if positional_encoding else inputs),
+                    depth=depth,
+                    hidden=hidden,
+                    outputs=self.outputs,
+                    block=block,
+                    norm=norm,
+                    act=act,
+                    bn=bn,
+                ),
+            ),
+            outputs=self.outputs,
+            latent=latent,
+        )
+
+        # equivariance stuff
+        self.pd_track = pd_track
+        self.mag_track = mag_track
+        self.stddev_track = stddev_track
+        self.rx_spacing_track = rx_spacing_track
+        self.symmetry = symmetry
+
+    def forward(self, x):
+        # split into pd>=0 and pd<0
+
+        if self.symmetry:
+            assert self.pd_track >= 0
+            pd_pos_mask = x[:, self.pd_track] >= 0
+            x[:, self.pd_track] = x[:, self.pd_track].abs()
+
+        # try to normalize
+        if self.pd_track >= 0:
+            x[:, self.pd_track] = x[:, self.pd_track] / self.max_angle
+        if self.mag_track >= 0:
+            x[:, self.mag_track] = x[:, self.mag_track] / 200
+        if self.rx_spacing_track >= 0 and x.shape[1] > self.rx_spacing_track:
+            x[:, self.rx_spacing_track] = x[:, self.rx_spacing_track] / 1000
+        # breakpoint()
+
+        y = self.beam_net(x)
+
+        if self.symmetry:
+            # copy over results for pd>0
+            y[pd_pos_mask] = self.fixify(y[pd_pos_mask], sign=1)
+            y[~pd_pos_mask] = self.fixify(y[~pd_pos_mask], sign=-1)
+        else:
+            y = self.fixify(y, sign=1)
+        return y  # [theta_u, sigma1, sigma2, k1, k2]
+
+
 class BeamNSegNet(nn.Module):
     def __init__(
         self,
@@ -703,6 +759,8 @@ class BeamNSegNet(nn.Module):
         drop_in_gt=0.0,
         beamnet_lambda=1.0,
         mse_lambda=0.0,
+        paired_mse_lambda=0.0,
+        beamformer_input=False,
     ):
         super(BeamNSegNet, self).__init__()
         self.beamnet = beamnet
@@ -722,6 +780,8 @@ class BeamNSegNet(nn.Module):
         self.drop_in_gt = drop_in_gt
         self.beamnet_lambda = beamnet_lambda
         self.mse_lambda = mse_lambda
+        self.paired_mse_lambda = paired_mse_lambda
+        self.beamformer_input = beamformer_input
 
     def loss(self, output, y_rad, craft_y_rad, seg_mask):
         y_rad_reduced = reduce_theta_to_positive_y(y_rad)
@@ -731,11 +791,16 @@ class BeamNSegNet(nn.Module):
         ).mean()
 
         paired_beamnet_loss = 0
+        paired_beamnet_mse_loss = 0
         if self.n_radios > 1:
             paired_beamnet_loss = -self.paired_net.loglikelihood(
                 output["paired_pred_theta"],
                 craft_y_rad[::2],
             ).mean()
+            paired_beamnet_mse_loss = self.paired_net.mse(
+                output["paired_pred_theta"],
+                craft_y_rad[::2],
+            )
 
         # segmentation loss
         segmentation_loss = 0
@@ -749,6 +814,7 @@ class BeamNSegNet(nn.Module):
             + segmentation_loss * self.segmentation_lambda
             + paired_beamnet_loss * self.paired_lambda
             + mse_loss * self.mse_lambda
+            + paired_beamnet_mse_loss * self.paired_mse_lambda
         )
 
         assert loss.isfinite().all()
@@ -760,9 +826,18 @@ class BeamNSegNet(nn.Module):
         }
         if self.n_radios > 1:
             results["paired_beamnet_loss"] = paired_beamnet_loss
+            results["paired_beamnet_mse_loss"] = paired_beamnet_mse_loss
         return results
 
-    def forward(self, x, gt_seg_mask, rx_spacing, y_rad=None, y_phi=None):
+    def forward(
+        self,
+        x,
+        gt_seg_mask,
+        rx_spacing,
+        y_rad=None,
+        y_phi=None,
+        windowed_beam_former=None,
+    ):
         mask_weights = self.segnet(x)
         pred_seg_mask = self.sigmoid(mask_weights)
 
@@ -796,23 +871,32 @@ class BeamNSegNet(nn.Module):
                 seg_mask.sum(axis=2) + 0.001
             )
         else:
-            weighted_input = torch.mul(x, seg_mask).sum(axis=2) / (
-                seg_mask.sum(axis=2) + 0.001
-            )
-            if self.circular_mean:
-                weighted_input[:, self.beamnet.pd_track] = torch_circular_mean(
-                    x[:, self.beamnet.pd_track], weights=seg_mask[:, 0], trim=0
-                )[0]
-
-            if self.training and self.drop_in_gt > 0.0:
-                mask = torch.rand(weighted_input.shape[0]) < self.drop_in_gt
-                weighted_input[mask, 0] = y_phi[mask, 0]
-                weighted_input[mask, 1] = 0
-
-            if self.rx_spacing:
-                pred_theta = self.beamnet(torch.hstack([weighted_input, rx_spacing]))
-            else:
+            # average before
+            if self.beamformer_input:
+                weighted_input = windowed_beam_former * seg_mask[:, 0, :, None]
+                weighted_input = weighted_input.mean(axis=1)
+                assert not self.rx_spacing
                 pred_theta = self.beamnet(weighted_input)
+            else:
+                weighted_input = torch.mul(x, seg_mask).sum(axis=2) / (
+                    seg_mask.sum(axis=2) + 0.001
+                )
+                if self.circular_mean:
+                    weighted_input[:, self.beamnet.pd_track] = torch_circular_mean(
+                        x[:, self.beamnet.pd_track], weights=seg_mask[:, 0], trim=0
+                    )[0]
+
+                if self.training and self.drop_in_gt > 0.0:
+                    mask = torch.rand(weighted_input.shape[0]) < self.drop_in_gt
+                    weighted_input[mask, 0] = y_phi[mask, 0]
+                    weighted_input[mask, 1] = 0
+
+                if self.rx_spacing:
+                    pred_theta = self.beamnet(
+                        torch.hstack([weighted_input, rx_spacing])
+                    )
+                else:
+                    pred_theta = self.beamnet(weighted_input)
             results["weighted_input"] = weighted_input
             # print(weighted_input[:, 0])
         # p_mask_weights = self.softmax(mask_weights)

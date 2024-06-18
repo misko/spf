@@ -221,25 +221,48 @@ def simple_train(args):
         raise NotImplementedError
 
     if args.type == "direct":
-        beam_m = BeamNetDirect(
-            nthetas=args.nthetas,
-            depth=args.depth,
-            hidden=args.hidden,
-            symmetry=args.symmetry,
-            act=act,
-            other=args.other,
-            bn=args.batch_norm,
-            no_sigmoid=not args.sigmoid,
-            block=args.block,
-            inputs=3,  # + (1 if args.rx_spacing else 0),
-            norm=args.norm,
-            positional_encoding=args.positional,
-            latent=args.latent,
-            max_angle=np.pi / 2,
-            linear_sigmas=args.linear_sigmas,
-            correction=args.normal_correction,
-            min_sigma=args.min_sigma,
-        ).to(torch_device)
+        if args.beamformer_input:
+            beam_m = BeamNetDirect(
+                nthetas=args.nthetas,
+                depth=args.depth,
+                hidden=args.hidden,
+                symmetry=False,
+                act=act,
+                other=args.other,
+                bn=args.batch_norm,
+                no_sigmoid=not args.sigmoid,
+                block=args.block,
+                rx_spacing_track=-1,
+                pd_track=-1,
+                mag_track=-1,
+                stddev_track=-1,
+                inputs=args.beamformer_ntheta,
+                norm=args.norm,
+                max_angle=np.pi / 2,
+                linear_sigmas=args.linear_sigmas,
+                correction=args.normal_correction,
+                min_sigma=args.min_sigma,
+            )
+        else:
+            beam_m = BeamNetDirect(
+                nthetas=args.nthetas,
+                depth=args.depth,
+                hidden=args.hidden,
+                symmetry=args.symmetry,
+                act=act,
+                other=args.other,
+                bn=args.batch_norm,
+                no_sigmoid=not args.sigmoid,
+                block=args.block,
+                inputs=3,  # + (1 if args.rx_spacing else 0),
+                norm=args.norm,
+                positional_encoding=args.positional,
+                latent=args.latent,
+                max_angle=np.pi / 2,
+                linear_sigmas=args.linear_sigmas,
+                correction=args.normal_correction,
+                min_sigma=args.min_sigma,
+            ).to(torch_device)
         paired_net = BeamNetDirect(
             nthetas=args.nthetas,
             depth=args.depth,
@@ -304,6 +327,9 @@ def simple_train(args):
         drop_in_gt=args.drop_in_gt,
         paired_drop_in_gt=args.paired_drop_in_gt,
         mse_lambda=args.mse_lambda,
+        paired_mse_lambda=args.paired_mse_lambda,
+        beamnet_lambda=args.beam_net_lambda,
+        beamformer_input=args.beamformer_input,
     ).to(torch_device)
 
     if args.wandb_project:
@@ -338,12 +364,12 @@ def simple_train(args):
             raise NotImplementedError
 
         rx_spacing = batch_data["rx_spacing"].to(torch_device)
-
+        windowed_beamformer = batch_data["windowed_beamformer"].to(torch_device)
         y_rad = batch_data["y_rad"].to(torch_device)
         craft_y_rad = batch_data["craft_y_rad"].to(torch_device)
         y_phi = batch_data["y_phi"].to(torch_device)
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
-        return x, y_rad, craft_y_rad, y_phi, seg_mask, rx_spacing
+        return x, y_rad, craft_y_rad, y_phi, seg_mask, rx_spacing, windowed_beamformer
 
     step = 0
     losses = []
@@ -360,6 +386,7 @@ def simple_train(args):
                         "segmentation_loss": [],
                         "beamnet_loss": [],
                         "paired_beamnet_loss": [],
+                        "paired_beamnet_mse_loss": [],
                         "mse_loss": [],
                     }
                     # for  in val_dataloader:
@@ -370,14 +397,26 @@ def simple_train(args):
                         leave=False,
                     ):
                         # for val_batch_data in val_dataloader:
-                        x, y_rad, craft_y_rad, y_phi, seg_mask, rx_spacing = (
-                            batch_data_to_x_y_seg(
-                                val_batch_data, args.segmentation_level
-                            )
+                        (
+                            x,
+                            y_rad,
+                            craft_y_rad,
+                            y_phi,
+                            seg_mask,
+                            rx_spacing,
+                            windowed_beamformer,
+                        ) = batch_data_to_x_y_seg(
+                            val_batch_data, args.segmentation_level
                         )
 
                         # run beamformer and segmentation
-                        output = m(x, seg_mask, rx_spacing)
+                        output = m(
+                            x=x,
+                            gt_seg_mask=seg_mask,
+                            rx_spacing=rx_spacing,
+                            y_rad=y_rad,
+                            windowed_beam_former=windowed_beamformer,
+                        )
 
                         # compute the loss
                         loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
@@ -399,17 +438,23 @@ def simple_train(args):
                     "segmentation_loss": [],
                     "beamnet_loss": [],
                     "paired_beamnet_loss": [],
+                    "paired_beamnet_mse_loss": [],
                     "mse_loss": [],
                 }
 
             optimizer.zero_grad()
 
-            x, y_rad, craft_y_rad, y_phi, seg_mask, rx_spacing = batch_data_to_x_y_seg(
-                batch_data, args.segmentation_level
+            x, y_rad, craft_y_rad, y_phi, seg_mask, rx_spacing, windowed_beamformer = (
+                batch_data_to_x_y_seg(batch_data, args.segmentation_level)
             )
 
-            output = m(x, seg_mask, rx_spacing, y_rad, y_phi)
-
+            output = m(
+                x=x,
+                gt_seg_mask=seg_mask,
+                rx_spacing=rx_spacing,
+                y_rad=y_rad,
+                windowed_beam_former=windowed_beamformer,
+            )
             loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
 
             loss = loss_d["loss"]
@@ -553,6 +598,12 @@ def get_parser():
         default=0.0,
     )
     parser.add_argument(
+        "--beam-net-lambda",
+        type=float,
+        required=False,
+        default=1.0,
+    )
+    parser.add_argument(
         "--segmentation-lambda",
         type=float,
         required=False,
@@ -566,6 +617,12 @@ def get_parser():
     )
     parser.add_argument(
         "--mse-lambda",
+        type=float,
+        required=False,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--paired-mse-lambda",
         type=float,
         required=False,
         default=0.0,
@@ -606,6 +663,11 @@ def get_parser():
         "--latent",
         type=int,
         default=0,
+    )
+    parser.add_argument(
+        "--beamformer-ntheta",
+        type=int,
+        default=65,
     )
     parser.add_argument(
         "--act",
@@ -665,6 +727,11 @@ def get_parser():
     )
     parser.add_argument(
         "--other",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--beamformer-input",
         action=argparse.BooleanOptionalAction,
         default=False,
     )
