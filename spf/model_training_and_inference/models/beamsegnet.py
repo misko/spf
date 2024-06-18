@@ -5,7 +5,12 @@ import torch
 import torch.nn as nn
 
 from spf.dataset.spf_dataset import v5_thetas_to_targets
-from spf.rf import torch_circular_mean
+from spf.rf import (
+    pi_norm,
+    reduce_theta_to_positive_y,
+    torch_circular_mean,
+    torch_pi_norm,
+)
 
 
 import torch
@@ -335,6 +340,7 @@ class BeamNetDiscrete(nn.Module):
         other=False,
         no_sigmoid=False,
         positional_encoding=False,
+        max_angle=np.pi / 2,
     ):
         super(BeamNetDiscrete, self).__init__()
         self.nthetas = nthetas
@@ -347,6 +353,7 @@ class BeamNetDiscrete(nn.Module):
         self.rx_spacing_track = rx_spacing_track
         self.latent = latent
         self.outputs = nthetas + self.latent
+        self.max_angle = max_angle
         self.sigmoid = torch.nn.Sigmoid()
         self.softmax = nn.Softmax(dim=1)
         self.beam_net = nn.Sequential(
@@ -413,9 +420,19 @@ class BeamNetDiscrete(nn.Module):
         return y  # torch.nn.functional.normalize(__y.abs(), p=1, dim=1)
 
     def mse(self, x, y):
-        return ((self.render_discrete_x(x) - self.render_discrete_y(y)) ** 2).sum(
-            axis=1, keepdim=True
+        # TODO make this a weighted version
+        # (E(x)-y)^2
+        E_x = (
+            (
+                (torch.arange(x.shape[1]).reshape(1, -1) * x).sum(axis=1)
+                / x.shape[1]  # scale 0~1
+                - 0.5  # scale -.5 ~ .5
+            )
+            * 2  # scale -1 ~ 1
+            * self.max_angle  # scale -self.max_angle ~ self.max_angle
         )
+
+        return (torch_pi_norm(E_x - y[:, 0], max_angle=self.max_angle) ** 2).mean()
 
     def likelihood(self, x, y):
         r = torch.einsum(
@@ -484,6 +501,7 @@ class BeamNetDirect(nn.Module):
         positional_encoding=False,
         linear_sigmas=False,
         correction=False,
+        min_sigma=0.2,
     ):
         super(BeamNetDirect, self).__init__()
         self.latent = latent
@@ -507,6 +525,7 @@ class BeamNetDirect(nn.Module):
         self.max_angle = max_angle
         self.linear_sigmas = linear_sigmas
         self.correction = correction
+        self.min_sigma = min_sigma
         self.beam_net = nn.Sequential(
             (
                 HalfPiEncoding(self.pd_track, self.nthetas)
@@ -533,17 +552,17 @@ class BeamNetDirect(nn.Module):
             _y_sig_centered = (_y_sig[:, [0]] - 0.5) * 4  # in [-2,2]
             mean_values = sign * _y_sig_centered * (2 * self.max_angle)
         if not self.linear_sigmas:
-            sigmas = _y_sig[:, [1, 2]] * 1.0 + 0.1  # sigmas
+            sigmas = _y_sig[:, [1, 2]] * 1.0 + self.min_sigma  # sigmas
         else:
-            sigmas = self.relu(_y[:, [1, 2]]) * 1.0 + 0.1  # sigmas
+            sigmas = self.relu(_y[:, [1, 2]]) * 1.0 + self.min_sigma  # sigmas
         return torch.hstack(
             [
-                mean_values,  # mu
-                sigmas,
-                # self.softmax(_y[:, [3, 4]]),
-                _y_sig[:, [3]],
-                1.0 - _y_sig[:, [4]],
-                _y[:, 5:],
+                mean_values,  # mu # (0)
+                sigmas,  # (1, 2)
+                # self.softmax(_y[:, [3, 4]]), #(3,4)
+                _y_sig[:, [3]],  # (3,4)
+                1.0 - _y_sig[:, [3]],  # (3,4)
+                _y[:, 5:],  # (5:)
             ]
         )
 
@@ -574,7 +593,7 @@ class BeamNetDirect(nn.Module):
             y = self.fixify(y, sign=1)
         return y  # [theta_u, sigma1, sigma2, k1, k2]
 
-    def likelihood(self, x, y, sigma_eps=0.00001, smoothing_prob=0.0001):
+    def likelihood(self, x, y, sigma_eps=0.01, smoothing_prob=0.0001):
         assert y.ndim == 2 and y.shape[1] == 1
         assert x.ndim == 2 and x.shape[1] >= 5
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
@@ -633,6 +652,9 @@ class BeamNetDirect(nn.Module):
         assert l.shape == (x.shape[0], 1)
         return l + smoothing_prob
 
+    def mse(self, x, y):
+        return (torch_pi_norm(x[:, 0] - y[:, 0], max_angle=self.max_angle) ** 2).mean()
+
     def loglikelihood(self, x, y, log_eps=0.000000001):
         return torch.log(self.likelihood(x, y) + log_eps)
 
@@ -677,6 +699,10 @@ class BeamNSegNet(nn.Module):
         n_radios=1,
         paired_net=None,
         rx_spacing=False,
+        paired_drop_in_gt=0.0,
+        drop_in_gt=0.0,
+        beamnet_lambda=1.0,
+        mse_lambda=0.0,
     ):
         super(BeamNSegNet, self).__init__()
         self.beamnet = beamnet
@@ -692,43 +718,51 @@ class BeamNSegNet(nn.Module):
         self.paired_net = paired_net
         self.paired_lambda = paired_lambda
         self.rx_spacing = rx_spacing
+        self.paired_drop_in_gt = paired_drop_in_gt
+        self.drop_in_gt = drop_in_gt
+        self.beamnet_lambda = beamnet_lambda
+        self.mse_lambda = mse_lambda
 
     def loss(self, output, y_rad, craft_y_rad, seg_mask):
+        y_rad_reduced = reduce_theta_to_positive_y(y_rad)
         # x to beamformer loss (indirectly including segmentation)
-        beamformer_loss = -self.beamnet.loglikelihood(
-            output["pred_theta"], y_rad
+        beamnet_loss = -self.beamnet.loglikelihood(
+            output["pred_theta"], y_rad_reduced
         ).mean()
 
-        paired_beamformer_loss = 0
+        paired_beamnet_loss = 0
         if self.n_radios > 1:
-            paired_beamformer_loss = -self.paired_net.loglikelihood(
+            paired_beamnet_loss = -self.paired_net.loglikelihood(
                 output["paired_pred_theta"],
                 craft_y_rad[::2],
             ).mean()
 
         # segmentation loss
-        segmentation_loss = ((output["segmentation"] - seg_mask) ** 2).mean()
+        segmentation_loss = 0
+        if not self.skip_segmentation:
+            segmentation_loss = ((output["segmentation"] - seg_mask) ** 2).mean()
 
-        if self.skip_segmentation:
-            loss = beamformer_loss
-        else:
-            loss = (
-                beamformer_loss
-                + self.segmentation_lambda * segmentation_loss
-                + paired_beamformer_loss * self.paired_lambda
-            )
+        mse_loss = self.beamnet.mse(output["pred_theta"], y_rad_reduced)
+
+        loss = (
+            beamnet_loss * self.beamnet_lambda
+            + segmentation_loss * self.segmentation_lambda
+            + paired_beamnet_loss * self.paired_lambda
+            + mse_loss * self.mse_lambda
+        )
 
         assert loss.isfinite().all()
         results = {
-            "beamformer_loss": beamformer_loss,
+            "mse_loss": mse_loss,
+            "beamnet_loss": beamnet_loss,
             "segmentation_loss": segmentation_loss,
             "loss": loss,
         }
         if self.n_radios > 1:
-            results["paired_beamformer_loss"] = paired_beamformer_loss
+            results["paired_beamnet_loss"] = paired_beamnet_loss
         return results
 
-    def forward(self, x, gt_seg_mask, rx_spacing):
+    def forward(self, x, gt_seg_mask, rx_spacing, y_rad=None, y_phi=None):
         mask_weights = self.segnet(x)
         pred_seg_mask = self.sigmoid(mask_weights)
 
@@ -741,6 +775,7 @@ class BeamNSegNet(nn.Module):
         results = {}
         # taking the average after beam_former
         if not self.average_before:
+            assert self.drop_in_gt == 0.0  # not sure where to put this right now
             batch_size, input_channels, session_size = x.shape
             beam_former_input = x.transpose(1, 2).reshape(
                 batch_size * session_size, input_channels
@@ -768,6 +803,12 @@ class BeamNSegNet(nn.Module):
                 weighted_input[:, self.beamnet.pd_track] = torch_circular_mean(
                     x[:, self.beamnet.pd_track], weights=seg_mask[:, 0], trim=0
                 )[0]
+
+            if self.training and self.drop_in_gt > 0.0:
+                mask = torch.rand(weighted_input.shape[0]) < self.drop_in_gt
+                weighted_input[mask, 0] = y_phi[mask, 0]
+                weighted_input[mask, 1] = 0
+
             if self.rx_spacing:
                 pred_theta = self.beamnet(torch.hstack([weighted_input, rx_spacing]))
             else:
@@ -796,6 +837,15 @@ class BeamNSegNet(nn.Module):
                     pred_theta[:, self.beamnet.outputs - self.beamnet.latent :],
                 ]
             )
+            # TODO inject correct means sometimes!
+            # if self.train() randomly inject
+            # if self.eval() never inject!
+            if y_rad is not None and self.training and self.paired_drop_in_gt > 0.0:
+                y_rad_reduced = reduce_theta_to_positive_y(y_rad)
+                mask = torch.rand(detached_pred_theta.shape[0]) < self.paired_drop_in_gt
+                detached_pred_theta[mask, 0] = y_rad_reduced[mask, 0]
+                detached_pred_theta[mask, 1:3] = 0
+
             paired_input = detached_pred_theta.reshape(
                 -1, detached_pred_theta.shape[-1] * self.n_radios
             )

@@ -76,10 +76,11 @@ def imshow_predictions_half_pi(
     full_output_dim = output_dim * 2 - 1
     half_pi_output_offset = output_dim // 2
 
-    y_rad_reduced = reduce_theta_to_positive_y(y_rad)
     img_beam_gt_reduced = (
         (
-            v5_thetas_to_targets(y_rad_reduced, output_dim, range_in_rad=1, sigma=0.3)
+            v5_thetas_to_targets(
+                reduce_theta_to_positive_y(y_rad), output_dim, range_in_rad=1, sigma=0.3
+            )
             * 255
         )
         .cpu()
@@ -237,6 +238,7 @@ def simple_train(args):
             max_angle=np.pi / 2,
             linear_sigmas=args.linear_sigmas,
             correction=args.normal_correction,
+            min_sigma=args.min_sigma,
         ).to(torch_device)
         paired_net = BeamNetDirect(
             nthetas=args.nthetas,
@@ -257,6 +259,7 @@ def simple_train(args):
             max_angle=np.pi,
             linear_sigmas=args.linear_sigmas,
             correction=args.normal_correction,
+            min_sigma=args.min_sigma,
         )
     elif args.type == "discrete":
         beam_m = BeamNetDiscrete(
@@ -267,6 +270,7 @@ def simple_train(args):
             bn=args.batch_norm,
             positional_encoding=args.positional,
             latent=args.latent,
+            max_angle=np.pi / 2,
         ).to(torch_device)
         paired_net = BeamNetDiscrete(
             nthetas=args.nthetas,
@@ -284,6 +288,7 @@ def simple_train(args):
             stddev_track=-1,
             inputs=args.n_radios * beam_m.outputs,
             norm=args.norm,
+            max_angle=np.pi,
             # positional_encoding=args.positional,
         )
     m = BeamNSegNet(
@@ -291,10 +296,14 @@ def simple_train(args):
         beamnet=beam_m,
         circular_mean=args.circular_mean,
         segmentation_lambda=args.segmentation_lambda,
+        paired_lambda=args.paired_lambda,
         independent=args.independent,
         n_radios=args.n_radios,
         paired_net=paired_net,
         rx_spacing=args.rx_spacing,
+        drop_in_gt=args.drop_in_gt,
+        paired_drop_in_gt=args.paired_drop_in_gt,
+        mse_lambda=args.mse_lambda,
     ).to(torch_device)
 
     if args.wandb_project:
@@ -332,8 +341,9 @@ def simple_train(args):
 
         y_rad = batch_data["y_rad"].to(torch_device)
         craft_y_rad = batch_data["craft_y_rad"].to(torch_device)
+        y_phi = batch_data["y_phi"].to(torch_device)
         assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
-        return x, y_rad, craft_y_rad, seg_mask, rx_spacing
+        return x, y_rad, craft_y_rad, y_phi, seg_mask, rx_spacing
 
     step = 0
     losses = []
@@ -348,8 +358,9 @@ def simple_train(args):
                     val_losses = {
                         "loss": [],
                         "segmentation_loss": [],
-                        "beamformer_loss": [],
-                        "paired_beamformer_loss": [],
+                        "beamnet_loss": [],
+                        "paired_beamnet_loss": [],
+                        "mse_loss": [],
                     }
                     # for  in val_dataloader:
                     print("Running validation:")
@@ -359,18 +370,17 @@ def simple_train(args):
                         leave=False,
                     ):
                         # for val_batch_data in val_dataloader:
-                        x, y_rad, craft_y_rad, seg_mask, rx_spacing = (
+                        x, y_rad, craft_y_rad, y_phi, seg_mask, rx_spacing = (
                             batch_data_to_x_y_seg(
                                 val_batch_data, args.segmentation_level
                             )
                         )
 
-                        y_rad_reduced = reduce_theta_to_positive_y(y_rad)
                         # run beamformer and segmentation
                         output = m(x, seg_mask, rx_spacing)
 
                         # compute the loss
-                        loss_d = m.loss(output, y_rad_reduced, craft_y_rad, seg_mask)
+                        loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
 
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
@@ -387,27 +397,22 @@ def simple_train(args):
                 to_log = {
                     "loss": [],
                     "segmentation_loss": [],
-                    "beamformer_loss": [],
-                    "paired_beamformer_loss": [],
+                    "beamnet_loss": [],
+                    "paired_beamnet_loss": [],
+                    "mse_loss": [],
                 }
 
             optimizer.zero_grad()
 
-            x, y_rad, craft_y_rad, seg_mask, rx_spacing = batch_data_to_x_y_seg(
+            x, y_rad, craft_y_rad, y_phi, seg_mask, rx_spacing = batch_data_to_x_y_seg(
                 batch_data, args.segmentation_level
             )
-            y_rad_reduced = reduce_theta_to_positive_y(y_rad)
 
-            output = m(x, seg_mask, rx_spacing)
+            output = m(x, seg_mask, rx_spacing, y_rad, y_phi)
 
-            loss_d = m.loss(output, y_rad_reduced, craft_y_rad, seg_mask)
+            loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
 
-            loss = loss_d["beamformer_loss"]
-            if step > args.seg_start:
-                loss += loss_d["segmentation_loss"] * args.segmentation_lambda
-            if args.n_radios > 1 and step > args.paired_start:
-                loss += loss_d["paired_beamformer_loss"] * args.paired_lambda
-
+            loss = loss_d["loss"]
             loss.backward()
 
             optimizer.step()
@@ -560,6 +565,12 @@ def get_parser():
         default=1.0,
     )
     parser.add_argument(
+        "--mse-lambda",
+        type=float,
+        required=False,
+        default=0.0,
+    )
+    parser.add_argument(
         "--plot-every",
         type=int,
         required=False,
@@ -686,6 +697,21 @@ def get_parser():
         "--sigmoid",
         action=argparse.BooleanOptionalAction,
         default=False,
+    )
+    parser.add_argument(
+        "--paired-drop-in-gt",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--drop-in-gt",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--min-sigma",
+        type=float,
+        default=0.2,
     )
     parser.add_argument(
         "--positional",

@@ -46,8 +46,8 @@ def pi_norm(x):
     return ((x + np.pi) % (2 * np.pi)) - np.pi
 
 
-def torch_pi_norm(x):
-    return ((x + torch.pi) % (2 * torch.pi)) - torch.pi
+def torch_pi_norm(x, max_angle=torch.pi):
+    return ((x + max_angle) % (2 * max_angle)) - max_angle
 
 
 # returns circular_stddev and trimmed cricular stddev

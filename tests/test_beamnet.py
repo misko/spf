@@ -30,7 +30,13 @@ def test_beamnet_direct():
     seg_m = ConvNet(3, 1, 32, bn=True).to(torch_device)
 
     beam_m = BeamNetDirect(
-        nthetas=nthetas, hidden=16, symmetry=True, other=True, act=nn.SELU, bn=False
+        nthetas=nthetas,
+        hidden=16,
+        symmetry=True,
+        other=True,
+        act=nn.SELU,
+        bn=False,
+        min_sigma=0.0,
     ).to(torch_device)
     m = BeamNSegNet(segnet=seg_m, beamnet=beam_m, circular_mean=True).to(torch_device)
 

@@ -196,6 +196,7 @@ def v5_thetas_to_targets(target_thetas, nthetas, range_in_rad, sigma=1):
 def v5_collate_beamsegnet(batch):
     n_windows = batch[0][0]["all_windows_stats"].shape[1]
     y_rad_list = []
+    y_phi_list = []
     simple_segmentation_list = []
     all_window_stats_list = []
     windowed_beamformers_list = []
@@ -207,15 +208,16 @@ def v5_collate_beamsegnet(batch):
     for paired_sample in batch:
         for x in paired_sample:
             y_rad_list.append(x["y_rad"])
+            y_phi_list.append(x["y_phi"])
             craft_y_rad_list.append(x["craft_y_rad"])
             rx_spacing_list.append(x["rx_spacing"].reshape(1, 1))
             simple_segmentation_list.append(x["simple_segmentation"])
             all_window_stats_list.append(
                 x["all_windows_stats"][None]  # .astype(np.float32)
             )
-            windowed_beamformers_list.append(
-                x["windowed_beamformer"][None]  # .astype(np.float32)
-            )
+            # windowed_beamformers_list.append(
+            #     x["windowed_beamformer"][None]  # .astype(np.float32)
+            # )
             downsampled_segmentation_mask_list.append(
                 x["downsampled_segmentation_mask"]
             )
@@ -226,11 +228,12 @@ def v5_collate_beamsegnet(batch):
 
     d = {
         "y_rad": torch.vstack(y_rad_list),
+        "y_phi": torch.vstack(y_phi_list),
         "craft_y_rad": torch.vstack(craft_y_rad_list),
         "rx_spacing": torch.vstack(rx_spacing_list),
         "simple_segmentation": simple_segmentation_list,
         "all_windows_stats": torch.from_numpy(np.vstack(all_window_stats_list)),
-        "windowed_beamformer": torch.from_numpy(np.vstack(windowed_beamformers_list)),
+        # "windowed_beamformer": torch.from_numpy(np.vstack(windowed_beamformers_list)),
         "downsampled_segmentation_mask": torch.vstack(
             downsampled_segmentation_mask_list
         ),
@@ -414,6 +417,7 @@ class v5spfdataset(Dataset):
         data = {key: r[key][session_idx] for key in self.keys_per_session}
 
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][session_idx]
+        data["ground_truth_phi"] = self.ground_truth_phis[receiver_idx][session_idx]
         data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[session_idx]
         data = {
             k: (
@@ -429,15 +433,16 @@ class v5spfdataset(Dataset):
             data["x"] = torch.vstack([abs_signal[0], abs_signal[1], pd])[None]
 
         data["y_rad"] = data["ground_truth_theta"][None]
+        data["y_phi"] = data["ground_truth_phi"][None]
         data["craft_y_rad"] = data["craft_ground_truth_theta"][None]
 
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
         d = self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
             session_idx
         ]
-        data["windowed_beamformer"] = self.precomputed_zarr[
-            f"r{receiver_idx}/windowed_beamformer"
-        ][session_idx]
+        # data["windowed_beamformer"] = self.precomputed_zarr[
+        #     f"r{receiver_idx}/windowed_beamformer"
+        # ][session_idx]
 
         data["simple_segmentation"] = d["simple_segmentation"]
         data["all_windows_stats"] = self.precomputed_zarr[
