@@ -46,6 +46,10 @@ def pi_norm(x):
     return ((x + np.pi) % (2 * np.pi)) - np.pi
 
 
+def pi_norm_halfpi(x):
+    return ((x + np.pi / 2) % (2 * np.pi / 2)) - np.pi / 2
+
+
 def torch_pi_norm(x, max_angle=torch.pi):
     return ((x + max_angle) % (2 * max_angle)) - max_angle
 

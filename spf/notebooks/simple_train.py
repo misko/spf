@@ -373,7 +373,18 @@ def simple_train(args):
 
     step = 0
     losses = []
-    to_log = None
+
+    def new_log():
+        return {
+            "loss": [],
+            "segmentation_loss": [],
+            "beamnet_loss": [],
+            "paired_beamnet_loss": [],
+            "paired_beamnet_mse_loss": [],
+            "mse_loss": [],
+        }
+
+    to_log = new_log()
     for _ in range(args.epochs):
         for _, batch_data in tqdm(
             enumerate(train_dataloader), total=len(train_dataloader)
@@ -424,23 +435,33 @@ def simple_train(args):
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
                             val_losses[key].append(value.item())
+
+                        # plot the first batch
+                        if "val_unpaired_output" not in to_log:
+                            to_log["val_unpaired_output"] = imshow_predictions_half_pi(
+                                beam_m, output["pred_theta"], y_rad
+                            )
+
+                            if "paired_pred_theta" in output:
+                                to_log["val_paired_output"] = imshow_predictions_pi(
+                                    paired_net,
+                                    output["paired_pred_theta"],
+                                    craft_y_rad[::2],
+                                )
+
                     if args.wandb_project:
                         wandb.log(
-                            {f"val_{key}": value for key, value in loss_d.items()},
+                            {
+                                f"val_{key}": np.array(value).mean()
+                                for key, value in val_losses
+                            },
                             step=step,
                         )
+                        for key, value in to_log.items():
+                            if "_output" in key:
+                                plt.close(value)
 
             m.train()
-
-            if to_log is None:
-                to_log = {
-                    "loss": [],
-                    "segmentation_loss": [],
-                    "beamnet_loss": [],
-                    "paired_beamnet_loss": [],
-                    "paired_beamnet_mse_loss": [],
-                    "mse_loss": [],
-                }
 
             optimizer.zero_grad()
 
@@ -471,18 +492,13 @@ def simple_train(args):
                     to_log[key].append(value.item())
 
                 if step == 0 or (step + 1) % args.plot_every == 0:
-                    unpaired_fig = imshow_predictions_half_pi(
+                    to_log["unpaired_output"] = imshow_predictions_half_pi(
                         beam_m, output["pred_theta"], y_rad
                     )
                     if "paired_pred_theta" in output:
-                        paired_fig = imshow_predictions_pi(
+                        to_log["paired_output"] = imshow_predictions_pi(
                             paired_net, output["paired_pred_theta"], craft_y_rad[::2]
                         )
-
-                    if args.wandb_project:
-                        to_log["unpaired_output"] = unpaired_fig
-                        if "paired_pred_theta" in output:
-                            to_log["paired_output"] = paired_fig
 
                     # segmentation output
                     _x = x.detach().cpu().numpy()
@@ -499,7 +515,10 @@ def simple_train(args):
                         if "loss" in key and len(value) > 0:
                             to_log[key] = np.array(value).mean()
                     wandb.log(to_log, step=step)
-                    to_log = None
+                    for key, value in to_log.items():
+                        if "_output" in key:
+                            plt.close(value)
+                    to_log = new_log()
 
             step += 1
 

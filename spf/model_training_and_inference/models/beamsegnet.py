@@ -431,7 +431,9 @@ class BeamNetDiscrete(nn.Module):
             * 2  # scale -1 ~ 1
             * self.max_angle  # scale -self.max_angle ~ self.max_angle
         )
-
+        print(
+            "THIS IS  ABUG! torch_pi_norm is not the right way, use reduce_theta_to_positive_y"
+        )
         return (torch_pi_norm(E_x - y[:, 0], max_angle=self.max_angle) ** 2).mean()
 
     def likelihood(self, x, y):
@@ -615,6 +617,8 @@ class NormalNet(nn.Module):
         return likelihood + smoothing_prob
 
     def mse(self, x, y):
+        # not sure why we cant wrap around for torch.pi/2....
+        # assert np.isclose(self.max_angle, torch.pi, atol=0.05)
         return (torch_pi_norm(x[:, 0] - y[:, 0], max_angle=self.max_angle) ** 2).mean()
 
     def loglikelihood(self, x, y, log_eps=0.000000001):

@@ -139,6 +139,8 @@ def zarr_new_dataset(
     z.create_dataset("config", dtype=str, shape=(1))
     if isinstance(config, dict):
         config = yaml.dump(config)
+    if isinstance(config, zarr.core.Array) and len(config.shape) > 0:
+        config = config[0]
     if isinstance(config, str) or config.shape != ():
         z["config"][0] = config
         assert z["config"][0] == config
@@ -184,7 +186,7 @@ def filenames_from_time_in_seconds(
     dt = datetime.fromtimestamp(time_in_seconds)
     date_str = dt.strftime("%Y_%m_%d_%H_%M_%S")
 
-    output_files_prefix = f"{craft}_{date_str}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}"
+    output_files_prefix = f"{craft}_{date_str}_nRX{len(yaml_config['receivers'])}_{yaml_config['routine']}_spacing{str(yaml_config['receivers'][0]['antenna-spacing-m']).replace('.' , 'p')}"
     if tag != "":
         output_files_prefix += f"_tag_{tag}"
 
