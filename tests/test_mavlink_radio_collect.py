@@ -2,8 +2,11 @@ import os
 import subprocess
 import sys
 import tempfile
-
+import glob
 import spf
+import numpy as np
+from spf.utils import zarr_open_from_lmdb_store
+from spf.dataset.v4_data import v4rx_f64_keys
 
 root_dir = os.path.dirname(os.path.dirname(spf.__file__))
 
@@ -25,3 +28,12 @@ def test_mavlink_radio_collect():
             env=get_env(),
             stderr=subprocess.STDOUT,
         ).decode()
+
+        # load output and make sure entries are not obiously wrong
+        zarr_fn = glob.glob(f"{tmpdirname}/*.zarr")[0]
+        z = zarr_open_from_lmdb_store(zarr_fn)
+        keys_with_nans = []
+        for key in v4rx_f64_keys:
+            if not np.isfinite(z["receivers/r0"][key]).all():
+                keys_with_nans.append(key)
+        assert len(keys_with_nans) == 0

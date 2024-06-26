@@ -467,6 +467,7 @@ class DroneDataCollectorRaw(DataCollector):
         data.heading = current_pos_heading_and_time["heading"]
         data.gps_long = current_pos_heading_and_time["gps"][0]
         data.gps_lat = current_pos_heading_and_time["gps"][1]
+        data.gps_timestamp = current_pos_heading_and_time["gps_time"]
 
         z = self.zarr[f"receivers/r{thread_idx}"]
         z.signal_matrix[record_idx] = data.signal_matrix
