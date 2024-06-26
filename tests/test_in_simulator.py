@@ -5,11 +5,13 @@ import sys
 import tempfile
 import time
 
+import numpy as np
 import docker
 import pytest
-
+from spf.dataset.v4_data import v4rx_f64_keys
 import spf.mavlink.mavlink_controller
 from spf import mavlink_radio_collection
+from spf.utils import zarr_open_from_lmdb_store
 
 root_dir = os.path.dirname(os.path.dirname(spf.__file__))
 
@@ -237,3 +239,12 @@ def test_guided_mode_moving_and_recording(adrupilot_simulator):
         assert glob.glob(f"{tmpdirname}/*.zarr")
         assert glob.glob(f"{tmpdirname}/*.log")
         assert glob.glob(f"{tmpdirname}/*.yaml")
+
+        # load output and make sure entries are not obiously wrong
+        zarr_fn = glob.glob(f"{tmpdirname}/*.zarr")[0]
+        z = zarr_open_from_lmdb_store(zarr_fn)
+        keys_with_nans = []
+        for key in v4rx_f64_keys:
+            if not np.isfinite(z["receivers/r0"][key]).all():
+                keys_with_nans.append(key)
+        assert len(keys_with_nans) == 0
