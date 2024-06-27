@@ -13,12 +13,14 @@ def test_gps_circle():
     start_point = franklin_safe.mean(axis=0)
 
     gt_theta = np.linspace(0, orbits * 2 * np.pi, N)
-    long_lat_circle = [
-        swap_lat_long(inverse_haversine(swap_lat_long(start_point), 0.05, dir))
-        for dir in gt_theta
-    ]
+    long_lat_circle = np.array(
+        [
+            swap_lat_long(inverse_haversine(swap_lat_long(start_point), 0.05, dir))
+            for dir in gt_theta
+        ]
+    )
 
     for idx in range(N):
-        a = np.deg2rad(calc_bearing(start_point, long_lat_circle[idx]))
+        a = np.deg2rad(calc_bearing(start_point.reshape(1, -1), long_lat_circle[[idx]]))
         b = gt_theta[idx]
         assert np.isclose(pi_norm(a - b), 0, atol=0.01)

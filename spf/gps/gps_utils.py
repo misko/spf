@@ -4,6 +4,9 @@ import numpy as np
 
 
 def swap_lat_long(x):
+    if isinstance(x, np.ndarray) and x.ndim == 2:
+        assert x.shape[1] == 2
+        return np.hstack([x[:, [0]], x[:, [1]]])
     return (x[1], x[0])
 
 
@@ -21,13 +24,17 @@ def pinorm(x):
 # return degrees from north that angle from p0->p1 makes
 # dead north is 0deg, to the right is + and to the left is -
 def calc_bearing(p0, p1):
+    assert p0.ndim == 2 and p0.shape[1] == 2
+    assert p1.ndim == 2 and p1.shape[1] == 2
     # Calculate the bearing
     p0_rad = np.deg2rad(p0)
     p1_rad = np.deg2rad(p1)
     bearing_rad = np.arctan2(
-        np.sin(p1_rad[0] - p0_rad[0]) * np.cos(p1_rad[1]),
-        np.cos(p0_rad[1]) * np.sin(p1_rad[1])
-        - np.sin(p0_rad[1]) * np.cos(p1_rad[1]) * np.cos(p1_rad[0] - p0_rad[0]),
+        np.sin(p1_rad[:, 0] - p0_rad[:, 0]) * np.cos(p1_rad[:, 1]),
+        np.cos(p0_rad[:, 1]) * np.sin(p1_rad[:, 1])
+        - np.sin(p0_rad[:, 1])
+        * np.cos(p1_rad[:, 1])
+        * np.cos(p1_rad[:, 0] - p0_rad[:, 0]),
     )
 
     return np.rad2deg(pinorm(bearing_rad))  # np.rad2deg(bearing_rad)
