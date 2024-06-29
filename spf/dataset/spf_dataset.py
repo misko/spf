@@ -282,6 +282,7 @@ class v5spfdataset(Dataset):
         ignore_qc=False,
         paired=False,
         gpu=False,
+        snapshots_per_session=1,
     ):
         print("Open", prefix)
         self.precompute_cache = precompute_cache
@@ -311,8 +312,14 @@ class v5spfdataset(Dataset):
             self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
         ]
 
-        self.n_sessions, self.n_antennas_per_receiver = self.z.receivers.r0.gains.shape
+        self.n_snapshots, self.n_antennas_per_receiver = self.z.receivers.r0.gains.shape
         assert self.n_antennas_per_receiver == 2
+
+        self.snapshots_per_session = snapshots_per_session
+        if self.snapshots_per_session == -1:
+            self.snapshots_per_session = self.n_snapshots
+
+        self.n_sessions = self.n_snapshots // self.snapshots_per_session
 
         if not self.skip_signal_matrix:
             self.signal_matrices = [
@@ -323,7 +330,7 @@ class v5spfdataset(Dataset):
 
             for ridx in range(self.n_receivers):
                 assert self.z.receivers[f"r{ridx}"].signal_matrix.shape == (
-                    self.n_sessions,
+                    self.n_snapshots,
                     self.n_antennas_per_receiver,
                     self.session_length,
                 )
@@ -352,6 +359,7 @@ class v5spfdataset(Dataset):
             self.mean_phase[receiver] = np.array(
                 [
                     (
+                        # TODO:UNBUG (circular mean)
                         np.array(
                             [x["mean"] for x in result["simple_segmentation"]]
                         ).mean()
@@ -413,12 +421,23 @@ class v5spfdataset(Dataset):
         return self.n_sessions * self.n_receivers
 
     def render_session(self, receiver_idx, session_idx):
+        snapshot_start_idx = session_idx * self.snapshots_per_session
+        snapshot_end_idx = (session_idx + 1) * self.snapshots_per_session
         r = self.receiver_data[receiver_idx]
-        data = {key: r[key][session_idx] for key in self.keys_per_session}
+        data = {
+            key: r[key][snapshot_start_idx:snapshot_end_idx]
+            for key in self.keys_per_session
+        }
 
-        data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][session_idx]
-        data["ground_truth_phi"] = self.ground_truth_phis[receiver_idx][session_idx]
-        data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[session_idx]
+        data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][
+            snapshot_start_idx:snapshot_end_idx
+        ]
+        data["ground_truth_phi"] = self.ground_truth_phis[receiver_idx][
+            snapshot_start_idx:snapshot_end_idx
+        ]
+        data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[
+            snapshot_start_idx:snapshot_end_idx
+        ]
         data = {
             k: (
                 torch.from_numpy(v)
@@ -548,12 +567,12 @@ class v5spfdataset(Dataset):
 
     def __getitem__(self, idx):
         if self.paired:
-            assert idx < self.n_sessions
+            assert idx < self.n_snapshots
             return [
                 self.render_session(receiver_idx, idx)
                 for receiver_idx in range(self.n_receivers)
             ]
-        assert idx < self.n_sessions * self.n_receivers
+        assert idx < self.n_snapshots * self.n_receivers
         receiver_idx = idx % self.n_receivers
         return [self.render_session(receiver_idx, idx // self.n_receivers)]
 
