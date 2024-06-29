@@ -252,13 +252,14 @@ def v5_downsampled_segmentation_mask(session, n_windows):
     # assert samples_per_session % window_size == 0
     # n_windows = samples_per_session // window_size
 
-    seg_mask = torch.zeros(1, 1, n_windows)
-    for window in session["simple_segmentation"]:
-        seg_mask[
-            0,
-            0,
-            window["start_idx"] // window_size : window["end_idx"] // window_size,
-        ] = 1
+    seg_mask = torch.zeros(len(session["simple_segmentations"]), 1, n_windows)
+    for idx in range(seg_mask.shape[0]):
+        for window in session["simple_segmentations"][idx]:
+            seg_mask[
+                idx,
+                0,
+                window["start_idx"] // window_size : window["end_idx"] // window_size,
+            ] = 1
     return seg_mask
 
 
@@ -456,24 +457,29 @@ class v5spfdataset(Dataset):
         data["craft_y_rad"] = data["craft_ground_truth_theta"][None]
 
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
-        d = self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
-            session_idx
-        ]
+
+        # print(self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"])
         data["windowed_beamformer"] = self.precomputed_zarr[
             f"r{receiver_idx}/windowed_beamformer"
-        ][session_idx]
+        ][snapshot_start_idx:snapshot_end_idx]
 
-        data["simple_segmentation"] = d["simple_segmentation"]
+        data["simple_segmentations"] = [
+            d["simple_segmentation"]
+            for d in self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
+                snapshot_start_idx:snapshot_end_idx
+            ]
+        ]
+
         data["all_windows_stats"] = self.precomputed_zarr[
             f"r{receiver_idx}/all_windows_stats"
-        ][session_idx]
+        ][snapshot_start_idx:snapshot_end_idx]
 
         n_windows = data["all_windows_stats"].shape[1]
         data["downsampled_segmentation_mask"] = v5_downsampled_segmentation_mask(
             data, n_windows=n_windows
         )
         data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
-            session_idx
+            snapshot_start_idx:snapshot_end_idx
         ]
         # trimmed_cm, trimmed_stddev, abs_signal_median
         return data
