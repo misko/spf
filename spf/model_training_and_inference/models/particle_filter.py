@@ -3,6 +3,8 @@ import numpy as np
 
 from filterpy.monte_carlo import systematic_resample
 import scipy
+import torch
+import matplotlib.pyplot as plt
 
 from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm
 
@@ -61,6 +63,9 @@ class ParticleFilter:
             np.random.randn(*self.particles.shape) * noise_std
         )  # theta_noise=0.1, theta_dot_noise=0.001
 
+    def metrics(self, trajectory):
+        pass
+
     def trajectory(self, mean, std, N=128, noise_std=None, return_particles=False):
         self.particles = create_gaussian_particles_xy(mean, std, N)
         self.weights = np.ones((N,)) / N
@@ -84,7 +89,7 @@ class ParticleFilter:
 
             mu, var = self.estimate()
 
-            trajectory.append({"theta": mu[0], "var": var, "mu": mu})
+            trajectory.append({"var": var, "mu": mu})
             if return_particles:
                 all_particles.append(self.particles.copy())
         return trajectory, all_particles
@@ -100,6 +105,10 @@ class ParticleFilter:
 class PFSingleThetaSingleRadio(ParticleFilter):
     def __init__(self, ds, full_p_fn, rx_idx):
         super().__init__(ds, full_p_fn)
+        self.ground_truth_theta = ds[0][rx_idx]["ground_truth_theta"]
+        self.ground_truth_reduced_theta = reduce_theta_to_positive_y(
+            self.ground_truth_theta
+        )
         self.observations = self.ds[0][rx_idx]["mean_phase_segmentation"]
 
     def fix_particles(self):
@@ -121,6 +130,14 @@ class PFSingleThetaSingleRadio(ParticleFilter):
         self.weights += 1.0e-300  # avoid round-off to zero
         self.weights /= sum(self.weights)  # normalize
 
+    def metrics(self, trajectory):
+        pred_theta = torch.tensor([x["mu"][0] for x in trajectory])
+        return {
+            "mse_theta": (
+                torch_pi_norm(self.ground_truth_reduced_theta - pred_theta) ** 2
+            ).mean()
+        }
+
 
 """
 PAIRED PF
@@ -130,6 +147,7 @@ PAIRED PF
 class PFSingleThetaDualRadio(ParticleFilter):
     def __init__(self, ds, full_p_fn):
         super().__init__(ds, full_p_fn)
+        self.ground_truth_theta = ds[0][0]["craft_y_rad"][0]
         self.observations = np.vstack(
             [
                 ds[0][0]["mean_phase_segmentation"],
@@ -159,6 +177,14 @@ class PFSingleThetaDualRadio(ParticleFilter):
         )
         self.weights += 1.0e-300  # avoid round-off to zero
         self.weights /= sum(self.weights)  # normalize
+
+    def metrics(self, trajectory):
+        pred_theta = torch.tensor([x["mu"][0] for x in trajectory])
+        return {
+            "mse_theta": (
+                torch_pi_norm(self.ground_truth_theta - pred_theta) ** 2
+            ).mean()
+        }
 
 
 # # flip the order of the antennas
@@ -196,6 +222,10 @@ class PFXYDualRadio(ParticleFilter):
             [ds[0][0]["rx_pos_x_mm"], ds[0][0]["rx_pos_y_mm"]]
         ).T
         self.speed_dist = scipy.stats.norm(1.5, 3)
+        self.ground_truth_theta = ds[0][0]["craft_y_rad"][0]
+        self.ground_truth_xy = torch.tensor(
+            np.vstack([ds[0][0]["tx_pos_x_mm"], ds[0][0]["tx_pos_y_mm"]]).T
+        )
 
     def fix_particles(self):
         self.particles[:, 0] = pi_norm(self.particles[:, 0])
@@ -224,12 +254,21 @@ class PFXYDualRadio(ParticleFilter):
         self.weights += 1.0e-300  # avoid round-off to zero
         self.weights /= sum(self.weights)  # normalize
 
+    def metrics(self, trajectory):
+        pred_theta = torch.tensor([x["mu"][0] for x in trajectory])
+        pred_xy = torch.tensor([x["mu"][[1, 2]] for x in trajectory])
+        print(pred_xy.shape, self.ground_truth_xy.shape)
+        return {
+            "mse_theta": (
+                torch_pi_norm(self.ground_truth_theta - pred_theta) ** 2
+            ).mean(),
+            "mse_xy": ((self.ground_truth_xy - pred_xy) ** 2).mean(),
+        }
+
 
 """
 Plotting
 """
-
-import matplotlib.pyplot as plt
 
 
 def plot_single_theta_single_radio(ds, full_p_fn):
@@ -258,7 +297,7 @@ def plot_single_theta_single_radio(ds, full_p_fn):
             label=f"r{rx_idx} gt theta",
         )
 
-        xs = np.array([x["theta"] for x in trajectory])
+        xs = np.array([x["mu"][0] for x in trajectory])
         stds = np.sqrt(np.array([x["var"][0] for x in trajectory]))
 
         ax[1, rx_idx].fill_between(
@@ -325,7 +364,7 @@ def plot_single_theta_dual_radio(ds, full_p_fn):
         linestyle="dashed",
     )
 
-    xs = np.array([x["theta"] for x in traj_paired])
+    xs = np.array([x["mu"][0] for x in traj_paired])
     stds = np.sqrt(np.array([x["var"][0] for x in traj_paired]))
 
     ax[1].fill_between(
@@ -382,7 +421,7 @@ def plot_xy_dual_radio(ds, full_p_fn):
 
     ax[1].plot(torch_pi_norm(ds[0][0]["craft_y_rad"][0]))
 
-    xs = np.array([x["theta"] for x in traj_paired])
+    xs = np.array([x["mu"][0] for x in traj_paired])
     stds = np.sqrt(np.array([x["var"][0] for x in traj_paired]))
 
     ax[1].fill_between(
@@ -405,7 +444,7 @@ def plot_xy_dual_radio(ds, full_p_fn):
         range(ds.snapshots_per_session), xys[:, 1], label="PF-y", color="blue", s=0.5
     )
     tx = np.vstack([ds[0][0]["tx_pos_x_mm"], ds[0][0]["tx_pos_y_mm"]])
-    ax[2].plot(tx[0, :], label="gt-y", color="red")
+    ax[2].plot(tx[0, :], label="gt-x", color="red")
     ax[2].plot(tx[1, :], label="gt-y", color="black")
 
     ax[0].set_ylabel("radio phi")
@@ -415,5 +454,5 @@ def plot_xy_dual_radio(ds, full_p_fn):
     ax[1].legend()
     ax[1].set_xlabel("time step")
     ax[1].set_ylabel("Theta between target and receiver craft")
-
+    ax[2].legend()
     return fig
