@@ -211,12 +211,10 @@ def v5_collate_beamsegnet(batch):
             y_phi_list.append(x["y_phi"])
             craft_y_rad_list.append(x["craft_y_rad"])
             rx_spacing_list.append(x["rx_spacing"].reshape(1, 1))
-            simple_segmentation_list.append(x["simple_segmentation"])
-            all_window_stats_list.append(
-                x["all_windows_stats"][None]  # .astype(np.float32)
-            )
+            simple_segmentation_list += x["simple_segmentations"]
+            all_window_stats_list.append(x["all_windows_stats"])  # .astype(np.float32)
             windowed_beamformers_list.append(
-                x["windowed_beamformer"][None]  # .astype(np.float32)
+                x["windowed_beamformer"]  # .astype(np.float32)
             )
             downsampled_segmentation_mask_list.append(
                 x["downsampled_segmentation_mask"]
@@ -251,7 +249,6 @@ def v5_downsampled_segmentation_mask(session, n_windows):
     # _, _, samples_per_session = session["x"].shape
     # assert samples_per_session % window_size == 0
     # n_windows = samples_per_session // window_size
-
     seg_mask = torch.zeros(len(session["simple_segmentations"]), 1, n_windows)
     for idx in range(seg_mask.shape[0]):
         for window in session["simple_segmentations"][idx]:
@@ -470,11 +467,12 @@ class v5spfdataset(Dataset):
             ]
         ]
 
+        # sessions x 3 x n_windows
         data["all_windows_stats"] = self.precomputed_zarr[
             f"r{receiver_idx}/all_windows_stats"
         ][snapshot_start_idx:snapshot_end_idx]
 
-        n_windows = data["all_windows_stats"].shape[1]
+        n_windows = data["all_windows_stats"].shape[2]
         data["downsampled_segmentation_mask"] = v5_downsampled_segmentation_mask(
             data, n_windows=n_windows
         )
