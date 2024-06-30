@@ -449,9 +449,9 @@ class v5spfdataset(Dataset):
             pd = torch_get_phase_diff(data["signal_matrix"]).to(torch.float32)
             data["x"] = torch.vstack([abs_signal[0], abs_signal[1], pd])[None]
 
-        data["y_rad"] = data["ground_truth_theta"][None]
-        data["y_phi"] = data["ground_truth_phi"][None]
-        data["craft_y_rad"] = data["craft_ground_truth_theta"][None]
+        data["y_rad"] = data["ground_truth_theta"][None].to(torch.float32)
+        data["y_phi"] = data["ground_truth_phi"][None].to(torch.float32)
+        data["craft_y_rad"] = data["craft_ground_truth_theta"][None].to(torch.float32)
 
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
 
