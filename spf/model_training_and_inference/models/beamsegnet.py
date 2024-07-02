@@ -619,7 +619,11 @@ class NormalNet(nn.Module):
     def mse(self, x, y):
         # not sure why we cant wrap around for torch.pi/2....
         # assert np.isclose(self.max_angle, torch.pi, atol=0.05)
-        return (torch_pi_norm(x[:, 0] - y[:, 0], max_angle=self.max_angle) ** 2).mean()
+        if self.max_angle == torch.pi:
+            return (
+                torch_pi_norm(x[:, 0] - y[:, 0], max_angle=self.max_angle) ** 2
+            ).mean()
+        return ((x[:, 0] - y[:, 0]) ** 2).mean()
 
     def loglikelihood(self, x, y, log_eps=0.000000001):
         return torch.log(self.likelihood(x, y) + log_eps)
@@ -809,7 +813,9 @@ class BeamNSegNet(nn.Module):
         # segmentation loss
         segmentation_loss = 0
         if not self.skip_segmentation:
-            segmentation_loss = ((output["segmentation"] - seg_mask) ** 2).mean()
+            segmentation_loss = (
+                (output["segmentation"] - seg_mask.to(float)) ** 2
+            ).mean()
 
         mse_loss = self.beamnet.mse(output["pred_theta"], y_rad_reduced)
 
