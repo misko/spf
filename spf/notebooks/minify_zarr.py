@@ -6,8 +6,8 @@ from spf.dataset.v5_data import v5rx_new_dataset
 from spf.utils import zarr_open_from_lmdb_store, zarr_shrink
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(f"{sys.argv[0]} input_zarr output_zarr")
+    if len(sys.argv) != 4:
+        print(f"{sys.argv[0]} input_zarr output_zarr precompute_cache")
         sys.exit(1)
     zarr_fn = sys.argv[1]
     output_fn = sys.argv[2]
@@ -15,7 +15,8 @@ if __name__ == "__main__":
     # make sure its segmented
     v5spfdataset(
         sys.argv[1],
-        nthetas=11,
+        nthetas=65,
+        precompute_cache=sys.argv[3],
     )
 
     z = zarr_open_from_lmdb_store(zarr_fn)

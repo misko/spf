@@ -1,11 +1,20 @@
 import pickle
 import numpy as np
-
+import argparse
 from filterpy.monte_carlo import systematic_resample
 import scipy
 import torch
 import matplotlib.pyplot as plt
 
+from spf.dataset.spf_dataset import v5spfdataset
+import matplotlib.pyplot as plt
+
+from spf.rf import reduce_theta_to_positive_y
+
+import pickle
+import random
+import tqdm
+from multiprocessing import Pool, cpu_count
 from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm
 
 """
@@ -135,7 +144,9 @@ class PFSingleThetaSingleRadio(ParticleFilter):
         return {
             "mse_theta": (
                 torch_pi_norm(self.ground_truth_reduced_theta - pred_theta) ** 2
-            ).mean()
+            )
+            .mean()
+            .item()
         }
 
 
@@ -181,9 +192,9 @@ class PFSingleThetaDualRadio(ParticleFilter):
     def metrics(self, trajectory):
         pred_theta = torch.tensor([x["mu"][0] for x in trajectory])
         return {
-            "mse_theta": (
-                torch_pi_norm(self.ground_truth_theta - pred_theta) ** 2
-            ).mean()
+            "mse_theta": (torch_pi_norm(self.ground_truth_theta - pred_theta) ** 2)
+            .mean()
+            .item()
         }
 
 
@@ -255,14 +266,13 @@ class PFXYDualRadio(ParticleFilter):
         self.weights /= sum(self.weights)  # normalize
 
     def metrics(self, trajectory):
-        pred_theta = torch.tensor([x["mu"][0] for x in trajectory])
-        pred_xy = torch.tensor([x["mu"][[1, 2]] for x in trajectory])
-        print(pred_xy.shape, self.ground_truth_xy.shape)
+        pred_theta = torch.tensor(np.array([x["mu"][0] for x in trajectory]))
+        pred_xy = torch.tensor(np.array([x["mu"][[1, 2]] for x in trajectory]))
         return {
-            "mse_theta": (
-                torch_pi_norm(self.ground_truth_theta - pred_theta) ** 2
-            ).mean(),
-            "mse_xy": ((self.ground_truth_xy - pred_xy) ** 2).mean(),
+            "mse_theta": (torch_pi_norm(self.ground_truth_theta - pred_theta) ** 2)
+            .mean()
+            .item(),
+            "mse_xy": ((self.ground_truth_xy - pred_xy) ** 2).mean().item(),
         }
 
 
@@ -456,3 +466,219 @@ def plot_xy_dual_radio(ds, full_p_fn):
     ax[1].set_ylabel("Theta between target and receiver craft")
     ax[2].legend()
     return fig
+
+
+def run_single_theta_single_radio(
+    ds_fn, precompute_fn, full_p_fn, theta_err=0.1, theta_dot_err=0.001, N=128
+):
+    ds = v5spfdataset(
+        ds_fn,
+        nthetas=65,
+        ignore_qc=True,
+        precompute_cache=precompute_fn,
+        paired=True,
+        skip_signal_matrix=True,
+        snapshots_per_session=-1,
+    )
+    metrics = []
+    for rx_idx in [0, 1]:
+        pf = PFSingleThetaSingleRadio(
+            ds=ds,
+            full_p_fn=full_p_fn,
+            rx_idx=1,
+        )
+        trajectory, _ = pf.trajectory(
+            mean=np.array([[0, 0]]),
+            std=np.array([[2, 0.1]]),
+            noise_std=np.array([[theta_err, theta_dot_err]]),
+            return_particles=False,
+            N=N,
+        )
+        metrics.append(
+            {
+                "type": "single_theta_single_radio",
+                "ds_fn": ds_fn,
+                "rx_idx": rx_idx,
+                "theta_err": theta_err,
+                "theta_dor_err": theta_dot_err,
+                "metrics": pf.metrics(trajectory=trajectory),
+            }
+        )
+    return metrics
+
+
+def run_single_theta_dual_radio(
+    ds_fn, precompute_fn, full_p_fn, theta_err=0.1, theta_dot_err=0.001, N=128
+):
+    ds = v5spfdataset(
+        ds_fn,
+        nthetas=65,
+        ignore_qc=True,
+        precompute_cache=precompute_fn,
+        paired=True,
+        skip_signal_matrix=True,
+        snapshots_per_session=-1,
+    )
+    pf = PFSingleThetaDualRadio(ds=ds, full_p_fn=full_p_fn)
+    traj_paired, _ = pf.trajectory(
+        mean=np.array([[0, 0]]),
+        N=N,
+        std=np.array([[2, 0.1]]),
+        noise_std=np.array([[theta_err, theta_dot_err]]),
+        return_particles=False,
+    )
+
+    return [
+        {
+            "type": "single_theta_dual_radio",
+            "ds_fn": ds_fn,
+            "theta_err": theta_err,
+            "theta_dor_err": theta_dot_err,
+            "metrics": pf.metrics(trajectory=traj_paired),
+        }
+    ]
+
+
+def run_xy_dual_radio(
+    ds_fn, precompute_fn, full_p_fn, pos_err=15, vel_err=0.5, N=128 * 16
+):
+    ds = v5spfdataset(
+        ds_fn,
+        nthetas=65,
+        ignore_qc=True,
+        precompute_cache=precompute_fn,
+        paired=True,
+        skip_signal_matrix=True,
+        snapshots_per_session=-1,
+    )
+    # dual radio dual
+    pf = PFXYDualRadio(ds=ds, full_p_fn=full_p_fn)
+    traj_paired, _ = pf.trajectory(
+        N=N,
+        mean=np.array([[0, 0, 0, 0, 0]]),
+        std=np.array([[0, 200, 200, 0.1, 0.1]]),
+        return_particles=False,
+        noise_std=np.array([[0, pos_err, pos_err, vel_err, vel_err]]),
+    )
+    return [
+        {
+            "type": "xy_dual_radio",
+            "ds_fn": ds_fn,
+            "vel_err": vel_err,
+            "pos_err": pos_err,
+            "metrics": pf.metrics(trajectory=traj_paired),
+        }
+    ]
+
+
+def runner(x):
+    fn, args = x
+    return fn(**args)
+
+
+if __name__ == "__main__":
+
+    def get_parser():
+        parser = argparse.ArgumentParser()
+        parser.add_argument(
+            "-d",
+            "--datasets",
+            type=str,
+            help="dataset prefixes",
+            nargs="+",
+            required=True,
+        )
+        parser.add_argument(
+            "--nthetas",
+            type=int,
+            required=False,
+            default=65,
+        )
+        parser.add_argument(
+            "--device",
+            type=str,
+            required=False,
+            default="cpu",
+        )
+        parser.add_argument(
+            "--skip-qc",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+        )
+        parser.add_argument(
+            "--precompute-cache",
+            type=str,
+            required=True,
+        )
+        parser.add_argument(
+            "--full-p-fn",
+            type=str,
+            required=True,
+        )
+        return parser
+
+    parser = get_parser()
+    args = parser.parse_args()
+
+    jobs = []
+
+    for ds_fn in args.datasets:
+        for N in [128, 128 * 4, 128 * 8, 128 * 16]:
+            for theta_err in [0.1, 0.01, 0.001, 0.2]:
+                for theta_dor_err in [0.001, 0.0001, 0.01, 0.1]:
+                    jobs.append(
+                        (
+                            run_single_theta_single_radio,
+                            {
+                                "ds_fn": ds_fn,
+                                "precompute_fn": args.precompute_cache,
+                                "full_p_fn": args.full_p_fn,
+                                "N": N,
+                                "theta_err": theta_err,
+                                "theta_dot_err": theta_dor_err,
+                            },
+                        )
+                    )
+            for theta_err in [0.1, 0.01, 0.001, 0.2]:
+                for theta_dor_err in [0.001, 0.0001, 0.01, 0.1]:
+                    jobs.append(
+                        (
+                            run_single_theta_dual_radio,
+                            {
+                                "ds_fn": ds_fn,
+                                "precompute_fn": args.precompute_cache,
+                                "full_p_fn": args.full_p_fn,
+                                "N": N,
+                                "theta_err": theta_err,
+                                "theta_dot_err": theta_dor_err,
+                            },
+                        )
+                    )
+    for ds_fn in args.datasets:
+        for N in [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32]:
+            for pos_err in [1000, 100, 50, 30, 15, 5, 0.5]:
+                for vel_err in [50, 5, 0.5, 0.05, 0.01, 0.001]:
+                    jobs.append(
+                        (
+                            run_xy_dual_radio,
+                            {
+                                "ds_fn": ds_fn,
+                                "precompute_fn": args.precompute_cache,
+                                "full_p_fn": args.full_p_fn,
+                                "N": N,
+                                "pos_err": pos_err,
+                                "vel_err": vel_err,
+                            },
+                        )
+                    )
+
+    random.shuffle(jobs)
+    with Pool(20) as pool:  # cpu_count())  # cpu_count() // 4)
+        results = list(tqdm.tqdm(pool.imap(runner, jobs), total=len(jobs)))
+    pickle.dump(results, open("particle_filter_results.pkl", "wb"))
+
+    # run_single_theta_single_radio()
+    # run_single_theta_dual_radio(
+    #     ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn
+    # )
+    # run_xy_dual_radio(ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn)
