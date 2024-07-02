@@ -126,7 +126,7 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
             results_by_receiver[r_name] = list(
                 tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
             )
-        # results_by_receiver[r_name] = list(map(segment_session_star, inputs))
+        # results_by_receiver[r_name] = list(map(segment_session_star, inputs[1000:]))
 
     segmentation_zarr_fn = results_fn.replace(".pkl", ".yarr")
     all_windows_stats_shape = (len(results_by_receiver["r0"]),) + results_by_receiver[
@@ -135,11 +135,15 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
     windowed_beamformer_shape = (len(results_by_receiver["r0"]),) + results_by_receiver[
         "r0"
     ][0]["windowed_beamformer"].shape
+    downsampled_segmentation_mask_shape = (
+        len(results_by_receiver["r0"]),
+    ) + results_by_receiver["r0"][0]["downsampled_segmentation_mask"].shape
     z = new_yarr_dataset(
         filename=segmentation_zarr_fn,
         n_receivers=2,
         all_windows_stats_shape=all_windows_stats_shape,
         windowed_beamformer_shape=windowed_beamformer_shape,
+        downsampled_segmentation_mask_shape=downsampled_segmentation_mask_shape,
     )
 
     for r_idx in [0, 1]:
@@ -150,6 +154,13 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
         # collect windowed beamformer
         z[f"r{r_idx}/windowed_beamformer"][:] = np.vstack(
             [x["windowed_beamformer"][None] for x in results_by_receiver[f"r{r_idx}"]]
+        )
+        # collect downsampled segmentation mask
+        z[f"r{r_idx}/downsampled_segmentation_mask"][:] = np.vstack(
+            [
+                x["downsampled_segmentation_mask"][None]
+                for x in results_by_receiver[f"r{r_idx}"]
+            ]
         )
         # remove from dictionary
         for x in results_by_receiver[f"r{r_idx}"]:
@@ -205,12 +216,15 @@ def v5_collate_beamsegnet(batch):
     segmentation_mask_list = []
     rx_spacing_list = []
     craft_y_rad_list = []
+    receiver_idx_list = []
+    rx_pos_list = []
     for paired_sample in batch:
         for x in paired_sample:
             y_rad_list.append(x["y_rad"])
             y_phi_list.append(x["y_phi"])
+            rx_pos_list.append(x["rx_pos_xy"])
             craft_y_rad_list.append(x["craft_y_rad"])
-            rx_spacing_list.append(x["rx_spacing"].reshape(1, 1))
+            rx_spacing_list.append(x["rx_spacing"].reshape(-1, 1))
             simple_segmentation_list += x["simple_segmentations"]
             all_window_stats_list.append(x["all_windows_stats"])  # .astype(np.float32)
             windowed_beamformers_list.append(
@@ -219,14 +233,16 @@ def v5_collate_beamsegnet(batch):
             downsampled_segmentation_mask_list.append(
                 x["downsampled_segmentation_mask"]
             )
+            receiver_idx_list.append(x["receiver_idx"].repeat(x["y_rad"].shape[1]))
 
             if "x" in batch[0][0]:
                 x_list.append(x["x"])
                 segmentation_mask_list.append(v5_segmentation_mask(x))
-
     d = {
         "y_rad": torch.vstack(y_rad_list),
         "y_phi": torch.vstack(y_phi_list),
+        "rx_pos_xy": torch.vstack(rx_pos_list),
+        "receiver_idx": torch.vstack(receiver_idx_list),
         "craft_y_rad": torch.vstack(craft_y_rad_list),
         "rx_spacing": torch.vstack(rx_spacing_list),
         "simple_segmentation": simple_segmentation_list,
@@ -239,6 +255,7 @@ def v5_collate_beamsegnet(batch):
     if "x" in batch[0][0]:
         d["x"] = torch.vstack(x_list)
         d["segmentation_mask"] = torch.vstack(segmentation_mask_list)
+
     return d
 
 
@@ -281,8 +298,9 @@ class v5spfdataset(Dataset):
         paired=False,
         gpu=False,
         snapshots_per_session=1,
+        tiled_sessions=True,
     ):
-        print("Open", prefix)
+        # print("Open", prefix)
         self.precompute_cache = precompute_cache
         prefix = prefix.replace(".zarr", "")
         self.nthetas = nthetas
@@ -295,6 +313,7 @@ class v5spfdataset(Dataset):
         self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
         self.gpu = gpu
+        self.tiled_sessions = tiled_sessions
 
         self.wavelengths = [
             speed_of_light / receiver["f-carrier"]
@@ -317,7 +336,12 @@ class v5spfdataset(Dataset):
         if self.snapshots_per_session == -1:
             self.snapshots_per_session = self.n_snapshots
 
-        self.n_sessions = self.n_snapshots // self.snapshots_per_session
+        if self.tiled_sessions:
+            self.n_sessions = self.n_snapshots - self.snapshots_per_session + 1
+            if self.n_sessions <= 0:
+                self.n_sessions = 0
+        else:
+            self.n_sessions = self.n_snapshots // self.snapshots_per_session
 
         if not self.skip_signal_matrix:
             self.signal_matrices = [
@@ -419,14 +443,18 @@ class v5spfdataset(Dataset):
         return self.n_sessions * self.n_receivers
 
     def render_session(self, receiver_idx, session_idx):
-        snapshot_start_idx = session_idx * self.snapshots_per_session
-        snapshot_end_idx = (session_idx + 1) * self.snapshots_per_session
+        if self.tiled_sessions:
+            snapshot_start_idx = session_idx
+            snapshot_end_idx = session_idx + self.snapshots_per_session
+        else:
+            snapshot_start_idx = session_idx * self.snapshots_per_session
+            snapshot_end_idx = (session_idx + 1) * self.snapshots_per_session
         r = self.receiver_data[receiver_idx]
         data = {
             key: r[key][snapshot_start_idx:snapshot_end_idx]
             for key in self.keys_per_session
         }
-
+        data["receiver_idx"] = np.array(receiver_idx)
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][
             snapshot_start_idx:snapshot_end_idx
         ]
@@ -455,7 +483,6 @@ class v5spfdataset(Dataset):
 
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
 
-        # print(self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"])
         data["windowed_beamformer"] = self.precomputed_zarr[
             f"r{receiver_idx}/windowed_beamformer"
         ][snapshot_start_idx:snapshot_end_idx]
@@ -472,13 +499,32 @@ class v5spfdataset(Dataset):
             f"r{receiver_idx}/all_windows_stats"
         ][snapshot_start_idx:snapshot_end_idx]
 
-        n_windows = data["all_windows_stats"].shape[2]
-        data["downsampled_segmentation_mask"] = v5_downsampled_segmentation_mask(
-            data, n_windows=n_windows
-        )
+        # n_windows = data["all_windows_stats"].shape[2]
+        # data["downsampled_segmentation_mask"] = v5_downsampled_segmentation_mask(
+        #     data, n_windows=n_windows
+        # )
+        data["downsampled_segmentation_mask"] = torch.tensor(
+            self.precomputed_zarr[f"r{receiver_idx}"]["downsampled_segmentation_mask"][
+                snapshot_start_idx:snapshot_end_idx
+            ]
+        ).unsqueeze(1)
+
+        # breakpoint()
         data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
             snapshot_start_idx:snapshot_end_idx
         ]
+        data["rx_pos_xy"] = torch.tensor(
+            np.array(
+                [
+                    self.receiver_data[receiver_idx]["rx_pos_x_mm"][
+                        snapshot_start_idx:snapshot_end_idx
+                    ],
+                    self.receiver_data[receiver_idx]["rx_pos_y_mm"][
+                        snapshot_start_idx:snapshot_end_idx
+                    ],
+                ]
+            )
+        ).T.to(torch.float32)
         # trimmed_cm, trimmed_stddev, abs_signal_median
         return data
 
