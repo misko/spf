@@ -16,7 +16,7 @@ except:
     pass
 from spf.utils import zarr_open_from_lmdb_store, zarr_open_from_lmdb_store_cm
 
-SEGMENTATION_VERSION = 1.3
+SEGMENTATION_VERSION = 1.4
 # numba = False
 
 """
@@ -174,53 +174,6 @@ def torch_circular_mean(angles, trim, weights=None):
     return torch_pi_norm(cm), torch_pi_norm(_cm)
 
 
-def get_segmentation_for_zarr(
-    zarr_fn,
-    nprocs=4,
-    window_size=2048,
-    stride=2048,
-    trim=20.0,
-    mean_diff_threshold=0.2,
-    max_stddev_threshold=0.5,
-    drop_less_than_size=3000,
-    min_abs_signal=40,
-):
-    segmentation_fn = zarr_fn.replace(".zarr", "_seg.pkl")
-    if not os.path.exists(segmentation_fn):
-        z = zarr_open_from_lmdb_store(zarr_fn)
-        n_sessions, _, samples_per_buffer = z.receivers["r0"].signal_matrix.shape
-        results_by_receiver = {}
-        for r_idx in [0, 1]:
-            r_name = f"r{r_idx}"
-            inputs = [
-                {
-                    "zarr_fn": zarr_fn,
-                    "receiver": r_name,
-                    "session_idx": idx,
-                    "window_size": window_size,
-                    "stride": stride,
-                    "trim": trim,
-                    "mean_diff_threshold": mean_diff_threshold,
-                    "max_stddev_threshold": max_stddev_threshold,
-                    "drop_less_than_size": drop_less_than_size,
-                    "min_abs_signal": min_abs_signal,
-                    "gpu": False,
-                }
-                for idx in range(n_sessions)
-            ]
-            with Pool(nprocs) as pool:
-                results_by_receiver[r_name] = list(
-                    tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
-                )
-
-        compress_pickle.dump(
-            results_by_receiver, open(segmentation_fn, "wb"), compression="lzma"
-        )
-        return results_by_receiver
-    else:
-        return compress_pickle.load(open(segmentation_fn, "rb"))
-
-
 def segment_session_star(arg_dict):
     return segment_session(**arg_dict)
 
@@ -354,6 +307,15 @@ def recompute_stats_for_windows(windows, v, pd, trim):
     return windows
 
 
+def compute_downsampled_segmentation_mask(simple_segmentation, n_windows, window_size):
+    seg_mask = np.zeros(n_windows).astype(bool)
+    for window in simple_segmentation:
+        seg_mask[
+            window["start_idx"] // window_size : window["end_idx"] // window_size,
+        ] = True
+    return seg_mask
+
+
 def simple_segment(
     v,
     window_size,
@@ -396,11 +358,17 @@ def simple_segment(
     # only keep signal windows surounded by noise
     candidate_windows = keep_signal_surrounded_by_noise(candidate_windows)
 
+    simple_segmentation = recompute_stats_for_windows(candidate_windows, v, pd, trim)
+    downsampled_segmentation_mask = compute_downsampled_segmentation_mask(
+        simple_segmentation,
+        window_size=window_size,
+        n_windows=window_idxs_and_stats[1].shape[0],
+    )
+
     return {
-        "simple_segmentation": recompute_stats_for_windows(
-            candidate_windows, v, pd, trim
-        ),
+        "simple_segmentation": simple_segmentation,
         # "all_windows": original_windows,
+        "downsampled_segmentation_mask": downsampled_segmentation_mask,
         "all_windows_stats": window_idxs_and_stats[
             1
         ],  # trimmed_cm, trimmed_stddev, abs_signal_median
