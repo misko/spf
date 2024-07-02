@@ -63,6 +63,7 @@ def new_yarr_dataset(
     n_receivers,
     all_windows_stats_shape,
     windowed_beamformer_shape,
+    downsampled_segmentation_mask_shape,
     compressor=None,
 ):
     zarr_remove_if_exists(filename)
@@ -89,6 +90,13 @@ def new_yarr_dataset(
             dtype="float16",
             compressor=compressor,
         )
+        receiver_z.create_dataset(
+            "downsampled_segmentation_mask",
+            shape=downsampled_segmentation_mask_shape,
+            chunks=(16, -1),
+            dtype="bool",
+            compressor=compressor,
+        )
     return z
 
 
@@ -99,9 +107,9 @@ def zarr_open_from_lmdb_store(filename, mode="r"):
             map_size=2**38,
             writemap=False,
             readonly=True,
-            max_readers=1024 * 1024,
+            max_readers=256,  # 1024 * 1024,
             lock=False,
-            # readahead=False,
+            readahead=True,
         )
     elif mode == "w":
         store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
