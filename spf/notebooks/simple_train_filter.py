@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-
+from random import shuffle
 import wandb
 from spf.dataset.spf_dataset import (
     v5_collate_beamsegnet,
@@ -172,6 +172,7 @@ class FunkyNet(torch.nn.Module):
         beamnet_mse = self.beam_m.mse(
             output["pred_theta"], y_rad_reduced.reshape(-1, 1)
         )
+        breakpoint()
         loss = transformer_loss + beamnet_loss
         return {
             "loss": loss,
@@ -216,7 +217,10 @@ def simple_train(args):
     else:
         n = len(complete_ds)
         train_idxs = range(int((1.0 - args.val_holdout_fraction) * n))
-        val_idxs = range(train_idxs[-1] + 1, n)
+        val_idxs = list(range(train_idxs[-1] + 1, n))
+
+        shuffle(val_idxs)
+        val_idxs = val_idxs[: max(1, int(len(val_idxs) * args.val_subsample_fraction))]
 
         train_ds = torch.utils.data.Subset(complete_ds, train_idxs)
         val_ds = torch.utils.data.Subset(complete_ds, val_idxs)
@@ -304,6 +308,9 @@ def simple_train(args):
         for step, batch_data in tqdm(
             enumerate(train_dataloader), total=len(train_dataloader)
         ):
+            # if step > 0:
+            #     return
+            # continue
             if step % args.val_every == 0:
                 m.eval()
                 save_everything(
@@ -500,6 +507,12 @@ def get_parser():
         default=0.2,
     )
     parser.add_argument(
+        "--val-subsample-fraction",
+        type=float,
+        required=False,
+        default=0.05,
+    )
+    parser.add_argument(
         "--hidden",
         type=int,
         required=False,
@@ -598,9 +611,13 @@ def get_parser():
     return parser
 
 
+from pyinstrument import Profiler
+
 if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
     # with Profile() as profile:
+    # with Profiler(interval=0.1) as profiler:
     simple_train(args)
-    # (Stats(profile).strip_dirs().sort_stats(SortKey.TIME).print_stats(200))
+    #    # (Stats(profile).strip_dirs().sort_stats(SortKey.TIME).print_stats(200))
+    # profiler.print()

@@ -619,11 +619,9 @@ class NormalNet(nn.Module):
     def mse(self, x, y):
         # not sure why we cant wrap around for torch.pi/2....
         # assert np.isclose(self.max_angle, torch.pi, atol=0.05)
-        if self.max_angle == torch.pi:
-            return (
-                torch_pi_norm(x[:, 0] - y[:, 0], max_angle=self.max_angle) ** 2
-            ).mean()
-        return ((x[:, 0] - y[:, 0]) ** 2).mean()
+        # if self.max_angle == torch.pi:
+        return (torch_pi_norm(x[:, 0] - y[:, 0], max_angle=self.max_angle) ** 2).mean()
+        # return ((x[:, 0] - y[:, 0]) ** 2).mean()
 
     def loglikelihood(self, x, y, log_eps=0.000000001):
         return torch.log(self.likelihood(x, y) + log_eps)
