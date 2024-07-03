@@ -172,7 +172,6 @@ class FunkyNet(torch.nn.Module):
         beamnet_mse = self.beam_m.mse(
             output["pred_theta"], y_rad_reduced.reshape(-1, 1)
         )
-        breakpoint()
         loss = transformer_loss + beamnet_loss
         return {
             "loss": loss,
