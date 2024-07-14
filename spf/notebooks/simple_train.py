@@ -368,7 +368,11 @@ def simple_train(args):
         y_rad = batch_data["y_rad"].to(torch_device)
         craft_y_rad = batch_data["craft_y_rad"].to(torch_device)
         y_phi = batch_data["y_phi"].to(torch_device)
-        assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
+        # todo fix this properly, or only support single snapshots?
+        assert seg_mask.ndim == 4 and seg_mask.shape[2] == 1 and seg_mask.shape[1] == 1
+        assert x.ndim == 4 and x.shape[1] == 1
+        seg_mask = seg_mask[:, 0]
+        x = x[:, 0]
         return x, y_rad, craft_y_rad, y_phi, seg_mask, rx_spacing, windowed_beamformer
 
     step = 0

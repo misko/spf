@@ -1,4 +1,5 @@
 import argparse
+from functools import cache, partial
 
 import numpy as np
 import torch
@@ -8,16 +9,17 @@ from random import shuffle
 import wandb
 from spf.dataset.spf_dataset import (
     v5_collate_beamsegnet,
+    v5_collate_keys_fast,
     v5spfdataset,
 )
 from spf.model_training_and_inference.models.beamsegnet import (
     BeamNetDirect,
 )
-
+import gc
 from cProfile import Profile
 from pstats import SortKey, Stats
 
-from spf.rf import reduce_theta_to_positive_y
+from spf.rf import reduce_theta_to_positive_y, torch_pi_norm
 
 import random
 
@@ -26,6 +28,17 @@ from torch.nn import (
     TransformerEncoderLayer,
     LayerNorm,
 )
+
+# torch.autograd.set_detect_anomaly(True)
+
+
+def worker_init_fn(worker_id):
+    worker_info = torch.utils.data.get_worker_info()
+    dataset = worker_info.dataset  # the dataset copy in this worker process
+    for (
+        _dataset
+    ) in dataset.dataset.datasets:  # subset_dataset.concat_dataset.v5spfdataset
+        _dataset.reinit()
 
 
 def save_everything(model, optimizer, config, step, path):
@@ -40,6 +53,50 @@ def save_everything(model, optimizer, config, step, path):
     )
 
 
+@cache
+def get_time_split(batch_size, snapshots_per_sessions, device):
+    return (
+        torch.linspace(-1, 0, snapshots_per_sessions)
+        .to(device)
+        .reshape(1, -1, 1)
+        .expand(batch_size // 2, snapshots_per_sessions, 1)
+    )
+
+
+class DebugFunkyNet(torch.nn.Module):
+    def __init__(
+        self,
+        input_dim=10,
+        d_model=2048,
+        d_hid=512,
+        dropout=0.1,
+        n_heads=16,
+        n_layers=24,
+        output_dim=1,
+        token_dropout=0.0,
+    ):
+        super(DebugFunkyNet, self).__init__()
+        self.l = torch.nn.Linear(3, 1).to(torch.float16)
+
+    def forward(self, x, seg_mask, rx_spacing, y_rad, windowed_beam_former, rx_pos):
+        return {
+            "transformer_output": None,
+            "pred_theta": None,
+            "fake_out": self.l(x[:, 0, 0, :3]),
+        }
+
+    def loss(self, output, y_rad, craft_y_rad, seg_mask):
+        loss = output["fake_out"].mean()
+        return {
+            "loss": loss,
+            "transformer_mse_loss": loss,
+            "beamnet_loss": loss,
+            "beamnet_mse_loss": loss,
+            "beamnet_mse_random_loss": loss,
+            "transformer_mse_random_loss": loss,
+        }
+
+
 class FunkyNet(torch.nn.Module):
     def __init__(
         self,
@@ -50,6 +107,7 @@ class FunkyNet(torch.nn.Module):
         n_heads=16,
         n_layers=24,
         output_dim=1,
+        token_dropout=0.5,
     ):
         super(FunkyNet, self).__init__()
         self.z = torch.nn.Linear(10, 3)
@@ -94,16 +152,26 @@ class FunkyNet(torch.nn.Module):
             min_sigma=0.0001,
         )  # .to(torch_device)
 
-        self.paired_drop_in_gt = 0.001
+        self.paired_drop_in_gt = 0.00
+        self.token_dropout = token_dropout
 
     def forward(self, x, seg_mask, rx_spacing, y_rad, windowed_beam_former, rx_pos):
-        rx_pos = rx_pos.clone() / 4000
+        rx_pos = rx_pos.detach().clone() / 4000
 
         batch_size, snapshots_per_sessions = y_rad.shape
-        weighted_input = torch.mul(x, seg_mask).sum(axis=2) / (
-            seg_mask.sum(axis=2) + 0.001
+        # weighted_input = torch.mul(x, seg_mask).sum(axis=3) / (
+        #     seg_mask.sum(axis=3) + 0.001
+        # )
+        weighted_input = (
+            torch.mul(x, seg_mask) / (seg_mask.sum(axis=3, keepdim=True) + 0.001)
+        ).sum(axis=3)
+
+        pred_theta = self.beam_m(
+            weighted_input.reshape(batch_size * snapshots_per_sessions, -1)
         )
-        pred_theta = self.beam_m(weighted_input)
+        # if not pred_theta.isfinite().all():
+        #     breakpoint()
+        #     a = 1
         detached_pred_theta = torch.hstack(
             [
                 pred_theta[:, : self.beam_m.outputs - self.beam_m.latent].detach(),
@@ -135,10 +203,9 @@ class FunkyNet(torch.nn.Module):
                 rx_pos_by_example[1::2],
                 detached_pred_theta[::2],
                 detached_pred_theta[1::2],
-                torch.linspace(-1, 0, 500)
-                .to(weighted_input_by_example.device)
-                .reshape(1, -1, 1)
-                .expand(batch_size // 2, snapshots_per_sessions, 1),
+                get_time_split(
+                    batch_size, snapshots_per_sessions, weighted_input_by_example.device
+                ),
             ],
             axis=2,
         )
@@ -146,7 +213,7 @@ class FunkyNet(torch.nn.Module):
         if self.training:
             src_key_padding_mask = (
                 torch.rand(batch_size // 2, snapshots_per_sessions, device=input.device)
-                < 0.25
+                < self.token_dropout  # True here means skip
             )
             src_key_padding_mask[:, -1] = False  # True is not allowed to attend
             transformer_output = self.transformer_encoder(
@@ -163,21 +230,39 @@ class FunkyNet(torch.nn.Module):
 
     def loss(self, output, y_rad, craft_y_rad, seg_mask):
         target = craft_y_rad[::2, [-1]]
-        transformer_loss = ((target - output["transformer_output"]) ** 2).mean()
-        y_rad_reduced = reduce_theta_to_positive_y(y_rad)
+        transformer_loss = (
+            torch_pi_norm(target - output["transformer_output"]) ** 2
+        ).mean()
+
+        random_target = (
+            (torch.rand(target.shape, device=target.device) - 0.5) * 2 * np.pi
+        )
+        transformer_random_loss = (torch_pi_norm(target - random_target) ** 2).mean()
+
+        y_rad_reduced = reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
         # x to beamformer loss (indirectly including segmentation)
         beamnet_loss = -self.beam_m.loglikelihood(
-            output["pred_theta"], y_rad_reduced.reshape(-1, 1)
+            output["pred_theta"], y_rad_reduced
         ).mean()
-        beamnet_mse = self.beam_m.mse(
-            output["pred_theta"], y_rad_reduced.reshape(-1, 1)
-        )
+
+        beamnet_mse = self.beam_m.mse(output["pred_theta"], y_rad_reduced)
+        beamnet_mse_random = (
+            (
+                y_rad_reduced
+                - (torch.rand(y_rad_reduced.shape, device=target.device) - 0.5)
+                * 2
+                * np.pi
+            )
+            ** 2
+        ).mean()
         loss = transformer_loss + beamnet_loss
         return {
             "loss": loss,
             "transformer_mse_loss": transformer_loss,
             "beamnet_loss": beamnet_loss,
             "beamnet_mse_loss": beamnet_mse,
+            "beamnet_mse_random_loss": beamnet_mse_random,
+            "transformer_mse_random_loss": transformer_random_loss,
         }
 
 
@@ -203,6 +288,8 @@ def simple_train(args):
             ignore_qc=args.skip_qc,
             gpu=args.device == "cuda",
             snapshots_per_session=args.snapshots_per_session,
+            readahead=False,
+            skip_simple_segmentations=True,
         )
         for prefix in args.datasets
     ]
@@ -229,7 +316,22 @@ def simple_train(args):
         "batch_size": args.batch,
         "shuffle": args.shuffle,
         "num_workers": args.workers,
-        "collate_fn": v5_collate_beamsegnet,
+        "collate_fn": partial(
+            v5_collate_keys_fast,
+            [
+                "all_windows_stats",
+                "rx_pos_xy",
+                "downsampled_segmentation_mask",
+                "rx_spacing",
+                "windowed_beamformer",
+                "y_rad",
+                "craft_y_rad",
+                "y_phi",
+            ],
+        ),
+        "worker_init_fn": worker_init_fn,
+        # "pin_memory": True,
+        "prefetch_factor": 2 if args.workers > 0 else None,
     }
     train_dataloader = torch.utils.data.DataLoader(train_ds, **dataloader_params)
     val_dataloader = torch.utils.data.DataLoader(val_ds, **dataloader_params)
@@ -246,6 +348,7 @@ def simple_train(args):
     # init model here
     #######
     m = FunkyNet().to(torch_device)
+    # m = DebugFunkyNet().to(torch_device)
     ########
 
     if args.wandb_project:
@@ -257,6 +360,7 @@ def simple_train(args):
             project=args.wandb_project,
             # track hyperparameters and run metadata
             config=config,
+            name=args.wandb_name,
         )
     else:
         print("model:")
@@ -271,7 +375,7 @@ def simple_train(args):
 
     def batch_data_to_x_y_seg(batch_data):
         # x ~ # trimmed_cm, trimmed_stddev, abs_signal_median
-        x = batch_data["all_windows_stats"].to(torch_device).to(torch.float32)
+        x = batch_data["all_windows_stats"].to(torch_device)
         rx_pos = batch_data["rx_pos_xy"].to(torch_device)
         seg_mask = batch_data["downsampled_segmentation_mask"].to(torch_device)
         rx_spacing = batch_data["rx_spacing"].to(torch_device)
@@ -279,7 +383,7 @@ def simple_train(args):
         y_rad = batch_data["y_rad"].to(torch_device)
         craft_y_rad = batch_data["craft_y_rad"].to(torch_device)
         y_phi = batch_data["y_phi"].to(torch_device)
-        assert seg_mask.ndim == 3 and seg_mask.shape[1] == 1
+        assert seg_mask.ndim == 4 and seg_mask.shape[2] == 1
         return (
             x,
             y_rad,
@@ -300,17 +404,21 @@ def simple_train(args):
             "transformer_mse_loss": [],
             "beamnet_loss": [],
             "beamnet_mse_loss": [],
+            "beamnet_mse_random_loss": [],
+            "transformer_mse_random_loss": [],
         }
 
     to_log = new_log()
     for _ in range(args.epochs):
-        for step, batch_data in tqdm(
-            enumerate(train_dataloader), total=len(train_dataloader)
-        ):
-            # if step > 0:
+        # breakpoint()
+        for step, batch_data in enumerate(
+            tqdm(train_dataloader)
+        ):  # , total=len(train_dataloader)):
+            # if step > 200:
             #     return
-            # continue
-            if step % args.val_every == 0:
+            if torch.rand(1).item() < 0.05:
+                gc.collect()
+            if step % args.save_every == 0:
                 m.eval()
                 save_everything(
                     model=m,
@@ -319,14 +427,14 @@ def simple_train(args):
                     step=step,
                     path=f"{args.save_prefix}_step{step}.chkpnt",
                 )
+            if step % args.val_every == 0:
+                m.eval()
                 with torch.no_grad():
                     val_losses = new_log()
                     # for  in val_dataloader:
                     print("Running validation:")
-                    for _, val_batch_data in tqdm(
-                        enumerate(val_dataloader),
-                        total=len(val_dataloader),
-                        leave=False,
+                    for _, val_batch_data in enumerate(
+                        tqdm(val_dataloader, leave=False)
                     ):
                         # for val_batch_data in val_dataloader:
                         (
@@ -352,7 +460,7 @@ def simple_train(args):
 
                         # compute the loss
                         loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
-
+                        # breakpoint()
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
                             val_losses[key].append(value.item())
@@ -399,6 +507,7 @@ def simple_train(args):
             loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
 
             loss = loss_d["loss"]
+            # loss = loss_d["beamnet_loss"]
             loss.backward()
 
             optimizer.step()
@@ -422,9 +531,9 @@ def simple_train(args):
                         if "loss" in key and len(value) > 0:
                             to_log[key] = np.array(value).mean()
                     wandb.log(to_log, step=step)
-                    for key, value in to_log.items():
-                        if "_output" in key:
-                            plt.close(value)
+                    # for key, value in to_log.items():
+                    #    if "_output" in key:
+                    #        plt.close(value)
                     to_log = new_log()
 
             step += 1
@@ -541,6 +650,11 @@ def get_parser():
         default=1000,
     )
     parser.add_argument(
+        "--save-every",
+        type=int,
+        default=10000,
+    )
+    parser.add_argument(
         "--norm",
         type=str,
         default="batch",
@@ -566,6 +680,7 @@ def get_parser():
         required=True,
     )
     parser.add_argument("--wandb-project", type=str, required=False, default=None)
+    parser.add_argument("--wandb-name", type=str, required=False, default=None)
     parser.add_argument(
         "--compile",
         action=argparse.BooleanOptionalAction,
@@ -606,17 +721,22 @@ def get_parser():
         action=argparse.BooleanOptionalAction,
         default=False,
     )
-    parser.add_argument("--save-prefix", type=str, default="./")
+    parser.add_argument("--save-prefix", type=str, default="./this_model_")
     return parser
 
 
-from pyinstrument import Profiler
+# from pyinstrument import Profiler
+# from pyinstrument.renderers import ConsoleRenderer
 
 if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
     # with Profile() as profile:
-    # with Profiler(interval=0.1) as profiler:
+    # profiler = Profiler()
+    # profiler.start()
     simple_train(args)
+
+    # session = profiler.stop()
     #    # (Stats(profile).strip_dirs().sort_stats(SortKey.TIME).print_stats(200))
-    # profiler.print()
+    # profile_renderer = ConsoleRenderer(unicode=True, color=True, show_all=True)
+    # print(profile_renderer.render(session))

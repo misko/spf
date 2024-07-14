@@ -100,16 +100,17 @@ def new_yarr_dataset(
     return z
 
 
-def zarr_open_from_lmdb_store(filename, mode="r"):
+def zarr_open_from_lmdb_store(filename, mode="r", readahead=False):
     if mode == "r":
         store = zarr.LMDBStore(
             filename,
             map_size=2**38,
             writemap=False,
             readonly=True,
-            max_readers=256,  # 1024 * 1024,
+            max_readers=1,  # 1024 * 1024,
             lock=False,
-            readahead=True,
+            meminit=False,
+            readahead=readahead,
         )
     elif mode == "w":
         store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
@@ -160,7 +161,8 @@ def zarr_new_dataset(
             receiver_z.create_dataset(
                 "signal_matrix",
                 shape=(timesteps, 2, buffer_size),
-                chunks=(1, 1, 1024 * chunk_size),
+                # chunks=(1, 1, 1024 * chunk_size),
+                chunks=(1, 2, buffer_size),
                 dtype="complex128",
                 compressor=compressor,
             )
@@ -177,7 +179,7 @@ def zarr_new_dataset(
                 key,
                 shape=(timesteps, 2),
                 dtype="float64",
-                chunks=(timesteps,),
+                chunks=(timesteps, 2),
                 compressor=None,
             )
     return z

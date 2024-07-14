@@ -405,7 +405,7 @@ def get_phase_diff(signal_matrix):
 
 
 def torch_get_phase_diff(signal_matrix):
-    return torch_pi_norm(signal_matrix[0].angle() - signal_matrix[1].angle())
+    return torch_pi_norm(signal_matrix[:, 0].angle() - signal_matrix[:, 1].angle())
 
 
 def get_avg_phase(signal_matrix, trim=0.0):

@@ -8,8 +8,9 @@ import pickle
 import time
 from multiprocessing import Pool, cpu_count
 from typing import List
-
+import gc
 import numpy as np
+from tensordict import TensorDict
 import torch
 import tqdm
 import yaml
@@ -204,6 +205,24 @@ def v5_thetas_to_targets(target_thetas, nthetas, range_in_rad, sigma=1):
     # return torch.nn.functional.normalize(p, p=1, dim=1)
 
 
+def v5_collate_keys_fast(keys, batch):
+    d = {}
+    for key in keys:
+        d[key] = torch.vstack(
+            [x[key] for paired_sample in batch for x in paired_sample]
+        )
+    return TensorDict(d, batch_size=d["y_rad"].shape)
+
+
+def v5_collate_all_fast(batch):
+    d = {}
+    for key in batch[0][0].keys():
+        d[key] = torch.vstack(
+            [x[key] for paired_sample in batch for x in paired_sample]
+        )
+    return d
+
+
 def v5_collate_beamsegnet(batch):
     n_windows = batch[0][0]["all_windows_stats"].shape[1]
     y_rad_list = []
@@ -225,7 +244,7 @@ def v5_collate_beamsegnet(batch):
             rx_pos_list.append(x["rx_pos_xy"])
             craft_y_rad_list.append(x["craft_y_rad"])
             rx_spacing_list.append(x["rx_spacing"].reshape(-1, 1))
-            simple_segmentation_list += x["simple_segmentations"]
+            # simple_segmentation_list += x["simple_segmentations"]
             all_window_stats_list.append(x["all_windows_stats"])  # .astype(np.float32)
             windowed_beamformers_list.append(
                 x["windowed_beamformer"]  # .astype(np.float32)
@@ -233,7 +252,7 @@ def v5_collate_beamsegnet(batch):
             downsampled_segmentation_mask_list.append(
                 x["downsampled_segmentation_mask"]
             )
-            receiver_idx_list.append(x["receiver_idx"].repeat(x["y_rad"].shape[1]))
+            receiver_idx_list.append(x["receiver_idx"].expand_as(x["y_rad"]))
 
             if "x" in batch[0][0]:
                 x_list.append(x["x"])
@@ -245,7 +264,7 @@ def v5_collate_beamsegnet(batch):
         "receiver_idx": torch.vstack(receiver_idx_list),
         "craft_y_rad": torch.vstack(craft_y_rad_list),
         "rx_spacing": torch.vstack(rx_spacing_list),
-        "simple_segmentation": simple_segmentation_list,
+        # "simple_segmentation": simple_segmentation_list,
         "all_windows_stats": torch.from_numpy(np.vstack(all_window_stats_list)),
         "windowed_beamformer": torch.from_numpy(np.vstack(windowed_beamformers_list)),
         "downsampled_segmentation_mask": torch.vstack(
@@ -255,7 +274,6 @@ def v5_collate_beamsegnet(batch):
     if "x" in batch[0][0]:
         d["x"] = torch.vstack(x_list)
         d["segmentation_mask"] = torch.vstack(segmentation_mask_list)
-
     return d
 
 
@@ -299,16 +317,20 @@ class v5spfdataset(Dataset):
         gpu=False,
         snapshots_per_session=1,
         tiled_sessions=True,
+        readahead=False,
+        skip_simple_segmentations=False,
     ):
         # print("Open", prefix)
+        self.readahead = readahead
         self.precompute_cache = precompute_cache
         prefix = prefix.replace(".zarr", "")
         self.nthetas = nthetas
         self.prefix = prefix
         self.skip_signal_matrix = skip_signal_matrix
+        self.skip_simple_segmentations = skip_simple_segmentations
         self.zarr_fn = f"{prefix}.zarr"
         self.yaml_fn = f"{prefix}.yaml"
-        self.z = zarr_open_from_lmdb_store(self.zarr_fn)
+        self.z = zarr_open_from_lmdb_store(self.zarr_fn, readahead=self.readahead)
         self.yaml_config = yaml.safe_load(open(self.yaml_fn, "r"))
         self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
@@ -430,6 +452,16 @@ class v5spfdataset(Dataset):
                 raise ValueError(
                     "It looks like too few windows have a valid segmentation"
                 )
+        self.close()
+
+    def close(self):
+        # let workers open their own
+        self.z.store.close()
+        self.z = None
+        self.receiver_data = None
+        # try and close segmentation
+        self.segmentation = None
+        self.precomputed_zarr = None
 
     def estimate_phi(self, data):
         x = torch.tensor(data["all_windows_stats"])
@@ -442,19 +474,38 @@ class v5spfdataset(Dataset):
             return self.n_sessions
         return self.n_sessions * self.n_receivers
 
+    def reinit(self):
+        if self.z is None:
+            # worker_info = torch.utils.data.get_worker_info()
+            # print(worker_info)
+            self.z = zarr_open_from_lmdb_store(self.zarr_fn, readahead=self.readahead)
+            self.receiver_data = [
+                self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
+            ]
+        if self.precomputed_zarr is None:
+            self.get_segmentation()
+            self.precomputed_zarr = zarr_open_from_lmdb_store(
+                self.results_fn().replace(".pkl", ".yarr"), mode="r"
+            )
+
     def render_session(self, receiver_idx, session_idx):
+        self.reinit()
         if self.tiled_sessions:
             snapshot_start_idx = session_idx
             snapshot_end_idx = session_idx + self.snapshots_per_session
         else:
             snapshot_start_idx = session_idx * self.snapshots_per_session
             snapshot_end_idx = (session_idx + 1) * self.snapshots_per_session
+
         r = self.receiver_data[receiver_idx]
+
         data = {
             key: r[key][snapshot_start_idx:snapshot_end_idx]
             for key in self.keys_per_session
         }
-        data["receiver_idx"] = np.array(receiver_idx)
+        data["receiver_idx"] = torch.tensor(receiver_idx).expand(
+            1, self.snapshots_per_session
+        )
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][
             snapshot_start_idx:snapshot_end_idx
         ]
@@ -466,66 +517,88 @@ class v5spfdataset(Dataset):
         ]
         data = {
             k: (
-                torch.from_numpy(v)
-                if type(v) not in (np.float64, float)
-                else torch.Tensor([v])
+                torch.from_numpy(v.astype(np.float32)).unsqueeze(0)
+                if type(v) not in (np.float64, float, torch.Tensor)
+                else v
             )
             for k, v in data.items()
         }
         if not self.skip_signal_matrix:
             abs_signal = data["signal_matrix"].abs().to(torch.float32)
             pd = torch_get_phase_diff(data["signal_matrix"]).to(torch.float32)
-            data["x"] = torch.vstack([abs_signal[0], abs_signal[1], pd])[None]
-
-        data["y_rad"] = data["ground_truth_theta"][None].to(torch.float32)
-        data["y_phi"] = data["ground_truth_phi"][None].to(torch.float32)
-        data["craft_y_rad"] = data["craft_ground_truth_theta"][None].to(torch.float32)
+            data["x"] = torch.concatenate(
+                [abs_signal[:, [0]], abs_signal[:, [1]], pd[:, None]], dim=1
+            )
+        data["y_rad"] = data["ground_truth_theta"].to(torch.float32)
+        data["y_phi"] = data["ground_truth_phi"].to(torch.float32)
+        data["craft_y_rad"] = data["craft_ground_truth_theta"].to(torch.float32)
 
         # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
 
-        data["windowed_beamformer"] = self.precomputed_zarr[
-            f"r{receiver_idx}/windowed_beamformer"
-        ][snapshot_start_idx:snapshot_end_idx]
-
-        data["simple_segmentations"] = [
-            d["simple_segmentation"]
-            for d in self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
+        data["windowed_beamformer"] = torch.tensor(
+            self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
                 snapshot_start_idx:snapshot_end_idx
             ]
-        ]
+        ).unsqueeze(0)
+
+        if not self.skip_simple_segmentations:
+            data["simple_segmentations"] = [
+                d["simple_segmentation"]
+                for d in self.segmentation["segmentation_by_receiver"][
+                    f"r{receiver_idx}"
+                ][snapshot_start_idx:snapshot_end_idx]
+            ]
 
         # sessions x 3 x n_windows
-        data["all_windows_stats"] = self.precomputed_zarr[
-            f"r{receiver_idx}/all_windows_stats"
-        ][snapshot_start_idx:snapshot_end_idx]
+        data["all_windows_stats"] = torch.tensor(
+            self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
+                snapshot_start_idx:snapshot_end_idx
+            ]
+        ).unsqueeze(0)
 
         # n_windows = data["all_windows_stats"].shape[2]
         # data["downsampled_segmentation_mask"] = v5_downsampled_segmentation_mask(
         #     data, n_windows=n_windows
         # )
-        data["downsampled_segmentation_mask"] = torch.tensor(
-            self.precomputed_zarr[f"r{receiver_idx}"]["downsampled_segmentation_mask"][
-                snapshot_start_idx:snapshot_end_idx
-            ]
-        ).unsqueeze(1)
+        data["downsampled_segmentation_mask"] = (
+            torch.tensor(
+                self.precomputed_zarr[f"r{receiver_idx}"][
+                    "downsampled_segmentation_mask"
+                ][snapshot_start_idx:snapshot_end_idx]
+            )
+            .unsqueeze(1)
+            .unsqueeze(0)
+        )
 
         # breakpoint()
-        data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
-            snapshot_start_idx:snapshot_end_idx
-        ]
+        data["mean_phase_segmentation"] = torch.tensor(
+            self.mean_phase[f"r{receiver_idx}"][
+                snapshot_start_idx:snapshot_end_idx
+            ].astype(np.float32)
+        ).unsqueeze(0)
         data["rx_pos_xy"] = torch.tensor(
-            np.array(
+            np.vstack(
                 [
                     self.receiver_data[receiver_idx]["rx_pos_x_mm"][
                         snapshot_start_idx:snapshot_end_idx
-                    ],
+                    ].astype(np.float32),
                     self.receiver_data[receiver_idx]["rx_pos_y_mm"][
                         snapshot_start_idx:snapshot_end_idx
-                    ],
+                    ].astype(np.float32),
                 ]
             )
-        ).T.to(torch.float32)
+        ).T.unsqueeze(0)
+        # for key in data.keys():
+        #     if isinstance(data[key], list):
+        #         print(key)
+        #     else:
+        #         print(key, data[key].shape, data[key].dtype)
+        # breakpoint()
         # trimmed_cm, trimmed_stddev, abs_signal_median
+        # self.close()
+        # self.close()
+        if torch.rand(1).item() < 0.005:
+            gc.collect()
         return data
 
     def get_ground_truth_phis(self):
@@ -639,13 +712,15 @@ class v5spfdataset(Dataset):
             )
         return estimated_thetas
 
+    def results_fn(self):
+        return os.path.join(
+            self.precompute_cache,
+            os.path.basename(self.prefix) + f"_segmentation_nthetas{self.nthetas}.pkl",
+        )
+
     def get_segmentation(self):
-        if not hasattr(self, "segmentation"):
-            results_fn = os.path.join(
-                self.precompute_cache,
-                os.path.basename(self.prefix)
-                + f"_segmentation_nthetas{self.nthetas}.pkl",
-            )
+        if not hasattr(self, "segmentation") or self.segmentation is None:
+            results_fn = self.results_fn()
 
             if not os.path.exists(results_fn):
                 mp_segment_zarr(

@@ -479,6 +479,7 @@ def run_single_theta_single_radio(
         paired=True,
         skip_signal_matrix=True,
         snapshots_per_session=-1,
+        readahead=True,
     )
     metrics = []
     for rx_idx in [0, 1]:
@@ -500,7 +501,8 @@ def run_single_theta_single_radio(
                 "ds_fn": ds_fn,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
-                "theta_dor_err": theta_dot_err,
+                "theta_dot_err": theta_dot_err,
+                "N": N,
                 "metrics": pf.metrics(trajectory=trajectory),
             }
         )
@@ -533,7 +535,8 @@ def run_single_theta_dual_radio(
             "type": "single_theta_dual_radio",
             "ds_fn": ds_fn,
             "theta_err": theta_err,
-            "theta_dor_err": theta_dot_err,
+            "theta_dot_err": theta_dot_err,
+            "N": N,
             "metrics": pf.metrics(trajectory=traj_paired),
         }
     ]
@@ -566,6 +569,7 @@ def run_xy_dual_radio(
             "ds_fn": ds_fn,
             "vel_err": vel_err,
             "pos_err": pos_err,
+            "N": N,
             "metrics": pf.metrics(trajectory=traj_paired),
         }
     ]
@@ -625,7 +629,7 @@ if __name__ == "__main__":
     for ds_fn in args.datasets:
         for N in [128, 128 * 4, 128 * 8, 128 * 16]:
             for theta_err in [0.1, 0.01, 0.001, 0.2]:
-                for theta_dor_err in [0.001, 0.0001, 0.01, 0.1]:
+                for theta_dot_err in [0.001, 0.0001, 0.01, 0.1]:
                     jobs.append(
                         (
                             run_single_theta_single_radio,
@@ -635,12 +639,12 @@ if __name__ == "__main__":
                                 "full_p_fn": args.full_p_fn,
                                 "N": N,
                                 "theta_err": theta_err,
-                                "theta_dot_err": theta_dor_err,
+                                "theta_dot_err": theta_dot_err,
                             },
                         )
                     )
             for theta_err in [0.1, 0.01, 0.001, 0.2]:
-                for theta_dor_err in [0.001, 0.0001, 0.01, 0.1]:
+                for theta_dot_err in [0.001, 0.0001, 0.01, 0.1]:
                     jobs.append(
                         (
                             run_single_theta_dual_radio,
@@ -650,7 +654,7 @@ if __name__ == "__main__":
                                 "full_p_fn": args.full_p_fn,
                                 "N": N,
                                 "theta_err": theta_err,
-                                "theta_dot_err": theta_dor_err,
+                                "theta_dot_err": theta_dot_err,
                             },
                         )
                     )
