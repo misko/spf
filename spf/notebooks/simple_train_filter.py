@@ -108,6 +108,7 @@ class FunkyNet(torch.nn.Module):
         n_layers=24,
         output_dim=1,
         token_dropout=0.5,
+        latent=0,
     ):
         super(FunkyNet, self).__init__()
         self.z = torch.nn.Linear(10, 3)
@@ -127,7 +128,7 @@ class FunkyNet(torch.nn.Module):
         )
         self.input_net = torch.nn.Sequential(
             torch.nn.Linear(
-                input_dim + 5 * 2 + 1, d_model
+                input_dim + (5 + latent) * 2 + 1, d_model
             )  # 5 output beam_former R1+R2, time
         )
         self.output_dim = output_dim
@@ -145,7 +146,7 @@ class FunkyNet(torch.nn.Module):
             inputs=3,  # + (1 if args.rx_spacing else 0),
             norm="layer",
             positional_encoding=False,
-            latent=0,
+            latent=latent,
             max_angle=np.pi / 2,
             linear_sigmas=True,
             correction=True,
@@ -347,7 +348,14 @@ def simple_train(args):
 
     # init model here
     #######
-    m = FunkyNet().to(torch_device)
+    m = FunkyNet(
+        d_hid=args.tformer_dhid,
+        d_model=args.tformer_dmodel,
+        dropout=args.tformer_dropout,
+        token_dropout=args.tformer_snapshot_dropout,
+        n_layers=args.tformer_layers,
+        latent=args.beamnet_latent,
+    ).to(torch_device)
     # m = DebugFunkyNet().to(torch_device)
     ########
 
@@ -416,7 +424,7 @@ def simple_train(args):
         ):  # , total=len(train_dataloader)):
             # if step > 200:
             #     return
-            if torch.rand(1).item() < 0.05:
+            if torch.rand(1).item() < 0.02:
                 gc.collect()
             if step % args.save_every == 0:
                 m.eval()
@@ -720,6 +728,36 @@ def get_parser():
         "--positional",
         action=argparse.BooleanOptionalAction,
         default=False,
+    )
+    parser.add_argument(
+        "--tformer-layers",
+        type=int,
+        default=24,
+    )
+    parser.add_argument(
+        "--tformer-dmodel",
+        type=int,
+        default=2048,
+    )
+    parser.add_argument(
+        "--tformer-dhid",
+        type=int,
+        default=512,
+    )
+    parser.add_argument(
+        "--tformer-dropout",
+        type=int,
+        default=0.1,
+    )
+    parser.add_argument(
+        "--tformer-snapshot-dropout",
+        type=int,
+        default=0.5,
+    )
+    parser.add_argument(
+        "--beamnet-latent",
+        type=int,
+        default=0,
     )
     parser.add_argument("--save-prefix", type=str, default="./this_model_")
     return parser
