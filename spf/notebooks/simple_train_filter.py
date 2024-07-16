@@ -337,6 +337,8 @@ def simple_train(args):
     train_dataloader = torch.utils.data.DataLoader(train_ds, **dataloader_params)
     val_dataloader = torch.utils.data.DataLoader(val_ds, **dataloader_params)
 
+    scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
+
     if args.act == "relu":
         act = torch.nn.ReLU
     elif args.act == "selu":
@@ -369,6 +371,7 @@ def simple_train(args):
             # track hyperparameters and run metadata
             config=config,
             name=args.wandb_name,
+            # id="d7i47byn",  # "iconic-fog-63",
         )
     else:
         print("model:")
@@ -504,21 +507,33 @@ def simple_train(args):
                 rx_pos,
             ) = batch_data_to_x_y_seg(batch_data)
 
-            output = m(
-                x=x,
-                seg_mask=seg_mask,
-                rx_spacing=rx_spacing,
-                y_rad=y_rad,
-                windowed_beam_former=windowed_beamformer,
-                rx_pos=rx_pos,
-            )
-            loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
+            with torch.autocast(
+                device_type=args.device, dtype=torch.float16, enabled=args.amp
+            ):
+                output = m(
+                    x=x,
+                    seg_mask=seg_mask,
+                    rx_spacing=rx_spacing,
+                    y_rad=y_rad,
+                    windowed_beam_former=windowed_beamformer,
+                    rx_pos=rx_pos,
+                )
+                loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
 
-            loss = loss_d["loss"]
-            # loss = loss_d["beamnet_loss"]
-            loss.backward()
+                # if step < args.head_start:
+                #    loss = loss_d["beamnet_loss"] * 100
+                # else:
+                loss = loss_d["loss"]
 
-            optimizer.step()
+                # loss = loss_d["beamnet_loss"]
+                # loss.backward()
+
+                # optimizer.step()
+
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
 
             with torch.no_grad():
                 # accumulate the loss for returning to caller
@@ -700,6 +715,11 @@ def get_parser():
         default=True,
     )
     parser.add_argument(
+        "--amp",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
         "--val-on-train",
         action=argparse.BooleanOptionalAction,
         default=False,
@@ -758,6 +778,11 @@ def get_parser():
         "--beamnet-latent",
         type=int,
         default=0,
+    )
+    parser.add_argument(
+        "--head-start",
+        type=int,
+        default=10000,
     )
     parser.add_argument("--save-prefix", type=str, default="./this_model_")
     return parser
