@@ -66,6 +66,11 @@ def test_simple_filter_save_load(perfect_circle_dataset_n33):
         "1",
         "--save-prefix",
         save_prefix,
+        "--device",
+        "cpu",
+        "--no-amp",
+        "--dtype",
+        "float32",
     ]
     chkpnt_fn = save_prefix + "_step0.chkpnt"
     save_args = base_args + [
