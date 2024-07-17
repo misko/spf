@@ -1,3 +1,4 @@
+import os
 import tempfile
 import numpy as np
 import pytest
@@ -6,6 +7,7 @@ from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
 from spf.model_training_and_inference.models.beamsegnet import (
     normal_correction_for_bounded_range,
 )
+from spf.notebooks.simple_train_filter import get_parser_filter, simple_train_filter
 from spf.notebooks.simple_train import get_parser, simple_train
 
 
@@ -44,6 +46,49 @@ def base_args():
         "0",
         "--independent",
     ]
+
+
+def test_simple_filter_save_load(perfect_circle_dataset_n33):
+    root_dir, zarr_fn = perfect_circle_dataset_n33
+    save_prefix = f"{root_dir}/test_simple_filter_save"
+    base_args = [
+        "-d",
+        zarr_fn,
+        "--precompute-cache",
+        root_dir,
+        "--act",
+        "leaky",
+        "--skip-qc",
+        "--debug-model",
+        "--save-every",
+        "1",
+        "--snapshots-per-session",
+        "1",
+        "--save-prefix",
+        save_prefix,
+    ]
+    chkpnt_fn = save_prefix + "_step0.chkpnt"
+    save_args = base_args + [
+        "--save-prefix",
+        save_prefix,
+        "--steps",
+        "1",
+    ]
+    load_args = base_args + [
+        "--load-checkpoint",
+        chkpnt_fn,
+        "--steps",
+        "3",
+    ]
+
+    # train and save
+    args = get_parser_filter().parse_args(save_args)
+    simple_train_filter(args)
+    assert os.path.exists(chkpnt_fn)
+
+    # load checkpoint
+    args = get_parser_filter().parse_args(load_args)
+    simple_train_filter(args)
 
 
 def test_beamnet_downsampled():

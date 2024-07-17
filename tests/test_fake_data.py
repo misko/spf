@@ -2,8 +2,6 @@ import tempfile
 
 import numpy as np
 
-from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
-from spf.dataset.spf_dataset import v5spfdataset
 import tempfile
 
 
