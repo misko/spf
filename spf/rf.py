@@ -174,10 +174,12 @@ def torch_circular_mean(angles, trim, weights=None):
     return torch_pi_norm(cm), torch_pi_norm(_cm)
 
 
+# helper function to expand a dictionary in keywords args
 def segment_session_star(arg_dict):
     return segment_session(**arg_dict)
 
 
+# take a single zarr, receiver and session_idx and segment it
 def segment_session(zarr_fn, receiver, session_idx, gpu=True, **kwrgs):
     with zarr_open_from_lmdb_store_cm(zarr_fn, mode="r") as z:
         v = z.receivers[receiver].signal_matrix[session_idx][:]

@@ -18,6 +18,7 @@ from compress_pickle import load
 from deepdiff import DeepDiff
 from torch.utils.data import Dataset
 
+
 from spf.dataset.rover_idxs import (  # v3rx_column_names,
     v3rx_avg_phase_diff_idxs,
     v3rx_beamformer_start_idx,
@@ -59,6 +60,7 @@ from spf.rf import (
     pi_norm,
     precompute_steering_vectors,
     reduce_theta_to_positive_y,
+    segment_session,
     segment_session_star,
     speed_of_light,
     torch_get_phase_diff,
@@ -95,9 +97,36 @@ class dotdict(dict):
     __delattr__ = dict.__delitem__
 
 
+default_segment_args = {
+    "window_size": 2048,
+    "stride": 2048,
+    "trim": 20.0,
+    "mean_diff_threshold": 0.2,
+    "max_stddev_threshold": 0.5,
+    "drop_less_than_size": 3000,
+    "min_abs_signal": 40,
+}
+
+
+def segment_single_session(
+    zarr_fn, steering_vectors_for_receiver, session_idx, receiver_idx, gpu=False
+):
+    args = {
+        "zarr_fn": zarr_fn,
+        "receiver": receiver_idx,
+        "session_idx": session_idx,
+        "steering_vectors": steering_vectors_for_receiver,
+        "gpu": gpu,
+        **default_segment_args,
+    }
+    return segment_session(**args)
+
+
 def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu=False):
     print("Segmenting file", zarr_fn)
     z = zarr_open_from_lmdb_store(zarr_fn)
+    assert len(z["receivers"]) == 2
+
     n_sessions, _, _ = z.receivers["r0"].signal_matrix.shape
 
     results_by_receiver = {}
@@ -108,37 +137,28 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
                 "zarr_fn": zarr_fn,
                 "receiver": r_name,
                 "session_idx": idx,
-                "window_size": 2048,
-                "stride": 2048,
-                "trim": 20.0,
-                "mean_diff_threshold": 0.2,
-                "max_stddev_threshold": 0.5,
-                "drop_less_than_size": 3000,
-                "min_abs_signal": 40,
                 "steering_vectors": steering_vectors_for_all_receivers[r_idx],
                 "gpu": gpu,
+                **default_segment_args,
             }
             for idx in range(n_sessions)
         ]
 
-        # with Pool(cpu_count()) as pool:
-
-        with Pool(20) as pool:  # cpu_count())  # cpu_count() // 4)
+        with Pool(min(cpu_count(), 20)) as pool:  # cpu_count())  # cpu_count() // 4)
             results_by_receiver[r_name] = list(
                 tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
             )
-        # results_by_receiver[r_name] = list(map(segment_session_star, inputs[1000:]))
 
     segmentation_zarr_fn = results_fn.replace(".pkl", ".yarr")
-    all_windows_stats_shape = (len(results_by_receiver["r0"]),) + results_by_receiver[
-        "r0"
-    ][0]["all_windows_stats"].shape
-    windowed_beamformer_shape = (len(results_by_receiver["r0"]),) + results_by_receiver[
-        "r0"
-    ][0]["windowed_beamformer"].shape
-    downsampled_segmentation_mask_shape = (
-        len(results_by_receiver["r0"]),
-    ) + results_by_receiver["r0"][0]["downsampled_segmentation_mask"].shape
+    all_windows_stats_shape = (n_sessions,) + results_by_receiver["r0"][0][
+        "all_windows_stats"
+    ].shape
+    windowed_beamformer_shape = (n_sessions,) + results_by_receiver["r0"][0][
+        "windowed_beamformer"
+    ].shape
+    downsampled_segmentation_mask_shape = (n_sessions,) + results_by_receiver["r0"][0][
+        "downsampled_segmentation_mask"
+    ].shape
     z = new_yarr_dataset(
         filename=segmentation_zarr_fn,
         n_receivers=2,
@@ -163,7 +183,7 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
                 for x in results_by_receiver[f"r{r_idx}"]
             ]
         )
-        # remove from dictionary
+        # remove from dictionary to prevent it from going into pkl file later
         for x in results_by_receiver[f"r{r_idx}"]:
             x.pop("all_windows_stats")
             x.pop("windowed_beamformer")
@@ -316,20 +336,31 @@ class v5spfdataset(Dataset):
         paired=False,
         gpu=False,
         snapshots_per_session=1,
-        tiled_sessions=True,
+        tiled_sessions=True,  # session 0 overlaps heavily with session 1 except last snapshot
         readahead=False,
         skip_simple_segmentations=False,
+        temp_file=False,
+        temp_file_suffix=".tmp",
     ):
         # print("Open", prefix)
         self.readahead = readahead
         self.precompute_cache = precompute_cache
-        prefix = prefix.replace(".zarr", "")
         self.nthetas = nthetas
-        self.prefix = prefix
+        self.valid_entries = None
+        # self.prefix = prefix
+        self.temp_file = temp_file
+
+        self.snapshots_per_session = snapshots_per_session
+
         self.skip_signal_matrix = skip_signal_matrix
         self.skip_simple_segmentations = skip_simple_segmentations
-        self.zarr_fn = f"{prefix}.zarr"
-        self.yaml_fn = f"{prefix}.yaml"
+        self.prefix = prefix.replace(".zarr", "")
+        self.zarr_fn = f"{self.prefix}.zarr"
+        self.yaml_fn = f"{self.prefix}.yaml"
+        if temp_file:
+            self.zarr_fn += temp_file_suffix
+            self.yaml_fn += temp_file_suffix
+            assert self.snapshots_per_session == 1
         self.z = zarr_open_from_lmdb_store(self.zarr_fn, readahead=self.readahead)
         self.yaml_config = yaml.safe_load(open(self.yaml_fn, "r"))
         self.paired = paired
@@ -354,7 +385,6 @@ class v5spfdataset(Dataset):
         self.n_snapshots, self.n_antennas_per_receiver = self.z.receivers.r0.gains.shape
         assert self.n_antennas_per_receiver == 2
 
-        self.snapshots_per_session = snapshots_per_session
         if self.snapshots_per_session == -1:
             self.snapshots_per_session = self.n_snapshots
 
@@ -392,54 +422,59 @@ class v5spfdataset(Dataset):
         if not self.skip_signal_matrix:
             self.keys_per_session.append("signal_matrix")
 
-        self.ground_truth_thetas = self.get_ground_truth_thetas()
-        self.ground_truth_phis = self.get_ground_truth_phis()
-        self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
-        self.get_segmentation()
+        self.refresh()
 
-        # get mean phase segmentation
-        self.mean_phase = {}
-        for receiver, results in self.segmentation["segmentation_by_receiver"].items():
-            self.mean_phase[receiver] = np.array(
-                [
-                    (
-                        # TODO:UNBUG (circular mean)
-                        np.array(
-                            [x["mean"] for x in result["simple_segmentation"]]
-                        ).mean()
-                        if len(result["simple_segmentation"]) > 0
-                        else 0.0
-                    )
-                    for result in results
-                ]
+        if not self.temp_file:
+
+            self.get_segmentation()
+            # get mean phase segmentation
+            self.mean_phase = {}
+            for receiver, results in self.segmentation[
+                "segmentation_by_receiver"
+            ].items():
+                self.mean_phase[receiver] = np.array(
+                    [
+                        (
+                            # TODO:UNBUG (circular mean)
+                            np.array(
+                                [x["mean"] for x in result["simple_segmentation"]]
+                            ).mean()
+                            if len(result["simple_segmentation"]) > 0
+                            else 0.0
+                        )
+                        for result in results
+                    ]
+                )
+
+            self.all_phi_drifts = self.get_all_phi_drifts()
+            self.phi_drifts = np.array(
+                [np.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts]
             )
-
-        self.all_phi_drifts = self.get_all_phi_drifts()
-        self.phi_drifts = np.array(
-            [np.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts]
-        )
-
-        self.average_windows_in_segmentation = np.array(
-            [
+            self.average_windows_in_segmentation = np.array(
                 [
-                    len(x["simple_segmentation"])
-                    for x in self.segmentation["segmentation_by_receiver"][f"r{rx_idx}"]
+                    [
+                        len(x["simple_segmentation"])
+                        for x in self.segmentation["segmentation_by_receiver"][
+                            f"r{rx_idx}"
+                        ]
+                    ]
+                    for rx_idx in range(self.n_receivers)
                 ]
-                for rx_idx in range(self.n_receivers)
-            ]
-        ).mean()
-
-        self.mean_sessions_with_maybe_valid_segmentation = np.array(
-            [
+            ).mean()
+            self.mean_sessions_with_maybe_valid_segmentation = np.array(
                 [
-                    len(x["simple_segmentation"]) > 2
-                    for x in self.segmentation["segmentation_by_receiver"][f"r{rx_idx}"]
+                    [
+                        len(x["simple_segmentation"]) > 2
+                        for x in self.segmentation["segmentation_by_receiver"][
+                            f"r{rx_idx}"
+                        ]
+                    ]
+                    for rx_idx in [0, 1]
                 ]
-                for rx_idx in [0, 1]
-            ]
-        ).mean()
+            ).mean()
 
         if not ignore_qc:
+            assert not temp_file
             if abs(self.phi_drifts).max() > phi_drift_max:
                 raise ValueError(
                     f"Phi-drift is too high! max acceptable is {phi_drift_max}, actual is {self.phi_drifts}"
@@ -452,7 +487,20 @@ class v5spfdataset(Dataset):
                 raise ValueError(
                     "It looks like too few windows have a valid segmentation"
                 )
-        self.close()
+        # self.close()
+
+    def refresh(self):
+        # get how many entries are in the underlying storage
+        # recompute if we need to
+        valid_entries = [
+            (self.z[f"receivers/r{ridx}/system_timestamp"][:] > 0).sum()
+            for ridx in range(self.n_receivers)
+        ]
+        if self.valid_entries is None or self.valid_entries != valid_entries:
+            self.valid_entries = valid_entries
+            self.ground_truth_thetas = self.get_ground_truth_thetas()
+            self.ground_truth_phis = self.get_ground_truth_phis()
+            self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
 
     def close(self):
         # let workers open their own
@@ -482,11 +530,72 @@ class v5spfdataset(Dataset):
             self.receiver_data = [
                 self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
             ]
-        if self.precomputed_zarr is None:
+        if not self.temp_file and self.precomputed_zarr is None:
             self.get_segmentation()
             self.precomputed_zarr = zarr_open_from_lmdb_store(
                 self.results_fn().replace(".pkl", ".yarr"), mode="r"
             )
+
+    def populate_on_the_fly(
+        self, data, receiver_idx, snapshot_start_idx, snapshot_end_idx
+    ):
+        assert snapshot_start_idx + 1 == snapshot_end_idx
+        print("POPULATE ON THE FLY")
+        n = segment_single_session(
+            zarr_fn=self.zarr_fn,
+            steering_vectors_for_receiver=self.steering_vectors[receiver_idx],
+            session_idx=snapshot_start_idx,
+            receiver_idx=f"r{receiver_idx}",
+            gpu=self.gpu,
+        )
+        data["downsampled_segmentation_mask"] = (
+            torch.tensor(n["downsampled_segmentation_mask"])
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
+        data["all_windows_stats"] = (
+            torch.tensor(n["all_windows_stats"]).unsqueeze(0).unsqueeze(0)
+        )
+        data["windowed_beamformer"] = (
+            torch.tensor(n["all_windows_stats"]).unsqueeze(0).unsqueeze(0)
+        )
+        if not self.skip_simple_segmentations:
+            data["simple_segmentations"] = [n["simple_segmentation"]]
+
+    def populate_from_precomputed(
+        self, data, receiver_idx, snapshot_start_idx, snapshot_end_idx
+    ):
+        data["windowed_beamformer"] = torch.tensor(
+            self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
+                snapshot_start_idx:snapshot_end_idx
+            ]
+        ).unsqueeze(0)
+
+        # sessions x 3 x n_windows
+        data["all_windows_stats"] = torch.tensor(
+            self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
+                snapshot_start_idx:snapshot_end_idx
+            ]
+        ).unsqueeze(0)
+
+        data["downsampled_segmentation_mask"] = (
+            torch.tensor(
+                self.precomputed_zarr[f"r{receiver_idx}"][
+                    "downsampled_segmentation_mask"
+                ][snapshot_start_idx:snapshot_end_idx]
+            )
+            .unsqueeze(1)
+            .unsqueeze(0)
+        )
+
+        if not self.skip_simple_segmentations:
+            data["simple_segmentations"] = [
+                d["simple_segmentation"]
+                for d in self.segmentation["segmentation_by_receiver"][
+                    f"r{receiver_idx}"
+                ][snapshot_start_idx:snapshot_end_idx]
+            ]
 
     def render_session(self, receiver_idx, session_idx):
         self.reinit()
@@ -533,49 +642,21 @@ class v5spfdataset(Dataset):
         data["y_phi"] = data["ground_truth_phi"].to(torch.float32)
         data["craft_y_rad"] = data["craft_ground_truth_theta"].to(torch.float32)
 
-        # data["y_discrete"] = v5_thetas_to_targets(data["y_rad"], self.nthetas)
-
-        data["windowed_beamformer"] = torch.tensor(
-            self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
-                snapshot_start_idx:snapshot_end_idx
-            ]
-        ).unsqueeze(0)
-
-        if not self.skip_simple_segmentations:
-            data["simple_segmentations"] = [
-                d["simple_segmentation"]
-                for d in self.segmentation["segmentation_by_receiver"][
-                    f"r{receiver_idx}"
-                ][snapshot_start_idx:snapshot_end_idx]
-            ]
-
-        # sessions x 3 x n_windows
-        data["all_windows_stats"] = torch.tensor(
-            self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
-                snapshot_start_idx:snapshot_end_idx
-            ]
-        ).unsqueeze(0)
-
-        # n_windows = data["all_windows_stats"].shape[2]
-        # data["downsampled_segmentation_mask"] = v5_downsampled_segmentation_mask(
-        #     data, n_windows=n_windows
-        # )
-        data["downsampled_segmentation_mask"] = (
-            torch.tensor(
-                self.precomputed_zarr[f"r{receiver_idx}"][
-                    "downsampled_segmentation_mask"
-                ][snapshot_start_idx:snapshot_end_idx]
+        if not self.temp_file:
+            self.populate_from_precomputed(
+                data, receiver_idx, snapshot_start_idx, snapshot_end_idx
             )
-            .unsqueeze(1)
-            .unsqueeze(0)
-        )
+            #port this over in on the fly TODO
+            data["mean_phase_segmentation"] = torch.tensor(
+                self.mean_phase[f"r{receiver_idx}"][
+                    snapshot_start_idx:snapshot_end_idx
+                ].astype(np.float32)
+            ).unsqueeze(0)
+        else:
+            self.populate_on_the_fly(
+                data, receiver_idx, snapshot_start_idx, snapshot_end_idx
+            )
 
-        # breakpoint()
-        data["mean_phase_segmentation"] = torch.tensor(
-            self.mean_phase[f"r{receiver_idx}"][
-                snapshot_start_idx:snapshot_end_idx
-            ].astype(np.float32)
-        ).unsqueeze(0)
         data["rx_pos_xy"] = torch.tensor(
             np.vstack(
                 [
@@ -588,15 +669,7 @@ class v5spfdataset(Dataset):
                 ]
             )
         ).T.unsqueeze(0)
-        # for key in data.keys():
-        #     if isinstance(data[key], list):
-        #         print(key)
-        #     else:
-        #         print(key, data[key].shape, data[key].dtype)
-        # breakpoint()
-        # trimmed_cm, trimmed_stddev, abs_signal_median
-        # self.close()
-        # self.close()
+
         if torch.rand(1).item() < 0.005:
             gc.collect()
         return data
