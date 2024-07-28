@@ -74,8 +74,8 @@ six==1.16.0
 sympy==1.12
 tensordict==0.1.2
 tomli==2.0.1
-torch==2.1.2
-torchvision==0.16.2
+torch==2.3.1
+torchvision==0.18.1
 tqdm==4.66.1
 typing_extensions==4.9.0
 urllib3==2.1.0
