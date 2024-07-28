@@ -232,9 +232,19 @@ def v5_thetas_to_targets(
 def v5_collate_keys_fast(keys: List[str], batch: Dict[str, torch.Tensor]):
     d = {}
     for key in keys:
-        d[key] = torch.vstack(
-            [x[key] for paired_sample in batch for x in paired_sample]
-        )
+        if key == "windowed_beamformer" or key == "all_windows_stats":
+            d[key] = torch.vstack(
+                [
+                    x[key].to(torch.float32)
+                    for paired_sample in batch
+                    for x in paired_sample
+                ]
+            )
+        else:
+            d[key] = torch.vstack(
+                [x[key] for paired_sample in batch for x in paired_sample]
+            )
+
     return TensorDict(d, batch_size=d["y_rad"].shape)
 
 

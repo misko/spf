@@ -390,6 +390,30 @@ class FunkyNet(torch.nn.Module):
         }
 
 
+def batch_data_to_x_y_seg(batch_data, torch_device, dtype):
+    # x ~ # trimmed_cm, trimmed_stddev, abs_signal_median
+    batch_data = batch_data.to(torch_device)
+    x = batch_data["all_windows_stats"].to(dtype=dtype)
+    rx_pos = batch_data["rx_pos_xy"].to(dtype=dtype)
+    seg_mask = batch_data["downsampled_segmentation_mask"].to(dtype=dtype)
+    rx_spacing = batch_data["rx_spacing"].to(dtype=dtype)
+    windowed_beamformer = batch_data["windowed_beamformer"].to(dtype=dtype)
+    y_rad = batch_data["y_rad"].to(dtype=dtype)
+    craft_y_rad = batch_data["craft_y_rad"].to(dtype=dtype)
+    y_phi = batch_data["y_phi"].to(dtype=dtype)
+    # assert seg_mask.ndim == 4 and seg_mask.shape[2] == 1
+    return (
+        x,
+        y_rad,
+        craft_y_rad,
+        y_phi,
+        seg_mask,
+        rx_spacing,
+        windowed_beamformer,
+        rx_pos,
+    )
+
+
 def simple_train_filter(args):
     # torch.autograd.detect_anomaly()
     assert args.n_radios == 2
@@ -456,32 +480,6 @@ def simple_train_filter(args):
     optimizer = torch.optim.AdamW(
         m.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
-
-    def batch_data_to_x_y_seg(batch_data):
-        # x ~ # trimmed_cm, trimmed_stddev, abs_signal_median
-        x = batch_data["all_windows_stats"].to(torch_device, dtype=dtype)
-        rx_pos = batch_data["rx_pos_xy"].to(torch_device, dtype=dtype)
-        seg_mask = batch_data["downsampled_segmentation_mask"].to(
-            torch_device, dtype=dtype
-        )
-        rx_spacing = batch_data["rx_spacing"].to(torch_device, dtype=dtype)
-        windowed_beamformer = batch_data["windowed_beamformer"].to(
-            torch_device, dtype=dtype
-        )
-        y_rad = batch_data["y_rad"].to(torch_device, dtype=dtype)
-        craft_y_rad = batch_data["craft_y_rad"].to(torch_device, dtype=dtype)
-        y_phi = batch_data["y_phi"].to(torch_device, dtype=dtype)
-        assert seg_mask.ndim == 4 and seg_mask.shape[2] == 1
-        return (
-            x,
-            y_rad,
-            craft_y_rad,
-            y_phi,
-            seg_mask,
-            rx_spacing,
-            windowed_beamformer,
-            rx_pos,
-        )
 
     step = 0
     losses = []
@@ -618,7 +616,7 @@ def simple_train_filter(args):
                             rx_spacing,
                             windowed_beamformer,
                             rx_pos,
-                        ) = batch_data_to_x_y_seg(val_batch_data)
+                        ) = batch_data_to_x_y_seg(val_batch_data, torch_device, dtype)
 
                         # run beamformer and segmentation
                         output = m(
@@ -666,7 +664,7 @@ def simple_train_filter(args):
                 rx_spacing,
                 windowed_beamformer,
                 rx_pos,
-            ) = batch_data_to_x_y_seg(batch_data)
+            ) = batch_data_to_x_y_seg(batch_data, torch_device, dtype)
 
             with torch.autocast(
                 device_type=args.device, dtype=torch.float16, enabled=args.amp
