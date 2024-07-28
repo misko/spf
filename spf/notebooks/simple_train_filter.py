@@ -129,10 +129,9 @@ def save_everything(model, optimizer, config, step, epoch, path):
 
 
 @cache
-def get_time_split(batch_size, snapshots_per_sessions, device):
+def get_time_split(batch_size, snapshots_per_sessions, device, dtype):
     return (
-        torch.linspace(-1, 0, snapshots_per_sessions)
-        .to(device)
+        torch.linspace(-1, 0, snapshots_per_sessions, device=device, dtype=dtype)
         .reshape(1, -1, 1)
         .expand(batch_size // 2, snapshots_per_sessions, 1)
     )
@@ -175,7 +174,6 @@ class DebugFunkyNet(torch.nn.Module):
 class FunkyNet(torch.nn.Module):
     def __init__(
         self,
-        input_dim=10,
         d_model=2048,
         d_hid=512,
         dropout=0.1,
@@ -184,9 +182,9 @@ class FunkyNet(torch.nn.Module):
         output_dim=1,
         token_dropout=0.5,
         latent=0,
+        beamformer_input=False,
     ):
         super(FunkyNet, self).__init__()
-        self.z = torch.nn.Linear(10, 3)
 
         encoder_layers = TransformerEncoderLayer(
             d_model=d_model,
@@ -201,32 +199,67 @@ class FunkyNet(torch.nn.Module):
             n_layers,
             LayerNorm(d_model),
         )
-        self.input_net = torch.nn.Sequential(
-            torch.nn.Linear(
-                input_dim + (5 + latent) * 2 + 1, d_model
-            )  # 5 output beam_former R1+R2, time
-        )
+        self.beamformer_input = beamformer_input
         self.output_dim = output_dim
 
-        self.beam_m = BeamNetDirect(
-            nthetas=65,
-            depth=6,
-            hidden=128,
-            symmetry=False,
-            act=torch.nn.LeakyReLU,
-            other=True,
-            bn=True,
-            no_sigmoid=True,
-            block=True,
-            inputs=3,  # + (1 if args.rx_spacing else 0),
-            norm="layer",
-            positional_encoding=False,
-            latent=latent,
-            max_angle=np.pi / 2,
-            linear_sigmas=True,
-            correction=True,
-            min_sigma=0.0001,
-        )  # .to(torch_device)
+        if beamformer_input:
+            self.beam_m = BeamNetDirect(
+                nthetas=65,
+                depth=args.beam_net_depth,
+                hidden=args.beam_net_hidden,
+                symmetry=False,
+                act=torch.nn.LeakyReLU,
+                other=True,
+                bn=False,  # True
+                no_sigmoid=True,
+                block=True,
+                rx_spacing_track=-1,
+                pd_track=-1,
+                mag_track=-1,
+                stddev_track=-1,
+                inputs=65,
+                latent=latent,
+                norm="layer",
+                max_angle=np.pi / 2,
+                linear_sigmas=True,
+                correction=True,
+                min_sigma=0.0001,
+            )
+
+            input_dim = (65 + 2) * 2
+            # (65,65,2,2) # 65 for R0 signal, 65 for R1 signal, 2 for pos0, 2 for pos1
+            self.input_net = torch.nn.Sequential(
+                torch.nn.Linear(
+                    input_dim + (5 + latent) * 2 + 1, d_model
+                )  # 5 output beam_former R1+R2, time
+            )
+
+        else:
+            self.beam_m = BeamNetDirect(
+                nthetas=65,
+                depth=args.beam_net_depth,
+                hidden=args.beam_net_hidden,
+                symmetry=False,
+                act=torch.nn.LeakyReLU,
+                other=True,
+                bn=True,
+                no_sigmoid=True,
+                block=True,
+                inputs=3,  # + (1 if args.rx_spacing else 0),
+                norm="layer",
+                positional_encoding=False,
+                latent=latent,
+                max_angle=np.pi / 2,
+                linear_sigmas=True,
+                correction=True,
+                min_sigma=0.0001,
+            )  # .to(torch_device)
+            input_dim = 10  # (3,3,2,2) # 3 for R0 signal, 3 for R1 signal, 2 for pos0, 2 for pos1
+            self.input_net = torch.nn.Sequential(
+                torch.nn.Linear(
+                    input_dim + (5 + latent) * 2 + 1, d_model
+                )  # 5 output beam_former R1+R2, time
+            )
 
         self.paired_drop_in_gt = 0.00
         self.token_dropout = token_dropout
@@ -238,16 +271,26 @@ class FunkyNet(torch.nn.Module):
         # weighted_input = torch.mul(x, seg_mask).sum(axis=3) / (
         #     seg_mask.sum(axis=3) + 0.001
         # )
-        weighted_input = (
-            torch.mul(x, seg_mask) / (seg_mask.sum(axis=3, keepdim=True) + 0.001)
-        ).sum(axis=3)
+        if self.beamformer_input:
+            windowed_beam_former_scaled = windowed_beam_former / (
+                seg_mask.sum(axis=3, keepdim=True) + 0.1
+            )
+            weighted_input = (
+                windowed_beam_former_scaled * seg_mask[:, 0][..., None]
+            ).mean(axis=2)
+
+        else:
+            weighted_input = (
+                torch.mul(x, seg_mask) / (seg_mask.sum(axis=3, keepdim=True) + 0.001)
+            ).sum(axis=3)
+            # weighted_input ~ (batch_size*2,1,3)
 
         pred_theta = self.beam_m(
             weighted_input.reshape(batch_size * snapshots_per_sessions, -1)
         )
         # if not pred_theta.isfinite().all():
-        #     breakpoint()
-        #     a = 1
+        #    breakpoint()
+        #    a = 1
         detached_pred_theta = torch.hstack(
             [
                 pred_theta[:, : self.beam_m.outputs - self.beam_m.latent].detach(),
@@ -267,7 +310,7 @@ class FunkyNet(torch.nn.Module):
         )
 
         weighted_input_by_example = weighted_input.reshape(
-            batch_size, snapshots_per_sessions, 3
+            batch_size, snapshots_per_sessions, weighted_input.shape[-1]
         )
         rx_pos_by_example = rx_pos.reshape(batch_size, snapshots_per_sessions, 2)
 
@@ -280,7 +323,10 @@ class FunkyNet(torch.nn.Module):
                 detached_pred_theta[::2],
                 detached_pred_theta[1::2],
                 get_time_split(
-                    batch_size, snapshots_per_sessions, weighted_input_by_example.device
+                    batch_size,
+                    snapshots_per_sessions,
+                    weighted_input_by_example.device,
+                    dtype=weighted_input_by_example.dtype,
                 ),
             ],
             axis=2,
@@ -345,6 +391,7 @@ class FunkyNet(torch.nn.Module):
 
 
 def simple_train_filter(args):
+    # torch.autograd.detect_anomaly()
     assert args.n_radios == 2
     # torch.autograd.detect_anomaly()
     # "/Volumes/SPFData/missions/april5/wallarrayv3_2024_05_06_19_04_15_nRX2_bounce",
@@ -383,6 +430,7 @@ def simple_train_filter(args):
             token_dropout=args.tformer_snapshot_dropout,
             n_layers=args.tformer_layers,
             latent=args.beamnet_latent,
+            beamformer_input=args.beamformer_input,
         ).to(torch_device, dtype=dtype)
     ########
 
@@ -514,6 +562,7 @@ def simple_train_filter(args):
                     "y_rad",
                     "craft_y_rad",
                     "y_phi",
+                    "windowed_beamformer",
                 ],
             ),
             "worker_init_fn": worker_init_fn,
@@ -549,6 +598,7 @@ def simple_train_filter(args):
                     epoch=epoch,
                     path=f"{args.save_prefix}_step{step}.chkpnt",
                 )
+            # breakpoint()
             if step % args.val_every == 0:
                 m.eval()
                 with torch.no_grad():
@@ -631,7 +681,7 @@ def simple_train_filter(args):
                 )
                 loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
 
-                loss = loss_d["beamnet_loss"] * 100
+                loss = loss_d["beamnet_loss"] * args.beam_net_lambda
                 if step > args.head_start:
                     loss += loss_d["loss"]
 
@@ -813,6 +863,17 @@ def get_parser_filter():
         type=str,
         required=True,
     )
+    parser.add_argument(
+        "--beam-net-depth",
+        type=int,
+        default=6,
+    )
+
+    parser.add_argument(
+        "--beam-net-hidden",
+        type=int,
+        default=128,
+    )
     parser.add_argument("--load-checkpoint", type=str, required=False, default=None)
     parser.add_argument(
         "--precompute-cache",
@@ -823,6 +884,11 @@ def get_parser_filter():
     parser.add_argument("--wandb-name", type=str, required=False, default=None)
     parser.add_argument(
         "--compile",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--beamformer-input",
         action=argparse.BooleanOptionalAction,
         default=False,
     )
@@ -870,6 +936,11 @@ def get_parser_filter():
         "--tformer-layers",
         type=int,
         default=24,
+    )
+    parser.add_argument(
+        "--beam-net-lambda",
+        type=int,
+        default=100,
     )
     parser.add_argument(
         "--tformer-dmodel",

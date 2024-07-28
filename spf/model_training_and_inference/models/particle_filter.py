@@ -1,3 +1,4 @@
+from functools import cache
 import pickle
 import numpy as np
 import argparse
@@ -5,7 +6,7 @@ from filterpy.monte_carlo import systematic_resample
 import scipy
 import torch
 import matplotlib.pyplot as plt
-
+import random
 from spf.dataset.spf_dataset import v5spfdataset
 import matplotlib.pyplot as plt
 
@@ -15,51 +16,99 @@ import pickle
 import random
 import tqdm
 from multiprocessing import Pool, cpu_count
-from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm
+from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm_pi
 
 """
 SINGLE THETA SINGLE RADIO
 """
 
+torch.set_num_threads(1)
 
-def create_gaussian_particles_xy(mean, std, N):
+
+@torch.jit.script
+def create_gaussian_particles_xy(mean: torch.Tensor, std: torch.Tensor, N: int):
     assert mean.ndim == 2 and mean.shape[0] == 1
     assert std.ndim == 2 and std.shape[0] == 1
-    return mean + (np.random.randn(N, mean.shape[1]) * std)
+    return mean + (torch.randn(N, mean.shape[1]) * std)
 
 
-def theta_phi_to_bins(theta_phi, nbins):
+@torch.jit.script
+def theta_phi_to_bins(theta_phi: torch.Tensor, nbins: int):
     if isinstance(theta_phi, float):
-        return int(nbins * (theta_phi + np.pi) / (2 * np.pi)) % nbins
-    return (nbins * (theta_phi + np.pi) / (2 * np.pi)).astype(int) % nbins
+        return int(nbins * (theta_phi + torch.pi) / (2 * torch.pi)) % nbins
+    return (nbins * (theta_phi + torch.pi) / (2 * torch.pi)).to(torch.long) % nbins
+
+
+@torch.jit.script
+def theta_phi_to_p_vec(thetas, phis, full_p):
+    theta_bin = theta_phi_to_bins(thetas, nbins=full_p.shape[0])
+    phi_bin = theta_phi_to_bins(phis, nbins=full_p.shape[1])
+    return torch.take(full_p[:, phi_bin], theta_bin)
+
+
+@torch.jit.script
+def add_noise(particles: torch.Tensor, noise_std: torch.Tensor):
+    particles[:] += (
+        torch.randn_like(particles) * noise_std
+    )  # theta_noise=0.1, theta_dot_noise=0.001
+
+
+@torch.jit.script
+def resample_from_index(particles, weights, indexes):
+    particles[:] = particles[indexes]
+    weights.fill_(1.0 / len(weights))
+    weights /= torch.sum(weights)  # normalize
+
+
+@torch.jit.script
+def neff(weights: torch.Tensor):
+    return 1.0 / torch.sum(torch.square(weights))
+
+
+@torch.jit.script
+def weighted_mean(inputs: torch.Tensor, weights: torch.Tensor):
+    return torch.sum(weights * inputs, dim=0) / weights.sum()
+
+
+@torch.jit.script
+def estimate(particles: torch.Tensor, weights: torch.Tensor):
+    # mean = torch.mean(self.particles, weights=self.weights, axis=0)
+    # var = torch.mean((self.particles - mean) ** 2, weights=self.weights, axis=0)
+    mean = weighted_mean(particles, weights.reshape(-1, 1))
+    var = weighted_mean((particles - mean) ** 2, weights.reshape(-1, 1))
+    return mean, var
+
+
+@torch.jit.script
+def theta_phi_to_p(theta, phi, full_p):
+    theta_bins = full_p.shape[0]
+    phi_bins = full_p.shape[1]
+    theta_bin = int(theta_bins * (theta + torch.pi) / (2 * torch.pi)) % theta_bins
+    phi_bin = int(phi_bins * (phi + torch.pi) / (2 * torch.pi)) % phi_bins
+    return full_p[theta_bin, phi_bin]
+
+
+@torch.jit.script
+def fix_particles_single(particles):
+    while torch.abs(particles[:, 0]).max() > torch.pi / 2:
+        mask = torch.abs(particles[:, 0]) > torch.pi / 2
+        particles[mask, 0] = (
+            torch.sign(particles[mask, 0]) * torch.pi - particles[mask, 0]
+        )
+        particles[mask, 1] *= -1
+    return particles
 
 
 class ParticleFilter:
     def __init__(self, ds, full_p_fn):
-        self.full_p = pickle.load(open(full_p_fn, "rb"))["full_p"]
+        self.full_p = torch.as_tensor(pickle.load(open(full_p_fn, "rb"))["full_p"])
         self.ds = ds
-        self.our_states = None
 
-    def resample_from_index(self, indexes):
-        self.particles[:] = self.particles[indexes]
-        self.weights.fill(1.0 / len(self.weights))
-        self.weights /= sum(self.weights)  # normalize
+    def our_state(self, idx):
+        return None
 
     def fix_particles(self):
         return self.particles
-
-    def theta_phi_to_p_vec(self, thetas, phis):
-        theta_bin = theta_phi_to_bins(thetas, nbins=self.full_p.shape[0])
-        phi_bin = theta_phi_to_bins(phis, nbins=self.full_p.shape[1])
-        return np.take(self.full_p[:, phi_bin], theta_bin)
-
-    def neff(self):
-        return 1.0 / np.sum(np.square(self.weights))
-
-    def estimate(self):
-        mean = np.average(self.particles, weights=self.weights, axis=0)
-        var = np.average((self.particles - mean) ** 2, weights=self.weights, axis=0)
-        return mean, var
 
     def predict(self, our_state, dt, noise_std):
         pass
@@ -67,83 +116,99 @@ class ParticleFilter:
     def update(self):
         pass
 
-    def add_noise(self, noise_std):
-        self.particles[:] += (
-            np.random.randn(*self.particles.shape) * noise_std
-        )  # theta_noise=0.1, theta_dot_noise=0.001
-
     def metrics(self, trajectory):
         pass
 
     def trajectory(self, mean, std, N=128, noise_std=None, return_particles=False):
         self.particles = create_gaussian_particles_xy(mean, std, N)
-        self.weights = np.ones((N,)) / N
+        self.weights = torch.ones((N,), dtype=torch.float64) / N
         trajectory = []
         all_particles = []
-
-        for idx in range(self.ds.snapshots_per_session):
+        for idx in range(len(self.ds)):
             self.predict(
                 dt=1.0,
                 noise_std=noise_std,
-                our_state=None if self.our_states is None else self.our_states[idx],
+                our_state=self.our_state(idx),
             )
             self.fix_particles()
 
-            self.update(z=self.observations[idx])
+            self.update(z=self.observation(idx))
 
             # resample if too few effective particles
-            if self.neff() < N / 2:
-                indexes = systematic_resample(self.weights)
-                self.resample_from_index(indexes)
+            if neff(self.weights) < N / 2:
+                indexes = torch.as_tensor(systematic_resample(self.weights.numpy()))
+                resample_from_index(self.particles, self.weights, indexes)
 
-            mu, var = self.estimate()
+            mu, var = estimate(self.particles, self.weights)
 
             trajectory.append({"var": var, "mu": mu})
             if return_particles:
                 all_particles.append(self.particles.copy())
         return trajectory, all_particles
 
-    def theta_phi_to_p(self, theta, phi):
-        theta_bins = self.full_p.shape[0]
-        phi_bins = self.full_p.shape[1]
-        theta_bin = int(theta_bins * (theta + np.pi) / (2 * np.pi)) % theta_bins
-        phi_bin = int(phi_bins * (phi + np.pi) / (2 * np.pi)) % phi_bins
-        return self.full_p[theta_bin, phi_bin]
-
 
 class PFSingleThetaSingleRadio(ParticleFilter):
     def __init__(self, ds, full_p_fn, rx_idx):
         super().__init__(ds, full_p_fn)
-        self.ground_truth_theta = ds[0][rx_idx]["ground_truth_theta"]
-        self.ground_truth_reduced_theta = reduce_theta_to_positive_y(
-            self.ground_truth_theta
-        )
-        self.observations = self.ds[0][rx_idx]["mean_phase_segmentation"]
+        self.rx_idx = rx_idx
+        # self.ground_truth_theta = ds[0][rx_idx]["ground_truth_theta"]  # 1 x 5000
+        # self.ground_truth_reduced_theta = reduce_theta_to_positive_y(
+        #     self.ground_truth_theta
+        # )  # 1 x 5000
+        # self.observations = self.ds[0][rx_idx]["mean_phase_segmentation"]  # 1 x 5000
+
+    def ground_truth_theta(self, idx):
+        # _r = (
+        #     self.ds[idx][self.rx_idx]["ground_truth_theta"].detach().numpy().reshape(-1)
+        # )
+        return self.ds.ground_truth_thetas[self.rx_idx][idx].reshape(-1)
+
+    def ground_truth_theta_reduced_theta(self, idx):
+        return reduce_theta_to_positive_y(self.ground_truth_theta(idx))
+
+    def all_ground_truth_theta_reduced_theta(self):
+        # self.ground_truth_thetas[receiver_idx][snapshot_start_idx:snapshot_end_idx]
+        return reduce_theta_to_positive_y(self.ds.ground_truth_thetas[self.rx_idx])
+        # vs = []
+        # for idx in range(len(self.ds)):
+        #     vs.append(self.ground_truth_theta_reduced_theta(idx))
+        # _r = np.hstack(vs)
+        # breakpoint()
+        # return _r
+
+    def observation(self, idx):
+        # self.mean_phase[f"r{receiver_idx}"][snapshot_start_idx:snapshot_end_idx]
+        return self.ds.mean_phase[f"r{self.rx_idx}"][idx]
+        # breakpoint()
+        # return (
+        #     self.ds[idx][self.rx_idx]["mean_phase_segmentation"]
+        #     .detach()
+        #     .numpy()
+        #     .reshape(-1)
+        # )
 
     def fix_particles(self):
-        while np.abs(self.particles[:, 0]).max() > np.pi / 2:
-            mask = np.abs(self.particles[:, 0]) > np.pi / 2
-            self.particles[mask, 0] = (
-                np.sign(self.particles[mask, 0]) * np.pi - self.particles[mask, 0]
-            )
-            self.particles[mask, 1] *= -1
+        self.particles = fix_particles_single(self.particles)
 
     def predict(self, our_state, dt, noise_std):
         if noise_std is None:
-            noise_std = np.array([[0.1, 0.001]])
+            noise_std = torch.tensor([[0.1, 0.001]])
         self.particles[:, 0] += dt * self.particles[:, 1]
-        self.add_noise(noise_std=noise_std)
+        add_noise(self.particles, noise_std=noise_std)
 
     def update(self, z):
-        self.weights *= self.theta_phi_to_p_vec(self.particles[:, 0], z)
-        self.weights += 1.0e-300  # avoid round-off to zero
-        self.weights /= sum(self.weights)  # normalize
+        self.weights *= theta_phi_to_p_vec(self.particles[:, 0], z, self.full_p)
+        self.weights += 1.0e-30  # avoid round-off to zero
+        self.weights /= torch.sum(self.weights)  # normalize
 
     def metrics(self, trajectory):
-        pred_theta = torch.tensor([x["mu"][0] for x in trajectory])
+        pred_theta = torch.hstack([x["mu"][0] for x in trajectory])
+        ground_truth_reduced_theta = torch.as_tensor(
+            self.all_ground_truth_theta_reduced_theta()
+        )
         return {
             "mse_theta": (
-                torch_pi_norm(self.ground_truth_reduced_theta - pred_theta) ** 2
+                torch_pi_norm_pi(ground_truth_reduced_theta - pred_theta) ** 2
             )
             .mean()
             .item()
@@ -158,41 +223,62 @@ PAIRED PF
 class PFSingleThetaDualRadio(ParticleFilter):
     def __init__(self, ds, full_p_fn):
         super().__init__(ds, full_p_fn)
-        self.ground_truth_theta = ds[0][0]["craft_y_rad"][0]
-        self.observations = np.vstack(
-            [
-                ds[0][0]["mean_phase_segmentation"],
-                ds[0][1]["mean_phase_segmentation"],
-            ]
-        ).T
+        # self.ground_truth_theta = ds[0][0]["craft_y_rad"][0]
+        # self.observations = np.vstack(
+        #     [
+        #         ds[0][0]["mean_phase_segmentation"],
+        #         ds[0][1]["mean_phase_segmentation"],
+        #     ]
+        # ).T
         self.offsets = [
-            ds.yaml_config["receivers"][0]["theta-in-pis"] * np.pi,
-            ds.yaml_config["receivers"][1]["theta-in-pis"] * np.pi,
+            ds.yaml_config["receivers"][0]["theta-in-pis"] * torch.pi,
+            ds.yaml_config["receivers"][1]["theta-in-pis"] * torch.pi,
         ]
+        # breakpoint()
+        # a = 1
+
+    def ground_truth_thetas(self):
+        return self.ds.craft_ground_truth_thetas
+        # vs = []
+        # for idx in range(len(self.ds)):
+        #     vs.append(self.ds[idx][0]["craft_y_rad"][0])
+        # _r = torch.hstack(vs)
+        # breakpoint()
+        # return torch.hstack(vs)
+
+    def observation(self, idx):
+        return torch.concatenate(
+            [
+                self.ds[idx][0]["mean_phase_segmentation"].reshape(1),
+                self.ds[idx][1]["mean_phase_segmentation"].reshape(1),
+            ],
+            axis=0,
+        )
 
     def fix_particles(self):
-        self.particles[:, 0] = pi_norm(self.particles[:, 0])
+        self.particles[:, 0] = torch_pi_norm_pi(self.particles[:, 0])
 
     def predict(self, our_state, dt, noise_std):
         if noise_std is None:
-            noise_std = np.array([[0.1, 0.001]])
+            noise_std = torch.tensor([[0.1, 0.001]])
         self.particles[:, 0] += dt * self.particles[:, 1]
-        self.add_noise(noise_std=noise_std)
+        add_noise(self.particles, noise_std=noise_std)
 
     def update(self, z):
-        self.weights *= self.theta_phi_to_p_vec(
-            pi_norm(self.particles[:, 0] - self.offsets[0]), z[0]
+        self.weights *= theta_phi_to_p_vec(
+            torch_pi_norm_pi(self.particles[:, 0] - self.offsets[0]), z[0], self.full_p
         )
-        self.weights *= self.theta_phi_to_p_vec(
-            pi_norm(self.particles[:, 0] - self.offsets[1]), z[1]
+        self.weights *= theta_phi_to_p_vec(
+            torch_pi_norm_pi(self.particles[:, 0] - self.offsets[1]), z[1], self.full_p
         )
-        self.weights += 1.0e-300  # avoid round-off to zero
-        self.weights /= sum(self.weights)  # normalize
+        self.weights += 1.0e-30  # avoid round-off to zero
+        self.weights /= torch.sum(self.weights)  # normalize
 
     def metrics(self, trajectory):
-        pred_theta = torch.tensor([x["mu"][0] for x in trajectory])
+        pred_theta = torch.hstack([x["mu"][0] for x in trajectory])
+        ground_truth_thetas = self.ground_truth_thetas()
         return {
-            "mse_theta": (torch_pi_norm(self.ground_truth_theta - pred_theta) ** 2)
+            "mse_theta": (torch_pi_norm_pi(ground_truth_thetas - pred_theta) ** 2)
             .mean()
             .item()
         }
@@ -206,8 +292,8 @@ class PFSingleThetaDualRadio(ParticleFilter):
 # assert wavelength == ds.wavelengths[1]
 
 # offsets = [
-#     ds.yaml_config["receivers"][0]["theta-in-pis"] * np.pi,
-#     ds.yaml_config["receivers"][1]["theta-in-pis"] * np.pi,
+#     ds.yaml_config["receivers"][0]["theta-in-pis"] * torch.pi,
+#     ds.yaml_config["receivers"][1]["theta-in-pis"] * torch.pi,
 # ]
 
 
@@ -219,60 +305,100 @@ Predict XY
 class PFXYDualRadio(ParticleFilter):
     def __init__(self, ds, full_p_fn):
         super().__init__(ds, full_p_fn)
-        self.observations = np.vstack(
+        # self.observations = np.vstack(
+        #     [
+        #         ds[0][0]["mean_phase_segmentation"],
+        #         ds[0][1]["mean_phase_segmentation"],
+        #     ]
+        # ).T
+        self.offsets = [
+            ds.yaml_config["receivers"][0]["theta-in-pis"] * torch.pi,
+            ds.yaml_config["receivers"][1]["theta-in-pis"] * torch.pi,
+        ]
+        # self.our_states = np.vstack(
+        #     [ds[0][0]["rx_pos_x_mm"], ds[0][0]["rx_pos_y_mm"]]
+        # ).T
+        self.speed_dist = scipy.stats.norm(1.5, 3)
+        # self.ground_truth_theta = ds[0][0]["craft_y_rad"][0]
+        # self.ground_truth_xy = torch.tensor(
+        #     np.vstack([ds[0][0]["tx_pos_x_mm"], ds[0][0]["tx_pos_y_mm"]]).T
+        # )
+
+    def tx_state(self, idx):
+        return torch.concatenate(
             [
-                ds[0][0]["mean_phase_segmentation"],
-                ds[0][1]["mean_phase_segmentation"],
+                self.ds[idx][0]["tx_pos_x_mm"].reshape(1),
+                self.ds[idx][0]["tx_pos_y_mm"].reshape(1),
+            ],
+            axis=0,
+        )
+
+    def our_state(self, idx):
+        return torch.vstack(
+            [
+                self.ds.cached_keys[0]["rx_pos_x_mm"][idx],
+                self.ds.cached_keys[0]["rx_pos_y_mm"][idx],
+            ]
+        ).reshape(-1)
+
+    def ground_truth_xy(self):
+        return torch.vstack(
+            [
+                self.ds.cached_keys[0]["tx_pos_x_mm"],
+                self.ds.cached_keys[0]["tx_pos_y_mm"],
             ]
         ).T
-        self.offsets = [
-            ds.yaml_config["receivers"][0]["theta-in-pis"] * np.pi,
-            ds.yaml_config["receivers"][1]["theta-in-pis"] * np.pi,
-        ]
-        self.our_states = np.vstack(
-            [ds[0][0]["rx_pos_x_mm"], ds[0][0]["rx_pos_y_mm"]]
-        ).T
-        self.speed_dist = scipy.stats.norm(1.5, 3)
-        self.ground_truth_theta = ds[0][0]["craft_y_rad"][0]
-        self.ground_truth_xy = torch.tensor(
-            np.vstack([ds[0][0]["tx_pos_x_mm"], ds[0][0]["tx_pos_y_mm"]]).T
+
+    def ground_truth_thetas(self):
+        return self.ds.craft_ground_truth_thetas
+
+    def observation(self, idx):
+        return torch.concatenate(
+            [
+                self.ds[idx][0]["mean_phase_segmentation"].reshape(1),
+                self.ds[idx][1]["mean_phase_segmentation"].reshape(1),
+            ],
+            axis=0,
         )
 
     def fix_particles(self):
-        self.particles[:, 0] = pi_norm(self.particles[:, 0])
+        self.particles[:, 0] = torch_pi_norm_pi(self.particles[:, 0])
 
     def predict(self, dt, our_state, noise_std):
-        rx_pos = our_state.reshape(1, 2)
-        self.add_noise(noise_std)
+        add_noise(self.particles, noise_std)
         # update movement
         self.particles[:, [1, 2]] += dt * self.particles[:, [3, 4]]
         # recomput theta
+        rx_pos = our_state.reshape(1, 2)
         tx_pos = self.particles[:, [1, 2]]
         d = tx_pos - rx_pos
-        self.particles[:, 0] = pi_norm(np.arctan2(d[:, 0], d[:, 1]))
+        self.particles[:, 0] = torch_pi_norm_pi(torch.arctan2(d[:, 0], d[:, 1]))
 
     def update(self, z):
-        self.weights *= self.theta_phi_to_p_vec(
-            pi_norm(self.particles[:, 0] - self.offsets[0]), z[0]
+        self.weights *= theta_phi_to_p_vec(
+            torch_pi_norm_pi(self.particles[:, 0] - self.offsets[0]), z[0], self.full_p
         )
-        self.weights *= self.theta_phi_to_p_vec(
-            pi_norm(self.particles[:, 0] - self.offsets[1]), z[1]
+        self.weights *= theta_phi_to_p_vec(
+            torch_pi_norm_pi(self.particles[:, 0] - self.offsets[1]), z[1], self.full_p
         )
         # prior on velocity
         self.weights *= self.speed_dist.pdf(
-            np.linalg.norm(self.particles[:, [3, 4]], axis=1)
+            torch.linalg.norm(self.particles[:, [3, 4]], axis=1)
         )
-        self.weights += 1.0e-300  # avoid round-off to zero
-        self.weights /= sum(self.weights)  # normalize
+        self.weights += 1.0e-30  # avoid round-off to zero
+        self.weights /= self.weights.sum()  # normalize
 
     def metrics(self, trajectory):
-        pred_theta = torch.tensor(np.array([x["mu"][0] for x in trajectory]))
-        pred_xy = torch.tensor(np.array([x["mu"][[1, 2]] for x in trajectory]))
+        pred_theta = torch.hstack([x["mu"][0] for x in trajectory])
+        pred_xy = torch.vstack([x["mu"][[1, 2]] for x in trajectory])
+        ground_truth_theta = self.ground_truth_thetas()
+        ground_truth_xy = self.ground_truth_xy()
+        # breakpoint()
         return {
-            "mse_theta": (torch_pi_norm(self.ground_truth_theta - pred_theta) ** 2)
+            "mse_theta": (torch_pi_norm_pi(ground_truth_theta - pred_theta) ** 2)
             .mean()
             .item(),
-            "mse_xy": ((self.ground_truth_xy - pred_xy) ** 2).mean().item(),
+            "mse_xy": ((ground_truth_xy - pred_xy) ** 2).mean().item(),
         }
 
 
@@ -285,12 +411,14 @@ def plot_single_theta_single_radio(ds, full_p_fn):
     fig, ax = plt.subplots(2, 2, figsize=(10, 10))
 
     for rx_idx in [0, 1]:
-        ax[1, rx_idx].axhline(y=np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
-        ax[1, rx_idx].axhline(y=-np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+        ax[1, rx_idx].axhline(y=torch.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+        ax[1, rx_idx].axhline(y=-torch.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
 
         pf = PFSingleThetaSingleRadio(ds=ds, rx_idx=rx_idx, full_p_fn=full_p_fn)
         trajectory, _ = pf.trajectory(
-            mean=np.array([[0, 0]]), std=np.array([[2, 0.1]]), return_particles=False
+            mean=torch.tensor([[0, 0]]),
+            std=torch.tensor([[2, 0.1]]),
+            return_particles=False,
         )
         n = len(trajectory)
         ax[0, rx_idx].scatter(
@@ -307,11 +435,11 @@ def plot_single_theta_single_radio(ds, full_p_fn):
             label=f"r{rx_idx} gt theta",
         )
 
-        xs = np.array([x["mu"][0] for x in trajectory])
-        stds = np.sqrt(np.array([x["var"][0] for x in trajectory]))
+        xs = torch.vstack([x["mu"][0] for x in trajectory])
+        stds = torch.sqrt(torch.vstack([x["var"][0] for x in trajectory]))
 
         ax[1, rx_idx].fill_between(
-            np.arange(xs.shape[0]),
+            torch.arange(xs.shape[0]),
             xs - stds,
             xs + stds,
             label="PF-std",
@@ -343,13 +471,15 @@ def plot_single_theta_dual_radio(ds, full_p_fn):
 
     pf = PFSingleThetaDualRadio(ds=ds, full_p_fn=full_p_fn)
     traj_paired, _ = pf.trajectory(
-        mean=np.array([[0, 0]]), std=np.array([[2, 0.1]]), return_particles=False
+        mean=torch.tensor([[0, 0]]),
+        std=torch.tensor([[2, 0.1]]),
+        return_particles=False,
     )
 
     fig, ax = plt.subplots(2, 1, figsize=(10, 10))
 
-    ax[1].axhline(y=np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
-    ax[1].axhline(y=-np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+    ax[1].axhline(y=torch.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+    ax[1].axhline(y=-torch.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
     n = len(traj_paired)
     colors = ["blue", "orange"]
     for rx_idx in (0, 1):
@@ -369,16 +499,16 @@ def plot_single_theta_dual_radio(ds, full_p_fn):
         )
 
     ax[1].plot(
-        torch_pi_norm(ds[0][0]["craft_y_rad"][0]),
+        torch_pi_norm_pi(ds[0][0]["craft_y_rad"][0]),
         label="craft gt theta",
         linestyle="dashed",
     )
 
-    xs = np.array([x["mu"][0] for x in traj_paired])
-    stds = np.sqrt(np.array([x["var"][0] for x in traj_paired]))
+    xs = torch.vstack([x["mu"][0] for x in traj_paired])
+    stds = torch.sqrt(torch.vstack([x["var"][0] for x in traj_paired]))
 
     ax[1].fill_between(
-        np.arange(xs.shape[0]),
+        torch.arange(xs.shape[0]),
         xs - stds,
         xs + stds,
         label="PF-std",
@@ -401,16 +531,16 @@ def plot_xy_dual_radio(ds, full_p_fn):
     pf = PFXYDualRadio(ds=ds, full_p_fn=full_p_fn)
     traj_paired, _ = pf.trajectory(
         N=128 * 16,
-        mean=np.array([[0, 0, 0, 0, 0]]),
-        std=np.array([[0, 2, 2, 0.1, 0.1]]),
+        mean=torch.tensor([[0, 0, 0, 0, 0]]),
+        std=torch.tensor([[0, 2, 2, 0.1, 0.1]]),
         return_particles=False,
-        noise_std=np.array([[0, 15, 15, 0.5, 0.5]]),
+        noise_std=torch.tensor([[0, 15, 15, 0.5, 0.5]]),
     )
 
     fig, ax = plt.subplots(3, 1, figsize=(10, 15))
 
-    ax[1].axhline(y=np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
-    ax[1].axhline(y=-np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+    ax[1].axhline(y=torch.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+    ax[1].axhline(y=-torch.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
     n = len(traj_paired)
     colors = ["blue", "orange"]
     for rx_idx in (0, 1):
@@ -429,13 +559,13 @@ def plot_xy_dual_radio(ds, full_p_fn):
             linestyle="dashed",
         )
 
-    ax[1].plot(torch_pi_norm(ds[0][0]["craft_y_rad"][0]))
+    ax[1].plot(torch_pi_norm_pi(ds[0][0]["craft_y_rad"][0]))
 
-    xs = np.array([x["mu"][0] for x in traj_paired])
-    stds = np.sqrt(np.array([x["var"][0] for x in traj_paired]))
+    xs = torch.vstack([x["mu"][0] for x in traj_paired])
+    stds = torch.sqrt(torch.vstack([x["var"][0] for x in traj_paired]))
 
     ax[1].fill_between(
-        np.arange(xs.shape[0]),
+        torch.arange(xs.shape[0]),
         xs - stds,
         xs + stds,
         label="PF-std",
@@ -446,7 +576,7 @@ def plot_xy_dual_radio(ds, full_p_fn):
         range(ds.snapshots_per_session), xs, label="PF-x", color="orange", s=0.5
     )
 
-    xys = np.array([x["mu"][[1, 2]] for x in traj_paired])
+    xys = torch.vstack([x["mu"][[1, 2]] for x in traj_paired])
     ax[2].scatter(
         range(ds.snapshots_per_session), xys[:, 0], label="PF-x", color="orange", s=0.5
     )
@@ -478,8 +608,16 @@ def run_single_theta_single_radio(
         precompute_cache=precompute_fn,
         paired=True,
         skip_signal_matrix=True,
-        snapshots_per_session=-1,
+        skip_simple_segmentations=True,
+        snapshots_per_session=1,
         readahead=True,
+        skip_fields=set(
+            [
+                "windowed_beamformer",
+                "all_windows_stats",
+                "downsampled_segmentation_mask",
+            ]
+        ),
     )
     metrics = []
     for rx_idx in [0, 1]:
@@ -489,9 +627,9 @@ def run_single_theta_single_radio(
             rx_idx=1,
         )
         trajectory, _ = pf.trajectory(
-            mean=np.array([[0, 0]]),
-            std=np.array([[2, 0.1]]),
-            noise_std=np.array([[theta_err, theta_dot_err]]),
+            mean=torch.tensor([[0, 0]]),
+            std=torch.tensor([[2, 0.1]]),
+            noise_std=torch.tensor([[theta_err, theta_dot_err]]),
             return_particles=False,
             N=N,
         )
@@ -519,14 +657,21 @@ def run_single_theta_dual_radio(
         precompute_cache=precompute_fn,
         paired=True,
         skip_signal_matrix=True,
-        snapshots_per_session=-1,
+        snapshots_per_session=1,
+        skip_fields=set(
+            [
+                "windowed_beamformer",
+                "all_windows_stats",
+                "downsampled_segmentation_mask",
+            ]
+        ),
     )
     pf = PFSingleThetaDualRadio(ds=ds, full_p_fn=full_p_fn)
     traj_paired, _ = pf.trajectory(
-        mean=np.array([[0, 0]]),
+        mean=torch.tensor([[0, 0]]),
         N=N,
-        std=np.array([[2, 0.1]]),
-        noise_std=np.array([[theta_err, theta_dot_err]]),
+        std=torch.tensor([[2, 0.1]]),
+        noise_std=torch.tensor([[theta_err, theta_dot_err]]),
         return_particles=False,
     )
 
@@ -552,16 +697,23 @@ def run_xy_dual_radio(
         precompute_cache=precompute_fn,
         paired=True,
         skip_signal_matrix=True,
-        snapshots_per_session=-1,
+        snapshots_per_session=1,
+        skip_fields=set(
+            [
+                "windowed_beamformer",
+                "all_windows_stats",
+                "downsampled_segmentation_mask",
+            ]
+        ),
     )
     # dual radio dual
     pf = PFXYDualRadio(ds=ds, full_p_fn=full_p_fn)
     traj_paired, _ = pf.trajectory(
         N=N,
-        mean=np.array([[0, 0, 0, 0, 0]]),
-        std=np.array([[0, 200, 200, 0.1, 0.1]]),
+        mean=torch.tensor([[0, 0, 0, 0, 0]]),
+        std=torch.tensor([[0, 200, 200, 0.1, 0.1]]),
         return_particles=False,
-        noise_std=np.array([[0, pos_err, pos_err, vel_err, vel_err]]),
+        noise_std=torch.tensor([[0, pos_err, pos_err, vel_err, vel_err]]),
     )
     return [
         {
@@ -619,10 +771,23 @@ if __name__ == "__main__":
             type=str,
             required=True,
         )
+        parser.add_argument(
+            "--seed",
+            type=int,
+            default=0,
+            required=False,
+        )
+        parser.add_argument(
+            "--debug",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+        )
+
         return parser
 
     parser = get_parser()
     args = parser.parse_args()
+    random.seed(args.seed)
 
     jobs = []
 
@@ -677,9 +842,13 @@ if __name__ == "__main__":
                     )
 
     random.shuffle(jobs)
-    with Pool(20) as pool:  # cpu_count())  # cpu_count() // 4)
-        results = list(tqdm.tqdm(pool.imap(runner, jobs), total=len(jobs)))
-    pickle.dump(results, open("particle_filter_results.pkl", "wb"))
+
+    if args.debug:
+        results = list(tqdm.tqdm(map(runner, jobs), total=len(jobs)))
+    else:
+        with Pool(20) as pool:  # cpu_count())  # cpu_count() // 4)
+            results = list(tqdm.tqdm(pool.imap(runner, jobs), total=len(jobs)))
+    pickle.dump(results, open("particle_filter_results2.pkl", "wb"))
 
     # run_single_theta_single_radio()
     # run_single_theta_dual_radio(

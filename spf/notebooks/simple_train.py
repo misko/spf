@@ -11,6 +11,7 @@ import wandb
 from spf.dataset.spf_dataset import (
     v5_collate_beamsegnet,
     v5_thetas_to_targets,
+    v5_collate_all_fast,
     v5spfdataset,
 )
 from spf.model_training_and_inference.models.beamsegnet import (
@@ -165,6 +166,7 @@ def simple_train(args):
             paired=args.n_radios > 1,
             ignore_qc=args.skip_qc,
             gpu=args.device == "cuda",
+            skip_simple_segmentations=True,
         )
         for prefix in args.datasets
     ]
@@ -188,7 +190,8 @@ def simple_train(args):
         "batch_size": args.batch,
         "shuffle": args.shuffle,
         "num_workers": args.workers,
-        "collate_fn": v5_collate_beamsegnet,
+        "collate_fn": v5_collate_all_fast,
+        # "collate_fn": v5_collate_beamsegnet,
     }
     train_dataloader = torch.utils.data.DataLoader(train_ds, **dataloader_params)
     val_dataloader = torch.utils.data.DataLoader(val_ds, **dataloader_params)

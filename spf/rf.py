@@ -54,6 +54,15 @@ def torch_pi_norm(x, max_angle=torch.pi):
     return ((x + max_angle) % (2 * max_angle)) - max_angle
 
 
+@torch.jit.script
+def torch_pi_norm_pi(x):
+    return ((x + torch.pi) % (2 * torch.pi)) - torch.pi
+
+
+def torch_pi_norm(x, max_angle=torch.pi):
+    return ((x + max_angle) % (2 * max_angle)) - max_angle
+
+
 # returns circular_stddev and trimmed cricular stddev
 def circular_stddev(v, u, trim=50.0):
     diff_from_mean = circular_diff_to_mean(angles=v, means=np.array(u).reshape(-1))

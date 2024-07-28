@@ -150,7 +150,7 @@ def zarr_new_dataset(
         config = yaml.dump(config)
     if isinstance(config, zarr.core.Array) and len(config.shape) > 0:
         config = config[0]
-    if isinstance(config, str) or config.shape != ():
+    if not isinstance(config, int) and (isinstance(config, str) or config.shape != ()):
         z["config"][0] = config
         assert z["config"][0] == config
 

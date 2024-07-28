@@ -7,7 +7,7 @@ import os
 import pickle
 import time
 from multiprocessing import Pool, cpu_count
-from typing import List
+from typing import Dict, List
 import gc
 import numpy as np
 from tensordict import TensorDict
@@ -64,6 +64,7 @@ from spf.rf import (
     segment_session_star,
     speed_of_light,
     torch_get_phase_diff,
+    torch_pi_norm,
 )
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
 from spf.utils import new_yarr_dataset, zarr_open_from_lmdb_store, zarr_shrink
@@ -201,7 +202,10 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
 
 
 # target_thetas (N,1)
-def v5_thetas_to_targets(target_thetas, nthetas, range_in_rad, sigma=1):
+@torch.jit.script
+def v5_thetas_to_targets(
+    target_thetas: torch.Tensor, nthetas: int, range_in_rad: float, sigma: float = 1
+):
     if target_thetas.ndim == 1:
         target_thetas = target_thetas.reshape(-1, 1)
     p = torch.exp(
@@ -221,11 +225,11 @@ def v5_thetas_to_targets(target_thetas, nthetas, range_in_rad, sigma=1):
             ** 2
         )
     )
-    return p / p.sum(axis=1, keepdim=True)
+    return p / torch.sum(p, dim=1, keepdim=True)
     # return torch.nn.functional.normalize(p, p=1, dim=1)
 
 
-def v5_collate_keys_fast(keys, batch):
+def v5_collate_keys_fast(keys: List[str], batch: Dict[str, torch.Tensor]):
     d = {}
     for key in keys:
         d[key] = torch.vstack(
@@ -234,6 +238,7 @@ def v5_collate_keys_fast(keys, batch):
     return TensorDict(d, batch_size=d["y_rad"].shape)
 
 
+# @torch.jit.script
 def v5_collate_all_fast(batch):
     d = {}
     for key in batch[0][0].keys():
@@ -341,6 +346,7 @@ class v5spfdataset(Dataset):
         skip_simple_segmentations=False,
         temp_file=False,
         temp_file_suffix=".tmp",
+        skip_fields=[],
     ):
         # print("Open", prefix)
         self.readahead = readahead
@@ -349,6 +355,8 @@ class v5spfdataset(Dataset):
         self.valid_entries = None
         # self.prefix = prefix
         self.temp_file = temp_file
+
+        self.skip_fields = skip_fields
 
         self.snapshots_per_session = snapshots_per_session
 
@@ -424,6 +432,12 @@ class v5spfdataset(Dataset):
 
         self.refresh()
 
+        self.receiver_idxs_expanded = {}
+        for idx in range(self.n_receivers):
+            self.receiver_idxs_expanded[idx] = torch.tensor(
+                idx, dtype=torch.int32
+            ).expand(1, self.snapshots_per_session)
+
         if not self.temp_file:
 
             self.get_segmentation()
@@ -432,7 +446,7 @@ class v5spfdataset(Dataset):
             for receiver, results in self.segmentation[
                 "segmentation_by_receiver"
             ].items():
-                self.mean_phase[receiver] = np.array(
+                self.mean_phase[receiver] = torch.tensor(
                     [
                         (
                             # TODO:UNBUG (circular mean)
@@ -443,7 +457,8 @@ class v5spfdataset(Dataset):
                             else 0.0
                         )
                         for result in results
-                    ]
+                    ],
+                    dtype=torch.float32,
                 )
 
             self.all_phi_drifts = self.get_all_phi_drifts()
@@ -487,6 +502,7 @@ class v5spfdataset(Dataset):
                 raise ValueError(
                     "It looks like too few windows have a valid segmentation"
                 )
+
         # self.close()
 
     def refresh(self):
@@ -497,10 +513,21 @@ class v5spfdataset(Dataset):
             for ridx in range(self.n_receivers)
         ]
         if self.valid_entries is None or self.valid_entries != valid_entries:
+            self.cached_keys = {}
+            for receiver_idx in range(self.n_receivers):
+                self.cached_keys[receiver_idx] = {}
+                for key in self.keys_per_session:
+                    self.cached_keys[receiver_idx][key] = torch.as_tensor(
+                        self.receiver_data[receiver_idx][key][:].astype(
+                            np.float32
+                        )  # TODO save as float32?
+                    )
             self.valid_entries = valid_entries
             self.ground_truth_thetas = self.get_ground_truth_thetas()
             self.ground_truth_phis = self.get_ground_truth_phis()
             self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
+            return True
+        return False
 
     def close(self):
         # let workers open their own
@@ -512,8 +539,8 @@ class v5spfdataset(Dataset):
         self.precomputed_zarr = None
 
     def estimate_phi(self, data):
-        x = torch.tensor(data["all_windows_stats"])
-        seg_mask = torch.tensor(data["downsampled_segmentation_mask"])
+        x = torch.as_tensor(data["all_windows_stats"])
+        seg_mask = torch.as_tensor(data["downsampled_segmentation_mask"])
 
         return torch.mul(x, seg_mask).sum(axis=2) / (seg_mask.sum(axis=2) + 0.001)
 
@@ -549,16 +576,16 @@ class v5spfdataset(Dataset):
             gpu=self.gpu,
         )
         data["downsampled_segmentation_mask"] = (
-            torch.tensor(n["downsampled_segmentation_mask"])
+            torch.as_tensor(n["downsampled_segmentation_mask"])
             .unsqueeze(0)
             .unsqueeze(0)
             .unsqueeze(0)
         )
         data["all_windows_stats"] = (
-            torch.tensor(n["all_windows_stats"]).unsqueeze(0).unsqueeze(0)
+            torch.as_tensor(n["all_windows_stats"]).unsqueeze(0).unsqueeze(0)
         )
         data["windowed_beamformer"] = (
-            torch.tensor(n["all_windows_stats"]).unsqueeze(0).unsqueeze(0)
+            torch.as_tensor(n["all_windows_stats"]).unsqueeze(0).unsqueeze(0)
         )
         if not self.skip_simple_segmentations:
             data["simple_segmentations"] = [n["simple_segmentation"]]
@@ -566,28 +593,31 @@ class v5spfdataset(Dataset):
     def populate_from_precomputed(
         self, data, receiver_idx, snapshot_start_idx, snapshot_end_idx
     ):
-        data["windowed_beamformer"] = torch.tensor(
-            self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
-                snapshot_start_idx:snapshot_end_idx
-            ]
-        ).unsqueeze(0)
+        if "windowed_beamformer" not in self.skip_fields:
+            data["windowed_beamformer"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
+                    snapshot_start_idx:snapshot_end_idx
+                ]
+            ).unsqueeze(0)
 
         # sessions x 3 x n_windows
-        data["all_windows_stats"] = torch.tensor(
-            self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
-                snapshot_start_idx:snapshot_end_idx
-            ]
-        ).unsqueeze(0)
+        if "all_windows_stats" not in self.skip_fields:
+            data["all_windows_stats"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
+                    snapshot_start_idx:snapshot_end_idx
+                ]
+            ).unsqueeze(0)
 
-        data["downsampled_segmentation_mask"] = (
-            torch.tensor(
-                self.precomputed_zarr[f"r{receiver_idx}"][
-                    "downsampled_segmentation_mask"
-                ][snapshot_start_idx:snapshot_end_idx]
+        if "downsampled_segmentation_mask" not in self.skip_fields:
+            data["downsampled_segmentation_mask"] = (
+                torch.as_tensor(
+                    self.precomputed_zarr[f"r{receiver_idx}"][
+                        "downsampled_segmentation_mask"
+                    ][snapshot_start_idx:snapshot_end_idx]
+                )
+                .unsqueeze(1)
+                .unsqueeze(0)
             )
-            .unsqueeze(1)
-            .unsqueeze(0)
-        )
 
         if not self.skip_simple_segmentations:
             data["simple_segmentations"] = [
@@ -606,15 +636,14 @@ class v5spfdataset(Dataset):
             snapshot_start_idx = session_idx * self.snapshots_per_session
             snapshot_end_idx = (session_idx + 1) * self.snapshots_per_session
 
-        r = self.receiver_data[receiver_idx]
-
         data = {
-            key: r[key][snapshot_start_idx:snapshot_end_idx]
-            for key in self.keys_per_session
+            # key: r[key][snapshot_start_idx:snapshot_end_idx]
+            key: self.cached_keys[receiver_idx][key][
+                snapshot_start_idx:snapshot_end_idx
+            ]
+            for key in self.keys_per_session  # 'rx_theta_in_pis', 'rx_spacing', 'rx_lo', 'rx_bandwidth', 'avg_phase_diff', 'rssis', 'gains']
         }
-        data["receiver_idx"] = torch.tensor(receiver_idx).expand(
-            1, self.snapshots_per_session
-        )
+        data["receiver_idx"] = self.receiver_idxs_expanded[receiver_idx]
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][
             snapshot_start_idx:snapshot_end_idx
         ]
@@ -624,53 +653,44 @@ class v5spfdataset(Dataset):
         data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[
             snapshot_start_idx:snapshot_end_idx
         ]
-        data = {
-            k: (
-                torch.from_numpy(v.astype(np.float32)).unsqueeze(0)
-                if type(v) not in (np.float64, float, torch.Tensor)
-                else v
-            )
-            for k, v in data.items()
-        }
+
+        # duplicate some fields
+        data["y_rad"] = data["ground_truth_theta"]
+        data["y_phi"] = data["ground_truth_phi"]
+        data["craft_y_rad"] = data["craft_ground_truth_theta"]
+
         if not self.skip_signal_matrix:
             abs_signal = data["signal_matrix"].abs().to(torch.float32)
             pd = torch_get_phase_diff(data["signal_matrix"]).to(torch.float32)
             data["x"] = torch.concatenate(
                 [abs_signal[:, [0]], abs_signal[:, [1]], pd[:, None]], dim=1
             )
-        data["y_rad"] = data["ground_truth_theta"].to(torch.float32)
-        data["y_phi"] = data["ground_truth_phi"].to(torch.float32)
-        data["craft_y_rad"] = data["craft_ground_truth_theta"].to(torch.float32)
 
         if not self.temp_file:
             self.populate_from_precomputed(
                 data, receiver_idx, snapshot_start_idx, snapshot_end_idx
             )
-            #port this over in on the fly TODO
-            data["mean_phase_segmentation"] = torch.tensor(
-                self.mean_phase[f"r{receiver_idx}"][
-                    snapshot_start_idx:snapshot_end_idx
-                ].astype(np.float32)
-            ).unsqueeze(0)
+            # port this over in on the fly TODO
+            data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
+                snapshot_start_idx:snapshot_end_idx
+            ].unsqueeze(0)
         else:
             self.populate_on_the_fly(
                 data, receiver_idx, snapshot_start_idx, snapshot_end_idx
             )
 
-        data["rx_pos_xy"] = torch.tensor(
-            np.vstack(
-                [
-                    self.receiver_data[receiver_idx]["rx_pos_x_mm"][
-                        snapshot_start_idx:snapshot_end_idx
-                    ].astype(np.float32),
-                    self.receiver_data[receiver_idx]["rx_pos_y_mm"][
-                        snapshot_start_idx:snapshot_end_idx
-                    ].astype(np.float32),
-                ]
-            )
+        data["rx_pos_xy"] = torch.vstack(
+            [
+                self.cached_keys[receiver_idx]["rx_pos_x_mm"][
+                    snapshot_start_idx:snapshot_end_idx
+                ],
+                self.cached_keys[receiver_idx]["rx_pos_y_mm"][
+                    snapshot_start_idx:snapshot_end_idx
+                ],
+            ]
         ).T.unsqueeze(0)
 
-        if torch.rand(1).item() < 0.005:
+        if torch.rand(1).item() < 0.0005:
             gc.collect()
         return data
 
@@ -678,8 +698,8 @@ class v5spfdataset(Dataset):
         ground_truth_phis = []
         for ridx in range(self.n_receivers):
             ground_truth_phis.append(
-                pi_norm(
-                    -np.sin(
+                torch_pi_norm(
+                    -torch.sin(
                         self.ground_truth_thetas[
                             ridx
                         ]  # this is theta relative to our array!
@@ -688,20 +708,20 @@ class v5spfdataset(Dataset):
                     # or maybe this is the order of the receivers 0/1 vs 1/0 on the x-axis
                     # pretty sure this (-) is more about which receiver is closer to x+/ish
                     # a -1 here is the same as -rx_spacing!
-                    * self.receiver_data[ridx]["rx_spacing"]
+                    * self.cached_keys[ridx]["rx_spacing"]
                     * 2
-                    * np.pi
+                    * torch.pi
                     / self.wavelengths[ridx]
                 )
             )
-        return ground_truth_phis
+        return torch.vstack(ground_truth_phis)
 
     def get_all_phi_drifts(self):
         all_phi_drifts = []
         for ridx in range(self.n_receivers):
             a = self.ground_truth_phis[ridx]
             b = self.mean_phase[f"r{ridx}"]
-            fwd = pi_norm(b - a)
+            fwd = torch_pi_norm(b - a)
             # bwd = pi_norm(a + np.pi - b)
             # mask = np.abs(fwd) < np.abs(bwd)
             # c = np.zeros(a.shape)
@@ -712,65 +732,73 @@ class v5spfdataset(Dataset):
         return all_phi_drifts
 
     def get_craft_ground_truth_thetas(self):
-        craft_ground_truth_thetas = pi_norm(
+        craft_ground_truth_thetas = torch_pi_norm(
             self.ground_truth_thetas[0]
-            + self.receiver_data[0]["rx_theta_in_pis"][:] * np.pi
+            + self.cached_keys[0]["rx_theta_in_pis"][:] * torch.pi
         )
         for ridx in range(1, self.n_receivers):
-            _craft_ground_truth_thetas = pi_norm(
+            _craft_ground_truth_thetas = torch_pi_norm(
                 self.ground_truth_thetas[ridx]
-                + self.receiver_data[ridx]["rx_theta_in_pis"][:] * np.pi
+                + self.cached_keys[ridx]["rx_theta_in_pis"][:] * torch.pi
             )
             assert (
                 abs(
-                    pi_norm(craft_ground_truth_thetas - _craft_ground_truth_thetas)
+                    torch_pi_norm(
+                        craft_ground_truth_thetas - _craft_ground_truth_thetas
+                    )
                 ).mean()
                 < 0.01
             )  # this might not scale well to larger examples
             # i think the error gets worse
-
         return craft_ground_truth_thetas
 
     def get_ground_truth_thetas(self):
         ground_truth_thetas = []
         for ridx in range(self.n_receivers):
-            tx_pos = np.array(
+            tx_pos = torch.vstack(
                 [
-                    self.receiver_data[ridx]["tx_pos_x_mm"],
-                    self.receiver_data[ridx]["tx_pos_y_mm"],
+                    self.cached_keys[ridx]["tx_pos_x_mm"],
+                    self.cached_keys[ridx]["tx_pos_y_mm"],
                 ]
             )
-            rx_pos = np.array(
+            rx_pos = torch.vstack(
                 [
-                    self.receiver_data[ridx]["rx_pos_x_mm"],
-                    self.receiver_data[ridx]["rx_pos_y_mm"],
+                    self.cached_keys[ridx]["rx_pos_x_mm"],
+                    self.cached_keys[ridx]["rx_pos_y_mm"],
                 ]
             )
 
             # compute the angle of the tx with respect to rx
             d = tx_pos - rx_pos
 
-            rx_to_tx_theta = np.arctan2(d[0], d[1])
-            rx_theta_in_pis = self.receiver_data[ridx]["rx_theta_in_pis"]
+            rx_to_tx_theta = torch.arctan2(d[0], d[1])
+            rx_theta_in_pis = self.cached_keys[ridx]["rx_theta_in_pis"]
             ground_truth_thetas.append(
-                pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * np.pi)
+                torch_pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * np.pi)
             )
         # reduce GT thetas in case of two antennas
         # in 2D there are generally two spots that satisfy phase diff
         # lets pick the one thats infront of the craft (array)
         assert self.n_receivers == 2
-        return np.array(ground_truth_thetas)
+        return torch.vstack(ground_truth_thetas)
 
     def __getitem__(self, idx):
         if self.paired:
             assert idx < self.n_snapshots
+            if self.temp_file:
+                for ridx in range(self.n_receivers):
+                    if idx >= self.valid_entries[ridx]:
+                        return None
             return [
                 self.render_session(receiver_idx, idx)
                 for receiver_idx in range(self.n_receivers)
             ]
         assert idx < self.n_snapshots * self.n_receivers
         receiver_idx = idx % self.n_receivers
-        return [self.render_session(receiver_idx, idx // self.n_receivers)]
+        session_idx = idx // self.n_receivers
+        if self.temp_file and session_idx >= self.valid_entries[receiver_idx]:
+            return None
+        return [self.render_session(receiver_idx, session_idx)]
 
     def get_estimated_thetas(self):
         estimated_thetas = {}

@@ -882,6 +882,7 @@ class BeamNSegNet(nn.Module):
             # average before
             if self.beamformer_input:
                 weighted_input = windowed_beam_former * seg_mask[:, 0, :, None]
+                # TODO isnt this divide by sum? how is this mean?
                 weighted_input = weighted_input.mean(axis=1)
                 assert not self.rx_spacing
                 pred_theta = self.beamnet(weighted_input)
