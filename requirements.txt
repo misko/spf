@@ -17,6 +17,7 @@ docker==7.0.0
 exceptiongroup==1.2.0
 fasteners==0.19
 filelock==3.13.1
+filterpy==1.4.5
 flake8==6.1.0
 fonttools==4.42.0
 frozenlist==1.4.0
