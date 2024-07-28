@@ -29,7 +29,8 @@ dependencies = [
  "pytest-console-scripts",
  "pre-commit",
  "tensordict",
- "filterpy"
+ "filterpy",
+ "wandb"
 ]
 requires-python = ">=3.10"
 description = "Signal Processing Fun"
