@@ -310,7 +310,7 @@ def test_normal_correction():
     # factor should be 2
     assert np.isclose(
         normal_correction_for_bounded_range(
-            mean=np.pi, sigma=torch.tensor(1), max_y=np.pi
+            mean=torch.tensor(torch.pi), sigma=torch.tensor(1), max_y=np.pi
         ),
         2,
     )
@@ -318,7 +318,7 @@ def test_normal_correction():
     # factor should be 1
     assert np.isclose(
         normal_correction_for_bounded_range(
-            mean=0, sigma=torch.tensor(0.001), max_y=np.pi
+            mean=torch.tensor(0), sigma=torch.tensor(0.001), max_y=np.pi
         ),
         1,
     )
@@ -327,7 +327,9 @@ def test_normal_correction():
     # correction factor should be 1/0.68
     # factor should be ~1.47
     assert np.isclose(
-        normal_correction_for_bounded_range(mean=0, sigma=torch.tensor(1), max_y=1),
+        normal_correction_for_bounded_range(
+            mean=torch.tensor(0), sigma=torch.tensor(1), max_y=1
+        ),
         1.47,
         atol=0.01,
     )
