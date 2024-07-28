@@ -11,7 +11,9 @@ from spf.rf import (
     torch_circular_mean,
     torch_pi_norm,
 )
+from torch.nn.functional import sigmoid
 
+from math import sqrt
 
 import torch
 import math
@@ -340,7 +342,7 @@ class BeamNetDiscrete(nn.Module):
         other=False,
         no_sigmoid=False,
         positional_encoding=False,
-        max_angle=np.pi / 2,
+        max_angle=torch.pi / 2,
     ):
         super(BeamNetDiscrete, self).__init__()
         self.nthetas = nthetas
@@ -452,32 +454,32 @@ class BeamNetDiscrete(nn.Module):
 
     # this is discrete its already rendered
     def render_discrete_y(self, y):
-        assert y.abs().max() <= np.pi / 2
+        assert y.abs().max() <= torch.pi / 2
         return v5_thetas_to_targets(y, self.nthetas, range_in_rad=1, sigma=0.1)
 
 
-def cdf(mean, sigma, value):
-    return 0.5 * (1 + torch.erf((value - mean) * sigma.reciprocal() / math.sqrt(2)))
+@torch.jit.script
+def cdf(mean: torch.Tensor, sigma: torch.Tensor, value: float):
+    return 0.5 * (1 + torch.erf((value - mean) * sigma.reciprocal() / sqrt(2)))
 
 
-def normal_correction_for_bounded_range(mean, sigma, max_y):
+@torch.jit.script
+def normal_correction_for_bounded_range(
+    mean: torch.Tensor, sigma: torch.Tensor, max_y: float
+):
     assert max_y > 0
     left_p = cdf(mean, sigma, -max_y)
     right_p = cdf(mean, sigma, max_y)
     return (right_p - left_p).reciprocal()
 
 
-def normal_dist_d(sigma, d):
-    assert sigma.ndim == 1
-    d = d / sigma
-    return (1 / (sigma * np.sqrt(2 * np.pi))) * torch.exp(-0.5 * d**2)
-
-
-def normal_dist(x, y, sigma, d=None):
+@torch.jit.script
+def normal_dist(x, y, sigma):
     assert x.ndim == 1
     assert y.ndim == 1
     assert sigma.ndim == 1
-    return normal_dist_d(sigma, (x - y))
+    d = (x - y) / sigma
+    return (1 / (sigma * sqrt(2 * torch.pi))) * torch.exp(-0.5 * d**2)
 
 
 def FFN_to_Normal(
@@ -667,7 +669,7 @@ class BeamNetDirect(NormalNet):
         norm="batch",
         # angle specific
         nthetas=65,
-        max_angle=np.pi / 2,
+        max_angle=torch.pi / 2,
         # normal net params
         other=True,
         no_sigmoid=False,

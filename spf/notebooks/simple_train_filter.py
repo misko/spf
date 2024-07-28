@@ -19,7 +19,11 @@ import gc
 from cProfile import Profile
 from pstats import SortKey, Stats
 
-from spf.rf import reduce_theta_to_positive_y, torch_pi_norm
+from spf.rf import (
+    reduce_theta_to_positive_y,
+    torch_pi_norm,
+    torch_reduce_theta_to_positive_y,
+)
 
 import random
 
@@ -301,7 +305,7 @@ class FunkyNet(torch.nn.Module):
         # if self.train() randomly inject
         # if self.eval() never inject!
         if y_rad is not None and self.training and self.paired_drop_in_gt > 0.0:
-            y_rad_reduced = reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
+            y_rad_reduced = torch_reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
             mask = torch.rand(detached_pred_theta.shape[0]) < self.paired_drop_in_gt
             detached_pred_theta[mask, 0] = y_rad_reduced[mask, 0]
             detached_pred_theta[mask, 1:3] = 0
@@ -361,7 +365,7 @@ class FunkyNet(torch.nn.Module):
         )
         transformer_random_loss = (torch_pi_norm(target - random_target) ** 2).mean()
 
-        y_rad_reduced = reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
+        y_rad_reduced = torch_reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
         # x to beamformer loss (indirectly including segmentation)
         beamnet_loss = -self.beam_m.loglikelihood(
             output["pred_theta"], y_rad_reduced
@@ -541,9 +545,9 @@ def simple_train_filter(args):
         val_ds = torch.utils.data.Subset(complete_ds, val_idxs)
     print(f"Train-dataset size {len(train_ds)}, Val dataset size {len(val_ds)}")
 
-    def params_for_ds(ds):
+    def params_for_ds(ds, batch_size):
         sampler = StatefulBatchsampler(
-            ds, shuffle=args.shuffle, seed=args.seed, batch_size=args.batch
+            ds, shuffle=args.shuffle, seed=args.seed, batch_size=batch_size
         )
         sampler.set_epoch_and_start_iteration(epoch=epoch, start_iteration=step)
         return {
@@ -569,8 +573,12 @@ def simple_train_filter(args):
             "batch_sampler": sampler,
         }
 
-    train_dataloader = torch.utils.data.DataLoader(train_ds, **params_for_ds(train_ds))
-    val_dataloader = torch.utils.data.DataLoader(val_ds, **params_for_ds(val_ds))
+    train_dataloader = torch.utils.data.DataLoader(
+        train_ds, **params_for_ds(train_ds, batch_size=args.batch)
+    )
+    val_dataloader = torch.utils.data.DataLoader(
+        val_ds, **params_for_ds(val_ds, batch_size=args.batch)
+    )
 
     for epoch in range(args.epochs):
         # breakpoint()
@@ -584,8 +592,8 @@ def simple_train_filter(args):
             #     return
             if args.steps >= 0 and step >= args.steps:
                 break
-            if torch.rand(1).item() < 0.02:
-                gc.collect()
+            # if torch.rand(1).item() < 0.002:
+            #     gc.collect()
             if step % args.save_every == 0:
                 m.eval()
                 save_everything(
@@ -834,7 +842,7 @@ def get_parser_filter():
     parser.add_argument(
         "--val-every",
         type=int,
-        default=1000,
+        default=2500,
     )
     parser.add_argument(
         "--save-every",
