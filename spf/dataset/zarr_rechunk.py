@@ -37,7 +37,9 @@ def compare_and_copy(prefix, src, dst):
                 dst[:] = src[:]
         else:
             for x in range(src.shape[0]):
-                dst[x] = src[x]
+                dst[x] = src[
+                    x
+                ]  # TODO why cant we just copy the whole thing at once? # too big?
 
 
 if __name__ == "__main__":

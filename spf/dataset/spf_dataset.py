@@ -124,8 +124,16 @@ def segment_single_session(
 
 
 def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu=False):
-    print("Segmenting file", zarr_fn)
+
     z = zarr_open_from_lmdb_store(zarr_fn)
+    valid_entries = min(
+        [
+            (z[f"receivers/r{ridx}/system_timestamp"][:] > 0).sum()
+            for ridx in range(len(z["receivers"]))
+        ]
+    )
+
+    print("Segmenting file", valid_entries, zarr_fn)
     assert len(z["receivers"]) == 2
 
     n_sessions, _, _ = z.receivers["r0"].signal_matrix.shape
@@ -142,7 +150,7 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
                 "gpu": gpu,
                 **default_segment_args,
             }
-            for idx in range(n_sessions)
+            for idx in range(valid_entries)
         ]
 
         with Pool(min(cpu_count(), 20)) as pool:  # cpu_count())  # cpu_count() // 4)
@@ -170,24 +178,27 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
 
     for r_idx in [0, 1]:
         # collect all windows stats
-        z[f"r{r_idx}/all_windows_stats"][:] = np.vstack(
+        z[f"r{r_idx}/all_windows_stats"][:valid_entries] = np.vstack(
             [x["all_windows_stats"][None] for x in results_by_receiver[f"r{r_idx}"]]
         )
         # collect windowed beamformer
-        z[f"r{r_idx}/windowed_beamformer"][:] = np.vstack(
+        z[f"r{r_idx}/windowed_beamformer"][:valid_entries] = np.vstack(
             [x["windowed_beamformer"][None] for x in results_by_receiver[f"r{r_idx}"]]
         )
         # collect downsampled segmentation mask
-        z[f"r{r_idx}/downsampled_segmentation_mask"][:] = np.vstack(
+        z[f"r{r_idx}/downsampled_segmentation_mask"][:valid_entries] = np.vstack(
             [
                 x["downsampled_segmentation_mask"][None]
                 for x in results_by_receiver[f"r{r_idx}"]
             ]
         )
-        # remove from dictionary to prevent it from going into pkl file later
-        for x in results_by_receiver[f"r{r_idx}"]:
-            x.pop("all_windows_stats")
-            x.pop("windowed_beamformer")
+
+    simple_segmentation = {}
+    for r_idx in [0, 1]:
+        simple_segmentation[f"r{r_idx}"] = [
+            {"simple_segmentation": x["simple_segmentation"]}
+            for x in results_by_receiver[f"r{r_idx}"]
+        ] + [{"simple_segmentation": []} for _ in range(n_sessions - valid_entries)]
 
     z.store.close()
     z = None
@@ -195,7 +206,7 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
     pickle.dump(
         {
             "version": SEGMENTATION_VERSION,
-            "segmentation_by_receiver": results_by_receiver,
+            "segmentation_by_receiver": simple_segmentation,
         },
         open(results_fn, "wb"),
     )
@@ -505,6 +516,11 @@ class v5spfdataset(Dataset):
                 .to(torch.float32)
                 .mean()
             )
+        else:
+            # if we are a temp verison
+            self.mean_phase = {}
+            for ridx in range(self.n_receivers):
+                self.mean_phase[f"r{ridx}"] = torch.ones(len(self)) * torch.inf
 
         if not ignore_qc:
             assert not temp_file
@@ -522,6 +538,10 @@ class v5spfdataset(Dataset):
                 )
 
         # self.close()
+
+    def get_valid_entries(self):
+        self.refresh()
+        return self.valid_entries
 
     def refresh(self):
         # get how many entries are in the underlying storage
@@ -546,6 +566,13 @@ class v5spfdataset(Dataset):
             self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
             return True
         return False
+
+    def get_mean_phase(self, ridx, idx):
+        v = self.mean_phase[f"r{ridx}"][idx]
+        if torch.isfinite(v):
+            return v
+        else:
+            print("NOT VALID")
 
     def close(self):
         # let workers open their own

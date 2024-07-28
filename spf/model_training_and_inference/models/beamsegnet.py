@@ -474,7 +474,7 @@ def normal_correction_for_bounded_range(
 
 
 @torch.jit.script
-def normal_dist(x, y, sigma):
+def normal_dist(x: torch.Tensor, y: torch.Tensor, sigma: torch.Tensor):
     assert x.ndim == 1
     assert y.ndim == 1
     assert sigma.ndim == 1
@@ -534,7 +534,8 @@ class NormalNet(nn.Module):
 
         self.beam_net = beam_net
 
-    def fixify(self, _y, sign):
+    # @torch.compile
+    def fixify(self, _y: torch.Tensor, sign: float):
         _y_sig = self.sigmoid(_y)  # in [0,1]
         if self.no_sigmoid:
             mean_values = sign * _y[:, [0]]
@@ -556,10 +557,17 @@ class NormalNet(nn.Module):
             ]
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return self.fixify(self.beam_net(x), sign=1)
 
-    def likelihood(self, x, y, sigma_eps=0.01, smoothing_prob=0.0001):
+    # @torch.compile
+    def likelihood(
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+    ):
+        sigma_eps: float = 0.01
+        smoothing_prob: float = 0.0001
         assert y.ndim == 2 and y.shape[1] == 1
         assert x.ndim == 2 and x.shape[1] >= 5
         ### EXTREMELY IMPORTANT!!! x[:,[0]] NOT x[:,0]
@@ -618,18 +626,20 @@ class NormalNet(nn.Module):
         assert likelihood.shape == (x.shape[0], 1)
         return likelihood + smoothing_prob
 
-    def mse(self, x, y):
+    # @torch.compile
+    def mse(self, x: torch.Tensor, y: torch.Tensor):
         # not sure why we cant wrap around for torch.pi/2....
         # assert np.isclose(self.max_angle, torch.pi, atol=0.05)
         # if self.max_angle == torch.pi:
         return (torch_pi_norm(x[:, 0] - y[:, 0], max_angle=self.max_angle) ** 2).mean()
         # return ((x[:, 0] - y[:, 0]) ** 2).mean()
 
-    def loglikelihood(self, x, y, log_eps=0.000000001):
-        return torch.log(self.likelihood(x, y) + log_eps)
+    # @torch.compile
+    def loglikelihood(self, x: torch.Tensor, y: torch.Tensor):  # , log_eps: float =
+        return torch.log(self.likelihood(x, y) + 0.000000001)
 
     # this is discrete its already rendered
-    def render_discrete_x(self, x):
+    def render_discrete_x(self, x: torch.Tensor):
 
         thetas = torch.linspace(
             -self.max_angle,
@@ -650,7 +660,7 @@ class NormalNet(nn.Module):
         return likelihoods
 
     # this is discrete its already rendered
-    def render_discrete_y(self, y):
+    def render_discrete_y(self, y: torch.Tensor):
         assert y.abs().max() <= self.max_angle
         return v5_thetas_to_targets(y, self.nthetas, sigma=0.5, range_in_rad=1)
 
@@ -721,6 +731,7 @@ class BeamNetDirect(NormalNet):
         self.rx_spacing_track = rx_spacing_track
         self.symmetry = symmetry
 
+    # @torch.compile
     def forward(self, x):
         # split into pd>=0 and pd<0
 

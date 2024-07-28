@@ -50,8 +50,8 @@ def pi_norm_halfpi(x):
     return ((x + np.pi / 2) % (2 * np.pi / 2)) - np.pi / 2
 
 
-def torch_pi_norm(x, max_angle=torch.pi):
-    return ((x + max_angle) % (2 * max_angle)) - max_angle
+# def torch_pi_norm(x, max_angle=torch.pi):
+#     return ((x + max_angle) % (2 * max_angle)) - max_angle
 
 
 @torch.jit.script
@@ -59,7 +59,8 @@ def torch_pi_norm_pi(x):
     return ((x + torch.pi) % (2 * torch.pi)) - torch.pi
 
 
-def torch_pi_norm(x, max_angle=torch.pi):
+@torch.jit.script
+def torch_pi_norm(x: torch.Tensor, max_angle: float = torch.pi):
     return ((x + max_angle) % (2 * max_angle)) - max_angle
 
 
@@ -172,11 +173,12 @@ def circular_mean(angles, trim, weights=None):
     return pi_norm(cm), pi_norm(_cm)
 
 
-def torch_circular_diff_to_mean(angles, means):
+@torch.jit.script
+def torch_circular_diff_to_mean(angles: torch.Tensor, means: torch.Tensor):
     assert means.ndim == 1
     a = torch.abs(means[:, None] - angles) % (2 * torch.pi)
     b = 2 * torch.pi - a
-    m, _ = torch.min(torch.vstack([a[None], b[None]]), axis=0)
+    m, _ = torch.min(torch.vstack([a[None], b[None]]), dim=0)
     return m
 
 
@@ -193,7 +195,7 @@ def torch_circular_mean(angles, trim, weights=None):
     )
 
     if trim == 0.0:
-        r = torch_pi_norm(cm)
+        r = torch_pi_norm_pi(cm)
         return r, r
 
     dists = torch_circular_diff_to_mean(angles=angles, means=cm)
@@ -206,7 +208,7 @@ def torch_circular_mean(angles, trim, weights=None):
             _cos_angles[idx][mask[idx]].sum(),
         ) % (2 * torch.pi)
 
-    return torch_pi_norm(cm), torch_pi_norm(_cm)
+    return torch_pi_norm_pi(cm), torch_pi_norm_pi(_cm)
 
 
 # helper function to expand a dictionary in keywords args
@@ -217,6 +219,8 @@ def segment_session_star(arg_dict):
 # take a single zarr, receiver and session_idx and segment it
 def segment_session(zarr_fn, receiver, session_idx, gpu=True, **kwrgs):
     with zarr_open_from_lmdb_store_cm(zarr_fn, mode="r") as z:
+        # z[f"receivers/r{receiver}/system_timestamp"][session_idx] > 0
+
         v = z.receivers[receiver].signal_matrix[session_idx][:]
 
         segmentation_results = simple_segment(v, **kwrgs)
@@ -441,8 +445,9 @@ def get_phase_diff(signal_matrix):
     return pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
 
 
-def torch_get_phase_diff(signal_matrix):
-    return torch_pi_norm(signal_matrix[:, 0].angle() - signal_matrix[:, 1].angle())
+@torch.jit.script
+def torch_get_phase_diff(signal_matrix: torch.Tensor):
+    return torch_pi_norm_pi(signal_matrix[:, 0].angle() - signal_matrix[:, 1].angle())
 
 
 def get_avg_phase(signal_matrix, trim=0.0):

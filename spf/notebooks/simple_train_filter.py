@@ -2,6 +2,7 @@ import argparse
 from functools import cache, partial
 
 import numpy as np
+import tensordict
 import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
@@ -22,6 +23,7 @@ from pstats import SortKey, Stats
 from spf.rf import (
     reduce_theta_to_positive_y,
     torch_pi_norm,
+    torch_pi_norm_pi,
     torch_reduce_theta_to_positive_y,
 )
 
@@ -34,6 +36,8 @@ from torch.nn import (
 )
 
 from torch.utils.data import DistributedSampler, Sampler, BatchSampler
+
+torch.set_float32_matmul_precision("high")
 
 
 # from fair-chem repo
@@ -175,6 +179,25 @@ class DebugFunkyNet(torch.nn.Module):
         }
 
 
+# @torch.no_grad
+# @torch.compile
+def random_loss(target: torch.Tensor, y_rad_reduced: torch.Tensor):
+    random_target = (torch.rand(target.shape, device=target.device) - 0.5) * 2 * np.pi
+    beamnet_mse_random = (
+        torch_pi_norm(
+            y_rad_reduced
+            - (torch.rand(y_rad_reduced.shape, device=target.device) - 0.5)
+            * 2
+            * np.pi
+            / 2,
+            max_angle=torch.pi / 2,
+        )
+        ** 2
+    ).mean()
+    transformer_random_loss = (torch_pi_norm_pi(target - random_target) ** 2).mean()
+    return beamnet_mse_random, transformer_random_loss
+
+
 class FunkyNet(torch.nn.Module):
     def __init__(
         self,
@@ -268,6 +291,7 @@ class FunkyNet(torch.nn.Module):
         self.paired_drop_in_gt = 0.00
         self.token_dropout = token_dropout
 
+    # @torch.compile
     def forward(self, x, seg_mask, rx_spacing, y_rad, windowed_beam_former, rx_pos):
         rx_pos = rx_pos.detach().clone() / 4000
 
@@ -354,16 +378,18 @@ class FunkyNet(torch.nn.Module):
             "pred_theta": pred_theta,
         }
 
-    def loss(self, output, y_rad, craft_y_rad, seg_mask):
+    # @torch.compile
+    def loss(
+        self,
+        output: torch.Tensor,
+        y_rad: torch.Tensor,
+        craft_y_rad: torch.Tensor,
+        seg_mask: torch.Tensor,
+    ):
         target = craft_y_rad[::2, [-1]]
         transformer_loss = (
-            torch_pi_norm(target - output["transformer_output"]) ** 2
+            torch_pi_norm_pi(target - output["transformer_output"]) ** 2
         ).mean()
-
-        random_target = (
-            (torch.rand(target.shape, device=target.device) - 0.5) * 2 * np.pi
-        )
-        transformer_random_loss = (torch_pi_norm(target - random_target) ** 2).mean()
 
         y_rad_reduced = torch_reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
         # x to beamformer loss (indirectly including segmentation)
@@ -372,18 +398,10 @@ class FunkyNet(torch.nn.Module):
         ).mean()
 
         beamnet_mse = self.beam_m.mse(output["pred_theta"], y_rad_reduced)
-        beamnet_mse_random = (
-            torch_pi_norm(
-                y_rad_reduced
-                - (torch.rand(y_rad_reduced.shape, device=target.device) - 0.5)
-                * 2
-                * np.pi
-                / 2,
-                max_angle=torch.pi / 2,
-            )
-            ** 2
-        ).mean()
+
         loss = transformer_loss + beamnet_loss
+
+        beamnet_mse_random, transformer_random_loss = random_loss(target, y_rad_reduced)
         return {
             "loss": loss,
             "transformer_mse_loss": transformer_loss,
@@ -394,7 +412,12 @@ class FunkyNet(torch.nn.Module):
         }
 
 
-def batch_data_to_x_y_seg(batch_data, torch_device, dtype):
+# @torch.compile
+def batch_data_to_x_y_seg(
+    batch_data: tensordict.tensordict.TensorDict,
+    torch_device: torch.device,
+    dtype: torch.dtype,
+):
     # x ~ # trimmed_cm, trimmed_stddev, abs_signal_median
     batch_data = batch_data.to(torch_device)
     x = batch_data["all_windows_stats"].to(dtype=dtype)
@@ -521,7 +544,7 @@ def simple_train_filter(args):
             ignore_qc=args.skip_qc,
             gpu=args.device == "cuda",
             snapshots_per_session=args.snapshots_per_session,
-            readahead=False,
+            readahead=True,
             skip_simple_segmentations=True,
         )
         for prefix in args.datasets

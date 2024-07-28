@@ -187,7 +187,7 @@ def create_fake_dataset(
                 "rx_pos_y_mm": 0,
                 "tx_pos_x_mm": np.sin(thetas[record_idx]) * radius,
                 "tx_pos_y_mm": np.cos(thetas[record_idx]) * radius,
-                "system_timestamp": record_idx * 5.0,
+                "system_timestamp": 1.0 + record_idx * 5.0,
                 "rx_theta_in_pis": yaml_config["receivers"][receiver_idx][
                     "theta-in-pis"
                 ],
