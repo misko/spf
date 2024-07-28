@@ -27,7 +27,9 @@ dependencies = [
  "torchvision",
  "lmdb",
  "pytest-console-scripts",
- "pre-commit"
+ "pre-commit",
+ "tensordict",
+ "filterpy"
 ]
 requires-python = ">=3.10"
 description = "Signal Processing Fun"
