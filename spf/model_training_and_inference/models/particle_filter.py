@@ -324,15 +324,6 @@ class PFXYDualRadio(ParticleFilter):
         #     np.vstack([ds[0][0]["tx_pos_x_mm"], ds[0][0]["tx_pos_y_mm"]]).T
         # )
 
-    def tx_state(self, idx):
-        return torch.concatenate(
-            [
-                self.ds[idx][0]["tx_pos_x_mm"].reshape(1),
-                self.ds[idx][0]["tx_pos_y_mm"].reshape(1),
-            ],
-            axis=0,
-        )
-
     def our_state(self, idx):
         return torch.vstack(
             [
@@ -431,12 +422,12 @@ def plot_single_theta_single_radio(ds, full_p_fn):
         )
         ax[0, rx_idx].plot(ds.ground_truth_phis[rx_idx][:n], label="perfect phi")
         ax[1, rx_idx].plot(
-            ds[0][rx_idx]["ground_truth_theta"],
+            ds.ground_truth_thetas[rx_idx].reshape(-1),
             label=f"r{rx_idx} gt theta",
         )
 
-        xs = torch.vstack([x["mu"][0] for x in trajectory])
-        stds = torch.sqrt(torch.vstack([x["var"][0] for x in trajectory]))
+        xs = torch.hstack([x["mu"][0] for x in trajectory])
+        stds = torch.sqrt(torch.hstack([x["var"][0] for x in trajectory]))
 
         ax[1, rx_idx].fill_between(
             torch.arange(xs.shape[0]),
@@ -446,12 +437,13 @@ def plot_single_theta_single_radio(ds, full_p_fn):
             color="red",
             alpha=0.2,
         )
+
         ax[1, rx_idx].scatter(
-            range(ds.snapshots_per_session), xs, label="PF-x", color="orange", s=0.5
+            range(xs.shape[0]), xs, label="PF-x", color="orange", s=0.5
         )
 
         ax[1, rx_idx].plot(
-            reduce_theta_to_positive_y(ds[0][rx_idx]["ground_truth_theta"]),
+            reduce_theta_to_positive_y(ds.ground_truth_thetas[rx_idx]),
             label=f"r{rx_idx} reduced gt theta",
             color="black",
             linestyle="dashed",
@@ -499,13 +491,14 @@ def plot_single_theta_dual_radio(ds, full_p_fn):
         )
 
     ax[1].plot(
-        torch_pi_norm_pi(ds[0][0]["craft_y_rad"][0]),
+        # torch_pi_norm_pi(ds[0][0]["craft_y_rad"][0]),
+        torch_pi_norm_pi(ds.craft_ground_truth_thetas),
         label="craft gt theta",
         linestyle="dashed",
     )
 
-    xs = torch.vstack([x["mu"][0] for x in traj_paired])
-    stds = torch.sqrt(torch.vstack([x["var"][0] for x in traj_paired]))
+    xs = torch.hstack([x["mu"][0] for x in traj_paired])
+    stds = torch.sqrt(torch.hstack([x["var"][0] for x in traj_paired]))
 
     ax[1].fill_between(
         torch.arange(xs.shape[0]),
@@ -559,10 +552,11 @@ def plot_xy_dual_radio(ds, full_p_fn):
             linestyle="dashed",
         )
 
-    ax[1].plot(torch_pi_norm_pi(ds[0][0]["craft_y_rad"][0]))
+    # ax[1].plot(torch_pi_norm_pi(ds[0][0]["craft_y_rad"][0]))
+    ax[1].plot(torch_pi_norm_pi(ds.craft_ground_truth_thetas))
 
-    xs = torch.vstack([x["mu"][0] for x in traj_paired])
-    stds = torch.sqrt(torch.vstack([x["var"][0] for x in traj_paired]))
+    xs = torch.hstack([x["mu"][0] for x in traj_paired])
+    stds = torch.sqrt(torch.hstack([x["var"][0] for x in traj_paired]))
 
     ax[1].fill_between(
         torch.arange(xs.shape[0]),
@@ -572,20 +566,20 @@ def plot_xy_dual_radio(ds, full_p_fn):
         color="red",
         alpha=0.2,
     )
-    ax[1].scatter(
-        range(ds.snapshots_per_session), xs, label="PF-x", color="orange", s=0.5
-    )
+    ax[1].scatter(range(xs.shape[0]), xs, label="PF-x", color="orange", s=0.5)
 
+    gt_xy = torch.vstack(
+        [
+            ds.cached_keys[0]["tx_pos_x_mm"],
+            ds.cached_keys[0]["tx_pos_y_mm"],
+        ]
+    )
     xys = torch.vstack([x["mu"][[1, 2]] for x in traj_paired])
-    ax[2].scatter(
-        range(ds.snapshots_per_session), xys[:, 0], label="PF-x", color="orange", s=0.5
-    )
-    ax[2].scatter(
-        range(ds.snapshots_per_session), xys[:, 1], label="PF-y", color="blue", s=0.5
-    )
-    tx = np.vstack([ds[0][0]["tx_pos_x_mm"], ds[0][0]["tx_pos_y_mm"]])
-    ax[2].plot(tx[0, :], label="gt-x", color="red")
-    ax[2].plot(tx[1, :], label="gt-y", color="black")
+    ax[2].scatter(range(xys.shape[0]), xys[:, 0], label="PF-x", color="orange", s=0.5)
+    ax[2].scatter(range(xys.shape[0]), xys[:, 1], label="PF-y", color="blue", s=0.5)
+    # tx = np.vstack([ds[0][0]["tx_pos_x_mm"], ds[0][0]["tx_pos_y_mm"]])
+    ax[2].plot(gt_xy[0, :], label="gt-x", color="red")
+    ax[2].plot(gt_xy[1, :], label="gt-y", color="black")
 
     ax[0].set_ylabel("radio phi")
 

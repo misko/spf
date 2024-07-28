@@ -450,7 +450,7 @@ class v5spfdataset(Dataset):
                     [
                         (
                             # TODO:UNBUG (circular mean)
-                            np.array(
+                            torch.tensor(
                                 [x["mean"] for x in result["simple_segmentation"]]
                             ).mean()
                             if len(result["simple_segmentation"]) > 0
@@ -462,31 +462,39 @@ class v5spfdataset(Dataset):
                 )
 
             self.all_phi_drifts = self.get_all_phi_drifts()
-            self.phi_drifts = np.array(
-                [np.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts]
+            self.phi_drifts = torch.tensor(
+                [torch.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts]
             )
-            self.average_windows_in_segmentation = np.array(
-                [
+            self.average_windows_in_segmentation = (
+                torch.tensor(
                     [
-                        len(x["simple_segmentation"])
-                        for x in self.segmentation["segmentation_by_receiver"][
-                            f"r{rx_idx}"
+                        [
+                            len(x["simple_segmentation"])
+                            for x in self.segmentation["segmentation_by_receiver"][
+                                f"r{rx_idx}"
+                            ]
                         ]
+                        for rx_idx in range(self.n_receivers)
                     ]
-                    for rx_idx in range(self.n_receivers)
-                ]
-            ).mean()
-            self.mean_sessions_with_maybe_valid_segmentation = np.array(
-                [
+                )
+                .to(torch.float32)
+                .mean()
+            )
+            self.mean_sessions_with_maybe_valid_segmentation = (
+                torch.tensor(
                     [
-                        len(x["simple_segmentation"]) > 2
-                        for x in self.segmentation["segmentation_by_receiver"][
-                            f"r{rx_idx}"
+                        [
+                            len(x["simple_segmentation"]) > 2
+                            for x in self.segmentation["segmentation_by_receiver"][
+                                f"r{rx_idx}"
+                            ]
                         ]
+                        for rx_idx in [0, 1]
                     ]
-                    for rx_idx in [0, 1]
-                ]
-            ).mean()
+                )
+                .to(torch.float32)
+                .mean()
+            )
 
         if not ignore_qc:
             assert not temp_file
@@ -774,7 +782,7 @@ class v5spfdataset(Dataset):
             rx_to_tx_theta = torch.arctan2(d[0], d[1])
             rx_theta_in_pis = self.cached_keys[ridx]["rx_theta_in_pis"]
             ground_truth_thetas.append(
-                torch_pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * np.pi)
+                torch_pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * torch.pi)
             )
         # reduce GT thetas in case of two antennas
         # in 2D there are generally two spots that satisfy phase diff

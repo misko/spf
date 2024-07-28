@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
-
+import random
 from spf.data_collector import rx_config_from_receiver_yaml
 from spf.dataset.spf_dataset import pi_norm
 
@@ -94,7 +94,10 @@ def create_fake_dataset(
     noise=0.01,
     phi_drift=0.0,
     radius=10000,
+    seed=0,
 ):
+    random.seed(seed)
+    np.random.seed(seed)
     yaml_fn = f"{filename}.yaml"
     zarr_fn = f"{filename}.zar"
     seg_fn = f"{filename}_segmentation.pkl"

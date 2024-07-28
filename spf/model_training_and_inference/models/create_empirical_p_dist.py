@@ -16,8 +16,8 @@ def get_heatmap(dss, bins=50):
     return heatmaps[0].copy() + heatmaps[1].copy()
 
 
-def apply_symmetry_rules_to_heatmap(h):
-    half = h[:25] + np.flip(h[25:])
+def apply_symmetry_rules_to_heatmap(h, bins=50):
+    half = h[: bins // 2] + np.flip(h[bins // 2 :])
     half = half + np.flip(half, axis=0)
     full = np.vstack([half, np.flip(half)])
     return full / full.sum(axis=1, keepdims=True)
