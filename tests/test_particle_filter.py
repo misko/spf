@@ -1,7 +1,9 @@
 import tempfile
-from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
-from spf.dataset.spf_dataset import v5spfdataset
 
+import torch
+from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml, partial_dataset
+from spf.dataset.spf_dataset import v5spfdataset
+import random
 from spf.model_training_and_inference.models.create_empirical_p_dist import (
     apply_symmetry_rules_to_heatmap,
     get_heatmap,
@@ -121,3 +123,40 @@ def test_single_theta_dual_radio(noise1_n128_obits2, heatmap):
     result = run_xy_dual_radio(**args)
     assert result[0]["metrics"]["mse_theta"] < 0.25
     plot_xy_dual_radio(ds, heatmap)
+
+
+def test_partial(noise1_n128_obits2):
+    dirname, ds_fn = noise1_n128_obits2
+    ds_og = v5spfdataset(
+        ds_fn,
+        precompute_cache=dirname,
+        nthetas=65,
+        skip_signal_matrix=True,
+        paired=True,
+        ignore_qc=True,
+        gpu=False,
+    )
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        ds_fn_out = f"{tmpdirname}/partial"
+        for partial_n in [10, 100, 128]:
+            partial_dataset(ds_fn, ds_fn_out, partial_n)
+            ds = v5spfdataset(
+                ds_fn_out,
+                precompute_cache=tmpdirname,
+                nthetas=65,
+                skip_signal_matrix=True,
+                paired=True,
+                ignore_qc=True,
+                gpu=False,
+                temp_file=True,
+                temp_file_suffix="",
+            )
+            assert min(ds.valid_entries) == partial_n
+            random.seed(0)
+            idxs = list(range(partial_n))
+            random.shuffle(idxs)
+            for idx in idxs[:8]:
+                for r_idx in range(2):
+                    for key in ds_og[0][0].keys():
+                        if isinstance(ds_og[idx][r_idx][key], torch.Tensor):
+                            assert (ds_og[idx][r_idx][key] == ds[idx][r_idx][key]).all()

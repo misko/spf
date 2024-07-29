@@ -140,13 +140,16 @@ def reduce_theta_to_positive_y(ground_truth_thetas):
     return reduced_thetas
 
 
+# @njit
 def circular_diff_to_mean(angles, means):
     assert means.ndim == 1
     a = np.abs(means[:, None] - angles) % (2 * np.pi)
     b = 2 * np.pi - a
+    # breakpoint()
     return np.min(np.vstack([a[None], b[None]]), axis=0)
 
 
+# @njit
 def circular_mean(angles, trim, weights=None):
     assert angles.ndim == 2
     _sin_angles = np.sin(angles)
@@ -182,7 +185,18 @@ def torch_circular_diff_to_mean(angles: torch.Tensor, means: torch.Tensor):
     return m
 
 
-def torch_circular_mean(angles, trim, weights=None):
+@torch.jit.script
+def torch_circular_mean_notrim(angles: torch.Tensor):
+    assert angles.ndim == 2
+    _sin_angles = torch.sin(angles)
+    _cos_angles = torch.cos(angles)
+    cm = torch.arctan2(_sin_angles.sum(dim=1), _cos_angles.sum(dim=1)) % (2 * torch.pi)
+
+    r = torch_pi_norm_pi(cm)
+    return r, r
+
+
+def torch_circular_mean(angles: torch.Tensor, trim: float, weights=None):
     assert angles.ndim == 2
     _sin_angles = torch.sin(angles)
     _cos_angles = torch.cos(angles)
@@ -190,9 +204,7 @@ def torch_circular_mean(angles, trim, weights=None):
         _sin_angles = _sin_angles * weights
         _cos_angles = _cos_angles * weights
 
-    cm = torch.arctan2(_sin_angles.sum(axis=1), _cos_angles.sum(axis=1)) % (
-        2 * torch.pi
-    )
+    cm = torch.arctan2(_sin_angles.sum(dim=1), _cos_angles.sum(dim=1)) % (2 * torch.pi)
 
     if trim == 0.0:
         r = torch_pi_norm_pi(cm)
@@ -200,7 +212,7 @@ def torch_circular_mean(angles, trim, weights=None):
 
     dists = torch_circular_diff_to_mean(angles=angles, means=cm)
 
-    mask = dists <= torch.quantile(dists, (1.0 - trim / 100), axis=1, keepdims=True)
+    mask = dists <= torch.quantile(dists, (1.0 - trim / 100), dim=1, keepdim=True)
     _cm = torch.zeros(angles.shape[0])
     for idx in range(angles.shape[0]):
         _cm[idx] = torch.arctan2(
@@ -450,6 +462,32 @@ def torch_get_phase_diff(signal_matrix: torch.Tensor):
     return torch_pi_norm_pi(signal_matrix[:, 0].angle() - signal_matrix[:, 1].angle())
 
 
+# @njit
+def get_avg_phase(signal_matrix, trim=0.0):
+    return np.array(
+        circular_mean(get_phase_diff(signal_matrix=signal_matrix)[None], trim=trim)
+    ).reshape(-1)
+
+
+@torch.jit.script
+def torch_get_avg_phase_notrim(signal_matrix: torch.Tensor):
+    return torch.hstack(
+        torch_circular_mean_notrim(
+            torch_get_phase_diff(signal_matrix=signal_matrix)[None],
+        )
+    )
+
+
+# @torch.jit.script
+def torch_get_avg_phase(signal_matrix: torch.Tensor, trim: float):
+    return torch.tensor(
+        torch_circular_mean(
+            torch_get_phase_diff(signal_matrix=signal_matrix)[None], trim
+        )
+    )
+
+
+# @njit
 def get_avg_phase(signal_matrix, trim=0.0):
     return np.array(
         circular_mean(get_phase_diff(signal_matrix=signal_matrix)[None], trim=trim)

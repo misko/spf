@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from datetime import datetime
 
 import numpy as np
+import torch
 import yaml
 import zarr
 from numcodecs import Blosc
@@ -34,6 +35,11 @@ def random_signal_matrix(n, rng=None):
     if rng is not None:
         return rng.uniform(-1, 1, (n,)) + 1.0j * rng.uniform(-1, 1, (n,))
     return np.random.uniform(-1, 1, (n,)) + 1.0j * np.random.uniform(-1, 1, (n,))
+
+
+@torch.jit.script
+def torch_random_signal_matrix(n: int):
+    return (torch.rand((n,)) - 0.5) * 2 + 1.0j * (torch.rand((n,)) - 0.5)
 
 
 def zarr_remove_if_exists(zarr_fn):

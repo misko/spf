@@ -180,12 +180,12 @@ class PFSingleThetaSingleRadio(ParticleFilter):
         # self.mean_phase[f"r{receiver_idx}"][snapshot_start_idx:snapshot_end_idx]
         return self.ds.mean_phase[f"r{self.rx_idx}"][idx]
         # breakpoint()
-        # return (
-        #     self.ds[idx][self.rx_idx]["mean_phase_segmentation"]
-        #     .detach()
-        #     .numpy()
-        #     .reshape(-1)
-        # )
+        return (
+            self.ds[idx][self.rx_idx]["mean_phase_segmentation"]
+            .detach()
+            .numpy()
+            .reshape(-1)
+        )
 
     def fix_particles(self):
         self.particles = fix_particles_single(self.particles)

@@ -1,11 +1,15 @@
+import argparse
 import os
+import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import yaml
 import random
 from spf.data_collector import rx_config_from_receiver_yaml
 from spf.dataset.spf_dataset import pi_norm
+import zarr
 
 # V5 data format
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
@@ -15,9 +19,36 @@ from spf.rf import (
     pi_norm,
     precompute_steering_vectors,
     speed_of_light,
+    torch_get_avg_phase,
+    torch_get_avg_phase_notrim,
+    torch_pi_norm_pi,
 )
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
-from spf.utils import random_signal_matrix
+from spf.utils import (
+    random_signal_matrix,
+    torch_random_signal_matrix,
+    zarr_open_from_lmdb_store,
+    zarr_shrink,
+)
+
+
+@torch.jit.script
+def phi_to_signal_matrix(
+    phi: torch.Tensor, buffer_size: int, noise: float, phi_drift: float
+):
+    big_phi = phi.repeat(buffer_size).reshape(1, -1)
+    big_phi_with_noise = big_phi + torch.randn((1, buffer_size)) * noise
+    offsets = torch.zeros(big_phi.shape, dtype=torch.complex128)
+    return (
+        torch.vstack(
+            [
+                torch.exp(1j * (offsets + phi_drift)),
+                torch.exp(1j * (offsets + big_phi_with_noise)),
+            ]
+        )
+        * 200
+    )
+
 
 """
 theta is the angle from array normal to incident
@@ -123,24 +154,24 @@ def create_fake_dataset(
         config=yaml_config,
     )
 
-    thetas = pi_norm(
-        np.linspace(0, 2 * np.pi * orbits, yaml_config["n-records-per-receiver"])
+    thetas = torch_pi_norm_pi(
+        torch.linspace(0, 2 * torch.pi * orbits, yaml_config["n-records-per-receiver"])
     )
 
     def theta_to_phi(theta, antenna_spacing_m, _lambda):
-        return np.sin(theta) * antenna_spacing_m * 2 * np.pi / _lambda
+        return torch.sin(theta) * antenna_spacing_m * 2 * torch.pi / _lambda
 
     def phi_to_theta(phi, antenna_spacing_m, _lambda, limit=False):
-        sin_arg = _lambda * phi / (antenna_spacing_m * 2 * np.pi)
+        sin_arg = _lambda * phi / (antenna_spacing_m * 2 * torch.pi)
         # assert sin_arg.min()>-1
         # assert sin_arg.max()<1
         if limit:
             edge = 1 - 1e-8
-            sin_arg = np.clip(sin_arg, a_min=-edge, a_max=edge)
-        v = np.arcsin(_lambda * phi / (antenna_spacing_m * 2 * np.pi))
-        return v, np.pi - v
+            sin_arg = torch.clip(sin_arg, min=-edge, max=edge)
+        v = torch.arcsin(_lambda * phi / (antenna_spacing_m * 2 * torch.pi))
+        return v, torch.pi - v
 
-    rnd_noise = np.random.randn(thetas.shape[0])
+    rnd_noise = torch.randn(thetas.shape[0])
 
     # signal_matrix = np.vstack([np.exp(1j * phis), np.ones(phis.shape)])
 
@@ -149,29 +180,18 @@ def create_fake_dataset(
             thetas - yaml_config["receivers"][receiver_idx]["theta-in-pis"] * np.pi
         )
         phis_nonoise = theta_to_phi(receiver_thetas, rx_config.rx_spacing, _lambda)
-        phis = pi_norm(phis_nonoise + rnd_noise * noise)
-        _thetas = phi_to_theta(phis, rx_config.rx_spacing, _lambda, limit=True)
+        phis = torch_pi_norm_pi(phis_nonoise + rnd_noise * noise)
+        # _thetas = phi_to_theta(phis, rx_config.rx_spacing, _lambda, limit=True)
 
         for record_idx in range(yaml_config["n-records-per-receiver"]):
-            big_phi = phis[[record_idx], None].repeat(rx_config.buffer_size, axis=1)
-            big_phi_with_noise = big_phi + np.random.randn(*big_phi.shape) * noise
-            offsets = np.random.uniform(-np.pi, np.pi, big_phi.shape) * 0
-            signal_matrix = (
-                np.vstack(
-                    [
-                        np.exp(
-                            1j
-                            * (
-                                offsets
-                                + phi_drift * np.pi * (1 if receiver_idx == 0 else -1)
-                            )
-                        ),
-                        np.exp(1j * (offsets + big_phi_with_noise)),
-                    ]
-                )
-                * 200
+            signal_matrix = phi_to_signal_matrix(
+                phis[[record_idx]],
+                rx_config.buffer_size,
+                noise,
+                phi_drift * torch.pi * (1 if receiver_idx == 0 else -1),
             )
-            noise_matrix = random_signal_matrix(
+
+            noise_matrix = torch_random_signal_matrix(
                 signal_matrix.reshape(-1).shape[0]
             ).reshape(signal_matrix.shape)
             # add stripes
@@ -185,8 +205,8 @@ def create_fake_dataset(
             data = {
                 "rx_pos_x_mm": 0,
                 "rx_pos_y_mm": 0,
-                "tx_pos_x_mm": np.sin(thetas[record_idx]) * radius,
-                "tx_pos_y_mm": np.cos(thetas[record_idx]) * radius,
+                "tx_pos_x_mm": torch.sin(thetas[record_idx]) * radius,
+                "tx_pos_y_mm": torch.cos(thetas[record_idx]) * radius,
                 "system_timestamp": 1.0 + record_idx * 5.0,
                 "rx_theta_in_pis": yaml_config["receivers"][receiver_idx][
                     "theta-in-pis"
@@ -194,13 +214,13 @@ def create_fake_dataset(
                 "rx_spacing": rx_config.rx_spacing,
                 "rx_lo": rx_config.lo,
                 "rx_bandwidth": rx_config.rf_bandwidth,
-                "avg_phase_diff": get_avg_phase(signal_matrix),
+                "avg_phase_diff": torch_get_avg_phase_notrim(signal_matrix),  # , 0.0),
                 "rssis": [0, 0],
                 "gains": [0, 0],
             }
 
             z = m[f"receivers/r{receiver_idx}"]
-            z.signal_matrix[record_idx] = signal_matrix
+            z.signal_matrix[record_idx] = signal_matrix.numpy()
             for k in v5rx_f64_keys + v5rx_2xf64_keys:
                 z[k][record_idx] = data[k]
             # nthetas = 64 + 1
@@ -214,3 +234,96 @@ def create_fake_dataset(
             #     steering_vectors=steering_vectors,
             #     signal_matrix=signal_matrix,
             # )
+
+
+def compare_and_copy_n(prefix, src, dst, n):
+    if isinstance(src, zarr.hierarchy.Group):
+        for key in src.keys():
+            compare_and_copy_n(prefix + "/" + key, src[key], dst[key], n)
+    else:
+        if prefix == "/config":
+            if src.shape != ():
+                dst[:] = src[:]
+        else:
+            for x in range(n):
+                dst[x] = src[x]
+
+
+def partial_dataset(input_fn, output_fn, n):
+    input_fn.replace(".zarr", "")
+    z = zarr_open_from_lmdb_store(input_fn + ".zarr")
+    timesteps, _, buffer_size = z["receivers/r0/signal_matrix"].shape
+    input_yaml_fn = input_fn + ".yaml"
+    output_yaml_fn = output_fn + ".yaml"
+    yaml_config = yaml.safe_load(open(input_yaml_fn, "r"))
+    shutil.copyfile(input_yaml_fn, output_yaml_fn)
+    new_z = v5rx_new_dataset(
+        filename=output_fn + ".zarr",
+        timesteps=timesteps,
+        buffer_size=buffer_size,
+        n_receivers=len(yaml_config["receivers"]),
+        chunk_size=512,
+        compressor=None,
+        config=yaml_config,
+        remove_if_exists=False,
+    )
+    compare_and_copy_n("", z, new_z, n)
+    new_z.store.close()
+    new_z = None
+    zarr_shrink(output_fn)
+
+
+def get_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--filename",
+        type=str,
+        required=False,
+        default="fake_dataset",
+    )
+    parser.add_argument(
+        "--orbits",
+        type=int,
+        required=False,
+        default="2",
+    )
+    parser.add_argument(
+        "--n",
+        type=int,
+        required=False,
+        default="1024",
+    )
+    parser.add_argument(
+        "--noise",
+        type=float,
+        required=False,
+        default="0.3",
+    )
+    parser.add_argument(
+        "--phi-drift",
+        type=float,
+        required=False,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        required=False,
+        default=0,
+    )
+    return parser
+
+
+if __name__ == "__main__":
+    parser = get_parser()
+    args = parser.parse_args()
+    create_fake_dataset(
+        fake_yaml,
+        args.filename,
+        orbits=args.orbits,
+        n=args.n,
+        noise=args.noise,
+        phi_drift=args.phi_drift,
+        radius=10000,
+        seed=args.seed,
+    )

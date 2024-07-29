@@ -512,27 +512,7 @@ class v5spfdataset(Dataset):
             ).expand(1, self.snapshots_per_session)
 
         if not self.temp_file:
-
             self.get_segmentation()
-            # get mean phase segmentation
-            self.mean_phase = {}
-            for receiver, results in self.segmentation[
-                "segmentation_by_receiver"
-            ].items():
-                self.mean_phase[receiver] = torch.tensor(
-                    [
-                        (
-                            # TODO:UNBUG (circular mean)
-                            torch.tensor(
-                                [x["mean"] for x in result["simple_segmentation"]]
-                            ).mean()
-                            if len(result["simple_segmentation"]) > 0
-                            else 0.0
-                        )
-                        for result in results
-                    ],
-                    dtype=torch.float32,
-                )
 
             self.all_phi_drifts = self.get_all_phi_drifts()
             self.phi_drifts = torch.tensor(
@@ -850,6 +830,24 @@ class v5spfdataset(Dataset):
         assert self.n_receivers == 2
         return torch.vstack(ground_truth_thetas)
 
+    def get_mean_phase(self):
+        self.mean_phase = {}
+        for receiver, results in self.segmentation["segmentation_by_receiver"].items():
+            self.mean_phase[receiver] = torch.tensor(
+                [
+                    (
+                        # TODO:UNBUG (circular mean)
+                        torch.tensor(
+                            [x["mean"] for x in result["simple_segmentation"]]
+                        ).mean()
+                        if len(result["simple_segmentation"]) > 0
+                        else 0.0
+                    )
+                    for result in results
+                ],
+                dtype=torch.float32,
+            )
+
     def __getitem__(self, idx):
         if self.paired:
             assert idx < self.n_snapshots
@@ -903,8 +901,10 @@ class v5spfdataset(Dataset):
                 precompute_to_idx=precompute_to_idx,
                 gpu=self.gpu,
             )
+
         try:
             segmentation = pickle.load(open(results_fn, "rb"))
+
             precomputed_zarr = zarr_open_from_lmdb_store(
                 results_fn.replace(".pkl", ".yarr"), mode="r"
             )
@@ -930,6 +930,7 @@ class v5spfdataset(Dataset):
             os.remove(results_fn)
             return self.get_segmentation(precompute_to_idx=precompute_to_idx)
         self.segmentation = segmentation
+        self.get_mean_phase()
         self.precomputed_zarr = precomputed_zarr
         return self.segmentation
 

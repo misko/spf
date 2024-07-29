@@ -9,6 +9,7 @@ from spf.rf import (
     pi_norm,
     reduce_theta_to_positive_y,
     torch_circular_mean,
+    # torch_circular_mean_weighted,
     torch_pi_norm,
 )
 from torch.nn.functional import sigmoid
@@ -905,7 +906,7 @@ class BeamNSegNet(nn.Module):
                 )
                 if self.circular_mean:
                     weighted_input[:, self.beamnet.pd_track] = torch_circular_mean(
-                        x[:, self.beamnet.pd_track], weights=seg_mask[:, 0], trim=0
+                        x[:, self.beamnet.pd_track], weights=seg_mask[:, 0], trim=0.0
                     )[0]
 
                 if self.training and self.drop_in_gt > 0.0:
