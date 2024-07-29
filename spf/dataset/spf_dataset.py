@@ -123,17 +123,51 @@ def segment_single_session(
     return segment_session(**args)
 
 
-def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu=False):
+def mp_segment_zarr(
+    zarr_fn,
+    results_fn,
+    steering_vectors_for_all_receivers,
+    precompute_to_idx=-1,
+    gpu=False,
+):
 
     z = zarr_open_from_lmdb_store(zarr_fn)
-    valid_entries = min(
-        [
-            (z[f"receivers/r{ridx}/system_timestamp"][:] > 0).sum()
-            for ridx in range(len(z["receivers"]))
+    yarr_fn = results_fn.replace(".pkl", ".yarr")
+    already_computed = 0
+    # print(z.tree())
+    previous_simple_segmentation = {
+        f"r{r_idx}": [] for r_idx in range(len(z["receivers"]))
+    }
+    precomputed_zarr = None
+    if os.path.exists(yarr_fn):
+        previous_simple_segmentation = pickle.load(open(results_fn, "rb"))[
+            "segmentation_by_receiver"
         ]
-    )
+        precomputed_zarr = zarr_open_from_lmdb_store(yarr_fn, mode="rw")
+        already_computed = min(
+            [
+                (
+                    np.sum(precomputed_zarr[f"r{r_idx}/all_windows_stats"], axis=(1, 2))
+                    > 0
+                ).sum()
+                for r_idx in range(len(z["receivers"]))
+            ]
+        )
 
-    print("Segmenting file", valid_entries, zarr_fn)
+    if precompute_to_idx < 0:
+        precompute_to_idx = min(
+            [
+                (z[f"receivers/r{ridx}/system_timestamp"][:] > 0).sum()
+                for ridx in range(len(z["receivers"]))
+            ]
+        )
+    else:
+        precompute_to_idx += 1
+
+    # we dont need to segment anything
+    if precompute_to_idx <= already_computed:
+        return already_computed
+
     assert len(z["receivers"]) == 2
 
     n_sessions, _, _ = z.receivers["r0"].signal_matrix.shape
@@ -150,7 +184,7 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
                 "gpu": gpu,
                 **default_segment_args,
             }
-            for idx in range(valid_entries)
+            for idx in range(already_computed, precompute_to_idx)
         ]
 
         with Pool(min(cpu_count(), 20)) as pool:  # cpu_count())  # cpu_count() // 4)
@@ -168,40 +202,57 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
     downsampled_segmentation_mask_shape = (n_sessions,) + results_by_receiver["r0"][0][
         "downsampled_segmentation_mask"
     ].shape
-    z = new_yarr_dataset(
-        filename=segmentation_zarr_fn,
-        n_receivers=2,
-        all_windows_stats_shape=all_windows_stats_shape,
-        windowed_beamformer_shape=windowed_beamformer_shape,
-        downsampled_segmentation_mask_shape=downsampled_segmentation_mask_shape,
-    )
+
+    if precomputed_zarr is None:
+        precomputed_zarr = new_yarr_dataset(
+            filename=segmentation_zarr_fn,
+            n_receivers=2,
+            all_windows_stats_shape=all_windows_stats_shape,
+            windowed_beamformer_shape=windowed_beamformer_shape,
+            downsampled_segmentation_mask_shape=downsampled_segmentation_mask_shape,
+        )
 
     for r_idx in [0, 1]:
         # collect all windows stats
-        z[f"r{r_idx}/all_windows_stats"][:valid_entries] = np.vstack(
+        precomputed_zarr[f"r{r_idx}/all_windows_stats"][
+            already_computed:precompute_to_idx
+        ] = np.vstack(
             [x["all_windows_stats"][None] for x in results_by_receiver[f"r{r_idx}"]]
         )
         # collect windowed beamformer
-        z[f"r{r_idx}/windowed_beamformer"][:valid_entries] = np.vstack(
+        precomputed_zarr[f"r{r_idx}/windowed_beamformer"][
+            already_computed:precompute_to_idx
+        ] = np.vstack(
             [x["windowed_beamformer"][None] for x in results_by_receiver[f"r{r_idx}"]]
         )
         # collect downsampled segmentation mask
-        z[f"r{r_idx}/downsampled_segmentation_mask"][:valid_entries] = np.vstack(
+        precomputed_zarr[f"r{r_idx}/downsampled_segmentation_mask"][
+            already_computed:precompute_to_idx
+        ] = np.vstack(
             [
                 x["downsampled_segmentation_mask"][None]
                 for x in results_by_receiver[f"r{r_idx}"]
             ]
         )
 
+    # print(previous_simple_segmentation)
+    # print("WINDOWED BEAMFORMER 7", precomputed_zarr["r0/windowed_beamformer"][7])
     simple_segmentation = {}
     for r_idx in [0, 1]:
-        simple_segmentation[f"r{r_idx}"] = [
-            {"simple_segmentation": x["simple_segmentation"]}
-            for x in results_by_receiver[f"r{r_idx}"]
-        ] + [{"simple_segmentation": []} for _ in range(n_sessions - valid_entries)]
+        simple_segmentation[f"r{r_idx}"] = (
+            previous_simple_segmentation[f"r{r_idx}"][:already_computed]
+            + [
+                {"simple_segmentation": x["simple_segmentation"]}
+                for x in results_by_receiver[f"r{r_idx}"]
+            ]
+            + [
+                {"simple_segmentation": []}
+                for _ in range(n_sessions - precompute_to_idx)
+            ]
+        )
 
-    z.store.close()
-    z = None
+    precomputed_zarr.store.close()
+    precomputed_zarr = None
     zarr_shrink(segmentation_zarr_fn)
     pickle.dump(
         {
@@ -210,6 +261,7 @@ def mp_segment_zarr(zarr_fn, results_fn, steering_vectors_for_all_receivers, gpu
         },
         open(results_fn, "wb"),
     )
+    return precompute_to_idx
 
 
 # target_thetas (N,1)
@@ -369,7 +421,6 @@ class v5spfdataset(Dataset):
         temp_file_suffix=".tmp",
         skip_fields=[],
     ):
-        # print("Open", prefix)
         self.readahead = readahead
         self.precompute_cache = precompute_cache
         self.nthetas = nthetas
@@ -396,6 +447,7 @@ class v5spfdataset(Dataset):
         self.n_receivers = len(self.yaml_config["receivers"])
         self.gpu = gpu
         self.tiled_sessions = tiled_sessions
+        self.precomputed_entries = 0
 
         self.wavelengths = [
             speed_of_light / receiver["f-carrier"]
@@ -539,18 +591,17 @@ class v5spfdataset(Dataset):
 
         # self.close()
 
-    def get_valid_entries(self):
-        self.refresh()
-        return self.valid_entries
-
     def refresh(self):
         # get how many entries are in the underlying storage
         # recompute if we need to
+
+        self.z = zarr_open_from_lmdb_store(self.zarr_fn, readahead=self.readahead)
         valid_entries = [
             (self.z[f"receivers/r{ridx}/system_timestamp"][:] > 0).sum()
             for ridx in range(self.n_receivers)
         ]
         if self.valid_entries is None or self.valid_entries != valid_entries:
+
             self.cached_keys = {}
             for receiver_idx in range(self.n_receivers):
                 self.cached_keys[receiver_idx] = {}
@@ -597,43 +648,16 @@ class v5spfdataset(Dataset):
     def reinit(self):
         if self.z is None:
             # worker_info = torch.utils.data.get_worker_info()
-            # print(worker_info)
+
             self.z = zarr_open_from_lmdb_store(self.zarr_fn, readahead=self.readahead)
             self.receiver_data = [
                 self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
             ]
         if not self.temp_file and self.precomputed_zarr is None:
             self.get_segmentation()
-            self.precomputed_zarr = zarr_open_from_lmdb_store(
-                self.results_fn().replace(".pkl", ".yarr"), mode="r"
-            )
-
-    def populate_on_the_fly(
-        self, data, receiver_idx, snapshot_start_idx, snapshot_end_idx
-    ):
-        assert snapshot_start_idx + 1 == snapshot_end_idx
-        print("POPULATE ON THE FLY")
-        n = segment_single_session(
-            zarr_fn=self.zarr_fn,
-            steering_vectors_for_receiver=self.steering_vectors[receiver_idx],
-            session_idx=snapshot_start_idx,
-            receiver_idx=f"r{receiver_idx}",
-            gpu=self.gpu,
-        )
-        data["downsampled_segmentation_mask"] = (
-            torch.as_tensor(n["downsampled_segmentation_mask"])
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .unsqueeze(0)
-        )
-        data["all_windows_stats"] = (
-            torch.as_tensor(n["all_windows_stats"]).unsqueeze(0).unsqueeze(0)
-        )
-        data["windowed_beamformer"] = (
-            torch.as_tensor(n["all_windows_stats"]).unsqueeze(0).unsqueeze(0)
-        )
-        if not self.skip_simple_segmentations:
-            data["simple_segmentations"] = [n["simple_segmentation"]]
+            # self.precomputed_zarr = zarr_open_from_lmdb_store(
+            #     self.results_fn().replace(".pkl", ".yarr"), mode="r"
+            # )
 
     def populate_from_precomputed(
         self, data, receiver_idx, snapshot_start_idx, snapshot_end_idx
@@ -711,18 +735,17 @@ class v5spfdataset(Dataset):
                 [abs_signal[:, [0]], abs_signal[:, [1]], pd[:, None]], dim=1
             )
 
-        if not self.temp_file:
-            self.populate_from_precomputed(
-                data, receiver_idx, snapshot_start_idx, snapshot_end_idx
-            )
-            # port this over in on the fly TODO
-            data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
-                snapshot_start_idx:snapshot_end_idx
-            ].unsqueeze(0)
-        else:
-            self.populate_on_the_fly(
-                data, receiver_idx, snapshot_start_idx, snapshot_end_idx
-            )
+        # find out if this is a temp file and we either need to precompute, or its not ready
+        if self.temp_file and self.precomputed_entries <= session_idx:
+            self.get_segmentation(precompute_to_idx=session_idx)
+
+        self.populate_from_precomputed(
+            data, receiver_idx, snapshot_start_idx, snapshot_end_idx
+        )
+        # port this over in on the fly TODO
+        data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
+            snapshot_start_idx:snapshot_end_idx
+        ].unsqueeze(0)
 
         data["rx_pos_xy"] = torch.vstack(
             [
@@ -864,30 +887,50 @@ class v5spfdataset(Dataset):
             os.path.basename(self.prefix) + f"_segmentation_nthetas{self.nthetas}.pkl",
         )
 
-    def get_segmentation(self):
-        if not hasattr(self, "segmentation") or self.segmentation is None:
-            results_fn = self.results_fn()
+    def get_segmentation(self, precompute_to_idx=-1):
+        if not self.temp_file and hasattr(self, "segmentation"):
+            return self.segmentation
 
-            if not os.path.exists(results_fn):
-                mp_segment_zarr(
-                    self.zarr_fn, results_fn, self.steering_vectors, gpu=self.gpu
-                )
-            try:
-                segmentation = pickle.load(open(results_fn, "rb"))
-                precomputed_zarr = zarr_open_from_lmdb_store(
-                    results_fn.replace(".pkl", ".yarr"), mode="r"
-                )
-            except pickle.UnpicklingError:
-                os.remove(results_fn)
-                return self.get_segmentation()
-            if (
-                "version" not in segmentation
-                or segmentation["version"] != SEGMENTATION_VERSION
-            ):
-                os.remove(results_fn)
-                return self.get_segmentation()
-            self.segmentation = segmentation
-            self.precomputed_zarr = precomputed_zarr
+        # otherwise its the first time loading for non temp
+        # or this is a temp file
+        results_fn = self.results_fn()
+
+        if self.temp_file or not os.path.exists(results_fn):
+            mp_segment_zarr(
+                self.zarr_fn,
+                results_fn,
+                self.steering_vectors,
+                precompute_to_idx=precompute_to_idx,
+                gpu=self.gpu,
+            )
+        try:
+            segmentation = pickle.load(open(results_fn, "rb"))
+            precomputed_zarr = zarr_open_from_lmdb_store(
+                results_fn.replace(".pkl", ".yarr"), mode="r"
+            )
+            self.precomputed_entries = min(
+                [
+                    (
+                        np.sum(
+                            precomputed_zarr[f"r{r_idx}/all_windows_stats"],
+                            axis=(1, 2),
+                        )
+                        > 0
+                    ).sum()
+                    for r_idx in range(self.n_receivers)
+                ]
+            )
+        except pickle.UnpicklingError:
+            os.remove(results_fn)
+            return self.get_segmentation(precompute_to_idx=precompute_to_idx)
+        if (
+            "version" not in segmentation
+            or segmentation["version"] != SEGMENTATION_VERSION
+        ):
+            os.remove(results_fn)
+            return self.get_segmentation(precompute_to_idx=precompute_to_idx)
+        self.segmentation = segmentation
+        self.precomputed_zarr = precomputed_zarr
         return self.segmentation
 
 

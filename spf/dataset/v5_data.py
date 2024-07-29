@@ -33,6 +33,7 @@ def v5rx_new_dataset(
     chunk_size=1024,
     compressor=None,
     skip_signal_matrix=False,
+    remove_if_exists=True,
 ):
     return zarr_new_dataset(
         filename=filename,
@@ -45,4 +46,5 @@ def v5rx_new_dataset(
         compressor=compressor,
         skip_signal_matrix=skip_signal_matrix,
         config=config,
+        remove_if_exists=remove_if_exists,
     )

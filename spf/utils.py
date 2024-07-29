@@ -112,6 +112,18 @@ def zarr_open_from_lmdb_store(filename, mode="r", readahead=False):
             meminit=False,
             readahead=readahead,
         )
+    elif mode == "rw":
+        store = zarr.LMDBStore(
+            filename,
+            map_size=2**38,
+            writemap=False,
+            readonly=False,
+            sync=True,
+            max_readers=1,  # 1024 * 1024,
+            lock=True,
+            meminit=False,
+            readahead=readahead,
+        )
     elif mode == "w":
         store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
     else:
@@ -133,6 +145,7 @@ def zarr_new_dataset(
     chunk_size=512,  # tested , blosc1 / chunk_size=512 / buffer_size (2^18~20) = seems pretty good
     compressor=None,
     skip_signal_matrix=False,
+    remove_if_exists=True,
 ):
     zarr_remove_if_exists(filename)
     z = zarr_open_from_lmdb_store(filename, mode="w")
