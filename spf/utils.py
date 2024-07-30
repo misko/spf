@@ -70,15 +70,16 @@ def new_yarr_dataset(
     all_windows_stats_shape,
     windowed_beamformer_shape,
     downsampled_segmentation_mask_shape,
+    mean_phase_shape,
     compressor=None,
 ):
     zarr_remove_if_exists(filename)
     z = zarr_open_from_lmdb_store(filename, mode="w")
-    compressor = Blosc(
-        cname="zstd",
-        clevel=1,
-        shuffle=Blosc.BITSHUFFLE,
-    )
+    # compressor = Blosc(
+    #     cname="zstd",
+    #     clevel=1,
+    #     shuffle=Blosc.BITSHUFFLE,
+    # )
 
     for receiver_idx in range(n_receivers):
         receiver_z = z.create_group(f"r{receiver_idx}")
@@ -103,6 +104,13 @@ def new_yarr_dataset(
             dtype="bool",
             compressor=compressor,
         )
+        receiver_z.create_dataset(
+            "mean_phase",
+            shape=mean_phase_shape,
+            chunks=(-1),
+            dtype="float32",
+            compressor=compressor,
+        )
     return z
 
 
@@ -110,7 +118,7 @@ def zarr_open_from_lmdb_store(filename, mode="r", readahead=False):
     if mode == "r":
         store = zarr.LMDBStore(
             filename,
-            map_size=2**38,
+            map_size=2**37,
             writemap=False,
             readonly=True,
             max_readers=1,  # 1024 * 1024,

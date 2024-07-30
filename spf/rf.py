@@ -16,7 +16,7 @@ except:
     pass
 from spf.utils import zarr_open_from_lmdb_store, zarr_open_from_lmdb_store_cm
 
-SEGMENTATION_VERSION = 1.4
+SEGMENTATION_VERSION = 2.0
 # numba = False
 
 """

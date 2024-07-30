@@ -8,6 +8,10 @@ if __name__ == "__main__":
         sys.exit(1)
     ds = v5spfdataset(
         sys.argv[1],
-        nthetas=11,
+        nthetas=65,
+        precompute_cache="/home/mouse9911/precompute_cache_chunk16_fresh/",
+        gpu=True,
+        skip_signal_matrix=True,
+        ignore_qc=True,
     )
     print(sys.argv[1], ds.phi_drifts[0], ds.phi_drifts[1])

@@ -139,7 +139,7 @@ def mp_segment_zarr(
         f"r{r_idx}": [] for r_idx in range(len(z["receivers"]))
     }
     precomputed_zarr = None
-    if os.path.exists(yarr_fn):
+    if os.path.exists(results_fn) and os.path.exists(yarr_fn):
         previous_simple_segmentation = pickle.load(open(results_fn, "rb"))[
             "segmentation_by_receiver"
         ]
@@ -210,6 +210,7 @@ def mp_segment_zarr(
             all_windows_stats_shape=all_windows_stats_shape,
             windowed_beamformer_shape=windowed_beamformer_shape,
             downsampled_segmentation_mask_shape=downsampled_segmentation_mask_shape,
+            mean_phase_shape=(n_sessions,),
         )
 
     for r_idx in [0, 1]:
@@ -233,6 +234,16 @@ def mp_segment_zarr(
                 x["downsampled_segmentation_mask"][None]
                 for x in results_by_receiver[f"r{r_idx}"]
             ]
+        )
+        precomputed_zarr[f"r{r_idx}/mean_phase"][already_computed:precompute_to_idx] = (
+            np.hstack(
+                [
+                    torch.tensor(
+                        [x["mean"] for x in result["simple_segmentation"]]
+                    ).mean()
+                    for result in results_by_receiver[f"r{r_idx}"]
+                ]
+            )
         )
 
     # print(previous_simple_segmentation)
@@ -421,11 +432,13 @@ class v5spfdataset(Dataset):
         temp_file_suffix=".tmp",
         skip_fields=[],
     ):
+        self.exclude_keys_from_cache = set("signal_matrix")
         self.readahead = readahead
         self.precompute_cache = precompute_cache
         self.nthetas = nthetas
         self.valid_entries = None
         # self.prefix = prefix
+        print("OPEN", prefix)
         self.temp_file = temp_file
 
         self.skip_fields = skip_fields
@@ -586,6 +599,10 @@ class v5spfdataset(Dataset):
             for receiver_idx in range(self.n_receivers):
                 self.cached_keys[receiver_idx] = {}
                 for key in self.keys_per_session:
+                    if key in self.exclude_keys_from_cache:
+                        continue
+                    # assert key != "signal_matrix"  # its complex shouldnt get converted!
+                    # print(key, self.receiver_data[receiver_idx][key][:].dtype)
                     self.cached_keys[receiver_idx][key] = torch.as_tensor(
                         self.receiver_data[receiver_idx][key][:].astype(
                             np.float32
@@ -598,12 +615,12 @@ class v5spfdataset(Dataset):
             return True
         return False
 
-    def get_mean_phase(self, ridx, idx):
-        v = self.mean_phase[f"r{ridx}"][idx]
-        if torch.isfinite(v):
-            return v
-        else:
-            print("NOT VALID")
+    # def get_mean_phase(self, ridx, idx):
+    #     v = self.mean_phase[f"r{ridx}"][idx]
+    #     if torch.isfinite(v):
+    #         return v
+    #     else:
+    #         print("NOT VALID")
 
     def close(self):
         # let workers open their own
@@ -831,22 +848,10 @@ class v5spfdataset(Dataset):
         return torch.vstack(ground_truth_thetas)
 
     def get_mean_phase(self):
-        self.mean_phase = {}
-        for receiver, results in self.segmentation["segmentation_by_receiver"].items():
-            self.mean_phase[receiver] = torch.tensor(
-                [
-                    (
-                        # TODO:UNBUG (circular mean)
-                        torch.tensor(
-                            [x["mean"] for x in result["simple_segmentation"]]
-                        ).mean()
-                        if len(result["simple_segmentation"]) > 0
-                        else 0.0
-                    )
-                    for result in results
-                ],
-                dtype=torch.float32,
-            )
+        self.mean_phase = {
+            f"r{r_idx}": torch.tensor(self.precomputed_zarr[f"r{r_idx}/mean_phase"][:])
+            for r_idx in range(self.n_receivers)
+        }
 
     def __getitem__(self, idx):
         if self.paired:
@@ -930,8 +935,8 @@ class v5spfdataset(Dataset):
             os.remove(results_fn)
             return self.get_segmentation(precompute_to_idx=precompute_to_idx)
         self.segmentation = segmentation
-        self.get_mean_phase()
         self.precomputed_zarr = precomputed_zarr
+        self.get_mean_phase()
         return self.segmentation
 
 
