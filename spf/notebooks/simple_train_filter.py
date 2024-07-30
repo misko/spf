@@ -544,7 +544,7 @@ def simple_train_filter(args):
             ignore_qc=args.skip_qc,
             gpu=args.device == "cuda",
             snapshots_per_session=args.snapshots_per_session,
-            readahead=True,
+            readahead=False,
             skip_simple_segmentations=True,
         )
         for prefix in args.datasets
