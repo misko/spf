@@ -114,11 +114,11 @@ def new_yarr_dataset(
     return z
 
 
-def zarr_open_from_lmdb_store(filename, mode="r", readahead=False):
+def zarr_open_from_lmdb_store(filename, mode="r", readahead=False, map_size=2**37):
     if mode == "r":
         store = zarr.LMDBStore(
             filename,
-            map_size=2**37,
+            map_size=map_size,
             writemap=False,
             readonly=True,
             max_readers=1,  # 1024 * 1024,

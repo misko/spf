@@ -188,11 +188,18 @@ def mp_segment_zarr(
             for idx in range(already_computed, precompute_to_idx)
         ]
 
-        with Pool(
-            min(cpu_count(), n_parallel)
-        ) as pool:  # cpu_count())  # cpu_count() // 4)
+        if n_parallel > 0:
+            with Pool(
+                min(cpu_count(), n_parallel)
+            ) as pool:  # cpu_count())  # cpu_count() // 4)
+                results_by_receiver[r_name] = list(
+                    tqdm.tqdm(
+                        pool.imap(segment_session_star, inputs), total=len(inputs)
+                    )
+                )
+        else:
             results_by_receiver[r_name] = list(
-                tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
+                tqdm.tqdm(map(segment_session_star, inputs), total=len(inputs))
             )
 
     segmentation_zarr_fn = results_fn.replace(".pkl", ".yarr")

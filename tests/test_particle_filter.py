@@ -2,6 +2,7 @@ import tempfile
 
 import torch
 from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml, partial_dataset
+from spf.dataset.open_partial_ds import open_partial_dataset_and_check_some
 from spf.dataset.spf_dataset import v5spfdataset
 import random
 from spf.model_training_and_inference.models.create_empirical_p_dist import (
@@ -160,3 +161,12 @@ def test_partial(noise1_n128_obits2):
                     for key in ds_og[0][0].keys():
                         if isinstance(ds_og[idx][r_idx][key], torch.Tensor):
                             assert (ds_og[idx][r_idx][key] == ds[idx][r_idx][key]).all()
+
+
+def test_partial_script(noise1_n128_obits2):
+    dirname, ds_fn = noise1_n128_obits2
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        ds_fn_out = f"{tmpdirname}/partial"
+        for partial_n in [10, 20]:
+            partial_dataset(ds_fn, ds_fn_out, partial_n)
+            open_partial_dataset_and_check_some(ds_fn_out, suffix="", n_parallel=0)
