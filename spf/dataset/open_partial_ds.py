@@ -18,7 +18,9 @@ def open_partial_dataset_and_check_some(ds_fn, suffix=".tmp", n_parallel=1):
             snapshots_per_session=1,
             temp_file=True,
             temp_file_suffix=suffix,
+            n_parallel=n_parallel,
         )
+
         print(
             f"Opened dataset of length {len(ds)} and {ds.valid_entries} valid entries"
         )
