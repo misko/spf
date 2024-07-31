@@ -129,6 +129,7 @@ def mp_segment_zarr(
     steering_vectors_for_all_receivers,
     precompute_to_idx=-1,
     gpu=False,
+    n_parallel=20,
 ):
 
     z = zarr_open_from_lmdb_store(zarr_fn)
@@ -187,7 +188,9 @@ def mp_segment_zarr(
             for idx in range(already_computed, precompute_to_idx)
         ]
 
-        with Pool(min(cpu_count(), 20)) as pool:  # cpu_count())  # cpu_count() // 4)
+        with Pool(
+            min(cpu_count(), n_parallel)
+        ) as pool:  # cpu_count())  # cpu_count() // 4)
             results_by_receiver[r_name] = list(
                 tqdm.tqdm(pool.imap(segment_session_star, inputs), total=len(inputs))
             )
@@ -235,16 +238,20 @@ def mp_segment_zarr(
                 for x in results_by_receiver[f"r{r_idx}"]
             ]
         )
-        precomputed_zarr[f"r{r_idx}/mean_phase"][already_computed:precompute_to_idx] = (
-            np.hstack(
-                [
-                    torch.tensor(
-                        [x["mean"] for x in result["simple_segmentation"]]
-                    ).mean()
-                    for result in results_by_receiver[f"r{r_idx}"]
-                ]
-            )
+
+        # precompute mean phase and remove NaNs for 0s
+        mean_phase = np.hstack(
+            [
+                torch.tensor([x["mean"] for x in result["simple_segmentation"]]).mean()
+                for result in results_by_receiver[f"r{r_idx}"]
+            ]
         )
+        mean_phase[~np.isfinite(mean_phase)] = 0
+
+        assert np.isfinite(mean_phase).all()
+        precomputed_zarr[f"r{r_idx}/mean_phase"][
+            already_computed:precompute_to_idx
+        ] = mean_phase
 
     # print(previous_simple_segmentation)
     # print("WINDOWED BEAMFORMER 7", precomputed_zarr["r0/windowed_beamformer"][7])
@@ -306,18 +313,11 @@ def v5_thetas_to_targets(
 def v5_collate_keys_fast(keys: List[str], batch: Dict[str, torch.Tensor]):
     d = {}
     for key in keys:
+        d[key] = torch.vstack(
+            [x[key] for paired_sample in batch for x in paired_sample]
+        )
         if key == "windowed_beamformer" or key == "all_windows_stats":
-            d[key] = torch.vstack(
-                [
-                    x[key].to(torch.float32)
-                    for paired_sample in batch
-                    for x in paired_sample
-                ]
-            )
-        else:
-            d[key] = torch.vstack(
-                [x[key] for paired_sample in batch for x in paired_sample]
-            )
+            d[key] = d[key].to(torch.float32)
 
     return TensorDict(d, batch_size=d["y_rad"].shape)
 
@@ -431,8 +431,10 @@ class v5spfdataset(Dataset):
         temp_file=False,
         temp_file_suffix=".tmp",
         skip_fields=[],
+        n_parallel=20,
     ):
-        self.exclude_keys_from_cache = set("signal_matrix")
+        self.n_parallel = n_parallel
+        self.exclude_keys_from_cache = set(["signal_matrix"])
         self.readahead = readahead
         self.precompute_cache = precompute_cache
         self.nthetas = nthetas
@@ -454,7 +456,9 @@ class v5spfdataset(Dataset):
             self.zarr_fn += temp_file_suffix
             self.yaml_fn += temp_file_suffix
             assert self.snapshots_per_session == 1
-        self.z = zarr_open_from_lmdb_store(self.zarr_fn, readahead=self.readahead)
+        self.z = zarr_open_from_lmdb_store(
+            self.zarr_fn, readahead=self.readahead, map_size=2**32
+        )
         self.yaml_config = yaml.safe_load(open(self.yaml_fn, "r"))
         self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
@@ -588,7 +592,9 @@ class v5spfdataset(Dataset):
         # get how many entries are in the underlying storage
         # recompute if we need to
 
-        self.z = zarr_open_from_lmdb_store(self.zarr_fn, readahead=self.readahead)
+        self.z = zarr_open_from_lmdb_store(
+            self.zarr_fn, readahead=self.readahead, map_size=2**32
+        )
         valid_entries = [
             (self.z[f"receivers/r{ridx}/system_timestamp"][:] > 0).sum()
             for ridx in range(self.n_receivers)
@@ -603,6 +609,7 @@ class v5spfdataset(Dataset):
                         continue
                     # assert key != "signal_matrix"  # its complex shouldnt get converted!
                     # print(key, self.receiver_data[receiver_idx][key][:].dtype)
+                    # print(key, self.exclude_keys_from_cache)
                     self.cached_keys[receiver_idx][key] = torch.as_tensor(
                         self.receiver_data[receiver_idx][key][:].astype(
                             np.float32
@@ -693,6 +700,13 @@ class v5spfdataset(Dataset):
                 ][snapshot_start_idx:snapshot_end_idx]
             ]
 
+    def get_values_at_key(self, key, receiver_idx, start_idx, end_idx):
+        if key == "signal_matrix":
+            return torch.as_tensor(
+                self.receiver_data[receiver_idx][key][start_idx:end_idx]
+            )
+        return self.cached_keys[receiver_idx][key][start_idx:end_idx]
+
     def render_session(self, receiver_idx, session_idx):
         self.reinit()
         if self.tiled_sessions:
@@ -704,9 +718,9 @@ class v5spfdataset(Dataset):
 
         data = {
             # key: r[key][snapshot_start_idx:snapshot_end_idx]
-            key: self.cached_keys[receiver_idx][key][
-                snapshot_start_idx:snapshot_end_idx
-            ]
+            key: self.get_values_at_key(
+                key, receiver_idx, snapshot_start_idx, snapshot_end_idx
+            )
             for key in self.keys_per_session  # 'rx_theta_in_pis', 'rx_spacing', 'rx_lo', 'rx_bandwidth', 'avg_phase_diff', 'rssis', 'gains']
         }
         data["receiver_idx"] = self.receiver_idxs_expanded[receiver_idx]
@@ -905,13 +919,14 @@ class v5spfdataset(Dataset):
                 self.steering_vectors,
                 precompute_to_idx=precompute_to_idx,
                 gpu=self.gpu,
+                n_parallel=self.n_parallel,
             )
 
         try:
             segmentation = pickle.load(open(results_fn, "rb"))
 
             precomputed_zarr = zarr_open_from_lmdb_store(
-                results_fn.replace(".pkl", ".yarr"), mode="r"
+                results_fn.replace(".pkl", ".yarr"), mode="r", map_size=2**32
             )
             self.precomputed_entries = min(
                 [
