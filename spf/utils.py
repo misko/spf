@@ -129,7 +129,7 @@ def zarr_open_from_lmdb_store(filename, mode="r", readahead=False, map_size=2**3
     elif mode == "rw":
         store = zarr.LMDBStore(
             filename,
-            map_size=2**38,
+            map_size=map_size,
             writemap=False,
             readonly=False,
             sync=True,
@@ -139,7 +139,9 @@ def zarr_open_from_lmdb_store(filename, mode="r", readahead=False, map_size=2**3
             readahead=readahead,
         )
     elif mode == "w":
-        store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
+        store = zarr.LMDBStore(
+            filename, map_size=map_size, writemap=True, map_async=True
+        )
     else:
         raise NotImplementedError
     return zarr.open(
