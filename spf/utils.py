@@ -74,7 +74,7 @@ def new_yarr_dataset(
     compressor=None,
 ):
     zarr_remove_if_exists(filename)
-    z = zarr_open_from_lmdb_store(filename, mode="w")
+    z = zarr_open_from_lmdb_store(filename, mode="w", map_size=2**32)
     # compressor = Blosc(
     #     cname="zstd",
     #     clevel=1,
