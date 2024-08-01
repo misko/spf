@@ -37,8 +37,8 @@ def open_partial_dataset_and_check_some(
                 ds[i][0]["mean_phase_segmentation"].item(),
                 ds[i][1]["mean_phase_segmentation"].item(),
             )
-            breakpoint()
-            a = 1
+            if "windowed_beamformer" in skip_fields:
+                assert "windowed_beamformer" not in ds[i][0].keys()
 
 
 if __name__ == "__main__":
