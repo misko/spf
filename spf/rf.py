@@ -229,7 +229,9 @@ def segment_session_star(arg_dict):
 
 
 # take a single zarr, receiver and session_idx and segment it
-def segment_session(zarr_fn, receiver, session_idx, gpu=True, **kwrgs):
+def segment_session(
+    zarr_fn, receiver, session_idx, gpu=True, skip_beamformer=False, **kwrgs
+):
     with zarr_open_from_lmdb_store_cm(zarr_fn, mode="r") as z:
         # z[f"receivers/r{receiver}/system_timestamp"][session_idx] > 0
 
@@ -237,34 +239,41 @@ def segment_session(zarr_fn, receiver, session_idx, gpu=True, **kwrgs):
 
         segmentation_results = simple_segment(v, **kwrgs)
 
-        nthetas = kwrgs["steering_vectors"].shape[0]
-
-        if gpu:
-            segmentation_results["windowed_beamformer"] = cp.asnumpy(
-                beamformer_given_steering_nomean_cp(
-                    steering_vectors=cp.asarray(kwrgs["steering_vectors"]),
-                    signal_matrix=cp.asarray(v),
-                )
-                .reshape(nthetas, -1, kwrgs["window_size"])
-                .mean(axis=2)
-                .T
-            )
-        else:
-            segmentation_results["windowed_beamformer"] = (
-                beamformer_given_steering_nomean(
-                    steering_vectors=kwrgs["steering_vectors"],
-                    signal_matrix=v,
-                )
-                .reshape(nthetas, -1, kwrgs["window_size"])
-                .mean(axis=2)
-                .T
-            )
-        segmentation_results["windowed_beamformer"] = segmentation_results[
-            "windowed_beamformer"
-        ].astype(np.float16)
         segmentation_results["all_windows_stats"] = (
             segmentation_results["all_windows_stats"].astype(np.float16).T
         )
+
+        _, windows = segmentation_results["all_windows_stats"].shape
+        nthetas = kwrgs["steering_vectors"].shape[0]
+
+        if not skip_beamformer:
+            if gpu:
+                segmentation_results["windowed_beamformer"] = cp.asnumpy(
+                    beamformer_given_steering_nomean_cp(
+                        steering_vectors=cp.asarray(kwrgs["steering_vectors"]),
+                        signal_matrix=cp.asarray(v),
+                    )
+                    .reshape(nthetas, -1, kwrgs["window_size"])
+                    .mean(axis=2)
+                    .T
+                )
+            else:
+                segmentation_results["windowed_beamformer"] = (
+                    beamformer_given_steering_nomean(
+                        steering_vectors=kwrgs["steering_vectors"],
+                        signal_matrix=v,
+                    )
+                    .reshape(nthetas, -1, kwrgs["window_size"])
+                    .mean(axis=2)
+                    .T
+                )
+            segmentation_results["windowed_beamformer"] = segmentation_results[
+                "windowed_beamformer"
+            ].astype(np.float16)
+        else:
+            windowed_beamformer = np.zeros((windows, nthetas), dtype=np.float16)
+            windowed_beamformer.fill(np.nan)
+            segmentation_results["windowed_beamformer"] = windowed_beamformer
 
         return segmentation_results
 

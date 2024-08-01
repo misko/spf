@@ -4,7 +4,9 @@ import tempfile
 from spf.dataset.spf_dataset import v5spfdataset
 
 
-def open_partial_dataset_and_check_some(ds_fn, suffix=".tmp", n_parallel=1):
+def open_partial_dataset_and_check_some(
+    ds_fn, suffix=".tmp", n_parallel=1, skip_fields=[]
+):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         nthetas = 65
@@ -19,6 +21,7 @@ def open_partial_dataset_and_check_some(ds_fn, suffix=".tmp", n_parallel=1):
             temp_file=True,
             temp_file_suffix=suffix,
             n_parallel=n_parallel,
+            skip_fields=skip_fields,
         )
 
         print(
@@ -34,6 +37,8 @@ def open_partial_dataset_and_check_some(ds_fn, suffix=".tmp", n_parallel=1):
                 ds[i][0]["mean_phase_segmentation"].item(),
                 ds[i][1]["mean_phase_segmentation"].item(),
             )
+            breakpoint()
+            a = 1
 
 
 if __name__ == "__main__":

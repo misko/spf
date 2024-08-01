@@ -170,3 +170,6 @@ def test_partial_script(noise1_n128_obits2):
         for partial_n in [10, 20]:
             partial_dataset(ds_fn, ds_fn_out, partial_n)
             open_partial_dataset_and_check_some(ds_fn_out, suffix="", n_parallel=0)
+            open_partial_dataset_and_check_some(
+                ds_fn_out, suffix="", n_parallel=0, skip_fields=["windowed_beamformer"]
+            )

@@ -417,6 +417,7 @@ def batch_data_to_x_y_seg(
     batch_data: tensordict.tensordict.TensorDict,
     torch_device: torch.device,
     dtype: torch.dtype,
+    beamformer_input: bool,
 ):
     # x ~ # trimmed_cm, trimmed_stddev, abs_signal_median
     batch_data = batch_data.to(torch_device)
@@ -424,7 +425,10 @@ def batch_data_to_x_y_seg(
     rx_pos = batch_data["rx_pos_xy"].to(dtype=dtype)
     seg_mask = batch_data["downsampled_segmentation_mask"].to(dtype=dtype)
     rx_spacing = batch_data["rx_spacing"].to(dtype=dtype)
-    windowed_beamformer = batch_data["windowed_beamformer"].to(dtype=dtype)
+    if beamformer_input:
+        windowed_beamformer = batch_data["windowed_beamformer"].to(dtype=dtype)
+    else:
+        windowed_beamformer = None
     y_rad = batch_data["y_rad"].to(dtype=dtype)
     craft_y_rad = batch_data["craft_y_rad"].to(dtype=dtype)
     y_phi = batch_data["y_phi"].to(dtype=dtype)
@@ -573,23 +577,21 @@ def simple_train_filter(args):
             ds, shuffle=args.shuffle, seed=args.seed, batch_size=batch_size
         )
         sampler.set_epoch_and_start_iteration(epoch=epoch, start_iteration=step)
+        keys_to_get = [
+            "all_windows_stats",
+            "rx_pos_xy",
+            "downsampled_segmentation_mask",
+            "rx_spacing",
+            "y_rad",
+            "craft_y_rad",
+            "y_phi",
+        ]
+        if args.beamformer_input:
+            keys_to_get += ["windowed_beamformer"]
         return {
             # "batch_size": args.batch,
             "num_workers": args.workers,
-            "collate_fn": partial(
-                v5_collate_keys_fast,
-                [
-                    "all_windows_stats",
-                    "rx_pos_xy",
-                    "downsampled_segmentation_mask",
-                    "rx_spacing",
-                    "windowed_beamformer",
-                    "y_rad",
-                    "craft_y_rad",
-                    "y_phi",
-                    "windowed_beamformer",
-                ],
-            ),
+            "collate_fn": partial(v5_collate_keys_fast, keys_to_get),
             "worker_init_fn": worker_init_fn,
             # "pin_memory": True,
             "prefetch_factor": 2 if args.workers > 0 else None,
@@ -647,7 +649,9 @@ def simple_train_filter(args):
                             rx_spacing,
                             windowed_beamformer,
                             rx_pos,
-                        ) = batch_data_to_x_y_seg(val_batch_data, torch_device, dtype)
+                        ) = batch_data_to_x_y_seg(
+                            val_batch_data, torch_device, dtype, args.beamformer_input
+                        )
 
                         # run beamformer and segmentation
                         output = m(
@@ -695,7 +699,9 @@ def simple_train_filter(args):
                 rx_spacing,
                 windowed_beamformer,
                 rx_pos,
-            ) = batch_data_to_x_y_seg(batch_data, torch_device, dtype)
+            ) = batch_data_to_x_y_seg(
+                batch_data, torch_device, dtype, beamformer_input=args.beamformer_input
+            )
 
             with torch.autocast(
                 device_type=args.device, dtype=torch.float16, enabled=args.amp

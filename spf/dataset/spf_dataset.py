@@ -130,6 +130,7 @@ def mp_segment_zarr(
     precompute_to_idx=-1,
     gpu=False,
     n_parallel=20,
+    skip_beamformer=False,
 ):
 
     z = zarr_open_from_lmdb_store(zarr_fn)
@@ -183,6 +184,7 @@ def mp_segment_zarr(
                 "session_idx": idx,
                 "steering_vectors": steering_vectors_for_all_receivers[r_idx],
                 "gpu": gpu,
+                "skip_beamformer": skip_beamformer,
                 **default_segment_args,
             }
             for idx in range(already_computed, precompute_to_idx)
@@ -920,6 +922,9 @@ class v5spfdataset(Dataset):
         results_fn = self.results_fn()
 
         if self.temp_file or not os.path.exists(results_fn):
+            skip_beamformer = False
+            if self.temp_file and "windowed_beamformer" in self.skip_fields:
+                skip_beamformer = True
             mp_segment_zarr(
                 self.zarr_fn,
                 results_fn,
@@ -927,6 +932,7 @@ class v5spfdataset(Dataset):
                 precompute_to_idx=precompute_to_idx,
                 gpu=self.gpu,
                 n_parallel=self.n_parallel,
+                skip_beamformer=skip_beamformer,
             )
 
         try:
@@ -938,7 +944,7 @@ class v5spfdataset(Dataset):
             self.precomputed_entries = min(
                 [
                     (
-                        np.sum(
+                        np.mean(
                             precomputed_zarr[f"r{r_idx}/all_windows_stats"],
                             axis=(1, 2),
                         )
