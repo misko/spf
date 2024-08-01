@@ -57,9 +57,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--nparallel", type=int, help="paralell compute", required=False, default=1
     )
+    parser.add_argument(
+        "--skip-beamformer",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
 
     args = parser.parse_args()
 
+    skip_fields = []
+    if args.skip_beamformer:
+        skip_fields.append(["windowed_beamformer"])
     open_partial_dataset_and_check_some(
-        args.dataset, suffix=args.suffix, n_parallel=args.nparallel
+        args.dataset,
+        suffix=args.suffix,
+        n_parallel=args.nparallel,
+        skip_fields=skip_fields,
     )
