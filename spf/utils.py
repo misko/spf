@@ -49,7 +49,7 @@ def zarr_remove_if_exists(zarr_fn):
 
 
 def zarr_shrink(filename):
-    store = zarr.LMDBStore(filename, map_size=2**38, writemap=True, map_async=True)
+    store = zarr.LMDBStore(filename, map_size=2**37, writemap=True, map_async=True)
     store.db.set_mapsize(1)
     print(store.db.info())
     store.close()

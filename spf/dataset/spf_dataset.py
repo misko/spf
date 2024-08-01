@@ -145,7 +145,7 @@ def mp_segment_zarr(
         previous_simple_segmentation = pickle.load(open(results_fn, "rb"))[
             "segmentation_by_receiver"
         ]
-        precomputed_zarr = zarr_open_from_lmdb_store(yarr_fn, mode="rw")
+        precomputed_zarr = zarr_open_from_lmdb_store(yarr_fn, mode="rw", map_size=2**32)
         already_computed = min(
             [
                 (
