@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
     skip_fields = []
     if args.skip_beamformer:
-        skip_fields.append(["windowed_beamformer"])
+        skip_fields.append("windowed_beamformer")
     open_partial_dataset_and_check_some(
         args.dataset,
         suffix=args.suffix,
