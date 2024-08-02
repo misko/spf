@@ -33,20 +33,21 @@ def get_parser_filter():
 
 
 def segment(args):
-    ds = v5spfdataset(
-        args.dataset,
-        precompute_cache=args.precompute_cache,
-        nthetas=args.nthetas,
-        skip_signal_matrix=True,
-        paired=True,
-        ignore_qc=True,
-        gpu=False,
-        snapshots_per_session=1,
-        readahead=False,
-        skip_simple_segmentations=False,
-    )
     with tempfile.TemporaryDirectory() as tmpdirname:
-        print("SEG")
+        ds = v5spfdataset(
+            args.dataset,
+            precompute_cache=str(tmpdirname),
+            nthetas=args.nthetas,
+            skip_signal_matrix=True,
+            paired=True,
+            ignore_qc=True,
+            gpu=False,
+            snapshots_per_session=1,
+            readahead=False,
+            skip_simple_segmentations=False,
+            temp_file=True,
+            temp_file_suffix="",
+        )
         mp_segment_zarr(
             args.dataset,
             str(tmpdirname) + "/tmp",
@@ -61,7 +62,4 @@ def segment(args):
 if __name__ == "__main__":
     parser = get_parser_filter()
     args = parser.parse_args()
-    # with Profile() as profile:
-    # profiler = Profiler()
-    # profiler.start()
     segment(args)
