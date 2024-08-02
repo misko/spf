@@ -15,12 +15,6 @@ def get_parser_filter():
         required=True,
     )
     parser.add_argument(
-        "--precompute-cache",
-        type=str,
-        help="precompute cache",
-        required=True,
-    )
-    parser.add_argument(
         "--nthetas",
         type=int,
         default=65,
