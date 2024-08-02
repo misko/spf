@@ -70,7 +70,7 @@ def benchmark(
             mode="w",
             shape=(2, total_samples),
             chunks=(1, 1024 * chunk_size),
-            dtype="complex128",
+            dtype="complex64",
             compressor=compressor,
         )
     sdr = get_sdr(uri, rx_buffer_size=rx_buffer_size, rx_buffers=rx_buffers)

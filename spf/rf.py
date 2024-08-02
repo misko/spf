@@ -31,7 +31,7 @@ interfer constructively.
 
 @functools.lru_cache(maxsize=1024)
 def rf_linspace(s, e, i):
-    return np.linspace(s, e, i)
+    return np.linspace(s, e, i, dtype=np.float32)
 
 
 """
@@ -145,7 +145,7 @@ def circular_diff_to_mean(angles, means):
     assert means.ndim == 1
     a = np.abs(means[:, None] - angles) % (2 * np.pi)
     b = 2 * np.pi - a
-    # breakpoint()
+
     return np.min(np.vstack([a[None], b[None]]), axis=0)
 
 
@@ -251,7 +251,7 @@ def segment_session(
                 segmentation_results["windowed_beamformer"] = cp.asnumpy(
                     beamformer_given_steering_nomean_cp(
                         steering_vectors=cp.asarray(kwrgs["steering_vectors"]),
-                        signal_matrix=cp.asarray(v),
+                        signal_matrix=cp.asarray(v.astype(np.complex64)),
                     )
                     .reshape(nthetas, -1, kwrgs["window_size"])
                     .mean(axis=2)
@@ -261,7 +261,7 @@ def segment_session(
                 segmentation_results["windowed_beamformer"] = (
                     beamformer_given_steering_nomean(
                         steering_vectors=kwrgs["steering_vectors"],
-                        signal_matrix=v,
+                        signal_matrix=v.astype(np.complex64),
                     )
                     .reshape(nthetas, -1, kwrgs["window_size"])
                     .mean(axis=2)
@@ -389,6 +389,7 @@ def simple_segment(
     min_abs_signal,
     steering_vectors=None,  # not used but passed in
 ):
+    assert v.ndim == 2 and v.shape[0] == 2
     pd = get_phase_diff(v)
     candidate_windows = []
     window_idxs_and_stats = windowed_trimmed_circular_mean_and_stddev(
@@ -507,7 +508,7 @@ def get_avg_phase(signal_matrix, trim=0.0):
 def rotation_matrix(orientation):
     s = np.sin(orientation)
     c = np.cos(orientation)
-    return np.array([c, s, -s, c]).reshape(2, 2)
+    return np.array([c, s, -s, c], dtype=np.float32).reshape(2, 2)
 
 
 speed_of_light = 299792458  # m/s speed of light
@@ -590,17 +591,20 @@ class Detector(object):
         self.source_positions = None
         self.receiver_positions = None
         self.sampling_frequency = sampling_frequency
-        self.position_offset = np.zeros(2)
+        self.position_offset = np.zeros(2, dtype=np.float32)
         self.orientation = orientation  # rotation to the right in radians to apply to receiver array coordinate system
         self.sigma = sigma
 
     def add_source(self, source):
         self.sources.append(source)
         if self.source_positions is None:
-            self.source_positions = np.array(source.pos).reshape(1, 2)
+            self.source_positions = np.array(source.pos, dtype=np.float32).reshape(1, 2)
         else:
             self.source_positions = np.vstack(
-                [self.source_positions, np.array(source.pos).reshape(1, 2)]
+                [
+                    self.source_positions,
+                    np.array(source.pos, dtype=np.float32).reshape(1, 2),
+                ]
             )
 
     def distance_receiver_to_source(self):
@@ -618,12 +622,14 @@ class Detector(object):
 
     def add_receiver(self, receiver_position):
         if self.receiver_positions is None:
-            self.receiver_positions = np.array(receiver_position).reshape(1, 2)
+            self.receiver_positions = np.array(
+                receiver_position, dtype=np.float32
+            ).reshape(1, 2)
         else:
             self.receiver_positions = np.vstack(
                 [
                     self.receiver_positions,
-                    np.array(receiver_position).reshape(1, 2),
+                    np.array(receiver_position, dtype=np.float32).reshape(1, 2),
                 ]
             )
 
@@ -715,7 +721,7 @@ and 0 on the Y positions
 
 @functools.lru_cache(maxsize=1024)
 def linear_receiver_positions(n_elements, spacing):
-    receiver_positions = np.zeros((n_elements, 2))
+    receiver_positions = np.zeros((n_elements, 2), dtype=np.float32)
     receiver_positions[:, 0] = spacing * (np.arange(n_elements) - (n_elements - 1) / 2)
     return receiver_positions
 
@@ -874,7 +880,7 @@ def precompute_steering_vectors(
     calibration=None,
     offset=0.0,
 ):
-    thetas = np.linspace(-np.pi, np.pi, spacing)  # -offset
+    thetas = np.linspace(-np.pi, np.pi, spacing, dtype=np.float32)  # -offset
     source_vectors = np.vstack(
         [np.sin(thetas + offset)[None], np.cos(thetas + offset)[None]]
     ).T
@@ -890,6 +896,7 @@ def precompute_steering_vectors(
     steering_vectors = np.exp(-1j * args)
     if calibration is not None:
         steering_vectors = steering_vectors * calibration[None]
+
     return steering_vectors
 
 

@@ -69,6 +69,7 @@ def test_fake_data_array_orientation():
         precompute_cache=tmpdirname,
         paired=True,
         skip_signal_matrix=True,
+        n_parallel=0,
     )
 
     assert np.isclose(

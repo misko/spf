@@ -38,7 +38,7 @@ def phi_to_signal_matrix(
 ):
     big_phi = phi.repeat(buffer_size).reshape(1, -1)
     big_phi_with_noise = big_phi + torch.randn((1, buffer_size)) * noise
-    offsets = torch.zeros(big_phi.shape, dtype=torch.complex128)
+    offsets = torch.zeros(big_phi.shape, dtype=torch.complex64)
     return (
         torch.vstack(
             [

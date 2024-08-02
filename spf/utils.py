@@ -39,7 +39,9 @@ def random_signal_matrix(n, rng=None):
 
 @torch.jit.script
 def torch_random_signal_matrix(n: int):
-    return (torch.rand((n,)) - 0.5) * 2 + 1.0j * (torch.rand((n,)) - 0.5)
+    return (torch.rand((n,), dtype=torch.float32) - 0.5) * 2 + 1.0j * (
+        torch.rand((n,), dtype=torch.float32) - 0.5
+    )
 
 
 def zarr_remove_if_exists(zarr_fn):
@@ -192,7 +194,7 @@ def zarr_new_dataset(
                 shape=(timesteps, 2, buffer_size),
                 # chunks=(1, 1, 1024 * chunk_size),
                 chunks=(1, 2, buffer_size),
-                dtype="complex128",
+                dtype="complex64",
                 compressor=compressor,
             )
         for key in keys_f64:
