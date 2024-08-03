@@ -44,12 +44,12 @@ def segment(args):
         )
         mp_segment_zarr(
             args.dataset,
-            str(tmpdirname) + "/tmp",
+            str(tmpdirname) + "/tmpx",
             ds.steering_vectors,
             precompute_to_idx=-1,
             gpu=False,
             n_parallel=0,
-            skip_beamformer=False,
+            skip_beamformer=True,
         )
 
 

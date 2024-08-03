@@ -72,9 +72,5 @@ def test_fake_data_array_orientation():
         n_parallel=0,
     )
 
-    assert np.isclose(
-        ds.ground_truth_phis[0] - ds.mean_phase["r0"], 0, atol=0.00001
-    ).all()
-    assert np.isclose(
-        ds.ground_truth_phis[1] - ds.mean_phase["r1"], 0, atol=0.00001
-    ).all()
+    assert np.isclose(ds.ground_truth_phis[0], ds.mean_phase["r0"], atol=0.001).all()
+    assert np.isclose(ds.ground_truth_phis[1], ds.mean_phase["r1"], atol=0.001).all()

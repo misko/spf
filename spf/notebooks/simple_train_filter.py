@@ -13,6 +13,7 @@ from spf.dataset.spf_dataset import (
     v5_collate_keys_fast,
     v5spfdataset,
 )
+from math import ceil
 from spf.model_training_and_inference.models.beamsegnet import (
     BeamNetDirect,
 )
@@ -87,9 +88,9 @@ class StatefulDistributedSampler(DistributedSampler):
         self.start_iter = start_iter
 
 
-class StatefulBatchsampler(Sampler):
-    def __init__(self, dataset, batch_size, seed=0, shuffle=False):
-        self.single_sampler = StatefulDistributedSampler(
+class StatefulBatchsampler(BatchSampler):
+    def __init__(self, dataset, batch_size, seed=0, shuffle=False, drop_last=False):
+        sampler = StatefulDistributedSampler(
             dataset,
             num_replicas=1,
             rank=0,
@@ -98,17 +99,13 @@ class StatefulBatchsampler(Sampler):
             batch_size=batch_size,
             seed=seed,
         )
-        self.batch_sampler = BatchSampler(
-            self.single_sampler,
-            batch_size,
-            drop_last=False,
-        )
+        super().__init__(sampler, batch_size=batch_size, drop_last=drop_last)
 
     def set_epoch_and_start_iteration(self, epoch: int, start_iteration: int) -> None:
-        self.single_sampler.set_epoch_and_start_iteration(epoch, start_iteration)
+        self.sampler.set_epoch_and_start_iteration(epoch, start_iteration)
 
     def __iter__(self):
-        yield from self.batch_sampler
+        yield from super().__iter__()
 
 
 # torch.autograd.set_detect_anomaly(True)
@@ -210,6 +207,7 @@ class FunkyNet(torch.nn.Module):
         token_dropout=0.5,
         latent=0,
         beamformer_input=False,
+        include_input=True,
     ):
         super(FunkyNet, self).__init__()
 
@@ -228,6 +226,7 @@ class FunkyNet(torch.nn.Module):
         )
         self.beamformer_input = beamformer_input
         self.output_dim = output_dim
+        self.include_input = include_input
 
         if beamformer_input:
             self.beam_m = BeamNetDirect(
@@ -253,13 +252,22 @@ class FunkyNet(torch.nn.Module):
                 min_sigma=0.0001,
             )
 
-            input_dim = (65 + 2) * 2
-            # (65,65,2,2) # 65 for R0 signal, 65 for R1 signal, 2 for pos0, 2 for pos1
-            self.input_net = torch.nn.Sequential(
-                torch.nn.Linear(
-                    input_dim + (5 + latent) * 2 + 1, d_model
-                )  # 5 output beam_former R1+R2, time
-            )
+            if self.include_input:
+                input_dim = (65 + 2) * 2
+                # (65,65,2,2) # 65 for R0 signal, 65 for R1 signal, 2 for pos0, 2 for pos1
+                self.input_net = torch.nn.Sequential(
+                    torch.nn.Linear(
+                        input_dim + (5 + latent) * 2 + 1, d_model
+                    )  # 5 output beam_former R1+R2, time
+                )
+            else:
+                input_dim = 2 * 2
+                # (2,2) # 2 for pos0, 2 for pos1
+                self.input_net = torch.nn.Sequential(
+                    torch.nn.Linear(
+                        input_dim + (5 + latent) * 2 + 1, d_model
+                    )  # 5 output beam_former R1+R2, time
+                )
 
         else:
             self.beam_m = BeamNetDirect(
@@ -281,12 +289,21 @@ class FunkyNet(torch.nn.Module):
                 correction=True,
                 min_sigma=0.0001,
             )  # .to(torch_device)
-            input_dim = 10  # (3,3,2,2) # 3 for R0 signal, 3 for R1 signal, 2 for pos0, 2 for pos1
-            self.input_net = torch.nn.Sequential(
-                torch.nn.Linear(
-                    input_dim + (5 + latent) * 2 + 1, d_model
-                )  # 5 output beam_former R1+R2, time
-            )
+
+            if self.include_input:
+                input_dim = 10  # (3,3,2,2) # 3 for R0 signal, 3 for R1 signal, 2 for pos0, 2 for pos1
+                self.input_net = torch.nn.Sequential(
+                    torch.nn.Linear(
+                        input_dim + (5 + latent) * 2 + 1, d_model
+                    )  # 5 output beam_former R1+R2, time
+                )
+            else:
+                input_dim = 4  # (2,2) #  2 for pos0, 2 for pos1
+                self.input_net = torch.nn.Sequential(
+                    torch.nn.Linear(
+                        input_dim + (5 + latent) * 2 + 1, d_model
+                    )  # 5 output beam_former R1+R2, time
+                )
 
         self.paired_drop_in_gt = 0.00
         self.token_dropout = token_dropout
@@ -342,23 +359,40 @@ class FunkyNet(torch.nn.Module):
         )
         rx_pos_by_example = rx_pos.reshape(batch_size, snapshots_per_sessions, 2)
 
-        input = torch.concatenate(
-            [
-                weighted_input_by_example[::2],
-                weighted_input_by_example[1::2],
-                rx_pos_by_example[::2],
-                rx_pos_by_example[1::2],
-                detached_pred_theta[::2],
-                detached_pred_theta[1::2],
-                get_time_split(
-                    batch_size,
-                    snapshots_per_sessions,
-                    weighted_input_by_example.device,
-                    dtype=weighted_input_by_example.dtype,
-                ),
-            ],
-            axis=2,
-        )
+        if self.include_input:
+            input = torch.concatenate(
+                [
+                    weighted_input_by_example[::2],
+                    weighted_input_by_example[1::2],
+                    rx_pos_by_example[::2],
+                    rx_pos_by_example[1::2],
+                    detached_pred_theta[::2],
+                    detached_pred_theta[1::2],
+                    get_time_split(
+                        batch_size,
+                        snapshots_per_sessions,
+                        weighted_input_by_example.device,
+                        dtype=weighted_input_by_example.dtype,
+                    ),
+                ],
+                axis=2,
+            )
+        else:
+            input = torch.concatenate(
+                [
+                    rx_pos_by_example[::2],
+                    rx_pos_by_example[1::2],
+                    detached_pred_theta[::2],
+                    detached_pred_theta[1::2],
+                    get_time_split(
+                        batch_size,
+                        snapshots_per_sessions,
+                        weighted_input_by_example.device,
+                        dtype=weighted_input_by_example.dtype,
+                    ),
+                ],
+                axis=2,
+            )
         # drop out 1/4 of the sequence, except the last (element we predict on)
         if self.training:
             src_key_padding_mask = (
@@ -486,6 +520,7 @@ def simple_train_filter(args):
             n_layers=args.tformer_layers,
             latent=args.beamnet_latent,
             beamformer_input=args.beamformer_input,
+            include_input=args.include_input,
         ).to(torch_device, dtype=dtype)
     ########
 
@@ -509,7 +544,28 @@ def simple_train_filter(args):
         m = torch.compile(m)
 
     optimizer = torch.optim.AdamW(
-        m.parameters(), lr=args.lr, weight_decay=args.weight_decay
+        [
+            {
+                "params": [
+                    x[1]
+                    for x in filter(
+                        lambda x: "beam_m.beam_net" in x[0], m.named_parameters()
+                    )
+                ],
+                "lr": args.lr_beamnet,
+            },
+            {
+                "params": [
+                    x[1]
+                    for x in filter(
+                        lambda x: "beam_m.beam_net" not in x[0], m.named_parameters()
+                    )
+                ],
+                "lr": args.lr,
+            },
+        ],
+        lr=args.lr,
+        weight_decay=args.weight_decay,
     )
 
     step = 0
@@ -528,7 +584,7 @@ def simple_train_filter(args):
     to_log = new_log()
     step = 0
     epoch = 0
-
+    just_loaded = False
     if args.load_checkpoint is not None:
         checkpoint = torch.load(args.load_checkpoint)
         step = checkpoint["step"]
@@ -536,8 +592,17 @@ def simple_train_filter(args):
         m.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         config = checkpoint["config"]
-
+        just_loaded = True
         # loop over and concat datasets here
+    elif args.load_beamnet:
+        checkpoint = torch.load(args.load_beamnet)
+        state_dict = checkpoint["model_state_dict"]
+        for key in list(state_dict.keys()):
+            if "beam_m" not in key:
+                state_dict.pop(key)
+            else:
+                state_dict[key.replace("beam_m.", "")] = state_dict.pop(key)
+        m.beam_m.load_state_dict(state_dict)
     datasets = [
         v5spfdataset(
             prefix,
@@ -572,11 +637,11 @@ def simple_train_filter(args):
         val_ds = torch.utils.data.Subset(complete_ds, val_idxs)
     print(f"Train-dataset size {len(train_ds)}, Val dataset size {len(val_ds)}")
 
-    def params_for_ds(ds, batch_size):
+    def params_for_ds(ds, batch_size, resume_step):
         sampler = StatefulBatchsampler(
             ds, shuffle=args.shuffle, seed=args.seed, batch_size=batch_size
         )
-        sampler.set_epoch_and_start_iteration(epoch=epoch, start_iteration=step)
+        # sampler.set_epoch_and_start_iteration(epoch=epoch, start_iteration=0)
         keys_to_get = [
             "all_windows_stats",
             "rx_pos_xy",
@@ -599,14 +664,15 @@ def simple_train_filter(args):
         }
 
     train_dataloader = torch.utils.data.DataLoader(
-        train_ds, **params_for_ds(train_ds, batch_size=args.batch)
+        train_ds, **params_for_ds(train_ds, batch_size=args.batch, resume_step=step)
     )
     val_dataloader = torch.utils.data.DataLoader(
-        val_ds, **params_for_ds(val_ds, batch_size=args.batch)
+        val_ds, **params_for_ds(val_ds, batch_size=args.batch, resume_step=0)
     )
-
     for epoch in range(args.epochs):
-        # breakpoint()
+        train_dataloader.batch_sampler.set_epoch_and_start_iteration(
+            epoch=epoch, start_iteration=step % len(train_dataloader)
+        )
         if args.steps >= 0 and step >= args.steps:
             break
 
@@ -619,7 +685,7 @@ def simple_train_filter(args):
                 break
             # if torch.rand(1).item() < 0.002:
             #     gc.collect()
-            if step % args.save_every == 0:
+            if just_loaded is False and step % args.save_every == 0:
                 m.eval()
                 save_everything(
                     model=m,
@@ -629,6 +695,7 @@ def simple_train_filter(args):
                     epoch=epoch,
                     path=f"{args.save_prefix}_step{step}.chkpnt",
                 )
+            just_loaded = False
             # breakpoint()
             if step % args.val_every == 0:
                 m.eval()
@@ -681,6 +748,7 @@ def simple_train_filter(args):
                                 for key, value in val_losses.items()
                             },
                             step=step,
+                            # epoch=epoch,
                         )
                         for key, value in to_log.items():
                             if "_output" in key:
@@ -809,6 +877,17 @@ def get_parser_filter():
         default=0.001,
     )
     parser.add_argument(
+        "--include-input",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--lr-beamnet",
+        type=float,
+        required=False,
+        default=0.001,
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         required=False,
@@ -910,6 +989,7 @@ def get_parser_filter():
         default=128,
     )
     parser.add_argument("--load-checkpoint", type=str, required=False, default=None)
+    parser.add_argument("--load-beamnet", type=str, required=False, default=None)
     parser.add_argument(
         "--precompute-cache",
         type=str,

@@ -31,7 +31,9 @@ interfer constructively.
 
 @functools.lru_cache(maxsize=1024)
 def rf_linspace(s, e, i):
-    return np.linspace(s, e, i, dtype=np.float32)
+    return np.linspace(
+        s, e, i, dtype=np.float64
+    )  # this affects tests :'( keep higher precision
 
 
 """
@@ -46,8 +48,18 @@ def pi_norm(x):
     return ((x + np.pi) % (2 * np.pi)) - np.pi
 
 
+@njit
 def pi_norm_halfpi(x):
     return ((x + np.pi / 2) % (2 * np.pi / 2)) - np.pi / 2
+
+
+@torch.jit.script
+def torch_circular_diff_to_mean(angles: torch.Tensor, means: torch.Tensor):
+    assert means.ndim == 1
+    a = torch.abs(means[:, None] - angles) % (2 * torch.pi)
+    b = 2 * torch.pi - a
+    m, _ = torch.min(torch.vstack([a[None], b[None]]), dim=0)
+    return m
 
 
 # def torch_pi_norm(x, max_angle=torch.pi):
@@ -65,8 +77,9 @@ def torch_pi_norm(x: torch.Tensor, max_angle: float = torch.pi):
 
 
 # returns circular_stddev and trimmed cricular stddev
+@njit
 def circular_stddev(v, u, trim=50.0):
-    diff_from_mean = circular_diff_to_mean(angles=v, means=np.array(u).reshape(-1))
+    diff_from_mean = circular_diff_to_mean_single(angles=v, mean=u)
 
     diff_from_mean_squared = diff_from_mean**2
 
@@ -81,6 +94,31 @@ def circular_stddev(v, u, trim=50.0):
 
     if _diff_from_mean_squared.shape[0] > 1:
         trimmed_stddev = np.sqrt(
+            _diff_from_mean_squared.sum() / (_diff_from_mean_squared.shape[0] - 1)
+        )
+    return stddev, trimmed_stddev
+
+
+# returns circular_stddev and trimmed cricular stddev
+@torch.jit.script
+def torch_circular_stddev(v: torch.Tensor, u: torch.Tensor, trim: float):  # =50.0):
+    diff_from_mean = torch_circular_diff_to_mean(angles=v, means=u.reshape(-1))
+
+    diff_from_mean_squared = diff_from_mean**2
+
+    stddev = torch.tensor(0)
+    trimmed_stddev = torch.tensor(0)
+
+    if diff_from_mean.shape[0] > 1:
+        stddev = torch.sqrt(
+            diff_from_mean_squared.sum() / (diff_from_mean.shape[0] - 1)
+        )
+
+    mask = diff_from_mean <= torch.quantile(diff_from_mean, 1.0 - trim / 100)
+    _diff_from_mean_squared = diff_from_mean_squared[mask]
+
+    if _diff_from_mean_squared.shape[0] > 1:
+        trimmed_stddev = torch.sqrt(
             _diff_from_mean_squared.sum() / (_diff_from_mean_squared.shape[0] - 1)
         )
     return stddev, trimmed_stddev
@@ -140,16 +178,25 @@ def reduce_theta_to_positive_y(ground_truth_thetas):
     return reduced_thetas
 
 
+@njit
+def circular_diff_to_mean_single(angles, mean: float):
+    assert angles.ndim == 1
+    a = np.abs(mean - angles) % (2 * np.pi)
+    b = 2 * np.pi - a
+    mask = a < b
+    b[mask] = a[mask]
+    return b
+
+
 # @njit
 def circular_diff_to_mean(angles, means):
     assert means.ndim == 1
     a = np.abs(means[:, None] - angles) % (2 * np.pi)
     b = 2 * np.pi - a
-
     return np.min(np.vstack([a[None], b[None]]), axis=0)
 
 
-# @njit
+# TODO remove
 def circular_mean(angles, trim, weights=None):
     assert angles.ndim == 2
     _sin_angles = np.sin(angles)
@@ -176,13 +223,26 @@ def circular_mean(angles, trim, weights=None):
     return pi_norm(cm), pi_norm(_cm)
 
 
-@torch.jit.script
-def torch_circular_diff_to_mean(angles: torch.Tensor, means: torch.Tensor):
-    assert means.ndim == 1
-    a = torch.abs(means[:, None] - angles) % (2 * torch.pi)
-    b = 2 * torch.pi - a
-    m, _ = torch.min(torch.vstack([a[None], b[None]]), dim=0)
-    return m
+@njit
+def circular_mean_single(angles, trim, weights=None):
+    assert angles.ndim == 1
+    _sin_angles = np.sin(angles)
+    _cos_angles = np.cos(angles)
+    if weights is not None:
+        _sin_angles = _sin_angles * weights
+        _cos_angles = _cos_angles * weights
+    cm = np.arctan2(_sin_angles.sum(), _cos_angles.sum()) % (2 * np.pi)
+
+    if trim == 0.0:
+        r = pi_norm(cm)
+        return r, r
+
+    dists = circular_diff_to_mean_single(angles=angles, mean=cm)
+
+    mask = dists <= np.percentile(dists, 100.0 - trim)
+    _cm = np.arctan2(_sin_angles[mask].sum(), _cos_angles[mask].sum()) % (2 * np.pi)
+
+    return pi_norm(cm), pi_norm(_cm)
 
 
 @torch.jit.script
@@ -194,6 +254,31 @@ def torch_circular_mean_notrim(angles: torch.Tensor):
 
     r = torch_pi_norm_pi(cm)
     return r, r
+
+
+@torch.jit.script
+def torch_circular_mean_noweight(angles: torch.Tensor, trim: float):
+    assert angles.ndim == 2
+    _sin_angles = torch.sin(angles)
+    _cos_angles = torch.cos(angles)
+
+    cm = torch.arctan2(_sin_angles.sum(dim=1), _cos_angles.sum(dim=1)) % (2 * torch.pi)
+
+    if trim == 0.0:
+        r = torch_pi_norm_pi(cm)
+        return r, r
+
+    dists = torch_circular_diff_to_mean(angles=angles, means=cm)
+
+    mask = dists <= torch.quantile(dists, (1.0 - trim / 100), dim=1, keepdim=True)
+    _cm = torch.zeros(angles.shape[0])
+    for idx in torch.arange(angles.shape[0]):
+        _cm[idx] = torch.arctan2(
+            _sin_angles[idx][mask[idx]].sum(),
+            _cos_angles[idx][mask[idx]].sum(),
+        ) % (2 * torch.pi)
+
+    return torch_pi_norm_pi(cm), torch_pi_norm_pi(_cm)
 
 
 def torch_circular_mean(angles: torch.Tensor, trim: float, weights=None):
@@ -235,7 +320,7 @@ def segment_session(
     with zarr_open_from_lmdb_store_cm(zarr_fn, mode="r") as z:
         # z[f"receivers/r{receiver}/system_timestamp"][session_idx] > 0
 
-        v = z.receivers[receiver].signal_matrix[session_idx][:]
+        v = z.receivers[receiver].signal_matrix[session_idx][:].astype(np.complex64)
 
         segmentation_results = simple_segment(v, **kwrgs)
 
@@ -278,21 +363,61 @@ def segment_session(
         return segmentation_results
 
 
-def get_stats_for_signal(v, pd, trim):
-    trimmed_cm = circular_mean(pd.reshape(1, -1), trim=trim)[1][
+@torch.jit.script
+def torch_get_stats_for_signal(v: torch.Tensor, pd: torch.Tensor, trim: float):
+    trimmed_cm = torch_circular_mean_noweight(pd.reshape(1, -1), trim=trim)[1][
         0
     ]  # get the value for trimmed
+    trimmed_stddev = torch_circular_stddev(pd, trimmed_cm, trim=trim)[1]
+    abs_signal_median = (
+        torch.median(torch.abs(v).reshape(-1)) if v.numel() > 0 else torch.tensor(0)
+    )
+    return torch.hstack((trimmed_cm, trimmed_stddev, abs_signal_median))
+
+
+@njit
+def get_stats_for_signal(v, pd, trim):
+    trimmed_cm = circular_mean_single(pd, trim=trim)[1]  # get the value for trimmed
     trimmed_stddev = circular_stddev(pd, trimmed_cm, trim=trim)[1]
-    abs_signal_median = np.median(np.abs(v).reshape(-1)) if v.size > 0 else 0
+    abs_signal_median = np.median(np.abs(v)) if v.size > 0 else 0
     return trimmed_cm, trimmed_stddev, abs_signal_median
 
 
+@torch.jit.script
+def torch_windowed_trimmed_circular_mean_and_stddev(
+    v: torch.Tensor, pd: torch.Tensor, window_size: int, stride: int, trim: float
+):
+    assert (pd.shape[0] - window_size) % stride == 0
+    n_steps = 1 + (pd.shape[0] - window_size) // stride
+
+    step_idxs = torch.zeros((n_steps, 2), dtype=torch.int32)
+    step_stats = torch.zeros((n_steps, 3), dtype=torch.float32)
+    steps = torch.arange(n_steps)
+
+    # start_idx, end_idx
+    step_idxs[:, 0] = steps * stride
+    step_idxs[:, 1] = step_idxs[:, 0] + window_size
+
+    for step in torch.arange(n_steps):
+        start_idx = step * stride
+        end_idx = start_idx + window_size
+
+        _pd = pd[start_idx:end_idx]
+        _v = v[:, start_idx:end_idx]
+        # trimmed_cm, trimmed_stddev, abs_signal_median
+        step_stats[step] = torch_get_stats_for_signal(
+            _v, _pd, trim
+        )  # trimmed_cm, trimmed_stddev, abs_signal_median
+    return step_idxs, step_stats
+
+
+@njit
 def windowed_trimmed_circular_mean_and_stddev(v, pd, window_size, stride, trim=50.0):
     assert (pd.shape[0] - window_size) % stride == 0
     n_steps = 1 + (pd.shape[0] - window_size) // stride
 
-    step_idxs = np.zeros((n_steps, 2), dtype=np.int64)
-    step_stats = np.zeros((n_steps, 3), dtype=np.float64)
+    step_idxs = np.zeros((n_steps, 2), dtype=np.int32)
+    step_stats = np.zeros((n_steps, 3), dtype=np.float32)
     steps = np.arange(n_steps)
 
     # start_idx, end_idx
@@ -390,7 +515,9 @@ def simple_segment(
     steering_vectors=None,  # not used but passed in
 ):
     assert v.ndim == 2 and v.shape[0] == 2
-    pd = get_phase_diff(v)
+
+    # numba incorrectly compiles this and it returns a float64 :'(
+    pd = get_phase_diff(v).astype(np.float32)
     candidate_windows = []
     window_idxs_and_stats = windowed_trimmed_circular_mean_and_stddev(
         v, pd, window_size=window_size, stride=stride, trim=trim
@@ -497,18 +624,11 @@ def torch_get_avg_phase(signal_matrix: torch.Tensor, trim: float):
     )
 
 
-# @njit
-def get_avg_phase(signal_matrix, trim=0.0):
-    return np.array(
-        circular_mean(get_phase_diff(signal_matrix=signal_matrix)[None], trim=trim)
-    ).reshape(-1)
-
-
 @functools.lru_cache(maxsize=1024)
 def rotation_matrix(orientation):
     s = np.sin(orientation)
     c = np.cos(orientation)
-    return np.array([c, s, -s, c], dtype=np.float32).reshape(2, 2)
+    return np.array([c, s, -s, c], dtype=np.float64).reshape(2, 2)
 
 
 speed_of_light = 299792458  # m/s speed of light
@@ -642,9 +762,11 @@ class Detector(object):
             return (
                 self.position_offset
                 + (rotation_matrix(self.orientation) @ self.receiver_positions.T).T
-            )
+            ).astype(np.float32)
         else:
-            return (rotation_matrix(self.orientation) @ self.receiver_positions.T).T
+            return (
+                rotation_matrix(self.orientation) @ self.receiver_positions.T
+            ).T.astype(np.float32)
 
     def receiver_pos(self, receiver_idx, with_offset=True):
         if with_offset:
@@ -654,12 +776,12 @@ class Detector(object):
                     rotation_matrix(self.orientation)
                     @ self.receiver_positions[receiver_idx].T
                 ).T
-            )
+            ).astype(np.float32)
         else:
             return (
                 rotation_matrix(self.orientation)
                 @ self.receiver_positions[receiver_idx].T
-            ).T
+            ).T.astype(np.float32)
 
     def get_signal_matrix(self, start_time, duration, rx_lo=0):
         n_samples = int(duration * self.sampling_frequency)
