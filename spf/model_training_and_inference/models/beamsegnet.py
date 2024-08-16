@@ -735,7 +735,7 @@ class BeamNetDirect(NormalNet):
     # @torch.compile
     def forward(self, x):
         # split into pd>=0 and pd<0
-
+        x = x.clone()
         if self.symmetry:
             assert self.pd_track >= 0
             pd_pos_mask = x[:, self.pd_track] >= 0
@@ -746,8 +746,8 @@ class BeamNetDirect(NormalNet):
             x[:, self.pd_track] = x[:, self.pd_track] / self.max_angle
         if self.mag_track >= 0:
             x[:, self.mag_track] = x[:, self.mag_track] / 200
-        if self.rx_spacing_track >= 0 and x.shape[1] > self.rx_spacing_track:
-            x[:, self.rx_spacing_track] = x[:, self.rx_spacing_track] / 1000
+        # if self.rx_spacing_track >= 0 and x.shape[1] > self.rx_spacing_track:
+        #    x[:, self.rx_spacing_track] = x[:, self.rx_spacing_track]  # / 1000
         # breakpoint()
 
         y = self.beam_net(x)

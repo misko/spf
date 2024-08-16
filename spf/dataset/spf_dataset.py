@@ -435,6 +435,7 @@ class v5spfdataset(Dataset):
         gpu=False,
         snapshots_per_session=1,
         tiled_sessions=True,  # session 0 overlaps heavily with session 1 except last snapshot
+        snapshots_stride=1,
         readahead=False,
         skip_simple_segmentations=False,
         temp_file=False,
@@ -473,6 +474,13 @@ class v5spfdataset(Dataset):
         self.n_receivers = len(self.yaml_config["receivers"])
         self.gpu = gpu
         self.tiled_sessions = tiled_sessions
+
+        if snapshots_stride < 1.0:
+            snapshots_stride = max(
+                int(snapshots_stride * self.snapshots_per_session), 1
+            )
+        self.snapshots_stride = int(snapshots_stride)
+
         self.precomputed_entries = 0
 
         self.wavelengths = [
@@ -496,7 +504,9 @@ class v5spfdataset(Dataset):
             self.snapshots_per_session = self.n_snapshots
 
         if self.tiled_sessions:
-            self.n_sessions = self.n_snapshots - self.snapshots_per_session + 1
+            self.n_sessions = (
+                self.n_snapshots - self.snapshots_per_session
+            ) // self.snapshots_stride + 1
             if self.n_sessions <= 0:
                 self.n_sessions = 0
         else:
@@ -719,8 +729,9 @@ class v5spfdataset(Dataset):
     def render_session(self, receiver_idx, session_idx):
         self.reinit()
         if self.tiled_sessions:
-            snapshot_start_idx = session_idx
-            snapshot_end_idx = session_idx + self.snapshots_per_session
+            snapshot_start_idx = session_idx * self.snapshots_stride
+            snapshot_end_idx = snapshot_start_idx + self.snapshots_per_session
+
         else:
             snapshot_start_idx = session_idx * self.snapshots_per_session
             snapshot_end_idx = (session_idx + 1) * self.snapshots_per_session
@@ -778,7 +789,8 @@ class v5spfdataset(Dataset):
             ]
         ).T.unsqueeze(0)
 
-        if torch.rand(1).item() < 0.0005:
+        if torch.rand(1).item() < self.snapshots_per_session * 0.00000005:
+            print("COLLECT")
             gc.collect()
         return data
 
@@ -939,7 +951,10 @@ class v5spfdataset(Dataset):
             segmentation = pickle.load(open(results_fn, "rb"))
 
             precomputed_zarr = zarr_open_from_lmdb_store(
-                results_fn.replace(".pkl", ".yarr"), mode="r", map_size=2**32
+                results_fn.replace(".pkl", ".yarr"),
+                mode="r",
+                map_size=2**32,
+                readahead=True,
             )
             self.precomputed_entries = min(
                 [
