@@ -459,7 +459,7 @@ class FunkyNet(torch.nn.Module):
                 torch_pi_norm_pi(target - output["transformer_output"]) ** 2
             ).mean()
         else:
-            transformer_loss = 0.0
+            transformer_loss = torch.tensor(0.0)
 
         y_rad_reduced = torch_reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
         # x to beamformer loss (indirectly including segmentation)
@@ -612,21 +612,16 @@ def simple_train_filter(args):
     losses = []
 
     def new_log():
-        log = {
+        return {
             "loss": [],
             "beamnet_loss": [],
             "beamnet_mse_loss": [],
             "beamnet_mse_random_loss": [],
             "epoch": [],
             "data_seen": [],
+            "transformer_mse_random_loss": [],
+            "transformer_mse_loss": [],
         }
-        if not args.only_beamnet:
-            log.update(
-                {
-                    "transformer_mse_random_loss": [],
-                    "transformer_mse_loss": [],
-                }
-            )
 
     to_log = new_log()
     step = 0
