@@ -83,7 +83,6 @@ if __name__ == "__main__":
         original_zarr["config"],
         chunk_size=512,  # tested , blosc1 / chunk_size=512 / buffer_size (2^18~20) = seems pretty good
         compressor=None,
-        skip_signal_matrix=False,
     )
     new_zarr["config"][0] = config
     compare_and_copy("", original_zarr, new_zarr)

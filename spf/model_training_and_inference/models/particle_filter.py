@@ -601,8 +601,6 @@ def run_single_theta_single_radio(
         ignore_qc=True,
         precompute_cache=precompute_fn,
         paired=True,
-        skip_signal_matrix=True,
-        skip_simple_segmentations=True,
         snapshots_per_session=1,
         readahead=True,
         skip_fields=set(
@@ -610,6 +608,8 @@ def run_single_theta_single_radio(
                 "windowed_beamformer",
                 "all_windows_stats",
                 "downsampled_segmentation_mask",
+                "signal_matrix",
+                "simple_segmentations",
             ]
         ),
     )
@@ -650,13 +650,13 @@ def run_single_theta_dual_radio(
         ignore_qc=True,
         precompute_cache=precompute_fn,
         paired=True,
-        skip_signal_matrix=True,
         snapshots_per_session=1,
         skip_fields=set(
             [
                 "windowed_beamformer",
                 "all_windows_stats",
                 "downsampled_segmentation_mask",
+                "signal_matrix",
             ]
         ),
     )
@@ -690,13 +690,13 @@ def run_xy_dual_radio(
         ignore_qc=True,
         precompute_cache=precompute_fn,
         paired=True,
-        skip_signal_matrix=True,
         snapshots_per_session=1,
         skip_fields=set(
             [
                 "windowed_beamformer",
                 "all_windows_stats",
                 "downsampled_segmentation_mask",
+                "signal_matrix",
             ]
         ),
     )

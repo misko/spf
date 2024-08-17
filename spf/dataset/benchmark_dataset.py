@@ -33,9 +33,8 @@ ds = v5spfdataset(
     ignore_qc=True,
     precompute_cache="./",
     paired=True,
-    skip_signal_matrix=True,
+    skip_fields=set(["signal_matrix", "simple_segmentations"]),
     snapshots_per_session=500,
-    skip_simple_segmentations=True,
     gpu=True,
 )
 

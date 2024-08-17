@@ -36,7 +36,7 @@ if __name__ == "__main__":
         n_receivers=n_receivers,
         chunk_size=512,
         compressor=None,
-        skip_signal_matrix=True,
+        skip_fields=set(["signal_matrix"]),
     )
 
     for receiver_idx in range(n_receivers):

@@ -1,5 +1,6 @@
 import argparse
 from functools import cache, partial
+import math
 
 import numpy as np
 import tensordict
@@ -42,6 +43,30 @@ from torch.utils.data import DistributedSampler, Sampler, BatchSampler
 torch.set_float32_matmul_precision("high")
 
 DIST_NORM = 4000
+
+
+class PositionalEncoding(torch.nn.Module):
+
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = torch.nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model)
+        )
+        pe = torch.zeros(1, max_len, d_model)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[batch_size, seq_len, embedding_dim]``
+        """
+        x = x + self.pe[:, : x.size(1)]
+        return self.dropout(x)
 
 
 # from fair-chem repo
@@ -229,6 +254,7 @@ class FunkyNet(torch.nn.Module):
         beamformer_input=False,
         include_input=True,
         only_beamnet=False,
+        positional_encoding=True,
     ):
         super(FunkyNet, self).__init__()
 
@@ -331,6 +357,9 @@ class FunkyNet(torch.nn.Module):
 
         self.paired_drop_in_gt = 0.00
         self.token_dropout = token_dropout
+
+        self.positional_encoding = positional_encoding
+        self.pe = PositionalEncoding(d_model=d_model, dropout=0.0)
 
     # @torch.compile
     def forward(
@@ -440,6 +469,9 @@ class FunkyNet(torch.nn.Module):
                 axis=2,
             )
 
+        embedded_input = self.input_net(input)
+        if self.positional_encoding:
+            embedded_input = self.pe(embedded_input)
         # drop out 1/4 of the sequence, except the last (element we predict on)
         if self.training and self.token_dropout > 0.0:
             assert 1 == 0, "need to fix all target loss"
@@ -449,12 +481,12 @@ class FunkyNet(torch.nn.Module):
             )
             src_key_padding_mask[:, -1] = False  # True is not allowed to attend
             transformer_output = self.transformer_encoder(
-                self.input_net(input), src_key_padding_mask=src_key_padding_mask
+                embedded_input, src_key_padding_mask=src_key_padding_mask
             )[:, :, : self.output_dim]
             # breakpoint()
             # a = 1
         else:
-            transformer_output = self.transformer_encoder(self.input_net(input))[
+            transformer_output = self.transformer_encoder(embedded_input)[
                 :, :, : self.output_dim
             ]
 
@@ -476,9 +508,6 @@ class FunkyNet(torch.nn.Module):
         single_target = craft_y_rad[::2, [-1]]
         all_target = craft_y_rad[::2]
 
-        single_transformer_loss = torch.tensor(0.0)
-        all_transformer_loss = torch.tensor(0.0)
-
         if not self.only_beamnet:
             single_transformer_loss = (
                 torch_pi_norm_pi(
@@ -496,6 +525,9 @@ class FunkyNet(torch.nn.Module):
             pos_transformer_mse_loss = (
                 (delta - output["transformer_output"][:, :, 1:3]) ** 2
             ).mean()
+        else:
+            single_transformer_loss = torch.tensor(0.0)
+            all_transformer_loss = torch.tensor(0.0)
 
         y_rad_reduced = torch_reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
         # x to beamformer loss (indirectly including segmentation)

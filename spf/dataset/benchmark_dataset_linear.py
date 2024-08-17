@@ -28,14 +28,14 @@ ds = v5spfdataset(
     ignore_qc=True,
     precompute_cache="/home/mouse9911/precompute_cache_chunk16_fresh",
     paired=True,
-    skip_signal_matrix=True,
     snapshots_per_session=1,
-    skip_simple_segmentations=True,
     skip_fields=set(
         [
             "windowed_beamformer",
             "all_windows_stats",
             "downsampled_segmentation_mask",
+            "signal_matrix",
+            "simple_segmentations",
         ]
     ),
 )
