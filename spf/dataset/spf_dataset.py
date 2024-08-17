@@ -427,7 +427,6 @@ class v5spfdataset(Dataset):
         prefix,
         nthetas,
         precompute_cache,
-        skip_signal_matrix=False,
         phi_drift_max=0.2,
         min_mean_windows=10,
         ignore_qc=False,
@@ -437,7 +436,6 @@ class v5spfdataset(Dataset):
         tiled_sessions=True,  # session 0 overlaps heavily with session 1 except last snapshot
         snapshots_stride=1,
         readahead=False,
-        skip_simple_segmentations=False,
         temp_file=False,
         temp_file_suffix=".tmp",
         skip_fields=[],
@@ -457,8 +455,6 @@ class v5spfdataset(Dataset):
 
         self.snapshots_per_session = snapshots_per_session
 
-        self.skip_signal_matrix = skip_signal_matrix
-        self.skip_simple_segmentations = skip_simple_segmentations
         self.prefix = prefix.replace(".zarr", "")
         self.zarr_fn = f"{self.prefix}.zarr"
         self.yaml_fn = f"{self.prefix}.yaml"
@@ -512,7 +508,7 @@ class v5spfdataset(Dataset):
         else:
             self.n_sessions = self.n_snapshots // self.snapshots_per_session
 
-        if not self.skip_signal_matrix:
+        if "signal_matrix" not in self.skip_fields:
             self.signal_matrices = [
                 self.z.receivers[f"r{ridx}"].signal_matrix
                 for ridx in range(self.n_receivers)
@@ -536,16 +532,18 @@ class v5spfdataset(Dataset):
         ]
 
         self.keys_per_session = v5rx_f64_keys + v5rx_2xf64_keys
-        if not self.skip_signal_matrix:
+        if "signal_matrix" not in self.skip_fields:
             self.keys_per_session.append("signal_matrix")
 
         self.refresh()
 
         self.receiver_idxs_expanded = {}
         for idx in range(self.n_receivers):
-            self.receiver_idxs_expanded[idx] = torch.tensor(
-                idx, dtype=torch.int32
-            ).expand(1, self.snapshots_per_session)
+            self.receiver_idxs_expanded[idx] = (
+                torch.tensor(idx, dtype=torch.int32)
+                .expand(1, self.snapshots_per_session)
+                .share_memory_()
+            )
 
         if not self.temp_file:
             self.get_segmentation()
@@ -633,11 +631,13 @@ class v5spfdataset(Dataset):
                         self.receiver_data[receiver_idx][key][:].astype(
                             np.float32
                         )  # TODO save as float32?
-                    )
+                    ).share_memory_()
             self.valid_entries = valid_entries
-            self.ground_truth_thetas = self.get_ground_truth_thetas()
-            self.ground_truth_phis = self.get_ground_truth_phis()
-            self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
+            self.ground_truth_thetas = self.get_ground_truth_thetas().share_memory_()
+            self.ground_truth_phis = self.get_ground_truth_phis().share_memory_()
+            self.craft_ground_truth_thetas = (
+                self.get_craft_ground_truth_thetas().share_memory_()
+            )
             return True
         return False
 
@@ -686,19 +686,27 @@ class v5spfdataset(Dataset):
         self, data, receiver_idx, snapshot_start_idx, snapshot_end_idx
     ):
         if "windowed_beamformer" not in self.skip_fields:
-            data["windowed_beamformer"] = torch.as_tensor(
-                self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
-                    snapshot_start_idx:snapshot_end_idx
-                ]
-            ).unsqueeze(0)
+            data["windowed_beamformer"] = (
+                torch.as_tensor(
+                    self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
+                        snapshot_start_idx:snapshot_end_idx
+                    ]
+                )
+                .unsqueeze(0)
+                .share_memory_()
+            )
 
         # sessions x 3 x n_windows
         if "all_windows_stats" not in self.skip_fields:
-            data["all_windows_stats"] = torch.as_tensor(
-                self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
-                    snapshot_start_idx:snapshot_end_idx
-                ]
-            ).unsqueeze(0)
+            data["all_windows_stats"] = (
+                torch.as_tensor(
+                    self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
+                        snapshot_start_idx:snapshot_end_idx
+                    ]
+                )
+                .unsqueeze(0)
+                .share_memory_()
+            )
 
         if "downsampled_segmentation_mask" not in self.skip_fields:
             data["downsampled_segmentation_mask"] = (
@@ -709,9 +717,10 @@ class v5spfdataset(Dataset):
                 )
                 .unsqueeze(1)
                 .unsqueeze(0)
+                .share_memory_()
             )
 
-        if not self.skip_simple_segmentations:
+        if "simple_segmentations" not in self.skip_fields:
             data["simple_segmentations"] = [
                 d["simple_segmentation"]
                 for d in self.segmentation["segmentation_by_receiver"][
@@ -759,7 +768,7 @@ class v5spfdataset(Dataset):
         data["y_phi"] = data["ground_truth_phi"]
         data["craft_y_rad"] = data["craft_ground_truth_theta"]
 
-        if not self.skip_signal_matrix:
+        if "signal_matrix" not in self.skip_fields:
             abs_signal = data["signal_matrix"].abs().to(torch.float32)
             pd = torch_get_phase_diff(data["signal_matrix"]).to(torch.float32)
             data["x"] = torch.concatenate(
@@ -788,10 +797,21 @@ class v5spfdataset(Dataset):
                 ],
             ]
         ).T.unsqueeze(0)
+        data["tx_pos_xy"] = torch.vstack(
+            [
+                self.cached_keys[receiver_idx]["tx_pos_x_mm"][
+                    snapshot_start_idx:snapshot_end_idx
+                ],
+                self.cached_keys[receiver_idx]["tx_pos_y_mm"][
+                    snapshot_start_idx:snapshot_end_idx
+                ],
+            ]
+        ).T.unsqueeze(0)
 
-        if torch.rand(1).item() < self.snapshots_per_session * 0.00000005:
-            print("COLLECT")
-            gc.collect()
+        # if torch.rand(1).item() < self.snapshots_per_session * 0.00000005:
+        #     print("COLLECT")
+        #     gc.collect()
+        # self.close()
         return data
 
     def get_ground_truth_phis(self):
@@ -926,7 +946,11 @@ class v5spfdataset(Dataset):
         )
 
     def get_segmentation(self, precompute_to_idx=-1):
-        if not self.temp_file and hasattr(self, "segmentation"):
+        if (
+            not self.temp_file
+            and hasattr(self, "segmentation")
+            and self.segmentation is not None
+        ):
             return self.segmentation
 
         # otherwise its the first time loading for non temp

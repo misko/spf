@@ -36,9 +36,12 @@ from torch.nn import (
     LayerNorm,
 )
 
+
 from torch.utils.data import DistributedSampler, Sampler, BatchSampler
 
 torch.set_float32_matmul_precision("high")
+
+DIST_NORM = 4000
 
 
 # from fair-chem repo
@@ -174,7 +177,14 @@ class DebugFunkyNet(torch.nn.Module):
             "fake_out": self.l(x[:, 0, 0, :3]),
         }
 
-    def loss(self, output, y_rad, craft_y_rad, seg_mask):
+    def loss(
+        self,
+        output: torch.Tensor,
+        y_rad: torch.Tensor,
+        craft_y_rad: torch.Tensor,
+        seg_mask: torch.Tensor,
+        tx_pos_full: torch.Tensor,
+    ):
         loss = output["fake_out"].mean()
         return {
             "loss": loss,
@@ -213,7 +223,7 @@ class FunkyNet(torch.nn.Module):
         dropout=0.1,
         n_heads=16,
         n_layers=24,
-        output_dim=1,
+        output_dim=1 + 2,  # 1 theta, 2 delta xy pos
         token_dropout=0.5,
         latent=0,
         beamformer_input=False,
@@ -333,7 +343,7 @@ class FunkyNet(torch.nn.Module):
         rx_pos,
         timestamps,
     ):
-        rx_pos = rx_pos.detach().clone() / 4000
+        rx_pos = rx_pos.detach().clone() / DIST_NORM
 
         batch_size, snapshots_per_sessions = y_rad.shape
         # weighted_input = torch.mul(x, seg_mask).sum(axis=3) / (
@@ -388,13 +398,20 @@ class FunkyNet(torch.nn.Module):
         # breakpoint()
         rx_pos_by_example = rx_pos.reshape(batch_size, snapshots_per_sessions, 2)
 
+        rel_pos0 = (
+            rx_pos_by_example[::2] - rx_pos_by_example[::2][:, [-1]]
+        )  # batch,snapshots_per_session,2
+        rel_pos1 = (
+            rx_pos_by_example[1::2] - rx_pos_by_example[::2][:, [-1]]
+        )  # batch,snapshots_per_session,2
+
         if self.include_input:
             input = torch.concatenate(
                 [
                     weighted_input_by_example[::2],
                     weighted_input_by_example[1::2],
-                    rx_pos_by_example[::2],
-                    rx_pos_by_example[1::2],
+                    rel_pos0,
+                    rel_pos1,
                     detached_pred_theta[::2],
                     detached_pred_theta[1::2],
                     get_time_split(
@@ -409,8 +426,8 @@ class FunkyNet(torch.nn.Module):
         else:
             input = torch.concatenate(
                 [
-                    rx_pos_by_example[::2],  # batch,snapshots_per_session,2
-                    rx_pos_by_example[1::2],  # batch,snapshots_per_session,2
+                    rel_pos0,
+                    rel_pos1,
                     detached_pred_theta[::2],  # batch,snapshots_per_session,5
                     detached_pred_theta[1::2],  # batch,snapshots_per_session,5
                     get_time_split(
@@ -422,8 +439,10 @@ class FunkyNet(torch.nn.Module):
                 ],
                 axis=2,
             )
+
         # drop out 1/4 of the sequence, except the last (element we predict on)
-        if self.training:
+        if self.training and self.token_dropout > 0.0:
+            assert 1 == 0, "need to fix all target loss"
             src_key_padding_mask = (
                 torch.rand(batch_size // 2, snapshots_per_sessions, device=input.device)
                 < self.token_dropout  # True here means skip
@@ -431,17 +450,18 @@ class FunkyNet(torch.nn.Module):
             src_key_padding_mask[:, -1] = False  # True is not allowed to attend
             transformer_output = self.transformer_encoder(
                 self.input_net(input), src_key_padding_mask=src_key_padding_mask
-            )[:, -1, : self.output_dim]
+            )[:, :, : self.output_dim]
             # breakpoint()
             # a = 1
         else:
             transformer_output = self.transformer_encoder(self.input_net(input))[
-                :, -1, : self.output_dim
+                :, :, : self.output_dim
             ]
 
         return {
             "transformer_output": transformer_output,
             "pred_theta": pred_theta,
+            "rx_pos_full": rx_pos_by_example,
         }
 
     # @torch.compile
@@ -451,15 +471,31 @@ class FunkyNet(torch.nn.Module):
         y_rad: torch.Tensor,
         craft_y_rad: torch.Tensor,
         seg_mask: torch.Tensor,
+        tx_pos_full: torch.Tensor,
     ):
-        target = craft_y_rad[::2, [-1]]
+        single_target = craft_y_rad[::2, [-1]]
+        all_target = craft_y_rad[::2]
+
+        single_transformer_loss = torch.tensor(0.0)
+        all_transformer_loss = torch.tensor(0.0)
 
         if not self.only_beamnet:
-            transformer_loss = (
-                torch_pi_norm_pi(target - output["transformer_output"]) ** 2
+            single_transformer_loss = (
+                torch_pi_norm_pi(
+                    single_target - output["transformer_output"][:, -1, [0]]
+                )
+                ** 2
             ).mean()
-        else:
-            transformer_loss = torch.tensor(0.0)
+            all_transformer_loss = (
+                torch_pi_norm_pi(all_target - output["transformer_output"][:, :, 0])
+                ** 2
+            ).mean()
+            tx_pos = (tx_pos_full[::2] + tx_pos_full[1::2]) / 2
+            rx_pos = (output["rx_pos_full"][::2] + output["rx_pos_full"][1::2]) / 2
+            delta = (tx_pos - rx_pos) / DIST_NORM
+            pos_transformer_mse_loss = (
+                (delta - output["transformer_output"][:, :, 1:3]) ** 2
+            ).mean()
 
         y_rad_reduced = torch_reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
         # x to beamformer loss (indirectly including segmentation)
@@ -469,16 +505,23 @@ class FunkyNet(torch.nn.Module):
 
         beamnet_mse = self.beam_m.mse(output["pred_theta"], y_rad_reduced)
 
-        loss = transformer_loss + beamnet_loss
+        loss = all_transformer_loss + beamnet_loss + pos_transformer_mse_loss
 
-        beamnet_mse_random, transformer_random_loss = random_loss(target, y_rad_reduced)
+        beamnet_mse_random, transformer_random_loss = random_loss(
+            single_target, y_rad_reduced
+        )
         return {
             "loss": loss,
-            "transformer_mse_loss": transformer_loss,
+            "transformer_mse_loss": single_transformer_loss,
+            "all_transformer_mse_loss": all_transformer_loss,
             "beamnet_loss": beamnet_loss,
             "beamnet_mse_loss": beamnet_mse,
             "beamnet_mse_random_loss": beamnet_mse_random,
             "transformer_mse_random_loss": transformer_random_loss,
+            "pos_transformer_mse_loss": pos_transformer_mse_loss,
+            "mm_pos_transformer_mse_loss": pos_transformer_mse_loss
+            * DIST_NORM
+            * DIST_NORM,
         }
 
 
@@ -493,6 +536,7 @@ def batch_data_to_x_y_seg(
     batch_data = batch_data.to(torch_device)
     x = batch_data["all_windows_stats"].to(dtype=dtype)
     rx_pos = batch_data["rx_pos_xy"].to(dtype=dtype)
+    tx_pos = batch_data["tx_pos_xy"].to(dtype=dtype)
     seg_mask = batch_data["downsampled_segmentation_mask"].to(dtype=dtype)
     rx_spacing = batch_data["rx_spacing"].to(dtype=dtype)
     if beamformer_input:
@@ -515,6 +559,7 @@ def batch_data_to_x_y_seg(
         windowed_beamformer,
         rx_pos,
         timestamps,
+        tx_pos,
     )
 
 
@@ -621,6 +666,9 @@ def simple_train_filter(args):
             "data_seen": [],
             "transformer_mse_random_loss": [],
             "transformer_mse_loss": [],
+            "all_transformer_mse_loss": [],
+            "pos_transformer_mse_loss": [],
+            "mm_pos_transformer_mse_loss": [],
         }
 
     to_log = new_log()
@@ -645,19 +693,22 @@ def simple_train_filter(args):
             else:
                 state_dict[key.replace("beam_m.", "")] = state_dict.pop(key)
         m.beam_m.load_state_dict(state_dict)
+    skip_fields = set(["signal_matrix", "simple_segmentations"])
+    if not args.beamformer_input:
+        skip_fields |= set(["windowed_beamformer"])
+        print(skip_fields)
     datasets = [
         v5spfdataset(
             prefix,
             precompute_cache=args.precompute_cache,
             nthetas=args.nthetas,
-            skip_signal_matrix=True,
             paired=args.n_radios > 1,
             ignore_qc=args.skip_qc,
             gpu=args.device == "cuda",
             snapshots_per_session=args.snapshots_per_session,
             snapshots_stride=args.snapshots_stride,
             readahead=False,
-            skip_simple_segmentations=True,
+            skip_fields=skip_fields,
         )
         for prefix in args.datasets
     ]
@@ -688,6 +739,7 @@ def simple_train_filter(args):
         keys_to_get = [
             "all_windows_stats",
             "rx_pos_xy",
+            "tx_pos_xy",
             "downsampled_segmentation_mask",
             "rx_spacing",
             "y_rad",
@@ -761,6 +813,7 @@ def simple_train_filter(args):
                             windowed_beamformer,
                             rx_pos,
                             timestamps,
+                            tx_pos,
                         ) = batch_data_to_x_y_seg(
                             val_batch_data, torch_device, dtype, args.beamformer_input
                         )
@@ -777,7 +830,7 @@ def simple_train_filter(args):
                         )
 
                         # compute the loss
-                        loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
+                        loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask, tx_pos)
                         # breakpoint()
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
@@ -818,6 +871,7 @@ def simple_train_filter(args):
                 windowed_beamformer,
                 rx_pos,
                 timestamps,
+                tx_pos,
             ) = batch_data_to_x_y_seg(
                 batch_data, torch_device, dtype, beamformer_input=args.beamformer_input
             )
@@ -834,7 +888,7 @@ def simple_train_filter(args):
                     rx_pos=rx_pos,
                     timestamps=timestamps,
                 )
-                loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
+                loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask, tx_pos)
 
                 loss = loss_d["beamnet_loss"] * args.beam_net_lambda
                 if step > args.head_start:
