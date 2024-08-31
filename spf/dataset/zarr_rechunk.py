@@ -1,5 +1,6 @@
 import os
 import sys
+import yaml
 import zarr
 from spf.utils import (
     new_yarr_dataset,
@@ -50,18 +51,23 @@ if __name__ == "__main__":
     input_fn = sys.argv[1]
     output_fn = sys.argv[2]
 
-    origianl_zarr = zarr_open_from_lmdb_store(input_fn, mode="r")
+    prefix = input_fn.replace(".zarr", "")
+    yaml_fn = f"{prefix}.yaml"
+    config = yaml.dump(yaml.safe_load(open(yaml_fn, "r")))
+
+    original_zarr = zarr_open_from_lmdb_store(input_fn, readahead=True, mode="r")
 
     if os.path.exists(output_fn):
-        new_zarr = zarr_open_from_lmdb_store(output_fn, mode="r")
-        if not compare_and_check("", origianl_zarr, new_zarr):
+        new_zarr = zarr_open_from_lmdb_store(output_fn, readahead=True, mode="r")
+        breakpoint()
+        if not compare_and_check("", original_zarr, new_zarr):
             print(output_fn, "IS NOT CORRECT!")
         else:
             print(output_fn, "looks good!")
         sys.exit(1)
 
-    timesteps = origianl_zarr["receivers/r0/system_timestamp"].shape[0]
-    buffer_size = origianl_zarr["receivers/r0/signal_matrix"].shape[-1]
+    timesteps = original_zarr["receivers/r0/system_timestamp"].shape[0]
+    buffer_size = original_zarr["receivers/r0/signal_matrix"].shape[-1]
     n_receivers = 2
     keys_f64 = v5rx_f64_keys
     keys_2xf64 = v5rx_2xf64_keys
@@ -74,13 +80,14 @@ if __name__ == "__main__":
         n_receivers,
         keys_f64,
         keys_2xf64,
-        origianl_zarr["config"],
+        original_zarr["config"],
         chunk_size=512,  # tested , blosc1 / chunk_size=512 / buffer_size (2^18~20) = seems pretty good
         compressor=None,
-        skip_signal_matrix=False,
     )
-
-    compare_and_copy("", origianl_zarr, new_zarr)
+    new_zarr["config"][0] = config
+    compare_and_copy("", original_zarr, new_zarr)
+    if original_zarr["config"].shape == ():
+        new_zarr["config"][0] = config
     new_zarr.store.close()
     new_zarr = None
     zarr_shrink(output_fn)

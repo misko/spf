@@ -127,26 +127,15 @@ def torch_circular_stddev(v: torch.Tensor, u: torch.Tensor, trim: float):  # =50
 @torch.jit.script
 def torch_reduce_theta_to_positive_y(ground_truth_thetas):
     reduced_thetas = ground_truth_thetas.clone()
-
     # |theta|>np.pi/2 means its on the y<0
-    reduced_ground_truth_thetas_mask = abs(reduced_thetas) > np.pi / 2
+    reduced_ground_truth_thetas_mask = abs(reduced_thetas) > torch.pi / 2
     reduced_ground_truth_thetas_at_mask = reduced_thetas[
         reduced_ground_truth_thetas_mask
     ]
-    # reduced_thetas[reduced_ground_truth_thetas_mask] = (
-    #     np.sign(reduced_ground_truth_thetas_at_mask) * np.pi
-    #     - reduced_ground_truth_thetas_at_mask
-    # )
-    if isinstance(ground_truth_thetas, torch.Tensor):
-        reduced_thetas[reduced_ground_truth_thetas_mask] = (
-            torch.sign(reduced_ground_truth_thetas_at_mask) * torch.pi
-            - reduced_ground_truth_thetas_at_mask
-        )
-    else:
-        reduced_thetas[reduced_ground_truth_thetas_mask] = (
-            np.sign(reduced_ground_truth_thetas_at_mask) * np.pi
-            - reduced_ground_truth_thetas_at_mask
-        )
+    reduced_thetas[reduced_ground_truth_thetas_mask] = (
+        torch.sign(reduced_ground_truth_thetas_at_mask) * torch.pi
+        - reduced_ground_truth_thetas_at_mask
+    )
     return reduced_thetas
 
 

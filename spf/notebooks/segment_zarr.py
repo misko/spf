@@ -11,7 +11,7 @@ if __name__ == "__main__":
         nthetas=65,
         precompute_cache="/home/mouse9911/precompute_cache_chunk16_fresh/",
         gpu=True,
-        skip_signal_matrix=True,
+        skip_fields=set(["signal_matrix"]),
         ignore_qc=True,
     )
     print(sys.argv[1], ds.phi_drifts[0], ds.phi_drifts[1])

@@ -68,7 +68,7 @@ def test_fake_data_array_orientation():
         ignore_qc=True,
         precompute_cache=tmpdirname,
         paired=True,
-        skip_signal_matrix=True,
+        skip_fields=set(["signal_matrix"]),
         n_parallel=0,
     )
 

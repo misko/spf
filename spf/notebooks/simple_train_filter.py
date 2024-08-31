@@ -1,5 +1,6 @@
 import argparse
 from functools import cache, partial
+import math
 
 import numpy as np
 import tensordict
@@ -36,9 +37,36 @@ from torch.nn import (
     LayerNorm,
 )
 
+
 from torch.utils.data import DistributedSampler, Sampler, BatchSampler
 
 torch.set_float32_matmul_precision("high")
+
+DIST_NORM = 4000
+
+
+class PositionalEncoding(torch.nn.Module):
+
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = torch.nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model)
+        )
+        pe = torch.zeros(1, max_len, d_model)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[batch_size, seq_len, embedding_dim]``
+        """
+        x = x + self.pe[:, : x.size(1)]
+        return self.dropout(x)
 
 
 # from fair-chem repo
@@ -153,18 +181,35 @@ class DebugFunkyNet(torch.nn.Module):
         n_layers=24,
         output_dim=1,
         token_dropout=0.0,
+        only_beamnet=False,
     ):
         super(DebugFunkyNet, self).__init__()
         self.l = torch.nn.Linear(3, 1).to(torch.float32)
 
-    def forward(self, x, seg_mask, rx_spacing, y_rad, windowed_beam_former, rx_pos):
+    def forward(
+        self,
+        x,
+        seg_mask,
+        rx_spacing,
+        y_rad,
+        windowed_beam_former,
+        rx_pos,
+        timestamps,
+    ):
         return {
             "transformer_output": None,
             "pred_theta": None,
             "fake_out": self.l(x[:, 0, 0, :3]),
         }
 
-    def loss(self, output, y_rad, craft_y_rad, seg_mask):
+    def loss(
+        self,
+        output: torch.Tensor,
+        y_rad: torch.Tensor,
+        craft_y_rad: torch.Tensor,
+        seg_mask: torch.Tensor,
+        tx_pos_full: torch.Tensor,
+    ):
         loss = output["fake_out"].mean()
         return {
             "loss": loss,
@@ -203,11 +248,13 @@ class FunkyNet(torch.nn.Module):
         dropout=0.1,
         n_heads=16,
         n_layers=24,
-        output_dim=1,
+        output_dim=1 + 2,  # 1 theta, 2 delta xy pos
         token_dropout=0.5,
         latent=0,
         beamformer_input=False,
         include_input=True,
+        only_beamnet=False,
+        positional_encoding=True,
     ):
         super(FunkyNet, self).__init__()
 
@@ -227,6 +274,7 @@ class FunkyNet(torch.nn.Module):
         self.beamformer_input = beamformer_input
         self.output_dim = output_dim
         self.include_input = include_input
+        self.only_beamnet = only_beamnet
 
         if beamformer_input:
             self.beam_m = BeamNetDirect(
@@ -280,7 +328,7 @@ class FunkyNet(torch.nn.Module):
                 bn=True,
                 no_sigmoid=True,
                 block=True,
-                inputs=3,  # + (1 if args.rx_spacing else 0),
+                inputs=3 + 1,  # + 1,  # 3 basic + 1 rx_spacing
                 norm="layer",
                 positional_encoding=False,
                 latent=latent,
@@ -291,7 +339,9 @@ class FunkyNet(torch.nn.Module):
             )  # .to(torch_device)
 
             if self.include_input:
-                input_dim = 10  # (3,3,2,2) # 3 for R0 signal, 3 for R1 signal, 2 for pos0, 2 for pos1
+                input_dim = (
+                    4 + 4 + 2 + 2
+                )  # (4,4,2,2) # 3 for R0 signal, 3 for R1 signal, 2 for pos0, 2 for pos1
                 self.input_net = torch.nn.Sequential(
                     torch.nn.Linear(
                         input_dim + (5 + latent) * 2 + 1, d_model
@@ -308,9 +358,21 @@ class FunkyNet(torch.nn.Module):
         self.paired_drop_in_gt = 0.00
         self.token_dropout = token_dropout
 
+        self.positional_encoding = positional_encoding
+        self.pe = PositionalEncoding(d_model=d_model, dropout=0.0)
+
     # @torch.compile
-    def forward(self, x, seg_mask, rx_spacing, y_rad, windowed_beam_former, rx_pos):
-        rx_pos = rx_pos.detach().clone() / 4000
+    def forward(
+        self,
+        x,
+        seg_mask,
+        rx_spacing,
+        y_rad,
+        windowed_beam_former,
+        rx_pos,
+        timestamps,
+    ):
+        rx_pos = rx_pos.detach().clone() / DIST_NORM
 
         batch_size, snapshots_per_sessions = y_rad.shape
         # weighted_input = torch.mul(x, seg_mask).sum(axis=3) / (
@@ -329,10 +391,15 @@ class FunkyNet(torch.nn.Module):
                 torch.mul(x, seg_mask) / (seg_mask.sum(axis=3, keepdim=True) + 0.001)
             ).sum(axis=3)
             # weighted_input ~ (batch_size*2,1,3)
-
+        # add rx_spacing (batch_size*2,1,4)
+        weighted_input = torch.concatenate(
+            [weighted_input, rx_spacing.unsqueeze(2)], dim=2
+        )
         pred_theta = self.beam_m(
             weighted_input.reshape(batch_size * snapshots_per_sessions, -1)
         )
+        if self.only_beamnet:
+            return {"pred_theta": pred_theta}
         # if not pred_theta.isfinite().all():
         #    breakpoint()
         #    a = 1
@@ -357,15 +424,23 @@ class FunkyNet(torch.nn.Module):
         weighted_input_by_example = weighted_input.reshape(
             batch_size, snapshots_per_sessions, weighted_input.shape[-1]
         )
+        # breakpoint()
         rx_pos_by_example = rx_pos.reshape(batch_size, snapshots_per_sessions, 2)
+
+        rel_pos0 = (
+            rx_pos_by_example[::2] - rx_pos_by_example[::2][:, [-1]]
+        )  # batch,snapshots_per_session,2
+        rel_pos1 = (
+            rx_pos_by_example[1::2] - rx_pos_by_example[::2][:, [-1]]
+        )  # batch,snapshots_per_session,2
 
         if self.include_input:
             input = torch.concatenate(
                 [
                     weighted_input_by_example[::2],
                     weighted_input_by_example[1::2],
-                    rx_pos_by_example[::2],
-                    rx_pos_by_example[1::2],
+                    rel_pos0,
+                    rel_pos1,
                     detached_pred_theta[::2],
                     detached_pred_theta[1::2],
                     get_time_split(
@@ -380,10 +455,10 @@ class FunkyNet(torch.nn.Module):
         else:
             input = torch.concatenate(
                 [
-                    rx_pos_by_example[::2],
-                    rx_pos_by_example[1::2],
-                    detached_pred_theta[::2],
-                    detached_pred_theta[1::2],
+                    rel_pos0,
+                    rel_pos1,
+                    detached_pred_theta[::2],  # batch,snapshots_per_session,5
+                    detached_pred_theta[1::2],  # batch,snapshots_per_session,5
                     get_time_split(
                         batch_size,
                         snapshots_per_sessions,
@@ -393,23 +468,32 @@ class FunkyNet(torch.nn.Module):
                 ],
                 axis=2,
             )
+
+        embedded_input = self.input_net(input)
+        if self.positional_encoding:
+            embedded_input = self.pe(embedded_input)
         # drop out 1/4 of the sequence, except the last (element we predict on)
-        if self.training:
+        if self.training and self.token_dropout > 0.0:
+            assert 1 == 0, "need to fix all target loss"
             src_key_padding_mask = (
                 torch.rand(batch_size // 2, snapshots_per_sessions, device=input.device)
                 < self.token_dropout  # True here means skip
             )
             src_key_padding_mask[:, -1] = False  # True is not allowed to attend
             transformer_output = self.transformer_encoder(
-                self.input_net(input), src_key_padding_mask=src_key_padding_mask
-            )[:, 0, : self.output_dim]
+                embedded_input, src_key_padding_mask=src_key_padding_mask
+            )[:, :, : self.output_dim]
+            # breakpoint()
+            # a = 1
         else:
-            transformer_output = self.transformer_encoder(self.input_net(input))[
-                :, 0, : self.output_dim
+            transformer_output = self.transformer_encoder(embedded_input)[
+                :, :, : self.output_dim
             ]
+
         return {
             "transformer_output": transformer_output,
             "pred_theta": pred_theta,
+            "rx_pos_full": rx_pos_by_example,
         }
 
     # @torch.compile
@@ -419,11 +503,31 @@ class FunkyNet(torch.nn.Module):
         y_rad: torch.Tensor,
         craft_y_rad: torch.Tensor,
         seg_mask: torch.Tensor,
+        tx_pos_full: torch.Tensor,
     ):
-        target = craft_y_rad[::2, [-1]]
-        transformer_loss = (
-            torch_pi_norm_pi(target - output["transformer_output"]) ** 2
-        ).mean()
+        single_target = craft_y_rad[::2, [-1]]
+        all_target = craft_y_rad[::2]
+
+        if not self.only_beamnet:
+            single_transformer_loss = (
+                torch_pi_norm_pi(
+                    single_target - output["transformer_output"][:, -1, [0]]
+                )
+                ** 2
+            ).mean()
+            all_transformer_loss = (
+                torch_pi_norm_pi(all_target - output["transformer_output"][:, :, 0])
+                ** 2
+            ).mean()
+            tx_pos = (tx_pos_full[::2] + tx_pos_full[1::2]) / 2
+            rx_pos = (output["rx_pos_full"][::2] + output["rx_pos_full"][1::2]) / 2
+            delta = (tx_pos - rx_pos) / DIST_NORM
+            pos_transformer_mse_loss = (
+                (delta - output["transformer_output"][:, :, 1:3]) ** 2
+            ).mean()
+        else:
+            single_transformer_loss = torch.tensor(0.0)
+            all_transformer_loss = torch.tensor(0.0)
 
         y_rad_reduced = torch_reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
         # x to beamformer loss (indirectly including segmentation)
@@ -433,16 +537,23 @@ class FunkyNet(torch.nn.Module):
 
         beamnet_mse = self.beam_m.mse(output["pred_theta"], y_rad_reduced)
 
-        loss = transformer_loss + beamnet_loss
+        loss = all_transformer_loss + beamnet_loss + pos_transformer_mse_loss
 
-        beamnet_mse_random, transformer_random_loss = random_loss(target, y_rad_reduced)
+        beamnet_mse_random, transformer_random_loss = random_loss(
+            single_target, y_rad_reduced
+        )
         return {
             "loss": loss,
-            "transformer_mse_loss": transformer_loss,
+            "transformer_mse_loss": single_transformer_loss,
+            "all_transformer_mse_loss": all_transformer_loss,
             "beamnet_loss": beamnet_loss,
             "beamnet_mse_loss": beamnet_mse,
             "beamnet_mse_random_loss": beamnet_mse_random,
             "transformer_mse_random_loss": transformer_random_loss,
+            "pos_transformer_mse_loss": pos_transformer_mse_loss,
+            "mm_pos_transformer_mse_loss": pos_transformer_mse_loss
+            * DIST_NORM
+            * DIST_NORM,
         }
 
 
@@ -457,6 +568,7 @@ def batch_data_to_x_y_seg(
     batch_data = batch_data.to(torch_device)
     x = batch_data["all_windows_stats"].to(dtype=dtype)
     rx_pos = batch_data["rx_pos_xy"].to(dtype=dtype)
+    tx_pos = batch_data["tx_pos_xy"].to(dtype=dtype)
     seg_mask = batch_data["downsampled_segmentation_mask"].to(dtype=dtype)
     rx_spacing = batch_data["rx_spacing"].to(dtype=dtype)
     if beamformer_input:
@@ -466,6 +578,8 @@ def batch_data_to_x_y_seg(
     y_rad = batch_data["y_rad"].to(dtype=dtype)
     craft_y_rad = batch_data["craft_y_rad"].to(dtype=dtype)
     y_phi = batch_data["y_phi"].to(dtype=dtype)
+    timestamps = batch_data["system_timestamp"].to(dtype=dtype)
+    # rx_spacing = batch_data["rx_spacing"].to(dtype=dtype)
     # assert seg_mask.ndim == 4 and seg_mask.shape[2] == 1
     return (
         x,
@@ -476,6 +590,8 @@ def batch_data_to_x_y_seg(
         rx_spacing,
         windowed_beamformer,
         rx_pos,
+        timestamps,
+        tx_pos,
     )
 
 
@@ -521,6 +637,7 @@ def simple_train_filter(args):
             latent=args.beamnet_latent,
             beamformer_input=args.beamformer_input,
             include_input=args.include_input,
+            only_beamnet=args.only_beamnet,
         ).to(torch_device, dtype=dtype)
     ########
 
@@ -574,11 +691,16 @@ def simple_train_filter(args):
     def new_log():
         return {
             "loss": [],
-            "transformer_mse_loss": [],
             "beamnet_loss": [],
             "beamnet_mse_loss": [],
             "beamnet_mse_random_loss": [],
+            "epoch": [],
+            "data_seen": [],
             "transformer_mse_random_loss": [],
+            "transformer_mse_loss": [],
+            "all_transformer_mse_loss": [],
+            "pos_transformer_mse_loss": [],
+            "mm_pos_transformer_mse_loss": [],
         }
 
     to_log = new_log()
@@ -603,18 +725,22 @@ def simple_train_filter(args):
             else:
                 state_dict[key.replace("beam_m.", "")] = state_dict.pop(key)
         m.beam_m.load_state_dict(state_dict)
+    skip_fields = set(["signal_matrix", "simple_segmentations"])
+    if not args.beamformer_input:
+        skip_fields |= set(["windowed_beamformer"])
+        print(skip_fields)
     datasets = [
         v5spfdataset(
             prefix,
             precompute_cache=args.precompute_cache,
             nthetas=args.nthetas,
-            skip_signal_matrix=True,
             paired=args.n_radios > 1,
             ignore_qc=args.skip_qc,
             gpu=args.device == "cuda",
             snapshots_per_session=args.snapshots_per_session,
+            snapshots_stride=args.snapshots_stride,
             readahead=False,
-            skip_simple_segmentations=True,
+            skip_fields=skip_fields,
         )
         for prefix in args.datasets
     ]
@@ -645,11 +771,13 @@ def simple_train_filter(args):
         keys_to_get = [
             "all_windows_stats",
             "rx_pos_xy",
+            "tx_pos_xy",
             "downsampled_segmentation_mask",
             "rx_spacing",
             "y_rad",
             "craft_y_rad",
             "y_phi",
+            "system_timestamp",
         ]
         if args.beamformer_input:
             keys_to_get += ["windowed_beamformer"]
@@ -716,6 +844,8 @@ def simple_train_filter(args):
                             rx_spacing,
                             windowed_beamformer,
                             rx_pos,
+                            timestamps,
+                            tx_pos,
                         ) = batch_data_to_x_y_seg(
                             val_batch_data, torch_device, dtype, args.beamformer_input
                         )
@@ -728,14 +858,19 @@ def simple_train_filter(args):
                             y_rad=y_rad,
                             windowed_beam_former=windowed_beamformer,
                             rx_pos=rx_pos,
+                            timestamps=timestamps,
                         )
 
                         # compute the loss
-                        loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
+                        loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask, tx_pos)
                         # breakpoint()
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
                             val_losses[key].append(value.item())
+                        val_losses["epoch"].append(step / len(train_dataloader))
+                        val_losses["data_seen"].append(
+                            step * args.snapshots_per_session * args.batch
+                        )
 
                         # plot the first batch
                         if "val_unpaired_output" not in to_log:
@@ -767,6 +902,8 @@ def simple_train_filter(args):
                 rx_spacing,
                 windowed_beamformer,
                 rx_pos,
+                timestamps,
+                tx_pos,
             ) = batch_data_to_x_y_seg(
                 batch_data, torch_device, dtype, beamformer_input=args.beamformer_input
             )
@@ -781,8 +918,9 @@ def simple_train_filter(args):
                     y_rad=y_rad,
                     windowed_beam_former=windowed_beamformer,
                     rx_pos=rx_pos,
+                    timestamps=timestamps,
                 )
-                loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask)
+                loss_d = m.loss(output, y_rad, craft_y_rad, seg_mask, tx_pos)
 
                 loss = loss_d["beamnet_loss"] * args.beam_net_lambda
                 if step > args.head_start:
@@ -816,6 +954,9 @@ def simple_train_filter(args):
                     for key, value in to_log.items():
                         if "loss" in key and len(value) > 0:
                             to_log[key] = np.array(value).mean()
+
+                    to_log["epoch"] = step / len(train_dataloader)
+                    to_log["data_seen"] = step * args.snapshots_per_session * args.batch
                     wandb.log(to_log, step=step)
                     # for key, value in to_log.items():
                     #    if "_output" in key:
@@ -863,6 +1004,12 @@ def get_parser_filter():
         type=int,
         required=False,
         default=500,
+    )
+    parser.add_argument(
+        "--snapshots-stride",
+        type=float,
+        required=False,
+        default=0.5,
     )
     parser.add_argument(
         "--workers",
@@ -1013,6 +1160,11 @@ def get_parser_filter():
         default=True,
     )
     parser.add_argument(
+        "--only-beamnet",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
         "--amp",
         action=argparse.BooleanOptionalAction,
         default=False,
@@ -1070,16 +1222,16 @@ def get_parser_filter():
     parser.add_argument(
         "--dtype",
         type=str,
-        default="float16",
+        default="float32",
     )
     parser.add_argument(
         "--tformer-dropout",
-        type=int,
+        type=float,
         default=0.1,
     )
     parser.add_argument(
         "--tformer-snapshot-dropout",
-        type=int,
+        type=float,
         default=0.5,
     )
     parser.add_argument(

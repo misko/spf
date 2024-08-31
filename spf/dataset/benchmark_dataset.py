@@ -17,22 +17,29 @@ from spf.dataset.spf_dataset import (
 import torch
 import random
 
-ds_fn = "/mnt/4tb_ssd/june_fix/wallarrayv3_2024_06_15_11_44_13_nRX2_bounce.zarr"
+# ds_fn = "/mnt/4tb_ssd/june_fix/wallarrayv3_2024_06_15_11_44_13_nRX2_bounce.zarr"
+import sys
 
+if len(sys.argv) != 2:
+    print(f"{sys.argv[0]} input")
+    sys.exit(1)
+
+ds_fn = sys.argv[1]
 
 nthetas = 65
 ds = v5spfdataset(
     ds_fn,
     nthetas=nthetas,
     ignore_qc=True,
-    precompute_cache="/home/mouse9911/precompute_cache_chunk16_fresh",
+    precompute_cache="./",
     paired=True,
-    skip_signal_matrix=True,
+    skip_fields=set(["signal_matrix", "simple_segmentations"]),
     snapshots_per_session=500,
-    skip_simple_segmentations=True,
+    gpu=True,
 )
 
 idxs = torch.arange(len(ds))
+random.seed(10)
 random.shuffle(idxs)
 
 random.seed(10)

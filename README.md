@@ -47,5 +47,17 @@ To avoid multipath issues and noise from ground based sources.
 It can be any array of antenna receivers configured to a tunable radio so that the agent can scan across frequencies. In the current simulation setup the array can be simulated as any number of linear or circular elements and processed through a relatively simple beamformer algorithm to produce the map of angle to signal strength required for in
 put.
 
+## Install
+
+```
+
+sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev sshpass python3.10-venv -y
+python3 -m venv spf_venv
+source spf_venv/bin/activate
+pip install -e . 
+pytest tests
+```
+
+
 
 

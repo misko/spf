@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import yaml
 import zarr
-from numcodecs import Blosc
+from numcodecs import Blosc, blosc
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -123,7 +123,7 @@ def zarr_open_from_lmdb_store(filename, mode="r", readahead=False, map_size=2**3
             map_size=map_size,
             writemap=False,
             readonly=True,
-            max_readers=1,  # 1024 * 1024,
+            max_readers=32,  # 1024 * 1024,
             lock=False,
             meminit=False,
             readahead=readahead,
@@ -135,7 +135,7 @@ def zarr_open_from_lmdb_store(filename, mode="r", readahead=False, map_size=2**3
             writemap=False,
             readonly=False,
             sync=True,
-            max_readers=1,  # 1024 * 1024,
+            max_readers=32,  # 1024 * 1024,
             lock=True,
             meminit=False,
             readahead=readahead,
@@ -193,7 +193,7 @@ def zarr_new_dataset(
                 "signal_matrix",
                 shape=(timesteps, 2, buffer_size),
                 # chunks=(1, 1, 1024 * chunk_size),
-                chunks=(1, 2, buffer_size),
+                chunks=(1, 2, buffer_size // 2),
                 dtype="complex64",
                 compressor=compressor,
             )

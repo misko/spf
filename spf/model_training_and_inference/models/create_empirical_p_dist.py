@@ -71,7 +71,7 @@ if __name__ == "__main__":
             prefix,
             precompute_cache=args.precompute_cache,
             nthetas=args.nthetas,
-            skip_signal_matrix=True,
+            skip_fields=set(["signal_matrix"]),
             paired=False,
             ignore_qc=True,
             gpu=args.device == "cuda",

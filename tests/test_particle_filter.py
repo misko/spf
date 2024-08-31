@@ -40,7 +40,7 @@ def heatmap(noise1_n128_obits2):
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
-        skip_signal_matrix=True,
+        skip_fields=set(["signal_matrix"]),
         paired=True,
         ignore_qc=True,
         gpu=False,
@@ -58,7 +58,7 @@ def test_single_theta_single_radio(noise1_n128_obits2, heatmap):
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
-        skip_signal_matrix=True,
+        skip_fields=set(["signal_matrix"]),
         paired=True,
         ignore_qc=True,
         gpu=False,
@@ -83,7 +83,7 @@ def test_single_theta_dual_radio(noise1_n128_obits2, heatmap):
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
-        skip_signal_matrix=True,
+        skip_fields=set(["signal_matrix"]),
         paired=True,
         ignore_qc=True,
         gpu=False,
@@ -107,7 +107,7 @@ def test_single_theta_dual_radio(noise1_n128_obits2, heatmap):
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
-        skip_signal_matrix=True,
+        skip_fields=set(["signal_matrix"]),
         paired=True,
         ignore_qc=True,
         gpu=False,
@@ -132,7 +132,7 @@ def test_partial(noise1_n128_obits2):
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
-        skip_signal_matrix=True,
+        skip_fields=set(["signal_matrix"]),
         paired=True,
         ignore_qc=True,
         gpu=False,
@@ -145,7 +145,7 @@ def test_partial(noise1_n128_obits2):
                 ds_fn_out,
                 precompute_cache=tmpdirname,
                 nthetas=65,
-                skip_signal_matrix=True,
+                skip_fields=set(["signal_matrix"]),
                 paired=True,
                 ignore_qc=True,
                 gpu=False,
@@ -171,5 +171,8 @@ def test_partial_script(noise1_n128_obits2):
             partial_dataset(ds_fn, ds_fn_out, partial_n)
             # open_partial_dataset_and_check_some(ds_fn_out, suffix="", n_parallel=0)
             open_partial_dataset_and_check_some(
-                ds_fn_out, suffix="", n_parallel=0, skip_fields=["windowed_beamformer"]
+                ds_fn_out,
+                suffix="",
+                n_parallel=0,
+                skip_fields=set(["windowed_beamformer"]),
             )

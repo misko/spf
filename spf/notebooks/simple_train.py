@@ -157,16 +157,18 @@ def simple_train(args):
 
     assert args.n_radios in [1, 2]
     # loop over and concat datasets here
+    skip_fields = set(["simple_segmentations"])
+    if args.segmentation_level == "downsampled":
+        skip_fields |= set(["signal_matrix"])
     datasets = [
         v5spfdataset(
             prefix,
             precompute_cache=args.precompute_cache,
             nthetas=args.nthetas,
-            skip_signal_matrix=args.segmentation_level == "downsampled",
+            skip_fields=skip_fields,
             paired=args.n_radios > 1,
             ignore_qc=args.skip_qc,
             gpu=args.device == "cuda",
-            skip_simple_segmentations=True,
         )
         for prefix in args.datasets
     ]
