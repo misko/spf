@@ -4,11 +4,15 @@ import numpy as np
 
 import tempfile
 
+import pytest
+
 
 from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
 from spf.dataset.spf_dataset import v5spfdataset
 
 import numpy as np
+
+from spf.utils import identical_datasets
 
 
 def test_dataset_load():
@@ -74,3 +78,55 @@ def test_fake_data_array_orientation():
 
     assert np.isclose(ds.ground_truth_phis[0], ds.mean_phase["r0"], atol=0.001).all()
     assert np.isclose(ds.ground_truth_phis[1], ds.mean_phase["r1"], atol=0.001).all()
+
+
+def test_identical_datasets():
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        dsA_fn = f"{tmpdirname}/test_circleA"
+        create_fake_dataset(
+            filename=dsA_fn, yaml_config_str=fake_yaml, n=5, noise=0.0, phi_drift=0.0
+        )
+        dsB_fn = f"{tmpdirname}/test_circleB"
+        create_fake_dataset(
+            filename=dsB_fn,
+            yaml_config_str=fake_yaml,
+            n=6,
+            noise=0.0,
+            phi_drift=0.0,
+            seed=10,
+        )
+        dsC_fn = f"{tmpdirname}/test_circleC"
+        create_fake_dataset(
+            filename=dsC_fn,
+            yaml_config_str=fake_yaml,
+            n=5,
+            noise=0.0,
+            phi_drift=0.0,
+        )
+
+        dsA = v5spfdataset(
+            dsA_fn,
+            nthetas=11,
+            ignore_qc=True,
+            precompute_cache=tmpdirname,
+        )
+        dsB = v5spfdataset(
+            dsB_fn,
+            nthetas=11,
+            ignore_qc=True,
+            precompute_cache=tmpdirname,
+        )
+        dsC = v5spfdataset(
+            dsC_fn,
+            nthetas=11,
+            ignore_qc=True,
+            precompute_cache=tmpdirname,
+        )
+
+        for a in [dsA, dsB, dsC]:
+            for b in [dsA, dsB, dsC]:
+                if a == b:
+                    identical_datasets(a, b)
+                else:
+                    with pytest.raises(AssertionError):
+                        identical_datasets(a, b)

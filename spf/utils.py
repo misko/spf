@@ -8,6 +8,9 @@ import yaml
 import zarr
 from numcodecs import Blosc, blosc
 import warnings
+import torch
+
+from deepdiff.diff import DeepDiff
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -247,3 +250,60 @@ def filenames_from_time_in_seconds(
     final_filenames = {k: v.replace(".tmp", "") for k, v in temp_filenames.items()}
 
     return temp_filenames, final_filenames
+
+
+def identical_datasets(dsA, dsB, skip_signal_matrix=False):
+    assert len(dsA) == len(dsB)
+    for idx in range(len(dsA)):
+        assert len(dsA[idx]) == len(dsB[idx])
+        for r_idx in range(len(dsA[idx])):
+            eA = dsA[idx][r_idx]
+            eB = dsB[idx][r_idx]
+            eA_keys = set(eA.keys())
+            eB_keys = set(eB.keys())
+            if skip_signal_matrix:
+                eA_keys -= set(["signal_matrix", "abs_signal_and_phase_diff"])
+                eB_keys -= set(["signal_matrix", "abs_signal_and_phase_diff"])
+            assert eA_keys == eB_keys
+            for key in eA_keys:
+                if isinstance(eA[key], torch.Tensor):
+                    assert torch.isclose(eA[key], eB[key]).all()
+                else:
+                    assert len(DeepDiff(eA[key], eB[key])) == 0
+
+
+def compare_and_check(prefix, src, dst, skip_signal_matrix=False):
+    if isinstance(src, zarr.hierarchy.Group):
+        for key in src.keys():
+            if not skip_signal_matrix or key != "signal_matrix":
+                compare_and_check(
+                    prefix + "/" + key, src[key], dst[key], skip_signal_matrix
+                )
+    else:
+        if prefix == "/config":
+            if not src.shape == ():
+                if dst[:] != src[:]:
+                    raise ValueError(f"{prefix} does not match!")
+        else:
+            for x in range(src.shape[0]):
+                if not (dst[x] == src[x]).all():
+                    raise ValueError(f"{prefix} does not match!")
+    return True
+
+
+def compare_and_copy(prefix, src, dst, skip_signal_matrix=False):
+    if isinstance(src, zarr.hierarchy.Group):
+        for key in src.keys():
+            if not skip_signal_matrix or key != "signal_matrix":
+                compare_and_copy(
+                    prefix + "/" + key, src[key], dst[key], skip_signal_matrix
+                )
+    else:
+        if prefix == "/config":
+            if src.shape != ():
+                dst[:] = src[:]
+        else:
+            for x in range(src.shape[0]):
+                dst[x] = src[
+                    x
+                ]  # TODO why cant we just copy the whole thing at once? # too big?

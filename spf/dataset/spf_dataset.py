@@ -172,7 +172,7 @@ def mp_segment_zarr(
 
     assert len(z["receivers"]) == 2
 
-    n_sessions, _, _ = z.receivers["r0"].signal_matrix.shape
+    n_sessions = z.receivers["r0"].system_timestamp.shape[0]
 
     results_by_receiver = {}
     for r_idx in [0, 1]:
@@ -785,7 +785,7 @@ class v5spfdataset(Dataset):
         if "signal_matrix" not in self.skip_fields:
             abs_signal = data["signal_matrix"].abs().to(torch.float32)
             pd = torch_get_phase_diff(data["signal_matrix"]).to(torch.float32)
-            data["x"] = torch.concatenate(
+            data["abs_signal_and_phase_diff"] = torch.concatenate(
                 [abs_signal[:, [0]], abs_signal[:, [1]], pd[:, None]], dim=1
             )
 
@@ -956,7 +956,8 @@ class v5spfdataset(Dataset):
     def results_fn(self):
         return os.path.join(
             self.precompute_cache,
-            os.path.basename(self.prefix) + f"_segmentation_nthetas{self.nthetas}.pkl",
+            os.path.basename(self.prefix).replace("_nosig", "")
+            + f"_segmentation_nthetas{self.nthetas}.pkl",
         )
 
     def get_segmentation(self, precompute_to_idx=-1):
