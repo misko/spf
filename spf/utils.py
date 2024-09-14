@@ -10,6 +10,8 @@ from numcodecs import Blosc, blosc
 import warnings
 import torch
 
+
+from torch.utils.data import DistributedSampler, Sampler, BatchSampler
 from deepdiff.diff import DeepDiff
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -307,3 +309,70 @@ def compare_and_copy(prefix, src, dst, skip_signal_matrix=False):
                 dst[x] = src[
                     x
                 ]  # TODO why cant we just copy the whole thing at once? # too big?
+
+
+# from fair-chem repo
+class StatefulDistributedSampler(DistributedSampler):
+    """
+    More fine-grained state DataSampler that uses training iteration and epoch
+    both for shuffling data. PyTorch DistributedSampler only uses epoch
+    for the shuffling and starts sampling data from the start. In case of training
+    on very large data, we train for one epoch only and when we resume training,
+    we want to resume the data sampler from the training iteration.
+    """
+
+    def __init__(self, dataset, batch_size, **kwargs):
+        """
+        Initializes the instance of StatefulDistributedSampler. Random seed is set
+        for the epoch set and data is shuffled. For starting the sampling, use
+        the start_iter (set to 0 or set by checkpointing resuming) to
+        sample data from the remaining images.
+
+        Args:
+            dataset (Dataset): Pytorch dataset that sampler will shuffle
+            batch_size (int): batch size we want the sampler to sample
+            seed (int): Seed for the torch generator.
+        """
+        super().__init__(dataset=dataset, **kwargs)
+
+        self.start_iter = 0
+        self.batch_size = batch_size
+        assert self.batch_size > 0, "batch_size not set for the sampler"
+        # logging.info(f"rank: {self.rank}: Sampler created...")
+
+    def __iter__(self):
+        # TODO: For very large datasets, even virtual datasets this might slow down
+        # or not work correctly. The issue is that we enumerate the full list of all
+        # samples in a single epoch, and manipulate this list directly. A better way
+        # of doing this would be to keep this sequence strictly as an iterator
+        # that stores the current state (instead of the full sequence)
+        distributed_sampler_sequence = super().__iter__()
+        if self.start_iter > 0:
+            for i, _ in enumerate(distributed_sampler_sequence):
+                if i == self.start_iter * self.batch_size - 1:
+                    break
+        return distributed_sampler_sequence
+
+    def set_epoch_and_start_iteration(self, epoch, start_iter):
+        self.set_epoch(epoch)
+        self.start_iter = start_iter
+
+
+class StatefulBatchsampler(BatchSampler):
+    def __init__(self, dataset, batch_size, seed=0, shuffle=False, drop_last=False):
+        sampler = StatefulDistributedSampler(
+            dataset,
+            num_replicas=1,
+            rank=0,
+            shuffle=shuffle,
+            drop_last=False,
+            batch_size=batch_size,
+            seed=seed,
+        )
+        super().__init__(sampler, batch_size=batch_size, drop_last=drop_last)
+
+    def set_epoch_and_start_iteration(self, epoch: int, start_iteration: int) -> None:
+        self.sampler.set_epoch_and_start_iteration(epoch, start_iteration)
+
+    def __iter__(self):
+        yield from super().__iter__()

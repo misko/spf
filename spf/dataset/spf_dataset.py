@@ -652,6 +652,7 @@ class v5spfdataset(Dataset):
             self.craft_ground_truth_thetas = (
                 self.get_craft_ground_truth_thetas().share_memory_()
             )
+            
             return True
         return False
 
