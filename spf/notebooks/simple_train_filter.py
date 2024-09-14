@@ -922,7 +922,7 @@ def simple_train_filter(args):
                     )
                 ]
                 if len(beamnet_params) > 0:
-                    beamnet_checksum = torch.hstack().mean().item()
+                    beamnet_checksum = torch.hstack(beamnet_params).mean().item()
                     print("Beamnet checksum:", beamnet_checksum)
                     if not math.isfinite(beamnet_checksum):
                         if args.wandb_project:
