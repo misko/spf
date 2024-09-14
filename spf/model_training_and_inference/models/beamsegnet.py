@@ -266,7 +266,7 @@ class PairedBeamNet(nn.Module):
 class FFNN(nn.Module):
     def __init__(self, inputs, depth, hidden, outputs, block, bn, norm, act):
         super(FFNN, self).__init__()
-        if norm == "batch":
+        if bn == False or norm == "batch":
             net_layout = [
                 nn.Linear(inputs, hidden),
                 act(),
@@ -299,7 +299,7 @@ class FFNN(nn.Module):
                     ]
             net_layout += [nn.Linear(hidden, outputs)]
         else:
-            raise ValueError("Norm not implemented {norm}")
+            raise ValueError(f"Norm not implemented {norm}")
         self.net = nn.Sequential(*net_layout)
 
     def forward(self, x):
@@ -427,17 +427,16 @@ class BeamNetDiscrete(nn.Module):
         # (E(x)-y)^2
         E_x = (
             (
-                (torch.arange(x.shape[1]).reshape(1, -1) * x).sum(axis=1)
+                (torch.arange(x.shape[1], device=x.device).reshape(1, -1) * x).sum(
+                    axis=1
+                )
                 / x.shape[1]  # scale 0~1
                 - 0.5  # scale -.5 ~ .5
             )
             * 2  # scale -1 ~ 1
             * self.max_angle  # scale -self.max_angle ~ self.max_angle
         )
-        print(
-            "THIS IS  ABUG! torch_pi_norm is not the right way, use reduce_theta_to_positive_y"
-        )
-        return (torch_pi_norm(E_x - y[:, 0], max_angle=self.max_angle) ** 2).mean()
+        return ((E_x - y[:, 0]) ** 2).mean()
 
     def likelihood(self, x, y):
         r = torch.einsum(
@@ -664,6 +663,79 @@ class NormalNet(nn.Module):
     def render_discrete_y(self, y: torch.Tensor):
         assert y.abs().max() <= self.max_angle
         return v5_thetas_to_targets(y, self.nthetas, sigma=0.5, range_in_rad=1)
+
+
+class SimpleNet(torch.nn.Module):
+    def __init__(
+        self,
+        # network architecture
+        hidden=16,
+        latent=2,
+        inputs=3,
+        depth=3,
+        act=nn.LeakyReLU,
+        block=False,
+        bn=False,
+        norm="batch",
+        # angle specific
+        nthetas=65,
+        max_angle=torch.pi / 2,
+        # normal net params
+        other=True,
+        no_sigmoid=False,
+        linear_sigmas=False,
+        correction=False,
+        min_sigma=0.2,
+        # equivariance
+        positional_encoding=False,
+        rx_spacing_track=3,
+        mag_track=2,
+        stddev_track=1,
+        pd_track=0,
+        symmetry=False,
+    ):
+
+        super(SimpleNet, self).__init__()
+        self.outputs = 1 + 2 + 2 + latent  # u , o1 o2 , k1 k2
+        self.max_angle = max_angle
+        self.beam_net = nn.Sequential(
+            (
+                HalfPiEncoding(pd_track, nthetas)
+                if positional_encoding
+                else nn.Identity()
+            ),
+            FFNN(
+                inputs=(inputs + nthetas if positional_encoding else inputs),
+                depth=depth,
+                hidden=hidden,
+                outputs=self.outputs,
+                block=block,
+                norm=norm,
+                act=act,
+                bn=bn,
+            ),
+        )
+        # equivariance stuff
+        self.pd_track = pd_track
+        self.mag_track = mag_track
+        self.stddev_track = stddev_track
+        self.rx_spacing_track = rx_spacing_track
+        self.symmetry = symmetry
+
+    def forward(self, x):
+        return self.beam_net(x)
+
+    # @torch.compile
+    def mse(self, x: torch.Tensor, y: torch.Tensor):
+        # not sure why we cant wrap around for torch.pi/2....
+        # assert np.isclose(self.max_angle, torch.pi, atol=0.05)
+        # if self.max_angle == torch.pi:
+        return (torch_pi_norm(x[:, 0] - y[:, 0], max_angle=self.max_angle) ** 2).mean()
+        # return ((x[:, 0] - y[:, 0]) ** 2).mean()
+
+    # @torch.compile
+    def loglikelihood(self, x: torch.Tensor, y: torch.Tensor):  # , log_eps: float =
+        return torch.tensor(0.0)
 
 
 class BeamNetDirect(NormalNet):

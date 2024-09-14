@@ -249,6 +249,18 @@ def compare_and_copy_n(prefix, src, dst, n):
                 dst[x] = src[x]
 
 
+def compare_and_copy_nth(prefix, src, dst, n):
+    if isinstance(src, zarr.hierarchy.Group):
+        for key in src.keys():
+            compare_and_copy_nth(prefix + "/" + key, src[key], dst[key], n)
+    else:
+        if prefix == "/config":
+            if src.shape != ():
+                dst[:] = src[:]
+        else:
+            dst[n] = src[n]
+
+
 def partial_dataset(input_fn, output_fn, n):
     input_fn.replace(".zarr", "")
     z = zarr_open_from_lmdb_store(input_fn + ".zarr")
@@ -271,6 +283,30 @@ def partial_dataset(input_fn, output_fn, n):
     new_z.store.close()
     new_z = None
     zarr_shrink(output_fn)
+
+
+class PartialDatasetController:
+    def __init__(self, input_fn, output_fn):
+        input_fn.replace(".zarr", "")
+        self.z = zarr_open_from_lmdb_store(input_fn + ".zarr")
+        timesteps, _, buffer_size = self.z["receivers/r0/signal_matrix"].shape
+        input_yaml_fn = input_fn + ".yaml"
+        output_yaml_fn = output_fn + ".yaml"
+        yaml_config = yaml.safe_load(open(input_yaml_fn, "r"))
+        shutil.copyfile(input_yaml_fn, output_yaml_fn)
+        self.new_z = v5rx_new_dataset(
+            filename=output_fn + ".zarr",
+            timesteps=timesteps,
+            buffer_size=buffer_size,
+            n_receivers=len(yaml_config["receivers"]),
+            chunk_size=512,
+            compressor=None,
+            config=yaml_config,
+            remove_if_exists=False,
+        )
+
+    def copy_nth(self, n):
+        compare_and_copy_nth("", self.z, self.new_z, n)
 
 
 def get_parser():

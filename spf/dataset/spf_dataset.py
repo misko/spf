@@ -616,22 +616,36 @@ class v5spfdataset(Dataset):
             (self.z[f"receivers/r{ridx}/system_timestamp"][:] > 0).sum()
             for ridx in range(self.n_receivers)
         ]
-        if self.valid_entries is None or self.valid_entries != valid_entries:
 
-            self.cached_keys = {}
+        # TODO only copy new entries!
+        if self.valid_entries is None or self.valid_entries != valid_entries:
+            old_n = 0 if self.valid_entries is None else min(self.valid_entries)
+            new_n = max(valid_entries)
+            if old_n == 0:
+                self.cached_keys = {}
             for receiver_idx in range(self.n_receivers):
-                self.cached_keys[receiver_idx] = {}
+                if receiver_idx not in self.cached_keys:
+                    self.cached_keys[receiver_idx] = {}
                 for key in self.keys_per_session:
                     if key in self.exclude_keys_from_cache:
                         continue
                     # assert key != "signal_matrix"  # its complex shouldnt get converted!
                     # print(key, self.receiver_data[receiver_idx][key][:].dtype)
                     # print(key, self.exclude_keys_from_cache)
-                    self.cached_keys[receiver_idx][key] = torch.as_tensor(
-                        self.receiver_data[receiver_idx][key][:].astype(
-                            np.float32
-                        )  # TODO save as float32?
-                    ).share_memory_()
+                    if old_n == 0:
+                        self.cached_keys[receiver_idx][key] = torch.as_tensor(
+                            self.receiver_data[receiver_idx][key][:].astype(
+                                np.float32
+                            )  # TODO save as float32?
+                        ).share_memory_()
+                    else:
+                        self.cached_keys[receiver_idx][key][old_n:new_n] = (
+                            torch.as_tensor(
+                                self.receiver_data[receiver_idx][key][
+                                    old_n:new_n
+                                ].astype(np.float32)
+                            )
+                        )
             self.valid_entries = valid_entries
             self.ground_truth_thetas = self.get_ground_truth_thetas().share_memory_()
             self.ground_truth_phis = self.get_ground_truth_phis().share_memory_()

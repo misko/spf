@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 from random import shuffle
 import wandb
+import math
 from spf.dataset.spf_dataset import (
     v5_collate_beamsegnet,
     v5_collate_keys_fast,
@@ -16,7 +17,9 @@ from spf.dataset.spf_dataset import (
 )
 from math import ceil
 from spf.model_training_and_inference.models.beamsegnet import (
+    BeamNetDiscrete,
     BeamNetDirect,
+    SimpleNet,
 )
 import gc
 from cProfile import Profile
@@ -184,6 +187,7 @@ class DebugFunkyNet(torch.nn.Module):
         only_beamnet=False,
     ):
         super(DebugFunkyNet, self).__init__()
+        self.beam_m = torch.nn.Identity()
         self.l = torch.nn.Linear(3, 1).to(torch.float32)
 
     def forward(
@@ -276,66 +280,120 @@ class FunkyNet(torch.nn.Module):
         self.include_input = include_input
         self.only_beamnet = only_beamnet
 
-        if beamformer_input:
-            self.beam_m = BeamNetDirect(
+        if args.beam_type == "simple":
+
+            self.beam_m = SimpleNet(
                 nthetas=65,
                 depth=args.beam_net_depth,
                 hidden=args.beam_net_hidden,
                 symmetry=False,
                 act=torch.nn.LeakyReLU,
                 other=True,
-                bn=False,  # True
-                no_sigmoid=True,
-                block=True,
-                rx_spacing_track=-1,
-                pd_track=-1,
-                mag_track=-1,
-                stddev_track=-1,
-                inputs=65,
-                latent=latent,
-                norm="layer",
-                max_angle=np.pi / 2,
-                linear_sigmas=True,
-                correction=True,
-                min_sigma=0.0001,
-            )
-
-            if self.include_input:
-                input_dim = (65 + 2) * 2
-                # (65,65,2,2) # 65 for R0 signal, 65 for R1 signal, 2 for pos0, 2 for pos1
-                self.input_net = torch.nn.Sequential(
-                    torch.nn.Linear(
-                        input_dim + (5 + latent) * 2 + 1, d_model
-                    )  # 5 output beam_former R1+R2, time
-                )
-            else:
-                input_dim = 2 * 2
-                # (2,2) # 2 for pos0, 2 for pos1
-                self.input_net = torch.nn.Sequential(
-                    torch.nn.Linear(
-                        input_dim + (5 + latent) * 2 + 1, d_model
-                    )  # 5 output beam_former R1+R2, time
-                )
-
-        else:
-            self.beam_m = BeamNetDirect(
-                nthetas=65,
-                depth=args.beam_net_depth,
-                hidden=args.beam_net_hidden,
-                symmetry=False,
-                act=torch.nn.LeakyReLU,
-                other=True,
-                bn=True,
+                bn=args.beam_norm,
                 no_sigmoid=True,
                 block=True,
                 inputs=3 + 1,  # + 1,  # 3 basic + 1 rx_spacing
-                norm="layer",
+                norm=args.beam_norm_type,
                 positional_encoding=False,
                 latent=latent,
                 max_angle=np.pi / 2,
                 linear_sigmas=True,
                 correction=True,
                 min_sigma=0.0001,
+            )  # .to(torch_device)
+        elif args.beam_type == "direct":
+            if beamformer_input:
+                self.beam_m = BeamNetDirect(
+                    nthetas=65,
+                    depth=args.beam_net_depth,
+                    hidden=args.beam_net_hidden,
+                    symmetry=False,
+                    act=torch.nn.LeakyReLU,
+                    other=True,
+                    bn=args.beam_norm,  # True
+                    no_sigmoid=True,
+                    block=True,
+                    rx_spacing_track=-1,
+                    pd_track=-1,
+                    mag_track=-1,
+                    stddev_track=-1,
+                    inputs=65,
+                    latent=latent,
+                    norm=args.beam_norm.type,
+                    max_angle=torch.pi / 2,
+                    linear_sigmas=True,
+                    correction=True,
+                    min_sigma=0.0001,
+                )
+
+                if self.include_input:
+                    input_dim = (65 + 2) * 2
+                    # (65,65,2,2) # 65 for R0 signal, 65 for R1 signal, 2 for pos0, 2 for pos1
+                    self.input_net = torch.nn.Sequential(
+                        torch.nn.Linear(
+                            input_dim + (5 + latent) * 2 + 1, d_model
+                        )  # 5 output beam_former R1+R2, time
+                    )
+                else:
+                    input_dim = 2 * 2
+                    # (2,2) # 2 for pos0, 2 for pos1
+                    self.input_net = torch.nn.Sequential(
+                        torch.nn.Linear(
+                            input_dim + (5 + latent) * 2 + 1, d_model
+                        )  # 5 output beam_former R1+R2, time
+                    )
+            else:
+                self.beam_m = BeamNetDirect(
+                    nthetas=65,
+                    depth=args.beam_net_depth,
+                    hidden=args.beam_net_hidden,
+                    symmetry=False,
+                    act=torch.nn.LeakyReLU,
+                    other=True,
+                    bn=args.beam_norm,
+                    no_sigmoid=True,
+                    block=True,
+                    inputs=3 + 1,  # 3 basic + 1 rx_spacing
+                    norm=args.beam_norm_type,
+                    positional_encoding=False,
+                    latent=latent,
+                    max_angle=np.pi / 2,
+                    linear_sigmas=True,
+                    correction=True,
+                    min_sigma=0.0001,
+                )  # .to(torch_device)
+
+                if self.include_input:
+                    input_dim = (
+                        4 + 4 + 2 + 2
+                    )  # (4,4,2,2) # 4 for R0 signal, 4 for R1 signal, 2 for pos0, 2 for pos1
+                    self.input_net = torch.nn.Sequential(
+                        torch.nn.Linear(
+                            input_dim + (5 + latent) * 2 + 1, d_model
+                        )  # 5 output beam_former R1+R2, time
+                    )
+                else:
+                    input_dim = 4  # (2,2) #  2 for pos0, 2 for pos1
+                    self.input_net = torch.nn.Sequential(
+                        torch.nn.Linear(
+                            input_dim + (5 + latent) * 2 + 1, d_model
+                        )  # 5 output beam_former R1+R2, time
+                    )
+        else:
+            nthetas = 65
+            self.beam_m = BeamNetDiscrete(
+                nthetas=nthetas,
+                depth=args.beam_net_depth,
+                hidden=args.beam_net_hidden,
+                symmetry=False,
+                act=torch.nn.LeakyReLU,
+                bn=args.beam_norm,
+                block=True,
+                inputs=3 + 1,  # 3 basic + 1 rx_spacing
+                norm=args.beam_norm_type,
+                positional_encoding=args.positional,
+                latent=latent,
+                max_angle=np.pi / 2,
             )  # .to(torch_device)
 
             if self.include_input:
@@ -344,18 +402,18 @@ class FunkyNet(torch.nn.Module):
                 )  # (4,4,2,2) # 3 for R0 signal, 3 for R1 signal, 2 for pos0, 2 for pos1
                 self.input_net = torch.nn.Sequential(
                     torch.nn.Linear(
-                        input_dim + (5 + latent) * 2 + 1, d_model
+                        input_dim + (nthetas + latent) * 2 + 1, d_model
                     )  # 5 output beam_former R1+R2, time
                 )
             else:
                 input_dim = 4  # (2,2) #  2 for pos0, 2 for pos1
                 self.input_net = torch.nn.Sequential(
                     torch.nn.Linear(
-                        input_dim + (5 + latent) * 2 + 1, d_model
+                        input_dim + (nthetas + latent) * 2 + 1, d_model
                     )  # 5 output beam_former R1+R2, time
                 )
 
-        self.paired_drop_in_gt = 0.00
+        self.paired_drop_in_gt = 1.00
         self.token_dropout = token_dropout
 
         self.positional_encoding = positional_encoding
@@ -409,13 +467,14 @@ class FunkyNet(torch.nn.Module):
                 pred_theta[:, self.beam_m.outputs - self.beam_m.latent :],
             ]
         )
+        # breakpoint()
         # TODO inject correct means sometimes!
         # if self.train() randomly inject
         # if self.eval() never inject!
         if y_rad is not None and self.training and self.paired_drop_in_gt > 0.0:
             y_rad_reduced = torch_reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
             mask = torch.rand(detached_pred_theta.shape[0]) < self.paired_drop_in_gt
-            detached_pred_theta[mask, 0] = y_rad_reduced[mask, 0]
+            # detached_pred_theta[mask, 0] = y_rad_reduced[mask, 0]
             detached_pred_theta[mask, 1:3] = 0
         detached_pred_theta = detached_pred_theta.reshape(
             batch_size, snapshots_per_sessions, -1
@@ -528,6 +587,7 @@ class FunkyNet(torch.nn.Module):
         else:
             single_transformer_loss = torch.tensor(0.0)
             all_transformer_loss = torch.tensor(0.0)
+            pos_transformer_mse_loss = torch.tensor(0.0)
 
         y_rad_reduced = torch_reduce_theta_to_positive_y(y_rad).reshape(-1, 1)
         # x to beamformer loss (indirectly including segmentation)
@@ -537,7 +597,13 @@ class FunkyNet(torch.nn.Module):
 
         beamnet_mse = self.beam_m.mse(output["pred_theta"], y_rad_reduced)
 
-        loss = all_transformer_loss + beamnet_loss + pos_transformer_mse_loss
+        # loss = all_transformer_loss + beamnet_loss + pos_transformer_mse_loss
+
+        # hack for simple net TODO
+        loss = all_transformer_loss + beamnet_mse  # + pos_transformer_mse_loss
+        # beamnet_loss = beamnet_mse
+
+        # loss = pos_transformer_mse_loss
 
         beamnet_mse_random, transformer_random_loss = random_loss(
             single_target, y_rad_reduced
@@ -641,6 +707,28 @@ def simple_train_filter(args):
         ).to(torch_device, dtype=dtype)
     ########
 
+    def no_change(m):
+        return
+
+    init_function = no_change
+
+    if args.weight_init == "":
+        pass
+    else:
+        assert 1 == 0
+
+    # weight init
+    def weights_init(m):
+        if isinstance(m, torch.nn.Linear):
+            # print("Init", m)
+            init_function(m.weight.data)
+            init_function(m.bias.data)
+
+    m.beam_m.apply(weights_init)
+
+    #####
+    if args.debug:
+        args.wandb_project = None
     if args.wandb_project:
         # start a new wandb run to track this script
         config = vars(args)
@@ -826,6 +914,20 @@ def simple_train_filter(args):
             just_loaded = False
             # breakpoint()
             if step % args.val_every == 0:
+                beamnet_params = [
+                    x[1].reshape(-1)
+                    for x in filter(
+                        lambda x: "beam_m.beam_net" in x[0],
+                        m.named_parameters(),
+                    )
+                ]
+                if len(beamnet_params) > 0:
+                    beamnet_checksum = torch.hstack().mean().item()
+                    print("Beamnet checksum:", beamnet_checksum)
+                    if not math.isfinite(beamnet_checksum):
+                        if args.wandb_project:
+                            wandb.finish()
+                        return {"losses": losses}
                 m.eval()
                 with torch.no_grad():
                     val_losses = new_log()
@@ -962,7 +1064,6 @@ def simple_train_filter(args):
                     #    if "_output" in key:
                     #        plt.close(value)
                     to_log = new_log()
-
             step += 1
 
     # [optional] finish the wandb run, necessary in notebooks
@@ -1083,6 +1184,12 @@ def get_parser_filter():
         default=0.00001,
     )
     parser.add_argument(
+        "--weight-init",
+        type=str,
+        required=False,
+        default="",
+    )
+    parser.add_argument(
         "--plot-every",
         type=int,
         required=False,
@@ -1128,6 +1235,16 @@ def get_parser_filter():
         "--beam-net-depth",
         type=int,
         default=6,
+    )
+    parser.add_argument(
+        "--beam-norm",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
+        "--beam-type",
+        type=str,
+        default="direct",
     )
 
     parser.add_argument(
@@ -1210,6 +1327,11 @@ def get_parser_filter():
         default=100,
     )
     parser.add_argument(
+        "--beam-norm-type",
+        type=str,
+        default="layer",
+    )
+    parser.add_argument(
         "--tformer-dmodel",
         type=int,
         default=2048,
@@ -1246,6 +1368,11 @@ def get_parser_filter():
     )
     parser.add_argument(
         "--debug-model",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--debug",
         action=argparse.BooleanOptionalAction,
         default=False,
     )
