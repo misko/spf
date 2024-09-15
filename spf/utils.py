@@ -1,4 +1,6 @@
+import math
 import os
+import warnings
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -6,13 +8,9 @@ import numpy as np
 import torch
 import yaml
 import zarr
-from numcodecs import Blosc, blosc
-import warnings
-import torch
-
-
-from torch.utils.data import DistributedSampler, Sampler, BatchSampler
 from deepdiff.diff import DeepDiff
+from numcodecs import Blosc, blosc
+from torch.utils.data import BatchSampler, DistributedSampler, Sampler
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -376,3 +374,31 @@ class StatefulBatchsampler(BatchSampler):
 
     def __iter__(self):
         yield from super().__iter__()
+
+
+class PositionalEncoding(torch.nn.Module):
+
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = torch.nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model)
+        )
+        pe = torch.zeros(1, max_len, d_model)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[batch_size, seq_len, embedding_dim]``
+        """
+        x = x + self.pe[:, : x.size(1)]
+        return self.dropout(x)
+
+
+def to_bin(x, bins):
+    return ((x / (2 * torch.pi) + 0.5) * bins).to(torch.long)

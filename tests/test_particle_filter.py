@@ -1,17 +1,13 @@
+import pickle
+import random
 import tempfile
 
+import pytest
 import torch
+
 from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml, partial_dataset
 from spf.dataset.open_partial_ds import open_partial_dataset_and_check_some
 from spf.dataset.spf_dataset import v5spfdataset
-import random
-from spf.model_training_and_inference.models.create_empirical_p_dist import (
-    apply_symmetry_rules_to_heatmap,
-    get_heatmap,
-)
-import pytest
-import pickle
-
 from spf.model_training_and_inference.models.particle_filter import (
     plot_single_theta_dual_radio,
     plot_single_theta_single_radio,
@@ -19,6 +15,10 @@ from spf.model_training_and_inference.models.particle_filter import (
     run_single_theta_dual_radio,
     run_single_theta_single_radio,
     run_xy_dual_radio,
+)
+from spf.scripts.create_empirical_p_dist import (
+    apply_symmetry_rules_to_heatmap,
+    get_heatmap,
 )
 
 

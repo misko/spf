@@ -1,23 +1,19 @@
+import math
 from collections import OrderedDict
+from math import sqrt
 
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.nn.functional import sigmoid
 
 from spf.dataset.spf_dataset import v5_thetas_to_targets
-from spf.rf import (
+from spf.rf import (  # torch_circular_mean_weighted,
     pi_norm,
     reduce_theta_to_positive_y,
     torch_circular_mean,
-    # torch_circular_mean_weighted,
     torch_pi_norm,
 )
-from torch.nn.functional import sigmoid
-
-from math import sqrt
-
-import torch
-import math
 
 
 class ConvNet(nn.Module):

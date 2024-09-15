@@ -3,21 +3,21 @@
 ###
 
 import bisect
+import gc
 import os
 import pickle
 import time
 from multiprocessing import Pool, cpu_count
 from typing import Dict, List
-import gc
+
 import numpy as np
-from tensordict import TensorDict
 import torch
 import tqdm
 import yaml
 from compress_pickle import load
 from deepdiff import DeepDiff
+from tensordict import TensorDict
 from torch.utils.data import Dataset
-
 
 from spf.dataset.rover_idxs import (  # v3rx_column_names,
     v3rx_avg_phase_diff_idxs,
@@ -66,8 +66,9 @@ from spf.rf import (
     torch_get_phase_diff,
     torch_pi_norm,
 )
+from spf.scripts.create_empirical_p_dist import rx_spacing_to_str
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
-from spf.utils import new_yarr_dataset, zarr_open_from_lmdb_store, zarr_shrink
+from spf.utils import new_yarr_dataset, to_bin, zarr_open_from_lmdb_store, zarr_shrink
 
 
 # from Stackoverflow
@@ -440,6 +441,10 @@ class v5spfdataset(Dataset):
         temp_file_suffix=".tmp",
         skip_fields=[],
         n_parallel=20,
+        empirical_data_fn=None,
+        empirical_individual_radio=False,
+        empirical_symmetry=True,
+        target_dtype=torch.float32,
     ):
         self.n_parallel = n_parallel
         self.exclude_keys_from_cache = set(["signal_matrix"])
@@ -603,6 +608,14 @@ class v5spfdataset(Dataset):
                     "It looks like too few windows have a valid segmentation"
                 )
 
+        self.target_dtype = target_dtype
+
+        if empirical_data_fn is not None:
+            self.empirical_data = pickle.load(open(empirical_data_fn, "rb"))
+            self.empirical_individual_radio = empirical_individual_radio
+            self.empirical_symmetry = empirical_symmetry
+        else:
+            self.empirical_data = None
         # self.close()
 
     def refresh(self):
@@ -652,7 +665,7 @@ class v5spfdataset(Dataset):
             self.craft_ground_truth_thetas = (
                 self.get_craft_ground_truth_thetas().share_memory_()
             )
-            
+
             return True
         return False
 
@@ -827,6 +840,31 @@ class v5spfdataset(Dataset):
         #     print("COLLECT")
         #     gc.collect()
         # self.close()
+        if self.empirical_data is not None:
+            rx_spacing_str = rx_spacing_to_str(data["rx_spacing"][0].item())
+            empirical_radio_key = (
+                f"r{receiver_idx}" if self.empirical_individual_radio else "r"
+            )
+            empirical_dist = self.empirical_data[rx_spacing_str][empirical_radio_key][
+                "sym" if self.empirical_symmetry else "nosym"
+            ]
+            data["empirical"] = empirical_dist[
+                to_bin(data["mean_phase_segmentation"][0], empirical_dist.shape[0])
+            ].unsqueeze(0)
+
+        data["y_rad_binned"] = (
+            to_bin(data["y_rad"], self.nthetas).unsqueeze(0).to(torch.long)
+        )
+
+        # convert to target dtype on CPU!
+        for key in data:
+            if isinstance(data[key], torch.Tensor) and data[key].dtype in (
+                torch.float16,
+                torch.float32,
+                torch.float64,
+            ):
+                data[key] = data[key].to(self.target_dtype)
+
         return data
 
     def get_ground_truth_phis(self):
