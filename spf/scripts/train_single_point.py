@@ -5,6 +5,7 @@ from functools import partial
 
 import numpy as np
 import torch
+import torchvision
 import yaml
 from torch import nn
 from tqdm import tqdm
@@ -193,15 +194,28 @@ def load_model(model_config, global_config):
     raise ValueError
 
 
-def scatter_loss(batch):
+def uniform_preds(batch):
+    return (
+        torch.ones(*batch["empirical"].shape, device=batch["empirical"].device)
+        / batch["empirical"].shape[-1]
+    )
+
+
+def target_from_scatter(batch, sigma=0.0, k=3):
     y_rad_binned = batch["y_rad_binned"][..., None]
-    return torch.zeros(
+    scattered_targets = torch.zeros(
         *batch["empirical"].shape, device=batch["empirical"].device
     ).scatter(
         2,
         index=y_rad_binned,
         src=torch.ones(*y_rad_binned.shape, device=batch["empirical"].device),
     )
+    if sigma > 0.0:
+        scattered_targets = torchvision.transforms.GaussianBlur((k, 1), sigma=sigma)(
+            scattered_targets
+        )
+        scattered_targets /= scattered_targets.sum(axis=2, keepdims=True)
+    return scattered_targets
 
 
 def weighted_beamformer(batch):
@@ -217,7 +231,13 @@ def discrete_loss(output, target):
 
 
 def new_log():
-    return {"loss": [], "epoch": [], "data_seen": [], "passthrough_loss": []}
+    return {
+        "loss": [],
+        "epoch": [],
+        "data_seen": [],
+        "passthrough_loss": [],
+        "uniform_loss": [],
+    }
 
 
 class SimpleLogger:
@@ -242,7 +262,11 @@ class WNBLogger:
 
     def log(self, data, step, prefix=""):
         wandb.log(
-            {f"{prefix}{key}": np.array(value).mean() for key, value in data.items()},
+            {
+                f"{prefix}{key}": np.array(value).mean()
+                for key, value in data.items()
+                if len(value) > 0
+            },
             step=step,
         )
 
@@ -306,13 +330,20 @@ def train_single_point(args):
 
                         # run beamformer and segmentation
                         output = m(val_batch_data)
-                        target = scatter_loss(val_batch_data)
+                        target = target_from_scatter(
+                            val_batch_data,
+                            sigma=config["datasets"]["sigma"],
+                            k=config["datasets"]["scatter_k"],
+                        )
 
                         # compute the loss
                         loss_d = {
                             "loss": discrete_loss(output, target),
                             "passthrough_loss": discrete_loss(
                                 val_batch_data["empirical"], target
+                            ),
+                            "uniform_loss": discrete_loss(
+                                uniform_preds(val_batch_data), target
                             ),
                         }
                         # breakpoint()
@@ -336,12 +367,15 @@ def train_single_point(args):
             with torch.autocast(torch_device_str, enabled=config["optim"]["amp"]):
                 output = m(batch_data)
 
-                target = scatter_loss(batch_data)
+                target = target_from_scatter(
+                    batch_data,
+                    sigma=config["datasets"]["sigma"],
+                    k=config["datasets"]["scatter_k"],
+                )
 
                 # compute the loss
                 loss_d = {
                     "loss": discrete_loss(output, target),
-                    "passthrough_loss": discrete_loss(batch_data["empirical"], target),
                 }
 
                 # loss = loss_d["beamnet_loss"]

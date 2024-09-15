@@ -466,7 +466,7 @@ class v5spfdataset(Dataset):
         self.nthetas = nthetas
         self.valid_entries = None
         # self.prefix = prefix
-        print("OPEN", prefix)
+        # print("OPEN", prefix)
         self.temp_file = temp_file
 
         self.skip_fields = skip_fields
