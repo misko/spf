@@ -1,26 +1,18 @@
-from functools import cache, partial
+from functools import cache
 
+import numpy as np
 import torch
+from torch.nn import LayerNorm, TransformerEncoder, TransformerEncoderLayer
 
 from spf.model_training_and_inference.models.beamsegnet import (
     BeamNetDirect,
     BeamNetDiscrete,
     SimpleNet,
 )
-from spf.rf import torch_pi_norm_pi, torch_reduce_theta_to_positive_y
+from spf.rf import torch_pi_norm, torch_pi_norm_pi, torch_reduce_theta_to_positive_y
 from spf.utils import PositionalEncoding
 
 DIST_NORM = 4000
-
-from random import shuffle
-
-import numpy as np
-import tensordict
-import torch
-from matplotlib import pyplot as plt
-from torch.nn import LayerNorm, TransformerEncoder, TransformerEncoderLayer
-from torch.utils.data import BatchSampler, DistributedSampler, Sampler
-from tqdm import tqdm
 
 
 # @torch.no_grad
