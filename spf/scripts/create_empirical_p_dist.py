@@ -1,14 +1,10 @@
 import argparse
-
-from matplotlib import pyplot as plt
-import torch
-
-from spf.dataset.spf_dataset import v5spfdataset
-
-import numpy as np
+import math
 import pickle
 
-import math
+import numpy as np
+import torch
+from matplotlib import pyplot as plt
 
 
 def rx_spacing_to_str(rx_spacing):
@@ -43,12 +39,13 @@ def create_heatmaps_and_plot(dss, bins, save_fig_to=None):
             r1 = apply_symmetry_rules_to_heatmap(r1)
             r = apply_symmetry_rules_to_heatmap(r)
         extent = [-torch.pi, torch.pi, -torch.pi, torch.pi]
-        r0 = r0 / r0.sum(axis=1, keepdims=True)
-        r1 = r1 / r1.sum(axis=1, keepdims=True)
-        r = r / r.sum(axis=1, keepdims=True)
-        heatmaps["r0"]["sym" if symmetry else "nosym"] = r0
-        heatmaps["r1"]["sym" if symmetry else "nosym"] = r1
-        heatmaps["r"]["sym" if symmetry else "nosym"] = r
+        r0 = r0 / r0.sum(axis=0, keepdims=True)
+        r1 = r1 / r1.sum(axis=0, keepdims=True)
+        r = r / r.sum(axis=0, keepdims=True)
+        heatmaps["r0"]["sym" if symmetry else "nosym"] = torch.tensor(r0.T)
+        heatmaps["r1"]["sym" if symmetry else "nosym"] = torch.tensor(r1.T)
+        heatmaps["r"]["sym" if symmetry else "nosym"] = torch.tensor(r.T)
+        # write maps in map[phi][theta] = pr(theta | phi)
         # axs[2 + 3 * ridx].imshow(heatmap.T, extent=extent, origin="lower")
         axs[row_idx, 0].imshow(r0.T, extent=extent)
         axs[row_idx, 0].set_title(f"Radio0,sym={symmetry}")
@@ -64,13 +61,19 @@ def create_heatmaps_and_plot(dss, bins, save_fig_to=None):
 
 def apply_symmetry_rules_to_heatmap(h):
     bins = h.shape[0]
+    # h[theta][phi]
+    # half is restricting to positive y_rad, -theta -> theta
+    # positive theta , phi is same as negative theta, - phi
     half = h[: math.ceil(bins / 2)] + np.flip(h[math.floor(bins // 2) :])
+    # pi/2+epsilon is same as pi/2-epsilon
     half = half + np.flip(half, axis=0)
     full = np.vstack([half[:-1], np.flip(half)])
-    return full / full.sum(axis=1, keepdims=True)
+    return full  # / full.sum(axis=1, keepdims=True)
 
 
 if __name__ == "__main__":
+    from spf.dataset.spf_dataset import v5spfdataset
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d",

@@ -9,9 +9,10 @@ import torch
 import yaml
 import zarr
 from deepdiff.diff import DeepDiff
-from numcodecs import Blosc, blosc
-from torch.utils.data import BatchSampler, DistributedSampler, Sampler
+from numcodecs import Blosc
+from torch.utils.data import BatchSampler, DistributedSampler
 
+SEGMENTATION_VERSION = 3.0
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
@@ -61,9 +62,9 @@ def zarr_shrink(filename):
 
 
 @contextmanager
-def zarr_open_from_lmdb_store_cm(filename, mode="r"):
+def zarr_open_from_lmdb_store_cm(filename, mode="r", readahead=False):
     try:
-        z = zarr_open_from_lmdb_store(filename, mode)
+        z = zarr_open_from_lmdb_store(filename, mode, readahead=readahead)
         yield z
     finally:
         z.store.close()
@@ -74,18 +75,20 @@ def new_yarr_dataset(
     n_receivers,
     all_windows_stats_shape,
     windowed_beamformer_shape,
+    weighted_beamformer_shape,
     downsampled_segmentation_mask_shape,
     mean_phase_shape,
-    compressor=None,
+    # compressor=None,
 ):
     zarr_remove_if_exists(filename)
     z = zarr_open_from_lmdb_store(filename, mode="w", map_size=2**32)
-    # compressor = Blosc(
-    #     cname="zstd",
-    #     clevel=1,
-    #     shuffle=Blosc.BITSHUFFLE,
-    # )
-
+    z.create_dataset("version", dtype=np.float32, shape=(1))
+    z["version"][0] = SEGMENTATION_VERSION
+    compressor = Blosc(
+        cname="zstd",
+        clevel=1,
+        shuffle=Blosc.BITSHUFFLE,
+    )
     for receiver_idx in range(n_receivers):
         receiver_z = z.create_group(f"r{receiver_idx}")
         receiver_z.create_dataset(
@@ -93,7 +96,7 @@ def new_yarr_dataset(
             shape=all_windows_stats_shape,
             chunks=(16, -1, -1),
             dtype="float16",
-            compressor=compressor,
+            compressor=None,
         )
         receiver_z.create_dataset(
             "windowed_beamformer",
@@ -103,18 +106,25 @@ def new_yarr_dataset(
             compressor=compressor,
         )
         receiver_z.create_dataset(
+            "weighted_beamformer",
+            shape=weighted_beamformer_shape,
+            chunks=(16, -1),
+            dtype="float32",
+            compressor=None,
+        )
+        receiver_z.create_dataset(
             "downsampled_segmentation_mask",
             shape=downsampled_segmentation_mask_shape,
             chunks=(16, -1),
             dtype="bool",
-            compressor=compressor,
+            compressor=None,
         )
         receiver_z.create_dataset(
             "mean_phase",
             shape=mean_phase_shape,
             chunks=(-1),
             dtype="float32",
-            compressor=compressor,
+            compressor=None,
         )
     return z
 

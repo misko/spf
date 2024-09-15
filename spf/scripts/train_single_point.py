@@ -1,10 +1,9 @@
 import argparse
 import glob
 import random
-from functools import cache, partial
+from functools import partial
 
 import numpy as np
-import tensordict
 import torch
 import yaml
 from torch import nn
@@ -45,8 +44,8 @@ def expand_wildcards_and_join(paths):
 
 def load_dataloaders(datasets_config, optim_config, global_config):
     skip_fields = set(["signal_matrix", "simple_segmentations"])
-    if not global_config["beamformer_input"]:
-        skip_fields |= set(["windowed_beamformer"])
+    # if not global_config["beamformer_input"]:
+    skip_fields |= set(["windowed_beamformer"])
     # import glob
     # glob.glob('./[0-9].*')
 
@@ -111,7 +110,8 @@ def load_dataloaders(datasets_config, optim_config, global_config):
             "y_rad_binned",
         ]
         if global_config["beamformer_input"]:
-            keys_to_get += ["windowed_beamformer"]
+            # keys_to_get += ["windowed_beamformer"]
+            keys_to_get += ["weighted_beamformer"]
         return {
             # "batch_size": args.batch,
             "num_workers": datasets_config["workers"],
@@ -145,18 +145,24 @@ class SinglePointWithBeamformer(nn.Module):
         super().__init__()
         self.net = FFNN(
             inputs=global_config["nthetas"] * 2,
-            depth=4,
-            hidden=128,
+            depth=model_config["depth"],  # 4
+            hidden=model_config["hidden"],  # 128
             outputs=global_config["nthetas"],
-            block=True,
-            norm=False,
+            block=model_config["block"],  # True
+            norm=model_config["norm"],  # False, [batch,layer]
             act=nn.LeakyReLU,
-            bn=False,
+            bn=model_config["bn"],  # False , bool
         )
 
     def forward(self, batch):
+
+        # x = self.net(
+        #     torch.concatenate([batch["empirical"], weighted_beamformer(batch)], dim=2)
+        # )
         x = self.net(
-            torch.concatenate([batch["empirical"], weighted_beamformer(batch)], dim=2)
+            torch.concatenate(
+                [batch["empirical"], batch["weighted_beamformer"] / 256], dim=2
+            )
         )
         return torch.nn.functional.softmax(x, dim=2)
 
@@ -207,7 +213,7 @@ def weighted_beamformer(batch):
 
 
 def discrete_loss(output, target):
-    return (target * output).sum(axis=2).mean()
+    return -(target * output).sum(axis=2).mean()
 
 
 def new_log():
@@ -249,8 +255,12 @@ def train_single_point(args):
     config["optim"]["device"] = torch.device(config["optim"]["device"])
 
     dtype = torch.float16
-    if config["optim"]["dtype"] == "float32":
+    if config["optim"]["dtype"] == "torch.float32":
         dtype = torch.float32
+    elif config["optim"]["dtype"] == "torch.float16":
+        dtype = torch.float16
+    else:
+        raise ValueError
     config["optim"]["dtype"] = dtype
 
     load_seed(config["global"])

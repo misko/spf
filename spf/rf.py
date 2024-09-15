@@ -1,22 +1,16 @@
 # from numba import jit
 import functools
-import os
-import pickle
-import compress_pickle
-from multiprocessing import Pool
 
 import numpy as np
 import torch
-from numba import jit, njit
-from tqdm import tqdm
+from numba import njit
 
 try:
     import cupy as cp
 except:
     pass
-from spf.utils import zarr_open_from_lmdb_store, zarr_open_from_lmdb_store_cm
+from spf.utils import zarr_open_from_lmdb_store_cm
 
-SEGMENTATION_VERSION = 2.0
 # numba = False
 
 """
@@ -306,7 +300,7 @@ def segment_session_star(arg_dict):
 def segment_session(
     zarr_fn, receiver, session_idx, gpu=True, skip_beamformer=False, **kwrgs
 ):
-    with zarr_open_from_lmdb_store_cm(zarr_fn, mode="r") as z:
+    with zarr_open_from_lmdb_store_cm(zarr_fn, mode="r", readahead=True) as z:
         # z[f"receivers/r{receiver}/system_timestamp"][session_idx] > 0
 
         v = z.receivers[receiver].signal_matrix[session_idx][:].astype(np.complex64)
@@ -341,9 +335,16 @@ def segment_session(
                     .mean(axis=2)
                     .T
                 )
+            weighted_beamformer = (
+                segmentation_results["windowed_beamformer"].astype(np.float32)
+                * segmentation_results["downsampled_segmentation_mask"][:, None]
+            ).sum(axis=0) / (
+                segmentation_results["downsampled_segmentation_mask"].sum() + 0.001
+            )
             segmentation_results["windowed_beamformer"] = segmentation_results[
                 "windowed_beamformer"
             ].astype(np.float16)
+            segmentation_results["weighted_beamformer"] = weighted_beamformer
         else:
             windowed_beamformer = np.zeros((windows, nthetas), dtype=np.float16)
             windowed_beamformer.fill(np.nan)

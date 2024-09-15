@@ -9,9 +9,9 @@ from tqdm import tqdm
 
 import wandb
 from spf.dataset.spf_dataset import (
+    v5_collate_all_fast,
     v5_collate_beamsegnet,
     v5_thetas_to_targets,
-    v5_collate_all_fast,
     v5spfdataset,
 )
 from spf.model_training_and_inference.models.beamsegnet import (
@@ -167,7 +167,7 @@ def simple_train(args):
             nthetas=args.nthetas,
             skip_fields=skip_fields,
             paired=args.n_radios > 1,
-            ignore_qc=args.skip_qc,
+            ignore_qc=True,  # args.skip_qc,
             gpu=args.device == "cuda",
         )
         for prefix in args.datasets

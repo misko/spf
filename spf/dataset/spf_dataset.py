@@ -3,10 +3,8 @@
 ###
 
 import bisect
-import gc
 import os
 import pickle
-import time
 from multiprocessing import Pool, cpu_count
 from typing import Dict, List
 
@@ -54,12 +52,10 @@ from spf.plot.image_utils import (
     radio_to_image,
 )
 from spf.rf import (
-    SEGMENTATION_VERSION,
     ULADetector,
     phase_diff_to_theta,
     pi_norm,
     precompute_steering_vectors,
-    reduce_theta_to_positive_y,
     segment_session,
     segment_session_star,
     speed_of_light,
@@ -68,7 +64,13 @@ from spf.rf import (
 )
 from spf.scripts.create_empirical_p_dist import rx_spacing_to_str
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
-from spf.utils import new_yarr_dataset, to_bin, zarr_open_from_lmdb_store, zarr_shrink
+from spf.utils import (
+    SEGMENTATION_VERSION,
+    new_yarr_dataset,
+    to_bin,
+    zarr_open_from_lmdb_store,
+    zarr_shrink,
+)
 
 
 # from Stackoverflow
@@ -191,6 +193,7 @@ def mp_segment_zarr(
             for idx in range(already_computed, precompute_to_idx)
         ]
 
+        # n_parallel = 0
         if n_parallel > 0:
             with Pool(
                 min(cpu_count(), n_parallel)
@@ -212,6 +215,9 @@ def mp_segment_zarr(
     windowed_beamformer_shape = (n_sessions,) + results_by_receiver["r0"][0][
         "windowed_beamformer"
     ].shape
+    weighted_beamformer_shape = (n_sessions,) + results_by_receiver["r0"][0][
+        "windowed_beamformer"
+    ].shape[1:]
     downsampled_segmentation_mask_shape = (n_sessions,) + results_by_receiver["r0"][0][
         "downsampled_segmentation_mask"
     ].shape
@@ -222,6 +228,7 @@ def mp_segment_zarr(
             n_receivers=2,
             all_windows_stats_shape=all_windows_stats_shape,
             windowed_beamformer_shape=windowed_beamformer_shape,
+            weighted_beamformer_shape=weighted_beamformer_shape,
             downsampled_segmentation_mask_shape=downsampled_segmentation_mask_shape,
             mean_phase_shape=(n_sessions,),
         )
@@ -238,6 +245,12 @@ def mp_segment_zarr(
             already_computed:precompute_to_idx
         ] = np.vstack(
             [x["windowed_beamformer"][None] for x in results_by_receiver[f"r{r_idx}"]]
+        )
+        # collect weighted beamformer
+        precomputed_zarr[f"r{r_idx}/weighted_beamformer"][
+            already_computed:precompute_to_idx
+        ] = np.vstack(
+            [x["weighted_beamformer"][None] for x in results_by_receiver[f"r{r_idx}"]]
         )
         # collect downsampled segmentation mask
         precomputed_zarr[f"r{r_idx}/downsampled_segmentation_mask"][
@@ -557,36 +570,37 @@ class v5spfdataset(Dataset):
             self.phi_drifts = torch.tensor(
                 [torch.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts]
             )
-            self.average_windows_in_segmentation = (
-                torch.tensor(
-                    [
+            if "simple_segmentations" not in self.skip_fields:
+                self.average_windows_in_segmentation = (
+                    torch.tensor(
                         [
-                            len(x["simple_segmentation"])
-                            for x in self.segmentation["segmentation_by_receiver"][
-                                f"r{rx_idx}"
+                            [
+                                len(x["simple_segmentation"])
+                                for x in self.segmentation["segmentation_by_receiver"][
+                                    f"r{rx_idx}"
+                                ]
                             ]
+                            for rx_idx in range(self.n_receivers)
                         ]
-                        for rx_idx in range(self.n_receivers)
-                    ]
+                    )
+                    .to(torch.float32)
+                    .mean()
                 )
-                .to(torch.float32)
-                .mean()
-            )
-            self.mean_sessions_with_maybe_valid_segmentation = (
-                torch.tensor(
-                    [
+                self.mean_sessions_with_maybe_valid_segmentation = (
+                    torch.tensor(
                         [
-                            len(x["simple_segmentation"]) > 2
-                            for x in self.segmentation["segmentation_by_receiver"][
-                                f"r{rx_idx}"
+                            [
+                                len(x["simple_segmentation"]) > 2
+                                for x in self.segmentation["segmentation_by_receiver"][
+                                    f"r{rx_idx}"
+                                ]
                             ]
+                            for rx_idx in [0, 1]
                         ]
-                        for rx_idx in [0, 1]
-                    ]
+                    )
+                    .to(torch.float32)
+                    .mean()
                 )
-                .to(torch.float32)
-                .mean()
-            )
         else:
             # if we are a temp verison
             self.mean_phase = {}
@@ -594,6 +608,8 @@ class v5spfdataset(Dataset):
                 self.mean_phase[f"r{ridx}"] = torch.ones(len(self)) * torch.inf
 
         if not ignore_qc:
+            if "simple_segmentations" in self.skip_fields:
+                raise ValueError("Cannot have QC and skip simple segmentations")
             assert not temp_file
             if abs(self.phi_drifts).max() > phi_drift_max:
                 raise ValueError(
@@ -717,6 +733,17 @@ class v5spfdataset(Dataset):
             data["windowed_beamformer"] = (
                 torch.as_tensor(
                     self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
+                        snapshot_start_idx:snapshot_end_idx
+                    ]
+                )
+                .unsqueeze(0)
+                .share_memory_()
+            )
+
+        if "weighted_beamformer" not in self.skip_fields:
+            data["weighted_beamformer"] = (
+                torch.as_tensor(
+                    self.precomputed_zarr[f"r{receiver_idx}/weighted_beamformer"][
                         snapshot_start_idx:snapshot_end_idx
                     ]
                 )
@@ -999,6 +1026,15 @@ class v5spfdataset(Dataset):
             + f"_segmentation_nthetas{self.nthetas}.pkl",
         )
 
+    def get_segmentation_version(self, precomputed_zarr, segmentation):
+        if "version" in precomputed_zarr:
+            if precomputed_zarr["version"].shape == ():
+                return 3.0
+            return precomputed_zarr["version"][0]
+        if segmentation is None or "version" not in segmentation:
+            return None
+        return segmentation["version"]
+
     def get_segmentation(self, precompute_to_idx=-1):
         if (
             not self.temp_file
@@ -1013,7 +1049,11 @@ class v5spfdataset(Dataset):
 
         if self.temp_file or not os.path.exists(results_fn):
             skip_beamformer = False
-            if self.temp_file and "windowed_beamformer" in self.skip_fields:
+            if (
+                self.temp_file
+                and "windowed_beamformer" in self.skip_fields
+                and "weighted_beamformer" in self.skip_fields
+            ):
                 skip_beamformer = True
             mp_segment_zarr(
                 self.zarr_fn,
@@ -1026,7 +1066,10 @@ class v5spfdataset(Dataset):
             )
 
         try:
-            segmentation = pickle.load(open(results_fn, "rb"))
+            if "simple_segmentations" not in self.skip_fields:
+                segmentation = pickle.load(open(results_fn, "rb"))
+            else:
+                segmentation = {}
 
             precomputed_zarr = zarr_open_from_lmdb_store(
                 results_fn.replace(".pkl", ".yarr"),
@@ -1049,10 +1092,9 @@ class v5spfdataset(Dataset):
         except pickle.UnpicklingError:
             os.remove(results_fn)
             return self.get_segmentation(precompute_to_idx=precompute_to_idx)
-        if (
-            "version" not in segmentation
-            or segmentation["version"] != SEGMENTATION_VERSION
-        ):
+
+        current_version = self.get_segmentation_version(precomputed_zarr, segmentation)
+        if current_version != SEGMENTATION_VERSION:
             os.remove(results_fn)
             return self.get_segmentation(precompute_to_idx=precompute_to_idx)
         self.segmentation = segmentation
