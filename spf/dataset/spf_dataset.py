@@ -882,6 +882,9 @@ class v5spfdataset(Dataset):
         data["y_rad_binned"] = (
             to_bin(data["y_rad"], self.nthetas).unsqueeze(0).to(torch.long)
         )
+        data["craft_y_rad_binned"] = (
+            to_bin(data["craft_y_rad"], self.nthetas).unsqueeze(0).to(torch.long)
+        )
 
         # convert to target dtype on CPU!
         for key in data:

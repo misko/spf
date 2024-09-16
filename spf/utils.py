@@ -410,5 +410,6 @@ class PositionalEncoding(torch.nn.Module):
         return self.dropout(x)
 
 
-def to_bin(x, bins):
+@torch.jit.script
+def to_bin(x: torch.Tensor, bins: int):
     return ((x / (2 * torch.pi) + 0.5) * bins).to(torch.long)
