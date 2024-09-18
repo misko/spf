@@ -252,6 +252,13 @@ def mp_segment_zarr(
         ] = np.vstack(
             [x["weighted_beamformer"][None] for x in results_by_receiver[f"r{r_idx}"]]
         )
+        # collect weighted_windows_stats
+        precomputed_zarr[f"r{r_idx}/weighted_windows_stats"][
+            already_computed:precompute_to_idx
+        ] = np.vstack(
+            [x["weighted_stats"][None] for x in results_by_receiver[f"r{r_idx}"]]
+        )
+
         # collect downsampled segmentation mask
         precomputed_zarr[f"r{r_idx}/downsampled_segmentation_mask"][
             already_computed:precompute_to_idx
@@ -685,13 +692,6 @@ class v5spfdataset(Dataset):
             return True
         return False
 
-    # def get_mean_phase(self, ridx, idx):
-    #     v = self.mean_phase[f"r{ridx}"][idx]
-    #     if torch.isfinite(v):
-    #         return v
-    #     else:
-    #         print("NOT VALID")
-
     def close(self):
         # let workers open their own
         self.z.store.close()
@@ -756,6 +756,17 @@ class v5spfdataset(Dataset):
             data["all_windows_stats"] = (
                 torch.as_tensor(
                     self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
+                        snapshot_start_idx:snapshot_end_idx
+                    ]
+                )
+                .unsqueeze(0)
+                .share_memory_()
+            )
+
+        if "weighted_windows_stats" not in self.skip_fields:
+            data["weighted_windows_stats"] = (
+                torch.as_tensor(
+                    self.precomputed_zarr[f"r{receiver_idx}/weighted_windows_stats"][
                         snapshot_start_idx:snapshot_end_idx
                     ]
                 )
@@ -1097,7 +1108,7 @@ class v5spfdataset(Dataset):
             return self.get_segmentation(precompute_to_idx=precompute_to_idx)
 
         current_version = self.get_segmentation_version(precomputed_zarr, segmentation)
-        if current_version != SEGMENTATION_VERSION:
+        if not np.isclose(current_version, SEGMENTATION_VERSION):
             os.remove(results_fn)
             return self.get_segmentation(precompute_to_idx=precompute_to_idx)
         self.segmentation = segmentation

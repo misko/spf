@@ -12,7 +12,7 @@ from deepdiff.diff import DeepDiff
 from numcodecs import Blosc
 from torch.utils.data import BatchSampler, DistributedSampler
 
-SEGMENTATION_VERSION = 3.0
+SEGMENTATION_VERSION = 3.11
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
@@ -96,6 +96,13 @@ def new_yarr_dataset(
             shape=all_windows_stats_shape,
             chunks=(16, -1, -1),
             dtype="float16",
+            compressor=None,
+        )
+        receiver_z.create_dataset(
+            "weighted_windows_stats",
+            shape=all_windows_stats_shape[:-1],
+            chunks=(16, -1),
+            dtype="float32",
             compressor=None,
         )
         receiver_z.create_dataset(

@@ -9,6 +9,8 @@ try:
     import cupy as cp
 except:
     pass
+from scipy.stats import trim_mean
+
 from spf.utils import zarr_open_from_lmdb_store_cm
 
 # numba = False
@@ -344,12 +346,37 @@ def segment_session(
             segmentation_results["windowed_beamformer"] = segmentation_results[
                 "windowed_beamformer"
             ].astype(np.float16)
+
             segmentation_results["weighted_beamformer"] = weighted_beamformer
         else:
+            # do this on GPU?
             windowed_beamformer = np.zeros((windows, nthetas), dtype=np.float16)
             windowed_beamformer.fill(np.nan)
             segmentation_results["windowed_beamformer"] = windowed_beamformer
 
+        if segmentation_results["downsampled_segmentation_mask"].sum() > 0:
+            # all_window_stats = trimmed_cm, trimmed_stddev, abs_signal_median
+            mean_phase = trim_mean(
+                reduce_theta_to_positive_y(
+                    segmentation_results["all_windows_stats"][0]
+                )[segmentation_results["downsampled_segmentation_mask"]].astype(
+                    np.float32
+                ),
+                0.1,
+            )
+            stddev_and_abs_signal = trim_mean(
+                segmentation_results["all_windows_stats"][1:][
+                    :, segmentation_results["downsampled_segmentation_mask"]
+                ].astype(np.float32),
+                0.1,
+                axis=1,
+            )
+            segmentation_results["weighted_stats"] = np.array(
+                [mean_phase, stddev_and_abs_signal[0], stddev_and_abs_signal[1]],
+                dtype=np.float32,
+            )
+        else:
+            segmentation_results["weighted_stats"] = np.array([-1, -1, -1])
         return segmentation_results
 
 

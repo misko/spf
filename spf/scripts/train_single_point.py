@@ -7,12 +7,19 @@ import numpy as np
 import torch
 import torchvision
 import yaml
+from matplotlib import pyplot as plt
 from torch import nn
+from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau, StepLR
 from tqdm import tqdm
 
 import wandb
 from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
 from spf.model_training_and_inference.models.beamsegnet import FFNN
+from spf.model_training_and_inference.models.single_point_networks import (
+    PairedSinglePointWithBeamformer,
+    SinglePointPassThrough,
+    SinglePointWithBeamformer,
+)
 from spf.utils import StatefulBatchsampler
 
 
@@ -99,9 +106,9 @@ def load_dataloaders(datasets_config, optim_config, global_config):
         # sampler.set_epoch_and_start_iteration(epoch=epoch, start_iteration=0)
         keys_to_get = [
             "all_windows_stats",
-            "rx_pos_xy",
-            "tx_pos_xy",
-            "downsampled_segmentation_mask",
+            # "rx_pos_xy",
+            # "tx_pos_xy",
+            # "downsampled_segmentation_mask",
             "rx_spacing",
             "y_rad",
             "craft_y_rad",
@@ -110,6 +117,7 @@ def load_dataloaders(datasets_config, optim_config, global_config):
             "empirical",
             "y_rad_binned",
             "craft_y_rad_binned",
+            "weighted_windows_stats",
         ]
         if global_config["beamformer_input"]:
             # keys_to_get += ["windowed_beamformer"]
@@ -142,78 +150,6 @@ def load_dataloaders(datasets_config, optim_config, global_config):
     return train_dataloader, val_dataloader
 
 
-class SinglePointWithBeamformer(nn.Module):
-    def __init__(self, model_config, global_config):
-        super().__init__()
-        self.net = FFNN(
-            inputs=global_config["nthetas"] * 2,
-            depth=model_config["depth"],  # 4
-            hidden=model_config["hidden"],  # 128
-            outputs=global_config["nthetas"],
-            block=model_config["block"],  # True
-            norm=model_config["norm"],  # False, [batch,layer]
-            act=nn.LeakyReLU,
-            bn=model_config["bn"],  # False , bool
-        )
-        self.paired = False
-
-    def forward(self, batch):
-
-        # x = self.net(
-        #     torch.concatenate([batch["empirical"], weighted_beamformer(batch)], dim=2)
-        # )
-        # breakpoint()
-        x = self.net(
-            torch.concatenate(
-                [batch["empirical"], batch["weighted_beamformer"] / 256], dim=2
-            )
-        )
-        # first dim odd / even is the radios
-        return torch.nn.functional.softmax(x, dim=2)
-
-
-class PairedSinglePointWithBeamformer(nn.Module):
-    def __init__(self, model_config, global_config):
-        super().__init__()
-        self.single_radio_net = SinglePointWithBeamformer(model_config, global_config)
-        self.net = FFNN(
-            inputs=global_config["nthetas"] * 2,
-            depth=model_config["depth"],  # 4
-            hidden=model_config["hidden"],  # 128
-            outputs=global_config["nthetas"],
-            block=model_config["block"],  # True
-            norm=model_config["norm"],  # False, [batch,layer]
-            act=nn.LeakyReLU,
-            bn=model_config["bn"],  # False , bool
-        )
-        self.paired = True
-
-    def forward(self, batch):
-        single_radio_estimates = self.single_radio_net(batch)
-        x = self.net(
-            torch.concatenate(
-                [single_radio_estimates[::2], single_radio_estimates[1::2]], dim=2
-            )
-        )
-        idxs = torch.arange(x.shape[0]).reshape(-1, 1).repeat(1, 2).reshape(-1)
-        # first dim odd / even is the radios
-        return (
-            torch.nn.functional.softmax(x[idxs], dim=2) * 0.5
-            + single_radio_estimates * 0.5
-        )
-
-
-class SinglePointPassThrough(nn.Module):
-    def __init__(self, model_config, global_config):
-        super().__init__()
-        self.w = torch.nn.Parameter(torch.zeros(1))
-        self.paired = False
-
-    def forward(self, batch):
-        # weighted_beamformer(batch)
-        return batch["empirical"] + self.w * 0.0
-
-
 def load_optimizer(optim_config, params):
     return torch.optim.AdamW(
         params,
@@ -240,11 +176,11 @@ def uniform_preds(batch):
     )
 
 
-def target_from_scatter(batch, paired, sigma, k):
-    if paired:
-        y_rad_binned = batch["craft_y_rad_binned"][..., None]
-    else:
-        y_rad_binned = batch["y_rad_binned"][..., None]
+def target_from_scatter(batch, y_rad_binned, sigma, k):
+    # if paired:
+    #     y_rad_binned = batch["craft_y_rad_binned"][..., None]
+    # else:
+    #     y_rad_binned = batch["y_rad_binned"][..., None]
 
     scattered_targets = torch.zeros(
         *batch["empirical"].shape, device=batch["empirical"].device
@@ -269,8 +205,14 @@ def weighted_beamformer(batch):
     return (windowed_beam_former_scaled * seg_mask.transpose(2, 3)).mean(axis=2)
 
 
+def mse_loss(output, target):
+    return ((output - target) ** 2).sum(axis=2).mean()
+
+
 def discrete_loss(output, target):
+    # return -torch.sqrt((target * output).sum(axis=2).mean())
     return -(target * output).sum(axis=2).mean()
+    # return -torch.log((target * output).sum(axis=2)).mean()
 
 
 def new_log():
@@ -280,6 +222,9 @@ def new_log():
         "data_seen": [],
         "passthrough_loss": [],
         "uniform_loss": [],
+        "single_loss": [],
+        "paired_loss": [],
+        "learning_rate": [],
     }
 
 
@@ -289,7 +234,10 @@ class SimpleLogger:
 
     def log(self, data, step, prefix=""):
         for key, value in data.items():
-            print(f"{step}:{prefix}{key}{np.array(value).mean()}")
+            if "plot" not in key:
+                print(f"{step}:{prefix}{key}{np.array(value).mean()}")
+            else:
+                plt.close(value)
 
 
 class WNBLogger:
@@ -304,14 +252,68 @@ class WNBLogger:
         )
 
     def log(self, data, step, prefix=""):
+        losses = {
+            f"{prefix}{key}": np.array(value).mean()
+            for key, value in data.items()
+            if "plot" not in key and len(value) > 0
+        }
+        for key, value in data.items():
+            if "plot" in key:
+                losses[key] = value
         wandb.log(
-            {
-                f"{prefix}{key}": np.array(value).mean()
-                for key, value in data.items()
-                if len(value) > 0
-            },
+            losses,
             step=step,
         )
+        for key, value in data.items():
+            if "plot" in key:
+                plt.close(value)
+
+
+def compute_loss(output, batch_data, datasets_config, loss_fn, plot=False):
+    loss_d = {}
+    loss = 0
+
+    fig = None
+    if plot:
+        fig, axs = plt.subplots(2, 1)
+        n = output["single"].shape[0] * output["single"].shape[1]
+        d = output["single"].shape[2]
+        show_n = min(n, 10)
+
+    if "single" in output:
+        target = target_from_scatter(
+            batch_data,
+            y_rad_binned=batch_data["y_rad_binned"][..., None],
+            sigma=datasets_config["sigma"],
+            k=datasets_config["scatter_k"],
+        )
+        loss_d["single_loss"] = loss_fn(output["single"], target)
+        loss += loss_d["single_loss"]
+
+        if plot:
+            im = np.zeros((show_n * 2, d))
+            im[1::2] = output["single"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+            im[::2] = target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+            axs[0].imshow(im)
+            axs[0].set_title("Single")
+    if "paired" in output:
+        target = target_from_scatter(
+            batch_data,
+            y_rad_binned=batch_data["craft_y_rad_binned"][..., None],
+            sigma=datasets_config["sigma"],
+            k=datasets_config["scatter_k"],
+        )
+        loss_d["paired_loss"] = loss_fn(output["paired"], target)
+        loss += loss_d["paired_loss"]
+
+        if plot:
+            im = np.zeros((show_n * 2, d))
+            im[1::2] = output["paired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+            im[::2] = target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+            axs[1].imshow(im)
+            axs[1].set_title("Paired")
+    loss_d["loss"] = loss
+    return loss_d, fig
 
 
 def train_single_point(args):
@@ -343,6 +345,14 @@ def train_single_point(args):
 
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
     optimizer = load_optimizer(config["optim"], m.parameters())
+    # scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.05, threshold=1e-6)
+    # scheduler = CosineAnnealingLR(optimizer, T_max=1, eta_min=500)
+    scheduler = StepLR(
+        optimizer,
+        step_size=config["optim"].get("scheduler_step", 1),
+        gamma=0.5,
+        verbose=True,
+    )
 
     step = 0
     assert config["optim"]["resume_step"] == 0
@@ -352,6 +362,14 @@ def train_single_point(args):
         enabled=config["optim"]["amp"],
     )
     losses = new_log()
+
+    loss_fn = None
+    if config["optim"]["loss"] == "mse":
+        loss_fn = mse_loss
+    elif config["optim"]["loss"] == "discrete":
+        loss_fn = discrete_loss
+    else:
+        raise ValueError("Not a valid loss function")
 
     for epoch in range(config["optim"]["epochs"]):
         train_dataloader.batch_sampler.set_epoch_and_start_iteration(
@@ -373,25 +391,44 @@ def train_single_point(args):
 
                         # run beamformer and segmentation
                         output = m(val_batch_data)
+                        loss_d, _ = compute_loss(
+                            output,
+                            val_batch_data,
+                            loss_fn=loss_fn,
+                            datasets_config=config["datasets"],
+                        )
+
+                        # scheduler.step(loss_d["loss"])
+                        # val_losses["learning_rate"] = [scheduler.get_last_lr()]
+
+                        # TODO refactor
                         target = target_from_scatter(
                             val_batch_data,
-                            paired=m.paired,
+                            y_rad_binned=val_batch_data["y_rad_binned"][..., None],
                             sigma=config["datasets"]["sigma"],
                             k=config["datasets"]["scatter_k"],
                         )
+                        loss_d["passthrough_loss"] = loss_fn(
+                            val_batch_data["empirical"],
+                            target,
+                        )
+                        # fig, axs = plt.subplots(1, 1)
+                        # axs.imshow(
+                        #     val_batch_data["empirical"]
+                        #     .reshape(512 * 2, -1)[:20]
+                        #     .detach()
+                        #     .numpy()
+                        # )
+                        # fig.savefig("test.png")
+                        # breakpoint()
+                        # fig, axs = plt.subplots(1, 1)
+                        # axs.imshow(target.reshape(512 * 2, -1)[:20].detach().numpy())
+                        # fig.savefig("test2.png")
+                        # breakpoint()
+                        loss_d["uniform_loss"] = loss_fn(
+                            uniform_preds(val_batch_data), target
+                        )
 
-                        # compute the loss
-                        loss_d = {
-                            "loss": discrete_loss(output, target),
-                            "passthrough_loss": discrete_loss(
-                                val_batch_data["empirical"], target
-                            ),
-                            "uniform_loss": discrete_loss(
-                                uniform_preds(val_batch_data), target
-                            ),
-                        }
-                        # breakpoint()
-                        # breakpoint()
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
                             val_losses[key].append(value.item())
@@ -408,27 +445,19 @@ def train_single_point(args):
             batch_data = batch_data.to(config["optim"]["device"])
 
             optimizer.zero_grad()
-
             with torch.autocast(torch_device_str, enabled=config["optim"]["amp"]):
                 output = m(batch_data)
 
-                target = target_from_scatter(
+                loss_d, fig = compute_loss(
+                    output,
                     batch_data,
-                    paired=m.paired,
-                    sigma=config["datasets"]["sigma"],
-                    k=config["datasets"]["scatter_k"],
+                    datasets_config=config["datasets"],
+                    loss_fn=loss_fn,
+                    plot=step == 0 or (step + 1) % config["logger"]["log_every"] == 0,
                 )
 
-                # compute the loss
-                loss_d = {
-                    "loss": discrete_loss(output, target),
-                }
-                # print(loss_d)
-
-                # loss = loss_d["beamnet_loss"]
-                # loss.backward()
-
-                # optimizer.step()
+                if fig is not None:
+                    losses["plot_pred"] = fig
 
                 scaler.scale(loss_d["loss"]).backward()
                 scaler.step(optimizer)
@@ -438,6 +467,7 @@ def train_single_point(args):
             with torch.no_grad():
                 for key, value in loss_d.items():
                     losses[key].append(value.item())
+                losses["learning_rate"].append(scheduler.get_lr()[0])
 
                 if step == 0 or (step + 1) % config["logger"]["log_every"] == 0:
 
@@ -450,6 +480,8 @@ def train_single_point(args):
                     logger.log(losses, step=step, prefix="train_")
                     losses = new_log()
             step += 1
+        scheduler.step()
+        print("LR STEP:", scheduler.get_lr())
 
 
 def get_parser_filter():
