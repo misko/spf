@@ -1,1 +1,3 @@
 python spf/notebooks/simple_train.py --device cuda --seed 0 --nthetas 11 --datasets /mnt/md0/spf/2d_wallarray_v2_data/june/*.zarr --batch 1024 --workers 16 --act leaky --shuffle --segmentation-level downsampled --type direct --seg-net conv --epochs 1200 --shuffle --symmetry --no-sigmoid --block --n-radios 2 --skip-qc --wandb-project test123 --val-every 500 --val-holdout-fraction 0.15 --lr 0.001  --paired-start 0 --seg-start 0 --paired-lambda 0.2
+#python spf/grbl_radio_collection.py  -c spf/v5_configs/wall_array_v2_external.yaml -r rx_circle -s /dev/ttyACM0
+python spf/grbl_radio_collection.py  -c spf/v5_configs/wall_array_v2_external.yaml -r bounce -s /dev/ttyACM0
