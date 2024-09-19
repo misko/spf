@@ -1,40 +1,19 @@
 import argparse
-import gc
 import math
 import random
-from cProfile import Profile
 from functools import cache, partial
-from math import ceil
-from pstats import SortKey, Stats
 from random import shuffle
 
 import numpy as np
 import tensordict
 import torch
 from matplotlib import pyplot as plt
-from torch.nn import LayerNorm, TransformerEncoder, TransformerEncoderLayer
-from torch.utils.data import BatchSampler, DistributedSampler, Sampler
 from tqdm import tqdm
 
 import wandb
-from spf.dataset.spf_dataset import (
-    v5_collate_beamsegnet,
-    v5_collate_keys_fast,
-    v5spfdataset,
-)
-from spf.model_training_and_inference.models.beamsegnet import (
-    BeamNetDirect,
-    BeamNetDiscrete,
-    SimpleNet,
-)
+from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
 from spf.model_training_and_inference.models.funkynet1 import DebugFunkyNet, FunkyNet
-from spf.rf import (
-    reduce_theta_to_positive_y,
-    torch_pi_norm,
-    torch_pi_norm_pi,
-    torch_reduce_theta_to_positive_y,
-)
-from spf.utils import PositionalEncoding, StatefulBatchsampler
+from spf.utils import StatefulBatchsampler
 
 torch.set_float32_matmul_precision("high")
 
