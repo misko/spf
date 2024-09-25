@@ -16,6 +16,7 @@ import wandb
 from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
 from spf.model_training_and_inference.models.beamsegnet import FFNN
 from spf.model_training_and_inference.models.single_point_networks import (
+    PairedMultiPointWithBeamformer,
     PairedSinglePointWithBeamformer,
     SinglePointPassThrough,
     SinglePointWithBeamformer,
@@ -165,6 +166,8 @@ def load_model(model_config, global_config):
         return SinglePointWithBeamformer(model_config, global_config)
     elif model_config["name"] == "pairedbeamformer":
         return PairedSinglePointWithBeamformer(model_config, global_config)
+    elif model_config["name"] == "multipairedbeamformer":
+        return PairedMultiPointWithBeamformer(model_config, global_config)
 
     raise ValueError
 
@@ -224,6 +227,7 @@ def new_log():
         "uniform_loss": [],
         "single_loss": [],
         "paired_loss": [],
+        "multipaired_loss": [],
         "learning_rate": [],
     }
 
@@ -275,7 +279,7 @@ def compute_loss(output, batch_data, datasets_config, loss_fn, plot=False):
 
     fig = None
     if plot:
-        fig, axs = plt.subplots(2, 1)
+        fig, axs = plt.subplots(3, 1, figsize=(6, 9))
         n = output["single"].shape[0] * output["single"].shape[1]
         d = output["single"].shape[2]
         show_n = min(n, 10)
@@ -296,22 +300,34 @@ def compute_loss(output, batch_data, datasets_config, loss_fn, plot=False):
             im[::2] = target.reshape(n, -1).cpu().detach().numpy()[:show_n]
             axs[0].imshow(im)
             axs[0].set_title("Single")
-    if "paired" in output:
-        target = target_from_scatter(
+
+    if "paired" in output or "multipaired" in output:
+        paired_target = target_from_scatter(
             batch_data,
             y_rad_binned=batch_data["craft_y_rad_binned"][..., None],
             sigma=datasets_config["sigma"],
             k=datasets_config["scatter_k"],
         )
-        loss_d["paired_loss"] = loss_fn(output["paired"], target)
+    if "paired" in output:
+        loss_d["paired_loss"] = loss_fn(output["paired"], paired_target)
         loss += loss_d["paired_loss"]
-
         if plot:
             im = np.zeros((show_n * 2, d))
             im[1::2] = output["paired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
-            im[::2] = target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+            im[::2] = paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
             axs[1].imshow(im)
             axs[1].set_title("Paired")
+    if "multipaired" in output:
+        loss_d["multipaired_loss"] = loss_fn(output["multipaired"], paired_target)
+        loss += loss_d["multipaired_loss"]
+        if plot:
+            im = np.zeros((show_n * 2, d))
+            im[1::2] = (
+                output["multipaired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+            )
+            im[::2] = paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+            axs[2].imshow(im)
+            axs[2].set_title("MultiPaired")
     loss_d["loss"] = loss
     return loss_d, fig
 

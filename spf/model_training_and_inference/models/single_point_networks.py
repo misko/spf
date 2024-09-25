@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.nn import LayerNorm, TransformerEncoder, TransformerEncoderLayer
 
 from spf.model_training_and_inference.models.beamsegnet import FFNN
 
@@ -58,10 +59,10 @@ class SinglePointWithBeamformer(nn.Module):
             block=model_config["block"],  # True
             norm=model_config["norm"],  # False, [batch,layer]
             act=nn.LeakyReLU,
+            dropout=model_config.get("dropout", 0.0),
             # act=nn.SELU,
             bn=model_config["bn"],  # False , bool
         )
-        self.paired = False
 
     def forward(self, batch):
         # first dim odd / even is the radios
@@ -94,7 +95,6 @@ class PairedSinglePointWithBeamformer(nn.Module):
             act=nn.LeakyReLU,
             bn=model_config["bn"],  # False , bool
         )
-        self.paired = True
 
     def forward(self, batch):
         single_radio_estimates = self.single_radio_net(batch)["single"]
@@ -113,11 +113,55 @@ class PairedSinglePointWithBeamformer(nn.Module):
         }
 
 
+class NormP1Dim2(nn.Module):
+    def forward(self, x):
+        return torch.nn.functional.normalize(x.abs(), p=1, dim=2)
+
+
+class PairedMultiPointWithBeamformer(nn.Module):
+    def __init__(self, model_config, global_config):
+        super().__init__()
+        self.multi_radio_net = PairedSinglePointWithBeamformer(
+            model_config, global_config
+        )
+
+        self.transformer_config = model_config["transformer"]
+        self.d_model = self.transformer_config["d_model"]
+
+        encoder_layers = TransformerEncoderLayer(
+            d_model=self.d_model,
+            nhead=self.transformer_config["n_heads"],
+            dim_feedforward=self.transformer_config["d_hid"],
+            dropout=self.transformer_config["dropout"],
+            activation="gelu",
+            batch_first=True,  # batch, sequence, feature
+        )
+        self.transformer_encoder = TransformerEncoder(
+            encoder_layers,
+            self.transformer_config["n_layers"],
+            LayerNorm(self.d_model),
+        )
+        self.input_net = torch.nn.Sequential(
+            torch.nn.Linear(65, self.d_model)  # 5 output beam_former R1+R2, time
+        )
+        self.output_net = torch.nn.Sequential(
+            torch.nn.Linear(self.d_model, 65),  # 5 output beam_former R1+R2, time
+            NormP1Dim2(),
+        )
+
+    def forward(self, batch):
+        output = self.multi_radio_net(batch)
+
+        output["multipaired"] = self.output_net(
+            self.transformer_encoder(self.input_net(output["paired"]))
+        )
+        return output
+
+
 class SinglePointPassThrough(nn.Module):
     def __init__(self, model_config, global_config):
         super().__init__()
         self.w = torch.nn.Parameter(torch.zeros(1))
-        self.paired = False
 
     def forward(self, batch):
         # weighted_beamformer(batch)

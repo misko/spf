@@ -233,12 +233,14 @@ class UNet1D(nn.Module):
 
 
 class BasicBlock(nn.Module):
-    def __init__(self, hidden, act, bn=True, norm="batch"):
+    def __init__(self, hidden, act, bn=True, norm="batch", dropout=0.0):
         super(BasicBlock, self).__init__()
         self.linear1 = nn.Linear(hidden, hidden)
         self.linear2 = nn.Linear(hidden, hidden)
         self.n1 = nn.Identity()
         self.n2 = nn.Identity()
+        self.d1 = nn.Dropout(p=dropout)
+        self.d2 = nn.Dropout(p=dropout)
         if bn:
             if norm == "batch":
                 self.n1 = nn.BatchNorm1d(num_features=hidden)
@@ -250,8 +252,8 @@ class BasicBlock(nn.Module):
 
     def forward(self, x):
         identity = x
-        out = self.act(self.n1(self.linear1(x)))
-        out = self.act(self.n2(self.linear2(out)))
+        out = self.act(self.n1(self.d1(self.linear1(x))))
+        out = self.act(self.n2(self.d2(self.linear2(out))))
         return self.act(out + identity)
 
 
@@ -260,17 +262,22 @@ class PairedBeamNet(nn.Module):
 
 
 class FFNN(nn.Module):
-    def __init__(self, inputs, depth, hidden, outputs, block, bn, norm, act):
+    def __init__(
+        self, inputs, depth, hidden, outputs, block, bn, norm, act, dropout=0.0
+    ):
         super(FFNN, self).__init__()
         if bn == False or norm == "batch":
             net_layout = [
                 nn.Linear(inputs, hidden),
+                nn.Dropout(dropout),
                 act(),
                 nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
             ]
             for _ in range(depth):
                 if block:
-                    net_layout += [BasicBlock(hidden, act, bn=bn, norm=norm)]
+                    net_layout += [
+                        BasicBlock(hidden, act, bn=bn, norm=norm, dropout=dropout)
+                    ]
                 else:
                     net_layout += [
                         nn.Linear(hidden, hidden),
@@ -281,12 +288,15 @@ class FFNN(nn.Module):
         elif norm == "layer":
             net_layout = [
                 nn.Linear(inputs, hidden),
+                nn.Dropout(dropout),
                 act(),
                 nn.LayerNorm(normalized_shape=hidden) if bn else nn.Identity(),
             ]
             for _ in range(depth):
                 if block:
-                    net_layout += [BasicBlock(hidden, act, bn=bn, norm=norm)]
+                    net_layout += [
+                        BasicBlock(hidden, act, bn=bn, norm=norm, dropout=dropout)
+                    ]
                 else:
                     net_layout += [
                         nn.Linear(hidden, hidden),
