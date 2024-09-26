@@ -10,7 +10,7 @@ if __name__ == "__main__":
         sys.argv[1],
         nthetas=65,
         precompute_cache="/home/mouse9911/precompute_cache_chunk16_sept/",
-        #precompute_cache="/tmp/",
+        # precompute_cache="/tmp/",
         gpu=True,
         skip_fields=set(["signal_matrix"]),
         ignore_qc=True,

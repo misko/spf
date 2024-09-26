@@ -67,13 +67,6 @@ class SinglePointWithBeamformer(nn.Module):
     def forward(self, batch):
         # first dim odd / even is the radios
         return {
-            # "single": torch.nn.functional.softmax(
-            #     self.net(self.prepare_input.prepare_input(batch)) / TEMP,
-            #     dim=2,
-            # )
-            # "single": sigmoid_dist(self.net(self.prepare_input.prepare_input(batch)))
-            # "single": self.net(self.prepare_input.prepare_input(batch))
-            # / 50
             "single": torch.nn.functional.normalize(
                 self.net(self.prepare_input.prepare_input(batch)).abs(), dim=2, p=1
             )
