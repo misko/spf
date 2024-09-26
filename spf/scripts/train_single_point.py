@@ -8,13 +8,11 @@ import torch
 import torchvision
 import yaml
 from matplotlib import pyplot as plt
-from torch import nn
-from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau, StepLR
+from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
 import wandb
 from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
-from spf.model_training_and_inference.models.beamsegnet import FFNN
 from spf.model_training_and_inference.models.single_point_networks import (
     PairedMultiPointWithBeamformer,
     PairedSinglePointWithBeamformer,
@@ -289,7 +287,16 @@ class WNBLogger:
                 plt.close(value)
 
 
-def compute_loss(output, batch_data, datasets_config, loss_fn, scatter_fn, plot=False):
+def compute_loss(
+    output,
+    batch_data,
+    datasets_config,
+    loss_fn,
+    scatter_fn,
+    single=True,
+    paired=True,
+    plot=False,
+):
     loss_d = {}
     loss = 0
 
@@ -300,7 +307,7 @@ def compute_loss(output, batch_data, datasets_config, loss_fn, scatter_fn, plot=
         d = output["single"].shape[2]
         show_n = min(n, 10)
 
-    if "single" in output:
+    if single and "single" in output:
         target = scatter_fn(
             batch_data,
             y_rad=batch_data["y_rad"][..., None],
@@ -318,7 +325,7 @@ def compute_loss(output, batch_data, datasets_config, loss_fn, scatter_fn, plot=
             axs[0].imshow(im)
             axs[0].set_title("Single")
 
-    if "paired" in output or "multipaired" in output:
+    if paired and "paired" in output or "multipaired" in output:
         paired_target = scatter_fn(
             batch_data,
             y_rad=batch_data["craft_y_rad"][..., None],
@@ -326,7 +333,7 @@ def compute_loss(output, batch_data, datasets_config, loss_fn, scatter_fn, plot=
             sigma=datasets_config["sigma"],
             k=datasets_config["scatter_k"],
         )
-    if "paired" in output:
+    if paired and "paired" in output:
         loss_d["paired_loss"] = loss_fn(output["paired"], paired_target)
         loss += loss_d["paired_loss"]
         if plot:
@@ -335,7 +342,7 @@ def compute_loss(output, batch_data, datasets_config, loss_fn, scatter_fn, plot=
             im[::2] = paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
             axs[1].imshow(im)
             axs[1].set_title("Paired")
-    if "multipaired" in output:
+    if paired and "multipaired" in output:
         loss_d["multipaired_loss"] = loss_fn(output["multipaired"], paired_target)
         loss += loss_d["multipaired_loss"]
         if plot:
@@ -352,6 +359,7 @@ def compute_loss(output, batch_data, datasets_config, loss_fn, scatter_fn, plot=
 
 def train_single_point(args):
     config = load_config_from_fn(args.config)
+    config["args"] = vars(args)
     print(config)
 
     torch_device_str = config["optim"]["device"]
@@ -438,7 +446,9 @@ def train_single_point(args):
                             val_batch_data,
                             loss_fn=loss_fn,
                             datasets_config=config["datasets"],
-                            scatter_fn=scatter_fn
+                            scatter_fn=scatter_fn,
+                            single=True,
+                            paired=epoch > args.head_start_epoch,
                         )
 
                         # scheduler.step(loss_d["loss"])
@@ -498,7 +508,9 @@ def train_single_point(args):
                     datasets_config=config["datasets"],
                     loss_fn=loss_fn,
                     plot=step == 0 or (step + 1) % config["logger"]["log_every"] == 0,
-                    scatter_fn=scatter_fn
+                    scatter_fn=scatter_fn,
+                    single=True,
+                    paired=epoch > args.head_start_epoch,
                 )
 
                 if fig is not None:
@@ -544,9 +556,9 @@ def get_parser_filter():
         default=0,
     )
     parser.add_argument(
-        "--head-start",
+        "--head-start-epoch",
         type=int,
-        default=10000,
+        default=10,
     )
     parser.add_argument(
         "--debug-model",
