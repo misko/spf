@@ -465,6 +465,7 @@ class v5spfdataset(Dataset):
         empirical_individual_radio=False,
         empirical_symmetry=True,
         target_dtype=torch.float32,
+        snapshots_adjacent_stride=1,
     ):
         self.n_parallel = n_parallel
         self.exclude_keys_from_cache = set(["signal_matrix"])
@@ -479,6 +480,7 @@ class v5spfdataset(Dataset):
         self.skip_fields = skip_fields
 
         self.snapshots_per_session = snapshots_per_session
+        self.snapshots_adjacent_stride = snapshots_adjacent_stride
 
         self.prefix = prefix.replace(".zarr", "")
         self.zarr_fn = f"{self.prefix}.zarr"
@@ -498,7 +500,12 @@ class v5spfdataset(Dataset):
 
         if snapshots_stride < 1.0:
             snapshots_stride = max(
-                int(snapshots_stride * self.snapshots_per_session), 1
+                int(
+                    snapshots_stride
+                    * self.snapshots_per_session
+                    * self.snapshots_adjacent_stride
+                ),
+                1,
             )
         self.snapshots_stride = int(snapshots_stride)
 
@@ -526,12 +533,15 @@ class v5spfdataset(Dataset):
 
         if self.tiled_sessions:
             self.n_sessions = (
-                self.n_snapshots - self.snapshots_per_session
+                self.n_snapshots
+                - self.snapshots_per_session * snapshots_adjacent_stride
             ) // self.snapshots_stride + 1
             if self.n_sessions <= 0:
                 self.n_sessions = 0
         else:
-            self.n_sessions = self.n_snapshots // self.snapshots_per_session
+            self.n_sessions = self.n_snapshots // (
+                self.snapshots_per_session * snapshots_adjacent_stride
+            )
 
         if "signal_matrix" not in self.skip_fields:
             self.signal_matrices = [
@@ -726,14 +736,12 @@ class v5spfdataset(Dataset):
             #     self.results_fn().replace(".pkl", ".yarr"), mode="r"
             # )
 
-    def populate_from_precomputed(
-        self, data, receiver_idx, snapshot_start_idx, snapshot_end_idx
-    ):
+    def populate_from_precomputed(self, data, receiver_idx, snapshot_idxs):
         if "windowed_beamformer" not in self.skip_fields:
             data["windowed_beamformer"] = (
                 torch.as_tensor(
                     self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
-                        snapshot_start_idx:snapshot_end_idx
+                        snapshot_idxs
                     ]
                 )
                 .unsqueeze(0)
@@ -744,7 +752,7 @@ class v5spfdataset(Dataset):
             data["weighted_beamformer"] = (
                 torch.as_tensor(
                     self.precomputed_zarr[f"r{receiver_idx}/weighted_beamformer"][
-                        snapshot_start_idx:snapshot_end_idx
+                        snapshot_idxs
                     ]
                 )
                 .unsqueeze(0)
@@ -756,7 +764,7 @@ class v5spfdataset(Dataset):
             data["all_windows_stats"] = (
                 torch.as_tensor(
                     self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
-                        snapshot_start_idx:snapshot_end_idx
+                        snapshot_idxs
                     ]
                 )
                 .unsqueeze(0)
@@ -767,7 +775,7 @@ class v5spfdataset(Dataset):
             data["weighted_windows_stats"] = (
                 torch.as_tensor(
                     self.precomputed_zarr[f"r{receiver_idx}/weighted_windows_stats"][
-                        snapshot_start_idx:snapshot_end_idx
+                        snapshot_idxs
                     ]
                 )
                 .unsqueeze(0)
@@ -779,7 +787,7 @@ class v5spfdataset(Dataset):
                 torch.as_tensor(
                     self.precomputed_zarr[f"r{receiver_idx}"][
                         "downsampled_segmentation_mask"
-                    ][snapshot_start_idx:snapshot_end_idx]
+                    ][snapshot_idxs]
                 )
                 .unsqueeze(1)
                 .unsqueeze(0)
@@ -791,43 +799,53 @@ class v5spfdataset(Dataset):
                 d["simple_segmentation"]
                 for d in self.segmentation["segmentation_by_receiver"][
                     f"r{receiver_idx}"
-                ][snapshot_start_idx:snapshot_end_idx]
+                ][snapshot_idxs]
             ]
 
-    def get_values_at_key(self, key, receiver_idx, start_idx, end_idx):
+    def get_values_at_key(self, key, receiver_idx, idxs):
         if key == "signal_matrix":
-            return torch.as_tensor(
-                self.receiver_data[receiver_idx][key][start_idx:end_idx]
+            return torch.as_tensor(self.receiver_data[receiver_idx][key][idxs])
+        return self.cached_keys[receiver_idx][key][idxs]
+
+    def get_session_idxs(self, session_idx):
+        if self.tiled_sessions:
+            snapshot_start_idx = session_idx * self.snapshots_stride
+            snapshot_end_idx = (
+                snapshot_start_idx
+                + self.snapshots_adjacent_stride * self.snapshots_per_session
             )
-        return self.cached_keys[receiver_idx][key][start_idx:end_idx]
+        else:
+            snapshot_start_idx = (
+                session_idx
+                * self.snapshots_per_session
+                * self.snapshots_adjacent_stride
+            )
+            snapshot_end_idx = (
+                (session_idx + 1)
+                * self.snapshots_per_session
+                * self.snapshots_adjacent_stride
+            )
+        return np.arange(
+            snapshot_start_idx, snapshot_end_idx, self.snapshots_adjacent_stride
+        )
 
     def render_session(self, receiver_idx, session_idx):
         self.reinit()
-        if self.tiled_sessions:
-            snapshot_start_idx = session_idx * self.snapshots_stride
-            snapshot_end_idx = snapshot_start_idx + self.snapshots_per_session
 
-        else:
-            snapshot_start_idx = session_idx * self.snapshots_per_session
-            snapshot_end_idx = (session_idx + 1) * self.snapshots_per_session
+        snapshot_idxs = self.get_session_idxs(session_idx)
+        # breakpoint()
 
         data = {
             # key: r[key][snapshot_start_idx:snapshot_end_idx]
-            key: self.get_values_at_key(
-                key, receiver_idx, snapshot_start_idx, snapshot_end_idx
-            )
+            key: self.get_values_at_key(key, receiver_idx, snapshot_idxs)
             for key in self.keys_per_session  # 'rx_theta_in_pis', 'rx_spacing', 'rx_lo', 'rx_bandwidth', 'avg_phase_diff', 'rssis', 'gains']
         }
         data["receiver_idx"] = self.receiver_idxs_expanded[receiver_idx]
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][
-            snapshot_start_idx:snapshot_end_idx
+            snapshot_idxs
         ]
-        data["ground_truth_phi"] = self.ground_truth_phis[receiver_idx][
-            snapshot_start_idx:snapshot_end_idx
-        ]
-        data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[
-            snapshot_start_idx:snapshot_end_idx
-        ]
+        data["ground_truth_phi"] = self.ground_truth_phis[receiver_idx][snapshot_idxs]
+        data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[snapshot_idxs]
 
         # duplicate some fields
         data["y_rad"] = data["ground_truth_theta"]
@@ -845,32 +863,22 @@ class v5spfdataset(Dataset):
         if self.temp_file and self.precomputed_entries <= session_idx:
             self.get_segmentation(precompute_to_idx=session_idx)
 
-        self.populate_from_precomputed(
-            data, receiver_idx, snapshot_start_idx, snapshot_end_idx
-        )
+        self.populate_from_precomputed(data, receiver_idx, snapshot_idxs)
         # port this over in on the fly TODO
         data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
-            snapshot_start_idx:snapshot_end_idx
+            snapshot_idxs
         ].unsqueeze(0)
 
         data["rx_pos_xy"] = torch.vstack(
             [
-                self.cached_keys[receiver_idx]["rx_pos_x_mm"][
-                    snapshot_start_idx:snapshot_end_idx
-                ],
-                self.cached_keys[receiver_idx]["rx_pos_y_mm"][
-                    snapshot_start_idx:snapshot_end_idx
-                ],
+                self.cached_keys[receiver_idx]["rx_pos_x_mm"][snapshot_idxs],
+                self.cached_keys[receiver_idx]["rx_pos_y_mm"][snapshot_idxs],
             ]
         ).T.unsqueeze(0)
         data["tx_pos_xy"] = torch.vstack(
             [
-                self.cached_keys[receiver_idx]["tx_pos_x_mm"][
-                    snapshot_start_idx:snapshot_end_idx
-                ],
-                self.cached_keys[receiver_idx]["tx_pos_y_mm"][
-                    snapshot_start_idx:snapshot_end_idx
-                ],
+                self.cached_keys[receiver_idx]["tx_pos_x_mm"][snapshot_idxs],
+                self.cached_keys[receiver_idx]["tx_pos_y_mm"][snapshot_idxs],
             ]
         ).T.unsqueeze(0)
 

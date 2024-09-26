@@ -71,6 +71,7 @@ def load_dataloaders(datasets_config, optim_config, global_config):
             gpu=optim_config["device"] == "cuda",
             snapshots_per_session=datasets_config["snapshots_per_session"],
             snapshots_stride=datasets_config["snapshots_stride"],
+            snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
             readahead=False,
             skip_fields=skip_fields,
             empirical_data_fn=datasets_config["empirical_data_fn"],
@@ -179,12 +180,25 @@ def uniform_preds(batch):
     )
 
 
-def target_from_scatter(batch, y_rad_binned, sigma, k):
+def target_from_scatter(batch, y_rad, y_rad_binned, sigma, k):
+    assert y_rad.max() <= torch.pi and y_rad.min() >= -torch.pi
+    torch.zeros(*batch["empirical"].shape, device=batch["empirical"].device)
+    n = batch["empirical"].shape[-1]
+    m = (
+        torch.linspace(
+            -1 + 1 / (2 * n), 1 - 1 / (2 * n), n, device=batch["empirical"].device
+        ).reshape(1, 1, n)
+        * torch.pi
+    )
+    diff = ((m.expand_as(batch["empirical"]) - y_rad) / sigma) ** 2
+    return torch.nn.functional.normalize((-diff / 2).exp(), p=1.0, dim=2)
+
+
+def target_from_scatter_binned(batch, y_rad, y_rad_binned, sigma, k):
     # if paired:
     #     y_rad_binned = batch["craft_y_rad_binned"][..., None]
     # else:
     #     y_rad_binned = batch["y_rad_binned"][..., None]
-
     scattered_targets = torch.zeros(
         *batch["empirical"].shape, device=batch["empirical"].device
     ).scatter(
@@ -261,6 +275,8 @@ class WNBLogger:
             for key, value in data.items()
             if "plot" not in key and len(value) > 0
         }
+        losses["step"] = step
+        print("SUBMIT losses to wandb", losses)
         for key, value in data.items():
             if "plot" in key:
                 losses[key] = value
@@ -273,7 +289,7 @@ class WNBLogger:
                 plt.close(value)
 
 
-def compute_loss(output, batch_data, datasets_config, loss_fn, plot=False):
+def compute_loss(output, batch_data, datasets_config, loss_fn, scatter_fn, plot=False):
     loss_d = {}
     loss = 0
 
@@ -285,8 +301,9 @@ def compute_loss(output, batch_data, datasets_config, loss_fn, plot=False):
         show_n = min(n, 10)
 
     if "single" in output:
-        target = target_from_scatter(
+        target = scatter_fn(
             batch_data,
+            y_rad=batch_data["y_rad"][..., None],
             y_rad_binned=batch_data["y_rad_binned"][..., None],
             sigma=datasets_config["sigma"],
             k=datasets_config["scatter_k"],
@@ -302,8 +319,9 @@ def compute_loss(output, batch_data, datasets_config, loss_fn, plot=False):
             axs[0].set_title("Single")
 
     if "paired" in output or "multipaired" in output:
-        paired_target = target_from_scatter(
+        paired_target = scatter_fn(
             batch_data,
+            y_rad=batch_data["craft_y_rad"][..., None],
             y_rad_binned=batch_data["craft_y_rad_binned"][..., None],
             sigma=datasets_config["sigma"],
             k=datasets_config["scatter_k"],
@@ -387,6 +405,14 @@ def train_single_point(args):
     else:
         raise ValueError("Not a valid loss function")
 
+    scatter_fn = None
+    if config["datasets"]["scatter"] == "continuous":
+        scatter_fn = target_from_scatter
+    elif config["datasets"]["scatter"] == "onehot":
+        scatter_fn = target_from_scatter_binned
+    else:
+        raise ValueError(f"Not a valid scatter fn, {config["datasets"]["scatter"]}")
+
     for epoch in range(config["optim"]["epochs"]):
         train_dataloader.batch_sampler.set_epoch_and_start_iteration(
             epoch=epoch, start_iteration=step % len(train_dataloader)
@@ -412,6 +438,7 @@ def train_single_point(args):
                             val_batch_data,
                             loss_fn=loss_fn,
                             datasets_config=config["datasets"],
+                            scatter_fn=scatter_fn
                         )
 
                         # scheduler.step(loss_d["loss"])
@@ -420,6 +447,7 @@ def train_single_point(args):
                         # TODO refactor
                         target = target_from_scatter(
                             val_batch_data,
+                            y_rad=val_batch_data["y_rad"][..., None],
                             y_rad_binned=val_batch_data["y_rad_binned"][..., None],
                             sigma=config["datasets"]["sigma"],
                             k=config["datasets"]["scatter_k"],
@@ -470,6 +498,7 @@ def train_single_point(args):
                     datasets_config=config["datasets"],
                     loss_fn=loss_fn,
                     plot=step == 0 or (step + 1) % config["logger"]["log_every"] == 0,
+                    scatter_fn=scatter_fn
                 )
 
                 if fig is not None:

@@ -142,18 +142,28 @@ class PairedMultiPointWithBeamformer(nn.Module):
             LayerNorm(self.d_model),
         )
         self.input_net = torch.nn.Sequential(
-            torch.nn.Linear(65, self.d_model)  # 5 output beam_former R1+R2, time
+            torch.nn.Linear(65 + 1, self.d_model)  # 5 output beam_former R1+R2, time
         )
-        self.output_net = torch.nn.Sequential(
-            torch.nn.Linear(self.d_model, 65),  # 5 output beam_former R1+R2, time
-            NormP1Dim2(),
-        )
+        # self.output_net = torch.nn.Sequential(
+        #     torch.nn.Linear(self.d_model, 65),  # 5 output beam_former R1+R2, time
+        #     NormP1Dim2(),
+        # )
+        self.output_net = torch.nn.Linear(self.d_model, 65)
+        self.norm = NormP1Dim2()
 
     def forward(self, batch):
         output = self.multi_radio_net(batch)
 
-        output["multipaired"] = self.output_net(
-            self.transformer_encoder(self.input_net(output["paired"]))
+        normalized_time = batch["system_timestamp"] - batch["system_timestamp"][:, [0]]
+        normalized_time /= normalized_time[:, [-1]]
+
+        input_with_time = torch.concatenate(
+            [output["paired"], normalized_time.unsqueeze(2)], axis=2
+        )
+
+        output["multipaired"] = self.norm(
+            output["paired"]  # skip connection for paired
+            + self.output_net(self.transformer_encoder(self.input_net(input_with_time)))
         )
         return output
 
