@@ -19,6 +19,7 @@ from spf.model_training_and_inference.models.single_point_networks import (
     SinglePointPassThrough,
     SinglePointWithBeamformer,
 )
+from spf.rf import torch_pi_norm
 from spf.utils import StatefulBatchsampler
 
 
@@ -241,6 +242,7 @@ def new_log():
         "paired_loss": [],
         "multipaired_loss": [],
         "learning_rate": [],
+        "multipaired_direct_loss": [],
     }
 
 
@@ -302,10 +304,10 @@ def compute_loss(
 
     fig = None
     if plot:
-        fig, axs = plt.subplots(3, 1, figsize=(6, 9))
+        fig, axs = plt.subplots(3, 2, figsize=(12, 9))
         n = output["single"].shape[0] * output["single"].shape[1]
         d = output["single"].shape[2]
-        show_n = min(n, 10)
+        show_n = min(n, 20)
 
     if single and "single" in output:
         target = scatter_fn(
@@ -319,11 +321,14 @@ def compute_loss(
         loss += loss_d["single_loss"]
 
         if plot:
-            im = np.zeros((show_n * 2, d))
-            im[1::2] = output["single"].reshape(n, -1).cpu().detach().numpy()[:show_n]
-            im[::2] = target.reshape(n, -1).cpu().detach().numpy()[:show_n]
-            axs[0].imshow(im)
-            axs[0].set_title("Single")
+            axs[0, 0].imshow(
+                output["single"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+            )
+            axs[0, 1].imshow(target.reshape(n, -1).cpu().detach().numpy()[:show_n])
+            axs[0, 0].set_title("1radio x 1timestep (Pred)")
+            axs[0, 0].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
+            axs[0, 1].set_title("1radio x 1timestep (label)")
+            axs[0, 1].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
 
     if paired and "paired" in output or "multipaired" in output:
         paired_target = scatter_fn(
@@ -337,22 +342,47 @@ def compute_loss(
         loss_d["paired_loss"] = loss_fn(output["paired"], paired_target)
         loss += loss_d["paired_loss"]
         if plot:
-            im = np.zeros((show_n * 2, d))
-            im[1::2] = output["paired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
-            im[::2] = paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
-            axs[1].imshow(im)
-            axs[1].set_title("Paired")
+            axs[1, 0].imshow(
+                output["paired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+            )
+            axs[1, 1].imshow(
+                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+            )
+            axs[1, 0].set_title("2radio x 1timestep (pred)")
+            axs[1, 1].set_title("2radio x 1timestep (label)")
+            axs[1, 0].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
+            axs[1, 1].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
+
     if paired and "multipaired" in output:
         loss_d["multipaired_loss"] = loss_fn(output["multipaired"], paired_target)
         loss += loss_d["multipaired_loss"]
+
+        loss_d["multipaired_direct_loss"] = (
+            (
+                torch_pi_norm(
+                    output["multipaired_direct"] - batch_data["craft_y_rad"][..., None]
+                )
+            )
+            ** 2
+        ).mean()
+        loss += (
+            loss_d["multipaired_direct_loss"] / 30
+        )  # TODO constant to keep losses balanced
         if plot:
-            im = np.zeros((show_n * 2, d))
-            im[1::2] = (
+            axs[2, 0].imshow(
                 output["multipaired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
             )
-            im[::2] = paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
-            axs[2].imshow(im)
-            axs[2].set_title("MultiPaired")
+            axs[2, 1].imshow(
+                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+            )
+            axs[2, 0].set_title(
+                f"2radio x {output['multipaired'].shape[1]}timestep (pred)"
+            )
+            axs[2, 1].set_title(
+                f"2radio x {output['multipaired'].shape[1]}timestep (target)"
+            )
+            axs[2, 0].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
+            axs[2, 1].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
     loss_d["loss"] = loss
     return loss_d, fig
 
@@ -448,7 +478,7 @@ def train_single_point(args):
                             datasets_config=config["datasets"],
                             scatter_fn=scatter_fn,
                             single=True,
-                            paired=epoch > args.head_start_epoch,
+                            paired=epoch >= config["optim"]["head_start"],
                         )
 
                         # scheduler.step(loss_d["loss"])
@@ -510,7 +540,7 @@ def train_single_point(args):
                     plot=step == 0 or (step + 1) % config["logger"]["log_every"] == 0,
                     scatter_fn=scatter_fn,
                     single=True,
-                    paired=epoch > args.head_start_epoch,
+                    paired=epoch >= config["optim"]["head_start"],
                 )
 
                 if fig is not None:

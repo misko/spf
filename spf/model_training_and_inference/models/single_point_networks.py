@@ -77,7 +77,7 @@ class PairedSinglePointWithBeamformer(nn.Module):
     def __init__(self, model_config, global_config):
         super().__init__()
         self.single_radio_net = SinglePointWithBeamformer(model_config, global_config)
-
+        self.detach = model_config["detach"]
         self.net = FFNN(
             inputs=global_config["nthetas"] * 2,
             depth=model_config["depth"],  # 4
@@ -91,9 +91,15 @@ class PairedSinglePointWithBeamformer(nn.Module):
 
     def forward(self, batch):
         single_radio_estimates = self.single_radio_net(batch)["single"]
+
+        single_radio_estimates_input = detach_or_not(
+            single_radio_estimates, self.detach
+        )
+
         x = self.net(
             torch.concatenate(
-                [single_radio_estimates[::2], single_radio_estimates[1::2]], dim=2
+                [single_radio_estimates_input[::2], single_radio_estimates_input[1::2]],
+                dim=2,
             )
         )
         idxs = torch.arange(x.shape[0]).reshape(-1, 1).repeat(1, 2).reshape(-1)
@@ -111,13 +117,20 @@ class NormP1Dim2(nn.Module):
         return torch.nn.functional.normalize(x.abs(), p=1, dim=2)
 
 
+def detach_or_not(x, detach):
+    if detach:
+        return x.detach()
+    return x
+
+
 class PairedMultiPointWithBeamformer(nn.Module):
-    def __init__(self, model_config, global_config):
+    def __init__(self, model_config, global_config, ntheta=65):
         super().__init__()
+        self.ntheta = ntheta
         self.multi_radio_net = PairedSinglePointWithBeamformer(
             model_config, global_config
         )
-
+        self.detach = model_config["detach"]
         self.transformer_config = model_config["transformer"]
         self.d_model = self.transformer_config["d_model"]
 
@@ -135,13 +148,17 @@ class PairedMultiPointWithBeamformer(nn.Module):
             LayerNorm(self.d_model),
         )
         self.input_net = torch.nn.Sequential(
-            torch.nn.Linear(65 + 1, self.d_model)  # 5 output beam_former R1+R2, time
+            torch.nn.Linear(
+                self.ntheta + 1, self.d_model
+            )  # 5 output beam_former R1+R2, time
         )
         # self.output_net = torch.nn.Sequential(
         #     torch.nn.Linear(self.d_model, 65),  # 5 output beam_former R1+R2, time
         #     NormP1Dim2(),
         # )
-        self.output_net = torch.nn.Linear(self.d_model, 65)
+        self.output_net = torch.nn.Linear(
+            self.d_model, self.ntheta + 1
+        )  # output discrete and actual
         self.norm = NormP1Dim2()
 
     def forward(self, batch):
@@ -150,14 +167,26 @@ class PairedMultiPointWithBeamformer(nn.Module):
         normalized_time = batch["system_timestamp"] - batch["system_timestamp"][:, [0]]
         normalized_time /= normalized_time[:, [-1]]
 
+        output_paired = detach_or_not(output["paired"], self.detach)
+
         input_with_time = torch.concatenate(
-            [output["paired"], normalized_time.unsqueeze(2)], axis=2
+            [
+                output_paired,
+                normalized_time.unsqueeze(2),
+            ],
+            axis=2,
         )
+        full_output = self.output_net(
+            self.transformer_encoder(self.input_net(input_with_time))
+        )
+        discrete_output = full_output[..., : self.ntheta]
+        direct_output = full_output[..., [-1]]
 
         output["multipaired"] = self.norm(
-            output["paired"]  # skip connection for paired
-            + self.output_net(self.transformer_encoder(self.input_net(input_with_time)))
+            output_paired + discrete_output  # skip connection for paired
         )
+
+        output["multipaired_direct"] = direct_output
         return output
 
 
