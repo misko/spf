@@ -586,11 +586,6 @@ def get_parser_filter():
         default=0,
     )
     parser.add_argument(
-        "--head-start-epoch",
-        type=int,
-        default=10,
-    )
-    parser.add_argument(
         "--debug-model",
         action=argparse.BooleanOptionalAction,
         default=False,
