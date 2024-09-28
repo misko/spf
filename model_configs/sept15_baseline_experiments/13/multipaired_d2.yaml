@@ -16,7 +16,7 @@ datasets:
   precompute_cache: /home/mouse9911/precompute_cache_chunk16_sept
   skip_qc: True
   snapshots_per_session: 4
-  snapshots_stride: 4
+  snapshots_stride: 1
   snapshots_adjacent_stride: 64
   batch_size: 256
   shuffle: True
@@ -55,7 +55,7 @@ optim:
   device: cuda
   dtype: torch.float32
   resume_step: 0
-  epochs: 100
+  epochs: 25
   val_every: 1000 
   learning_rate: 0.000001
   weight_decay: 0.0000000
