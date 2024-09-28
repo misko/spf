@@ -796,10 +796,10 @@ class v5spfdataset(Dataset):
 
         if "simple_segmentations" not in self.skip_fields:
             data["simple_segmentations"] = [
-                d["simple_segmentation"]
-                for d in self.segmentation["segmentation_by_receiver"][
-                    f"r{receiver_idx}"
-                ][snapshot_idxs]
+                self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
+                    snapshot_idx
+                ]["simple_segmentation"]
+                for snapshot_idx in snapshot_idxs
             ]
 
     def get_values_at_key(self, key, receiver_idx, idxs):
