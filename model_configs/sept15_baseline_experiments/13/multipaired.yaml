@@ -10,7 +10,7 @@ global:
 
 datasets:
   train_paths: 
-    - /home/mouse9911/nosig_data/wallarrayv3_2024*.zarr
+    - /mnt/4tb_ssd/nosig_data/wallarrayv3_2024*.zarr
   val_holdout_fraction: 0.2
   val_subsample_fraction: 0.05
   precompute_cache: /home/mouse9911/precompute_cache_chunk16_sept
@@ -37,7 +37,7 @@ logger:
 
 model:
   name: multipairedbeamformer
-  hidden: 2048
+  hidden: 1024
   depth: 4
   block: True
   bn: True
@@ -55,7 +55,7 @@ optim:
   device: cuda
   dtype: torch.float32
   resume_step: 0
-  epochs: 80
+  epochs: 100
   val_every: 1000 
   learning_rate: 0.000001
   weight_decay: 0.0000000

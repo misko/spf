@@ -55,6 +55,6 @@ optim:
   val_every: 1000 
   learning_rate: 0.000001
   weight_decay: 0.0000000
-  amp: False
+  amp: True
   loss: mse
   scheduler_step: 4

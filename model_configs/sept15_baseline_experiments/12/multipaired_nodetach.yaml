@@ -42,7 +42,7 @@ model:
   block: True
   bn: True
   norm: layer
-  detach: True
+  detach: False
   transformer:
     d_model: 512
     n_heads: 8
@@ -51,7 +51,7 @@ model:
     n_layers: 8
 
 optim:
-  head_start: 0
+  head_start: 10
   device: cuda
   dtype: torch.float32
   resume_step: 0
