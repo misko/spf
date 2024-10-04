@@ -1,5 +1,7 @@
 import argparse
+import datetime
 import glob
+import os
 import random
 from functools import partial
 
@@ -50,7 +52,7 @@ def expand_wildcards_and_join(paths):
     return expanded_paths
 
 
-def load_dataloaders(datasets_config, optim_config, global_config):
+def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch=0):
     skip_fields = set(["signal_matrix", "simple_segmentations"])
     # if not global_config["beamformer_input"]:
     skip_fields |= set(["windowed_beamformer"])
@@ -97,14 +99,13 @@ def load_dataloaders(datasets_config, optim_config, global_config):
     val_ds = torch.utils.data.Subset(complete_ds, val_idxs)
     print(f"Train-dataset size {len(train_ds)}, Val dataset size {len(val_ds)}")
 
-    def params_for_ds(ds, batch_size, resume_step):
+    def params_for_ds(ds, batch_size):
         sampler = StatefulBatchsampler(
             ds,
             shuffle=datasets_config["shuffle"],
             seed=global_config["seed"],
-            batch_size=datasets_config["batch_size"],
+            batch_size=batch_size,
         )
-        # sampler.set_epoch_and_start_iteration(epoch=epoch, start_iteration=0)
         keys_to_get = [
             "all_windows_stats",
             # "rx_pos_xy",
@@ -138,13 +139,13 @@ def load_dataloaders(datasets_config, optim_config, global_config):
         **params_for_ds(
             train_ds,
             batch_size=datasets_config["batch_size"],
-            resume_step=optim_config["resume_step"],
         ),
     )
     val_dataloader = torch.utils.data.DataLoader(
         val_ds,
         **params_for_ds(
-            val_ds, batch_size=datasets_config["batch_size"], resume_step=0
+            val_ds,
+            batch_size=datasets_config["batch_size"],
         ),
     )
 
@@ -152,10 +153,58 @@ def load_dataloaders(datasets_config, optim_config, global_config):
 
 
 def load_optimizer(optim_config, params):
-    return torch.optim.AdamW(
+    optimizer = torch.optim.AdamW(
         params,
         lr=optim_config["learning_rate"],
         weight_decay=optim_config["weight_decay"],
+    )
+    scheduler = StepLR(
+        optimizer,
+        step_size=optim_config.get("scheduler_step", 1),
+        gamma=0.5,
+        verbose=True,
+    )
+    return optimizer, scheduler
+
+
+def save_model(prefix, model, optimizer, scheduler, epoch, step, config):
+    torch.save(
+        {
+            "epoch": epoch,  # Optional: save the current epoch
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "step": step,
+            "config": config,
+            "scheduler_state_dict": scheduler.state_dict(),
+        },
+        f"{prefix}/checkpoint_e{epoch}_s{step}.pth",
+    )
+
+
+def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
+    checkpoint = torch.load(checkpoint_fn, map_location=torch.device("cpu"))
+
+    config_being_loaded = checkpoint["config"]
+
+    ### FIRST LOAD MODEL FULLY #####
+    model_being_loaded = load_model(
+        config_being_loaded["model"], config_being_loaded["global"]
+    )
+    model_being_loaded.load_state_dict(checkpoint["model_state_dict"])
+    model_being_loaded = model_being_loaded.to(config["optim"]["device"])
+
+    ### THEN LOAD OPTIMIZER #####
+    optimizer_being_loaded, scheduler_being_loaded = load_optimizer(
+        config_being_loaded["optim"], model_being_loaded.parameters()
+    )
+    optimizer_being_loaded.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler_being_loaded.load_state_dict(checkpoint["scheduler_state_dict"])
+
+    return (
+        model_being_loaded,
+        optimizer_being_loaded,
+        scheduler_being_loaded,
+        checkpoint,
     )
 
 
@@ -298,13 +347,14 @@ def compute_loss(
     single=True,
     paired=True,
     plot=False,
+    direct_loss=True,
 ):
     loss_d = {}
     loss = 0
 
     fig = None
     if plot:
-        fig, axs = plt.subplots(3, 2, figsize=(12, 9))
+        fig, axs = plt.subplots(3, 2, figsize=(8, 5))
         n = output["single"].shape[0] * output["single"].shape[1]
         d = output["single"].shape[2]
         show_n = min(n, 20)
@@ -357,17 +407,19 @@ def compute_loss(
         loss_d["multipaired_loss"] = loss_fn(output["multipaired"], paired_target)
         loss += loss_d["multipaired_loss"]
 
-        loss_d["multipaired_direct_loss"] = (
-            (
-                torch_pi_norm(
-                    output["multipaired_direct"] - batch_data["craft_y_rad"][..., None]
+        if direct_loss:
+            loss_d["multipaired_direct_loss"] = (
+                (
+                    torch_pi_norm(
+                        output["multipaired_direct"]
+                        - batch_data["craft_y_rad"][..., None]
+                    )
                 )
-            )
-            ** 2
-        ).mean()
-        loss += (
-            loss_d["multipaired_direct_loss"] / 30
-        )  # TODO constant to keep losses balanced
+                ** 2
+            ).mean()
+            loss += (
+                loss_d["multipaired_direct_loss"] / 30
+            )  # TODO constant to keep losses balanced
         if plot:
             axs[2, 0].imshow(
                 output["multipaired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
@@ -392,6 +444,13 @@ def train_single_point(args):
     config["args"] = vars(args)
     print(config)
 
+    if args.output is None:
+        args.output = datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
+    try:
+        os.mkdir(args.output)
+    except FileExistsError:
+        pass
+
     torch_device_str = config["optim"]["device"]
     config["optim"]["device"] = torch.device(config["optim"]["device"])
 
@@ -406,6 +465,11 @@ def train_single_point(args):
 
     load_seed(config["global"])
 
+    m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
+    optimizer, scheduler = load_optimizer(config["optim"], m.parameters())
+
+    load_seed(config["global"])
+
     train_dataloader, val_dataloader = load_dataloaders(
         config["datasets"], config["optim"], config["global"]
     )
@@ -415,19 +479,19 @@ def train_single_point(args):
     elif config["logger"]["name"] == "wandb":
         logger = WNBLogger(config["logger"], config)
 
-    m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
-    optimizer = load_optimizer(config["optim"], m.parameters())
-    # scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.05, threshold=1e-6)
-    # scheduler = CosineAnnealingLR(optimizer, T_max=1, eta_min=500)
-    scheduler = StepLR(
-        optimizer,
-        step_size=config["optim"].get("scheduler_step", 1),
-        gamma=0.5,
-        verbose=True,
-    )
-
     step = 0
-    assert config["optim"]["resume_step"] == 0
+    start_epoch = 0
+
+    if "checkpoint" in config["optim"]:
+        m, optimizer, scheduler, checkpoint = load_checkpoint(
+            checkpoint_fn=config["optim"]["checkpoint"],
+            config=config,
+            model=m,
+            optimizer=optimizer,
+            scheduler=scheduler,
+        )
+        start_epoch = checkpoint["epoch"]
+        step = checkpoint["step"]
 
     scaler = torch.GradScaler(
         torch_device_str,
@@ -451,13 +515,14 @@ def train_single_point(args):
     else:
         raise ValueError(f"Not a valid scatter fn, {config["datasets"]["scatter"]}")
 
-    for epoch in range(config["optim"]["epochs"]):
+    last_val_plot = 0
+    for epoch in range(start_epoch, config["optim"]["epochs"]):
         train_dataloader.batch_sampler.set_epoch_and_start_iteration(
             epoch=epoch, start_iteration=step % len(train_dataloader)
         )
 
         for _, batch_data in enumerate(tqdm(train_dataloader)):
-            if step % config["optim"]["val_every"] == 0:
+            if False and step % config["optim"]["val_every"] == 0:
                 m.eval()
                 with torch.no_grad():
                     val_losses = new_log()
@@ -470,18 +535,30 @@ def train_single_point(args):
                         val_batch_data = val_batch_data.to(config["optim"]["device"])
 
                         # run beamformer and segmentation
+                        should_we_plot = (
+                            "val_plot_pred" not in losses
+                            and (step - last_val_plot) > config["logger"]["plot_every"]
+                        )
+                        if should_we_plot:
+                            last_val_plot = step
+
                         output = m(val_batch_data)
-                        loss_d, _ = compute_loss(
+                        loss_d, fig = compute_loss(
                             output,
                             val_batch_data,
                             loss_fn=loss_fn,
                             datasets_config=config["datasets"],
                             scatter_fn=scatter_fn,
                             single=True,
+                            plot=should_we_plot,  # only take one batch?
                             paired=epoch >= config["optim"]["head_start"],
+                            direct_loss=config["optim"]["direct_loss"],
                         )
 
-                        # scheduler.step(loss_d["loss"])
+                        if fig is not None:
+                            assert "val_plot_pred" not in losses
+                            losses["val_plot_pred"] = fig
+                        # scheduler.step(loinss_d["loss"])
                         # val_losses["learning_rate"] = [scheduler.get_last_lr()]
 
                         # TODO refactor
@@ -537,14 +614,22 @@ def train_single_point(args):
                     batch_data,
                     datasets_config=config["datasets"],
                     loss_fn=loss_fn,
-                    plot=step == 0 or (step + 1) % config["logger"]["log_every"] == 0,
+                    plot=step == 0 or (step + 1) % config["logger"]["plot_every"] == 0,
                     scatter_fn=scatter_fn,
                     single=True,
                     paired=epoch >= config["optim"]["head_start"],
+                    direct_loss=config["optim"]["direct_loss"],
                 )
+                # print(
+                #     f"Step: {step} , data: {batch_data['weighted_beamformer'].abs().mean()}"
+                # )
+
+                # for k in output:
+                #     print(f" {k}:{output[k].pow(2).mean().item()}")
 
                 if fig is not None:
-                    losses["plot_pred"] = fig
+                    assert "train_plot_pred" not in losses
+                    losses["train_plot_pred"] = fig
 
                 scaler.scale(loss_d["loss"]).backward()
                 scaler.step(optimizer)
@@ -567,6 +652,19 @@ def train_single_point(args):
                     logger.log(losses, step=step, prefix="train_")
                     losses = new_log()
             step += 1
+            if step % config["optim"]["checkpoint_every"] == 0:
+                save_model(
+                    args.output + "/",
+                    m,
+                    optimizer=optimizer,
+                    epoch=epoch,
+                    step=step,
+                    config=config,
+                    scheduler=scheduler,
+                )
+
+            if "steps" in config["optim"] and step >= config["optim"]["steps"]:
+                return
         scheduler.step()
         print("LR STEP:", scheduler.get_lr())
 
@@ -579,6 +677,14 @@ def get_parser_filter():
         type=str,
         help="config file",
         required=True,
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        help="output folder",
+        required=False,
+        default=None,
     )
     parser.add_argument(
         "--beamnet-latent",

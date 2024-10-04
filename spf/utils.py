@@ -390,6 +390,9 @@ class StatefulBatchsampler(BatchSampler):
         self.sampler.set_epoch_and_start_iteration(epoch, start_iteration)
 
     def __iter__(self):
+        # for x in super().__iter__():
+        #     print("YIELD", x)
+        #     yield x
         yield from super().__iter__()
 
 
