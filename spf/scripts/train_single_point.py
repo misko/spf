@@ -1,6 +1,8 @@
 import argparse
+import copy
 import datetime
 import glob
+import logging
 import os
 import random
 from functools import partial
@@ -167,7 +169,25 @@ def load_optimizer(optim_config, params):
     return optimizer, scheduler
 
 
-def save_model(prefix, model, optimizer, scheduler, epoch, step, config):
+class FrozenModule(torch.nn.Module):
+    def __init__(self, net):
+        super().__init__()
+        self.net = net
+        for param in self.net.parameters():
+            param.requires_grad = False
+        self.net.eval()
+
+    def train(self, _):
+        return self
+
+    def forward(self, x):
+        self.net.eval()
+        return self.net(x)
+
+
+def save_model(
+    prefix, model, optimizer, scheduler, epoch, step, config, running_config
+):
     torch.save(
         {
             "epoch": epoch,  # Optional: save the current epoch
@@ -179,9 +199,12 @@ def save_model(prefix, model, optimizer, scheduler, epoch, step, config):
         },
         f"{prefix}/checkpoint_e{epoch}_s{step}.pth",
     )
+    with open(f"{prefix}/config.yml", "w") as outfile:
+        yaml.dump(running_config, outfile)
 
 
 def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
+    logging.info(f"Loading checkpoint {checkpoint_fn}")
     checkpoint = torch.load(checkpoint_fn, map_location=torch.device("cpu"))
 
     config_being_loaded = checkpoint["config"]
@@ -200,11 +223,17 @@ def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
     optimizer_being_loaded.load_state_dict(checkpoint["optimizer_state_dict"])
     scheduler_being_loaded.load_state_dict(checkpoint["scheduler_state_dict"])
 
+    # check if we loading a single network
+    if config["model"].get("load_single", False):
+        model.single_radio_net = FrozenModule(model_being_loaded)
+        return (model, optimizer, scheduler, 0, 0)  # epoch  # step
+
     return (
         model_being_loaded,
         optimizer_being_loaded,
         scheduler_being_loaded,
-        checkpoint,
+        checkpoint["epoch"],
+        checkpoint["step"],
     )
 
 
@@ -280,6 +309,16 @@ def discrete_loss(output, target):
     # return -torch.log((target * output).sum(axis=2)).mean()
 
 
+def nn_checksum(net):
+    return torch.vstack([p.abs().mean() for p in net.parameters()]).mean().item()
+
+
+def model_checksum(m):
+    if hasattr(m, "single_radio_net"):
+        logging.info(f"checksum: single_radio_net {nn_checksum(m.single_radio_net)}")
+    logging.info(f"checksum: model {nn_checksum(m)}")
+
+
 def new_log():
     return {
         "loss": [],
@@ -296,7 +335,7 @@ def new_log():
 
 
 class SimpleLogger:
-    def __init__(self, logger_config, full_config):
+    def __init__(self, args, logger_config, full_config):
         pass
 
     def log(self, data, step, prefix=""):
@@ -308,13 +347,25 @@ class SimpleLogger:
 
 
 class WNBLogger:
-    def __init__(self, logger_config, full_config):
+    def __init__(self, args, logger_config, full_config):
+        wandb_name = None
+        if args.name is not None:
+            wandb_name = args.name
+        elif "run_name" in logger_config:
+            wandb_name = logger_config["run_name"]
+        else:
+            wandb_name = (
+                datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
+                + "_"
+                + os.path.basename(args.config)
+            )
+
         wandb.init(
             # set the wandb project where this run will be logged
             project=logger_config["project"],
             # track hyperparameters and run metadata
             config=full_config,
-            # name=args.wandb_name,
+            name=wandb_name,
             # id="d7i47byn",  # "iconic-fog-63",
         )
 
@@ -444,6 +495,8 @@ def train_single_point(args):
     config["args"] = vars(args)
     print(config)
 
+    running_config = copy.deepcopy(config)
+
     if args.output is None:
         args.output = datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
     try:
@@ -475,23 +528,23 @@ def train_single_point(args):
     )
 
     if "logger" not in config or config["logger"]["name"] == "simple":
-        logger = SimpleLogger(config["logger"], config)
+        logger = SimpleLogger(args, config["logger"], config)
     elif config["logger"]["name"] == "wandb":
-        logger = WNBLogger(config["logger"], config)
+        logger = WNBLogger(args, config["logger"], config)
 
     step = 0
     start_epoch = 0
 
     if "checkpoint" in config["optim"]:
-        m, optimizer, scheduler, checkpoint = load_checkpoint(
+        m, optimizer, scheduler, start_epoch, step = load_checkpoint(
             checkpoint_fn=config["optim"]["checkpoint"],
             config=config,
             model=m,
             optimizer=optimizer,
             scheduler=scheduler,
         )
-        start_epoch = checkpoint["epoch"]
-        step = checkpoint["step"]
+        # start_epoch = checkpoint["epoch"]
+        # step = checkpoint["step"]
 
     scaler = torch.GradScaler(
         torch_device_str,
@@ -522,7 +575,8 @@ def train_single_point(args):
         )
 
         for _, batch_data in enumerate(tqdm(train_dataloader)):
-            if False and step % config["optim"]["val_every"] == 0:
+            if step % config["optim"]["val_every"] == 0:
+                model_checksum(m)
                 m.eval()
                 with torch.no_grad():
                     val_losses = new_log()
@@ -620,21 +674,14 @@ def train_single_point(args):
                     paired=epoch >= config["optim"]["head_start"],
                     direct_loss=config["optim"]["direct_loss"],
                 )
-                # print(
-                #     f"Step: {step} , data: {batch_data['weighted_beamformer'].abs().mean()}"
-                # )
+            if fig is not None:
+                assert "train_plot_pred" not in losses
+                losses["train_plot_pred"] = fig
 
-                # for k in output:
-                #     print(f" {k}:{output[k].pow(2).mean().item()}")
-
-                if fig is not None:
-                    assert "train_plot_pred" not in losses
-                    losses["train_plot_pred"] = fig
-
-                scaler.scale(loss_d["loss"]).backward()
-                scaler.step(optimizer)
-                scaler.update()
-                optimizer.zero_grad()
+            scaler.scale(loss_d["loss"]).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
 
             with torch.no_grad():
                 for key, value in loss_d.items():
@@ -661,6 +708,7 @@ def train_single_point(args):
                     step=step,
                     config=config,
                     scheduler=scheduler,
+                    running_config=running_config,
                 )
 
             if "steps" in config["optim"] and step >= config["optim"]["steps"]:
@@ -687,6 +735,13 @@ def get_parser_filter():
         default=None,
     )
     parser.add_argument(
+        "--name",
+        type=str,
+        help="logger name",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "--beamnet-latent",
         type=int,
         default=0,
@@ -706,6 +761,11 @@ def get_parser_filter():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        level=os.environ.get("LOGLEVEL", "INFO").upper(),
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     parser = get_parser_filter()
     args = parser.parse_args()
     train_single_point(args)

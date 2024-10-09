@@ -94,11 +94,11 @@ class ReceiverConfig(Config):
                 orientation=self.rx_theta_in_pis * np.pi,
             ).all_receiver_pos()
 
-            logging.info(
+            logging.debug(
                 f"{self.uri}:RX antenna positions (theta_in_pis:{self.rx_theta_in_pis}):"
             )
-            logging.info(f"{self.uri}:\tRX[0]:{str(self.rx_pos[0])}")
-            logging.info(f"{self.uri}:\tRX[1]:{str(self.rx_pos[1])}")
+            logging.debug(f"{self.uri}:\tRX[0]:{str(self.rx_pos[0])}")
+            logging.debug(f"{self.uri}:\tRX[1]:{str(self.rx_pos[1])}")
         else:
             self.rx_pos = None
 
