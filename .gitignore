@@ -4,6 +4,7 @@
 spf/data
 **/*.npy
 **/*.zip
+**/*.pth
 test_data.zip
 test_data_dl.zip
 test_data.txt

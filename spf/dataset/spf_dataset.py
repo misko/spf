@@ -466,6 +466,7 @@ class v5spfdataset(Dataset):
         empirical_symmetry: bool = True,
         target_dtype=torch.float32,
         snapshots_adjacent_stride: int = 1,
+        flip: bool = False,
     ):
         self.n_parallel = n_parallel
         self.exclude_keys_from_cache = set(["signal_matrix"])
@@ -477,6 +478,7 @@ class v5spfdataset(Dataset):
         # print("OPEN", prefix)
         self.temp_file = temp_file
 
+        self.flip = flip
         self.skip_fields = skip_fields
 
         self.snapshots_per_session = snapshots_per_session
@@ -832,6 +834,9 @@ class v5spfdataset(Dataset):
     def render_session(self, receiver_idx, session_idx):
         self.reinit()
 
+        flip_left_right = self.flip and (torch.rand(1) > 0.5).item()
+        flip_up_down = self.flip and (torch.rand(1) > 0.5).item()
+
         snapshot_idxs = self.get_session_idxs(session_idx)
         # breakpoint()
 
@@ -849,6 +854,12 @@ class v5spfdataset(Dataset):
 
         # duplicate some fields
         data["y_rad"] = data["ground_truth_theta"]
+        if flip_left_right:
+            # data["y_rad"] = data["y_rad"].sign() * torch.pi - data["y_rad"]
+            data["y_rad"] = -data["y_rad"]
+        if flip_up_down:
+            data["y_rad"] = data["y_rad"].sign() * torch.pi - data["y_rad"]
+
         data["y_phi"] = data["ground_truth_phi"]
         data["craft_y_rad"] = data["craft_ground_truth_theta"]
 
@@ -913,6 +924,11 @@ class v5spfdataset(Dataset):
                 torch.float64,
             ):
                 data[key] = data[key].to(self.target_dtype)
+
+        if flip_left_right:
+            # y_rad binned depends on y_rad so we should be ok?
+            data["empirical"] = data["empirical"].flip(dims=(2,))
+            data["weighted_beamformer"] = data["weighted_beamformer"].flip(dims=(2,))
 
         return data
 

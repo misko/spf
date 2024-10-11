@@ -23,7 +23,7 @@ from spf.model_training_and_inference.models.single_point_networks import (
     SinglePointPassThrough,
     SinglePointWithBeamformer,
 )
-from spf.rf import torch_pi_norm
+from spf.rf import torch_pi_norm, torch_reduce_theta_to_positive_y
 from spf.utils import StatefulBatchsampler
 
 
@@ -64,7 +64,13 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
     train_dataset_filenames = expand_wildcards_and_join(datasets_config["train_paths"])
     random.shuffle(train_dataset_filenames)
 
-    datasets = [
+    n_val_files = max(
+        1, int(datasets_config["val_holdout_fraction"] * len(train_dataset_filenames))
+    )
+    val_paths = train_dataset_filenames[-n_val_files:]
+    train_paths = train_dataset_filenames[:-n_val_files]
+
+    val_datasets = [
         v5spfdataset(
             prefix,
             precompute_cache=datasets_config["precompute_cache"],
@@ -82,23 +88,49 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             empirical_symmetry=datasets_config["empirical_symmetry"],
             target_dtype=optim_config["dtype"],
         )
-        for prefix in train_dataset_filenames
+        for prefix in val_paths
     ]
-    for ds in datasets:
+    train_datasets = [
+        v5spfdataset(
+            prefix,
+            precompute_cache=datasets_config["precompute_cache"],
+            nthetas=global_config["nthetas"],
+            paired=global_config["n_radios"] > 1,
+            ignore_qc=datasets_config["skip_qc"],
+            gpu=optim_config["device"] == "cuda",
+            snapshots_per_session=datasets_config["snapshots_per_session"],
+            snapshots_stride=datasets_config["snapshots_stride"],
+            snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
+            readahead=False,
+            skip_fields=skip_fields,
+            empirical_data_fn=datasets_config["empirical_data_fn"],
+            empirical_individual_radio=datasets_config["empirical_individual_radio"],
+            empirical_symmetry=datasets_config["empirical_symmetry"],
+            target_dtype=optim_config["dtype"],
+            # difference
+            flip=datasets_config["flip"],
+        )
+        for prefix in train_paths
+    ]
+    assert len(train_paths) > 0
+    assert len(val_paths) > 0
+    for ds in val_datasets + train_datasets:
         ds.get_segmentation()
-    complete_ds = torch.utils.data.ConcatDataset(datasets)
 
-    n = len(complete_ds)
-    train_idxs = range(int((1.0 - datasets_config["val_holdout_fraction"]) * n))
-    val_idxs = list(range(train_idxs[-1] + 1, n))
+    val_ds = torch.utils.data.ConcatDataset(val_datasets)
+    train_ds = torch.utils.data.ConcatDataset(train_datasets)
+
+    train_idxs = range(len(train_ds))
+    val_idxs = list(range(len(val_ds)))
 
     random.shuffle(val_idxs)
     val_idxs = val_idxs[
         : max(1, int(len(val_idxs) * datasets_config["val_subsample_fraction"]))
     ]
 
-    train_ds = torch.utils.data.Subset(complete_ds, train_idxs)
-    val_ds = torch.utils.data.Subset(complete_ds, val_idxs)
+    train_ds = torch.utils.data.Subset(train_ds, train_idxs)
+    val_ds = torch.utils.data.Subset(val_ds, val_idxs)
+
     print(f"Train-dataset size {len(train_ds)}, Val dataset size {len(val_ds)}")
 
     def params_for_ds(ds, batch_size):
@@ -566,7 +598,7 @@ def train_single_point(args):
     elif config["datasets"]["scatter"] == "onehot":
         scatter_fn = target_from_scatter_binned
     else:
-        raise ValueError(f"Not a valid scatter fn, {config["datasets"]["scatter"]}")
+        raise ValueError(f"Not a valid scatter fn, {config['datasets']['scatter']}")
 
     last_val_plot = 0
     for epoch in range(start_epoch, config["optim"]["epochs"]):
@@ -587,7 +619,6 @@ def train_single_point(args):
                     ):
                         # for val_batch_data in val_dataloader:
                         val_batch_data = val_batch_data.to(config["optim"]["device"])
-
                         # run beamformer and segmentation
                         should_we_plot = (
                             "val_plot_pred" not in losses
