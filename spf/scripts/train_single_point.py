@@ -257,6 +257,7 @@ def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
 
     # check if we loading a single network
     if config["model"].get("load_single", False):
+        logging.info("Loading single_radio_net only")
         model.single_radio_net = FrozenModule(model_being_loaded)
         return (model, optimizer, scheduler, 0, 0)  # epoch  # step
 
@@ -549,7 +550,9 @@ def train_single_point(args):
     config["optim"]["dtype"] = dtype
 
     load_seed(config["global"])
-
+    if config["datasets"].get("flip", False):
+        # Cant flip when doing paired!
+        assert config["model"]["name"] == "beamformer"
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
     optimizer, scheduler = load_optimizer(config["optim"], m.parameters())
 
