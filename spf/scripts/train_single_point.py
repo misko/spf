@@ -64,11 +64,16 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
     train_dataset_filenames = expand_wildcards_and_join(datasets_config["train_paths"])
     random.shuffle(train_dataset_filenames)
 
-    n_val_files = max(
-        1, int(datasets_config["val_holdout_fraction"] * len(train_dataset_filenames))
-    )
-    val_paths = train_dataset_filenames[-n_val_files:]
-    train_paths = train_dataset_filenames[:-n_val_files]
+    if datasets_config.get("train_on_val", False):
+        val_paths = train_dataset_filenames
+        train_paths = train_dataset_filenames
+    else:
+        n_val_files = max(
+            1,
+            int(datasets_config["val_holdout_fraction"] * len(train_dataset_filenames)),
+        )
+        val_paths = train_dataset_filenames[-n_val_files:]
+        train_paths = train_dataset_filenames[:-n_val_files]
 
     val_datasets = [
         v5spfdataset(
@@ -83,9 +88,11 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
             readahead=False,
             skip_fields=skip_fields,
-            empirical_data_fn=datasets_config["empirical_data_fn"],
-            empirical_individual_radio=datasets_config["empirical_individual_radio"],
-            empirical_symmetry=datasets_config["empirical_symmetry"],
+            empirical_data_fn=datasets_config.get("empirical_data_fn", None),
+            empirical_individual_radio=datasets_config.get(
+                "empirical_individual_radio"
+            ),
+            empirical_symmetry=datasets_config.get("empirical_symmetry", None),
             target_dtype=optim_config["dtype"],
         )
         for prefix in val_paths
@@ -103,9 +110,11 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
             readahead=False,
             skip_fields=skip_fields,
-            empirical_data_fn=datasets_config["empirical_data_fn"],
-            empirical_individual_radio=datasets_config["empirical_individual_radio"],
-            empirical_symmetry=datasets_config["empirical_symmetry"],
+            empirical_data_fn=datasets_config.get("empirical_data_fn", None),
+            empirical_individual_radio=datasets_config.get(
+                "empirical_individual_radio"
+            ),
+            empirical_symmetry=datasets_config.get("empirical_symmetry", None),
             target_dtype=optim_config["dtype"],
             # difference
             flip=datasets_config["flip"],
@@ -125,7 +134,9 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
 
     random.shuffle(val_idxs)
     val_idxs = val_idxs[
-        : max(1, int(len(val_idxs) * datasets_config["val_subsample_fraction"]))
+        : max(
+            1, int(len(val_idxs) * datasets_config.get("val_subsample_fraction", 1.0))
+        )
     ]
 
     train_ds = torch.utils.data.Subset(train_ds, train_idxs)
@@ -258,7 +269,18 @@ def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
     # check if we loading a single network
     if config["model"].get("load_single", False):
         logging.info("Loading single_radio_net only")
-        model.single_radio_net = FrozenModule(model_being_loaded)
+        model.single_radio_net.load_state_dict(checkpoint["model_state_dict"])
+        for param in model.single_radio_net.parameters():
+            param.requires_grad = False
+        # model.single_radio_net = FrozenModule(model_being_loaded)
+        return (model, optimizer, scheduler, 0, 0)  # epoch  # step
+    elif config["model"].get("load_paired", False):
+        # check if we loading a paired network
+        logging.info("Loading paired_radio net only")
+        model.multi_radio_net.load_state_dict(checkpoint["model_state_dict"])
+        for param in model.multi_radio_net.parameters():
+            param.requires_grad = False
+        # breakpoint()
         return (model, optimizer, scheduler, 0, 0)  # epoch  # step
 
     return (
@@ -349,6 +371,8 @@ def nn_checksum(net):
 def model_checksum(m):
     if hasattr(m, "single_radio_net"):
         logging.info(f"checksum: single_radio_net {nn_checksum(m.single_radio_net)}")
+    if hasattr(m, "multi_radio_net"):
+        logging.info(f"checksum: multi_radio_net {nn_checksum(m.multi_radio_net)}")
     logging.info(f"checksum: model {nn_checksum(m)}")
 
 
@@ -553,6 +577,8 @@ def train_single_point(args):
     if config["datasets"].get("flip", False):
         # Cant flip when doing paired!
         assert config["model"]["name"] == "beamformer"
+    if config["model"]["name"] == "multipairedbeamformer":
+        assert config["datasets"]["snapshots_per_session"] > 1
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
     optimizer, scheduler = load_optimizer(config["optim"], m.parameters())
 
@@ -562,8 +588,8 @@ def train_single_point(args):
         config["datasets"], config["optim"], config["global"]
     )
 
-    if "logger" not in config or config["logger"]["name"] == "simple":
-        logger = SimpleLogger(args, config["logger"], config)
+    if "logger" not in config or config["logger"]["name"] == "simple" or args.debug:
+        logger = SimpleLogger(args, config.get("logger", {}), config)
     elif config["logger"]["name"] == "wandb":
         logger = WNBLogger(args, config["logger"], config)
 

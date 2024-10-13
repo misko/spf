@@ -71,9 +71,7 @@ def apply_symmetry_rules_to_heatmap(h):
     return full  # / full.sum(axis=1, keepdims=True)
 
 
-if __name__ == "__main__":
-    from spf.dataset.spf_dataset import v5spfdataset
-
+def get_empirical_p_dist_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d",
@@ -110,7 +108,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--output-fig-prefix", type=str, required=False, default=None)
 
-    args = parser.parse_args()
+
+def create_empirical_p_dist(args):
 
     datasets = [
         v5spfdataset(
@@ -147,3 +146,11 @@ if __name__ == "__main__":
         )
 
     pickle.dump(heatmaps, open(args.out, "wb"))
+
+
+if __name__ == "__main__":
+    from spf.dataset.spf_dataset import v5spfdataset
+
+    parser = get_empirical_p_dist_parser()
+    args = parser.parse_args()
+    create_empirical_p_dist(args)
