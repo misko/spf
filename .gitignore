@@ -11,6 +11,7 @@ test_data.txt
 .ipynb_checkpoints
 **/.ipynb_checkpoints
 **/*.log
+**/*spf-run*
 **/token
 **/session_output_*.png
 **/*2024*.yaml
