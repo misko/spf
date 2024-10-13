@@ -43,6 +43,8 @@ def perfect_circle_dataset_n33():
                 "7",
                 "--precompute-cache",
                 tmpdirname,
+                "--device",
+                "cpu",
                 "-d",
             ]
             + datasets
