@@ -1,0 +1,70 @@
+
+global:
+  seed: 10
+  nthetas: 7
+  beamformer_input: False #True
+  empirical_input: False
+  phase_input: True #True
+  rx_spacing_input: False #True
+  n_radios: 2
+
+datasets:
+  train_paths: 
+    - /mnt/4tb_ssd/nosig_data/wallarrayv3_2024*14*07*0*.zarr
+  precompute_cache: /home/mouse9911/precompute_cache_chunk16_sept
+  skip_qc: True
+  snapshots_per_session: 1
+  snapshots_stride: 1
+  snapshots_adjacent_stride: 1
+  batch_size: 1
+  shuffle: True
+  workers: 2
+  sigma: 0.25
+  scatter_k: 21
+  flip: False
+  scatter: continuous
+
+  empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl 
+  empirical_individual_radio: False
+  empirical_symmetry: True
+
+logger:
+  name: simple
+  plot_every: 100000
+  log_every: 10
+
+model:
+  name: pairedbeamformer
+  hidden: 16
+  depth: 3
+  block: True
+  bn: True
+  norm: layer
+  detach: True
+  dropout: 0.0
+  single:
+    hidden: 32
+    depth: 4
+    block: True
+    bn: True
+    norm: layer
+    detach: True
+    dropout: 0.0
+
+optim:
+  head_start: 0
+  device: cpu
+  dtype: torch.float32
+  resume_step: 0
+  epochs: 40
+  direct_loss: False
+  val_every: 10000 
+  learning_rate: 1.0e-4
+  weight_decay: 0.0000000
+  amp: False
+  loss: mse
+  steps: 11
+  val_every: 3
+  scheduler_step: 20
+  save_on: val_single_loss
+  checkpoint_every: 10

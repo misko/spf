@@ -240,6 +240,10 @@ class DataVersionNotImplemented(NotImplementedError):
     pass
 
 
+def rx_spacing_to_str(rx_spacing):
+    return f"{rx_spacing:0.6f}"
+
+
 def filenames_from_time_in_seconds(
     time_in_seconds, temp_dir_name, yaml_config, data_version, tag, craft
 ):

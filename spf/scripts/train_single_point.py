@@ -229,8 +229,20 @@ class FrozenModule(torch.nn.Module):
 
 
 def save_model(
-    prefix, model, optimizer, scheduler, epoch, step, config, running_config
+    prefix,
+    model,
+    optimizer,
+    scheduler,
+    epoch,
+    step,
+    config,
+    running_config,
+    checkpoint_fn=None,
 ):
+    model_checksum("save: ", model)
+    if checkpoint_fn is None:
+        checkpoint_fn = f"checkpoint_e{epoch}_s{step}.pth"
+
     torch.save(
         {
             "epoch": epoch,  # Optional: save the current epoch
@@ -240,7 +252,7 @@ def save_model(
             "config": config,
             "scheduler_state_dict": scheduler.state_dict(),
         },
-        f"{prefix}/checkpoint_e{epoch}_s{step}.pth",
+        f"{prefix}/{checkpoint_fn}",
     )
     with open(f"{prefix}/config.yml", "w") as outfile:
         yaml.dump(running_config, outfile)
@@ -250,21 +262,21 @@ def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
     logging.info(f"Loading checkpoint {checkpoint_fn}")
     checkpoint = torch.load(checkpoint_fn, map_location=torch.device("cpu"))
 
-    config_being_loaded = checkpoint["config"]
+    # config_being_loaded = checkpoint["config"]
 
     ### FIRST LOAD MODEL FULLY #####
-    model_being_loaded = load_model(
-        config_being_loaded["model"], config_being_loaded["global"]
-    )
-    model_being_loaded.load_state_dict(checkpoint["model_state_dict"])
-    model_being_loaded = model_being_loaded.to(config["optim"]["device"])
+    # model_being_loaded = load_model(
+    #    config_being_loaded["model"], config_being_loaded["global"]
+    # )
+    # model_being_loaded.load_state_dict(checkpoint["model_state_dict"])
+    # model_being_loaded = model_being_loaded.to(config["optim"]["device"])
 
     ### THEN LOAD OPTIMIZER #####
-    optimizer_being_loaded, scheduler_being_loaded = load_optimizer(
-        config_being_loaded["optim"], model_being_loaded.parameters()
-    )
-    optimizer_being_loaded.load_state_dict(checkpoint["optimizer_state_dict"])
-    scheduler_being_loaded.load_state_dict(checkpoint["scheduler_state_dict"])
+    # optimizer_being_loaded, scheduler_being_loaded = load_optimizer(
+    #     config_being_loaded["optim"], model_being_loaded.parameters()
+    # )
+    # optimizer_being_loaded.load_state_dict(checkpoint["optimizer_state_dict"])
+    # scheduler_being_loaded.load_state_dict(checkpoint["scheduler_state_dict"])
 
     # check if we loading a single network
     if config["model"].get("load_single", False):
@@ -283,10 +295,15 @@ def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
         # breakpoint()
         return (model, optimizer, scheduler, 0, 0)  # epoch  # step
 
+    # else
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+
     return (
-        model_being_loaded,
-        optimizer_being_loaded,
-        scheduler_being_loaded,
+        model,
+        optimizer,
+        scheduler,
         checkpoint["epoch"],
         checkpoint["step"],
     )
@@ -368,12 +385,16 @@ def nn_checksum(net):
     return torch.vstack([p.abs().mean() for p in net.parameters()]).mean().item()
 
 
-def model_checksum(m):
+def model_checksum(prefix, m):
     if hasattr(m, "single_radio_net"):
-        logging.info(f"checksum: single_radio_net {nn_checksum(m.single_radio_net)}")
+        logging.info(
+            f"{prefix} checksum: single_radio_net {nn_checksum(m.single_radio_net)}"
+        )
     if hasattr(m, "multi_radio_net"):
-        logging.info(f"checksum: multi_radio_net {nn_checksum(m.multi_radio_net)}")
-    logging.info(f"checksum: model {nn_checksum(m)}")
+        logging.info(
+            f"{prefix} checksum: multi_radio_net {nn_checksum(m.multi_radio_net)}"
+        )
+    logging.info(f"{prefix} checksum: model {nn_checksum(m)}")
 
 
 def new_log():
@@ -396,11 +417,21 @@ class SimpleLogger:
         pass
 
     def log(self, data, step, prefix=""):
+
+        losses = {
+            f"{prefix}{key}": np.array(value).mean()
+            for key, value in data.items()
+            if "plot" not in key and len(value) > 0
+        }
+
+        for k, v in losses.items():
+            logging.info(f"{step}:{k} {v}")
+
         for key, value in data.items():
-            if "plot" not in key:
-                print(f"{step}:{prefix}{key}{np.array(value).mean()}")
-            else:
+            if "plot" in key:
                 plt.close(value)
+
+        return losses
 
 
 class WNBLogger:
@@ -433,7 +464,7 @@ class WNBLogger:
             if "plot" not in key and len(value) > 0
         }
         losses["step"] = step
-        print("SUBMIT losses to wandb", losses)
+        logging.info(f"SUBMIT losses to wandb, {losses}")
         for key, value in data.items():
             if "plot" in key:
                 losses[key] = value
@@ -444,6 +475,7 @@ class WNBLogger:
         for key, value in data.items():
             if "plot" in key:
                 plt.close(value)
+        return losses
 
 
 def compute_loss(
@@ -554,6 +586,9 @@ def train_single_point(args):
 
     running_config = copy.deepcopy(config)
 
+    output_from_config = config["optim"].get("output", None)
+    if args.output is None and output_from_config is not None:
+        args.output = output_from_config
     if args.output is None:
         args.output = datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
     try:
@@ -580,15 +615,13 @@ def train_single_point(args):
     if config["model"]["name"] == "multipairedbeamformer":
         assert config["datasets"]["snapshots_per_session"] > 1
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
+
+    model_checksum("load_model:", m)
     optimizer, scheduler = load_optimizer(config["optim"], m.parameters())
 
     load_seed(config["global"])
 
-    train_dataloader, val_dataloader = load_dataloaders(
-        config["datasets"], config["optim"], config["global"]
-    )
-
-    if "logger" not in config or config["logger"]["name"] == "simple" or args.debug:
+    if config["logger"]["name"] == "simple" or args.debug:
         logger = SimpleLogger(args, config.get("logger", {}), config)
     elif config["logger"]["name"] == "wandb":
         logger = WNBLogger(args, config["logger"], config)
@@ -606,6 +639,12 @@ def train_single_point(args):
         )
         # start_epoch = checkpoint["epoch"]
         # step = checkpoint["step"]
+
+    load_seed(config["global"])
+
+    train_dataloader, val_dataloader = load_dataloaders(
+        config["datasets"], config["optim"], config["global"]
+    )
 
     scaler = torch.GradScaler(
         torch_device_str,
@@ -629,6 +668,8 @@ def train_single_point(args):
     else:
         raise ValueError(f"Not a valid scatter fn, {config['datasets']['scatter']}")
 
+    best_val_loss_so_far = None
+
     last_val_plot = 0
     for epoch in range(start_epoch, config["optim"]["epochs"]):
         train_dataloader.batch_sampler.set_epoch_and_start_iteration(
@@ -637,7 +678,7 @@ def train_single_point(args):
 
         for _, batch_data in enumerate(tqdm(train_dataloader)):
             if step % config["optim"]["val_every"] == 0:
-                model_checksum(m)
+                model_checksum(f"val.e{epoch}.s{step}: ", m)
                 m.eval()
                 with torch.no_grad():
                     val_losses = new_log()
@@ -687,19 +728,6 @@ def train_single_point(args):
                             val_batch_data["empirical"],
                             target,
                         )
-                        # fig, axs = plt.subplots(1, 1)
-                        # axs.imshow(
-                        #     val_batch_data["empirical"]
-                        #     .reshape(512 * 2, -1)[:20]
-                        #     .detach()
-                        #     .numpy()
-                        # )
-                        # fig.savefig("test.png")
-                        # breakpoint()
-                        # fig, axs = plt.subplots(1, 1)
-                        # axs.imshow(target.reshape(512 * 2, -1)[:20].detach().numpy())
-                        # fig.savefig("test2.png")
-                        # breakpoint()
                         loss_d["uniform_loss"] = loss_fn(
                             uniform_preds(val_batch_data), target
                         )
@@ -707,6 +735,7 @@ def train_single_point(args):
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
                             val_losses[key].append(value.item())
+
                         val_losses["epoch"].append(step / len(train_dataloader))
                         val_losses["data_seen"].append(
                             step
@@ -714,7 +743,25 @@ def train_single_point(args):
                             * config["datasets"]["batch_size"]
                         )
 
-                    logger.log(val_losses, step=step, prefix="val_")
+                    reported_losses = logger.log(val_losses, step=step, prefix="val_")
+                    if config["optim"].get("save_on", "") != "":
+                        this_loss = reported_losses[config["optim"].get("save_on")]
+                        if (
+                            best_val_loss_so_far == None
+                            or this_loss < best_val_loss_so_far
+                        ):
+                            best_val_loss_so_far = this_loss
+                            save_model(
+                                args.output + "/",
+                                m,
+                                optimizer=optimizer,
+                                epoch=epoch,
+                                step=step,
+                                config=config,
+                                scheduler=scheduler,
+                                running_config=running_config,
+                                checkpoint_fn="best.pth",
+                            )
 
             m.train()
             batch_data = batch_data.to(config["optim"]["device"])
@@ -741,7 +788,7 @@ def train_single_point(args):
             scaler.scale(loss_d["loss"]).backward()
             scaler.step(optimizer)
             scaler.update()
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
 
             with torch.no_grad():
                 for key, value in loss_d.items():

@@ -76,8 +76,10 @@ class SinglePointWithBeamformer(nn.Module):
 class PairedSinglePointWithBeamformer(nn.Module):
     def __init__(self, model_config, global_config):
         super().__init__()
-        self.single_radio_net = SinglePointWithBeamformer(model_config, global_config)
-        self.detach = model_config["detach"]
+        self.single_radio_net = SinglePointWithBeamformer(
+            model_config["single"], global_config
+        )
+        self.detach = model_config.get("detach", True)
         self.net = FFNN(
             inputs=global_config["nthetas"] * 2,
             depth=model_config["depth"],  # 4
@@ -128,9 +130,9 @@ class PairedMultiPointWithBeamformer(nn.Module):
         super().__init__()
         self.ntheta = ntheta
         self.multi_radio_net = PairedSinglePointWithBeamformer(
-            model_config, global_config
+            model_config["paired"], global_config
         )
-        self.detach = model_config["detach"]
+        self.detach = model_config.get("detach", True)
         self.transformer_config = model_config["transformer"]
         self.d_model = self.transformer_config["d_model"]
 

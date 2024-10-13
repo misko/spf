@@ -6,9 +6,8 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 
-
-def rx_spacing_to_str(rx_spacing):
-    return f"{rx_spacing:0.6f}"
+from spf.dataset.spf_dataset import v5spfdataset
+from spf.utils import rx_spacing_to_str
 
 
 def get_heatmap_for_radio(dss, radio_idx, bins):
@@ -107,6 +106,7 @@ def get_empirical_p_dist_parser():
         required=True,
     )
     parser.add_argument("--output-fig-prefix", type=str, required=False, default=None)
+    return parser
 
 
 def create_empirical_p_dist(args):
@@ -149,7 +149,6 @@ def create_empirical_p_dist(args):
 
 
 if __name__ == "__main__":
-    from spf.dataset.spf_dataset import v5spfdataset
 
     parser = get_empirical_p_dist_parser()
     args = parser.parse_args()
