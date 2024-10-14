@@ -42,6 +42,7 @@ model:
   norm: layer
   detach: True
   dropout: 0.0
+  load_single: True
   single:
     hidden: 32
     depth: 4

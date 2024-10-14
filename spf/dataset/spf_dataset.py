@@ -467,6 +467,9 @@ class v5spfdataset(Dataset):
         target_dtype=torch.float32,
         snapshots_adjacent_stride: int = 1,
         flip: bool = False,
+        # if we want to use strides of something like
+        # 1,5,2,3 when getting 4 snapshots, for adjacent strde=5
+        random_adjacent_stride: bool = False,
     ):
         self.n_parallel = n_parallel
         self.exclude_keys_from_cache = set(["signal_matrix"])
@@ -483,6 +486,7 @@ class v5spfdataset(Dataset):
 
         self.snapshots_per_session = snapshots_per_session
         self.snapshots_adjacent_stride = snapshots_adjacent_stride
+        self.random_adjacent_stride = random_adjacent_stride
 
         self.prefix = prefix.replace(".zarr", "")
         self.zarr_fn = f"{self.prefix}.zarr"
@@ -827,9 +831,19 @@ class v5spfdataset(Dataset):
                 * self.snapshots_per_session
                 * self.snapshots_adjacent_stride
             )
-        return np.arange(
-            snapshot_start_idx, snapshot_end_idx, self.snapshots_adjacent_stride
-        )
+        if self.random_adjacent_stride:
+            return (
+                (
+                    np.random.rand(self.snapshots_per_session)
+                    * self.snapshots_adjacent_stride
+                )
+                .round()
+                .cumsum()
+            )
+        else:
+            return np.arange(
+                snapshot_start_idx, snapshot_end_idx, self.snapshots_adjacent_stride
+            )
 
     def render_session(self, receiver_idx, session_idx):
         self.reinit()

@@ -118,7 +118,8 @@ def test_simple(perfect_circle_dataset_n33, single_net_config, paired_net_config
                     "precompute_cache": root_dir,
                     "train_on_val": True,
                     "empirical_data_fn": empirical_pkl_fn,
-                }
+                },
+                "optim": {"checkpoint": f"{single_checkpoints_dir}/best.pth"},
             },
             input_yaml_fn,
         )
