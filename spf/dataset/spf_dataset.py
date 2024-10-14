@@ -839,6 +839,7 @@ class v5spfdataset(Dataset):
                 )
                 .round()
                 .cumsum()
+                .astype(int)
             )
         else:
             return np.arange(
