@@ -843,7 +843,9 @@ class v5spfdataset(Dataset):
         if self.random_adjacent_stride:
             # TODO
             # can choose random n numbers 0~1 scale by target cumsum
-            return get_idx_for_rand_session(self.snapshots_adjacent_stride,self.snapshots_per_session*)
+            return get_idx_for_rand_session(
+                self.snapshots_adjacent_stride, self.snapshots_per_session
+            )
             # return (
             #     (
             #         np.random.rand(self.snapshots_per_session)
