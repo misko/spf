@@ -416,6 +416,15 @@ def v5_collate_beamsegnet(batch):
     return d
 
 
+def get_idx_for_rand_session(max_offset, n):
+    target_length = np.random.randint(
+        max_offset * n,
+    )
+    z = np.random.rand(n)
+    z /= z.sum()  # normalize to sum pr to 1
+    return (z * target_length).round().astype(int)
+
+
 def v5_downsampled_segmentation_mask(session, n_windows):
     window_size = 2048
     # stride = 2048
@@ -832,15 +841,18 @@ class v5spfdataset(Dataset):
                 * self.snapshots_adjacent_stride
             )
         if self.random_adjacent_stride:
-            return (
-                (
-                    np.random.rand(self.snapshots_per_session)
-                    * self.snapshots_adjacent_stride
-                )
-                .round()
-                .cumsum()
-                .astype(int)
-            )
+            # TODO
+            # can choose random n numbers 0~1 scale by target cumsum
+            return get_idx_for_rand_session(self.snapshots_adjacent_stride,self.snapshots_per_session*)
+            # return (
+            #     (
+            #         np.random.rand(self.snapshots_per_session)
+            #         * self.snapshots_adjacent_stride
+            #     )
+            #     .round()
+            #     .cumsum()
+            #     .astype(int)
+            # )
         else:
             return np.arange(
                 snapshot_start_idx, snapshot_end_idx, self.snapshots_adjacent_stride
