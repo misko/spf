@@ -416,13 +416,16 @@ def v5_collate_beamsegnet(batch):
     return d
 
 
+# using a spacing of at most max_offset and of at least 1
+# get n random indexes, such that sum of the idxs is uniform
+# across n,max_offset*n
 def get_idx_for_rand_session(max_offset, n):
     target_length = np.random.randint(
-        max_offset * n,
+        (max_offset - 1) * n,
     )
     z = np.random.rand(n)
     z /= z.sum()  # normalize to sum pr to 1
-    return (z * target_length).round().astype(int)
+    return (z * target_length).round().astype(int) + np.arange(n)
 
 
 def v5_downsampled_segmentation_mask(session, n_windows):
