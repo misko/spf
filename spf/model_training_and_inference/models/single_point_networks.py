@@ -14,16 +14,22 @@ class PrepareInput:
         self.phase_input = global_config["phase_input"]
         self.rx_spacing_input = global_config["rx_spacing_input"]
         self.inputs = 0
+        self.input_count = 0
         if self.beamformer_input:
             self.inputs += global_config["nthetas"]
+            self.input_count += 1
         if self.empirical_input:
             self.inputs += global_config["nthetas"]
+            self.input_count += 1
         if self.phase_input:
             self.inputs += 3
+            self.input_count += 1
         if self.rx_spacing_input:
             self.inputs += 1
+            self.input_count += 1
 
     def prepare_input(self, batch):
+        breakpoint()
         inputs = []
         if self.beamformer_input:
             inputs.append(
@@ -162,6 +168,7 @@ class PairedMultiPointWithBeamformer(nn.Module):
             self.d_model, self.ntheta + 1
         )  # output discrete and actual
         self.norm = NormP1Dim2()
+        self.input_dropout = torch.nn.Dropout1d(model_config.get("input_dropout", 0.0))
 
     def forward(self, batch):
         output = self.multi_radio_net(batch)
@@ -173,7 +180,7 @@ class PairedMultiPointWithBeamformer(nn.Module):
 
         input_with_time = torch.concatenate(
             [
-                output_paired,
+                self.input_dropout(output_paired),
                 normalized_time.unsqueeze(2),
             ],
             axis=2,

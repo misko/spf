@@ -423,8 +423,8 @@ def get_idx_for_rand_session(max_offset, n):
     target_length = np.random.randint(
         (max_offset - 1) * n,
     )
-    z = np.random.rand(n)
-    z /= z.sum()  # normalize to sum pr to 1
+    z = np.random.rand(n).cumsum()
+    z /= z.max()  # normalize to sum pr to 1
     return (z * target_length).round().astype(int) + np.arange(n)
 
 
@@ -846,9 +846,10 @@ class v5spfdataset(Dataset):
         if self.random_adjacent_stride:
             # TODO
             # can choose random n numbers 0~1 scale by target cumsum
-            return get_idx_for_rand_session(
+            idxs = get_idx_for_rand_session(
                 self.snapshots_adjacent_stride, self.snapshots_per_session
             )
+            return idxs
             # return (
             #     (
             #         np.random.rand(self.snapshots_per_session)
