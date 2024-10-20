@@ -8,8 +8,8 @@ import torch.nn as nn
 from torch.nn.functional import sigmoid
 
 from spf.dataset.spf_dataset import v5_thetas_to_targets
-from spf.rf import (  # torch_circular_mean_weighted,
-    pi_norm,
+from spf.rf import (
+    pi_norm,  # torch_circular_mean_weighted,
     reduce_theta_to_positive_y,
     torch_circular_mean,
     torch_pi_norm,
@@ -263,7 +263,16 @@ class PairedBeamNet(nn.Module):
 
 class FFNN(nn.Module):
     def __init__(
-        self, inputs, depth, hidden, outputs, block, bn, norm, act, dropout=0.0
+        self,
+        inputs,
+        depth,
+        hidden,
+        outputs,
+        block,
+        bn,
+        norm,
+        act,
+        dropout=0.0,
     ):
         super(FFNN, self).__init__()
         if bn == False or norm == "batch":

@@ -7,44 +7,62 @@ from spf.model_training_and_inference.models.beamsegnet import FFNN
 TEMP = 10
 
 
-class PrepareInput:
+class PrepareInput(nn.Module):
     def __init__(self, model_config, global_config):
+        super().__init__()
         self.beamformer_input = global_config["beamformer_input"]
         self.empirical_input = global_config["empirical_input"]
         self.phase_input = global_config["phase_input"]
         self.rx_spacing_input = global_config["rx_spacing_input"]
         self.inputs = 0
-        self.input_count = 0
+        self.input_dropout = model_config.get("input_dropout", 0.0)
         if self.beamformer_input:
             self.inputs += global_config["nthetas"]
-            self.input_count += 1
         if self.empirical_input:
             self.inputs += global_config["nthetas"]
-            self.input_count += 1
         if self.phase_input:
             self.inputs += 3
-            self.input_count += 1
         if self.rx_spacing_input:
             self.inputs += 1
-            self.input_count += 1
 
     def prepare_input(self, batch):
-        breakpoint()
+        dropout_mask = (
+            torch.rand((4, *batch["y_rad"].shape), device=batch["y_rad"].device)
+            < self.input_dropout
+        )
+        # 1 , 65
+        # if mask out 65, then scale up 1 by 65?
+        # [ batch, samples, dim of input ]
+        # fo reach batch sample want to drop out for different samples
+        # rand(batch, samples) for each input
+        # if not selected just add 0
+        # for those selected need to rescale
+        # rescale by number of inputs or cumulative size of inputs?
+        # generate random [0,1] for each input, then consider for dropout
+        #
         inputs = []
         if self.beamformer_input:
-            inputs.append(
-                # (batch["weighted_beamformer"] / 256) - 0.5
-                batch["weighted_beamformer"]
-                / (batch["weighted_beamformer"].max(axis=-1, keepdim=True)[0] + 0.1)
-            )  # 256 just for random scaling down of beamformer not related to shape
-        if self.empirical_input:
-            inputs.append(
-                (batch["empirical"] - 1.0 / batch["empirical"].shape[-1]) * 10
+            v = batch["weighted_beamformer"] / (
+                batch["weighted_beamformer"].max(axis=-1, keepdim=True)[0] + 0.1
             )
+            if self.training:
+                v[dropout_mask[0]] = 0
+            inputs.append(v)
+        if self.empirical_input:
+            v = (batch["empirical"] - 1.0 / batch["empirical"].shape[-1]) * 10
+            if self.training:
+                v[dropout_mask[1]] = 0
+            inputs.append(v)
         if self.phase_input:
-            inputs.append(batch["weighted_windows_stats"])
+            v = batch["weighted_windows_stats"]
+            if self.training:
+                v[dropout_mask[2]] = 0
+            inputs.append(v)
         if self.rx_spacing_input:
-            inputs.append(batch["rx_spacing"][..., None] * 50)
+            v = batch["rx_spacing"][..., None] * 50
+            if self.training:
+                v[dropout_mask[3]] = 0
+            inputs.append(v)
         return torch.concatenate(inputs, axis=2)
 
 
@@ -65,7 +83,7 @@ class SinglePointWithBeamformer(nn.Module):
             block=model_config["block"],  # True
             norm=model_config["norm"],  # False, [batch,layer]
             act=nn.LeakyReLU,
-            dropout=model_config.get("dropout", 0.0),
+            dropout=model_config.get("dropout", model_config.get("dropout", 0.0)),
             # act=nn.SELU,
             bn=model_config["bn"],  # False , bool
         )
@@ -95,6 +113,7 @@ class PairedSinglePointWithBeamformer(nn.Module):
             norm=model_config["norm"],  # False, [batch,layer]
             act=nn.LeakyReLU,
             bn=model_config["bn"],  # False , bool
+            dropout=model_config.get("dropout", 0.0),
         )
 
     def forward(self, batch):
@@ -146,7 +165,7 @@ class PairedMultiPointWithBeamformer(nn.Module):
             d_model=self.d_model,
             nhead=self.transformer_config["n_heads"],
             dim_feedforward=self.transformer_config["d_hid"],
-            dropout=self.transformer_config["dropout"],
+            dropout=self.transformer_config.get("dropout", 0.0),
             activation="gelu",
             batch_first=True,  # batch, sequence, feature
         )
