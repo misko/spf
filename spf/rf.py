@@ -1054,7 +1054,7 @@ def beamformer_given_steering_nomean_cp(
     return np.absolute(phase_adjusted)
 
 
-@njit
+# @njit
 def beamformer_given_steering_nomean(
     steering_vectors,
     signal_matrix,

@@ -1,0 +1,54 @@
+# The ip of the emitter
+# When the emitter is brought online it is verified
+# by a receiver that it actually is broadcasting
+emitter:
+  type: esp32
+  motor_channel: 1
+
+# Two receivers each with two antennas
+# When a receiver is brought online it performs
+# phase calibration using an emitter equidistant from
+# both receiver antenna
+# The orientation of the receiver is described in 
+# multiples of pi
+receivers:
+  - receiver-uri: ip:192.168.1.17
+    theta-in-pis: -0.25
+    antenna-spacing-m: 0.075 # 40 mm 
+    nelements: 2
+    array-type: linear
+    rx-gain-mode: fast_attack
+    rx-buffers: 2
+    rx-gain: -3
+    buffer-size: 524288
+    f-intermediate: 100000 #1.0e5
+    f-carrier: 868000000 #2.5e9
+    f-sampling: 16000000 # 16.0e6
+    bandwidth: 300000 #3.0e5
+    motor_channel: 0
+  - receiver-uri: ip:192.168.1.18
+    theta-in-pis: 1.25
+    antenna-spacing-m: 0.075 # 40 mm 
+    nelements: 2
+    array-type: linear
+    rx-gain-mode: fast_attack
+    rx-buffers: 2
+    rx-gain: -3
+    buffer-size: 524288
+    f-intermediate: 100000 #1.0e5
+    f-carrier: 868000000 #2.5e9
+    f-sampling: 16000000 # 16.0e6
+    bandwidth: 300000 #3.0e5
+    motor_channel: 0
+
+
+n-thetas: 65
+n-records-per-receiver: 5000
+width: 4000
+calibration-frames: 10
+routine: null
+skip_phase_calibration: true
+  
+
+data-version: 5
+seconds-per-sample: 1.0

@@ -426,7 +426,9 @@ class PPlus:
         assert self.sdr.sample_rate == self.rx_config.sample_rate
 
         self.sdr.rx_lo = self.rx_config.lo
-        assert self.sdr.rx_lo == self.rx_config.lo
+        assert (
+            abs(self.sdr.rx_lo - self.rx_config.lo) < 10
+        ), f"failed to set radio lo {self.sdr.rx_lo} != {self.rx_config.lo}"
 
         # setup the gain mode
         self.sdr.gain_control_mode_chan0 = self.rx_config.gain_control_modes[0]
