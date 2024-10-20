@@ -8,7 +8,7 @@ reboot_plutos () {
 
 
 export ROOT="../../../"
-config=${ROOT}/spf/v5_configs/wall_array_v2_external_35.yaml
+config=${ROOT}/spf/v5_configs/wall_array_v2_external_75_838M.yaml
 
 #reboot_plutos
 sleep 3
