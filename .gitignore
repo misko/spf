@@ -24,4 +24,5 @@ test_data.txt
 **/sessions*
 **/*.chkpnt
 **/*.mdb
+**/spf_env
 wandb
