@@ -482,6 +482,7 @@ class v5spfdataset(Dataset):
         # if we want to use strides of something like
         # 1,5,2,3 when getting 4 snapshots, for adjacent strde=5
         random_adjacent_stride: bool = False,
+        distance_normalization: int = 1000,
     ):
         self.n_parallel = n_parallel
         self.exclude_keys_from_cache = set(["signal_matrix"])
@@ -492,6 +493,8 @@ class v5spfdataset(Dataset):
         # self.prefix = prefix
         # print("OPEN", prefix)
         self.temp_file = temp_file
+
+        self.distance_normalization = distance_normalization
 
         self.flip = flip
         self.skip_fields = skip_fields
@@ -846,8 +849,11 @@ class v5spfdataset(Dataset):
         if self.random_adjacent_stride:
             # TODO
             # can choose random n numbers 0~1 scale by target cumsum
-            idxs = get_idx_for_rand_session(
-                self.snapshots_adjacent_stride, self.snapshots_per_session
+            idxs = (
+                get_idx_for_rand_session(
+                    self.snapshots_adjacent_stride, self.snapshots_per_session
+                )
+                + snapshot_start_idx
             )
             return idxs
             # return (
@@ -857,7 +863,7 @@ class v5spfdataset(Dataset):
             #     )
             #     .round()
             #     .cumsum()
-            #     .astype(int)
+            #     .astype(int)+snapshot_start_idx
             # )
         else:
             return np.arange(
@@ -913,18 +919,24 @@ class v5spfdataset(Dataset):
             snapshot_idxs
         ].unsqueeze(0)
 
-        data["rx_pos_xy"] = torch.vstack(
-            [
-                self.cached_keys[receiver_idx]["rx_pos_x_mm"][snapshot_idxs],
-                self.cached_keys[receiver_idx]["rx_pos_y_mm"][snapshot_idxs],
-            ]
-        ).T.unsqueeze(0)
-        data["tx_pos_xy"] = torch.vstack(
-            [
-                self.cached_keys[receiver_idx]["tx_pos_x_mm"][snapshot_idxs],
-                self.cached_keys[receiver_idx]["tx_pos_y_mm"][snapshot_idxs],
-            ]
-        ).T.unsqueeze(0)
+        data["rx_pos_xy"] = (
+            torch.vstack(
+                [
+                    self.cached_keys[receiver_idx]["rx_pos_x_mm"][snapshot_idxs],
+                    self.cached_keys[receiver_idx]["rx_pos_y_mm"][snapshot_idxs],
+                ]
+            ).T.unsqueeze(0)
+            / self.distance_normalization
+        )
+        data["tx_pos_xy"] = (
+            torch.vstack(
+                [
+                    self.cached_keys[receiver_idx]["tx_pos_x_mm"][snapshot_idxs],
+                    self.cached_keys[receiver_idx]["tx_pos_y_mm"][snapshot_idxs],
+                ]
+            ).T.unsqueeze(0)
+            / self.distance_normalization
+        )
 
         # if torch.rand(1).item() < self.snapshots_per_session * 0.00000005:
         #     print("COLLECT")

@@ -160,6 +160,8 @@ class PairedMultiPointWithBeamformer(nn.Module):
         self.detach = model_config.get("detach", True)
         self.transformer_config = model_config["transformer"]
         self.d_model = self.transformer_config["d_model"]
+        self.skip_connection = self.transformer_config.get("skip_connection", True)
+        self.use_xy = model_config.get("use_xy", False)
 
         encoder_layers = TransformerEncoderLayer(
             d_model=self.d_model,
@@ -174,9 +176,12 @@ class PairedMultiPointWithBeamformer(nn.Module):
             self.transformer_config["n_layers"],
             LayerNorm(self.d_model),
         )
+        input_size = self.ntheta + 1
+        if self.use_xy:
+            input_size += 2
         self.input_net = torch.nn.Sequential(
             torch.nn.Linear(
-                self.ntheta + 1, self.d_model
+                input_size, self.d_model
             )  # 5 output beam_former R1+R2, time
         )
         # self.output_net = torch.nn.Sequential(
@@ -192,29 +197,197 @@ class PairedMultiPointWithBeamformer(nn.Module):
     def forward(self, batch):
         output = self.multi_radio_net(batch)
 
-        normalized_time = batch["system_timestamp"] - batch["system_timestamp"][:, [0]]
-        normalized_time /= normalized_time[:, [-1]]
+        if self.training and (torch.rand(1) > 0.5).item():
+            # if training can "double" data by flipping time backwards
+            normalized_time = (
+                batch["system_timestamp"][:, [-1]] - batch["system_timestamp"]
+            )
+            normalized_time /= normalized_time[:, [0]] + 1e-3
+        else:
+            normalized_time = (
+                batch["system_timestamp"] - batch["system_timestamp"][:, [0]]
+            )
+            normalized_time /= normalized_time[:, [-1]] + 1e-3
+        # normalized_time *= 0.0
 
+        if self.use_xy:
+            normalized_positions = (
+                batch["rx_pos_xy"] - batch["rx_pos_xy"][..., [0], :]
+            )  # / 200
+            normalized_positions = normalized_positions / (
+                normalized_positions.max(axis=2, keepdim=True)[0].max(
+                    axis=1, keepdim=True
+                )[0]
+                + 1e-3
+            )
+            assert normalized_positions.isfinite().all()
         output_paired = detach_or_not(output["paired"], self.detach)
 
-        input_with_time = torch.concatenate(
-            [
-                self.input_dropout(output_paired),
-                normalized_time.unsqueeze(2),
-            ],
-            axis=2,
-        )
+        if self.use_xy:
+            input_with_time = torch.concatenate(
+                [
+                    self.input_dropout(output_paired),
+                    normalized_time.unsqueeze(2),
+                    normalized_positions,
+                ],
+                axis=2,
+            )
+        else:
+            input_with_time = torch.concatenate(
+                [
+                    self.input_dropout(output_paired),
+                    normalized_time.unsqueeze(2),
+                ],
+                axis=2,
+            )
         full_output = self.output_net(
             self.transformer_encoder(self.input_net(input_with_time))
         )
         discrete_output = full_output[..., : self.ntheta]
         direct_output = full_output[..., [-1]]
 
-        output["multipaired"] = self.norm(
-            output_paired + discrete_output  # skip connection for paired
-        )
+        if self.skip_connection:
+            output["multipaired"] = self.norm(
+                output_paired + discrete_output  # skip connection for paired
+            )
+        else:
+            output["multipaired"] = self.norm(
+                discrete_output  # skip connection for paired
+            )
 
         output["multipaired_direct"] = direct_output
+        return output
+
+
+class TrajPairedMultiPointWithBeamformer(nn.Module):
+    def __init__(self, model_config, global_config, ntheta=65):
+        super().__init__()
+        self.ntheta = ntheta
+        self.multi_radio_net = PairedSinglePointWithBeamformer(
+            model_config["paired"], global_config
+        )
+        self.detach = model_config.get("detach", True)
+        self.transformer_config = model_config["transformer"]
+        self.d_model = self.transformer_config["d_model"]
+        self.skip_connection = self.transformer_config.get("skip_connection", False)
+        self.use_xy = model_config.get("use_xy", False)
+
+        self.latent = model_config["latent"]  # 8
+
+        encoder_layers = TransformerEncoderLayer(
+            d_model=self.d_model,
+            nhead=self.transformer_config["n_heads"],
+            dim_feedforward=self.transformer_config["d_hid"],
+            dropout=self.transformer_config.get("dropout", 0.0),
+            activation="gelu",
+            batch_first=True,  # batch, sequence, feature
+        )
+        self.transformer_encoder = TransformerEncoder(
+            encoder_layers,
+            self.transformer_config["n_layers"],
+            LayerNorm(self.d_model),
+        )
+        input_size = self.ntheta + 1
+        if self.use_xy:
+            input_size += 2
+        self.input_net = torch.nn.Sequential(
+            torch.nn.Linear(
+                input_size, self.d_model
+            )  # 5 output beam_former R1+R2, time
+        )
+        # self.output_net = torch.nn.Sequential(
+        #     torch.nn.Linear(self.d_model, 65),  # 5 output beam_former R1+R2, time
+        #     NormP1Dim2(),
+        # )
+        self.output_net = torch.nn.Linear(
+            self.d_model, self.latent
+        )  # output discrete and actual
+        self.norm = NormP1Dim2()
+        self.input_dropout = torch.nn.Dropout1d(model_config.get("input_dropout", 0.0))
+
+        traj_net_input_dim = self.latent + 1
+        if self.use_xy:
+            traj_net_input_dim += 2
+        self.traj_net = FFNN(
+            traj_net_input_dim,
+            model_config["traj_layers"],
+            model_config["traj_hidden"],
+            self.ntheta + 1 + 2,  # predict tx pos
+            block=True,
+            bn=True,
+            norm="layer",
+            act=torch.nn.LeakyReLU,
+            dropout=0.0,
+        )
+
+    def forward(self, batch):
+        output = self.multi_radio_net(batch)
+
+        batch_size, snapshots_per_example = batch["system_timestamp"].shape
+
+        normalized_time = batch["system_timestamp"] - batch["system_timestamp"][:, [0]]
+        normalized_time /= normalized_time[:, [-1]] + 1e-3
+        # normalized_time *= 0.0
+
+        if self.use_xy:
+            normalized_positions = (
+                batch["rx_pos_xy"] - batch["rx_pos_xy"][..., [0], :]
+            )  # / 200
+            # normalized_positions = normalized_positions / (
+            #     normalized_positions.max(axis=2, keepdim=True)[0].max(
+            #         axis=1, keepdim=True
+            #     )[0]
+            #     + 1e-3
+            # )
+            assert normalized_positions.isfinite().all()
+        output_paired = detach_or_not(output["paired"], self.detach)
+
+        if self.use_xy:
+            input_with_time = torch.concatenate(
+                [
+                    self.input_dropout(output_paired),
+                    normalized_time.unsqueeze(2),
+                    normalized_positions,
+                ],
+                axis=2,
+            )
+        else:
+            input_with_time = torch.concatenate(
+                [
+                    self.input_dropout(output_paired),
+                    normalized_time.unsqueeze(2),
+                ],
+                axis=2,
+            )
+        transformer_output = self.output_net(
+            self.transformer_encoder(self.input_net(input_with_time))
+        )
+
+        trajectories = transformer_output[:, [0]].expand(
+            batch_size, snapshots_per_example, self.latent
+        )
+
+        if self.use_xy:
+            trajectories_with_time = torch.concatenate(
+                [trajectories, normalized_time.unsqueeze(2), normalized_positions],
+                dim=2,
+            )
+        else:
+            trajectories_with_time = torch.concatenate(
+                [trajectories, normalized_time.unsqueeze(2)], dim=2
+            )
+
+        traj_output = self.traj_net(trajectories_with_time)
+
+        discrete_output = traj_output[..., : self.ntheta]
+        tx_preds = traj_output[..., self.ntheta : self.ntheta + 2]
+        direct_output = traj_output[..., [-1]]
+
+        output["multipaired"] = self.norm(discrete_output)  # skip connection for paired
+
+        output["multipaired_direct"] = direct_output
+        if self.use_xy:
+            output["multipaired_tx_pos"] = tx_preds
         return output
 
 
