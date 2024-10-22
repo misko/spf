@@ -22,6 +22,7 @@ from spf.model_training_and_inference.models.single_point_networks import (
     PairedSinglePointWithBeamformer,
     SinglePointPassThrough,
     SinglePointWithBeamformer,
+    TrajPairedMultiPointWithBeamformer,
 )
 from spf.rf import torch_pi_norm, torch_reduce_theta_to_positive_y
 from spf.utils import StatefulBatchsampler
@@ -75,6 +76,10 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
         val_paths = train_dataset_filenames[-n_val_files:]
         train_paths = train_dataset_filenames[:-n_val_files]
 
+    val_adjacent_stride = datasets_config.get(
+        "val_snapshots_adjacent_stride", datasets_config["snapshots_adjacent_stride"]
+    )
+    logging.info(f"Using validation stride of {val_adjacent_stride}")
     val_datasets = [
         v5spfdataset(
             prefix,
@@ -85,7 +90,7 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             gpu=optim_config["device"] == "cuda",
             snapshots_per_session=datasets_config["snapshots_per_session"],
             snapshots_stride=datasets_config["snapshots_stride"],
-            snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
+            snapshots_adjacent_stride=val_adjacent_stride,
             readahead=False,
             skip_fields=skip_fields,
             empirical_data_fn=datasets_config.get("empirical_data_fn", None),
@@ -143,7 +148,7 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
     train_ds = torch.utils.data.Subset(train_ds, train_idxs)
     val_ds = torch.utils.data.Subset(val_ds, val_idxs)
 
-    print(f"Train-dataset size {len(train_ds)}, Val dataset size {len(val_ds)}")
+    logging.info(f"Train-dataset size {len(train_ds)}, Val dataset size {len(val_ds)}")
 
     def params_for_ds(ds, batch_size):
         sampler = StatefulBatchsampler(
@@ -166,6 +171,8 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             "y_rad_binned",
             "craft_y_rad_binned",
             "weighted_windows_stats",
+            "rx_pos_xy",
+            "tx_pos_xy",
         ]
         if global_config["beamformer_input"]:
             # keys_to_get += ["windowed_beamformer"]
@@ -193,6 +200,10 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             val_ds,
             batch_size=datasets_config["batch_size"],
         ),
+    )
+
+    logging.info(
+        f"Train dataloader size: {len(train_dataloader)}, Val dataloader size: {len(val_dataloader)}"
     )
 
     return train_dataloader, val_dataloader
@@ -319,6 +330,8 @@ def load_model(model_config, global_config):
         return PairedSinglePointWithBeamformer(model_config, global_config)
     elif model_config["name"] == "multipairedbeamformer":
         return PairedMultiPointWithBeamformer(model_config, global_config)
+    elif model_config["name"] == "trajmultipairedbeamformer":
+        return TrajPairedMultiPointWithBeamformer(model_config, global_config)
 
     raise ValueError
 
@@ -410,6 +423,7 @@ def new_log():
         "multipaired_loss": [],
         "learning_rate": [],
         "multipaired_direct_loss": [],
+        "multipaired_tx_pos_loss": [],
     }
 
 
@@ -495,10 +509,10 @@ def compute_loss(
 
     fig = None
     if plot:
-        fig, axs = plt.subplots(3, 2, figsize=(8, 5))
+        fig, axs = plt.subplots(3, 2, figsize=(16, 5))
         n = output["single"].shape[0] * output["single"].shape[1]
         d = output["single"].shape[2]
-        show_n = min(n, 20)
+        show_n = min(n, 80)
 
     if single and "single" in output:
         target = scatter_fn(
@@ -548,6 +562,13 @@ def compute_loss(
         loss_d["multipaired_loss"] = loss_fn(output["multipaired"], paired_target)
         loss += loss_d["multipaired_loss"]
 
+        if "multipaired_tx_pos" in output:
+            target_tx_pos = batch_data["tx_pos_xy"] - batch_data["rx_pos_xy"][:, [0]]
+            loss_d["multipaired_tx_pos_loss"] = loss_fn(
+                output["multipaired_tx_pos"], target_tx_pos
+            )
+            loss += loss_d["multipaired_tx_pos_loss"] * 0.1
+
         if direct_loss:
             loss_d["multipaired_direct_loss"] = (
                 (
@@ -583,7 +604,7 @@ def compute_loss(
 def train_single_point(args):
     config = load_config_from_fn(args.config)
     config["args"] = vars(args)
-    print(config)
+    logging.info(config)
 
     running_config = copy.deepcopy(config)
 
@@ -684,7 +705,7 @@ def train_single_point(args):
                 with torch.no_grad():
                     val_losses = new_log()
                     # for  in val_dataloader:
-                    print("Running validation:")
+                    logging.info("Running validation:")
                     for _, val_batch_data in enumerate(
                         tqdm(val_dataloader, leave=False)
                     ):
@@ -822,7 +843,7 @@ def train_single_point(args):
             if "steps" in config["optim"] and step >= config["optim"]["steps"]:
                 return
         scheduler.step()
-        print("LR STEP:", scheduler.get_lr())
+        logging.info(f"LR STEP: {scheduler.get_lr()}")
 
 
 def get_parser_filter():
