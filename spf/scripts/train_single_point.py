@@ -459,9 +459,9 @@ class WNBLogger:
             wandb_name = logger_config["run_name"]
         else:
             wandb_name = (
-                datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
-                + "_"
-                + os.path.basename(args.config)
+                os.path.basename(args.config)
+                + " "
+                + datetime.datetime.now().strftime("%Y-%m-%d")
             )
 
         wandb.init(

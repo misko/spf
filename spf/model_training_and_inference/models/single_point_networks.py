@@ -195,6 +195,7 @@ class PairedMultiPointWithBeamformer(nn.Module):
         self.input_dropout = torch.nn.Dropout1d(model_config.get("input_dropout", 0.0))
 
     def forward(self, batch):
+
         output = self.multi_radio_net(batch)
 
         if self.training and (torch.rand(1) > 0.5).item():
