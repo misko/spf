@@ -479,6 +479,7 @@ class v5spfdataset(Dataset):
         target_dtype=torch.float32,
         snapshots_adjacent_stride: int = 1,
         flip: bool = False,
+        double_flip: bool = False,
         # if we want to use strides of something like
         # 1,5,2,3 when getting 4 snapshots, for adjacent strde=5
         random_adjacent_stride: bool = False,
@@ -497,6 +498,7 @@ class v5spfdataset(Dataset):
         self.distance_normalization = distance_normalization
 
         self.flip = flip
+        self.double_flip = double_flip
         self.skip_fields = skip_fields
 
         self.snapshots_per_session = snapshots_per_session
@@ -876,6 +878,11 @@ class v5spfdataset(Dataset):
         flip_left_right = self.flip and (torch.rand(1) > 0.5).item()
         flip_up_down = self.flip and (torch.rand(1) > 0.5).item()
 
+        # if we flip both left_right and up_down then that means we
+        # flipped the joint radio by pi
+
+        double_flip = self.double_flip and (torch.rand(1) > 0.5).item()
+
         snapshot_idxs = self.get_session_idxs(session_idx)
         # breakpoint()
 
@@ -892,13 +899,17 @@ class v5spfdataset(Dataset):
         data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[snapshot_idxs]
 
         # duplicate some fields
-        data["y_rad"] = data["ground_truth_theta"]
-        if flip_left_right:
-            # data["y_rad"] = data["y_rad"].sign() * torch.pi - data["y_rad"]
-            data["y_rad"] = -data["y_rad"]
-        if flip_up_down:
-            data["y_rad"] = data["y_rad"].sign() * torch.pi - data["y_rad"]
+        # no idea how to flip phi
+        if flip_left_right or double_flip:
+            data["ground_truth_phi"] = -data["ground_truth_phi"]
+            data["ground_truth_theta"] = -data["ground_truth_theta"]
+        if flip_up_down or double_flip:
+            data["ground_truth_theta"] = data["y_rad"].sign() * torch.pi - data["y_rad"]
+            # phi shouldnt change
+        if double_flip:
+            data["craft_ground_truth_theta"] = -data["craft_ground_truth_theta"]
 
+        data["y_rad"] = data["ground_truth_theta"]
         data["y_phi"] = data["ground_truth_phi"]
         data["craft_y_rad"] = data["craft_ground_truth_theta"]
 
@@ -918,6 +929,8 @@ class v5spfdataset(Dataset):
         data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
             snapshot_idxs
         ].unsqueeze(0)
+        if flip_left_right or double_flip:
+            data["mean_phase_segmentation"] = -data["mean_phase_segmentation"]
 
         data["rx_pos_xy"] = (
             torch.vstack(
@@ -937,6 +950,10 @@ class v5spfdataset(Dataset):
             ).T.unsqueeze(0)
             / self.distance_normalization
         )
+
+        if double_flip:
+            data["rx_pos_xy"] = -data["rx_pos_xy"]
+            data["tx_pos_xy"] = -data["tx_pos_xy"]
 
         # if torch.rand(1).item() < self.snapshots_per_session * 0.00000005:
         #     print("COLLECT")
@@ -1095,7 +1112,7 @@ class v5spfdataset(Dataset):
             carrier_freq = self.yaml_config["receivers"][ridx]["f-carrier"]
             antenna_spacing = self.yaml_config["receivers"][ridx]["antenna-spacing-m"]
             estimated_thetas[f"r{ridx}"] = phase_diff_to_theta(
-                self.mean_phase[f"r{ridx}"],
+                self.mean_phase[f"r{ridx}"].numpy(),
                 speed_of_light / carrier_freq,
                 antenna_spacing,
                 large_phase_goes_right=False,

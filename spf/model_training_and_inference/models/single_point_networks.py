@@ -271,6 +271,7 @@ class TrajPairedMultiPointWithBeamformer(nn.Module):
         self.d_model = self.transformer_config["d_model"]
         self.skip_connection = self.transformer_config.get("skip_connection", False)
         self.use_xy = model_config.get("use_xy", False)
+        self.pred_xy = model_config.get("pred_xy", False)
 
         self.latent = model_config["latent"]  # 8
 
@@ -386,7 +387,7 @@ class TrajPairedMultiPointWithBeamformer(nn.Module):
         output["multipaired"] = self.norm(discrete_output)  # skip connection for paired
 
         output["multipaired_direct"] = direct_output
-        if self.use_xy:
+        if self.pred_xy:
             output["multipaired_tx_pos"] = tx_preds
         return output
 

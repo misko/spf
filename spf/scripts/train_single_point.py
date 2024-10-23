@@ -3,6 +3,7 @@ import copy
 import datetime
 import glob
 import logging
+import math
 import os
 import random
 from functools import partial
@@ -88,7 +89,7 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             paired=global_config["n_radios"] > 1,
             ignore_qc=datasets_config["skip_qc"],
             gpu=optim_config["device"] == "cuda",
-            snapshots_per_session=datasets_config["snapshots_per_session"],
+            snapshots_per_session=datasets_config["val_snapshots_per_session"],
             snapshots_stride=datasets_config["snapshots_stride"],
             snapshots_adjacent_stride=val_adjacent_stride,
             readahead=False,
@@ -110,7 +111,7 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             paired=global_config["n_radios"] > 1,
             ignore_qc=datasets_config["skip_qc"],
             gpu=optim_config["device"] == "cuda",
-            snapshots_per_session=datasets_config["snapshots_per_session"],
+            snapshots_per_session=datasets_config["train_snapshots_per_session"],
             snapshots_stride=datasets_config["snapshots_stride"],
             snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
             readahead=False,
@@ -563,7 +564,9 @@ def compute_loss(
         loss += loss_d["multipaired_loss"]
 
         if "multipaired_tx_pos" in output:
-            target_tx_pos = batch_data["tx_pos_xy"] - batch_data["rx_pos_xy"][:, [0]]
+            target_tx_pos = (
+                batch_data["tx_pos_xy"] - batch_data["rx_pos_xy"]
+            )  # relative to each
             loss_d["multipaired_tx_pos_loss"] = loss_fn(
                 output["multipaired_tx_pos"], target_tx_pos
             )
@@ -634,8 +637,15 @@ def train_single_point(args):
     if config["datasets"].get("flip", False):
         # Cant flip when doing paired!
         assert config["model"]["name"] == "beamformer"
-    if config["model"]["name"] == "multipairedbeamformer":
-        assert config["datasets"]["snapshots_per_session"] > 1
+    if config["model"]["name"] in (
+        "multipairedbeamformer",
+        "trajmultipairedbeamformer",
+    ):
+        assert config["datasets"]["train_snapshots_per_session"] > 1
+        assert config["datasets"]["val_snapshots_per_session"] > 1
+    else:
+        assert config["datasets"]["random_snapshot_size"] is False
+
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
 
     model_checksum("load_model:", m)
@@ -699,6 +709,18 @@ def train_single_point(args):
         )
 
         for _, batch_data in enumerate(tqdm(train_dataloader)):
+            if config["datasets"].get("random_snapshot_size", False):
+                effective_snapshots_per_session = max(
+                    1,
+                    math.ceil(
+                        torch.rand(1).item()
+                        * config["datasets"]["train_snapshots_per_session"]
+                    ),
+                )
+                batch_data = batch_data[:, :effective_snapshots_per_session]
+                logging.debug(
+                    f"effective_snapshots_per_session: {effective_snapshots_per_session}"
+                )
             if step % config["optim"]["val_every"] == 0:
                 model_checksum(f"val.e{epoch}.s{step}: ", m)
                 m.eval()
@@ -761,7 +783,7 @@ def train_single_point(args):
                         val_losses["epoch"].append(step / len(train_dataloader))
                         val_losses["data_seen"].append(
                             step
-                            * config["datasets"]["snapshots_per_session"]
+                            * config["datasets"]["val_snapshots_per_session"]
                             * config["datasets"]["batch_size"]
                         )
 
@@ -822,7 +844,7 @@ def train_single_point(args):
                     losses["epoch"].append(step / len(train_dataloader))
                     losses["data_seen"].append(
                         step
-                        * config["datasets"]["snapshots_per_session"]
+                        * config["datasets"]["train_snapshots_per_session"]
                         * config["datasets"]["batch_size"]
                     )
                     logger.log(losses, step=step, prefix="train_")
