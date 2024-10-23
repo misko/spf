@@ -510,7 +510,7 @@ def compute_loss(
 
     fig = None
     if plot:
-        fig, axs = plt.subplots(3, 2, figsize=(16, 5))
+        fig, axs = plt.subplots(3, 2, figsize=(10, 30))
         n = output["single"].shape[0] * output["single"].shape[1]
         d = output["single"].shape[2]
         show_n = min(n, 80)
@@ -528,9 +528,12 @@ def compute_loss(
 
         if plot:
             axs[0, 0].imshow(
-                output["single"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+                output["single"].reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
-            axs[0, 1].imshow(target.reshape(n, -1).cpu().detach().numpy()[:show_n])
+            axs[0, 1].imshow(
+                target.reshape(n, -1).cpu().detach().numpy()[:show_n], aspect="auto"
+            )
             axs[0, 0].set_title("1radio x 1timestep (Pred)")
             axs[0, 0].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
             axs[0, 1].set_title("1radio x 1timestep (label)")
@@ -549,10 +552,12 @@ def compute_loss(
         loss += loss_d["paired_loss"]
         if plot:
             axs[1, 0].imshow(
-                output["paired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+                output["paired"].reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
             axs[1, 1].imshow(
-                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
             axs[1, 0].set_title("2radio x 1timestep (pred)")
             axs[1, 1].set_title("2radio x 1timestep (label)")
@@ -587,10 +592,12 @@ def compute_loss(
             )  # TODO constant to keep losses balanced
         if plot:
             axs[2, 0].imshow(
-                output["multipaired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+                output["multipaired"].reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
             axs[2, 1].imshow(
-                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
             axs[2, 0].set_title(
                 f"2radio x {output['multipaired'].shape[1]}timestep (pred)"
@@ -601,6 +608,8 @@ def compute_loss(
             axs[2, 0].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
             axs[2, 1].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
     loss_d["loss"] = loss
+    if plot:
+        fig.tight_layout()
     return loss_d, fig
 
 
