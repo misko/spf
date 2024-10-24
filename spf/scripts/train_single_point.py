@@ -124,6 +124,7 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             target_dtype=optim_config["dtype"],
             # difference
             flip=datasets_config["flip"],
+            double_flip=datasets_config["double_flip"],
             random_adjacent_stride=datasets_config.get("random_adjacent_stride", False),
         )
         for prefix in train_paths

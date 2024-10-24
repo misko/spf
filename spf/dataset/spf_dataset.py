@@ -18,28 +18,59 @@ from tensordict import TensorDict
 from torch.utils.data import Dataset
 
 from spf.dataset.rover_idxs import (  # v3rx_column_names,
-    v3rx_avg_phase_diff_idxs, v3rx_beamformer_start_idx, v3rx_column_names,
-    v3rx_gain_idxs, v3rx_rssi_idxs, v3rx_rx_pos_idxs, v3rx_rx_theta_idx,
-    v3rx_time_idxs)
+    v3rx_avg_phase_diff_idxs,
+    v3rx_beamformer_start_idx,
+    v3rx_column_names,
+    v3rx_gain_idxs,
+    v3rx_rssi_idxs,
+    v3rx_rx_pos_idxs,
+    v3rx_rx_theta_idx,
+    v3rx_time_idxs,
+)
 from spf.dataset.spf_generate import generate_session
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
-from spf.dataset.wall_array_v1_idxs import (v1_beamformer_start_idx,
-                                            v1_column_names, v1_time_idx,
-                                            v1_tx_pos_idxs)
+from spf.dataset.wall_array_v1_idxs import (
+    v1_beamformer_start_idx,
+    v1_column_names,
+    v1_time_idx,
+    v1_tx_pos_idxs,
+)
 from spf.dataset.wall_array_v2_idxs import (  # v3rx_column_names,
-    v2_avg_phase_diff_idxs, v2_beamformer_start_idx, v2_column_names,
-    v2_gain_idxs, v2_rssi_idxs, v2_rx_pos_idxs, v2_rx_theta_idx, v2_time_idx,
-    v2_tx_pos_idxs)
-from spf.plot.image_utils import (detector_positions_to_theta_grid,
-                                  labels_to_source_images, radio_to_image)
-from spf.rf import (ULADetector, phase_diff_to_theta, pi_norm,
-                    precompute_steering_vectors, segment_session,
-                    segment_session_star, speed_of_light, torch_get_phase_diff,
-                    torch_pi_norm)
+    v2_avg_phase_diff_idxs,
+    v2_beamformer_start_idx,
+    v2_column_names,
+    v2_gain_idxs,
+    v2_rssi_idxs,
+    v2_rx_pos_idxs,
+    v2_rx_theta_idx,
+    v2_time_idx,
+    v2_tx_pos_idxs,
+)
+from spf.plot.image_utils import (
+    detector_positions_to_theta_grid,
+    labels_to_source_images,
+    radio_to_image,
+)
+from spf.rf import (
+    ULADetector,
+    phase_diff_to_theta,
+    pi_norm,
+    precompute_steering_vectors,
+    segment_session,
+    segment_session_star,
+    speed_of_light,
+    torch_get_phase_diff,
+    torch_pi_norm,
+)
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
-from spf.utils import (SEGMENTATION_VERSION, new_yarr_dataset,
-                       rx_spacing_to_str, to_bin, zarr_open_from_lmdb_store,
-                       zarr_shrink)
+from spf.utils import (
+    SEGMENTATION_VERSION,
+    new_yarr_dataset,
+    rx_spacing_to_str,
+    to_bin,
+    zarr_open_from_lmdb_store,
+    zarr_shrink,
+)
 
 
 # from Stackoverflow
@@ -879,7 +910,9 @@ class v5spfdataset(Dataset):
             )
             # phi shouldnt change
         if double_flip:
-            data["craft_ground_truth_theta"] = -data["craft_ground_truth_theta"]
+            data["craft_ground_truth_theta"] = torch_pi_norm(
+                data["craft_ground_truth_theta"] + torch.pi
+            )
 
         data["y_rad"] = data["ground_truth_theta"]
         data["y_phi"] = data["ground_truth_phi"]
@@ -959,9 +992,10 @@ class v5spfdataset(Dataset):
             ):
                 data[key] = data[key].to(self.target_dtype)
 
-        if flip_left_right:
+        if flip_left_right or double_flip:
             # y_rad binned depends on y_rad so we should be ok?
-            data["empirical"] = data["empirical"].flip(dims=(2,))
+            # already flipped in mean phase
+            # data["empirical"] = data["empirical"].flip(dims=(2,))
             data["weighted_beamformer"] = data["weighted_beamformer"].flip(dims=(2,))
 
         return data

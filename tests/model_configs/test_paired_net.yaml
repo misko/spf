@@ -23,6 +23,7 @@ datasets:
   workers: 2
   sigma: 0.25
   scatter_k: 21
+  double_flip: False
   flip: False
   scatter: continuous
 

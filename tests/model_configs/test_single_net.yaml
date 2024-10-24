@@ -24,6 +24,7 @@ datasets:
   sigma: 0.25
   scatter_k: 21
   flip: True
+  double_flip: False
   scatter: continuous
 
   empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl 
