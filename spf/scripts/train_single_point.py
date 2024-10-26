@@ -349,14 +349,20 @@ def target_from_scatter(batch, y_rad, y_rad_binned, sigma, k):
     assert y_rad.max() <= torch.pi and y_rad.min() >= -torch.pi
     torch.zeros(*batch["empirical"].shape, device=batch["empirical"].device)
     n = batch["empirical"].shape[-1]
+    assert n % 2 == 1
+    padding = n  # easier if padding is just n
+    # try to deal with the tails of the distribution wrapping around
+    effective_n = 2 * padding + n
+
     m = (
-        torch.linspace(
-            -1 + 1 / (2 * n), 1 - 1 / (2 * n), n, device=batch["empirical"].device
-        ).reshape(1, 1, n)
-        * torch.pi
-    )
-    diff = ((m.expand_as(batch["empirical"]) - y_rad) / sigma) ** 2
-    return torch.nn.functional.normalize((-diff / 2).exp(), p=1.0, dim=2)
+        (torch.arange(effective_n, device=batch["empirical"].device) - effective_n // 2)
+        * (2 / n)
+    ).reshape(1, 1, effective_n) * torch.pi
+    diff = ((m - y_rad) / sigma) ** 2
+    rescaled = torch.nn.functional.normalize((-diff / 2).exp(), p=1.0, dim=2)
+
+    batch, session, _ = rescaled.shape
+    return rescaled.reshape(batch, session, 3, n).sum(axis=2)
 
 
 def target_from_scatter_binned(batch, y_rad, y_rad_binned, sigma, k):
