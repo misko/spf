@@ -1,7 +1,9 @@
 from functools import partial
 
 import numpy as np
+import torch
 from filterpy.kalman import ExtendedKalmanFilter
+from matplotlib import pyplot as plt
 
 from spf.filters.filters import (
     F_cached,
@@ -11,7 +13,7 @@ from spf.filters.filters import (
     paired_hjacobian_phi_observation_from_theta_state,
     residual,
 )
-from spf.rf import pi_norm
+from spf.rf import pi_norm, torch_pi_norm_pi
 
 
 class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
@@ -115,7 +117,14 @@ class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
     """
 
     def metrics(self, trajectory):
-        pass
+        pred_theta = torch.tensor(np.hstack([x["craft_theta"] for x in trajectory]))
+        return {
+            "mse_craft_theta": (
+                torch_pi_norm_pi(self.ds.craft_ground_truth_thetas - pred_theta) ** 2
+            )
+            .mean()
+            .item()
+        }
 
     def setup(self, initial_conditions={}):
         self.x = np.array([[self.ds[0][0]["craft_ground_truth_theta"].item()], [0]])
@@ -168,13 +177,13 @@ class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
             current_instance = {
                 "mu": self.x,
                 "var": self.P,
+                "craft_theta": self.x[0, 0],
             }
             if debug:
                 current_instance.update(
                     {
                         "jacobian": jacobian[0, 0],
                         "hx": hx,
-                        "theta": self.x[0, 0],
                         "P_theta": self.P[0, 0],
                         "observation": observation,
                     }
@@ -183,3 +192,63 @@ class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
             trajectory.append(current_instance)
 
         return trajectory
+
+
+def run_and_plot_dualradio_EKF(ds, trajectory=None):
+
+    fig, ax = plt.subplots(3, 1, figsize=(10, 15))
+
+    ax[1].axhline(y=np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+    ax[1].axhline(y=-np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+    kf = SPFPairedKalmanFilter(ds=ds, phi_std=5.0, p=5, dynamic_R=False)
+    trajectory = (
+        kf.trajectory(max_iterations=None, debug=True)
+        if trajectory is None
+        else trajectory
+    )
+
+    n = len(trajectory)
+    for rx_idx in range(2):
+        ax[0].scatter(
+            range(min(n, ds.mean_phase[f"r{rx_idx}"].shape[0])),
+            ds.mean_phase[f"r{rx_idx}"][:n],
+            label=f"r{rx_idx} estimated phi",
+            s=1.0,
+            alpha=1.0,
+            color="red",
+        )
+        ax[0].plot(ds.ground_truth_phis[rx_idx][:n], label="perfect phi")
+    ground_truth_theta = [
+        pi_norm(ds[idx][0]["craft_y_rad"].item()) for idx in range(len(trajectory))
+    ]
+    ax[1].plot(
+        ground_truth_theta,
+        label="craft gt theta",
+    )
+
+    xs = np.array([x["craft_theta"] for x in trajectory])
+    stds = np.sqrt(np.array([x["P_theta"] for x in trajectory]))
+    zscores = (xs - np.array(ground_truth_theta)) / stds
+
+    ax[1].plot(xs, label="EKF-x", color="orange")
+    ax[1].fill_between(
+        np.arange(xs.shape[0]),
+        xs - stds,
+        xs + stds,
+        label="EKF-std",
+        color="orange",
+        alpha=0.2,
+    )
+
+    ax[0].set_ylabel("radio phi")
+
+    ax[0].legend()
+    ax[0].set_title(f"Radio")
+    ax[1].legend()
+    ax[1].set_xlabel("time step")
+    ax[1].set_ylabel("radio theta")
+
+    ax[2].hist(zscores.reshape(-1), bins=25)
+    # fig.suptitle("Single ladies (radios) EKF")
+    # fig.savefig(f"{output_prefix}_single_ladies_ekf.png")
+    return fig

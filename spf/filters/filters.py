@@ -1,6 +1,7 @@
 from functools import cache
 
 import numpy as np
+import torch
 from filterpy.common import Q_discrete_white_noise
 
 from spf.rf import pi_norm

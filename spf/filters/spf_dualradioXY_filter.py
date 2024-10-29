@@ -1,8 +1,10 @@
 from functools import cache, partial
 
 import numpy as np
+import torch
 from filterpy.common import Q_discrete_white_noise
 from filterpy.kalman import ExtendedKalmanFilter
+from matplotlib import pyplot as plt
 
 from spf.filters.filters import (
     SPFFilter,
@@ -10,7 +12,7 @@ from spf.filters.filters import (
     pairedXY_hjacobian_phi_observation_from_theta_state,
     residual,
 )
-from spf.rf import pi_norm
+from spf.rf import pi_norm, torch_pi_norm_pi
 
 
 @cache
@@ -141,12 +143,30 @@ class SPFPairedXYKalmanFilter(ExtendedKalmanFilter, SPFFilter):
             ]
         )
 
+    def _ground_truth_xy(self):
+        return torch.vstack(
+            [
+                self.ds.cached_keys[0]["tx_pos_x_mm"],
+                self.ds.cached_keys[0]["tx_pos_y_mm"],
+            ]
+        ).T
+
     """
     Given a trajectory compute metrics over it
     """
 
     def metrics(self, trajectory):
-        pass
+        pred_theta = torch.tensor(np.hstack([x["mu"][0] for x in trajectory]))
+        pred_xy = torch.tensor(np.hstack([x["mu"][[0, 1]] for x in trajectory]).T)
+        # breakpoint()
+        return {
+            "mse_craft_theta": (
+                torch_pi_norm_pi(self.ds.craft_ground_truth_thetas - pred_theta) ** 2
+            )
+            .mean()
+            .item(),
+            "mse_xy": ((self._ground_truth_xy() - pred_xy) ** 2).mean().item(),
+        }
 
     def setup(self, initial_conditions={}):
         self.x = np.array(
@@ -207,20 +227,22 @@ class SPFPairedXYKalmanFilter(ExtendedKalmanFilter, SPFFilter):
 
             self.update(observation=observation)
 
+            self.x[4] = self.ds[idx][0]["rx_pos_x_mm"].item()
+            self.x[5] = self.ds[idx][0]["rx_pos_y_mm"].item()
+            rel_x, rel_y = self.x[0, 0] - self.x[4, 0], self.x[1, 0] - self.x[5, 0]
+            target_theta = pi_norm(np.arctan2(rel_x, rel_y))
+
             current_instance = {
                 "mu": self.x,
                 "var": self.P[:4, :4],
+                "craft_theta": target_theta,
             }
             if debug:
-                self.x[4] = self.ds[idx][0]["rx_pos_x_mm"].item()
-                self.x[5] = self.ds[idx][0]["rx_pos_y_mm"].item()
-                rel_x, rel_y = self.x[0, 0] - self.x[4, 0], self.x[1, 0] - self.x[5, 0]
-                target_theta = pi_norm(np.arctan2(rel_x, rel_y))
+
                 current_instance.update(
                     {
                         "jacobian": jacobian[0, 0],
                         "hx": hx,
-                        "theta": target_theta,
                         "P_theta": 0.01,  # self.P[0, 0],
                         "observation": observation,
                     }
@@ -229,3 +251,80 @@ class SPFPairedXYKalmanFilter(ExtendedKalmanFilter, SPFFilter):
             trajectory.append(current_instance)
 
         return trajectory
+
+
+def run_and_plot_dualradioXY_EKF(ds, trajectory=None):
+
+    fig, ax = plt.subplots(3, 1, figsize=(10, 15))
+
+    ax[1].axhline(y=np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+    ax[1].axhline(y=-np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
+    kf = SPFPairedXYKalmanFilter(ds=ds, phi_std=5, p=0.1, dynamic_R=True)
+    trajectory = (
+        kf.trajectory(debug=True, noise_std=10.0, dt=1)
+        if trajectory is None
+        else trajectory
+    )
+
+    n = len(trajectory)
+    for rx_idx in range(2):
+        ax[0].scatter(
+            range(min(n, ds.mean_phase[f"r{rx_idx}"].shape[0])),
+            ds.mean_phase[f"r{rx_idx}"][:n],
+            label=f"r{rx_idx} estimated phi",
+            s=1.0,
+            alpha=1.0,
+            color="red",
+        )
+        ax[0].plot(ds.ground_truth_phis[rx_idx][:n], label="perfect phi")
+    ground_truth_theta = [
+        pi_norm(ds[idx][0]["craft_y_rad"].item()) for idx in range(len(trajectory))
+    ]
+    ax[1].plot(
+        ground_truth_theta,
+        label="craft gt theta",
+    )
+
+    xs = np.array([x["craft_theta"] for x in trajectory])
+    stds = np.sqrt(np.array([x["P_theta"] for x in trajectory]))
+    # zscores = (xs - np.array(ground_truth_theta)) / stds
+
+    ax[1].plot(xs, label="EKF-x", color="orange")
+    ax[1].fill_between(
+        np.arange(xs.shape[0]),
+        xs - stds,
+        xs + stds,
+        label="EKF-std",
+        color="orange",
+        alpha=0.2,
+    )
+
+    ax[0].set_ylabel("radio phi")
+
+    ax[0].legend()
+    ax[0].set_title(f"Radio")
+    ax[1].legend()
+    ax[1].set_xlabel("time step")
+    ax[1].set_ylabel("radio theta")
+
+    # ax[2].hist(zscores.reshape(-1), bins=25)
+    # fig.suptitle("Single ladies (radios) EKF")
+    # fig.savefig(f"{output_prefix}_single_ladies_ekf.png")
+
+    pos_x = np.array([x["mu"][0] for x in trajectory])
+    pos_y = np.array([x["mu"][1] for x in trajectory])
+    rpos_x = np.array([x["mu"][4] for x in trajectory])
+    rpos_y = np.array([x["mu"][5] for x in trajectory])
+    vel_x = np.array([x["mu"][2] for x in trajectory])
+    vel_y = np.array([x["mu"][3] for x in trajectory])
+    gt_x = [ds[idx][0]["tx_pos_x_mm"].item() for idx in range(len(trajectory))]
+    gt_y = [ds[idx][0]["tx_pos_y_mm"].item() for idx in range(len(trajectory))]
+    ax[2].plot(gt_x, color="red")
+    ax[2].plot(gt_y, color="green")
+    ax[2].scatter(range(len(pos_x)), pos_x, color="red")
+    ax[2].scatter(range(len(pos_y)), pos_y, color="green")
+    ax[2].plot(range(len(rpos_x)), rpos_x, color="blue")
+    ax[2].plot(range(len(rpos_y)), rpos_y, color="black")
+    # ax[2].scatter(range(len(vel_x)), vel_x, color="red")
+    # ax[2].scatter(range(len(vel_y)), vel_y, color="green")
+    return fig

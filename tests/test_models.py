@@ -1,23 +1,14 @@
 import os
 import tempfile
+
 import numpy as np
-import pytest
 import torch
-from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
+
 from spf.model_training_and_inference.models.beamsegnet import (
     normal_correction_for_bounded_range,
 )
-from spf.notebooks.simple_train_filter import get_parser_filter, simple_train_filter
 from spf.notebooks.simple_train import get_parser, simple_train
-
-
-@pytest.fixture
-def perfect_circle_dataset_n33():
-    n = 33
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        fn = tmpdirname + f"/perfect_circle_n{n}_noise0"
-        create_fake_dataset(filename=fn, yaml_config_str=fake_yaml, n=n, noise=0.0)
-        yield tmpdirname, fn
+from spf.notebooks.simple_train_filter import get_parser_filter, simple_train_filter
 
 
 def base_args():
@@ -96,10 +87,9 @@ def test_simple_filter_save_load(perfect_circle_dataset_n33):
     simple_train_filter(args)
 
 
-def test_beamnet_downsampled():
+def test_beamnet_downsampled(perfect_circle_dataset_n5_noise0p001):
     with tempfile.TemporaryDirectory() as tmpdirname:
-        ds_fn = f"{tmpdirname}/test_circle"
-        create_fake_dataset(filename=ds_fn, yaml_config_str=fake_yaml, n=5)
+        _, ds_fn = perfect_circle_dataset_n5_noise0p001
         args_list = [
             "--device",
             "cpu",

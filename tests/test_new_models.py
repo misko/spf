@@ -1,57 +1,16 @@
 import collections.abc
-import glob
 import os
 import pathlib
 import tempfile
 
-import numpy as np
 import pytest
-import torch
 import yaml
 
-from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
-from spf.scripts.create_empirical_p_dist import (
-    create_empirical_p_dist,
-    get_empirical_p_dist_parser,
-)
 from spf.scripts.train_single_point import (
     get_parser_filter,
     load_config_from_fn,
     train_single_point,
 )
-
-
-@pytest.fixture
-def perfect_circle_dataset_n33():
-    n = 7
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        fn = tmpdirname + f"/perfect_circle_n{n}_noise0"
-        create_fake_dataset(filename=fn, yaml_config_str=fake_yaml, n=n, noise=0.0)
-
-        datasets = [f"{fn}.zarr"]
-        parser = get_empirical_p_dist_parser()
-
-        empirical_pkl_fn = tmpdirname + "/full.pkl"
-
-        args = parser.parse_args(
-            [
-                "--out",
-                empirical_pkl_fn,
-                "--nbins",
-                "7",
-                "--nthetas",
-                "7",
-                "--precompute-cache",
-                tmpdirname,
-                "--device",
-                "cpu",
-                "-d",
-            ]
-            + datasets
-        )
-        create_empirical_p_dist(args)
-
-        yield tmpdirname, empirical_pkl_fn, fn
 
 
 def merge_dictionary(d, u):
@@ -80,8 +39,10 @@ def update_config(input_fn, updates, output_fn):
         yaml.dump(merged_config, f)
 
 
-def test_simple(perfect_circle_dataset_n33, single_net_config, paired_net_config):
-    root_dir, empirical_pkl_fn, zarr_fn = perfect_circle_dataset_n33
+def test_simple(
+    perfect_circle_dataset_n7_with_empirical, single_net_config, paired_net_config
+):
+    root_dir, empirical_pkl_fn, zarr_fn = perfect_circle_dataset_n7_with_empirical
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         input_yaml_fn = tmpdirname + f"/input.yaml"
