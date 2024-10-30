@@ -10,7 +10,8 @@ from spf.rf import torch_pi_norm_pi
 
 class PFXYDualRadio(ParticleFilter):
     def __init__(self, ds):
-        super().__init__(ds)
+        self.ds = ds
+        # state [ theta, x , y , dx/dt, dy/dt]
         self.offsets = [
             ds.yaml_config["receivers"][0]["theta-in-pis"] * torch.pi,
             ds.yaml_config["receivers"][1]["theta-in-pis"] * torch.pi,
@@ -90,7 +91,7 @@ class PFXYDualRadio(ParticleFilter):
         ground_truth_xy = self.ground_truth_xy()
         # breakpoint()
         return {
-            "mse_theta": (torch_pi_norm_pi(ground_truth_theta - pred_theta) ** 2)
+            "mse_craft_theta": (torch_pi_norm_pi(ground_truth_theta - pred_theta) ** 2)
             .mean()
             .item(),
             "mse_xy": ((ground_truth_xy - pred_xy) ** 2).mean().item(),

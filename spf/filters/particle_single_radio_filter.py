@@ -1,4 +1,3 @@
-import pickle
 from functools import cache
 
 import torch
@@ -8,9 +7,10 @@ from spf.filters.filters import (
     ParticleFilter,
     add_noise,
     fix_particles_single,
+    single_radio_mse_theta_metrics,
     theta_phi_to_p_vec,
 )
-from spf.rf import reduce_theta_to_positive_y, torch_pi_norm_pi
+from spf.rf import reduce_theta_to_positive_y
 
 
 class PFSingleThetaSingleRadio(ParticleFilter):
@@ -51,17 +51,9 @@ class PFSingleThetaSingleRadio(ParticleFilter):
         self.weights /= torch.sum(self.weights)  # normalize
 
     def metrics(self, trajectory):
-        pred_theta = torch.hstack([x["mu"][0] for x in trajectory])
-        ground_truth_reduced_theta = torch.as_tensor(
-            reduce_theta_to_positive_y(self.ds.ground_truth_thetas[self.rx_idx])
+        return single_radio_mse_theta_metrics(
+            trajectory, self.ds.ground_truth_thetas[self.rx_idx]
         )
-        return {
-            "mse_theta": (
-                torch_pi_norm_pi(ground_truth_reduced_theta - pred_theta) ** 2
-            )
-            .mean()
-            .item()
-        }
 
     def trajectory(self, **kwargs):
         trajectory = super().trajectory(**kwargs)

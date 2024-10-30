@@ -12,6 +12,7 @@ from spf.filters.filters import (
     residual,
     single_h_phi_observation_from_theta_state,
     single_hjacobian_phi_observation_from_theta_state,
+    single_radio_mse_theta_metrics,
 )
 from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm_pi
 
@@ -91,19 +92,9 @@ class SPFKalmanFilter(ExtendedKalmanFilter, SPFFilter):
     """
 
     def metrics(self, trajectory):
-        if len(trajectory) == 0:
-            return {}
-        pred_theta = torch.tensor(np.hstack([x["theta"] for x in trajectory]))
-        ground_truth_reduced_theta = torch.as_tensor(
-            reduce_theta_to_positive_y(self.ds.ground_truth_thetas[self.rx_idx])
+        return single_radio_mse_theta_metrics(
+            trajectory, self.ds.ground_truth_thetas[self.rx_idx]
         )
-        return {
-            "mse_single_radio_theta": (
-                (torch_pi_norm_pi(ground_truth_reduced_theta - pred_theta) ** 2)
-                .mean()
-                .item()
-            )
-        }
 
     def setup(self, initial_conditions={}):
         self.x = np.array([[self.ds[self.rx_idx][0]["ground_truth_theta"].item()], [0]])

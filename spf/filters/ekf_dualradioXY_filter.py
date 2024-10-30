@@ -158,7 +158,6 @@ class SPFPairedXYKalmanFilter(ExtendedKalmanFilter, SPFFilter):
     def metrics(self, trajectory):
         pred_theta = torch.tensor(np.hstack([x["mu"][0] for x in trajectory]))
         pred_xy = torch.tensor(np.hstack([x["mu"][[0, 1]] for x in trajectory]).T)
-        # breakpoint()
         return {
             "mse_craft_theta": (
                 torch_pi_norm_pi(self.ds.craft_ground_truth_thetas - pred_theta) ** 2

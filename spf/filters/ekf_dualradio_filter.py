@@ -9,6 +9,7 @@ from spf.filters.filters import (
     F_cached,
     Q_discrete_white_noise_cached,
     SPFFilter,
+    dual_radio_mse_theta_metrics,
     paired_h_phi_observation_from_theta_state,
     paired_hjacobian_phi_observation_from_theta_state,
     residual,
@@ -117,14 +118,9 @@ class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
     """
 
     def metrics(self, trajectory):
-        pred_theta = torch.tensor(np.hstack([x["craft_theta"] for x in trajectory]))
-        return {
-            "mse_craft_theta": (
-                torch_pi_norm_pi(self.ds.craft_ground_truth_thetas - pred_theta) ** 2
-            )
-            .mean()
-            .item()
-        }
+        return dual_radio_mse_theta_metrics(
+            trajectory, self.ds.craft_ground_truth_thetas
+        )
 
     def setup(self, initial_conditions={}):
         self.x = np.array([[self.ds[0][0]["craft_ground_truth_theta"].item()], [0]])

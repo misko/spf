@@ -5,7 +5,7 @@ import torch
 from filterpy.common import Q_discrete_white_noise
 from filterpy.monte_carlo import systematic_resample
 
-from spf.rf import pi_norm
+from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm_pi
 
 
 @cache
@@ -253,6 +253,33 @@ class SPFFilter:
             trajectory.append(self.posterior_to_mu_var(posterior))
 
         return {"trajectory": trajectory}
+
+
+def single_radio_mse_theta_metrics(trajectory, ground_truth_thetas):
+    if len(trajectory) == 0:
+        return {}
+    pred_theta = torch.tensor(np.hstack([x["theta"] for x in trajectory]))
+    ground_truth_reduced_theta = torch.as_tensor(
+        reduce_theta_to_positive_y(ground_truth_thetas)
+    )
+    return {
+        "mse_single_radio_theta": (
+            (torch_pi_norm_pi(ground_truth_reduced_theta - pred_theta) ** 2)
+            .mean()
+            .item()
+        )
+    }
+
+
+def dual_radio_mse_theta_metrics(trajectory, craft_ground_truth_thetas):
+    pred_theta = torch.tensor(np.hstack([x["craft_theta"] for x in trajectory]))
+    return {
+        "mse_craft_theta": (
+            torch_pi_norm_pi(craft_ground_truth_thetas - pred_theta) ** 2
+        )
+        .mean()
+        .item()
+    }
 
 
 class ParticleFilter(SPFFilter):

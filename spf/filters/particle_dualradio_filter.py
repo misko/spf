@@ -3,7 +3,12 @@ from functools import cache
 import torch
 from matplotlib import pyplot as plt
 
-from spf.filters.filters import ParticleFilter, add_noise, theta_phi_to_p_vec
+from spf.filters.filters import (
+    ParticleFilter,
+    add_noise,
+    dual_radio_mse_theta_metrics,
+    theta_phi_to_p_vec,
+)
 from spf.rf import torch_pi_norm_pi
 
 
@@ -55,14 +60,16 @@ class PFSingleThetaDualRadio(ParticleFilter):
         self.weights /= torch.sum(self.weights)  # normalize
 
     def metrics(self, trajectory):
-        pred_theta = torch.hstack([x["mu"][0] for x in trajectory])
-        return {
-            "mse_theta": (
-                torch_pi_norm_pi(self.ds.craft_ground_truth_thetas - pred_theta) ** 2
-            )
-            .mean()
-            .item()
-        }
+        return dual_radio_mse_theta_metrics(
+            trajectory, self.ds.craft_ground_truth_thetas
+        )
+
+    def trajectory(self, **kwargs):
+        trajectory = super().trajectory(**kwargs)
+        for x in trajectory:
+            x["craft_theta"] = x["mu"][0]
+            x["P_theta"] = x["var"][0]
+        return trajectory
 
 
 def plot_single_theta_dual_radio(ds):
