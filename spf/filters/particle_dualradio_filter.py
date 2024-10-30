@@ -15,7 +15,8 @@ class PFSingleThetaDualRadio(ParticleFilter):
             ds.yaml_config["receivers"][1]["theta-in-pis"] * torch.pi,
         ]
 
-        self.generator = self.generator.manual_seed(0)
+        self.generator = torch.Generator()
+        self.generator.manual_seed(0)
 
     def observation(self, idx):
         return torch.concatenate(

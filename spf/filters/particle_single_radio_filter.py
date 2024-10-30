@@ -21,7 +21,8 @@ class PFSingleThetaSingleRadio(ParticleFilter):
     def __init__(self, ds, rx_idx):
         self.ds = ds
         self.rx_idx = rx_idx
-        self.generator = self.generator.manual_seed(0)
+        self.generator = torch.Generator()
+        self.generator.manual_seed(0)
 
     def observation(self, idx):
         return self.ds.mean_phase[f"r{self.rx_idx}"][idx]

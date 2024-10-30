@@ -17,7 +17,8 @@ class PFXYDualRadio(ParticleFilter):
         ]
         self.speed_dist = scipy.stats.norm(1.5, 3)
 
-        self.generator = self.generator.manual_seed(0)
+        self.generator = torch.Generator()
+        self.generator.manual_seed(0)
 
     def our_state(self, idx):
         return torch.vstack(
