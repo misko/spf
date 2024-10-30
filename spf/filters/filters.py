@@ -3,6 +3,7 @@ from functools import cache
 import numpy as np
 import torch
 from filterpy.common import Q_discrete_white_noise
+from filterpy.monte_carlo import systematic_resample
 
 from spf.rf import pi_norm
 
@@ -252,3 +253,127 @@ class SPFFilter:
             trajectory.append(self.posterior_to_mu_var(posterior))
 
         return {"trajectory": trajectory}
+
+
+class ParticleFilter(SPFFilter):
+
+    def fix_particles(self):
+        return self.particles
+
+    def trajectory(
+        self,
+        mean,
+        std,
+        N=128,
+        noise_std=None,
+        return_particles=False,
+        debug=False,
+        seed=0,
+    ):
+        self.generator = torch.Generator()
+        self.generator.manual_seed(seed)
+        self.particles = create_gaussian_particles_xy(
+            mean, std, N, generator=self.generator
+        )
+        self.weights = torch.ones((N,), dtype=torch.float64) / N
+        trajectory = []
+        for idx in range(len(self.ds)):
+            self.predict(
+                dt=1.0,
+                noise_std=noise_std,
+                our_state=self.our_state(idx),
+            )
+            self.fix_particles()
+
+            self.update(z=self.observation(idx))
+
+            # resample if too few effective particles
+            if neff(self.weights) < N / 2:
+                indexes = torch.as_tensor(systematic_resample(self.weights.numpy()))
+                resample_from_index(self.particles, self.weights, indexes)
+
+            mu, var = estimate(self.particles, self.weights)
+
+            trajectory.append({"var": var, "mu": mu})
+            if return_particles:
+                trajectory[-1]["particles"] = self.particles.copy()
+            if debug:
+                trajectory[-1]["observation"] = self.observation(idx)
+        return trajectory
+
+
+# @torch.jit.script
+def create_gaussian_particles_xy(
+    mean: torch.Tensor, std: torch.Tensor, N: int, generator
+):
+    assert mean.ndim == 2 and mean.shape[0] == 1
+    assert std.ndim == 2 and std.shape[0] == 1
+    return mean + (torch.randn(N, mean.shape[1], generator=generator) * std)
+
+
+@torch.jit.script
+def theta_phi_to_bins(theta_phi: torch.Tensor, nbins: int):
+    if isinstance(theta_phi, float):
+        return int(nbins * (theta_phi + torch.pi) / (2 * torch.pi)) % nbins
+    return (nbins * (theta_phi + torch.pi) / (2 * torch.pi)).to(torch.long) % nbins
+
+
+@torch.jit.script
+def theta_phi_to_p_vec(thetas, phis, full_p):
+    theta_bin = theta_phi_to_bins(thetas, nbins=full_p.shape[0])
+    phi_bin = theta_phi_to_bins(phis, nbins=full_p.shape[1])
+    return torch.take(full_p[:, phi_bin], theta_bin)
+
+
+# @torch.jit.script
+def add_noise(particles: torch.Tensor, noise_std: torch.Tensor, generator):
+    particles[:] += (
+        torch.randn(particles.shape, generator=generator) * noise_std
+    )  # theta_noise=0.1, theta_dot_noise=0.001
+
+
+@torch.jit.script
+def resample_from_index(particles, weights, indexes):
+    particles[:] = particles[indexes]
+    weights.fill_(1.0 / len(weights))
+    weights /= torch.sum(weights)  # normalize
+
+
+@torch.jit.script
+def neff(weights: torch.Tensor):
+    return 1.0 / torch.sum(torch.square(weights))
+
+
+@torch.jit.script
+def weighted_mean(inputs: torch.Tensor, weights: torch.Tensor):
+    return torch.sum(weights * inputs, dim=0) / weights.sum()
+
+
+@torch.jit.script
+def estimate(particles: torch.Tensor, weights: torch.Tensor):
+    # mean = torch.mean(self.particles, weights=self.weights, axis=0)
+    # var = torch.mean((self.particles - mean) ** 2, weights=self.weights, axis=0)
+    mean = weighted_mean(particles, weights.reshape(-1, 1))
+    var = weighted_mean((particles - mean) ** 2, weights.reshape(-1, 1))
+    return mean, var
+
+
+@torch.jit.script
+def theta_phi_to_p(theta, phi, full_p):
+    theta_bins = full_p.shape[0]
+    phi_bins = full_p.shape[1]
+    theta_bin = int(theta_bins * (theta + torch.pi) / (2 * torch.pi)) % theta_bins
+    phi_bin = int(phi_bins * (phi + torch.pi) / (2 * torch.pi)) % phi_bins
+    return full_p[theta_bin, phi_bin]
+
+
+@torch.jit.script
+def fix_particles_single(particles):
+    # this is required! because we need to flip the velocity of theta
+    while torch.abs(particles[:, 0]).max() > torch.pi / 2:
+        mask = torch.abs(particles[:, 0]) > torch.pi / 2
+        particles[mask, 0] = (
+            torch.sign(particles[mask, 0]) * torch.pi - particles[mask, 0]
+        )
+        particles[mask, 1] *= -1
+    return particles

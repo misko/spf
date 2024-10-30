@@ -1,20 +1,20 @@
 from spf.dataset.spf_dataset import v5spfdataset
-from spf.filters.spf_dualradio_filter import (
+from spf.filters.ekf_dualradio_filter import (
     SPFPairedKalmanFilter,
     run_and_plot_dualradio_EKF,
 )
-from spf.filters.spf_dualradioXY_filter import (
+from spf.filters.ekf_dualradioXY_filter import (
     SPFPairedXYKalmanFilter,
     run_and_plot_dualradioXY_EKF,
 )
-from spf.filters.spf_single_radio_filter import (
+from spf.filters.ekf_single_radio_filter import (
     SPFKalmanFilter,
     run_and_plot_single_radio_EKF,
 )
 
 
 def test_single_radio_ekf(perfect_circle_dataset_n1025_orbits4_noise0p3):
-    ds_dir, ds_fn = perfect_circle_dataset_n1025_orbits4_noise0p3
+    ds_dir, _, ds_fn = perfect_circle_dataset_n1025_orbits4_noise0p3
     ds = v5spfdataset(
         ds_fn,
         nthetas=65,
@@ -37,7 +37,7 @@ def test_single_radio_ekf(perfect_circle_dataset_n1025_orbits4_noise0p3):
 
 
 def test_paired_radio_ekf(perfect_circle_dataset_n1025_orbits4_noise0p3):
-    ds_dir, ds_fn = perfect_circle_dataset_n1025_orbits4_noise0p3
+    ds_dir, _, ds_fn = perfect_circle_dataset_n1025_orbits4_noise0p3
     ds = v5spfdataset(
         ds_fn,
         nthetas=65,
@@ -56,7 +56,7 @@ def test_paired_radio_ekf(perfect_circle_dataset_n1025_orbits4_noise0p3):
 
 
 def test_pairedXY_radio_ekf(perfect_circle_dataset_n1025_orbits4_noise0p3):
-    ds_dir, ds_fn = perfect_circle_dataset_n1025_orbits4_noise0p3
+    ds_dir, _, ds_fn = perfect_circle_dataset_n1025_orbits4_noise0p3
     ds = v5spfdataset(
         ds_fn,
         nthetas=65,

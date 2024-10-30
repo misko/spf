@@ -5,6 +5,7 @@
 import bisect
 import os
 import pickle
+from functools import cache
 from multiprocessing import Pool, cpu_count
 from typing import Dict, List
 
@@ -485,6 +486,7 @@ class v5spfdataset(Dataset):
             self.zarr_fn, readahead=self.readahead, map_size=2**32
         )
         self.yaml_config = yaml.safe_load(open(self.yaml_fn, "r"))
+
         self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
         self.gpu = gpu
@@ -507,6 +509,16 @@ class v5spfdataset(Dataset):
             speed_of_light / receiver["f-carrier"]
             for receiver in self.yaml_config["receivers"]
         ]
+
+        for rx_idx in range(1, self.n_receivers):
+            assert (
+                self.yaml_config["receivers"][0]["antenna-spacing-m"]
+                == self.yaml_config["receivers"][rx_idx]["antenna-spacing-m"]
+            )
+
+            assert self.wavelengths[0] == self.wavelengths[rx_idx]
+
+        self.rx_spacing = self.yaml_config["receivers"][0]["antenna-spacing-m"]
 
         self.rx_configs = [
             rx_config_from_receiver_yaml(receiver)
@@ -841,6 +853,19 @@ class v5spfdataset(Dataset):
                 snapshot_start_idx, snapshot_end_idx, self.snapshots_adjacent_stride
             )
 
+    @cache
+    def get_empirical_dist(
+        self,
+        receiver_idx,
+    ):
+        rx_spacing_str = rx_spacing_to_str(self.rx_spacing)
+        empirical_radio_key = (
+            f"r{receiver_idx}" if self.empirical_individual_radio else "r"
+        )
+        return self.empirical_data[rx_spacing_str][empirical_radio_key][
+            "sym" if self.empirical_symmetry else "nosym"
+        ]
+
     def render_session(self, receiver_idx, session_idx, double_flip=False):
         self.reinit()
 
@@ -929,13 +954,7 @@ class v5spfdataset(Dataset):
         #     gc.collect()
         # self.close()
         if self.empirical_data is not None:
-            rx_spacing_str = rx_spacing_to_str(data["rx_spacing"][0].item())
-            empirical_radio_key = (
-                f"r{receiver_idx}" if self.empirical_individual_radio else "r"
-            )
-            empirical_dist = self.empirical_data[rx_spacing_str][empirical_radio_key][
-                "sym" if self.empirical_symmetry else "nosym"
-            ]
+            empirical_dist = self.get_empirical_dist(receiver_idx)
             data["empirical"] = empirical_dist[
                 to_bin(data["mean_phase_segmentation"][0], empirical_dist.shape[0])
             ].unsqueeze(0)

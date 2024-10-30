@@ -5,13 +5,13 @@ import tempfile
 import pytest
 import torch
 
-from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml, partial_dataset
+from spf.dataset.fake_dataset import partial_dataset
 from spf.dataset.open_partial_ds import open_partial_dataset_and_check_some
 from spf.dataset.spf_dataset import v5spfdataset
+from spf.filters.particle_dualradio_filter import plot_single_theta_dual_radio
+from spf.filters.particle_dualradioXY_filter import plot_xy_dual_radio
+from spf.filters.particle_single_radio_filter import plot_single_theta_single_radio
 from spf.model_training_and_inference.models.particle_filter import (
-    plot_single_theta_dual_radio,
-    plot_single_theta_single_radio,
-    plot_xy_dual_radio,
     run_single_theta_dual_radio,
     run_single_theta_single_radio,
     run_xy_dual_radio,
@@ -23,19 +23,8 @@ from spf.scripts.create_empirical_p_dist import (
 
 
 @pytest.fixture
-def noise1_n128_obits2():
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        n = 128
-        fn = tmpdirname + f"/perfect_circle_n{n}_noise0"
-        create_fake_dataset(
-            filename=fn, yaml_config_str=fake_yaml, n=n, noise=0.3, orbits=2
-        )
-        yield tmpdirname, fn
-
-
-@pytest.fixture
 def heatmap(noise1_n128_obits2):
-    dirname, ds_fn = noise1_n128_obits2
+    dirname, _, ds_fn = noise1_n128_obits2
     ds = v5spfdataset(
         ds_fn,
         precompute_cache=dirname,
@@ -52,13 +41,14 @@ def heatmap(noise1_n128_obits2):
     return full_p_fn
 
 
-def test_single_theta_single_radio(noise1_n128_obits2, heatmap):
-    dirname, ds_fn = noise1_n128_obits2
+def test_single_theta_single_radio(noise1_n128_obits2):
+    dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
     ds = v5spfdataset(
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
         skip_fields=set(["signal_matrix"]),
+        empirical_data_fn=empirical_pkl_fn,
         paired=True,
         ignore_qc=True,
         gpu=False,
@@ -66,7 +56,7 @@ def test_single_theta_single_radio(noise1_n128_obits2, heatmap):
     args = {
         "ds_fn": ds_fn,
         "precompute_fn": dirname,
-        "full_p_fn": heatmap,
+        "empirical_pkl_fn": empirical_pkl_fn,
         "N": 1024 * 4,
         "theta_err": 0.01,
         "theta_dot_err": 0.01,
@@ -74,16 +64,17 @@ def test_single_theta_single_radio(noise1_n128_obits2, heatmap):
     results = run_single_theta_single_radio(**args)
     for result in results:
         assert result["metrics"]["mse_theta"] < 0.05
-    plot_single_theta_single_radio(ds, heatmap)
+    plot_single_theta_single_radio(ds)
 
 
-def test_single_theta_dual_radio(noise1_n128_obits2, heatmap):
-    dirname, ds_fn = noise1_n128_obits2
+def test_single_theta_dual_radio(noise1_n128_obits2):
+    dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
     ds = v5spfdataset(
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
         skip_fields=set(["signal_matrix"]),
+        empirical_data_fn=empirical_pkl_fn,
         paired=True,
         ignore_qc=True,
         gpu=False,
@@ -91,23 +82,24 @@ def test_single_theta_dual_radio(noise1_n128_obits2, heatmap):
     args = {
         "ds_fn": ds_fn,
         "precompute_fn": dirname,
-        "full_p_fn": heatmap,
+        "empirical_pkl_fn": empirical_pkl_fn,
         "N": 1024 * 4,
         "theta_err": 0.01,
         "theta_dot_err": 0.01,
     }
     result = run_single_theta_dual_radio(**args)
     assert result[0]["metrics"]["mse_theta"] < 0.15
-    plot_single_theta_dual_radio(ds, heatmap)
+    plot_single_theta_dual_radio(ds)
 
 
-def test_single_theta_dual_radio(noise1_n128_obits2, heatmap):
-    dirname, ds_fn = noise1_n128_obits2
+def test_XY_dual_radio(noise1_n128_obits2):
+    dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
     ds = v5spfdataset(
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
         skip_fields=set(["signal_matrix"]),
+        empirical_data_fn=empirical_pkl_fn,
         paired=True,
         ignore_qc=True,
         gpu=False,
@@ -115,7 +107,7 @@ def test_single_theta_dual_radio(noise1_n128_obits2, heatmap):
     args = {
         "ds_fn": ds_fn,
         "precompute_fn": dirname,
-        "full_p_fn": heatmap,
+        "empirical_pkl_fn": empirical_pkl_fn,
         "N": 1024 * 4,
         "pos_err": 50,
         "vel_err": 0.1,
@@ -123,16 +115,17 @@ def test_single_theta_dual_radio(noise1_n128_obits2, heatmap):
 
     result = run_xy_dual_radio(**args)
     assert result[0]["metrics"]["mse_theta"] < 0.25
-    plot_xy_dual_radio(ds, heatmap)
+    plot_xy_dual_radio(ds)
 
 
 def test_partial(noise1_n128_obits2):
-    dirname, ds_fn = noise1_n128_obits2
+    dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
     ds_og = v5spfdataset(
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
         skip_fields=set(["signal_matrix"]),
+        empirical_data_fn=empirical_pkl_fn,
         paired=True,
         ignore_qc=True,
         gpu=False,
@@ -151,6 +144,7 @@ def test_partial(noise1_n128_obits2):
                 gpu=False,
                 temp_file=True,
                 temp_file_suffix="",
+                empirical_data_fn=empirical_pkl_fn,
             )
             assert min(ds.valid_entries) == partial_n
             random.seed(0)
@@ -164,7 +158,7 @@ def test_partial(noise1_n128_obits2):
 
 
 def test_partial_script(noise1_n128_obits2):
-    dirname, ds_fn = noise1_n128_obits2
+    dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
     with tempfile.TemporaryDirectory() as tmpdirname:
         ds_fn_out = f"{tmpdirname}/partial"
         for partial_n in [10, 20]:

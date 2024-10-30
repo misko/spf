@@ -1,15 +1,16 @@
 import argparse
 import os
+import random
 import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
-import random
+import zarr
+
 from spf.data_collector import rx_config_from_receiver_yaml
 from spf.dataset.spf_dataset import pi_norm
-import zarr
 
 # V5 data format
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
@@ -22,6 +23,10 @@ from spf.rf import (
     torch_get_avg_phase,
     torch_get_avg_phase_notrim,
     torch_pi_norm_pi,
+)
+from spf.scripts.create_empirical_p_dist import (
+    create_empirical_p_dist,
+    get_empirical_p_dist_parser,
 )
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
 from spf.utils import (
@@ -115,6 +120,32 @@ skip_phase_calibration: true
 data-version: 5
 seconds-per-sample: 5.0
 """
+
+
+def create_empirical_dist_for_datasets(datasets, precompute_cache, nthetas):
+
+    parser = get_empirical_p_dist_parser()
+
+    empirical_pkl_fn = precompute_cache + "/full.pkl"
+
+    args = parser.parse_args(
+        [
+            "--out",
+            empirical_pkl_fn,
+            "--nbins",
+            f"{nthetas}",
+            "--nthetas",
+            f"{nthetas}",
+            "--precompute-cache",
+            precompute_cache,
+            "--device",
+            "cpu",
+            "-d",
+        ]
+        + datasets
+    )
+    create_empirical_p_dist(args)
+    return empirical_pkl_fn
 
 
 def create_fake_dataset(
