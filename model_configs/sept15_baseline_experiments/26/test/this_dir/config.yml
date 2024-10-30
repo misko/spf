@@ -1,0 +1,65 @@
+args:
+  beamnet_latent: 0
+  config: ./single_point.yaml
+  debug: true
+  debug_model: false
+  name: null
+  output: this_dir
+  save_prefix: ./this_model_
+datasets:
+  batch_size: 256
+  empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl
+  empirical_individual_radio: false
+  empirical_symmetry: true
+  flip: true
+  precompute_cache: /home/mouse9911/precompute_cache_chunk16_sept
+  scatter: continuous
+  scatter_k: 21
+  shuffle: true
+  sigma: 0.25
+  skip_qc: true
+  snapshots_adjacent_stride: 1
+  snapshots_per_session: 1
+  snapshots_stride: 1
+  train_paths:
+  - /mnt/4tb_ssd/nosig_data/wallarrayv3_2024*.zarr
+  val_holdout_fraction: 0.2
+  val_subsample_fraction: 0.2
+  workers: 20
+global:
+  beamformer_input: true
+  empirical_input: true
+  n_radios: 2
+  nthetas: 65
+  phase_input: true
+  rx_spacing_input: true
+  seed: 10
+logger:
+  log_every: 100
+  name: wandb
+  plot_every: 15000
+  project: 2024_oct12_single_paired_multi
+model:
+  block: true
+  bn: true
+  depth: 4
+  detach: true
+  dropout: 0.0
+  hidden: 1024
+  name: beamformer
+  norm: layer
+optim:
+  amp: true
+  checkpoint_every: 5
+  device: cuda
+  direct_loss: false
+  dtype: torch.float32
+  epochs: 40
+  head_start: 0
+  learning_rate: 0.0001
+  loss: mse
+  resume_step: 0
+  scheduler_step: 20
+  steps: 6
+  val_every: 10000
+  weight_decay: 0.0

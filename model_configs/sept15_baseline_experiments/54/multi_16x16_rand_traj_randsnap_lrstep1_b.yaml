@@ -43,16 +43,20 @@ logger:
   plot_every: 15000
 
 model:
-  name: multipairedbeamformer
+  name: trajmultipairedbeamformer
   load_paired: True
   skip_connection: False
+  latent: 64
+  traj_hidden: 512
+  traj_layers: 8
   use_xy: True
+  pred_xy: True
   transformer:
-    d_model: 1024
+    d_model: 2048
     n_heads: 8
     d_hid: 256
     dropout: 0.0
-    n_layers: 4
+    n_layers: 8
   paired:
     hidden: 1024
     depth: 4
@@ -80,12 +84,12 @@ optim:
   epochs: 10
   direct_loss: False
   val_every: 5000 
-  learning_rate: 5.0e-5
+  learning_rate: 1.0e-4
   weight_decay: 0.0000000
-  amp: False
+  amp: True
   loss: mse
-  scheduler_step: 3
+  scheduler_step: 1
   checkpoint_every: 20000
   output: multipaired_checkpoints
   save_on: val_multipaired_loss
-  checkpoint: /home/mouse9911/gits/spf/oct24_paired_checkpoints/best.pth
+  checkpoint: /home/mouse9911/gits/spf/oct23_paired_checkpoints/best.pth

@@ -15,20 +15,16 @@ datasets:
   val_subsample_fraction: 0.2
   precompute_cache: /home/mouse9911/precompute_cache_chunk16_sept
   skip_qc: True
-  val_snapshots_per_session: 16
-  train_snapshots_per_session: 32
-  random_snapshot_size: True
+  snapshots_per_session: 4
   snapshots_stride: 1
-  snapshots_adjacent_stride: 32
-  val_snapshots_adjacent_stride: 16
+  snapshots_adjacent_stride: 128
   random_adjacent_stride: True
-  batch_size: 64
+  batch_size: 256
   shuffle: True
   workers: 20
   sigma: 0.25
   scatter_k: 21
   flip: False
-  double_flip: False
   scatter: continuous
 
   empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl 
@@ -38,21 +34,19 @@ datasets:
 
 logger:
   name: wandb
-  project: 2024_oct22_single_paired_multi
+  project: 2024_oct12_single_paired_multi
   log_every: 100
   plot_every: 15000
 
 model:
   name: multipairedbeamformer
   load_paired: True
-  skip_connection: False
-  use_xy: True
   transformer:
-    d_model: 1024
+    d_model: 512
     n_heads: 8
     d_hid: 256
-    dropout: 0.0
-    n_layers: 4
+    dropout: 0.2
+    n_layers: 8
   paired:
     hidden: 1024
     depth: 4
@@ -69,7 +63,6 @@ model:
       bn: True
       norm: layer
       detach: True
-      input_dropout: 0.3
       dropout: 0.0
 
 optim:
@@ -77,15 +70,15 @@ optim:
   device: cuda
   dtype: torch.float32
   resume_step: 0
-  epochs: 10
+  epochs: 2
   direct_loss: False
-  val_every: 5000 
-  learning_rate: 5.0e-5
+  val_every: 500 
+  learning_rate: 1.0e-4
   weight_decay: 0.0000000
-  amp: False
+  amp: True
   loss: mse
-  scheduler_step: 3
-  checkpoint_every: 20000
+  scheduler_step: 20
+  checkpoint_every: 5000
   output: multipaired_checkpoints
   save_on: val_multipaired_loss
-  checkpoint: /home/mouse9911/gits/spf/oct24_paired_checkpoints/best.pth
+  checkpoint: paired_checkpoints/best.pth
