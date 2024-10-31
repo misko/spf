@@ -97,7 +97,12 @@ def test_identical_datasets():
     with tempfile.TemporaryDirectory() as tmpdirname:
         dsA_fn = f"{tmpdirname}/test_circleA"
         create_fake_dataset(
-            filename=dsA_fn, yaml_config_str=fake_yaml, n=5, noise=0.0, phi_drift=0.0
+            filename=dsA_fn,
+            yaml_config_str=fake_yaml,
+            n=5,
+            noise=0.0,
+            phi_drift=0.0,
+            seed=0,
         )
         dsB_fn = f"{tmpdirname}/test_circleB"
         create_fake_dataset(
@@ -115,6 +120,7 @@ def test_identical_datasets():
             n=5,
             noise=0.0,
             phi_drift=0.0,
+            seed=20,
         )
 
         dsA = v5spfdataset(
