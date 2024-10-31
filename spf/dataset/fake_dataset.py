@@ -39,10 +39,16 @@ from spf.utils import (
 
 @torch.jit.script
 def phi_to_signal_matrix(
-    phi: torch.Tensor, buffer_size: int, noise: float, phi_drift: float
+    phi: torch.Tensor,
+    buffer_size: int,
+    noise: float,
+    phi_drift: float,
+    generator: torch.Generator,
 ):
     big_phi = phi.repeat(buffer_size).reshape(1, -1)
-    big_phi_with_noise = big_phi + torch.randn((1, buffer_size)) * noise
+    big_phi_with_noise = (
+        big_phi + torch.randn((1, buffer_size), generator=generator) * noise
+    )
     offsets = torch.zeros(big_phi.shape, dtype=torch.complex64)
     return (
         torch.vstack(
@@ -160,6 +166,9 @@ def create_fake_dataset(
 ):
     random.seed(seed)
     np.random.seed(seed)
+
+    torch_generator = torch.Generator()
+    torch_generator.manual_seed(seed)
     yaml_fn = f"{filename}.yaml"
     zarr_fn = f"{filename}.zar"
     seg_fn = f"{filename}_segmentation.pkl"
@@ -202,7 +211,7 @@ def create_fake_dataset(
         v = torch.arcsin(_lambda * phi / (antenna_spacing_m * 2 * torch.pi))
         return v, torch.pi - v
 
-    rnd_noise = torch.randn(thetas.shape[0])
+    rnd_noise = torch.randn(thetas.shape[0], generator=torch_generator)
 
     # signal_matrix = np.vstack([np.exp(1j * phis), np.ones(phis.shape)])
 
@@ -220,10 +229,11 @@ def create_fake_dataset(
                 rx_config.buffer_size,
                 noise,
                 phi_drift * torch.pi * (1 if receiver_idx == 0 else -1),
+                generator=torch_generator,
             )
 
             noise_matrix = torch_random_signal_matrix(
-                signal_matrix.reshape(-1).shape[0]
+                signal_matrix.reshape(-1).shape[0], generator=torch_generator
             ).reshape(signal_matrix.shape)
             # add stripes
             window_size = 2048 * 4

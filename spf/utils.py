@@ -42,10 +42,10 @@ def random_signal_matrix(n, rng=None):
 
 
 @torch.jit.script
-def torch_random_signal_matrix(n: int):
-    return (torch.rand((n,), dtype=torch.float32) - 0.5) * 2 + 1.0j * (
-        torch.rand((n,), dtype=torch.float32) - 0.5
-    )
+def torch_random_signal_matrix(n: int, generator: torch.Generator):
+    return (
+        torch.rand((n,), dtype=torch.float32, generator=generator) - 0.5
+    ) * 2 + 1.0j * (torch.rand((n,), dtype=torch.float32, generator=generator) - 0.5)
 
 
 def zarr_remove_if_exists(zarr_fn):

@@ -1,3 +1,4 @@
+import logging
 from functools import cache
 
 import numpy as np
@@ -262,6 +263,7 @@ def single_radio_mse_theta_metrics(trajectory, ground_truth_thetas):
     ground_truth_reduced_theta = torch.as_tensor(
         reduce_theta_to_positive_y(ground_truth_thetas)
     )
+    assert pred_theta.ndim == 1 and ground_truth_reduced_theta.ndim == 1
     return {
         "mse_single_radio_theta": (
             (torch_pi_norm_pi(ground_truth_reduced_theta - pred_theta) ** 2)
@@ -273,6 +275,7 @@ def single_radio_mse_theta_metrics(trajectory, ground_truth_thetas):
 
 def dual_radio_mse_theta_metrics(trajectory, craft_ground_truth_thetas):
     pred_theta = torch.tensor(np.hstack([x["craft_theta"] for x in trajectory]))
+    assert pred_theta.ndim == 1 and craft_ground_truth_thetas.ndim == 1
     return {
         "mse_craft_theta": (
             torch_pi_norm_pi(craft_ground_truth_thetas - pred_theta) ** 2
@@ -302,6 +305,8 @@ class ParticleFilter(SPFFilter):
         self.particles = create_gaussian_particles_xy(
             mean, std, N, generator=self.generator
         )
+        print(f"Particles checksumx: {self.particles.abs().mean()} {mean} {std} {N}")
+        logging.info(f"Particles checksum: {self.particles.abs().mean()}")
         self.weights = torch.ones((N,), dtype=torch.float64) / N
         trajectory = []
         for idx in range(len(self.ds)):
