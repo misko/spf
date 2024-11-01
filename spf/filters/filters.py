@@ -1,4 +1,3 @@
-import logging
 from functools import cache
 
 import numpy as np
@@ -305,8 +304,6 @@ class ParticleFilter(SPFFilter):
         self.particles = create_gaussian_particles_xy(
             mean, std, N, generator=self.generator
         )
-        print(f"Particles checksumx: {self.particles.abs().mean()} {mean} {std} {N}")
-        logging.info(f"Particles checksum: {self.particles.abs().mean()}")
         self.weights = torch.ones((N,), dtype=torch.float64) / N
         trajectory = []
         for idx in range(len(self.ds)):

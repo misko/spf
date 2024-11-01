@@ -1,7 +1,6 @@
 from functools import partial
 
 import numpy as np
-import torch
 from filterpy.kalman import ExtendedKalmanFilter
 from matplotlib import pyplot as plt
 

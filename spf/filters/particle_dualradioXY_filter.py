@@ -20,6 +20,10 @@ class PFXYDualRadio(ParticleFilter):
 
         self.generator = torch.Generator()
         self.generator.manual_seed(0)
+        if not self.ds.temp_file:
+            self.all_observations = torch.vstack(
+                [self.ds.mean_phase["r0"], self.ds.mean_phase["r1"]]
+            ).T
 
     def our_state(self, idx):
         return torch.vstack(
@@ -41,6 +45,8 @@ class PFXYDualRadio(ParticleFilter):
         return self.ds.craft_ground_truth_thetas
 
     def observation(self, idx):
+        if not self.ds.temp_file:
+            return self.all_observations[idx]
         return torch.concatenate(
             [
                 self.ds[idx][0]["mean_phase_segmentation"].reshape(1),

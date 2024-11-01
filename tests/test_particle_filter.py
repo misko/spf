@@ -1,13 +1,11 @@
-import pickle
 import random
 import tempfile
 
-import pytest
 import torch
 
 from spf.dataset.fake_dataset import partial_dataset
 from spf.dataset.open_partial_ds import open_partial_dataset_and_check_some
-from spf.dataset.spf_dataset import v5spfdataset
+from spf.dataset.spf_dataset import v5spfdataset, v5spfdataset_manager
 from spf.filters.particle_dualradio_filter import plot_single_theta_dual_radio
 from spf.filters.particle_dualradioXY_filter import plot_xy_dual_radio
 from spf.filters.particle_single_radio_filter import plot_single_theta_single_radio
@@ -20,7 +18,7 @@ from spf.model_training_and_inference.models.particle_filter import (
 
 def test_single_theta_single_radio(noise1_n128_obits2):
     dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
-    ds = v5spfdataset(
+    with v5spfdataset_manager(
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
@@ -29,24 +27,22 @@ def test_single_theta_single_radio(noise1_n128_obits2):
         paired=True,
         ignore_qc=True,
         gpu=False,
-    )
-    args = {
-        "ds_fn": ds_fn,
-        "precompute_fn": dirname,
-        "empirical_pkl_fn": empirical_pkl_fn,
-        "N": 1024 * 4,
-        "theta_err": 0.01,
-        "theta_dot_err": 0.01,
-    }
-    results = run_single_theta_single_radio(**args)
-    for result in results:
-        assert result["metrics"]["mse_single_radio_theta"] < 0.05
-    plot_single_theta_single_radio(ds)
+    ) as ds:
+        args = {
+            "ds": ds,
+            "N": 1024 * 4,
+            "theta_err": 0.01,
+            "theta_dot_err": 0.01,
+        }
+        results = run_single_theta_single_radio(**args)
+        for result in results:
+            assert result["metrics"]["mse_single_radio_theta"] < 0.05
+        plot_single_theta_single_radio(ds)
 
 
 def test_single_theta_dual_radio(noise1_n128_obits2):
     dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
-    ds = v5spfdataset(
+    with v5spfdataset_manager(
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
@@ -55,23 +51,21 @@ def test_single_theta_dual_radio(noise1_n128_obits2):
         paired=True,
         ignore_qc=True,
         gpu=False,
-    )
-    args = {
-        "ds_fn": ds_fn,
-        "precompute_fn": dirname,
-        "empirical_pkl_fn": empirical_pkl_fn,
-        "N": 1024 * 4,
-        "theta_err": 0.01,
-        "theta_dot_err": 0.01,
-    }
-    result = run_single_theta_dual_radio(**args)
-    assert result[0]["metrics"]["mse_craft_theta"] < 0.15
-    plot_single_theta_dual_radio(ds)
+    ) as ds:
+        args = {
+            "ds": ds,
+            "N": 1024 * 4,
+            "theta_err": 0.01,
+            "theta_dot_err": 0.01,
+        }
+        result = run_single_theta_dual_radio(**args)
+        assert result[0]["metrics"]["mse_craft_theta"] < 0.15
+        plot_single_theta_dual_radio(ds)
 
 
 def test_XY_dual_radio(noise1_n128_obits2):
     dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
-    ds = v5spfdataset(
+    with v5spfdataset_manager(
         ds_fn,
         precompute_cache=dirname,
         nthetas=65,
@@ -80,19 +74,17 @@ def test_XY_dual_radio(noise1_n128_obits2):
         paired=True,
         ignore_qc=True,
         gpu=False,
-    )
-    args = {
-        "ds_fn": ds_fn,
-        "precompute_fn": dirname,
-        "empirical_pkl_fn": empirical_pkl_fn,
-        "N": 1024 * 4,
-        "pos_err": 50,
-        "vel_err": 0.1,
-    }
+    ) as ds:
+        args = {
+            "ds": ds,
+            "N": 1024 * 4,
+            "pos_err": 50,
+            "vel_err": 0.1,
+        }
 
-    result = run_xy_dual_radio(**args)
-    assert result[0]["metrics"]["mse_craft_theta"] < 0.25
-    plot_xy_dual_radio(ds)
+        result = run_xy_dual_radio(**args)
+        assert result[0]["metrics"]["mse_craft_theta"] < 0.25
+        plot_xy_dual_radio(ds)
 
 
 def test_partial(noise1_n128_obits2):
@@ -135,7 +127,7 @@ def test_partial(noise1_n128_obits2):
 
 
 def test_partial_script(noise1_n128_obits2):
-    dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
+    _, _, ds_fn = noise1_n128_obits2
     with tempfile.TemporaryDirectory() as tmpdirname:
         ds_fn_out = f"{tmpdirname}/partial"
         for partial_n in [10, 20]:

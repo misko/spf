@@ -1,5 +1,3 @@
-from functools import cache
-
 import torch
 from matplotlib import pyplot as plt
 
@@ -12,18 +10,48 @@ from spf.filters.filters import (
 from spf.rf import torch_pi_norm_pi
 
 
+@torch.jit.script
+def pf_single_theta_dual_radio_update(weights, particles, z, empirical_dist, offsets):
+    z0 = theta_phi_to_p_vec(
+        torch_pi_norm_pi(particles[:, 0] - offsets[0]),
+        z[0],
+        empirical_dist[0],
+    )
+    z1 = theta_phi_to_p_vec(
+        torch_pi_norm_pi(particles[:, 0] - offsets[1]),
+        z[1],
+        empirical_dist[1],
+    )
+    weights = weights * z0 * z1 + 1.0e-30  # avoid round-off to zero
+    return weights / torch.sum(weights)  # normalize
+
+
 class PFSingleThetaDualRadio(ParticleFilter):
     def __init__(self, ds):
         self.ds = ds
-        self.offsets = [
-            ds.yaml_config["receivers"][0]["theta-in-pis"] * torch.pi,
-            ds.yaml_config["receivers"][1]["theta-in-pis"] * torch.pi,
-        ]
+        self.offsets = torch.tensor(
+            [
+                ds.yaml_config["receivers"][0]["theta-in-pis"] * torch.pi,
+                ds.yaml_config["receivers"][1]["theta-in-pis"] * torch.pi,
+            ]
+        )
 
         self.generator = torch.Generator()
         self.generator.manual_seed(0)
+        self.cached_empirical_dist = torch.vstack(
+            [
+                self.ds.get_empirical_dist(0).T.unsqueeze(0),
+                self.ds.get_empirical_dist(1).T.unsqueeze(0),
+            ]
+        )
+        if not self.ds.temp_file:
+            self.all_observations = torch.vstack(
+                [self.ds.mean_phase["r0"], self.ds.mean_phase["r1"]]
+            ).T
 
     def observation(self, idx):
+        if not self.ds.temp_file:
+            return self.all_observations[idx]
         return torch.concatenate(
             [
                 self.ds[idx][0]["mean_phase_segmentation"].reshape(1),
@@ -31,10 +59,6 @@ class PFSingleThetaDualRadio(ParticleFilter):
             ],
             axis=0,
         )
-
-    @cache
-    def cached_empirical_dist(self, rx_idx):
-        return self.ds.get_empirical_dist(rx_idx).T
 
     def fix_particles(self):
         self.particles[:, 0] = torch_pi_norm_pi(self.particles[:, 0])
@@ -46,18 +70,13 @@ class PFSingleThetaDualRadio(ParticleFilter):
         add_noise(self.particles, noise_std=noise_std, generator=self.generator)
 
     def update(self, z):
-        self.weights *= theta_phi_to_p_vec(
-            torch_pi_norm_pi(self.particles[:, 0] - self.offsets[0]),
-            z[0],
-            self.cached_empirical_dist(0),
+        self.weights = pf_single_theta_dual_radio_update(
+            self.weights,
+            self.particles,
+            z,
+            self.cached_empirical_dist,
+            self.offsets,
         )
-        self.weights *= theta_phi_to_p_vec(
-            torch_pi_norm_pi(self.particles[:, 0] - self.offsets[1]),
-            z[1],
-            self.cached_empirical_dist(1),
-        )
-        self.weights += 1.0e-30  # avoid round-off to zero
-        self.weights /= torch.sum(self.weights)  # normalize
 
     def metrics(self, trajectory):
         return dual_radio_mse_theta_metrics(
