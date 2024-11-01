@@ -230,15 +230,15 @@ if __name__ == "__main__":
     random.shuffle(jobs_per_ds_fn)
 
     # one job per dataset
-    jobs = [
-        {
-            "ds_fn": ds_fn,
-            "precompute_cache": args.precompute_cache,
-            "empirical_pkl_fn": args.empirical_pkl_fn,
-            "jobs": jobs_per_ds_fn,
-        }
-        for ds_fn in args.datasets
-    ]
+    # jobs = [
+    #     {
+    #         "ds_fn": ds_fn,
+    #         "precompute_cache": args.precompute_cache,
+    #         "empirical_pkl_fn": args.empirical_pkl_fn,
+    #         "jobs": jobs_per_ds_fn,
+    #     }
+    #     for ds_fn in args.datasets
+    # ]
 
     jobs = []
     for ds_fn in args.datasets:
