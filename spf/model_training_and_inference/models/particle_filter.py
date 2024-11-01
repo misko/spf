@@ -188,31 +188,31 @@ if __name__ == "__main__":
 
     jobs_per_ds_fn = []
 
-    # for N in [128, 128 * 4, 128 * 8, 128 * 16]:
-    #     for theta_err in [0.1, 0.01, 0.001, 0.2]:
-    #         for theta_dot_err in [0.001, 0.0001, 0.01, 0.1]:
-    #             jobs_per_ds_fn.append(
-    #                 (
-    #                     run_single_theta_single_radio,
-    #                     {
-    #                         "N": N,
-    #                         "theta_err": theta_err,
-    #                         "theta_dot_err": theta_dot_err,
-    #                     },
-    #                 )
-    #             )
-    #     for theta_err in [0.1, 0.01, 0.001, 0.2]:
-    #         for theta_dot_err in [0.001, 0.0001, 0.01, 0.1]:
-    #             jobs_per_ds_fn.append(
-    #                 (
-    #                     run_single_theta_dual_radio,
-    #                     {
-    #                         "N": N,
-    #                         "theta_err": theta_err,
-    #                         "theta_dot_err": theta_dot_err,
-    #                     },
-    #                 )
-    #             )
+    for N in [128, 128 * 4, 128 * 8, 128 * 16]:
+        for theta_err in [0.1, 0.01, 0.001, 0.2]:
+            for theta_dot_err in [0.001, 0.0001, 0.01, 0.1]:
+                jobs_per_ds_fn.append(
+                    (
+                        run_single_theta_single_radio,
+                        {
+                            "N": N,
+                            "theta_err": theta_err,
+                            "theta_dot_err": theta_dot_err,
+                        },
+                    )
+                )
+        for theta_err in [0.1, 0.01, 0.001, 0.2]:
+            for theta_dot_err in [0.001, 0.0001, 0.01, 0.1]:
+                jobs_per_ds_fn.append(
+                    (
+                        run_single_theta_dual_radio,
+                        {
+                            "N": N,
+                            "theta_err": theta_err,
+                            "theta_dot_err": theta_dot_err,
+                        },
+                    )
+                )
     for N in [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32]:
         for pos_err in [1000, 100, 50, 30, 15, 5, 0.5]:
             for vel_err in [50, 5, 0.5, 0.05, 0.01, 0.001]:
@@ -267,6 +267,7 @@ if __name__ == "__main__":
                     total=len(jobs),
                 )
             )
+    breakpoint()
     pickle.dump(results, open(args.output, "wb"))
 
     # run_single_theta_single_radio()
