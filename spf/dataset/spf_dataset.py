@@ -619,11 +619,9 @@ class v5spfdataset(Dataset):
 
         self.receiver_idxs_expanded = {}
         for idx in range(self.n_receivers):
-            self.receiver_idxs_expanded[idx] = (
-                torch.tensor(idx, dtype=torch.int32)
-                .expand(1, self.snapshots_per_session)
-                .share_memory_()
-            )
+            self.receiver_idxs_expanded[idx] = torch.tensor(
+                idx, dtype=torch.int32
+            ).expand(1, self.snapshots_per_session)
 
         if not self.temp_file:
             self.get_segmentation()
@@ -728,7 +726,7 @@ class v5spfdataset(Dataset):
                             self.receiver_data[receiver_idx][key][:].astype(
                                 np.float32
                             )  # TODO save as float32?
-                        ).share_memory_()
+                        )
                     else:
                         self.cached_keys[receiver_idx][key][old_n:new_n] = (
                             torch.as_tensor(
@@ -738,11 +736,9 @@ class v5spfdataset(Dataset):
                             )
                         )
             self.valid_entries = valid_entries
-            self.ground_truth_thetas = self.get_ground_truth_thetas().share_memory_()
-            self.ground_truth_phis = self.get_ground_truth_phis().share_memory_()
-            self.craft_ground_truth_thetas = (
-                self.get_craft_ground_truth_thetas().share_memory_()
-            )
+            self.ground_truth_thetas = self.get_ground_truth_thetas()
+            self.ground_truth_phis = self.get_ground_truth_phis()
+            self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
 
             return True
         return False
@@ -785,49 +781,33 @@ class v5spfdataset(Dataset):
 
     def populate_from_precomputed(self, data, receiver_idx, snapshot_idxs):
         if "windowed_beamformer" not in self.skip_fields:
-            data["windowed_beamformer"] = (
-                torch.as_tensor(
-                    self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
-                        snapshot_idxs
-                    ]
-                )
-                .unsqueeze(0)
-                .share_memory_()
-            )
+            data["windowed_beamformer"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
+                    snapshot_idxs
+                ]
+            ).unsqueeze(0)
 
         if "weighted_beamformer" not in self.skip_fields:
-            data["weighted_beamformer"] = (
-                torch.as_tensor(
-                    self.precomputed_zarr[f"r{receiver_idx}/weighted_beamformer"][
-                        snapshot_idxs
-                    ]
-                )
-                .unsqueeze(0)
-                .share_memory_()
-            )
+            data["weighted_beamformer"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/weighted_beamformer"][
+                    snapshot_idxs
+                ]
+            ).unsqueeze(0)
 
         # sessions x 3 x n_windows
         if "all_windows_stats" not in self.skip_fields:
-            data["all_windows_stats"] = (
-                torch.as_tensor(
-                    self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
-                        snapshot_idxs
-                    ]
-                )
-                .unsqueeze(0)
-                .share_memory_()
-            )
+            data["all_windows_stats"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
+                    snapshot_idxs
+                ]
+            ).unsqueeze(0)
 
         if "weighted_windows_stats" not in self.skip_fields:
-            data["weighted_windows_stats"] = (
-                torch.as_tensor(
-                    self.precomputed_zarr[f"r{receiver_idx}/weighted_windows_stats"][
-                        snapshot_idxs
-                    ]
-                )
-                .unsqueeze(0)
-                .share_memory_()
-            )
+            data["weighted_windows_stats"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/weighted_windows_stats"][
+                    snapshot_idxs
+                ]
+            ).unsqueeze(0)
 
         if "downsampled_segmentation_mask" not in self.skip_fields:
             data["downsampled_segmentation_mask"] = (
@@ -838,7 +818,6 @@ class v5spfdataset(Dataset):
                 )
                 .unsqueeze(1)
                 .unsqueeze(0)
-                .share_memory_()
             )
 
         if "simple_segmentations" not in self.skip_fields:

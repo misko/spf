@@ -9,10 +9,10 @@ from spf.dataset.spf_dataset import v5spfdataset, v5spfdataset_manager
 from spf.filters.particle_dualradio_filter import plot_single_theta_dual_radio
 from spf.filters.particle_dualradioXY_filter import plot_xy_dual_radio
 from spf.filters.particle_single_radio_filter import plot_single_theta_single_radio
-from spf.model_training_and_inference.models.particle_filter import (
-    run_single_theta_dual_radio,
-    run_single_theta_single_radio,
-    run_xy_dual_radio,
+from spf.model_training_and_inference.models.run_filters_on_data import (
+    run_PF_single_theta_dual_radio,
+    run_PF_single_theta_single_radio,
+    run_PF_xy_dual_radio,
 )
 
 
@@ -34,7 +34,7 @@ def test_single_theta_single_radio(noise1_n128_obits2):
             "theta_err": 0.01,
             "theta_dot_err": 0.01,
         }
-        results = run_single_theta_single_radio(**args)
+        results = run_PF_single_theta_single_radio(**args)
         for result in results:
             assert result["metrics"]["mse_single_radio_theta"] < 0.05
         plot_single_theta_single_radio(ds)
@@ -58,7 +58,7 @@ def test_single_theta_dual_radio(noise1_n128_obits2):
             "theta_err": 0.01,
             "theta_dot_err": 0.01,
         }
-        result = run_single_theta_dual_radio(**args)
+        result = run_PF_single_theta_dual_radio(**args)
         assert result[0]["metrics"]["mse_craft_theta"] < 0.15
         plot_single_theta_dual_radio(ds)
 
@@ -82,7 +82,7 @@ def test_XY_dual_radio(noise1_n128_obits2):
             "vel_err": 0.1,
         }
 
-        result = run_xy_dual_radio(**args)
+        result = run_PF_xy_dual_radio(**args)
         assert result[0]["metrics"]["mse_craft_theta"] < 0.25
         plot_xy_dual_radio(ds)
 

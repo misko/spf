@@ -1,6 +1,8 @@
+import time
 from functools import partial
 
 import numpy as np
+import torch
 from filterpy.kalman import ExtendedKalmanFilter
 from matplotlib import pyplot as plt
 
@@ -37,6 +39,10 @@ class SPFKalmanFilter(ExtendedKalmanFilter, SPFFilter):
         self.rx_idx = rx_idx
 
         self.dynamic_R = dynamic_R
+        if not self.ds.temp_file:
+            self.all_observations = np.vstack(
+                [self.ds.mean_phase["r0"], self.ds.mean_phase["r1"]]
+            ).T
 
     def R_at_x(self):
         return 2.5 * np.exp(-((abs(pi_norm(self.x[0, 0])) - np.pi / 2) ** 2))
@@ -84,7 +90,15 @@ class SPFKalmanFilter(ExtendedKalmanFilter, SPFFilter):
     """
 
     def observation(self, idx):
-        return self.ds[idx][self.rx_idx]["mean_phase_segmentation"]
+        if not self.ds.temp_file:
+            return self.all_observations[idx, self.rx_idx].reshape(1, 1)
+        return torch.concatenate(
+            [
+                self.ds[idx][0]["mean_phase_segmentation"].reshape(1),
+                self.ds[idx][1]["mean_phase_segmentation"].reshape(1),
+            ],
+            axis=0,
+        )
 
     """
     Given a trajectory compute metrics over it
