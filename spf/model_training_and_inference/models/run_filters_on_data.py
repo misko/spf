@@ -1,6 +1,8 @@
 import argparse
+import os
 import pickle
 import random
+import time
 from multiprocessing import Pool
 
 import torch
@@ -18,8 +20,20 @@ from spf.filters.particle_single_radio_filter import PFSingleThetaSingleRadio
 torch.set_num_threads(1)
 
 
+def args_to_str(args):
+    str = ""
+    for key in sorted(args.keys()):
+        if key != "ds":
+            str += f"_{key}x{args[key]}_"
+    return str
+
+
+def fake_runner(ds, **kwargs):
+    for idx in range(len(ds)):
+        a = ds[idx][0]
+
+
 def run_jobs_with_one_dataset(kwargs):
-    results = []
     with v5spfdataset_manager(
         kwargs["ds_fn"],
         nthetas=65,
@@ -40,20 +54,40 @@ def run_jobs_with_one_dataset(kwargs):
         ),
         empirical_data_fn=kwargs["empirical_pkl_fn"],
     ) as ds:
+        # fake_runner(ds=ds)
+        # return
+        result_fns = []
         for fn, fn_kwargs in kwargs["jobs"]:
-
-            fn_kwargs["ds"] = ds
-            new_results = fn(**fn_kwargs)
-            for result in new_results:
-                result["ds_fn"] = kwargs["ds_fn"]
-            results += new_results
-        return results
+            workdir = fn_kwargs.pop("workdir")
+            result_fn = (
+                workdir
+                + "/fn_"
+                + str(fn.__name__)
+                + "_ds_"
+                + os.path.basename(kwargs["ds_fn"])
+                + "_"
+                + args_to_str(fn_kwargs)
+                + "results.pkl"
+            )
+            if not os.path.exists(result_fn):
+                fn_kwargs["ds"] = ds
+                new_results = fn(**fn_kwargs)
+                for result in new_results:
+                    result["ds_fn"] = kwargs["ds_fn"]
+                pickle.dump(new_results, open(result_fn + ".tmp", "wb"))
+                os.rename(result_fn + ".tmp", result_fn)
+            else:
+                # print("SKIPPING", result_fn)
+                pass
+            result_fns.append(result_fn)
+        return result_fns
 
 
 def run_EKF_single_theta_single_radio(ds, phi_std, p, noise_std, dynamic_R):
-    metrics = []
+    all_metrics = []
 
     for rx_idx in [0, 1]:
+        start_time = time.time()
         ekf = SPFKalmanFilter(
             ds=ds, rx_idx=rx_idx, phi_std=phi_std, p=p, dynamic_R=dynamic_R
         )
@@ -64,18 +98,20 @@ def run_EKF_single_theta_single_radio(ds, phi_std, p, noise_std, dynamic_R):
             debug=False,
         )
 
-        metrics.append(
+        metrics = ekf.metrics(trajectory=trajectory)
+        metrics["runtime"] = time.time() - start_time
+        all_metrics.append(
             {
                 "type": "EKF_single_theta_single_radio",
                 "rx_idx": rx_idx,
                 "phi_std": phi_std,
                 "p": p,
                 "noise_std": noise_std,
-                "dyanmic_R": dynamic_R,
-                "metrics": ekf.metrics(trajectory=trajectory),
+                "dynamic_R": dynamic_R,
+                "metrics": metrics,
             }
         )
-    return metrics
+    return all_metrics
 
 
 def run_EKF_single_theta_dual_radio(
@@ -85,6 +121,7 @@ def run_EKF_single_theta_dual_radio(
     noise_std,
     dynamic_R,
 ):
+    start_time = time.time()
     ekf = SPFPairedKalmanFilter(ds=ds, phi_std=phi_std, p=p, dynamic_R=dynamic_R)
 
     trajectory = ekf.trajectory(
@@ -93,15 +130,16 @@ def run_EKF_single_theta_dual_radio(
         max_iterations=None,
         debug=False,
     )
-
+    metrics = ekf.metrics(trajectory=trajectory)
+    metrics["runtime"] = time.time() - start_time
     return [
         {
             "type": "EKF_single_theta_dual_radio",
             "phi_std": phi_std,
             "p": p,
             "noise_std": noise_std,
-            "dyanmic_R": dynamic_R,
-            "metrics": ekf.metrics(trajectory=trajectory),
+            "dynamic_R": dynamic_R,
+            "metrics": metrics,
         }
     ]
 
@@ -113,6 +151,7 @@ def run_EKF_xy_dual_radio(
     noise_std,
     dynamic_R,
 ):
+    start_time = time.time()
     ekf = SPFPairedXYKalmanFilter(ds=ds, phi_std=phi_std, p=p, dynamic_R=dynamic_R)
 
     trajectory = ekf.trajectory(
@@ -121,15 +160,16 @@ def run_EKF_xy_dual_radio(
         max_iterations=None,
         debug=False,
     )
-
+    metrics = ekf.metrics(trajectory=trajectory)
+    metrics["runtime"] = time.time() - start_time
     return [
         {
             "type": "EKF_XY_dual_radio",
             "phi_std": phi_std,
             "p": p,
             "noise_std": noise_std,
-            "dyanmic_R": dynamic_R,
-            "metrics": ekf.metrics(trajectory=trajectory),
+            "dynamic_R": dynamic_R,
+            "metrics": metrics,
         }
     ]
 
@@ -140,9 +180,11 @@ def run_PF_single_theta_single_radio(
     theta_dot_err=0.001,
     N=128,
 ):
-    metrics = []
+
+    all_metrics = []
 
     for rx_idx in [0, 1]:
+        start_time = time.time()
         pf = PFSingleThetaSingleRadio(ds=ds, rx_idx=rx_idx)
         trajectory = pf.trajectory(
             mean=torch.tensor([[0, 0]]),
@@ -151,21 +193,23 @@ def run_PF_single_theta_single_radio(
             return_particles=False,
             N=N,
         )
-        metrics.append(
+        metrics = pf.metrics(trajectory=trajectory)
+        metrics["runtime"] = time.time() - start_time
+        all_metrics.append(
             {
                 "type": "PF_single_theta_single_radio",
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
                 "theta_dot_err": theta_dot_err,
                 "N": N,
-                "metrics": pf.metrics(trajectory=trajectory),
+                "metrics": metrics,
             }
         )
-    return metrics
+    return all_metrics
 
 
 def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128):
-
+    start_time = time.time()
     pf = PFSingleThetaDualRadio(ds=ds)
     traj_paired = pf.trajectory(
         mean=torch.tensor([[0, 0]]),
@@ -174,20 +218,22 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
         noise_std=torch.tensor([[theta_err, theta_dot_err]]),
         return_particles=False,
     )
-
+    metrics = pf.metrics(trajectory=traj_paired)
+    metrics["runtime"] = time.time() - start_time
     return [
         {
             "type": "PF_single_theta_dual_radio",
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
             "N": N,
-            "metrics": pf.metrics(trajectory=traj_paired),
+            "metrics": metrics,
         }
     ]
 
 
 def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
 
+    start_time = time.time()
     # dual radio dual
     pf = PFXYDualRadio(ds=ds)
     traj_paired = pf.trajectory(
@@ -197,13 +243,15 @@ def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
         return_particles=False,
         noise_std=torch.tensor([[0, pos_err, pos_err, vel_err, vel_err]]),
     )
+    metrics = pf.metrics(trajectory=traj_paired)
+    metrics["runtime"] = time.time() - start_time
     return [
         {
             "type": "PF_xy_dual_radio",
             "vel_err": vel_err,
             "pos_err": pos_err,
             "N": N,
-            "metrics": pf.metrics(trajectory=traj_paired),
+            "metrics": metrics,
         }
     ]
 
@@ -243,7 +291,6 @@ def config_to_job_params(config):
 def config_to_jobs(config):
     jobs = []
     for fn_key, fn_config in config.items():
-        print(fn_key, fn_config)
         fn = fn_key_to_fn[fn_key]
         jobs += [(fn, job_params) for job_params in config_to_job_params(fn_config)]
     return jobs
@@ -295,7 +342,18 @@ if __name__ == "__main__":
             required=False,
         )
         parser.add_argument(
+            "--parallel",
+            type=int,
+            default=30,
+            required=False,
+        )
+        parser.add_argument(
             "--output",
+            type=str,
+            required=True,
+        )
+        parser.add_argument(
+            "--work-dir",
             type=str,
             required=True,
         )
@@ -316,9 +374,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
     random.seed(args.seed)
 
+    try:
+        os.makedirs(args.work_dir)
+    except FileExistsError as e:
+        pass
     yaml_config = yaml.safe_load(open(args.config, "r"))
     jobs_per_ds_fn = config_to_jobs(yaml_config)
 
+    for _, job_params in jobs_per_ds_fn:
+        assert "workdir" not in job_params
+        job_params["workdir"] = args.work_dir
+
+    random.seed(args.seed)
     random.shuffle(jobs_per_ds_fn)
 
     # one job per dataset
@@ -332,15 +399,21 @@ if __name__ == "__main__":
     #     for ds_fn in args.datasets
     # ]
 
+    dataset_fns = sorted(args.datasets)
+
+    random.seed(args.seed)
+    random.shuffle(dataset_fns)
+
     jobs = []
-    for ds_fn in args.datasets:
+    # try to read the same ds back to back so that OS can cache it
+    for ds_fn in dataset_fns:
         for job in jobs_per_ds_fn:
             jobs.append(
                 {
                     "ds_fn": ds_fn,
                     "precompute_cache": args.precompute_cache,
                     "empirical_pkl_fn": args.empirical_pkl_fn,
-                    "jobs": [job],
+                    "jobs": [[job[0], job[1].copy()]],
                 }
             )
 
@@ -352,7 +425,7 @@ if __name__ == "__main__":
             )
         )
     else:
-        with Pool(28) as pool:  # cpu_count())  # cpu_count() // 4)
+        with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
             results = list(
                 tqdm.tqdm(
                     pool.imap(run_jobs_with_one_dataset, jobs),
@@ -360,10 +433,10 @@ if __name__ == "__main__":
                 )
             )
 
-    final_results = []
-    for result in results:
-        final_results += result
-    pickle.dump(results, open(args.output, "wb"))
+    # final_results = []
+    # for result in results:
+    #     final_results += result
+    # pickle.dump(results, open(args.output, "wb"))
 
     # run_single_theta_single_radio()
     # run_single_theta_dual_radio(

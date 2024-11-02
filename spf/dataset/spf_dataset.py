@@ -735,7 +735,22 @@ class v5spfdataset(Dataset):
                                 ].astype(np.float32)
                             )
                         )
+                # optimize rx / tx positions
+                self.cached_keys[receiver_idx]["rx_pos_mm"] = torch.vstack(
+                    [
+                        self.cached_keys[receiver_idx]["rx_pos_x_mm"],
+                        self.cached_keys[receiver_idx]["rx_pos_y_mm"],
+                    ]
+                ).T
+
+                self.cached_keys[receiver_idx]["tx_pos_mm"] = torch.vstack(
+                    [
+                        self.cached_keys[receiver_idx]["tx_pos_x_mm"],
+                        self.cached_keys[receiver_idx]["tx_pos_y_mm"],
+                    ]
+                ).T
             self.valid_entries = valid_entries
+
             self.ground_truth_thetas = self.get_ground_truth_thetas()
             self.ground_truth_phis = self.get_ground_truth_phis()
             self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
@@ -902,6 +917,7 @@ class v5spfdataset(Dataset):
             key: self.get_values_at_key(key, receiver_idx, snapshot_idxs)
             for key in self.keys_per_session  # 'rx_theta_in_pis', 'rx_spacing', 'rx_lo', 'rx_bandwidth', 'avg_phase_diff', 'rssis', 'gains']
         }
+
         data["receiver_idx"] = self.receiver_idxs_expanded[receiver_idx]
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][
             snapshot_idxs
@@ -942,6 +958,7 @@ class v5spfdataset(Dataset):
 
         self.populate_from_precomputed(data, receiver_idx, snapshot_idxs)
         # port this over in on the fly TODO
+
         data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
             snapshot_idxs
         ].unsqueeze(0)
@@ -949,21 +966,12 @@ class v5spfdataset(Dataset):
             data["mean_phase_segmentation"] = -data["mean_phase_segmentation"]
 
         data["rx_pos_xy"] = (
-            torch.vstack(
-                [
-                    self.cached_keys[receiver_idx]["rx_pos_x_mm"][snapshot_idxs],
-                    self.cached_keys[receiver_idx]["rx_pos_y_mm"][snapshot_idxs],
-                ]
-            ).T.unsqueeze(0)
+            self.cached_keys[receiver_idx]["rx_pos_mm"][snapshot_idxs].unsqueeze(0)
             / self.distance_normalization
         )
+
         data["tx_pos_xy"] = (
-            torch.vstack(
-                [
-                    self.cached_keys[receiver_idx]["tx_pos_x_mm"][snapshot_idxs],
-                    self.cached_keys[receiver_idx]["tx_pos_y_mm"][snapshot_idxs],
-                ]
-            ).T.unsqueeze(0)
+            self.cached_keys[receiver_idx]["tx_pos_mm"][snapshot_idxs].unsqueeze(0)
             / self.distance_normalization
         )
 
@@ -1066,18 +1074,8 @@ class v5spfdataset(Dataset):
     def get_ground_truth_thetas(self):
         ground_truth_thetas = []
         for ridx in range(self.n_receivers):
-            tx_pos = torch.vstack(
-                [
-                    self.cached_keys[ridx]["tx_pos_x_mm"],
-                    self.cached_keys[ridx]["tx_pos_y_mm"],
-                ]
-            )
-            rx_pos = torch.vstack(
-                [
-                    self.cached_keys[ridx]["rx_pos_x_mm"],
-                    self.cached_keys[ridx]["rx_pos_y_mm"],
-                ]
-            )
+            tx_pos = self.cached_keys[ridx]["tx_pos_mm"].T
+            rx_pos = self.cached_keys[ridx]["rx_pos_mm"].T
 
             # compute the angle of the tx with respect to rx
             d = tx_pos - rx_pos

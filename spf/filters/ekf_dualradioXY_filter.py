@@ -41,7 +41,7 @@ def Fxy_cached(dt):
 
 
 class SPFPairedXYKalmanFilter(ExtendedKalmanFilter, SPFFilter):
-    def __init__(self, ds, phi_std=0.5, p=5, dynamic_R=False, **kwargs):
+    def __init__(self, ds, phi_std=0.5, p=5, dynamic_R=0.0, **kwargs):
         # state x = [ tx_x, tx_y, dtx_x/dt, dtx_y/dt, rx_x, rx_y] , x,y relative to (0,0) not craft
         super().__init__(dim_x=6, dim_z=2, **kwargs)
         self.R *= phi_std**2
@@ -127,7 +127,7 @@ class SPFPairedXYKalmanFilter(ExtendedKalmanFilter, SPFFilter):
                 radio_array_angle_offsets=self.radio_array_angle_offsets,
             ),
             residual=residual,
-            R=self.R if not self.dynamic_R else r,
+            R=self.R if self.dynamic_R == 0.0 else r * self.dynamic_R,
         )
         self.fix_x()
 

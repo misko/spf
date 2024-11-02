@@ -1,6 +1,8 @@
+import time
 from functools import partial
 
 import numpy as np
+import torch
 from filterpy.kalman import ExtendedKalmanFilter
 from matplotlib import pyplot as plt
 
@@ -17,7 +19,7 @@ from spf.rf import pi_norm
 
 
 class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
-    def __init__(self, ds, phi_std=0.5, p=5, dynamic_R=False, **kwargs):
+    def __init__(self, ds, phi_std=0.5, p=5, dynamic_R=0.0, **kwargs):
         super().__init__(dim_x=2, dim_z=2, **kwargs)
         self.R *= phi_std**2
         self.P *= p  # initialized as identity?
@@ -41,6 +43,11 @@ class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
         self.antenna_spacing_in_wavelengths = antenna_spacing / wavelength
 
         self.dynamic_R = dynamic_R
+
+        if not self.ds.temp_file:
+            self.all_observations = torch.vstack(
+                [self.ds.mean_phase["r0"], self.ds.mean_phase["r1"]]
+            ).T
 
     def R_at_x(self, angle):
         return 2.5 * np.exp(-((abs(pi_norm(angle)) - np.pi / 2) ** 2))
@@ -96,7 +103,7 @@ class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
                 radio_array_angle_offsets=self.radio_array_angle_offsets,
             ),
             residual=residual,
-            R=self.R if not self.dynamic_R else r,
+            R=self.R if self.dynamic_R == 0 else r * self.dynamic_R,
         )
         self.fix_x()
 
@@ -105,6 +112,8 @@ class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
     """
 
     def observation(self, idx):
+        if not self.ds.temp_file:
+            return self.all_observations[idx].reshape(2, 1)
         return np.vstack(
             [
                 self.ds[idx][0]["mean_phase_segmentation"],
@@ -167,6 +176,7 @@ class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
 
             # compute update = likelihood * prior
             observation = self.observation(idx)
+
             self.update(observation=observation)
 
             current_instance = {
@@ -195,7 +205,7 @@ def run_and_plot_dualradio_EKF(ds, trajectory=None):
 
     ax[1].axhline(y=np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
     ax[1].axhline(y=-np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
-    kf = SPFPairedKalmanFilter(ds=ds, phi_std=5.0, p=5, dynamic_R=False)
+    kf = SPFPairedKalmanFilter(ds=ds, phi_std=5.0, p=5, dynamic_R=0.0)
     trajectory = (
         kf.trajectory(max_iterations=None, debug=True)
         if trajectory is None

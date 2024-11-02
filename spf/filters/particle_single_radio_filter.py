@@ -1,5 +1,6 @@
 from functools import cache
 
+import numpy as np
 import torch
 from matplotlib import pyplot as plt
 
@@ -23,9 +24,13 @@ class PFSingleThetaSingleRadio(ParticleFilter):
         self.rx_idx = rx_idx
         self.generator = torch.Generator()
         self.generator.manual_seed(0)
+        if not self.ds.temp_file:
+            self.all_observations = self.ds.mean_phase[f"r{self.rx_idx}"]
 
     def observation(self, idx):
-        return self.ds.mean_phase[f"r{self.rx_idx}"][idx]
+        if not self.ds.temp_file:
+            return self.all_observations[idx]
+        return self.ds[idx][self.rx_idx]["mean_phase_segmentation"]
 
     def fix_particles(self):
         self.particles = fix_particles_single(self.particles)

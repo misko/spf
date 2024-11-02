@@ -19,7 +19,7 @@ from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm_pi
 
 
 class SPFKalmanFilter(ExtendedKalmanFilter, SPFFilter):
-    def __init__(self, ds, rx_idx, phi_std=0.5, p=5, dynamic_R=False, **kwargs):
+    def __init__(self, ds, rx_idx, phi_std=0.5, p=5, dynamic_R=0.0, **kwargs):
         super().__init__(dim_x=2, dim_z=1, **kwargs)
         self.R *= phi_std**2
         self.P *= p  # initialized as identity?
@@ -40,9 +40,7 @@ class SPFKalmanFilter(ExtendedKalmanFilter, SPFFilter):
 
         self.dynamic_R = dynamic_R
         if not self.ds.temp_file:
-            self.all_observations = np.vstack(
-                [self.ds.mean_phase["r0"], self.ds.mean_phase["r1"]]
-            ).T
+            self.all_observations = self.ds.mean_phase[f"r{self.rx_idx}"]
 
     def R_at_x(self):
         return 2.5 * np.exp(-((abs(pi_norm(self.x[0, 0])) - np.pi / 2) ** 2))
@@ -81,7 +79,11 @@ class SPFKalmanFilter(ExtendedKalmanFilter, SPFFilter):
                 antenna_spacing_in_wavelengths=self.antenna_spacing_in_wavelengths,
             ),
             residual=residual,
-            R=self.R if not self.dynamic_R else (np.array([[self.R_at_x()]]) ** 2) * 5,
+            R=(
+                self.R
+                if self.dynamic_R == 0.0
+                else self.dynamic_R * (np.array([[self.R_at_x()]]) ** 2) * 5
+            ),
         )
         self.fix_x()
 
@@ -91,14 +93,8 @@ class SPFKalmanFilter(ExtendedKalmanFilter, SPFFilter):
 
     def observation(self, idx):
         if not self.ds.temp_file:
-            return self.all_observations[idx, self.rx_idx].reshape(1, 1)
-        return torch.concatenate(
-            [
-                self.ds[idx][0]["mean_phase_segmentation"].reshape(1),
-                self.ds[idx][1]["mean_phase_segmentation"].reshape(1),
-            ],
-            axis=0,
-        )
+            return self.all_observations[idx].reshape(1, 1)
+        return self.ds[idx][self.rx_idx]["mean_phase_segmentation"]
 
     """
     Given a trajectory compute metrics over it
@@ -184,7 +180,7 @@ def run_and_plot_single_radio_EKF(ds, trajectories=None):
         ax[1, rx_idx].axhline(y=-np.pi / 2, ls=":", c=(0.7, 0.7, 0.7))
 
         kf = SPFKalmanFilter(
-            ds=ds, rx_idx=rx_idx, phi_std=5.0, p=5, dynamic_R=True
+            ds=ds, rx_idx=rx_idx, phi_std=5.0, p=5, dynamic_R=1.0
         )  # , phi_std=0.5, p=5, **kwargs):
         trajectory = (
             kf.trajectory(max_iterations=None, debug=True)
