@@ -689,10 +689,12 @@ class v5spfdataset(Dataset):
         self.target_dtype = target_dtype
 
         if empirical_data_fn is not None:
+            self.empirical_data_fn = empirical_data_fn
             self.empirical_data = pickle.load(open(empirical_data_fn, "rb"))
             self.empirical_individual_radio = empirical_individual_radio
             self.empirical_symmetry = empirical_symmetry
         else:
+            empirical_data_fn = None
             self.empirical_data = None
         # self.close()
 
