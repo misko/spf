@@ -262,6 +262,8 @@ def single_radio_mse_theta_metrics(trajectory, ground_truth_thetas):
     ground_truth_reduced_theta = torch.as_tensor(
         reduce_theta_to_positive_y(ground_truth_thetas)
     )
+    assert ground_truth_reduced_theta.shape[0] >= pred_theta.shape[0]
+    ground_truth_reduced_theta = ground_truth_reduced_theta[: pred_theta.shape[0]]
     assert pred_theta.ndim == 1 and ground_truth_reduced_theta.ndim == 1
     return {
         "mse_single_radio_theta": (
@@ -298,6 +300,7 @@ class ParticleFilter(SPFFilter):
         return_particles=False,
         debug=False,
         seed=0,
+        steps=None,
     ):
         self.generator = torch.Generator()
         self.generator.manual_seed(seed)
@@ -306,7 +309,7 @@ class ParticleFilter(SPFFilter):
         )
         self.weights = torch.ones((N,), dtype=torch.float64) / N
         trajectory = []
-        for idx in range(len(self.ds)):
+        for idx in range(len(self.ds) if steps == None else min(steps, len(self.ds))):
             self.predict(
                 dt=1.0,
                 noise_std=noise_std,

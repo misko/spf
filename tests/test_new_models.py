@@ -11,6 +11,7 @@ from tqdm import tqdm
 from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
 from spf.model_training_and_inference.models.single_point_networks_inference import (
     convert_datasets_config_to_inference,
+    get_inference_on_ds,
     load_model_and_config_from_config_fn_and_checkpoint,
 )
 from spf.scripts.train_single_point import (
@@ -135,13 +136,17 @@ def dataloader_inference(model, global_config, datasets_config, optim_config):
         for _, val_batch_data in enumerate(tqdm(val_dataloader, leave=False)):
             val_batch_data = val_batch_data.to(optim_config["device"])
             outputs.append(model(val_batch_data))
+    results = {"single": torch.vstack([output["single"] for output in outputs])}
 
-    results = {
-        "single": torch.vstack([output["single"].unsqueeze(0) for output in outputs])
-    }
+    sessions_times_radios, snapshots, ntheta = results["single"].shape
+    sessions = sessions_times_radios // 2
+    radios = 2
+    results["single"] = results["single"].reshape(sessions, radios, snapshots, ntheta)
+
     if "paired" in outputs[0]:
-        results["paired"] = torch.vstack(
-            [output["paired"].unsqueeze(0) for output in outputs]
+        results["paired"] = torch.vstack([output["paired"] for output in outputs])
+        results["paired"] = results["paired"].reshape(
+            sessions, radios, snapshots, ntheta
         )
     return results
 
@@ -166,12 +171,17 @@ def single_example_inference(model, global_config, datasets_config, optim_config
                 optim_config["device"]
             )
             outputs.append(model(single_example))
-    results = {
-        "single": torch.vstack([output["single"].unsqueeze(0) for output in outputs])
-    }
+    results = {"single": torch.vstack([output["single"] for output in outputs])}
+
+    sessions_times_radios, snapshots, ntheta = results["single"].shape
+    sessions = sessions_times_radios // 2
+    radios = 2
+    results["single"] = results["single"].reshape(sessions, radios, snapshots, ntheta)
+
     if "paired" in outputs[0]:
-        results["paired"] = torch.vstack(
-            [output["paired"].unsqueeze(0) for output in outputs]
+        results["paired"] = torch.vstack([output["paired"] for output in outputs])
+        results["paired"] = results["paired"].reshape(
+            sessions, radios, snapshots, ntheta
         )
     return results
 
@@ -180,7 +190,7 @@ def test_inference_single_checkpoint(
     single_net_checkpoint, perfect_circle_dataset_n7_with_empirical
 ):
     single_checkpoints_dir = single_net_checkpoint
-    _, _, zarr_fn = perfect_circle_dataset_n7_with_empirical
+    precompute_cache, _, zarr_fn = perfect_circle_dataset_n7_with_empirical
 
     ds_fn = f"{zarr_fn}.zarr"
     config_fn = f"{single_checkpoints_dir}/config.yml"
@@ -193,23 +203,61 @@ def test_inference_single_checkpoint(
 
     # prepare inference configs
     optim_config = {"device": "cpu", "dtype": torch.float32}
-    global_config = {"nthetas": 65, "n_radios": 2, "seed": 0, "beamformer_input": True}
     datasets_config = convert_datasets_config_to_inference(
-        config["datasets"],
-        ds_fn=ds_fn,
+        config["datasets"], ds_fn=ds_fn, batch_size=3, precompute_cache=precompute_cache
     )
 
     # inference using dataloader
     dataloader_results = dataloader_inference(
-        model, global_config, datasets_config, optim_config
+        model, config["global"], datasets_config, optim_config
     )
 
     # run inference one at a time
     single_example_results = single_example_inference(
-        model, global_config, datasets_config, optim_config
+        model, config["global"], datasets_config, optim_config
     )
 
     assert dataloader_results["single"].isclose(single_example_results["single"]).all()
+
+
+def test_inference_single_checkpoint_against_ds_inference(
+    single_net_checkpoint, perfect_circle_dataset_n7_with_empirical
+):
+    single_checkpoints_dir = single_net_checkpoint
+    precompute_cache, _, zarr_fn = perfect_circle_dataset_n7_with_empirical
+
+    ds_fn = f"{zarr_fn}.zarr"
+    config_fn = f"{single_checkpoints_dir}/config.yml"
+    checkpoint_fn = f"{single_checkpoints_dir}/best.pth"
+
+    # load model and model config
+    model, config = load_model_and_config_from_config_fn_and_checkpoint(
+        config_fn=config_fn, checkpoint_fn=checkpoint_fn
+    )
+
+    # prepare inference configs
+    optim_config = {"device": "cpu", "dtype": torch.float32}
+    datasets_config = convert_datasets_config_to_inference(
+        config["datasets"], ds_fn=ds_fn, batch_size=3, precompute_cache=precompute_cache
+    )
+
+    # run inference one at a time
+    single_example_results = single_example_inference(
+        model, config["global"], datasets_config, optim_config
+    )
+
+    results = get_inference_on_ds(
+        ds_fn,
+        config_fn,
+        checkpoint_fn,
+        inference_cache=None,
+        device="cpu",
+        batch_size=4,
+        workers=0,
+        precompute_cache=None,
+    )
+
+    assert results["single"].isclose(single_example_results["single"]).all()
 
 
 def test_inference_paired_checkpoint(
@@ -219,7 +267,7 @@ def test_inference_paired_checkpoint(
 ):
     # get single checkpoint results
     single_checkpoints_dir = single_net_checkpoint
-    _, _, zarr_fn = perfect_circle_dataset_n7_with_empirical
+    precompute_cache, _, zarr_fn = perfect_circle_dataset_n7_with_empirical
 
     ds_fn = f"{zarr_fn}.zarr"
     single_config_fn = f"{single_checkpoints_dir}/config.yml"
@@ -232,15 +280,16 @@ def test_inference_paired_checkpoint(
 
     # prepare inference configs
     optim_config = {"device": "cpu", "dtype": torch.float32}
-    global_config = {"nthetas": 65, "n_radios": 2, "seed": 0, "beamformer_input": True}
     single_datasets_config = convert_datasets_config_to_inference(
         single_config["datasets"],
         ds_fn=ds_fn,
+        batch_size=3,
+        precompute_cache=precompute_cache,
     )
 
     # inference using dataloader
     dataloader_single_results = dataloader_inference(
-        single_model, global_config, single_datasets_config, optim_config
+        single_model, single_config["global"], single_datasets_config, optim_config
     )
 
     # get paired checkpoint results
@@ -258,16 +307,17 @@ def test_inference_paired_checkpoint(
     paired_datasets_config = convert_datasets_config_to_inference(
         paired_config["datasets"],
         ds_fn=ds_fn,
+        precompute_cache=precompute_cache,
     )
 
     # inference using dataloader
     dataloader_paired_results = dataloader_inference(
-        paired_model, global_config, paired_datasets_config, optim_config
+        paired_model, paired_config["global"], paired_datasets_config, optim_config
     )
 
     # run inference one at a time
     single_example_paired_results = single_example_inference(
-        paired_model, global_config, paired_datasets_config, optim_config
+        paired_model, paired_config["global"], paired_datasets_config, optim_config
     )
 
     assert (

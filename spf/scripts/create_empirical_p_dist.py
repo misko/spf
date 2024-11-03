@@ -4,6 +4,7 @@ import pickle
 
 import numpy as np
 import torch
+import tqdm
 from matplotlib import pyplot as plt
 
 from spf.dataset.spf_dataset import v5spfdataset
