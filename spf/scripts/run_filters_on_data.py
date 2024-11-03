@@ -13,9 +13,11 @@ from spf.dataset.spf_dataset import v5spfdataset_manager
 from spf.filters.ekf_dualradio_filter import SPFPairedKalmanFilter
 from spf.filters.ekf_dualradioXY_filter import SPFPairedXYKalmanFilter
 from spf.filters.ekf_single_radio_filter import SPFKalmanFilter
+from spf.filters.particle_dual_radio_nn_filter import PFSingleThetaDualRadioNN
 from spf.filters.particle_dualradio_filter import PFSingleThetaDualRadio
 from spf.filters.particle_dualradioXY_filter import PFXYDualRadio
 from spf.filters.particle_single_radio_filter import PFSingleThetaSingleRadio
+from spf.filters.particle_single_radio_nn_filter import PFSingleThetaSingleRadioNN
 
 torch.set_num_threads(1)
 
@@ -23,7 +25,11 @@ torch.set_num_threads(1)
 def args_to_str(args):
     str = ""
     for key in sorted(args.keys()):
-        if key != "ds":
+        if "_fn" in key:
+            pass
+        elif "inference_cache" in key:
+            pass
+        elif key != "ds":
             str += f"_{key}x{args[key]}_"
     return str
 
@@ -174,6 +180,50 @@ def run_EKF_xy_dual_radio(
     ]
 
 
+def run_PF_single_theta_single_radio_NN(
+    ds,
+    checkpoint_fn,
+    config_fn,
+    inference_cache,
+    theta_err=0.1,
+    theta_dot_err=0.001,
+    N=128,
+):
+
+    all_metrics = []
+
+    for rx_idx in [0, 1]:
+        start_time = time.time()
+        pf = PFSingleThetaSingleRadioNN(
+            ds,
+            rx_idx,
+            checkpoint_fn,
+            config_fn,
+            inference_cache=inference_cache,
+            device="cpu",
+        )
+        trajectory = pf.trajectory(
+            mean=torch.tensor([[0, 0]]),
+            std=torch.tensor([[2, 0.1]]),
+            noise_std=torch.tensor([[theta_err, theta_dot_err]]),
+            return_particles=False,
+            N=N,
+        )
+        metrics = pf.metrics(trajectory=trajectory)
+        metrics["runtime"] = time.time() - start_time
+        all_metrics.append(
+            {
+                "type": "PF_single_theta_single_radio_NN",
+                "rx_idx": rx_idx,
+                "theta_err": theta_err,
+                "theta_dot_err": theta_dot_err,
+                "N": N,
+                "metrics": metrics,
+            }
+        )
+    return all_metrics
+
+
 def run_PF_single_theta_single_radio(
     ds,
     theta_err=0.1,
@@ -231,6 +281,42 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
     ]
 
 
+def run_PF_single_theta_dual_radio_NN(
+    ds,
+    checkpoint_fn,
+    config_fn,
+    inference_cache,
+    theta_err=0.1,
+    theta_dot_err=0.001,
+    N=128,
+):
+    start_time = time.time()
+    pf = PFSingleThetaDualRadioNN(
+        ds=ds,
+        checkpoint_fn=checkpoint_fn,
+        config_fn=config_fn,
+        inference_cache=inference_cache,
+    )
+    traj_paired = pf.trajectory(
+        mean=torch.tensor([[0, 0]]),
+        N=N,
+        std=torch.tensor([[2, 0.1]]),
+        noise_std=torch.tensor([[theta_err, theta_dot_err]]),
+        return_particles=False,
+    )
+    metrics = pf.metrics(trajectory=traj_paired)
+    metrics["runtime"] = time.time() - start_time
+    return [
+        {
+            "type": "PF_single_theta_dual_radio",
+            "theta_err": theta_err,
+            "theta_dot_err": theta_dot_err,
+            "N": N,
+            "metrics": metrics,
+        }
+    ]
+
+
 def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
 
     start_time = time.time()
@@ -268,6 +354,8 @@ fn_key_to_fn = {
     "run_PF_single_theta_single_radio": run_PF_single_theta_single_radio,
     "run_PF_single_theta_dual_radio": run_PF_single_theta_dual_radio,
     "run_PF_xy_dual_radio": run_PF_xy_dual_radio,
+    "run_PF_single_theta_single_radio_NN": run_PF_single_theta_single_radio_NN,
+    "run_PF_single_theta_dual_radio_NN": run_PF_single_theta_dual_radio_NN,
 }
 
 
@@ -278,7 +366,10 @@ def config_to_job_params(config):
         for job in jobs:
             for value in values:
                 if isinstance(value, str):
-                    value = eval(value)  # TODO this might be dangerous
+                    try:
+                        value = eval(value)  # TODO this might be dangerous
+                    except SyntaxError:
+                        pass
                 d = job.copy()
                 d.update({key: value})
                 new_jobs.append(d)

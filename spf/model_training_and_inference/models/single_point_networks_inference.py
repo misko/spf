@@ -1,9 +1,9 @@
 import hashlib
+import logging
 import os
 
 import numpy as np
 import torch
-from tqdm import tqdm
 
 from spf.scripts.train_single_point import (
     load_checkpoint,
@@ -84,6 +84,7 @@ def get_inference_on_ds(
     precompute_cache=None,
 ):
     if inference_cache is None:
+        logging.debug("Inference cache: Skipping cache because not specified")
         return run_inference_on_ds(
             ds_fn=ds_fn,
             config_fn=config_fn,
@@ -100,9 +101,11 @@ def get_inference_on_ds(
         f"{inference_cache}/{ds_basename}/{checkpoint_checksum}/{config_checksum}.npz"
     )
     if os.path.exists(inference_cache_fn):
+        logging.debug("Inference cache: Using cached results")
         return np.load(inference_cache_fn)
     # run inference
     os.makedirs(os.path.dirname(inference_cache_fn), exist_ok=True)
+    logging.debug("Inference cache: Computing results for cache")
     results = run_inference_on_ds(
         ds_fn=ds_fn,
         config_fn=config_fn,
