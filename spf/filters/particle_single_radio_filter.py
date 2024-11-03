@@ -26,6 +26,7 @@ class PFSingleThetaSingleRadio(ParticleFilter):
         self.generator.manual_seed(0)
         if not self.ds.temp_file:
             self.all_observations = self.ds.mean_phase[f"r{self.rx_idx}"]
+        self.cached_empirical_dist = self.ds.get_empirical_dist(self.rx_idx).T
 
     def observation(self, idx):
         if not self.ds.temp_file:
@@ -42,15 +43,11 @@ class PFSingleThetaSingleRadio(ParticleFilter):
         self.particles[:, 0] += dt * self.particles[:, 1]
         add_noise(self.particles, noise_std=noise_std, generator=self.generator)
 
-    @cache
-    def cached_empirical_dist(self):
-        return self.ds.get_empirical_dist(self.rx_idx).T
-
     def update(self, z):
         self.weights *= theta_phi_to_p_vec(
             self.particles[:, 0],
             z,
-            self.cached_empirical_dist(),
+            self.cached_empirical_dist,
         )
         self.weights += 1.0e-30  # avoid round-off to zero
         self.weights /= torch.sum(self.weights)  # normalize

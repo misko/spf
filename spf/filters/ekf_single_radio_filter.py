@@ -1,8 +1,6 @@
-import time
 from functools import partial
 
 import numpy as np
-import torch
 from filterpy.kalman import ExtendedKalmanFilter
 from matplotlib import pyplot as plt
 
@@ -15,7 +13,7 @@ from spf.filters.filters import (
     single_hjacobian_phi_observation_from_theta_state,
     single_radio_mse_theta_metrics,
 )
-from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm_pi
+from spf.rf import pi_norm, reduce_theta_to_positive_y
 
 
 class SPFKalmanFilter(ExtendedKalmanFilter, SPFFilter):

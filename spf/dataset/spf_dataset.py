@@ -342,7 +342,10 @@ def v5_thetas_to_targets(
     # return torch.nn.functional.normalize(p, p=1, dim=1)
 
 
-def v5_collate_keys_fast(keys: List[str], batch: Dict[str, torch.Tensor]):
+# Batch is a list over items in the batch
+# which contains a list over receivers (2)
+# which is a dictionary of str to tensor
+def v5_collate_keys_fast(keys: List[str], batch: List[List[Dict[str, torch.Tensor]]]):
     d = {}
     for key in keys:
         d[key] = torch.vstack(
@@ -350,7 +353,6 @@ def v5_collate_keys_fast(keys: List[str], batch: Dict[str, torch.Tensor]):
         )
         if key == "windowed_beamformer" or key == "all_windows_stats":
             d[key] = d[key].to(torch.float32)
-
     return TensorDict(d, batch_size=d["y_rad"].shape)
 
 

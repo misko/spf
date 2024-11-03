@@ -56,6 +56,30 @@ def expand_wildcards_and_join(paths):
     return expanded_paths
 
 
+def global_config_to_keys_used(global_config):
+    keys_to_get = [
+        "all_windows_stats",
+        # "rx_pos_xy",
+        # "tx_pos_xy",
+        # "downsampled_segmentation_mask",
+        "rx_spacing",
+        "y_rad",
+        "craft_y_rad",
+        "y_phi",
+        "system_timestamp",
+        "empirical",
+        "y_rad_binned",
+        "craft_y_rad_binned",
+        "weighted_windows_stats",
+        "rx_pos_xy",
+        "tx_pos_xy",
+    ]
+    if global_config["beamformer_input"]:
+        # keys_to_get += ["windowed_beamformer"]
+        keys_to_get += ["weighted_beamformer"]
+    return keys_to_get
+
+
 def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch=0):
     skip_fields = set(["signal_matrix", "simple_segmentations"])
     # if not global_config["beamformer_input"]:
@@ -163,26 +187,8 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             seed=global_config["seed"],
             batch_size=batch_size,
         )
-        keys_to_get = [
-            "all_windows_stats",
-            # "rx_pos_xy",
-            # "tx_pos_xy",
-            # "downsampled_segmentation_mask",
-            "rx_spacing",
-            "y_rad",
-            "craft_y_rad",
-            "y_phi",
-            "system_timestamp",
-            "empirical",
-            "y_rad_binned",
-            "craft_y_rad_binned",
-            "weighted_windows_stats",
-            "rx_pos_xy",
-            "tx_pos_xy",
-        ]
-        if global_config["beamformer_input"]:
-            # keys_to_get += ["windowed_beamformer"]
-            keys_to_get += ["weighted_beamformer"]
+        keys_to_get = global_config_to_keys_used(global_config=global_config)
+
         return {
             # "batch_size": args.batch,
             "num_workers": datasets_config["workers"],
