@@ -25,7 +25,7 @@ from spf.model_training_and_inference.models.single_point_networks import (
     SinglePointWithBeamformer,
     TrajPairedMultiPointWithBeamformer,
 )
-from spf.rf import torch_pi_norm, torch_reduce_theta_to_positive_y
+from spf.rf import torch_pi_norm
 from spf.utils import StatefulBatchsampler
 
 
@@ -64,7 +64,8 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
     # glob.glob('./[0-9].*')
 
     train_dataset_filenames = expand_wildcards_and_join(datasets_config["train_paths"])
-    random.shuffle(train_dataset_filenames)
+    if datasets_config["shuffle"]:
+        random.shuffle(train_dataset_filenames)
 
     if datasets_config.get("train_on_val", False):
         val_paths = train_dataset_filenames
@@ -140,12 +141,15 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
     train_idxs = range(len(train_ds))
     val_idxs = list(range(len(val_ds)))
 
-    random.shuffle(val_idxs)
-    val_idxs = val_idxs[
-        : max(
-            1, int(len(val_idxs) * datasets_config.get("val_subsample_fraction", 1.0))
-        )
-    ]
+    if datasets_config["shuffle"]:
+        random.shuffle(val_idxs)
+    if not datasets_config.get("train_on_val", False):
+        val_idxs = val_idxs[
+            : max(
+                1,
+                int(len(val_idxs) * datasets_config.get("val_subsample_fraction", 1.0)),
+            )
+        ]
 
     train_ds = torch.utils.data.Subset(train_ds, train_idxs)
     val_ds = torch.utils.data.Subset(val_ds, val_idxs)
@@ -272,7 +276,9 @@ def save_model(
         yaml.dump(running_config, outfile)
 
 
-def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
+def load_checkpoint(
+    checkpoint_fn, config, model, optimizer, scheduler, force_load=False
+):
     logging.info(f"Loading checkpoint {checkpoint_fn}")
     checkpoint = torch.load(checkpoint_fn, map_location=torch.device("cpu"))
 
@@ -293,26 +299,37 @@ def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
     # scheduler_being_loaded.load_state_dict(checkpoint["scheduler_state_dict"])
 
     # check if we loading a single network
-    if config["model"].get("load_single", False):
-        logging.info("Loading single_radio_net only")
-        model.single_radio_net.load_state_dict(checkpoint["model_state_dict"])
-        for param in model.single_radio_net.parameters():
-            param.requires_grad = False
-        # model.single_radio_net = FrozenModule(model_being_loaded)
-        return (model, optimizer, scheduler, 0, 0)  # epoch  # step
-    elif config["model"].get("load_paired", False):
-        # check if we loading a paired network
-        logging.info("Loading paired_radio net only")
-        model.multi_radio_net.load_state_dict(checkpoint["model_state_dict"])
-        for param in model.multi_radio_net.parameters():
-            param.requires_grad = False
-        # breakpoint()
-        return (model, optimizer, scheduler, 0, 0)  # epoch  # step
+    if not force_load:
+        if config["model"].get("load_single", False):
+            logging.info("Loading single_radio_net only")
+            model.single_radio_net.load_state_dict(checkpoint["model_state_dict"])
+            for param in model.single_radio_net.parameters():
+                param.requires_grad = False
+            # model.single_radio_net = FrozenModule(model_being_loaded)
+            return (model, optimizer, scheduler, 0, 0)  # epoch  # step
+        elif config["model"].get("load_paired", False):
+            # check if we loading a paired network
+            logging.info("Loading paired_radio net only")
+            model.multi_radio_net.load_state_dict(checkpoint["model_state_dict"])
+            for param in model.multi_radio_net.parameters():
+                param.requires_grad = False
+            # breakpoint()
+            return (model, optimizer, scheduler, 0, 0)  # epoch  # step
 
     # else
+    logging.debug("loading_checkpoint: checkpoint state dict")
+    for key, v in checkpoint["model_state_dict"].items():
+        logging.debug(f"\t{key}\t{v.shape}")
+
+    logging.debug("loading_checkpoint: model state dict")
+    for key, v in model.state_dict().items():
+        logging.debug(f"\t{key}\t{v.shape}")
+
     model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    if optimizer is not None:
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    if scheduler is not None:
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
     return (
         model,
@@ -633,7 +650,7 @@ def train_single_point(args):
     if args.output is None:
         args.output = datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
     try:
-        os.mkdir(args.output)
+        os.makedirs(args.output)
     except FileExistsError:
         pass
 
@@ -677,7 +694,16 @@ def train_single_point(args):
     step = 0
     start_epoch = 0
 
-    if "checkpoint" in config["optim"]:
+    if args.resume_from is not None:
+        m, optimizer, scheduler, start_epoch, step = load_checkpoint(
+            checkpoint_fn=args.resume_from,
+            config=config,
+            model=m,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            force_load=True,
+        )
+    elif "checkpoint" in config["optim"]:
         m, optimizer, scheduler, start_epoch, step = load_checkpoint(
             checkpoint_fn=config["optim"]["checkpoint"],
             config=config,
@@ -892,6 +918,13 @@ def get_parser_filter():
         type=str,
         help="config file",
         required=True,
+    )
+    parser.add_argument(
+        "--resume-from",
+        type=str,
+        help="resume from checkpoint file",
+        default=None,
+        required=False,
     )
     parser.add_argument(
         "-o",

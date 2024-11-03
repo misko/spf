@@ -75,7 +75,7 @@ class SinglePointWithBeamformer(nn.Module):
     def __init__(self, model_config, global_config):
         super().__init__()
         self.prepare_input = PrepareInput(model_config, global_config)
-        self.net = FFNN(
+        self.single_point_with_beamformer_ffnn = FFNN(
             inputs=self.prepare_input.inputs,
             depth=model_config["depth"],  # 4
             hidden=model_config["hidden"],  # 128
@@ -92,7 +92,11 @@ class SinglePointWithBeamformer(nn.Module):
         # first dim odd / even is the radios
         return {
             "single": torch.nn.functional.normalize(
-                self.net(self.prepare_input.prepare_input(batch)).abs(), dim=2, p=1
+                self.single_point_with_beamformer_ffnn(
+                    self.prepare_input.prepare_input(batch)
+                ).abs(),
+                dim=2,
+                p=1,
             )
         }
 
@@ -104,7 +108,7 @@ class PairedSinglePointWithBeamformer(nn.Module):
             model_config["single"], global_config
         )
         self.detach = model_config.get("detach", True)
-        self.net = FFNN(
+        self.paired_single_point_with_beamformer_ffnn = FFNN(
             inputs=global_config["nthetas"] * 2,
             depth=model_config["depth"],  # 4
             hidden=model_config["hidden"],  # 128
@@ -123,7 +127,7 @@ class PairedSinglePointWithBeamformer(nn.Module):
             single_radio_estimates, self.detach
         )
 
-        x = self.net(
+        x = self.paired_single_point_with_beamformer_ffnn(
             torch.concatenate(
                 [single_radio_estimates_input[::2], single_radio_estimates_input[1::2]],
                 dim=2,

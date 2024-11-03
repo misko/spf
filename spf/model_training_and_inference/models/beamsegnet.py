@@ -1,19 +1,11 @@
-import math
 from collections import OrderedDict
 from math import sqrt
 
-import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn.functional import sigmoid
 
 from spf.dataset.spf_dataset import v5_thetas_to_targets
-from spf.rf import (
-    pi_norm,  # torch_circular_mean_weighted,
-    reduce_theta_to_positive_y,
-    torch_circular_mean,
-    torch_pi_norm,
-)
+from spf.rf import reduce_theta_to_positive_y, torch_circular_mean, torch_pi_norm
 
 
 class ConvNet(nn.Module):
@@ -315,10 +307,10 @@ class FFNN(nn.Module):
             net_layout += [nn.Linear(hidden, outputs)]
         else:
             raise ValueError(f"Norm not implemented {norm}")
-        self.net = nn.Sequential(*net_layout)
+        self.ffnn_internal_net = nn.Sequential(*net_layout)
 
     def forward(self, x):
-        return self.net(x)
+        return self.ffnn_internal_net(x)
 
 
 class HalfPiEncoding(nn.Module):
