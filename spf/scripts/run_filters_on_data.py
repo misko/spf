@@ -308,7 +308,7 @@ def run_PF_single_theta_dual_radio_NN(
     metrics["runtime"] = time.time() - start_time
     return [
         {
-            "type": "PF_single_theta_dual_radio",
+            "type": "PF_single_theta_dual_radio_NN",
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
             "N": N,
@@ -379,11 +379,12 @@ def config_to_job_params(config):
     return jobs
 
 
-def config_to_jobs(config):
+def config_to_jobs(list_config):
     jobs = []
-    for fn_key, fn_config in config.items():
-        fn = fn_key_to_fn[fn_key]
-        jobs += [(fn, job_params) for job_params in config_to_job_params(fn_config)]
+    for config in list_config["runs"]:
+        for fn_key, fn_config in config.items():
+            fn = fn_key_to_fn[fn_key]
+            jobs += [(fn, job_params) for job_params in config_to_job_params(fn_config)]
     return jobs
 
 
@@ -478,7 +479,6 @@ if __name__ == "__main__":
 
     random.seed(args.seed)
     random.shuffle(jobs_per_ds_fn)
-
     # one job per dataset
     # jobs = [
     #     {
