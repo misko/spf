@@ -1,5 +1,6 @@
 import argparse
 import glob
+import os
 import pickle
 
 import tqdm
@@ -79,7 +80,11 @@ def write_csv(merged, output_csv_fn):
 
 
 def report_workdir_to_csv(workdir, output_csv_fn):
-    results_fns = glob.glob(f"{workdir}/*.pkl")
+    results_fns = []  # glob.glob(f"{workdir}/*.pkl")
+    for dirpath, dirnames, filenames in os.walk(workdir):
+        for file in filenames:
+            if file.endswith(".pkl"):
+                results_fns.append(os.path.join(dirpath, file))
 
     results = list(
         tqdm.tqdm(

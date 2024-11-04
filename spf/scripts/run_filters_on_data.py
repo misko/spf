@@ -69,12 +69,15 @@ def run_jobs_with_one_dataset(kwargs):
                 workdir
                 + "/fn_"
                 + str(fn.__name__)
+                + "/"
                 + "_ds_"
                 + os.path.basename(kwargs["ds_fn"])
+                + "/"
                 + "_"
                 + args_to_str(fn_kwargs)
                 + "results.pkl"
             )
+            os.makedirs(os.path.dirname(result_fn), exist_ok=True)
             if not os.path.exists(result_fn):
                 fn_kwargs["ds"] = ds
                 new_results = fn(**fn_kwargs)
