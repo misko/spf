@@ -241,7 +241,7 @@ class DataVersionNotImplemented(NotImplementedError):
 
 
 def rx_spacing_to_str(rx_spacing):
-    return f"{rx_spacing:0.6f}"
+    return f"{rx_spacing:0.5f}"
 
 
 def filenames_from_time_in_seconds(

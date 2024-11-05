@@ -62,7 +62,7 @@ def global_config_to_keys_used(global_config):
         # "rx_pos_xy",
         # "tx_pos_xy",
         # "downsampled_segmentation_mask",
-        "rx_spacing",
+        "rx_wavelength_spacing",
         "y_rad",
         "craft_y_rad",
         "y_phi",
@@ -88,12 +88,37 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
     # glob.glob('./[0-9].*')
 
     train_dataset_filenames = expand_wildcards_and_join(datasets_config["train_paths"])
+    val_dataset_filenames = (
+        expand_wildcards_and_join(datasets_config["val_paths"])
+        if "val_paths" in datasets_config
+        else None
+    )
+
     if datasets_config["shuffle"]:
         random.shuffle(train_dataset_filenames)
-
-    if datasets_config.get("train_on_val", False):
+    if (
+        len(train_dataset_filenames) == 1
+        and len(val_dataset_filenames) == 1
+        and train_dataset_filenames[0][-4:] == ".txt"
+        and val_dataset_filenames[0][-4:] == ".txt"
+    ):
+        val_paths = [x.strip() for x in open(val_dataset_filenames[0]).readlines()]
+        train_paths = [x.strip() for x in open(train_dataset_filenames[0]).readlines()]
+        logging.info(
+            f"Using train and val from txt: val_files {len(val_paths)} , train_files {len(train_paths)}"
+        )
+    elif datasets_config.get("train_on_val", False):
         val_paths = train_dataset_filenames
         train_paths = train_dataset_filenames
+        logging.info(
+            f"Using train on val: val_files {len(val_paths)} , train_files {len(train_paths)}"
+        )
+    elif val_dataset_filenames is not None:
+        val_paths = val_dataset_filenames
+        train_paths = train_dataset_filenames
+        logging.info(
+            f"Using val_paths: val_files {len(val_paths)} , train_files {len(train_paths)}"
+        )
     else:
         n_val_files = max(
             1,
@@ -101,6 +126,9 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
         )
         val_paths = train_dataset_filenames[-n_val_files:]
         train_paths = train_dataset_filenames[:-n_val_files]
+        logging.info(
+            f"Using val_holdout: val_files {len(val_paths)} , train_files {len(train_paths)}"
+        )
 
     val_adjacent_stride = datasets_config.get(
         "val_snapshots_adjacent_stride", datasets_config["snapshots_adjacent_stride"]

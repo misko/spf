@@ -59,7 +59,7 @@ class PrepareInput(nn.Module):
                 v[dropout_mask[2]] = 0
             inputs.append(v)
         if self.rx_spacing_input:
-            v = batch["rx_spacing"][..., None] * 50
+            v = batch["rx_wavelength_spacing"][..., None] * 50
             if self.training:
                 v[dropout_mask[3]] = 0
             inputs.append(v)

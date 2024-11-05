@@ -4,7 +4,6 @@ import pickle
 
 import numpy as np
 import torch
-import tqdm
 from matplotlib import pyplot as plt
 
 from spf.dataset.spf_dataset import v5spfdataset
@@ -128,10 +127,17 @@ def create_empirical_p_dist(args):
     datasets_by_spacing = {}
 
     for dataset in datasets:
-        rx_spacing = dataset.cached_keys[0]["rx_spacing"][0].item()
-        assert (dataset.cached_keys[0]["rx_spacing"] == rx_spacing).all()
-        assert (dataset.cached_keys[1]["rx_spacing"] == rx_spacing).all()
-        rx_spacing_str = rx_spacing_to_str(rx_spacing)
+        rx_wavelength_spacing = dataset.cached_keys[0]["rx_wavelength_spacing"][
+            0
+        ].item()
+        print("CREATE", rx_wavelength_spacing)
+        assert (
+            dataset.cached_keys[0]["rx_wavelength_spacing"] == rx_wavelength_spacing
+        ).all()
+        assert (
+            dataset.cached_keys[1]["rx_wavelength_spacing"] == rx_wavelength_spacing
+        ).all()
+        rx_spacing_str = rx_spacing_to_str(rx_wavelength_spacing)
         if rx_spacing_str not in datasets_by_spacing:
             datasets_by_spacing[rx_spacing_str] = []
         datasets_by_spacing[rx_spacing_str].append(dataset)
@@ -143,7 +149,7 @@ def create_empirical_p_dist(args):
         heatmaps[rx_spacing_str] = create_heatmaps_and_plot(
             _datasets,
             args.nbins,
-            save_fig_to=f"{args.output_fig_prefix}_rxspacing{rx_spacing_str}_nbins{args.nbins}.png",
+            save_fig_to=f"{args.output_fig_prefix}_rxwavelengthspacing{rx_spacing_str}_nbins{args.nbins}.png",
         )
 
     pickle.dump(heatmaps, open(args.out, "wb"))

@@ -20,25 +20,25 @@ runs:
     noise_std: [0.1, 0.01, 0.001, 0.0001,0.00001, 0.0005, 0.0002,0.000001]
     dynamic_R: [1.0,0.1]
 - run_PF_single_theta_single_radio:
-    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32]
+    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 512]
     theta_err: [0.1, 0.01, 0.001, 0.0001, 0.2, 0.002,0.0005, 0.05, 0.02, 0.075]
     theta_dot_err: [0.001, 0.0001, 0.01, 0.1,0.2, 0.002, 0.0005]
 - run_PF_single_theta_dual_radio:
-    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32]
+    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 512]
     theta_err: [0.1, 0.01, 0.001,0.0001, 0.2,0.002,0.0005, 0.05, 0.02, 0.075]
     theta_dot_err: [0.001, 0.0001, 0.01, 0.1,0.2, 0.002, 0.0005]
 - run_PF_single_theta_single_radio_NN:
     config_fn: ["/home/mouse9911/gits/spf/nov2_checkpoints/paired_checkpoints_inputdo0p3/config.yml"]
     checkpoint_fn: ["/home/mouse9911/gits/spf/nov2_checkpoints/paired_checkpoints_inputdo0p3/best.pth"]
     inference_cache: ["/mnt/4tb_ssd/inference_cache/"]
-    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32]
+    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 , 128 * 512  ]
     theta_err: [0.1, 0.01, 0.001, 0.0001, 0.2, 0.002,0.0005, 0.05, 0.02, 0.075]
     theta_dot_err: [0.001, 0.0001, 0.01, 0.1,0.2, 0.002, 0.0005]
 - run_PF_single_theta_dual_radio_NN:
     config_fn: ["/home/mouse9911/gits/spf/nov2_checkpoints/paired_checkpoints_inputdo0p3/config.yml"]
     checkpoint_fn: ["/home/mouse9911/gits/spf/nov2_checkpoints/paired_checkpoints_inputdo0p3/best.pth"]
     inference_cache: ["/mnt/4tb_ssd/inference_cache/"]
-    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32]
+    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 , 128 * 512 ]
     theta_err: [0.1, 0.01, 0.001,0.0001, 0.2,0.002,0.0005, 0.05, 0.02, 0.075]
     theta_dot_err: [0.001, 0.0001, 0.01, 0.1,0.2, 0.002, 0.0005]
   

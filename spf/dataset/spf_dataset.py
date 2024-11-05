@@ -562,6 +562,7 @@ class v5spfdataset(Dataset):
             assert self.wavelengths[0] == self.wavelengths[rx_idx]
 
         self.rx_spacing = self.yaml_config["receivers"][0]["antenna-spacing-m"]
+        self.rx_wavelength_spacing = self.rx_spacing / self.wavelengths[0]
 
         self.rx_configs = [
             rx_config_from_receiver_yaml(receiver)
@@ -613,7 +614,9 @@ class v5spfdataset(Dataset):
             for rx_config in self.rx_configs
         ]
 
-        self.keys_per_session = v5rx_f64_keys + v5rx_2xf64_keys
+        self.keys_per_session = (
+            v5rx_f64_keys + v5rx_2xf64_keys + ["rx_wavelength_spacing"]
+        )
         if "signal_matrix" not in self.skip_fields:
             self.keys_per_session.append("signal_matrix")
 
@@ -720,6 +723,8 @@ class v5spfdataset(Dataset):
                 if receiver_idx not in self.cached_keys:
                     self.cached_keys[receiver_idx] = {}
                 for key in self.keys_per_session:
+                    if key == "rx_wavelength_spacing":
+                        continue
                     if key in self.exclude_keys_from_cache:
                         continue
                     # assert key != "signal_matrix"  # its complex shouldnt get converted!
@@ -753,6 +758,11 @@ class v5spfdataset(Dataset):
                         self.cached_keys[receiver_idx]["tx_pos_y_mm"],
                     ]
                 ).T
+
+                self.cached_keys[receiver_idx]["rx_wavelength_spacing"] = (
+                    self.cached_keys[receiver_idx]["rx_spacing"]
+                    / self.wavelengths[receiver_idx]
+                )
             self.valid_entries = valid_entries
 
             self.ground_truth_thetas = self.get_ground_truth_thetas()
@@ -899,7 +909,7 @@ class v5spfdataset(Dataset):
         self,
         receiver_idx,
     ):
-        rx_spacing_str = rx_spacing_to_str(self.rx_spacing)
+        rx_spacing_str = rx_spacing_to_str(self.rx_wavelength_spacing)
         empirical_radio_key = (
             f"r{receiver_idx}" if self.empirical_individual_radio else "r"
         )
@@ -919,7 +929,8 @@ class v5spfdataset(Dataset):
         data = {
             # key: r[key][snapshot_start_idx:snapshot_end_idx]
             key: self.get_values_at_key(key, receiver_idx, snapshot_idxs)
-            for key in self.keys_per_session  # 'rx_theta_in_pis', 'rx_spacing', 'rx_lo', 'rx_bandwidth', 'avg_phase_diff', 'rssis', 'gains']
+            for key in self.keys_per_session
+            # 'rx_theta_in_pis', 'rx_spacing', 'rx_lo', 'rx_bandwidth', 'avg_phase_diff', 'rssis', 'gains']
         }
 
         data["receiver_idx"] = self.receiver_idxs_expanded[receiver_idx]
@@ -1031,10 +1042,9 @@ class v5spfdataset(Dataset):
                     # or maybe this is the order of the receivers 0/1 vs 1/0 on the x-axis
                     # pretty sure this (-) is more about which receiver is closer to x+/ish
                     # a -1 here is the same as -rx_spacing!
-                    * self.cached_keys[ridx]["rx_spacing"]
+                    * self.rx_wavelength_spacing
                     * 2
                     * torch.pi
-                    / self.wavelengths[ridx]
                 )
             )
         return torch.vstack(ground_truth_phis)

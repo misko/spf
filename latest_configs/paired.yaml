@@ -17,7 +17,9 @@ datasets:
   random_snapshot_size: False
   snapshots_stride: 1
   train_paths:
-  - /mnt/4tb_ssd/nosig_data/wallarrayv3_2024*.zarr
+  - /mnt/4tb_ssd/nosig_data/train.txt
+  val_paths:
+  - /mnt/4tb_ssd/nosig_data/val.txt
   val_holdout_fraction: 0.2
   val_subsample_fraction: 0.2
   workers: 20
@@ -55,7 +57,7 @@ model:
     norm: layer
 optim:
   amp: true
-  checkpoint: /home/mouse9911/gits/spf/nov2_checkpoints/single_checkpoints_inputdo0p3/best.pth
+  checkpoint: /home/mouse9911/gits/spf/nov4_checkpoints/single_checkpoints_inputdo0p3/best.pth
   checkpoint_every: 5000
   device: cuda
   direct_loss: false
@@ -64,7 +66,7 @@ optim:
   head_start: 0
   learning_rate: 0.0002
   loss: mse
-  output: /home/mouse9911/gits/spf/nov2_checkpoints/paired_checkpoints_inputdo0p3
+  output: /home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3
   resume_step: 0
   save_on: val_paired_loss
   scheduler_step: 6

@@ -26,6 +26,7 @@ dependencies = [
  "deepdiff",
  "torchvision",
  "lmdb",
+ "pandas",
  "pytest-console-scripts",
  "pre-commit",
  "tensordict",
