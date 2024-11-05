@@ -19,8 +19,6 @@ from spf.filters.particle_dualradioXY_filter import PFXYDualRadio
 from spf.filters.particle_single_radio_filter import PFSingleThetaSingleRadio
 from spf.filters.particle_single_radio_nn_filter import PFSingleThetaSingleRadioNN
 
-torch.set_num_threads(1)
-
 
 def args_to_str(args):
     str = ""
@@ -514,6 +512,7 @@ if __name__ == "__main__":
             )
 
     if args.debug:
+
         results = list(
             tqdm.tqdm(
                 map(run_jobs_with_one_dataset, jobs),
@@ -521,6 +520,7 @@ if __name__ == "__main__":
             )
         )
     else:
+        torch.set_num_threads(1)
         with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
             results = list(
                 tqdm.tqdm(
