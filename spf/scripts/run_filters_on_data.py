@@ -494,6 +494,8 @@ if __name__ == "__main__":
     # ]
 
     dataset_fns = sorted(args.datasets)
+    if len(dataset_fns) == 1 and dataset_fns[0][-4:] == ".txt":
+        dataset_fns = [x.strip() for x in open(dataset_fns[0]).readlines()]
 
     random.seed(args.seed)
     random.shuffle(dataset_fns)
