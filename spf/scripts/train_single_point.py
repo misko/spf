@@ -98,6 +98,7 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
         random.shuffle(train_dataset_filenames)
     if (
         len(train_dataset_filenames) == 1
+        and val_dataset_filenames is not None
         and len(val_dataset_filenames) == 1
         and train_dataset_filenames[0][-4:] == ".txt"
         and val_dataset_filenames[0][-4:] == ".txt"
