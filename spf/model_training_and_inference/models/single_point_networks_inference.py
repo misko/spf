@@ -11,6 +11,7 @@ from spf.scripts.train_single_point import (
     load_dataloaders,
     load_model,
 )
+from spf.utils import get_md5_of_file
 
 
 def load_model_and_config_from_config_fn_and_checkpoint(
@@ -58,21 +59,6 @@ def convert_datasets_config_to_inference(
     return datasets_config
 
 
-def get_md5_of_file(fn, cache_md5=True):
-    if os.path.exists(fn + ".md5"):
-        return open(fn + ".md5", "r").readlines()[0].strip()
-    hash_md5 = hashlib.md5()
-    with open(fn, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-
-    md5 = hash_md5.hexdigest()
-    if cache_md5:
-        with open(fn + ".md5", "w") as f:
-            f.write(md5)
-    return md5
-
-
 def get_inference_on_ds(
     ds_fn,
     config_fn,
@@ -82,8 +68,10 @@ def get_inference_on_ds(
     batch_size=128,
     workers=8,
     precompute_cache=None,
+    crash_if_not_cached=True,
 ):
     if inference_cache is None:
+        assert not crash_if_not_cached
         logging.debug("Inference cache: Skipping cache because not specified")
         return run_inference_on_ds(
             ds_fn=ds_fn,
@@ -94,6 +82,7 @@ def get_inference_on_ds(
             workers=workers,
             precompute_cache=precompute_cache,
         )
+
     config_checksum = get_md5_of_file(config_fn)
     checkpoint_checksum = get_md5_of_file(checkpoint_fn)
     ds_basename = os.path.basename(ds_fn)
@@ -102,8 +91,9 @@ def get_inference_on_ds(
     )
     if os.path.exists(inference_cache_fn):
         logging.debug("Inference cache: Using cached results")
-        return np.load(inference_cache_fn)
+        return {k: v for k, v in np.load(inference_cache_fn).items()}
     # run inference
+    assert not crash_if_not_cached, inference_cache_fn
     os.makedirs(os.path.dirname(inference_cache_fn), exist_ok=True)
     logging.debug("Inference cache: Computing results for cache")
     results = run_inference_on_ds(
@@ -140,7 +130,12 @@ def run_inference_on_ds(
     )
 
     _, val_dataloader = load_dataloaders(
-        datasets_config, optim_config, config["global"], step=0, epoch=0
+        datasets_config=datasets_config,
+        optim_config=optim_config,
+        global_config=config["global"],
+        model_config=config["model"],
+        step=0,
+        epoch=0,
     )
     model.eval()
     outputs = []

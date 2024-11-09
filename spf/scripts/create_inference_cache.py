@@ -59,6 +59,7 @@ if __name__ == "__main__":
         batch_size=64,
         workers=0,
         precompute_cache=args.precompute_cache,
+        crash_if_not_cached=False,
     )
 
     if args.debug:
@@ -69,6 +70,7 @@ if __name__ == "__main__":
             )
         )
     else:
+        # list(map(run_fn, args.datasets))
         with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
             results = list(
                 tqdm.tqdm(
@@ -76,3 +78,4 @@ if __name__ == "__main__":
                     total=len(args.datasets),
                 )
             )
+            # list(pool.imap(run_fn, args.datasets))

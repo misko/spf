@@ -124,10 +124,17 @@ def test_paired_checkpoints_from_single_exist(
     assert os.path.exists(f"{paired_checkpoints_dir}/checkpoint_e1_s10.pth")
 
 
-def dataloader_inference(model, global_config, datasets_config, optim_config):
+def dataloader_inference(
+    model, global_config, datasets_config, optim_config, model_config
+):
 
     _, val_dataloader = load_dataloaders(
-        datasets_config, optim_config, global_config, step=0, epoch=0
+        datasets_config=datasets_config,
+        optim_config=optim_config,
+        global_config=global_config,
+        model_config=model_config,
+        step=0,
+        epoch=0,
     )
 
     model.eval()
@@ -209,7 +216,11 @@ def test_inference_single_checkpoint(
 
     # inference using dataloader
     dataloader_results = dataloader_inference(
-        model, config["global"], datasets_config, optim_config
+        model=model,
+        global_config=config["global"],
+        datasets_config=datasets_config,
+        optim_config=optim_config,
+        model_config=config["model"],
     )
 
     # run inference one at a time
@@ -255,8 +266,8 @@ def test_inference_single_checkpoint_against_ds_inference(
         batch_size=4,
         workers=0,
         precompute_cache=None,
+        crash_if_not_cached=False,
     )
-
     assert results["single"].isclose(single_example_results["single"]).all()
 
 
@@ -289,7 +300,11 @@ def test_inference_paired_checkpoint(
 
     # inference using dataloader
     dataloader_single_results = dataloader_inference(
-        single_model, single_config["global"], single_datasets_config, optim_config
+        model=single_model,
+        global_config=single_config["global"],
+        datasets_config=single_datasets_config,
+        optim_config=optim_config,
+        model_config=single_config["model"],
     )
 
     # get paired checkpoint results
@@ -312,7 +327,11 @@ def test_inference_paired_checkpoint(
 
     # inference using dataloader
     dataloader_paired_results = dataloader_inference(
-        paired_model, paired_config["global"], paired_datasets_config, optim_config
+        model=paired_model,
+        global_config=paired_config["global"],
+        datasets_config=paired_datasets_config,
+        optim_config=optim_config,
+        model_config=paired_config["model"],
     )
 
     # run inference one at a time

@@ -497,12 +497,14 @@ class v5spfdataset(Dataset):
         # 1,5,2,3 when getting 4 snapshots, for adjacent strde=5
         random_adjacent_stride: bool = False,
         distance_normalization: int = 1000,
+        target_ntheta: bool | None = None,
     ):
         self.n_parallel = n_parallel
         self.exclude_keys_from_cache = set(["signal_matrix"])
         self.readahead = readahead
         self.precompute_cache = precompute_cache
         self.nthetas = nthetas
+        self.target_ntheta = self.nthetas if target_ntheta is None else target_ntheta
         self.valid_entries = None
         # self.prefix = prefix
         # print("OPEN", prefix)
@@ -1005,10 +1007,10 @@ class v5spfdataset(Dataset):
             ].unsqueeze(0)
 
         data["y_rad_binned"] = (
-            to_bin(data["y_rad"], self.nthetas).unsqueeze(0).to(torch.long)
+            to_bin(data["y_rad"], self.target_ntheta).unsqueeze(0).to(torch.long)
         )
         data["craft_y_rad_binned"] = (
-            to_bin(data["craft_y_rad"], self.nthetas).unsqueeze(0).to(torch.long)
+            to_bin(data["craft_y_rad"], self.target_ntheta).unsqueeze(0).to(torch.long)
         )
 
         # convert to target dtype on CPU!

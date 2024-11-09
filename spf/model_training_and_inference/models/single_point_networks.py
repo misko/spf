@@ -1,3 +1,5 @@
+import logging
+
 import torch
 from torch import nn
 from torch.nn import LayerNorm, TransformerEncoder, TransformerEncoderLayer
@@ -71,15 +73,26 @@ def sigmoid_dist(x):
     return x / x.sum(dim=-1, keepdim=True)
 
 
+def check_and_load_ntheta(model_config, global_config):
+    if "output_ntheta" not in model_config:
+        logging.warning("output_ntheta is not specified, defaulting to global_config")
+        model_config["output_ntheta"] = global_config["nthetas"]
+
+
+def check_and_load_config(model_config, global_config):
+    check_and_load_ntheta(model_config=model_config, global_config=global_config)
+
+
 class SinglePointWithBeamformer(nn.Module):
     def __init__(self, model_config, global_config):
         super().__init__()
+        check_and_load_config(model_config=model_config, global_config=global_config)
         self.prepare_input = PrepareInput(model_config, global_config)
         self.single_point_with_beamformer_ffnn = FFNN(
             inputs=self.prepare_input.inputs,
             depth=model_config["depth"],  # 4
             hidden=model_config["hidden"],  # 128
-            outputs=global_config["nthetas"],
+            outputs=model_config["output_ntheta"],
             block=model_config["block"],  # True
             norm=model_config["norm"],  # False, [batch,layer]
             act=nn.LeakyReLU,
@@ -104,15 +117,16 @@ class SinglePointWithBeamformer(nn.Module):
 class PairedSinglePointWithBeamformer(nn.Module):
     def __init__(self, model_config, global_config):
         super().__init__()
+        check_and_load_config(model_config=model_config, global_config=global_config)
         self.single_radio_net = SinglePointWithBeamformer(
             model_config["single"], global_config
         )
         self.detach = model_config.get("detach", True)
         self.paired_single_point_with_beamformer_ffnn = FFNN(
-            inputs=global_config["nthetas"] * 2,
+            inputs=model_config["single"]["output_ntheta"] * 2,
             depth=model_config["depth"],  # 4
             hidden=model_config["hidden"],  # 128
-            outputs=global_config["nthetas"],
+            outputs=model_config["output_ntheta"],
             block=model_config["block"],  # True
             norm=model_config["norm"],  # False, [batch,layer]
             act=nn.LeakyReLU,
@@ -155,9 +169,9 @@ def detach_or_not(x, detach):
 
 
 class PairedMultiPointWithBeamformer(nn.Module):
-    def __init__(self, model_config, global_config, ntheta=65):
+    def __init__(self, model_config, global_config):
         super().__init__()
-        self.ntheta = ntheta
+        check_and_load_config(model_config=model_config, global_config=global_config)
         self.multi_radio_net = PairedSinglePointWithBeamformer(
             model_config["paired"], global_config
         )
@@ -166,6 +180,7 @@ class PairedMultiPointWithBeamformer(nn.Module):
         self.d_model = self.transformer_config["d_model"]
         self.skip_connection = self.transformer_config.get("skip_connection", True)
         self.use_xy = model_config.get("use_xy", False)
+        self.output_ntheta = model_config["output_ntheta"]
 
         encoder_layers = TransformerEncoderLayer(
             d_model=self.d_model,
@@ -180,7 +195,7 @@ class PairedMultiPointWithBeamformer(nn.Module):
             self.transformer_config["n_layers"],
             LayerNorm(self.d_model),
         )
-        input_size = self.ntheta + 1
+        input_size = model_config["paired"]["output_ntheta"] + 1
         if self.use_xy:
             input_size += 2
         self.input_net = torch.nn.Sequential(
@@ -193,7 +208,7 @@ class PairedMultiPointWithBeamformer(nn.Module):
         #     NormP1Dim2(),
         # )
         self.output_net = torch.nn.Linear(
-            self.d_model, self.ntheta + 1
+            self.d_model, self.output_ntheta + 1
         )  # output discrete and actual
         self.norm = NormP1Dim2()
         self.input_dropout = torch.nn.Dropout1d(model_config.get("input_dropout", 0.0))
@@ -248,7 +263,7 @@ class PairedMultiPointWithBeamformer(nn.Module):
         full_output = self.output_net(
             self.transformer_encoder(self.input_net(input_with_time))
         )
-        discrete_output = full_output[..., : self.ntheta]
+        discrete_output = full_output[..., : self.output_ntheta]
         direct_output = full_output[..., [-1]]
 
         if self.skip_connection:
@@ -265,9 +280,9 @@ class PairedMultiPointWithBeamformer(nn.Module):
 
 
 class TrajPairedMultiPointWithBeamformer(nn.Module):
-    def __init__(self, model_config, global_config, ntheta=65):
+    def __init__(self, model_config, global_config):
         super().__init__()
-        self.ntheta = ntheta
+        check_and_load_config(model_config=model_config, global_config=global_config)
         self.multi_radio_net = PairedSinglePointWithBeamformer(
             model_config["paired"], global_config
         )
@@ -277,6 +292,7 @@ class TrajPairedMultiPointWithBeamformer(nn.Module):
         self.skip_connection = self.transformer_config.get("skip_connection", False)
         self.use_xy = model_config.get("use_xy", False)
         self.pred_xy = model_config.get("pred_xy", False)
+        self.output_ntheta = model_config["output_ntheta"]
 
         self.latent = model_config["latent"]  # 8
 
@@ -293,7 +309,7 @@ class TrajPairedMultiPointWithBeamformer(nn.Module):
             self.transformer_config["n_layers"],
             LayerNorm(self.d_model),
         )
-        input_size = self.ntheta + 1
+        input_size = model_config["paired"]["output_ntheta"] + 1
         if self.use_xy:
             input_size += 2
         self.input_net = torch.nn.Sequential(
@@ -315,10 +331,10 @@ class TrajPairedMultiPointWithBeamformer(nn.Module):
         if self.use_xy:
             traj_net_input_dim += 2
         self.traj_net = FFNN(
-            traj_net_input_dim,
-            model_config["traj_layers"],
-            model_config["traj_hidden"],
-            self.ntheta + 1 + 2,  # predict tx pos
+            inputs=traj_net_input_dim,
+            depth=model_config["traj_layers"],
+            hidden=model_config["traj_hidden"],
+            outputs=self.output_ntheta + 1 + 2,  # predict tx pos
             block=True,
             bn=True,
             norm="layer",
@@ -385,8 +401,8 @@ class TrajPairedMultiPointWithBeamformer(nn.Module):
 
         traj_output = self.traj_net(trajectories_with_time)
 
-        discrete_output = traj_output[..., : self.ntheta]
-        tx_preds = traj_output[..., self.ntheta : self.ntheta + 2]
+        discrete_output = traj_output[..., : self.output_ntheta]
+        tx_preds = traj_output[..., self.output_ntheta : self.output_ntheta + 2]
         direct_output = traj_output[..., [-1]]
 
         output["multipaired"] = self.norm(discrete_output)  # skip connection for paired

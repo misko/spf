@@ -1,3 +1,4 @@
+import hashlib
 import math
 import os
 import warnings
@@ -242,6 +243,21 @@ class DataVersionNotImplemented(NotImplementedError):
 
 def rx_spacing_to_str(rx_spacing):
     return f"{rx_spacing:0.5f}"
+
+
+def get_md5_of_file(fn, cache_md5=True):
+    if os.path.exists(fn + ".md5"):
+        return open(fn + ".md5", "r").readlines()[0].strip()
+    hash_md5 = hashlib.md5()
+    with open(fn, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+
+    md5 = hash_md5.hexdigest()
+    if cache_md5:
+        with open(fn + ".md5", "w") as f:
+            f.write(md5)
+    return md5
 
 
 def filenames_from_time_in_seconds(

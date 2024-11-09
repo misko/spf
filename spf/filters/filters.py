@@ -310,6 +310,7 @@ class ParticleFilter(SPFFilter):
             mean, std, N, generator=self.generator
         )
         self.weights = torch.ones((N,), dtype=torch.float64) / N
+        # self.weights = torch.ones((N,), dtype=torch.float32) / N
         trajectory = []
         for idx in range(len(self.ds) if steps == None else min(steps, len(self.ds))):
             self.predict(

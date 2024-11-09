@@ -18,13 +18,15 @@ from spf.filters.particle_dualradio_filter import PFSingleThetaDualRadio
 from spf.filters.particle_dualradioXY_filter import PFXYDualRadio
 from spf.filters.particle_single_radio_filter import PFSingleThetaSingleRadio
 from spf.filters.particle_single_radio_nn_filter import PFSingleThetaSingleRadioNN
+from spf.utils import get_md5_of_file
 
 
 def args_to_str(args):
     str = ""
     for key in sorted(args.keys()):
         if "_fn" in key:
-            pass
+            md5 = get_md5_of_file(args[key])
+            str += f"_{key}x{md5}_"
         elif "inference_cache" in key:
             pass
         elif key != "ds":
@@ -220,6 +222,8 @@ def run_PF_single_theta_single_radio_NN(
                 "theta_dot_err": theta_dot_err,
                 "N": N,
                 "metrics": metrics,
+                "checkpoint_fn": checkpoint_fn,
+                "config_fn": config_fn,
             }
         )
     return all_metrics
@@ -314,6 +318,8 @@ def run_PF_single_theta_dual_radio_NN(
             "theta_dot_err": theta_dot_err,
             "N": N,
             "metrics": metrics,
+            "checkpoint_fn": checkpoint_fn,
+            "config_fn": config_fn,
         }
     ]
 

@@ -80,7 +80,9 @@ def global_config_to_keys_used(global_config):
     return keys_to_get
 
 
-def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch=0):
+def load_dataloaders(
+    datasets_config, optim_config, global_config, model_config, step=0, epoch=0
+):
     skip_fields = set(["signal_matrix", "simple_segmentations"])
     # if not global_config["beamformer_input"]:
     skip_fields |= set(["windowed_beamformer"])
@@ -140,6 +142,7 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             prefix,
             precompute_cache=datasets_config["precompute_cache"],
             nthetas=global_config["nthetas"],
+            target_ntheta=model_config["output_ntheta"],
             paired=global_config["n_radios"] > 1,
             ignore_qc=datasets_config["skip_qc"],
             gpu=optim_config["device"] == "cuda",
@@ -162,6 +165,7 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             prefix,
             precompute_cache=datasets_config["precompute_cache"],
             nthetas=global_config["nthetas"],
+            target_ntheta=model_config["output_ntheta"],
             paired=global_config["n_radios"] > 1,
             ignore_qc=datasets_config["skip_qc"],
             gpu=optim_config["device"] == "cuda",
@@ -390,17 +394,24 @@ def load_model(model_config, global_config):
     raise ValueError
 
 
-def uniform_preds(batch):
+def uniform_preds(batch, target_ntheta):
     return (
-        torch.ones(*batch["empirical"].shape, device=batch["empirical"].device)
-        / batch["empirical"].shape[-1]
+        torch.ones(
+            *batch["empirical"].shape[:2],
+            target_ntheta,
+            device=batch["empirical"].device,
+        )
+        / target_ntheta
     )
 
 
-def target_from_scatter(batch, y_rad, y_rad_binned, sigma, k):
+def target_from_scatter(batch, y_rad, y_rad_binned, sigma, k, target_ntheta):
     assert y_rad.max() <= torch.pi and y_rad.min() >= -torch.pi
-    torch.zeros(*batch["empirical"].shape, device=batch["empirical"].device)
-    n = batch["empirical"].shape[-1]
+    torch.zeros(
+        *batch["empirical"].shape[:2], target_ntheta, device=batch["empirical"].device
+    )
+    # n = batch["empirical"].shape[-1]
+    n = target_ntheta
     assert n % 2 == 1
     padding = n  # easier if padding is just n
     # try to deal with the tails of the distribution wrapping around
@@ -417,13 +428,13 @@ def target_from_scatter(batch, y_rad, y_rad_binned, sigma, k):
     return rescaled.reshape(batch, session, 3, n).sum(axis=2)
 
 
-def target_from_scatter_binned(batch, y_rad, y_rad_binned, sigma, k):
+def target_from_scatter_binned(batch, y_rad, y_rad_binned, sigma, k, target_ntheta):
     # if paired:
     #     y_rad_binned = batch["craft_y_rad_binned"][..., None]
     # else:
     #     y_rad_binned = batch["y_rad_binned"][..., None]
     scattered_targets = torch.zeros(
-        *batch["empirical"].shape, device=batch["empirical"].device
+        *batch["empirical"].shape[:2], target_ntheta, device=batch["empirical"].device
     ).scatter(
         2,
         index=y_rad_binned,
@@ -477,7 +488,9 @@ def new_log():
         "epoch": [],
         "data_seen": [],
         "passthrough_loss": [],
-        "uniform_loss": [],
+        "uniform_loss_single": [],
+        "uniform_loss_paired": [],
+        "uniform_loss_multipaired": [],
         "single_loss": [],
         "paired_loss": [],
         "multipaired_loss": [],
@@ -581,9 +594,19 @@ def compute_loss(
             y_rad_binned=batch_data["y_rad_binned"][..., None],
             sigma=datasets_config["sigma"],
             k=datasets_config["scatter_k"],
+            target_ntheta=output["single"].shape[-1],
         )
         loss_d["single_loss"] = loss_fn(output["single"], target)
         loss += loss_d["single_loss"]
+
+        loss_d["uniform_loss_single"] = loss_fn(
+            torch.nn.functional.normalize(
+                torch.ones(output["single"].shape, device=output["single"].device),
+                p=1,
+                dim=2,
+            ),
+            output["single"],
+        )
 
         if plot:
             axs[0, 0].imshow(
@@ -605,10 +628,21 @@ def compute_loss(
             y_rad_binned=batch_data["craft_y_rad_binned"][..., None],
             sigma=datasets_config["sigma"],
             k=datasets_config["scatter_k"],
+            target_ntheta=output["paired"].shape[-1],
         )
     if paired and "paired" in output:
         loss_d["paired_loss"] = loss_fn(output["paired"], paired_target)
         loss += loss_d["paired_loss"]
+
+        loss_d["uniform_loss_paired"] = loss_fn(
+            torch.nn.functional.normalize(
+                torch.ones(output["paired"].shape, device=output["paired"].device),
+                p=1,
+                dim=2,
+            ),
+            output["paired"],
+        )
+
         if plot:
             axs[1, 0].imshow(
                 output["paired"].reshape(n, -1).cpu().detach().numpy()[:show_n],
@@ -626,6 +660,17 @@ def compute_loss(
     if paired and "multipaired" in output:
         loss_d["multipaired_loss"] = loss_fn(output["multipaired"], paired_target)
         loss += loss_d["multipaired_loss"]
+
+        loss_d["uniform_loss_multipaired"] = loss_fn(
+            torch.nn.functional.normalize(
+                torch.ones(
+                    output["multipaired"].shape, device=output["multipaired"].device
+                ),
+                p=1,
+                dim=2,
+            ),
+            output["multipaired"],
+        )
 
         if "multipaired_tx_pos" in output:
             target_tx_pos = (
@@ -752,7 +797,7 @@ def train_single_point(args):
     load_seed(config["global"])
 
     train_dataloader, val_dataloader = load_dataloaders(
-        config["datasets"], config["optim"], config["global"]
+        config["datasets"], config["optim"], config["global"], config["model"]
     )
 
     scaler = torch.GradScaler(
@@ -838,20 +883,18 @@ def train_single_point(args):
                         # val_losses["learning_rate"] = [scheduler.get_last_lr()]
 
                         # TODO refactor
-                        target = target_from_scatter(
-                            val_batch_data,
-                            y_rad=val_batch_data["y_rad"][..., None],
-                            y_rad_binned=val_batch_data["y_rad_binned"][..., None],
-                            sigma=config["datasets"]["sigma"],
-                            k=config["datasets"]["scatter_k"],
-                        )
-                        loss_d["passthrough_loss"] = loss_fn(
-                            val_batch_data["empirical"],
-                            target,
-                        )
-                        loss_d["uniform_loss"] = loss_fn(
-                            uniform_preds(val_batch_data), target
-                        )
+                        # target_empirical = target_from_scatter(
+                        #     val_batch_data,
+                        #     y_rad=val_batch_data["y_rad"][..., None],
+                        #     y_rad_binned=val_batch_data["y_rad_binned"][..., None],
+                        #     sigma=config["datasets"]["sigma"],
+                        #     k=config["datasets"]["scatter_k"],
+                        #     target_ntheta=val_batch_data["empirical"].shape[-1],
+                        # )
+                        # loss_d["passthrough_loss"] = loss_fn(
+                        #     val_batch_data["empirical"],
+                        #     target_empirical,
+                        # )
 
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
