@@ -309,6 +309,7 @@ class ParticleFilter(SPFFilter):
         self.particles = create_gaussian_particles_xy(
             mean, std, N, generator=self.generator
         )
+        self.fix_particles()
         self.weights = torch.ones((N,), dtype=torch.float64) / N
         # self.weights = torch.ones((N,), dtype=torch.float32) / N
         trajectory = []

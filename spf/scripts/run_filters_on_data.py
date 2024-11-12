@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import pickle
 import random
@@ -63,6 +64,7 @@ def run_jobs_with_one_dataset(kwargs):
         # fake_runner(ds=ds)
         # return
         result_fns = []
+        # logging.info(kwargs["jobs"])
         for fn, fn_kwargs in kwargs["jobs"]:
             workdir = fn_kwargs.pop("workdir")
             result_fn = (
@@ -185,8 +187,7 @@ def run_EKF_xy_dual_radio(
 
 def run_PF_single_theta_single_radio_NN(
     ds,
-    checkpoint_fn,
-    config_fn,
+    checkpoint_dir,
     inference_cache,
     theta_err=0.1,
     theta_dot_err=0.001,
@@ -194,7 +195,8 @@ def run_PF_single_theta_single_radio_NN(
 ):
 
     all_metrics = []
-
+    checkpoint_fn = f"{checkpoint_dir}/best.pth"
+    config_fn = f"{checkpoint_dir}/config.yml"
     for rx_idx in [0, 1]:
         start_time = time.time()
         pf = PFSingleThetaSingleRadioNN(
@@ -207,7 +209,7 @@ def run_PF_single_theta_single_radio_NN(
         )
         trajectory = pf.trajectory(
             mean=torch.tensor([[0, 0]]),
-            std=torch.tensor([[2, 0.1]]),
+            std=torch.tensor([[20, 0.1]]),  # 20 should be random enough to loop around
             noise_std=torch.tensor([[theta_err, theta_dot_err]]),
             return_particles=False,
             N=N,
@@ -243,7 +245,7 @@ def run_PF_single_theta_single_radio(
         pf = PFSingleThetaSingleRadio(ds=ds, rx_idx=rx_idx)
         trajectory = pf.trajectory(
             mean=torch.tensor([[0, 0]]),
-            std=torch.tensor([[2, 0.1]]),
+            std=torch.tensor([[20, 0.1]]),  # 20 should be random enough to loop around
             noise_std=torch.tensor([[theta_err, theta_dot_err]]),
             return_particles=False,
             N=N,
@@ -269,7 +271,7 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
     traj_paired = pf.trajectory(
         mean=torch.tensor([[0, 0]]),
         N=N,
-        std=torch.tensor([[2, 0.1]]),
+        std=torch.tensor([[20, 0.1]]),  # 20 should be random enough to loop around
         noise_std=torch.tensor([[theta_err, theta_dot_err]]),
         return_particles=False,
     )
@@ -288,13 +290,14 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
 
 def run_PF_single_theta_dual_radio_NN(
     ds,
-    checkpoint_fn,
-    config_fn,
+    checkpoint_dir,
     inference_cache,
     theta_err=0.1,
     theta_dot_err=0.001,
     N=128,
 ):
+    checkpoint_fn = f"{checkpoint_dir}/best.pth"
+    config_fn = f"{checkpoint_dir}/config.yml"
     start_time = time.time()
     pf = PFSingleThetaDualRadioNN(
         ds=ds,
@@ -305,7 +308,7 @@ def run_PF_single_theta_dual_radio_NN(
     traj_paired = pf.trajectory(
         mean=torch.tensor([[0, 0]]),
         N=N,
-        std=torch.tensor([[2, 0.1]]),
+        std=torch.tensor([[20, 0.1]]),  # 20 should be random enough to loop around
         noise_std=torch.tensor([[theta_err, theta_dot_err]]),
         return_particles=False,
     )
@@ -469,6 +472,11 @@ if __name__ == "__main__":
 
         return parser
 
+    logging.basicConfig(
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        level=os.environ.get("LOGLEVEL", "INFO").upper(),
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     parser = get_parser()
     args = parser.parse_args()
     random.seed(args.seed)
@@ -530,7 +538,7 @@ if __name__ == "__main__":
         with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
             results = list(
                 tqdm.tqdm(
-                    pool.imap(run_jobs_with_one_dataset, jobs),
+                    pool.imap_unordered(run_jobs_with_one_dataset, jobs),
                     total=len(jobs),
                 )
             )

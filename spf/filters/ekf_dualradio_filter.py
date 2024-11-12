@@ -131,7 +131,8 @@ class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
         )
 
     def setup(self, initial_conditions={}):
-        self.x = np.array([[self.ds[0][0]["craft_ground_truth_theta"].item()], [0]])
+        # self.x = np.array([[self.ds[0][0]["craft_ground_truth_theta"].item()], [0]])
+        self.x = np.array([[0.0], [0]])
 
     def posterior_to_mu_var(self, posterior):
         return {"var": None, "mu": None}

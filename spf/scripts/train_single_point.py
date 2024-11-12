@@ -605,7 +605,7 @@ def compute_loss(
                 p=1,
                 dim=2,
             ),
-            output["single"],
+            target,
         )
 
         if plot:
@@ -640,7 +640,7 @@ def compute_loss(
                 p=1,
                 dim=2,
             ),
-            output["paired"],
+            paired_target,
         )
 
         if plot:
@@ -669,7 +669,7 @@ def compute_loss(
                 p=1,
                 dim=2,
             ),
-            output["multipaired"],
+            paired_target,
         )
 
         if "multipaired_tx_pos" in output:

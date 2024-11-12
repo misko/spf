@@ -144,14 +144,17 @@ def run_inference_on_ds(
             val_batch_data = val_batch_data.to(optim_config["device"])
             outputs.append(model(val_batch_data))
     results = {"single": torch.vstack([output["single"] for output in outputs]).cpu()}
-    sessions_times_radios, snapshots, ntheta = results["single"].shape
+    sessions_times_radios, snapshots, single_ntheta = results["single"].shape
     sessions = sessions_times_radios // 2
     radios = 2
-    results["single"] = results["single"].reshape(sessions, radios, snapshots, ntheta)
+    results["single"] = results["single"].reshape(
+        sessions, radios, snapshots, single_ntheta
+    )
 
     if "paired" in outputs[0]:
         results["paired"] = torch.vstack([output["paired"] for output in outputs]).cpu()
+        _, _, paired_ntheta = results["paired"].shape
         results["paired"] = results["paired"].reshape(
-            sessions, radios, snapshots, ntheta
+            sessions, radios, snapshots, paired_ntheta
         )
     return results
