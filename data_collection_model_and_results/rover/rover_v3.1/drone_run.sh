@@ -5,35 +5,39 @@ test -z "$VIRTUAL_ENV" && source ~/spf-virtualenv/bin/activate
 
 rover_id=`cat /home/pi/rover_id`
 
-if [ ! -f "/home/pi/.ssh/config" ]; then
-	cp ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/ssh_config /home/pi/.ssh/config
-fi
+if [ $# -eq 0 ]; then
 
-#check for internet
-sleep 10
-ping -c 1 8.8.8.8
-if [ $? -eq 0 ]; then
-    python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer git
+	if [ ! -f "/home/pi/.ssh/config" ]; then
+		cp ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/ssh_config /home/pi/.ssh/config
+	fi
 
-    echo "checking if updates available"
-    bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/install_deps.sh
-    pushd ${repo_root}
-    current_hash=`git rev-parse --short HEAD`
-    git pull
-    new_hash=`git rev-parse --short HEAD`
-    if [ "${current_hash}" != "${new_hash}" ]; then
-        echo "Detected git update going to try and reboot"
-        echo "waiting for interrupt 15s..."
-        sleep 15
-        sudo cp ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
-        sudo systemctl daemon-reload
-        sudo systemctl enable mavlink_controller.service
-        sudo reboot
-    else
-        echo "no updates (or maybe no internet) detected!"
-    fi
-    pip install -r requirements.txt
-    popd
+	#check for internet
+	sleep 10
+	ping -c 1 8.8.8.8
+	if [ $? -eq 0 ]; then
+	    python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer git
+
+	    echo "checking if updates available"
+	    bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/install_deps.sh
+	    pushd ${repo_root}
+	    current_hash=`git rev-parse --short HEAD`
+	    git pull
+	    new_hash=`git rev-parse --short HEAD`
+	    if [ "${current_hash}" != "${new_hash}" ]; then
+		echo "Detected git update going to try and reboot"
+		echo "waiting for interrupt 15s..."
+		sleep 15
+		sudo cp ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
+		sudo systemctl daemon-reload
+		sudo systemctl enable mavlink_controller.service
+		sudo reboot
+	    else
+		echo "no updates (or maybe no internet) detected!"
+	    fi
+	    #pip install -r requirements.txt
+	    pip install -e ${repo_root} 
+	    popd
+	fi
 fi
 
 # do this a bit later to give them time to boot
@@ -60,16 +64,16 @@ echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_gover
 if [ ${rover_id} -eq 1 ]; then
     routine=bounce
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
-    n=40000
+    n=1000
 elif [ ${rover_id} -eq 2 ]; then
     #config=${repo_root}/spf/rover_configs/rover_emitter_config_pi.yaml 
     config=${repo_root}/spf/rover_configs/rover_single_receiver_config_pi.yaml
     routine=circle
-    n=20000
+    n=2000
 elif [ ${rover_id} -eq 3 ]; then
     routine=center
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
-    n=40000
+    n=1000
 else
     echo Invalid rover_id 
     exit
@@ -78,4 +82,5 @@ fi
 python3 ${repo_root}/spf/mavlink_radio_collection.py \
     -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n $n
 
-#python spf/spf/mavlink_radio_collection.py -c spf/spf/rover_configs/rover_receiver_config_pi.yaml  -m /home/pi/device_mapping -r  bounce -t "RO1" -n 40000 --drone-uri tcp:192.168.1.142:14591
+#python spf/spf/mavlink_radio_collection.py -c spf/spf/rover_configs/rover_receiver_config_pi.yaml  -m /home/pi/device_mapping -r  bounce -t "RO1" -n 40000 --drone-uri tcp:192.168.1.136:14591
+#python spf/spf/mavlink_radio_collection.py -c spf/spf/rover_configs/rover_receiver_config_pi.yaml  -m /home/pi/device_mapping -r  bounce -t "RO3" -n 40 --drone-uri tcp:192.168.1.136:14590 --no-ultrasonic
