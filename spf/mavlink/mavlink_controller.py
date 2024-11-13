@@ -791,7 +791,6 @@ class Drone:
         pass
 
     def handle_RC_CHANNELS(self, msg):
-        # print(msg.to_dict())
         if msg.chan9_raw > 1500:
             subprocess.run(["sudo", "shutdown", "0"])
         if msg.chan10_raw > 1500:  # run compass calibration
