@@ -1,5 +1,8 @@
 import numpy as np
 
+#  long, long
+# san francisco ~ 37 lat, -122 long
+
 crissy_boundary_convex = np.array(
     [
         (-122.4612172, 37.8031271),  # 1

@@ -10,6 +10,7 @@ v5rx_f64_keys = [
     "rx_spacing",
     "rx_lo",
     "rx_bandwidth",
+    "rx_heading",
 ]
 
 

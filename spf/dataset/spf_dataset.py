@@ -733,11 +733,27 @@ class v5spfdataset(Dataset):
                     # print(key, self.receiver_data[receiver_idx][key][:].dtype)
                     # print(key, self.exclude_keys_from_cache)
                     if old_n == 0:
-                        self.cached_keys[receiver_idx][key] = torch.as_tensor(
-                            self.receiver_data[receiver_idx][key][:].astype(
-                                np.float32
-                            )  # TODO save as float32?
-                        )
+                        if key in self.receiver_data[receiver_idx]:
+                            self.cached_keys[receiver_idx][key] = torch.as_tensor(
+                                self.receiver_data[receiver_idx][key][:].astype(
+                                    np.float32
+                                )  # TODO save as float32?
+                            )
+                        else:
+                            if key in ("rx_heading",):
+                                self.cached_keys[receiver_idx][key] = (
+                                    torch.as_tensor(
+                                        self.receiver_data[receiver_idx][
+                                            "system_timestamp"
+                                        ][:].astype(
+                                            np.float32
+                                        )  # TODO save as float32?
+                                    )
+                                    * 0
+                                )
+                            else:
+                                raise ValueError(f"Missing key {key}")
+
                     else:
                         self.cached_keys[receiver_idx][key][old_n:new_n] = (
                             torch.as_tensor(
