@@ -258,6 +258,7 @@ def create_fake_dataset(
                 "avg_phase_diff": torch_get_avg_phase_notrim(signal_matrix),  # , 0.0),
                 "rssis": [0, 0],
                 "gains": [0, 0],
+                "rx_heading": 0,
             }
 
             z = m[f"receivers/r{receiver_idx}"]

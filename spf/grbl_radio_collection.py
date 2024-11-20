@@ -11,7 +11,8 @@ from spf.data_collector import GrblDataCollector, GrblDataCollectorRaw
 from spf.grbl.grbl_interactive import get_default_gm
 from spf.utils import DataVersionNotImplemented, filenames_from_time_in_seconds
 
-if __name__ == "__main__":
+
+def grbl_radio_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c",
@@ -64,8 +65,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--temp", type=str, help="temp dirname", required=False, default="./temp"
     )
-    args = parser.parse_args()
+    return parser
 
+
+def grbl_radio_main(args):
     run_started_at = datetime.now().timestamp()  #
     # read YAML
     with open(args.yaml_config, "r") as stream:
@@ -157,3 +160,9 @@ if __name__ == "__main__":
         logging.info("GRBLRadioCollection: Moving files to final location ...")
         for k in temp_filenames:
             os.rename(temp_filenames[k], final_filenames[k])
+
+
+if __name__ == "__main__":
+    parser = grbl_radio_parser()
+    args = parser.parse_args()
+    grbl_radio_main(args)

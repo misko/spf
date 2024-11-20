@@ -29,6 +29,7 @@ def create_heatmaps_and_plot(dss, bins, save_fig_to=None):
     fig, axs = plt.subplots(2, 3, figsize=(15, 10))
     row_idx = 0
     heatmaps = {"r0": {}, "r1": {}, "r": {}}
+    eps = 1e-10
     for symmetry in [False, True]:
         r0, _, _ = get_heatmap_for_radio(dss, 0, bins)
         r1, _, _ = get_heatmap_for_radio(dss, 1, bins)
@@ -38,9 +39,9 @@ def create_heatmaps_and_plot(dss, bins, save_fig_to=None):
             r1 = apply_symmetry_rules_to_heatmap(r1)
             r = apply_symmetry_rules_to_heatmap(r)
         extent = [-torch.pi, torch.pi, -torch.pi, torch.pi]
-        r0 = r0 / r0.sum(axis=0, keepdims=True)
-        r1 = r1 / r1.sum(axis=0, keepdims=True)
-        r = r / r.sum(axis=0, keepdims=True)
+        r0 = r0 / (r0.sum(axis=0, keepdims=True) + eps)
+        r1 = r1 / (r1.sum(axis=0, keepdims=True) + eps)
+        r = r / (r.sum(axis=0, keepdims=True) + eps)
         heatmaps["r0"]["sym" if symmetry else "nosym"] = torch.tensor(r0.T)
         heatmaps["r1"]["sym" if symmetry else "nosym"] = torch.tensor(r1.T)
         heatmaps["r"]["sym" if symmetry else "nosym"] = torch.tensor(r.T)

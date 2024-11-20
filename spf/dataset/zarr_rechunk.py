@@ -1,7 +1,12 @@
+import argparse
 import os
+import shutil
 import sys
+
 import yaml
 import zarr
+
+from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
 from spf.utils import (
     compare_and_check,
     compare_and_copy,
@@ -10,9 +15,6 @@ from spf.utils import (
     zarr_open_from_lmdb_store,
     zarr_shrink,
 )
-import argparse
-from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
-import shutil
 
 
 def zarr_rechunk(zarr_filename_in, zarr_filename_out, skip_signal_matrix):
@@ -29,7 +31,9 @@ def zarr_rechunk(zarr_filename_in, zarr_filename_out, skip_signal_matrix):
         new_zarr = zarr_open_from_lmdb_store(
             zarr_filename_out, readahead=True, mode="r"
         )
-        if not compare_and_check("", original_zarr, new_zarr):
+        if not compare_and_check(
+            "", original_zarr, new_zarr, skip_signal_matrix=skip_signal_matrix
+        ):
             print(zarr_filename_out, "Output file exists and is not carbon copy!")
             return 1
         else:
