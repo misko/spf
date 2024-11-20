@@ -22,6 +22,7 @@ dependencies = [
  "scipy",
  "zarr",
  "pyadi-iio",
+ "pyproj",
  "compress-pickle",
  "deepdiff",
  "torchvision",
