@@ -69,7 +69,7 @@ elif [ ${rover_id} -eq 2 ]; then
     #config=${repo_root}/spf/rover_configs/rover_emitter_config_pi.yaml 
     config=${repo_root}/spf/rover_configs/rover_single_receiver_config_pi.yaml
     routine=circle
-    n=2000
+    n=1200
 elif [ ${rover_id} -eq 3 ]; then
     routine=center
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
