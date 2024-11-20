@@ -17,6 +17,7 @@ from spf.grbl.grbl_interactive import (
     home_pA,
     home_pB,
 )
+from spf.grbl_radio_collection import grbl_radio_main, grbl_radio_parser
 
 root_dir = os.path.dirname(os.path.dirname(spf.__file__))
 
@@ -160,14 +161,17 @@ def test_grbl_radio_collection_bounce(script_runner):
         ).decode()
 
 
-def test_grbl_radio_collection_bounce(script_runner):
+def test_grbl_radio_collection_bounce_internal():
+    parser = grbl_radio_parser()
     with tempfile.TemporaryDirectory() as tmpdirname:
-        subprocess.check_output(
-            f"python3 {root_dir}/spf/grbl_radio_collection.py "
-            + f"-c {root_dir}/tests/wall_array_v2_external_test_secondspersample.yaml"
-            + f" -r bounce -o {tmpdirname}",
-            timeout=180,
-            shell=True,
-            env=get_env(),
-            stderr=subprocess.STDOUT,
-        ).decode()
+        args = parser.parse_args(
+            args=[
+                "-c",
+                f"{root_dir}/tests/wall_array_v2_external_test_secondspersample.yaml",
+                "-r",
+                "bounce",
+                "-o",
+                f"{tmpdirname}",
+            ]
+        )
+        grbl_radio_main(args)

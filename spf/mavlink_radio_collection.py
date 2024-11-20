@@ -63,20 +63,25 @@ if __name__ == "__main__":
         help="Device mapping file",
         default=None,
         required=True,
-    ),
+    )
     parser.add_argument(
         "-n",
         "--records-per-receiver",
         type=int,
         help="how many records to get per receiver",
         default=None,
-    ),
+    )
     parser.add_argument(
         "-d",
         "--drone-uri",
         type=str,
         default=None,
-    ),
+    )
+    parser.add_argument(
+        "--ultrasonic",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
 
     parser.add_argument("--fake-drone", action=argparse.BooleanOptionalAction)
     parser.add_argument("--exit", action=argparse.BooleanOptionalAction)
@@ -146,7 +151,7 @@ if __name__ == "__main__":
         yaml.dump(yaml_config, outfile, default_flow_style=False)
 
     distance_finder = None
-    if is_pi():
+    if is_pi() and args.ultrasonic:
         distance_finder = DistanceFinderController(
             trigger=yaml_config["distance-finder"]["trigger"],
             echo=yaml_config["distance-finder"]["echo"],

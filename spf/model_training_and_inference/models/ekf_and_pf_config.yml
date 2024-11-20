@@ -1,0 +1,74 @@
+runs:
+- run_EKF_single_theta_single_radio:
+    phi_std: [20, 18,16,10.0, 5.0, 2.5,1.0]
+    p: [10.0, 5.0, 2.5, 1.0,0.5,0.1]
+    noise_std: [0.1, 0.01, 0.001, 0.0001,0.00001,0.0005,0.0002, 0.00002,0.00005]
+    dynamic_R: [0.0]
+- run_EKF_single_theta_single_radio:
+    phi_std: [0.0]
+    p: [10.0, 5.0, 2.5, 1.0,0.5,0.1]
+    noise_std: [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.0005,0.0002, 0.00002,0.00005]
+    dynamic_R: [1.0, 0.1]
+- run_EKF_single_theta_dual_radio:
+    phi_std: [20,18,16, 14,12,10.0,8, 5.0, 2.5,1.0]
+    p: [10.0, 5.0, 2.5, 1.0, 0.5, 0.1]
+    noise_std: [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.0005,0.0002,0.000001, 0.00002,0.00005,0.000002,0.000005]
+    dynamic_R: [0.0]
+- run_EKF_single_theta_dual_radio:
+    phi_std: [0.0]
+    p: [10.0, 5.0, 2.5, 1.0, 0.5, 0.1]
+    noise_std: [0.1, 0.01, 0.001, 0.0001,0.00001, 0.0005, 0.0002,0.000001, 0.00002,0.00005,0.000002,0.000005]
+    dynamic_R: [1.0,0.1]
+- run_PF_single_theta_single_radio:
+    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128*128,128*256]
+    theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]
+    theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
+- run_PF_single_theta_dual_radio:
+    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64,  128*128,128*256]
+    theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]
+    theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
+- run_PF_single_theta_single_radio_NN:
+    checkpoint_dir:
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p5/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p5_from_sigma0p05/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_outputNtheta129/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p01_from_sigma0p05/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p15_from_sigma0p05/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p15_from_sigma0p05_ntheta129/"
+    inference_cache: ["/mnt/4tb_ssd/inference_cache/"]
+    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 ,  128*128  ]
+    theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]
+    theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
+- run_PF_single_theta_dual_radio_NN:
+    checkpoint_dir:
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p5/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p5_from_sigma0p05/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_outputNtheta129/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p01_from_sigma0p05/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p15_from_sigma0p05/"
+      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p15_from_sigma0p05_ntheta129/"
+    inference_cache: ["/mnt/4tb_ssd/inference_cache/"]
+    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 , 128*128,128*256 ]
+    theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]
+    theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
+
+  #run_PF_xy_dual_radio:
+  #  N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32]
+  #  pos_err: [1000, 100, 50, 30, 15, 5, 0.5]
+  #  vel_err: [50, 5, 0.5, 0.05, 0.01, 0.001]
+  
+  
+  #run_EKF_xy_dual_radio:
+  #  phi_std: [10.0, 5.0, 2.5, 1.0]
+  #  p: [10.0, 5.0, 2.5, 1.0]
+  #  noise_std: [20.0, 10.0, 5.0]
+  #  dynamic_R: [0.0]
+  #
+  #run_EKF_xy_dual_radio:
+  #  p: [10.0, 5.0, 2.5, 1.0]
+  #  noise_std: [20.0, 10.0, 5.0]
+  #  dynamic_R: [1.0]

@@ -1,0 +1,85 @@
+
+global:
+  seed: 10
+  nthetas: 65
+  beamformer_input: True #True
+  empirical_input: True
+  phase_input: True #True
+  rx_spacing_input: True #True
+  n_radios: 2
+
+datasets:
+  train_paths: 
+    - /mnt/4tb_ssd/nosig_data/wallarrayv3_2024*.zarr
+  val_holdout_fraction: 0.2
+  val_subsample_fraction: 0.2
+  precompute_cache: /home/mouse9911/precompute_cache_chunk16_sept
+  skip_qc: True
+  snapshots_per_session: 4
+  snapshots_stride: 1
+  snapshots_adjacent_stride: 128
+  random_adjacent_stride: True
+  batch_size: 256
+  shuffle: True
+  workers: 20
+  sigma: 0.25
+  scatter_k: 21
+  flip: False
+  scatter: continuous
+
+  empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl 
+  empirical_individual_radio: False
+  empirical_symmetry: True
+
+
+logger:
+  name: wandb
+  project: 2024_oct12_single_paired_multi
+  log_every: 100
+  plot_every: 15000
+
+model:
+  name: multipairedbeamformer
+  load_paired: True
+  input_dropout: 0.3
+  transformer:
+    d_model: 512
+    n_heads: 8
+    d_hid: 256
+    dropout: 0.0
+    n_layers: 8
+  paired:
+    hidden: 1024
+    depth: 4
+    block: True
+    bn: True
+    norm: layer
+    detach: True
+    dropout: 0.0
+    load_single: True
+    single:
+      hidden: 1024
+      depth: 4
+      block: True
+      bn: True
+      norm: layer
+      detach: True
+      dropout: 0.0
+
+optim:
+  head_start: 0
+  device: cuda
+  dtype: torch.float32
+  resume_step: 0
+  epochs: 2
+  direct_loss: False
+  val_every: 500 
+  learning_rate: 1.0e-4
+  weight_decay: 0.0000000
+  amp: True
+  loss: mse
+  scheduler_step: 20
+  checkpoint_every: 5000
+  output: multipaired_checkpoints
+  save_on: val_multipaired_loss
+  checkpoint: paired_checkpoints/best.pth

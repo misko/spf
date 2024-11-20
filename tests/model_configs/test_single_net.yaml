@@ -13,15 +13,18 @@ datasets:
     - /mnt/4tb_ssd/nosig_data/wallarrayv3_2024*14*07*0*.zarr
   precompute_cache: /home/mouse9911/precompute_cache_chunk16_sept
   skip_qc: True
-  snapshots_per_session: 1
+  train_snapshots_per_session: 1
+  val_snapshots_per_session: 1
   snapshots_stride: 1
   snapshots_adjacent_stride: 1
+  random_snapshot_size: False
   batch_size: 1
   shuffle: True
   workers: 2
   sigma: 0.25
   scatter_k: 21
   flip: True
+  double_flip: False
   scatter: continuous
 
   empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl 

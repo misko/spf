@@ -25,4 +25,7 @@ test_data.txt
 **/*.chkpnt
 **/*.mdb
 **/spf_env
+**/*.pkl
+**/filter_reports
+**/*checkpoints*
 wandb

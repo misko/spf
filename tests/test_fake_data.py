@@ -1,17 +1,11 @@
 import tempfile
 
 import numpy as np
-
-import tempfile
-
 import pytest
-
+import torch
 
 from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
 from spf.dataset.spf_dataset import v5spfdataset
-
-import numpy as np
-
 from spf.utils import identical_datasets
 
 
@@ -79,12 +73,36 @@ def test_fake_data_array_orientation():
     assert np.isclose(ds.ground_truth_phis[0], ds.mean_phase["r0"], atol=0.001).all()
     assert np.isclose(ds.ground_truth_phis[1], ds.mean_phase["r1"], atol=0.001).all()
 
+    # test craft ground truth theta
+    tx_pos = torch.vstack(
+        [
+            torch.tensor([ds[idx][0]["tx_pos_x_mm"], ds[idx][0]["tx_pos_y_mm"]])
+            for idx in range(len(ds))
+        ]
+    )
+    rx_pos = torch.vstack(
+        [
+            torch.tensor([ds[idx][0]["rx_pos_x_mm"], ds[idx][0]["rx_pos_y_mm"]])
+            for idx in range(len(ds))
+        ]
+    )
+    craft_theta = torch.tensor(
+        [torch.tensor(ds[idx][0]["craft_ground_truth_theta"]) for idx in range(len(ds))]
+    )
+    d = tx_pos - rx_pos
+    assert torch.arctan2(d[:, 0], d[:, 1]).isclose(craft_theta, rtol=0.0001).all()
+
 
 def test_identical_datasets():
     with tempfile.TemporaryDirectory() as tmpdirname:
         dsA_fn = f"{tmpdirname}/test_circleA"
         create_fake_dataset(
-            filename=dsA_fn, yaml_config_str=fake_yaml, n=5, noise=0.0, phi_drift=0.0
+            filename=dsA_fn,
+            yaml_config_str=fake_yaml,
+            n=5,
+            noise=0.0,
+            phi_drift=0.0,
+            seed=0,
         )
         dsB_fn = f"{tmpdirname}/test_circleB"
         create_fake_dataset(
@@ -102,6 +120,7 @@ def test_identical_datasets():
             n=5,
             noise=0.0,
             phi_drift=0.0,
+            seed=20,
         )
 
         dsA = v5spfdataset(

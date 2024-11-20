@@ -37,6 +37,7 @@ class DataSnapshotRaw:
     rx_lo: float
     rx_bandwidth: float
     avg_phase_diff: float
+    rx_heading: float = 0.0  # wall array did not originally have this
 
 
 @dataclass
@@ -44,7 +45,6 @@ class DataSnapshotV4(DataSnapshotRaw):
     gps_timestamp: Optional[float] = None
     gps_lat: Optional[float] = None
     gps_long: Optional[float] = None
-    heading: Optional[float] = None
 
 
 @dataclass

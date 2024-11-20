@@ -479,9 +479,14 @@ class Drone:
         # drone is now ready
         # point is long, lat
         yp = self.planner.yield_points()
+        point = None
         while True:
-            point = next(yp)
-            self.move_to_point(point)
+            next_point = next(yp)
+            if point is not None and np.isclose(next_point, point).all():
+                time.sleep(0.2)
+            else:
+                point = next_point
+                self.move_to_point(point)
             self.planner_started_moving = True
             # time.sleep(2)
 
@@ -791,7 +796,6 @@ class Drone:
         pass
 
     def handle_RC_CHANNELS(self, msg):
-        # print(msg.to_dict())
         if msg.chan9_raw > 1500:
             subprocess.run(["sudo", "shutdown", "0"])
         if msg.chan10_raw > 1500:  # run compass calibration

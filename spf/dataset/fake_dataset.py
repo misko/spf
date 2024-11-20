@@ -1,15 +1,16 @@
 import argparse
 import os
+import random
 import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
-import random
+import zarr
+
 from spf.data_collector import rx_config_from_receiver_yaml
 from spf.dataset.spf_dataset import pi_norm
-import zarr
 
 # V5 data format
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
@@ -23,6 +24,10 @@ from spf.rf import (
     torch_get_avg_phase_notrim,
     torch_pi_norm_pi,
 )
+from spf.scripts.create_empirical_p_dist import (
+    create_empirical_p_dist,
+    get_empirical_p_dist_parser,
+)
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
 from spf.utils import (
     random_signal_matrix,
@@ -34,10 +39,16 @@ from spf.utils import (
 
 @torch.jit.script
 def phi_to_signal_matrix(
-    phi: torch.Tensor, buffer_size: int, noise: float, phi_drift: float
+    phi: torch.Tensor,
+    buffer_size: int,
+    noise: float,
+    phi_drift: float,
+    generator: torch.Generator,
 ):
     big_phi = phi.repeat(buffer_size).reshape(1, -1)
-    big_phi_with_noise = big_phi + torch.randn((1, buffer_size)) * noise
+    big_phi_with_noise = (
+        big_phi + torch.randn((1, buffer_size), generator=generator) * noise
+    )
     offsets = torch.zeros(big_phi.shape, dtype=torch.complex64)
     return (
         torch.vstack(
@@ -117,6 +128,32 @@ seconds-per-sample: 5.0
 """
 
 
+def create_empirical_dist_for_datasets(datasets, precompute_cache, nthetas):
+
+    parser = get_empirical_p_dist_parser()
+
+    empirical_pkl_fn = precompute_cache + "/full.pkl"
+
+    args = parser.parse_args(
+        [
+            "--out",
+            empirical_pkl_fn,
+            "--nbins",
+            f"{nthetas}",
+            "--nthetas",
+            f"{nthetas}",
+            "--precompute-cache",
+            precompute_cache,
+            "--device",
+            "cpu",
+            "-d",
+        ]
+        + datasets
+    )
+    create_empirical_p_dist(args)
+    return empirical_pkl_fn
+
+
 def create_fake_dataset(
     yaml_config_str,
     filename,
@@ -129,6 +166,9 @@ def create_fake_dataset(
 ):
     random.seed(seed)
     np.random.seed(seed)
+
+    torch_generator = torch.Generator()
+    torch_generator.manual_seed(seed)
     yaml_fn = f"{filename}.yaml"
     zarr_fn = f"{filename}.zar"
     seg_fn = f"{filename}_segmentation.pkl"
@@ -171,7 +211,7 @@ def create_fake_dataset(
         v = torch.arcsin(_lambda * phi / (antenna_spacing_m * 2 * torch.pi))
         return v, torch.pi - v
 
-    rnd_noise = torch.randn(thetas.shape[0])
+    rnd_noise = torch.randn(thetas.shape[0], generator=torch_generator)
 
     # signal_matrix = np.vstack([np.exp(1j * phis), np.ones(phis.shape)])
 
@@ -189,10 +229,11 @@ def create_fake_dataset(
                 rx_config.buffer_size,
                 noise,
                 phi_drift * torch.pi * (1 if receiver_idx == 0 else -1),
+                generator=torch_generator,
             )
 
             noise_matrix = torch_random_signal_matrix(
-                signal_matrix.reshape(-1).shape[0]
+                signal_matrix.reshape(-1).shape[0], generator=torch_generator
             ).reshape(signal_matrix.shape)
             # add stripes
             window_size = 2048 * 4
@@ -217,6 +258,7 @@ def create_fake_dataset(
                 "avg_phase_diff": torch_get_avg_phase_notrim(signal_matrix),  # , 0.0),
                 "rssis": [0, 0],
                 "gains": [0, 0],
+                "rx_heading": 0,
             }
 
             z = m[f"receivers/r{receiver_idx}"]

@@ -1,3 +1,4 @@
+import hashlib
 import math
 import os
 import warnings
@@ -42,10 +43,10 @@ def random_signal_matrix(n, rng=None):
 
 
 @torch.jit.script
-def torch_random_signal_matrix(n: int):
-    return (torch.rand((n,), dtype=torch.float32) - 0.5) * 2 + 1.0j * (
-        torch.rand((n,), dtype=torch.float32) - 0.5
-    )
+def torch_random_signal_matrix(n: int, generator: torch.Generator):
+    return (
+        torch.rand((n,), dtype=torch.float32, generator=generator) - 0.5
+    ) * 2 + 1.0j * (torch.rand((n,), dtype=torch.float32, generator=generator) - 0.5)
 
 
 def zarr_remove_if_exists(zarr_fn):
@@ -241,7 +242,22 @@ class DataVersionNotImplemented(NotImplementedError):
 
 
 def rx_spacing_to_str(rx_spacing):
-    return f"{rx_spacing:0.6f}"
+    return f"{rx_spacing:0.5f}"
+
+
+def get_md5_of_file(fn, cache_md5=True):
+    if os.path.exists(fn + ".md5"):
+        return open(fn + ".md5", "r").readlines()[0].strip()
+    hash_md5 = hashlib.md5()
+    with open(fn, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+
+    md5 = hash_md5.hexdigest()
+    if cache_md5:
+        with open(fn + ".md5", "w") as f:
+            f.write(md5)
+    return md5
 
 
 def filenames_from_time_in_seconds(

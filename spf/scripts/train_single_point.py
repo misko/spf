@@ -3,6 +3,7 @@ import copy
 import datetime
 import glob
 import logging
+import math
 import os
 import random
 from functools import partial
@@ -24,7 +25,7 @@ from spf.model_training_and_inference.models.single_point_networks import (
     SinglePointWithBeamformer,
     TrajPairedMultiPointWithBeamformer,
 )
-from spf.rf import torch_pi_norm, torch_reduce_theta_to_positive_y
+from spf.rf import torch_pi_norm
 from spf.utils import StatefulBatchsampler
 
 
@@ -55,7 +56,33 @@ def expand_wildcards_and_join(paths):
     return expanded_paths
 
 
-def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch=0):
+def global_config_to_keys_used(global_config):
+    keys_to_get = [
+        "all_windows_stats",
+        # "rx_pos_xy",
+        # "tx_pos_xy",
+        # "downsampled_segmentation_mask",
+        "rx_wavelength_spacing",
+        "y_rad",
+        "craft_y_rad",
+        "y_phi",
+        "system_timestamp",
+        "empirical",
+        "y_rad_binned",
+        "craft_y_rad_binned",
+        "weighted_windows_stats",
+        "rx_pos_xy",
+        "tx_pos_xy",
+    ]
+    if global_config["beamformer_input"]:
+        # keys_to_get += ["windowed_beamformer"]
+        keys_to_get += ["weighted_beamformer"]
+    return keys_to_get
+
+
+def load_dataloaders(
+    datasets_config, optim_config, global_config, model_config, step=0, epoch=0
+):
     skip_fields = set(["signal_matrix", "simple_segmentations"])
     # if not global_config["beamformer_input"]:
     skip_fields |= set(["windowed_beamformer"])
@@ -63,11 +90,38 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
     # glob.glob('./[0-9].*')
 
     train_dataset_filenames = expand_wildcards_and_join(datasets_config["train_paths"])
-    random.shuffle(train_dataset_filenames)
+    val_dataset_filenames = (
+        expand_wildcards_and_join(datasets_config["val_paths"])
+        if "val_paths" in datasets_config
+        else None
+    )
 
-    if datasets_config.get("train_on_val", False):
+    if datasets_config["shuffle"]:
+        random.shuffle(train_dataset_filenames)
+    if (
+        len(train_dataset_filenames) == 1
+        and val_dataset_filenames is not None
+        and len(val_dataset_filenames) == 1
+        and train_dataset_filenames[0][-4:] == ".txt"
+        and val_dataset_filenames[0][-4:] == ".txt"
+    ):
+        val_paths = [x.strip() for x in open(val_dataset_filenames[0]).readlines()]
+        train_paths = [x.strip() for x in open(train_dataset_filenames[0]).readlines()]
+        logging.info(
+            f"Using train and val from txt: val_files {len(val_paths)} , train_files {len(train_paths)}"
+        )
+    elif datasets_config.get("train_on_val", False):
         val_paths = train_dataset_filenames
         train_paths = train_dataset_filenames
+        logging.info(
+            f"Using train on val: val_files {len(val_paths)} , train_files {len(train_paths)}"
+        )
+    elif val_dataset_filenames is not None:
+        val_paths = val_dataset_filenames
+        train_paths = train_dataset_filenames
+        logging.info(
+            f"Using val_paths: val_files {len(val_paths)} , train_files {len(train_paths)}"
+        )
     else:
         n_val_files = max(
             1,
@@ -75,6 +129,9 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
         )
         val_paths = train_dataset_filenames[-n_val_files:]
         train_paths = train_dataset_filenames[:-n_val_files]
+        logging.info(
+            f"Using val_holdout: val_files {len(val_paths)} , train_files {len(train_paths)}"
+        )
 
     val_adjacent_stride = datasets_config.get(
         "val_snapshots_adjacent_stride", datasets_config["snapshots_adjacent_stride"]
@@ -85,10 +142,11 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             prefix,
             precompute_cache=datasets_config["precompute_cache"],
             nthetas=global_config["nthetas"],
+            target_ntheta=model_config["output_ntheta"],
             paired=global_config["n_radios"] > 1,
             ignore_qc=datasets_config["skip_qc"],
             gpu=optim_config["device"] == "cuda",
-            snapshots_per_session=datasets_config["snapshots_per_session"],
+            snapshots_per_session=datasets_config["val_snapshots_per_session"],
             snapshots_stride=datasets_config["snapshots_stride"],
             snapshots_adjacent_stride=val_adjacent_stride,
             readahead=False,
@@ -107,10 +165,11 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             prefix,
             precompute_cache=datasets_config["precompute_cache"],
             nthetas=global_config["nthetas"],
+            target_ntheta=model_config["output_ntheta"],
             paired=global_config["n_radios"] > 1,
             ignore_qc=datasets_config["skip_qc"],
             gpu=optim_config["device"] == "cuda",
-            snapshots_per_session=datasets_config["snapshots_per_session"],
+            snapshots_per_session=datasets_config["train_snapshots_per_session"],
             snapshots_stride=datasets_config["snapshots_stride"],
             snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
             readahead=False,
@@ -123,6 +182,7 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             target_dtype=optim_config["dtype"],
             # difference
             flip=datasets_config["flip"],
+            double_flip=datasets_config["double_flip"],
             random_adjacent_stride=datasets_config.get("random_adjacent_stride", False),
         )
         for prefix in train_paths
@@ -138,12 +198,15 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
     train_idxs = range(len(train_ds))
     val_idxs = list(range(len(val_ds)))
 
-    random.shuffle(val_idxs)
-    val_idxs = val_idxs[
-        : max(
-            1, int(len(val_idxs) * datasets_config.get("val_subsample_fraction", 1.0))
-        )
-    ]
+    if datasets_config["shuffle"]:
+        random.shuffle(val_idxs)
+    if not datasets_config.get("train_on_val", False):
+        val_idxs = val_idxs[
+            : max(
+                1,
+                int(len(val_idxs) * datasets_config.get("val_subsample_fraction", 1.0)),
+            )
+        ]
 
     train_ds = torch.utils.data.Subset(train_ds, train_idxs)
     val_ds = torch.utils.data.Subset(val_ds, val_idxs)
@@ -157,26 +220,8 @@ def load_dataloaders(datasets_config, optim_config, global_config, step=0, epoch
             seed=global_config["seed"],
             batch_size=batch_size,
         )
-        keys_to_get = [
-            "all_windows_stats",
-            # "rx_pos_xy",
-            # "tx_pos_xy",
-            # "downsampled_segmentation_mask",
-            "rx_spacing",
-            "y_rad",
-            "craft_y_rad",
-            "y_phi",
-            "system_timestamp",
-            "empirical",
-            "y_rad_binned",
-            "craft_y_rad_binned",
-            "weighted_windows_stats",
-            "rx_pos_xy",
-            "tx_pos_xy",
-        ]
-        if global_config["beamformer_input"]:
-            # keys_to_get += ["windowed_beamformer"]
-            keys_to_get += ["weighted_beamformer"]
+        keys_to_get = global_config_to_keys_used(global_config=global_config)
+
         return {
             # "batch_size": args.batch,
             "num_workers": datasets_config["workers"],
@@ -270,7 +315,9 @@ def save_model(
         yaml.dump(running_config, outfile)
 
 
-def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
+def load_checkpoint(
+    checkpoint_fn, config, model, optimizer, scheduler, force_load=False
+):
     logging.info(f"Loading checkpoint {checkpoint_fn}")
     checkpoint = torch.load(checkpoint_fn, map_location=torch.device("cpu"))
 
@@ -291,26 +338,37 @@ def load_checkpoint(checkpoint_fn, config, model, optimizer, scheduler):
     # scheduler_being_loaded.load_state_dict(checkpoint["scheduler_state_dict"])
 
     # check if we loading a single network
-    if config["model"].get("load_single", False):
-        logging.info("Loading single_radio_net only")
-        model.single_radio_net.load_state_dict(checkpoint["model_state_dict"])
-        for param in model.single_radio_net.parameters():
-            param.requires_grad = False
-        # model.single_radio_net = FrozenModule(model_being_loaded)
-        return (model, optimizer, scheduler, 0, 0)  # epoch  # step
-    elif config["model"].get("load_paired", False):
-        # check if we loading a paired network
-        logging.info("Loading paired_radio net only")
-        model.multi_radio_net.load_state_dict(checkpoint["model_state_dict"])
-        for param in model.multi_radio_net.parameters():
-            param.requires_grad = False
-        # breakpoint()
-        return (model, optimizer, scheduler, 0, 0)  # epoch  # step
+    if not force_load:
+        if config["model"].get("load_single", False):
+            logging.info("Loading single_radio_net only")
+            model.single_radio_net.load_state_dict(checkpoint["model_state_dict"])
+            for param in model.single_radio_net.parameters():
+                param.requires_grad = False
+            # model.single_radio_net = FrozenModule(model_being_loaded)
+            return (model, optimizer, scheduler, 0, 0)  # epoch  # step
+        elif config["model"].get("load_paired", False):
+            # check if we loading a paired network
+            logging.info("Loading paired_radio net only")
+            model.multi_radio_net.load_state_dict(checkpoint["model_state_dict"])
+            for param in model.multi_radio_net.parameters():
+                param.requires_grad = False
+            # breakpoint()
+            return (model, optimizer, scheduler, 0, 0)  # epoch  # step
 
     # else
+    logging.debug("loading_checkpoint: checkpoint state dict")
+    for key, v in checkpoint["model_state_dict"].items():
+        logging.debug(f"\t{key}\t{v.shape}")
+
+    logging.debug("loading_checkpoint: model state dict")
+    for key, v in model.state_dict().items():
+        logging.debug(f"\t{key}\t{v.shape}")
+
     model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    if optimizer is not None:
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    if scheduler is not None:
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
     return (
         model,
@@ -336,34 +394,47 @@ def load_model(model_config, global_config):
     raise ValueError
 
 
-def uniform_preds(batch):
+def uniform_preds(batch, target_ntheta):
     return (
-        torch.ones(*batch["empirical"].shape, device=batch["empirical"].device)
-        / batch["empirical"].shape[-1]
+        torch.ones(
+            *batch["empirical"].shape[:2],
+            target_ntheta,
+            device=batch["empirical"].device,
+        )
+        / target_ntheta
     )
 
 
-def target_from_scatter(batch, y_rad, y_rad_binned, sigma, k):
+def target_from_scatter(batch, y_rad, y_rad_binned, sigma, k, target_ntheta):
     assert y_rad.max() <= torch.pi and y_rad.min() >= -torch.pi
-    torch.zeros(*batch["empirical"].shape, device=batch["empirical"].device)
-    n = batch["empirical"].shape[-1]
-    m = (
-        torch.linspace(
-            -1 + 1 / (2 * n), 1 - 1 / (2 * n), n, device=batch["empirical"].device
-        ).reshape(1, 1, n)
-        * torch.pi
+    torch.zeros(
+        *batch["empirical"].shape[:2], target_ntheta, device=batch["empirical"].device
     )
-    diff = ((m.expand_as(batch["empirical"]) - y_rad) / sigma) ** 2
-    return torch.nn.functional.normalize((-diff / 2).exp(), p=1.0, dim=2)
+    # n = batch["empirical"].shape[-1]
+    n = target_ntheta
+    assert n % 2 == 1
+    padding = n  # easier if padding is just n
+    # try to deal with the tails of the distribution wrapping around
+    effective_n = 2 * padding + n
+
+    m = (
+        (torch.arange(effective_n, device=batch["empirical"].device) - effective_n // 2)
+        * (2 / n)
+    ).reshape(1, 1, effective_n) * torch.pi
+    diff = ((m - y_rad) / sigma) ** 2
+    rescaled = torch.nn.functional.normalize((-diff / 2).exp(), p=1.0, dim=2)
+
+    batch, session, _ = rescaled.shape
+    return rescaled.reshape(batch, session, 3, n).sum(axis=2)
 
 
-def target_from_scatter_binned(batch, y_rad, y_rad_binned, sigma, k):
+def target_from_scatter_binned(batch, y_rad, y_rad_binned, sigma, k, target_ntheta):
     # if paired:
     #     y_rad_binned = batch["craft_y_rad_binned"][..., None]
     # else:
     #     y_rad_binned = batch["y_rad_binned"][..., None]
     scattered_targets = torch.zeros(
-        *batch["empirical"].shape, device=batch["empirical"].device
+        *batch["empirical"].shape[:2], target_ntheta, device=batch["empirical"].device
     ).scatter(
         2,
         index=y_rad_binned,
@@ -417,7 +488,9 @@ def new_log():
         "epoch": [],
         "data_seen": [],
         "passthrough_loss": [],
-        "uniform_loss": [],
+        "uniform_loss_single": [],
+        "uniform_loss_paired": [],
+        "uniform_loss_multipaired": [],
         "single_loss": [],
         "paired_loss": [],
         "multipaired_loss": [],
@@ -458,9 +531,9 @@ class WNBLogger:
             wandb_name = logger_config["run_name"]
         else:
             wandb_name = (
-                datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
-                + "_"
-                + os.path.basename(args.config)
+                os.path.basename(args.config)
+                + " "
+                + datetime.datetime.now().strftime("%Y-%m-%d")
             )
 
         wandb.init(
@@ -509,7 +582,7 @@ def compute_loss(
 
     fig = None
     if plot:
-        fig, axs = plt.subplots(3, 2, figsize=(16, 5))
+        fig, axs = plt.subplots(3, 2, figsize=(10, 30))
         n = output["single"].shape[0] * output["single"].shape[1]
         d = output["single"].shape[2]
         show_n = min(n, 80)
@@ -521,15 +594,28 @@ def compute_loss(
             y_rad_binned=batch_data["y_rad_binned"][..., None],
             sigma=datasets_config["sigma"],
             k=datasets_config["scatter_k"],
+            target_ntheta=output["single"].shape[-1],
         )
         loss_d["single_loss"] = loss_fn(output["single"], target)
         loss += loss_d["single_loss"]
 
+        loss_d["uniform_loss_single"] = loss_fn(
+            torch.nn.functional.normalize(
+                torch.ones(output["single"].shape, device=output["single"].device),
+                p=1,
+                dim=2,
+            ),
+            target,
+        )
+
         if plot:
             axs[0, 0].imshow(
-                output["single"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+                output["single"].reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
-            axs[0, 1].imshow(target.reshape(n, -1).cpu().detach().numpy()[:show_n])
+            axs[0, 1].imshow(
+                target.reshape(n, -1).cpu().detach().numpy()[:show_n], aspect="auto"
+            )
             axs[0, 0].set_title("1radio x 1timestep (Pred)")
             axs[0, 0].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
             axs[0, 1].set_title("1radio x 1timestep (label)")
@@ -542,16 +628,29 @@ def compute_loss(
             y_rad_binned=batch_data["craft_y_rad_binned"][..., None],
             sigma=datasets_config["sigma"],
             k=datasets_config["scatter_k"],
+            target_ntheta=output["paired"].shape[-1],
         )
     if paired and "paired" in output:
         loss_d["paired_loss"] = loss_fn(output["paired"], paired_target)
         loss += loss_d["paired_loss"]
+
+        loss_d["uniform_loss_paired"] = loss_fn(
+            torch.nn.functional.normalize(
+                torch.ones(output["paired"].shape, device=output["paired"].device),
+                p=1,
+                dim=2,
+            ),
+            paired_target,
+        )
+
         if plot:
             axs[1, 0].imshow(
-                output["paired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+                output["paired"].reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
             axs[1, 1].imshow(
-                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
             axs[1, 0].set_title("2radio x 1timestep (pred)")
             axs[1, 1].set_title("2radio x 1timestep (label)")
@@ -562,8 +661,21 @@ def compute_loss(
         loss_d["multipaired_loss"] = loss_fn(output["multipaired"], paired_target)
         loss += loss_d["multipaired_loss"]
 
+        loss_d["uniform_loss_multipaired"] = loss_fn(
+            torch.nn.functional.normalize(
+                torch.ones(
+                    output["multipaired"].shape, device=output["multipaired"].device
+                ),
+                p=1,
+                dim=2,
+            ),
+            paired_target,
+        )
+
         if "multipaired_tx_pos" in output:
-            target_tx_pos = batch_data["tx_pos_xy"] - batch_data["rx_pos_xy"][:, [0]]
+            target_tx_pos = (
+                batch_data["tx_pos_xy"] - batch_data["rx_pos_xy"]
+            )  # relative to each
             loss_d["multipaired_tx_pos_loss"] = loss_fn(
                 output["multipaired_tx_pos"], target_tx_pos
             )
@@ -584,10 +696,12 @@ def compute_loss(
             )  # TODO constant to keep losses balanced
         if plot:
             axs[2, 0].imshow(
-                output["multipaired"].reshape(n, -1).cpu().detach().numpy()[:show_n]
+                output["multipaired"].reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
             axs[2, 1].imshow(
-                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n]
+                paired_target.reshape(n, -1).cpu().detach().numpy()[:show_n],
+                aspect="auto",
             )
             axs[2, 0].set_title(
                 f"2radio x {output['multipaired'].shape[1]}timestep (pred)"
@@ -598,6 +712,8 @@ def compute_loss(
             axs[2, 0].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
             axs[2, 1].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
     loss_d["loss"] = loss
+    if plot:
+        fig.tight_layout()
     return loss_d, fig
 
 
@@ -614,7 +730,7 @@ def train_single_point(args):
     if args.output is None:
         args.output = datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
     try:
-        os.mkdir(args.output)
+        os.makedirs(args.output)
     except FileExistsError:
         pass
 
@@ -634,8 +750,15 @@ def train_single_point(args):
     if config["datasets"].get("flip", False):
         # Cant flip when doing paired!
         assert config["model"]["name"] == "beamformer"
-    if config["model"]["name"] == "multipairedbeamformer":
-        assert config["datasets"]["snapshots_per_session"] > 1
+    if config["model"]["name"] in (
+        "multipairedbeamformer",
+        "trajmultipairedbeamformer",
+    ):
+        assert config["datasets"]["train_snapshots_per_session"] > 1
+        assert config["datasets"]["val_snapshots_per_session"] > 1
+    else:
+        assert config["datasets"]["random_snapshot_size"] is False
+
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
 
     model_checksum("load_model:", m)
@@ -651,7 +774,16 @@ def train_single_point(args):
     step = 0
     start_epoch = 0
 
-    if "checkpoint" in config["optim"]:
+    if args.resume_from is not None:
+        m, optimizer, scheduler, start_epoch, step = load_checkpoint(
+            checkpoint_fn=args.resume_from,
+            config=config,
+            model=m,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            force_load=True,
+        )
+    elif "checkpoint" in config["optim"]:
         m, optimizer, scheduler, start_epoch, step = load_checkpoint(
             checkpoint_fn=config["optim"]["checkpoint"],
             config=config,
@@ -665,7 +797,7 @@ def train_single_point(args):
     load_seed(config["global"])
 
     train_dataloader, val_dataloader = load_dataloaders(
-        config["datasets"], config["optim"], config["global"]
+        config["datasets"], config["optim"], config["global"], config["model"]
     )
 
     scaler = torch.GradScaler(
@@ -699,6 +831,18 @@ def train_single_point(args):
         )
 
         for _, batch_data in enumerate(tqdm(train_dataloader)):
+            if config["datasets"].get("random_snapshot_size", False):
+                effective_snapshots_per_session = max(
+                    1,
+                    math.ceil(
+                        torch.rand(1).item()
+                        * config["datasets"]["train_snapshots_per_session"]
+                    ),
+                )
+                batch_data = batch_data[:, :effective_snapshots_per_session]
+                logging.debug(
+                    f"effective_snapshots_per_session: {effective_snapshots_per_session}"
+                )
             if step % config["optim"]["val_every"] == 0:
                 model_checksum(f"val.e{epoch}.s{step}: ", m)
                 m.eval()
@@ -739,20 +883,18 @@ def train_single_point(args):
                         # val_losses["learning_rate"] = [scheduler.get_last_lr()]
 
                         # TODO refactor
-                        target = target_from_scatter(
-                            val_batch_data,
-                            y_rad=val_batch_data["y_rad"][..., None],
-                            y_rad_binned=val_batch_data["y_rad_binned"][..., None],
-                            sigma=config["datasets"]["sigma"],
-                            k=config["datasets"]["scatter_k"],
-                        )
-                        loss_d["passthrough_loss"] = loss_fn(
-                            val_batch_data["empirical"],
-                            target,
-                        )
-                        loss_d["uniform_loss"] = loss_fn(
-                            uniform_preds(val_batch_data), target
-                        )
+                        # target_empirical = target_from_scatter(
+                        #     val_batch_data,
+                        #     y_rad=val_batch_data["y_rad"][..., None],
+                        #     y_rad_binned=val_batch_data["y_rad_binned"][..., None],
+                        #     sigma=config["datasets"]["sigma"],
+                        #     k=config["datasets"]["scatter_k"],
+                        #     target_ntheta=val_batch_data["empirical"].shape[-1],
+                        # )
+                        # loss_d["passthrough_loss"] = loss_fn(
+                        #     val_batch_data["empirical"],
+                        #     target_empirical,
+                        # )
 
                         # for accumulaing and averaging
                         for key, value in loss_d.items():
@@ -761,7 +903,7 @@ def train_single_point(args):
                         val_losses["epoch"].append(step / len(train_dataloader))
                         val_losses["data_seen"].append(
                             step
-                            * config["datasets"]["snapshots_per_session"]
+                            * config["datasets"]["val_snapshots_per_session"]
                             * config["datasets"]["batch_size"]
                         )
 
@@ -822,7 +964,7 @@ def train_single_point(args):
                     losses["epoch"].append(step / len(train_dataloader))
                     losses["data_seen"].append(
                         step
-                        * config["datasets"]["snapshots_per_session"]
+                        * config["datasets"]["train_snapshots_per_session"]
                         * config["datasets"]["batch_size"]
                     )
                     logger.log(losses, step=step, prefix="train_")
@@ -854,6 +996,13 @@ def get_parser_filter():
         type=str,
         help="config file",
         required=True,
+    )
+    parser.add_argument(
+        "--resume-from",
+        type=str,
+        help="resume from checkpoint file",
+        default=None,
+        required=False,
     )
     parser.add_argument(
         "-o",

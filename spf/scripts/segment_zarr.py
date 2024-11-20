@@ -1,18 +1,25 @@
-import sys
+import argparse
 
 from spf.dataset.spf_dataset import v5spfdataset
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print(f"{sys.argv[0]} input_zarr")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-i", "--input-zarr", type=str, help="input zarr")
+    parser.add_argument("-c", "--precompute-cache", type=str, help="precompute cache")
+    parser.add_argument("--gpu", default=True, action=argparse.BooleanOptionalAction)
+    parser.add_argument(
+        "-p", "--parallel", type=int, default=24, help="precompute cache"
+    )
+    args = parser.parse_args()
+
     ds = v5spfdataset(
-        sys.argv[1],
+        args.input_zarr,
         nthetas=65,
-        precompute_cache="/home/mouse9911/precompute_cache_chunk16_sept/",
-        # precompute_cache="/tmp/",
-        gpu=True,
+        precompute_cache=args.precompute_cache,
+        gpu=args.gpu,
         skip_fields=set(["signal_matrix"]),
         ignore_qc=True,
+        # readahead=True, #this is hard coded in the segmentation code
+        n_parallel=args.parallel,
     )
-    print(sys.argv[1], ds.phi_drifts[0], ds.phi_drifts[1])
+    print(args.input_zarr, ds.phi_drifts[0], ds.phi_drifts[1])

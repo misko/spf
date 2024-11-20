@@ -5,6 +5,8 @@
 import bisect
 import os
 import pickle
+from contextlib import contextmanager
+from functools import cache
 from multiprocessing import Pool, cpu_count
 from typing import Dict, List
 
@@ -340,7 +342,10 @@ def v5_thetas_to_targets(
     # return torch.nn.functional.normalize(p, p=1, dim=1)
 
 
-def v5_collate_keys_fast(keys: List[str], batch: Dict[str, torch.Tensor]):
+# Batch is a list over items in the batch
+# which contains a list over receivers (2)
+# which is a dictionary of str to tensor
+def v5_collate_keys_fast(keys: List[str], batch: List[List[Dict[str, torch.Tensor]]]):
     d = {}
     for key in keys:
         d[key] = torch.vstack(
@@ -348,7 +353,6 @@ def v5_collate_keys_fast(keys: List[str], batch: Dict[str, torch.Tensor]):
         )
         if key == "windowed_beamformer" or key == "all_windows_stats":
             d[key] = d[key].to(torch.float32)
-
     return TensorDict(d, batch_size=d["y_rad"].shape)
 
 
@@ -454,6 +458,15 @@ def v5_segmentation_mask(session):
     return seg_mask[:, None]
 
 
+@contextmanager
+def v5spfdataset_manager(*args, **kwds):
+    ds = v5spfdataset(*args, **kwds)
+    try:
+        yield ds
+    finally:
+        ds.close()
+
+
 class v5spfdataset(Dataset):
     def __init__(
         self,
@@ -479,16 +492,19 @@ class v5spfdataset(Dataset):
         target_dtype=torch.float32,
         snapshots_adjacent_stride: int = 1,
         flip: bool = False,
+        double_flip: bool = False,
         # if we want to use strides of something like
         # 1,5,2,3 when getting 4 snapshots, for adjacent strde=5
         random_adjacent_stride: bool = False,
         distance_normalization: int = 1000,
+        target_ntheta: bool | None = None,
     ):
         self.n_parallel = n_parallel
         self.exclude_keys_from_cache = set(["signal_matrix"])
         self.readahead = readahead
         self.precompute_cache = precompute_cache
         self.nthetas = nthetas
+        self.target_ntheta = self.nthetas if target_ntheta is None else target_ntheta
         self.valid_entries = None
         # self.prefix = prefix
         # print("OPEN", prefix)
@@ -497,6 +513,7 @@ class v5spfdataset(Dataset):
         self.distance_normalization = distance_normalization
 
         self.flip = flip
+        self.double_flip = double_flip
         self.skip_fields = skip_fields
 
         self.snapshots_per_session = snapshots_per_session
@@ -514,6 +531,7 @@ class v5spfdataset(Dataset):
             self.zarr_fn, readahead=self.readahead, map_size=2**32
         )
         self.yaml_config = yaml.safe_load(open(self.yaml_fn, "r"))
+
         self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
         self.gpu = gpu
@@ -536,6 +554,17 @@ class v5spfdataset(Dataset):
             speed_of_light / receiver["f-carrier"]
             for receiver in self.yaml_config["receivers"]
         ]
+
+        for rx_idx in range(1, self.n_receivers):
+            assert (
+                self.yaml_config["receivers"][0]["antenna-spacing-m"]
+                == self.yaml_config["receivers"][rx_idx]["antenna-spacing-m"]
+            )
+
+            assert self.wavelengths[0] == self.wavelengths[rx_idx]
+
+        self.rx_spacing = self.yaml_config["receivers"][0]["antenna-spacing-m"]
+        self.rx_wavelength_spacing = self.rx_spacing / self.wavelengths[0]
 
         self.rx_configs = [
             rx_config_from_receiver_yaml(receiver)
@@ -587,7 +616,9 @@ class v5spfdataset(Dataset):
             for rx_config in self.rx_configs
         ]
 
-        self.keys_per_session = v5rx_f64_keys + v5rx_2xf64_keys
+        self.keys_per_session = (
+            v5rx_f64_keys + v5rx_2xf64_keys + ["rx_wavelength_spacing"]
+        )
         if "signal_matrix" not in self.skip_fields:
             self.keys_per_session.append("signal_matrix")
 
@@ -595,11 +626,9 @@ class v5spfdataset(Dataset):
 
         self.receiver_idxs_expanded = {}
         for idx in range(self.n_receivers):
-            self.receiver_idxs_expanded[idx] = (
-                torch.tensor(idx, dtype=torch.int32)
-                .expand(1, self.snapshots_per_session)
-                .share_memory_()
-            )
+            self.receiver_idxs_expanded[idx] = torch.tensor(
+                idx, dtype=torch.int32
+            ).expand(1, self.snapshots_per_session)
 
         if not self.temp_file:
             self.get_segmentation()
@@ -665,10 +694,12 @@ class v5spfdataset(Dataset):
         self.target_dtype = target_dtype
 
         if empirical_data_fn is not None:
+            self.empirical_data_fn = empirical_data_fn
             self.empirical_data = pickle.load(open(empirical_data_fn, "rb"))
             self.empirical_individual_radio = empirical_individual_radio
             self.empirical_symmetry = empirical_symmetry
         else:
+            empirical_data_fn = None
             self.empirical_data = None
         # self.close()
 
@@ -694,17 +725,35 @@ class v5spfdataset(Dataset):
                 if receiver_idx not in self.cached_keys:
                     self.cached_keys[receiver_idx] = {}
                 for key in self.keys_per_session:
+                    if key == "rx_wavelength_spacing":
+                        continue
                     if key in self.exclude_keys_from_cache:
                         continue
                     # assert key != "signal_matrix"  # its complex shouldnt get converted!
                     # print(key, self.receiver_data[receiver_idx][key][:].dtype)
                     # print(key, self.exclude_keys_from_cache)
                     if old_n == 0:
-                        self.cached_keys[receiver_idx][key] = torch.as_tensor(
-                            self.receiver_data[receiver_idx][key][:].astype(
-                                np.float32
-                            )  # TODO save as float32?
-                        ).share_memory_()
+                        if key in self.receiver_data[receiver_idx]:
+                            self.cached_keys[receiver_idx][key] = torch.as_tensor(
+                                self.receiver_data[receiver_idx][key][:].astype(
+                                    np.float32
+                                )  # TODO save as float32?
+                            )
+                        else:
+                            if key in ("rx_heading",):
+                                self.cached_keys[receiver_idx][key] = (
+                                    torch.as_tensor(
+                                        self.receiver_data[receiver_idx][
+                                            "system_timestamp"
+                                        ][:].astype(
+                                            np.float32
+                                        )  # TODO save as float32?
+                                    )
+                                    * 0
+                                )
+                            else:
+                                raise ValueError(f"Missing key {key}")
+
                     else:
                         self.cached_keys[receiver_idx][key][old_n:new_n] = (
                             torch.as_tensor(
@@ -713,12 +762,30 @@ class v5spfdataset(Dataset):
                                 ].astype(np.float32)
                             )
                         )
+                # optimize rx / tx positions
+                self.cached_keys[receiver_idx]["rx_pos_mm"] = torch.vstack(
+                    [
+                        self.cached_keys[receiver_idx]["rx_pos_x_mm"],
+                        self.cached_keys[receiver_idx]["rx_pos_y_mm"],
+                    ]
+                ).T
+
+                self.cached_keys[receiver_idx]["tx_pos_mm"] = torch.vstack(
+                    [
+                        self.cached_keys[receiver_idx]["tx_pos_x_mm"],
+                        self.cached_keys[receiver_idx]["tx_pos_y_mm"],
+                    ]
+                ).T
+
+                self.cached_keys[receiver_idx]["rx_wavelength_spacing"] = (
+                    self.cached_keys[receiver_idx]["rx_spacing"]
+                    / self.wavelengths[receiver_idx]
+                )
             self.valid_entries = valid_entries
-            self.ground_truth_thetas = self.get_ground_truth_thetas().share_memory_()
-            self.ground_truth_phis = self.get_ground_truth_phis().share_memory_()
-            self.craft_ground_truth_thetas = (
-                self.get_craft_ground_truth_thetas().share_memory_()
-            )
+
+            self.ground_truth_thetas = self.get_ground_truth_thetas()
+            self.ground_truth_phis = self.get_ground_truth_phis()
+            self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
 
             return True
         return False
@@ -730,6 +797,8 @@ class v5spfdataset(Dataset):
         self.receiver_data = None
         # try and close segmentation
         self.segmentation = None
+        if self.precomputed_zarr is not None:
+            self.precomputed_zarr.store.close()
         self.precomputed_zarr = None
 
     def estimate_phi(self, data):
@@ -759,49 +828,33 @@ class v5spfdataset(Dataset):
 
     def populate_from_precomputed(self, data, receiver_idx, snapshot_idxs):
         if "windowed_beamformer" not in self.skip_fields:
-            data["windowed_beamformer"] = (
-                torch.as_tensor(
-                    self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
-                        snapshot_idxs
-                    ]
-                )
-                .unsqueeze(0)
-                .share_memory_()
-            )
+            data["windowed_beamformer"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
+                    snapshot_idxs
+                ]
+            ).unsqueeze(0)
 
         if "weighted_beamformer" not in self.skip_fields:
-            data["weighted_beamformer"] = (
-                torch.as_tensor(
-                    self.precomputed_zarr[f"r{receiver_idx}/weighted_beamformer"][
-                        snapshot_idxs
-                    ]
-                )
-                .unsqueeze(0)
-                .share_memory_()
-            )
+            data["weighted_beamformer"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/weighted_beamformer"][
+                    snapshot_idxs
+                ]
+            ).unsqueeze(0)
 
         # sessions x 3 x n_windows
         if "all_windows_stats" not in self.skip_fields:
-            data["all_windows_stats"] = (
-                torch.as_tensor(
-                    self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
-                        snapshot_idxs
-                    ]
-                )
-                .unsqueeze(0)
-                .share_memory_()
-            )
+            data["all_windows_stats"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
+                    snapshot_idxs
+                ]
+            ).unsqueeze(0)
 
         if "weighted_windows_stats" not in self.skip_fields:
-            data["weighted_windows_stats"] = (
-                torch.as_tensor(
-                    self.precomputed_zarr[f"r{receiver_idx}/weighted_windows_stats"][
-                        snapshot_idxs
-                    ]
-                )
-                .unsqueeze(0)
-                .share_memory_()
-            )
+            data["weighted_windows_stats"] = torch.as_tensor(
+                self.precomputed_zarr[f"r{receiver_idx}/weighted_windows_stats"][
+                    snapshot_idxs
+                ]
+            ).unsqueeze(0)
 
         if "downsampled_segmentation_mask" not in self.skip_fields:
             data["downsampled_segmentation_mask"] = (
@@ -812,7 +865,6 @@ class v5spfdataset(Dataset):
                 )
                 .unsqueeze(1)
                 .unsqueeze(0)
-                .share_memory_()
             )
 
         if "simple_segmentations" not in self.skip_fields:
@@ -870,7 +922,20 @@ class v5spfdataset(Dataset):
                 snapshot_start_idx, snapshot_end_idx, self.snapshots_adjacent_stride
             )
 
-    def render_session(self, receiver_idx, session_idx):
+    @cache
+    def get_empirical_dist(
+        self,
+        receiver_idx,
+    ):
+        rx_spacing_str = rx_spacing_to_str(self.rx_wavelength_spacing)
+        empirical_radio_key = (
+            f"r{receiver_idx}" if self.empirical_individual_radio else "r"
+        )
+        return self.empirical_data[rx_spacing_str][empirical_radio_key][
+            "sym" if self.empirical_symmetry else "nosym"
+        ]
+
+    def render_session(self, receiver_idx, session_idx, double_flip=False):
         self.reinit()
 
         flip_left_right = self.flip and (torch.rand(1) > 0.5).item()
@@ -882,8 +947,10 @@ class v5spfdataset(Dataset):
         data = {
             # key: r[key][snapshot_start_idx:snapshot_end_idx]
             key: self.get_values_at_key(key, receiver_idx, snapshot_idxs)
-            for key in self.keys_per_session  # 'rx_theta_in_pis', 'rx_spacing', 'rx_lo', 'rx_bandwidth', 'avg_phase_diff', 'rssis', 'gains']
+            for key in self.keys_per_session
+            # 'rx_theta_in_pis', 'rx_spacing', 'rx_lo', 'rx_bandwidth', 'avg_phase_diff', 'rssis', 'gains']
         }
+
         data["receiver_idx"] = self.receiver_idxs_expanded[receiver_idx]
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][
             snapshot_idxs
@@ -892,13 +959,22 @@ class v5spfdataset(Dataset):
         data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[snapshot_idxs]
 
         # duplicate some fields
-        data["y_rad"] = data["ground_truth_theta"]
-        if flip_left_right:
-            # data["y_rad"] = data["y_rad"].sign() * torch.pi - data["y_rad"]
-            data["y_rad"] = -data["y_rad"]
-        if flip_up_down:
-            data["y_rad"] = data["y_rad"].sign() * torch.pi - data["y_rad"]
+        # no idea how to flip phi
+        if flip_left_right or double_flip:
+            data["ground_truth_phi"] = -data["ground_truth_phi"]
+            data["ground_truth_theta"] = -data["ground_truth_theta"]
+        if flip_up_down or double_flip:
+            data["ground_truth_theta"] = (
+                data["ground_truth_theta"].sign() * torch.pi
+                - data["ground_truth_theta"]
+            )
+            # phi shouldnt change
+        if double_flip:
+            data["craft_ground_truth_theta"] = torch_pi_norm(
+                data["craft_ground_truth_theta"] + torch.pi
+            )
 
+        data["y_rad"] = data["ground_truth_theta"]
         data["y_phi"] = data["ground_truth_phi"]
         data["craft_y_rad"] = data["craft_ground_truth_theta"]
 
@@ -915,50 +991,42 @@ class v5spfdataset(Dataset):
 
         self.populate_from_precomputed(data, receiver_idx, snapshot_idxs)
         # port this over in on the fly TODO
+
         data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
             snapshot_idxs
         ].unsqueeze(0)
+        if flip_left_right or double_flip:
+            data["mean_phase_segmentation"] = -data["mean_phase_segmentation"]
 
         data["rx_pos_xy"] = (
-            torch.vstack(
-                [
-                    self.cached_keys[receiver_idx]["rx_pos_x_mm"][snapshot_idxs],
-                    self.cached_keys[receiver_idx]["rx_pos_y_mm"][snapshot_idxs],
-                ]
-            ).T.unsqueeze(0)
+            self.cached_keys[receiver_idx]["rx_pos_mm"][snapshot_idxs].unsqueeze(0)
             / self.distance_normalization
         )
+
         data["tx_pos_xy"] = (
-            torch.vstack(
-                [
-                    self.cached_keys[receiver_idx]["tx_pos_x_mm"][snapshot_idxs],
-                    self.cached_keys[receiver_idx]["tx_pos_y_mm"][snapshot_idxs],
-                ]
-            ).T.unsqueeze(0)
+            self.cached_keys[receiver_idx]["tx_pos_mm"][snapshot_idxs].unsqueeze(0)
             / self.distance_normalization
         )
+
+        if double_flip:
+            data["rx_pos_xy"] = -data["rx_pos_xy"]
+            data["tx_pos_xy"] = -data["tx_pos_xy"]
 
         # if torch.rand(1).item() < self.snapshots_per_session * 0.00000005:
         #     print("COLLECT")
         #     gc.collect()
         # self.close()
         if self.empirical_data is not None:
-            rx_spacing_str = rx_spacing_to_str(data["rx_spacing"][0].item())
-            empirical_radio_key = (
-                f"r{receiver_idx}" if self.empirical_individual_radio else "r"
-            )
-            empirical_dist = self.empirical_data[rx_spacing_str][empirical_radio_key][
-                "sym" if self.empirical_symmetry else "nosym"
-            ]
+            empirical_dist = self.get_empirical_dist(receiver_idx)
             data["empirical"] = empirical_dist[
                 to_bin(data["mean_phase_segmentation"][0], empirical_dist.shape[0])
             ].unsqueeze(0)
 
         data["y_rad_binned"] = (
-            to_bin(data["y_rad"], self.nthetas).unsqueeze(0).to(torch.long)
+            to_bin(data["y_rad"], self.target_ntheta).unsqueeze(0).to(torch.long)
         )
         data["craft_y_rad_binned"] = (
-            to_bin(data["craft_y_rad"], self.nthetas).unsqueeze(0).to(torch.long)
+            to_bin(data["craft_y_rad"], self.target_ntheta).unsqueeze(0).to(torch.long)
         )
 
         # convert to target dtype on CPU!
@@ -970,9 +1038,10 @@ class v5spfdataset(Dataset):
             ):
                 data[key] = data[key].to(self.target_dtype)
 
-        if flip_left_right:
+        if flip_left_right or double_flip:
             # y_rad binned depends on y_rad so we should be ok?
-            data["empirical"] = data["empirical"].flip(dims=(2,))
+            # already flipped in mean phase
+            # data["empirical"] = data["empirical"].flip(dims=(2,))
             data["weighted_beamformer"] = data["weighted_beamformer"].flip(dims=(2,))
 
         return data
@@ -991,10 +1060,9 @@ class v5spfdataset(Dataset):
                     # or maybe this is the order of the receivers 0/1 vs 1/0 on the x-axis
                     # pretty sure this (-) is more about which receiver is closer to x+/ish
                     # a -1 here is the same as -rx_spacing!
-                    * self.cached_keys[ridx]["rx_spacing"]
+                    * self.rx_wavelength_spacing
                     * 2
                     * torch.pi
-                    / self.wavelengths[ridx]
                 )
             )
         return torch.vstack(ground_truth_phis)
@@ -1038,18 +1106,8 @@ class v5spfdataset(Dataset):
     def get_ground_truth_thetas(self):
         ground_truth_thetas = []
         for ridx in range(self.n_receivers):
-            tx_pos = torch.vstack(
-                [
-                    self.cached_keys[ridx]["tx_pos_x_mm"],
-                    self.cached_keys[ridx]["tx_pos_y_mm"],
-                ]
-            )
-            rx_pos = torch.vstack(
-                [
-                    self.cached_keys[ridx]["rx_pos_x_mm"],
-                    self.cached_keys[ridx]["rx_pos_y_mm"],
-                ]
-            )
+            tx_pos = self.cached_keys[ridx]["tx_pos_mm"].T
+            rx_pos = self.cached_keys[ridx]["rx_pos_mm"].T
 
             # compute the angle of the tx with respect to rx
             d = tx_pos - rx_pos
@@ -1078,8 +1136,9 @@ class v5spfdataset(Dataset):
                 for ridx in range(self.n_receivers):
                     if idx >= self.valid_entries[ridx]:
                         return None
+            double_flip = self.double_flip and (torch.rand(1) > 0.5).item()
             return [
-                self.render_session(receiver_idx, idx)
+                self.render_session(receiver_idx, idx, double_flip=double_flip)
                 for receiver_idx in range(self.n_receivers)
             ]
         assert idx < self.n_snapshots * self.n_receivers
@@ -1095,7 +1154,7 @@ class v5spfdataset(Dataset):
             carrier_freq = self.yaml_config["receivers"][ridx]["f-carrier"]
             antenna_spacing = self.yaml_config["receivers"][ridx]["antenna-spacing-m"]
             estimated_thetas[f"r{ridx}"] = phase_diff_to_theta(
-                self.mean_phase[f"r{ridx}"],
+                self.mean_phase[f"r{ridx}"].numpy(),
                 speed_of_light / carrier_freq,
                 antenna_spacing,
                 large_phase_goes_right=False,
