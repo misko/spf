@@ -3,38 +3,22 @@ import os
 import random
 import shutil
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
 import zarr
 
 from spf.data_collector import rx_config_from_receiver_yaml
-from spf.dataset.spf_dataset import pi_norm
 
 # V5 data format
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
-from spf.rf import (
-    beamformer_given_steering_nomean,
-    get_avg_phase,
-    pi_norm,
-    precompute_steering_vectors,
-    speed_of_light,
-    torch_get_avg_phase,
-    torch_get_avg_phase_notrim,
-    torch_pi_norm_pi,
-)
+from spf.rf import speed_of_light, torch_get_avg_phase_notrim, torch_pi_norm_pi
 from spf.scripts.create_empirical_p_dist import (
     create_empirical_p_dist,
     get_empirical_p_dist_parser,
 )
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
-from spf.utils import (
-    random_signal_matrix,
-    torch_random_signal_matrix,
-    zarr_open_from_lmdb_store,
-    zarr_shrink,
-)
+from spf.utils import torch_random_signal_matrix, zarr_open_from_lmdb_store, zarr_shrink
 
 
 @torch.jit.script

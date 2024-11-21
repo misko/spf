@@ -127,11 +127,12 @@ def create_empirical_p_dist(args):
 
     datasets_by_spacing = {}
 
+    counts = {}
+
     for dataset in datasets:
         rx_wavelength_spacing = dataset.cached_keys[0]["rx_wavelength_spacing"][
             0
         ].item()
-        print("CREATE", rx_wavelength_spacing)
         assert (
             dataset.cached_keys[0]["rx_wavelength_spacing"] == rx_wavelength_spacing
         ).all()
@@ -139,11 +140,23 @@ def create_empirical_p_dist(args):
             dataset.cached_keys[1]["rx_wavelength_spacing"] == rx_wavelength_spacing
         ).all()
         rx_spacing_str = rx_spacing_to_str(rx_wavelength_spacing)
+
+        if rx_spacing_str not in counts:
+            counts[rx_spacing_str] = {}
+        rx_lo_and_spacing = f"{(dataset.cached_keys[0]["rx_lo"][0].item())}.{(dataset.cached_keys[0]["rx_spacing"][0].item())}"
+        if rx_lo_and_spacing not in counts[rx_spacing_str]:
+            counts[rx_spacing_str][rx_lo_and_spacing] = 0
+        counts[rx_spacing_str][rx_lo_and_spacing] += 1
+
         if rx_spacing_str not in datasets_by_spacing:
             datasets_by_spacing[rx_spacing_str] = []
         datasets_by_spacing[rx_spacing_str].append(dataset)
 
     print("Found spacings:", datasets_by_spacing.keys())
+    for rx_spacing_str in counts:
+        print(rx_spacing_str)
+        for rx_lo_and_spacing, count in counts[rx_spacing_str].items():
+            print("\t", rx_lo_and_spacing, count)
 
     heatmaps = {}
     for rx_spacing_str, _datasets in datasets_by_spacing.items():

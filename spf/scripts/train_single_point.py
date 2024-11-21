@@ -195,25 +195,55 @@ def load_dataloaders(
     val_ds = torch.utils.data.ConcatDataset(val_datasets)
     train_ds = torch.utils.data.ConcatDataset(train_datasets)
 
-    train_idxs = range(len(train_ds))
-    val_idxs = list(range(len(val_ds)))
+    # create alternate val_ds
+    alternate_val_ds_lists = {}
+    for ds in val_datasets:
+        key = ds.get_wavelength_identifier()
+        if key not in alternate_val_ds_lists:
+            alternate_val_ds_lists[key] = []
+        alternate_val_ds_lists[key].append(ds)
+    alternate_val_ds = {}
+    for key, ds_list in alternate_val_ds_lists.items():
+        alternate_val_ds[key] = torch.utils.data.ConcatDataset(ds_list)
 
-    if datasets_config["shuffle"]:
-        random.shuffle(val_idxs)
+    # if we train_on_val just take everything
     if not datasets_config.get("train_on_val", False):
+        val_idxs = list(range(len(val_ds)))
+        if datasets_config["shuffle"]:
+            random.shuffle(val_idxs)
         val_idxs = val_idxs[
             : max(
                 1,
                 int(len(val_idxs) * datasets_config.get("val_subsample_fraction", 1.0)),
             )
         ]
+        val_ds = torch.utils.data.Subset(val_ds, val_idxs)
 
-    train_ds = torch.utils.data.Subset(train_ds, train_idxs)
-    val_ds = torch.utils.data.Subset(val_ds, val_idxs)
+        # deal with alternative val ds
+        for key, ds in alternate_val_ds.items():
+            val_idxs = list(range(len(ds)))
+            if datasets_config["shuffle"]:
+                random.shuffle(val_idxs)
+            val_idxs = val_idxs[
+                : max(
+                    1,
+                    int(
+                        len(val_idxs)
+                        * datasets_config.get("val_subsample_fraction", 1.0)
+                    ),
+                )
+            ]
+            alternate_val_ds[key] = torch.utils.data.Subset(ds, val_idxs)
+    else:
+        val_ds = torch.utils.data.Subset(val_ds, range(len(val_ds)))
+        alternate_val_ds = {}
+
+    # select everything anyway, shuffle later in batchsampler
+    train_ds = torch.utils.data.Subset(train_ds, range(len(train_ds)))
 
     logging.info(f"Train-dataset size {len(train_ds)}, Val dataset size {len(val_ds)}")
 
-    def params_for_ds(ds, batch_size):
+    def params_for_ds(ds, batch_size, num_workers):
         sampler = StatefulBatchsampler(
             ds,
             shuffle=datasets_config["shuffle"],
@@ -224,7 +254,7 @@ def load_dataloaders(
 
         return {
             # "batch_size": args.batch,
-            "num_workers": datasets_config["workers"],
+            "num_workers": num_workers,
             "collate_fn": partial(v5_collate_keys_fast, keys_to_get),
             "worker_init_fn": worker_init_fn,
             # "pin_memory": True,
@@ -237,6 +267,7 @@ def load_dataloaders(
         **params_for_ds(
             train_ds,
             batch_size=datasets_config["batch_size"],
+            num_workers=datasets_config["workers"],
         ),
     )
     val_dataloader = torch.utils.data.DataLoader(
@@ -244,14 +275,27 @@ def load_dataloaders(
         **params_for_ds(
             val_ds,
             batch_size=datasets_config["batch_size"],
+            num_workers=datasets_config["workers"],
         ),
     )
+    # alternate_dataloaders = {
+    #     key: torch.utils.data.DataLoader(
+    #         ds,
+    #         **params_for_ds(
+    #             ds,
+    #             batch_size=datasets_config["batch_size"],
+    #             num_workers=2,
+    #         ),
+    #     )
+    #     for key, ds in alternate_val_ds.items()
+    # }
+    alternate_dataloaders = {}
 
     logging.info(
         f"Train dataloader size: {len(train_dataloader)}, Val dataloader size: {len(val_dataloader)}"
     )
 
-    return train_dataloader, val_dataloader
+    return train_dataloader, val_dataloader, alternate_dataloaders
 
 
 def load_optimizer(optim_config, params):
@@ -717,6 +761,39 @@ def compute_loss(
     return loss_d, fig
 
 
+def run_val_on_dataloader(
+    dataloader, config, loss_fn, scatter_fn, epoch, m, plot=False
+):
+    val_losses = new_log()
+    fig = None
+    for _, val_batch_data in enumerate(tqdm(dataloader, leave=False)):
+        # for val_batch_data in val_dataloader:
+        val_batch_data = val_batch_data.to(config["optim"]["device"])
+        # run beamformer and segmentation
+
+        output = m(val_batch_data)
+        loss_d, fig = compute_loss(
+            output,
+            val_batch_data,
+            loss_fn=loss_fn,
+            datasets_config=config["datasets"],
+            scatter_fn=scatter_fn,
+            single=True,
+            plot=plot,  # only take one batch?
+            paired=epoch >= config["optim"]["head_start"],
+            direct_loss=config["optim"]["direct_loss"],
+        )
+        if plot:
+            plot = False
+
+        # for accumulaing and averaging
+        for key, value in loss_d.items():
+            val_losses[key].append(value.item())
+
+        val_losses["epoch"].append(epoch)
+    return val_losses, fig
+
+
 def train_single_point(args):
     config = load_config_from_fn(args.config)
     config["args"] = vars(args)
@@ -796,7 +873,7 @@ def train_single_point(args):
 
     load_seed(config["global"])
 
-    train_dataloader, val_dataloader = load_dataloaders(
+    train_dataloader, val_dataloader, alternate_dataloaders = load_dataloaders(
         config["datasets"], config["optim"], config["global"], config["model"]
     )
 
@@ -847,67 +924,35 @@ def train_single_point(args):
                 model_checksum(f"val.e{epoch}.s{step}: ", m)
                 m.eval()
                 with torch.no_grad():
-                    val_losses = new_log()
                     # for  in val_dataloader:
                     logging.info("Running validation:")
-                    for _, val_batch_data in enumerate(
-                        tqdm(val_dataloader, leave=False)
-                    ):
-                        # for val_batch_data in val_dataloader:
-                        val_batch_data = val_batch_data.to(config["optim"]["device"])
-                        # run beamformer and segmentation
-                        should_we_plot = (
-                            "val_plot_pred" not in losses
-                            and (step - last_val_plot) > config["logger"]["plot_every"]
-                        )
-                        if should_we_plot:
-                            last_val_plot = step
 
-                        output = m(val_batch_data)
-                        loss_d, fig = compute_loss(
-                            output,
-                            val_batch_data,
-                            loss_fn=loss_fn,
-                            datasets_config=config["datasets"],
-                            scatter_fn=scatter_fn,
-                            single=True,
-                            plot=should_we_plot,  # only take one batch?
-                            paired=epoch >= config["optim"]["head_start"],
-                            direct_loss=config["optim"]["direct_loss"],
-                        )
+                    # figure out if we should plot
+                    should_we_plot = (
+                        "val_plot_pred" not in losses
+                        and (step - last_val_plot) > config["logger"]["plot_every"]
+                    )
+                    if should_we_plot:
+                        last_val_plot = step
+                    assert "val_plot_pred" not in losses
 
-                        if fig is not None:
-                            assert "val_plot_pred" not in losses
-                            losses["val_plot_pred"] = fig
-                        # scheduler.step(loinss_d["loss"])
-                        # val_losses["learning_rate"] = [scheduler.get_last_lr()]
+                    val_losses, fig = run_val_on_dataloader(
+                        val_dataloader,
+                        config,
+                        loss_fn,
+                        scatter_fn,
+                        epoch,
+                        m,
+                        plot=should_we_plot,
+                    )
 
-                        # TODO refactor
-                        # target_empirical = target_from_scatter(
-                        #     val_batch_data,
-                        #     y_rad=val_batch_data["y_rad"][..., None],
-                        #     y_rad_binned=val_batch_data["y_rad_binned"][..., None],
-                        #     sigma=config["datasets"]["sigma"],
-                        #     k=config["datasets"]["scatter_k"],
-                        #     target_ntheta=val_batch_data["empirical"].shape[-1],
-                        # )
-                        # loss_d["passthrough_loss"] = loss_fn(
-                        #     val_batch_data["empirical"],
-                        #     target_empirical,
-                        # )
+                    # TODO run alternate vals here! worst case 2x val slowdown
 
-                        # for accumulaing and averaging
-                        for key, value in loss_d.items():
-                            val_losses[key].append(value.item())
+                    if fig is not None:
+                        losses["val_plot_pred"] = fig
 
-                        val_losses["epoch"].append(step / len(train_dataloader))
-                        val_losses["data_seen"].append(
-                            step
-                            * config["datasets"]["val_snapshots_per_session"]
-                            * config["datasets"]["batch_size"]
-                        )
+                    reported_losses = logger.log(val_losses, step=step, prefix="val/")
 
-                    reported_losses = logger.log(val_losses, step=step, prefix="val_")
                     if config["optim"].get("save_on", "") != "":
                         this_loss = reported_losses[config["optim"].get("save_on")]
                         if (
@@ -967,7 +1012,7 @@ def train_single_point(args):
                         * config["datasets"]["train_snapshots_per_session"]
                         * config["datasets"]["batch_size"]
                     )
-                    logger.log(losses, step=step, prefix="train_")
+                    logger.log(losses, step=step, prefix="train/")
                     losses = new_log()
             step += 1
             if step % config["optim"]["checkpoint_every"] == 0:

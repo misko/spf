@@ -1,4 +1,7 @@
+import argparse
 import bisect
+import logging
+import os
 from dataclasses import dataclass
 
 import numpy as np
@@ -7,12 +10,8 @@ import zarr
 from pyproj import Proj
 
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
-from spf.utils import (
-    compare_and_copy,
-    zarr_new_dataset,
-    zarr_open_from_lmdb_store,
-    zarr_shrink,
-)
+from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
+from spf.utils import zarr_new_dataset, zarr_open_from_lmdb_store, zarr_shrink
 
 
 def lat_lon_to_xy(lat, lon, center_lat, center_lon):
@@ -187,8 +186,10 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
 
     # timesteps = original_zarr["receivers/r0/system_timestamp"].shape[0]
     # timesteps needs to be updated since missing some RX points because of out of sync with TX times TODO
-
     timesteps = len(valid_idxs_and_tx_rx_pos["idxs"])
+    logging.info(
+        f"Found {timesteps} valid data points, out of {rx_time_and_gpses['r0'].times.shape[0]} total"
+    )
 
     buffer_size = rx_zarr["receivers/r0/signal_matrix"].shape[-1]
     n_receivers = 2
@@ -198,7 +199,9 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
 
     prefix = rx_fn.replace(".zarr", "")
     yaml_fn = f"{prefix}.yaml"
-    config = yaml.dump(yaml.safe_load(open(yaml_fn, "r")))
+    config = yaml.safe_load(open(yaml_fn, "r"))
+    with open(zarr_out_fn.replace(".zarr", ".yaml"), "w") as outfile:
+        yaml.dump(config, outfile, default_flow_style=False)
 
     new_zarr = zarr_new_dataset(
         zarr_out_fn,
@@ -225,3 +228,31 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
     new_zarr.store.close()
     new_zarr = None
     zarr_shrink(zarr_out_fn)
+
+
+if __name__ == "__main__":
+
+    logging.basicConfig(
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        level=os.environ.get("LOGLEVEL", "INFO").upper(),
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tx", type=str, help="input tx zarr", required=True)
+    parser.add_argument("--rx", type=str, help="input rx zarr", required=True)
+    parser.add_argument("--output", type=str, help="output zarr", required=True)
+    parser.add_argument("--gps-fence", type=str, help="gps fence", default="franklin")
+    args = parser.parse_args()
+
+    if args.gps_fence == "franklin":
+        gps_center = franklin_safe.mean(axis=0)
+    else:
+        raise ValueError("Invalid gps fence")
+
+    merge_v4rx_v4tx_into_v5(
+        tx_fn=args.tx,
+        rx_fn=args.rx,
+        zarr_out_fn=args.output,
+        gps_center_long_lat=gps_center,
+    )

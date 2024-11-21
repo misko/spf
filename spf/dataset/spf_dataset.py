@@ -55,12 +55,15 @@ from spf.plot.image_utils import (
 )
 from spf.rf import (
     ULADetector,
+    mean_phase_mean,
     phase_diff_to_theta,
     pi_norm,
     precompute_steering_vectors,
     segment_session,
     segment_session_star,
     speed_of_light,
+    torch_circular_mean,
+    torch_circular_mean_notrim,
     torch_get_phase_diff,
     torch_pi_norm,
 )
@@ -271,16 +274,43 @@ def mp_segment_zarr(
             ]
         )
 
-        # precompute mean phase and remove NaNs for 0s
-        mean_phase = np.hstack(
-            [
-                torch.tensor([x["mean"] for x in result["simple_segmentation"]]).mean()
-                for result in results_by_receiver[f"r{r_idx}"]
-            ]
-        )
-        mean_phase[~np.isfinite(mean_phase)] = 0
+        mean_phases = []
+        for result in results_by_receiver[f"r{r_idx}"]:
+            means = []
+            weights = []
+            for x in result["simple_segmentation"]:
+                if x["type"] == "signal":
+                    means.append(x["mean"])
+                    weights.append(
+                        (x["end_idx"] - x["start_idx"])
+                        * x["abs_signal_median"]
+                        / x["stddev"]  # weight by signal strength and region
+                    )
+            if len(means) == 0:
+                mean_phases.append(torch.nan)
+            else:
+                means = np.array(means)
+                weights = np.array(weights)
+                # weights /= weights.sum()
+                mean_phases.append(mean_phase_mean(angles=means, weights=weights))
+        mean_phase = np.hstack(mean_phases)
 
-        assert np.isfinite(mean_phase).all()
+        # mean_phase = np.hstack(
+        #     [
+        #         (
+        #             torch.tensor(
+        #                 [x["mean"] for x in result["simple_segmentation"]]
+        #             ).mean()
+        #             if len(result) > 0
+        #             else torch.tensor(float("nan"))
+        #         )
+        #         for result in results_by_receiver[f"r{r_idx}"]
+        #     ]
+        # )
+        # TODO THIS SHOULD BE FIXED!!!
+        # mean_phase[~np.isfinite(mean_phase)] = 0
+
+        # assert np.isfinite(mean_phase).all()
         precomputed_zarr[f"r{r_idx}/mean_phase"][
             already_computed:precompute_to_idx
         ] = mean_phase
@@ -874,6 +904,9 @@ class v5spfdataset(Dataset):
                 ]["simple_segmentation"]
                 for snapshot_idx in snapshot_idxs
             ]
+
+    def get_wavelength_identifier(self):
+        return f"wlsp{self.rx_wavelength_spacing:0.3f}.rxlo{self.cached_keys[0]["rx_lo"][0].item():0.4e}"
 
     def get_values_at_key(self, key, receiver_idx, idxs):
         if key == "signal_matrix":
