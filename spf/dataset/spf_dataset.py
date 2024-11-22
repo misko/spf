@@ -906,7 +906,8 @@ class v5spfdataset(Dataset):
             ]
 
     def get_wavelength_identifier(self):
-        return f"wlsp{self.rx_wavelength_spacing:0.3f}.rxlo{self.cached_keys[0]["rx_lo"][0].item():0.4e}"
+        rx_lo = self.cached_keys[0]["rx_lo"][0].item()
+        return f"wlsp{self.rx_wavelength_spacing:0.3f}.rxlo{rx_lo:0.4e}"
 
     def get_values_at_key(self, key, receiver_idx, idxs):
         if key == "signal_matrix":
