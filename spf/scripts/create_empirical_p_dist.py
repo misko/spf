@@ -143,7 +143,7 @@ def create_empirical_p_dist(args):
 
         if rx_spacing_str not in counts:
             counts[rx_spacing_str] = {}
-        rx_lo_and_spacing = f"{(dataset.cached_keys[0]["rx_lo"][0].item())}.{(dataset.cached_keys[0]["rx_spacing"][0].item())}"
+        rx_lo_and_spacing = dataset.get_spacing_identifier()
         if rx_lo_and_spacing not in counts[rx_spacing_str]:
             counts[rx_spacing_str][rx_lo_and_spacing] = 0
         counts[rx_spacing_str][rx_lo_and_spacing] += 1
