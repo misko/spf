@@ -442,4 +442,8 @@ class PositionalEncoding(torch.nn.Module):
 
 @torch.jit.script
 def to_bin(x: torch.Tensor, bins: int):
-    return ((x / (2 * torch.pi) + 0.5) * bins).to(torch.long)
+    x = x.clamp(min=-torch.pi, max=torch.pi - 1e-5)
+    # assert (x >= -torch.pi).all() and (x <= torch.pi).all()
+    bins = ((x / (2 * torch.pi) + 0.5) * bins).to(torch.long)
+    bins[x.isnan()] = 0
+    return bins

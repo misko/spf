@@ -4,8 +4,12 @@ from spf.dataset.spf_dataset import v5spfdataset
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input-zarr", type=str, help="input zarr")
-    parser.add_argument("-c", "--precompute-cache", type=str, help="precompute cache")
+    parser.add_argument(
+        "-i", "--input-zarr", type=str, help="input zarr", required=True
+    )
+    parser.add_argument(
+        "-c", "--precompute-cache", type=str, help="precompute cache", required=True
+    )
     parser.add_argument("--gpu", default=True, action=argparse.BooleanOptionalAction)
     parser.add_argument(
         "-p", "--parallel", type=int, default=24, help="precompute cache"

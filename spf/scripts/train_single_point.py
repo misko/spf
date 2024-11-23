@@ -198,7 +198,7 @@ def load_dataloaders(
     # create alternate val_ds
     alternate_val_ds_lists = {}
     for ds in val_datasets:
-        key = ds.get_wavelength_identifier()
+        key = f"{ds.get_wavelength_identifier()}.{ds.yaml_config['routine']}"
         if key not in alternate_val_ds_lists:
             alternate_val_ds_lists[key] = []
         alternate_val_ds_lists[key].append(ds)
@@ -278,21 +278,25 @@ def load_dataloaders(
             num_workers=datasets_config["workers"],
         ),
     )
-    # alternate_dataloaders = {
-    #     key: torch.utils.data.DataLoader(
-    #         ds,
-    #         **params_for_ds(
-    #             ds,
-    #             batch_size=datasets_config["batch_size"],
-    #             num_workers=2,
-    #         ),
-    #     )
-    #     for key, ds in alternate_val_ds.items()
-    # }
-    alternate_dataloaders = {}
 
     logging.info(
         f"Train dataloader size: {len(train_dataloader)}, Val dataloader size: {len(val_dataloader)}"
+    )
+    alternate_dataloaders = {
+        key: torch.utils.data.DataLoader(
+            ds,
+            **params_for_ds(
+                ds,
+                batch_size=datasets_config["batch_size"],
+                num_workers=datasets_config["workers"],
+            ),
+        )
+        for key, ds in alternate_val_ds.items()
+    }
+
+    logging.info(
+        "Additional dataloaders: "
+        + ",".join([key for key in alternate_dataloaders.keys()])
     )
 
     return train_dataloader, val_dataloader, alternate_dataloaders
@@ -873,7 +877,7 @@ def train_single_point(args):
 
     load_seed(config["global"])
 
-    train_dataloader, val_dataloader, alternate_dataloaders = load_dataloaders(
+    train_dataloader, val_dataloader, alternate_val_dataloaders = load_dataloaders(
         config["datasets"], config["optim"], config["global"], config["model"]
     )
 
@@ -927,6 +931,9 @@ def train_single_point(args):
                     # for  in val_dataloader:
                     logging.info("Running validation:")
 
+                    #####
+                    # MAIN VAL
+                    #####
                     # figure out if we should plot
                     should_we_plot = (
                         "val_plot_pred" not in losses
@@ -946,12 +953,33 @@ def train_single_point(args):
                         plot=should_we_plot,
                     )
 
-                    # TODO run alternate vals here! worst case 2x val slowdown
-
                     if fig is not None:
                         losses["val_plot_pred"] = fig
 
                     reported_losses = logger.log(val_losses, step=step, prefix="val/")
+
+                    #####
+                    # MAIN VAL - DONE
+                    #####
+
+                    # TODO run alternate vals here! worst case 2x val slowdown
+                    for (
+                        alternate_val,
+                        alternate_val_dataloader,
+                    ) in alternate_val_dataloaders.items():
+                        logging.info(f"Running validation {alternate_val}:")
+                        val_losses, _ = run_val_on_dataloader(
+                            alternate_val_dataloader,
+                            config,
+                            loss_fn,
+                            scatter_fn,
+                            epoch,
+                            m,
+                            plot=False,
+                        )
+                        _ = logger.log(
+                            val_losses, step=step, prefix=f"val_{alternate_val}/"
+                        )
 
                     if config["optim"].get("save_on", "") != "":
                         this_loss = reported_losses[config["optim"].get("save_on")]
@@ -995,6 +1023,8 @@ def train_single_point(args):
                 losses["train_plot_pred"] = fig
 
             scaler.scale(loss_d["loss"]).backward()
+            if args.debug:
+                assert loss_d["loss"].isfinite().all()
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad(set_to_none=True)

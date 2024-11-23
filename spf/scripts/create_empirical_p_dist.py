@@ -13,8 +13,9 @@ from spf.utils import rx_spacing_to_str
 def get_heatmap_for_radio(dss, radio_idx, bins):
     ground_truth_thetas = np.hstack([ds.ground_truth_thetas[radio_idx] for ds in dss])
     mean_phase = np.hstack([ds.mean_phase[f"r{radio_idx}"] for ds in dss])
+    mask = np.isfinite(mean_phase)
     return np.histogram2d(
-        ground_truth_thetas, mean_phase, bins=bins
+        ground_truth_thetas[mask], mean_phase[mask], bins=bins
     )  # heatmap, xedges, yedges
 
 

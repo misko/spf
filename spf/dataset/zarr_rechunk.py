@@ -17,7 +17,12 @@ from spf.utils import (
 )
 
 
-def zarr_rechunk(zarr_filename_in, zarr_filename_out, skip_signal_matrix):
+def zarr_rechunk(
+    zarr_filename_in,
+    zarr_filename_out,
+    skip_signal_matrix,
+    check_contents_if_exists=True,
+):
 
     prefix = zarr_filename_in.replace(".zarr", "")
     yaml_fn = f"{prefix}.yaml"
@@ -28,6 +33,8 @@ def zarr_rechunk(zarr_filename_in, zarr_filename_out, skip_signal_matrix):
     )
 
     if os.path.exists(zarr_filename_out):
+        if not check_contents_if_exists:
+            return 0
         new_zarr = zarr_open_from_lmdb_store(
             zarr_filename_out, readahead=True, mode="r"
         )
@@ -82,11 +89,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s", "--skip-signal-matrix", action="store_true", help="skip signal matrix"
     )
+    parser.add_argument(
+        "--check-contents",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     args = parser.parse_args()
 
     return_code = zarr_rechunk(
         args.zarr_filename_in,
         args.zarr_filename_out,
         skip_signal_matrix=args.skip_signal_matrix,
+        check_contents_if_exists=args.check_contents,
     )
     sys.exit(return_code)

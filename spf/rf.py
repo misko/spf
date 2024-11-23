@@ -267,6 +267,10 @@ def torch_circular_mean_noweight(angles: torch.Tensor, trim: float):
 
 
 def mean_phase_mean(angles, weights):
+    if isinstance(weights, np.ndarray):
+        assert np.isfinite(weights).all()
+    elif isinstance(weights, torch.tensor):
+        assert weights.isfinite().all()
     _sin_angles = np.sin(angles) * weights
     _cos_angles = np.cos(angles) * weights
     cm = np.arctan2(_sin_angles.sum(), _cos_angles.sum()) % (2 * np.pi)
