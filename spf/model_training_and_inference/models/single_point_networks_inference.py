@@ -129,7 +129,7 @@ def run_inference_on_ds(
         precompute_cache=precompute_cache,
     )
 
-    _, val_dataloader = load_dataloaders(
+    _, val_dataloader, _ = load_dataloaders(
         datasets_config=datasets_config,
         optim_config=optim_config,
         global_config=config["global"],

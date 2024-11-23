@@ -128,7 +128,7 @@ def dataloader_inference(
     model, global_config, datasets_config, optim_config, model_config
 ):
 
-    _, val_dataloader = load_dataloaders(
+    _, val_dataloader, _ = load_dataloaders(
         datasets_config=datasets_config,
         optim_config=optim_config,
         global_config=global_config,

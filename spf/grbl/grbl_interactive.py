@@ -1,6 +1,7 @@
 import argparse
 import logging
 import queue
+import random
 import select
 import sys
 import threading
@@ -28,6 +29,7 @@ rx_calibration_point = np.array([1930, 2770])
 tx_calibration_point = np.array([550, 450])
 circle_center = np.array([2000, 1500])
 max_circle_diameter = 1900
+min_circle_diameter = 900
 
 run_grbl = True
 
@@ -749,6 +751,7 @@ class GRBLManager:
         self.routines = {
             "v1_calibrate": self.v1_calibrate,
             "rx_circle": self.rx_circle,
+            "rx_random_circle": self.rx_random_circle,
             "tx_circle": self.tx_circle,
             "bounce": self.bounce,
         }
@@ -852,6 +855,23 @@ class GRBLManager:
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][0],
                 circle_diameter=max_circle_diameter,
+                circle_center=circle_center,
+            ),
+            StationaryPlanner(
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][1],
+                stationary_point=circle_center,
+            ),
+        ]
+
+    def rx_random_circle(self):
+        self.planners = [
+            CirclePlanner(
+                self.controller.dynamics,
+                start_point=self.controller.position["xy"][0],
+                circle_diameter=random.randint(
+                    min_circle_diameter, max_circle_diameter
+                ),
                 circle_center=circle_center,
             ),
             StationaryPlanner(
