@@ -6,6 +6,11 @@ reboot_plutos () {
     done
 }
 
+apcaccess | grep STATUS | grep ONBATT 
+if [ $? -eq 0 ]; then
+       echo REFUSING TO RUN SCRIPT WHILE ON BATTERY
+       exit
+fi       
 
 export ROOT="../../../"
 config=${ROOT}/spf/v5_configs/wall_array_v2_external_40_915M_max.yaml
@@ -15,7 +20,7 @@ sleep 3
 python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r bounce -s /dev/ttyACM0 --dry-run --n-records 1
 sleep 1
 
-python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r rx_circle -s /dev/ttyACM0 --n-records 10000
+python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r rx_random_circle -s /dev/ttyACM0 --n-records 10000
 sleep 1
 
 python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r bounce -s /dev/ttyACM0 --dry-run --n-records 1
@@ -30,7 +35,7 @@ python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r bounce -s /dev/ttyA
 
 python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r bounce -s /dev/ttyACM0 --n-records 10000
 
-python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r rx_circle -s /dev/ttyACM0 --n-records 10000
+python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r rx_random_circle -s /dev/ttyACM0 --n-records 10000
 sleep 1
 
 reboot_plutos
