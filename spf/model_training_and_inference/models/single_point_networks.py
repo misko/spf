@@ -13,19 +13,41 @@ class PrepareInput(nn.Module):
     def __init__(self, model_config, global_config):
         super().__init__()
         self.beamformer_input = global_config["beamformer_input"]
+        self.beamformer_mag_input = global_config.get("beamformer_mag_input", False)
+        if self.beamformer_mag_input:
+            assert self.beamformer_input
         self.empirical_input = global_config["empirical_input"]
         self.phase_input = global_config["phase_input"]
         self.rx_spacing_input = global_config["rx_spacing_input"]
         self.inputs = 0
         self.input_dropout = model_config.get("input_dropout", 0.0)
+        beamformer_dropout_p = model_config.get("beamformer_dropout", 0.0)
+
+        if beamformer_dropout_p == 0.0:
+            self.beamformer_dropout = nn.Identity()
+        else:
+            self.beamformer_dropout = nn.Dropout(beamformer_dropout_p)
+
         if self.beamformer_input:
             self.inputs += global_config["nthetas"]
+        if self.beamformer_mag_input:
+            self.inputs += 1
         if self.empirical_input:
             self.inputs += global_config["nthetas"]
         if self.phase_input:
             self.inputs += 3
         if self.rx_spacing_input:
             self.inputs += 1
+        assert (
+            self.input_dropout == 0
+            or (
+                self.beamformer_input
+                + self.empirical_input
+                + self.phase_input
+                + self.rx_spacing_input
+            )
+            > 1
+        )
 
     def prepare_input(self, batch):
         dropout_mask = (
@@ -44,9 +66,11 @@ class PrepareInput(nn.Module):
         #
         inputs = []
         if self.beamformer_input:
-            v = batch["weighted_beamformer"] / (
-                batch["weighted_beamformer"].max(axis=-1, keepdim=True)[0] + 0.1
-            )
+            v_mean = batch["weighted_beamformer"].mean(axis=-1, keepdim=True) + 0.01
+            v = batch["weighted_beamformer"] / (2 * v_mean)
+            if self.beamformer_mag_input:
+                v = torch.concatenate([v, v_mean], axis=-1)
+            v = self.beamformer_dropout(v)
             if self.training:
                 v[dropout_mask[0]] = 0
             inputs.append(v)

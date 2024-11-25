@@ -26,6 +26,7 @@ class TimestampAndGPS:
     gps_longs: np.ndarray  # Array to store GPS coordinates
 
 
+# the timestamps are at the end of capture, this is off by sample acq time
 def get_tx_xy_at_rx(rx_time_and_gps, tx_time_and_gps, gps_center_long_lat):
     tx_gps_lookups = []
     for rx_idx in range(rx_time_and_gps.times.shape[0]):
@@ -131,12 +132,15 @@ def compare_and_copy_with_idxs_and_aux_data(
         for key in dst.keys():
             if not skip_signal_matrix or key != "signal_matrix":
                 src_key = key
-                if src_key == "rx_heading":
-                    src_key = "heading"
                 _aux_data = (
                     aux_data[key] if aux_data is not None and key in aux_data else None
                 )
-                _src = src[src_key] if src_key in src else _aux_data
+                if src_key == "rx_heading_in_pis":
+                    src_key = "heading"
+                    assert _aux_data is None
+                    _src = (src[src_key][:] / 360) * 2
+                else:
+                    _src = src[src_key] if src_key in src else _aux_data
                 compare_and_copy_with_idxs_and_aux_data(
                     prefix + "/" + key,
                     _src,
@@ -147,7 +151,9 @@ def compare_and_copy_with_idxs_and_aux_data(
                 )
     else:
         if prefix == "/config":
-            if src.shape != ():
+            if aux_data:
+                dst[:] = aux_data
+            elif src.shape != ():
                 dst[:] = src[:]
         else:
             for idx in range(len(idxs)):
@@ -156,7 +162,7 @@ def compare_and_copy_with_idxs_and_aux_data(
                 ]  # TODO why cant we just copy the whole thing at once? # too big?
 
 
-def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
+def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat, fix_config):
     tx_zarr = zarr_open_from_lmdb_store(tx_fn, readahead=True, mode="r")
     rx_zarr = zarr_open_from_lmdb_store(rx_fn, readahead=True, mode="r")
 
@@ -200,6 +206,12 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
     prefix = rx_fn.replace(".zarr", "")
     yaml_fn = f"{prefix}.yaml"
     config = yaml.safe_load(open(yaml_fn, "r"))
+
+    assert (
+        config["receivers"][0]["theta-in-pis"] != 0.0 or fix_config
+    ), "Early rovers had this set incorrectly, refusing to run in this state, its ambiguous"
+    config["receivers"][0]["theta-in-pis"] = 1.0
+
     with open(zarr_out_fn.replace(".zarr", ".yaml"), "w") as outfile:
         yaml.dump(config, outfile, default_flow_style=False)
 
@@ -222,8 +234,12 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
         new_zarr,
         skip_signal_matrix=False,
         idxs=valid_idxs_and_tx_rx_pos["idxs"],
-        aux_data={"receivers": valid_idxs_and_tx_rx_pos},
+        aux_data={"receivers": valid_idxs_and_tx_rx_pos, "config": yaml.dump(config)},
     )
+    if fix_config:
+        new_zarr["receivers/r0/rx_theta_in_pis"][:] = config["receivers"][0][
+            "theta-in-pis"
+        ]
 
     new_zarr.store.close()
     new_zarr = None
@@ -243,6 +259,12 @@ if __name__ == "__main__":
     parser.add_argument("--rx", type=str, help="input rx zarr", required=True)
     parser.add_argument("--output", type=str, help="output zarr", required=True)
     parser.add_argument("--gps-fence", type=str, help="gps fence", default="franklin")
+
+    parser.add_argument(  # the early rovers had antenna array 0 off by 180deg
+        "--fix-config",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     args = parser.parse_args()
 
     if args.gps_fence == "franklin":
@@ -255,4 +277,5 @@ if __name__ == "__main__":
         rx_fn=args.rx,
         zarr_out_fn=args.output,
         gps_center_long_lat=gps_center,
+        fix_config=args.fix_config,
     )

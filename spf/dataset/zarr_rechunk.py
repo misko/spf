@@ -47,6 +47,8 @@ def zarr_rechunk(
             print(zarr_filename_out, "Output file exists and is carbon copy!")
             return 0
 
+    os.makedirs(os.path.dirname(zarr_filename_out), exist_ok=True)
+
     timesteps = original_zarr["receivers/r0/system_timestamp"].shape[0]
     buffer_size = original_zarr["receivers/r0/signal_matrix"].shape[-1]
     n_receivers = 2

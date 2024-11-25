@@ -8,8 +8,6 @@ import torch
 import yaml
 import zarr
 
-from spf.data_collector import rx_config_from_receiver_yaml
-
 # V5 data format
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.rf import speed_of_light, torch_get_avg_phase_notrim, torch_pi_norm_pi
@@ -242,7 +240,7 @@ def create_fake_dataset(
                 "avg_phase_diff": torch_get_avg_phase_notrim(signal_matrix),  # , 0.0),
                 "rssis": [0, 0],
                 "gains": [0, 0],
-                "rx_heading": 0,
+                "rx_heading_in_pis": 0,
             }
 
             z = m[f"receivers/r{receiver_idx}"]

@@ -37,7 +37,7 @@ class DataSnapshotRaw:
     rx_lo: float
     rx_bandwidth: float
     avg_phase_diff: float
-    rx_heading: float = 0.0  # wall array did not originally have this
+    rx_heading_in_pis: float = 0.0  # wall array did not originally have this
 
 
 @dataclass

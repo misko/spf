@@ -924,7 +924,7 @@ def train_single_point(args):
                 logging.debug(
                     f"effective_snapshots_per_session: {effective_snapshots_per_session}"
                 )
-            if step % config["optim"]["val_every"] == 0:
+            if args.val and step % config["optim"]["val_every"] == 0:
                 model_checksum(f"val.e{epoch}.s{step}: ", m)
                 m.eval()
                 with torch.no_grad():
@@ -1108,6 +1108,11 @@ def get_parser_filter():
         "--debug",
         action=argparse.BooleanOptionalAction,
         default=False,
+    )
+    parser.add_argument(
+        "--val",
+        action=argparse.BooleanOptionalAction,
+        default=True,
     )
     parser.add_argument("--save-prefix", type=str, default="./this_model_")
     return parser

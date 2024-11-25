@@ -26,8 +26,11 @@ def get_heatmap(dss, bins=50):
     return (heatmaps[0].copy() + heatmaps[1].copy()) / 2
 
 
-def create_heatmaps_and_plot(dss, bins, save_fig_to=None):
-    fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+def create_heatmaps_and_plot(dss, bins, save_fig_to_prefix=None):
+    # theta norm is where if you sum over all phi for a specific theta
+    # you get back 1.0
+    fig_theta_norm, axs_theta_norm = plt.subplots(2, 3, figsize=(15, 10))
+    fig_phi_norm, axs_phi_norm = plt.subplots(2, 3, figsize=(15, 10))
     row_idx = 0
     heatmaps = {"r0": {}, "r1": {}, "r": {}}
     eps = 1e-10
@@ -40,23 +43,54 @@ def create_heatmaps_and_plot(dss, bins, save_fig_to=None):
             r1 = apply_symmetry_rules_to_heatmap(r1)
             r = apply_symmetry_rules_to_heatmap(r)
         extent = [-torch.pi, torch.pi, -torch.pi, torch.pi]
-        r0 = r0 / (r0.sum(axis=0, keepdims=True) + eps)
-        r1 = r1 / (r1.sum(axis=0, keepdims=True) + eps)
-        r = r / (r.sum(axis=0, keepdims=True) + eps)
-        heatmaps["r0"]["sym" if symmetry else "nosym"] = torch.tensor(r0.T)
-        heatmaps["r1"]["sym" if symmetry else "nosym"] = torch.tensor(r1.T)
-        heatmaps["r"]["sym" if symmetry else "nosym"] = torch.tensor(r.T)
+        # r0,r1,r are matricies of format m[theta][phi]
+        # normalizing by dividing by sum of axis=0 (theta)
+        # results in r[:,0].sum()==1
+        # then taking transpose so r[0].sum()==1 and r[phi][theta]
+        r0_phi_norm = (r0 / (r0.sum(axis=0, keepdims=True) + eps)).T
+        r1_phi_norm = (r1 / (r1.sum(axis=0, keepdims=True) + eps)).T
+        r_phi_norm = (r / (r.sum(axis=0, keepdims=True) + eps)).T
+
+        heatmaps["r0"]["sym" if symmetry else "nosym"] = torch.tensor(r0_phi_norm)
+        heatmaps["r1"]["sym" if symmetry else "nosym"] = torch.tensor(r1_phi_norm)
+        heatmaps["r"]["sym" if symmetry else "nosym"] = torch.tensor(r_phi_norm)
+
         # write maps in map[phi][theta] = pr(theta | phi)
-        # axs[2 + 3 * ridx].imshow(heatmap.T, extent=extent, origin="lower")
-        axs[row_idx, 0].imshow(r0.T, extent=extent)
-        axs[row_idx, 0].set_title(f"Radio0,sym={symmetry}")
-        axs[row_idx, 1].imshow(r1.T, extent=extent)
-        axs[row_idx, 1].set_title(f"Radio1,sym={symmetry}")
-        axs[row_idx, 2].imshow(r.T, extent=extent)
-        axs[row_idx, 2].set_title(f"Radio0+1,sym={symmetry}")
+        axs_phi_norm[row_idx, 0].imshow(r0_phi_norm, extent=extent)
+        axs_phi_norm[row_idx, 0].set_title(f"Radio0,sym={symmetry}")
+        axs_phi_norm[row_idx, 1].imshow(r1_phi_norm, extent=extent)
+        axs_phi_norm[row_idx, 1].set_title(f"Radio1,sym={symmetry}")
+        axs_phi_norm[row_idx, 2].imshow(r_phi_norm, extent=extent)
+        axs_phi_norm[row_idx, 2].set_title(f"Radio0+1,sym={symmetry}")
+        for _x in range(3):
+            axs_phi_norm[row_idx, _x].set_xlabel("Theta (gt)")
+            axs_phi_norm[row_idx, _x].set_ylabel("Phase diff (obs)")
+
+        # r0_theta_norm is such that
+        # r[0].sum()==1 and r[theta][phi]
+        r0_theta_norm = r0 / (r0.sum(axis=1, keepdims=True) + eps)
+        r1_theta_norm = r1 / (r1.sum(axis=1, keepdims=True) + eps)
+        r_theta_norm = r / (r.sum(axis=1, keepdims=True) + eps)
+
+        # write maps in map[phi][theta] = pr(theta | phi)
+        axs_theta_norm[row_idx, 0].imshow(r0_theta_norm.T, extent=extent)
+        axs_theta_norm[row_idx, 0].set_title(f"Radio0,sym={symmetry}")
+        axs_theta_norm[row_idx, 1].imshow(r1_theta_norm.T, extent=extent)
+        axs_theta_norm[row_idx, 1].set_title(f"Radio1,sym={symmetry}")
+        axs_theta_norm[row_idx, 2].imshow(r_theta_norm.T, extent=extent)
+        axs_theta_norm[row_idx, 2].set_title(f"Radio0+1,sym={symmetry}")
+        for _x in range(3):
+            axs_theta_norm[row_idx, _x].set_xlabel("Theta (gt)")
+            axs_theta_norm[row_idx, _x].set_ylabel("Phase diff (obs)")
+
         row_idx += 1
-    if save_fig_to is not None:
-        fig.savefig(save_fig_to)
+    fig_phi_norm.suptitle(f"theta conditional on phi")
+    fig_theta_norm.suptitle(f"phi conditional on theta")
+    if save_fig_to_prefix is not None:
+        fig_phi_norm.savefig(f"{save_fig_to_prefix}_phi_norm.png")
+        fig_theta_norm.savefig(f"{save_fig_to_prefix}_theta_norm.png")
+        plt.close(fig_phi_norm)
+        plt.close(fig_theta_norm)
     return heatmaps
 
 
@@ -164,7 +198,7 @@ def create_empirical_p_dist(args):
         heatmaps[rx_spacing_str] = create_heatmaps_and_plot(
             _datasets,
             args.nbins,
-            save_fig_to=f"{args.output_fig_prefix}_rxwavelengthspacing{rx_spacing_str}_nbins{args.nbins}.png",
+            save_fig_to_prefix=f"{args.output_fig_prefix}_rxwavelengthspacing{rx_spacing_str}_nbins{args.nbins}",
         )
 
     pickle.dump(heatmaps, open(args.out, "wb"))

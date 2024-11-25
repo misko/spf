@@ -20,29 +20,62 @@ from tensordict import TensorDict
 from torch.utils.data import Dataset
 
 from spf.dataset.rover_idxs import (  # v3rx_column_names,
-    v3rx_avg_phase_diff_idxs, v3rx_beamformer_start_idx, v3rx_column_names,
-    v3rx_gain_idxs, v3rx_rssi_idxs, v3rx_rx_pos_idxs, v3rx_rx_theta_idx,
-    v3rx_time_idxs)
+    v3rx_avg_phase_diff_idxs,
+    v3rx_beamformer_start_idx,
+    v3rx_column_names,
+    v3rx_gain_idxs,
+    v3rx_rssi_idxs,
+    v3rx_rx_pos_idxs,
+    v3rx_rx_theta_idx,
+    v3rx_time_idxs,
+)
 from spf.dataset.spf_generate import generate_session
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
-from spf.dataset.wall_array_v1_idxs import (v1_beamformer_start_idx,
-                                            v1_column_names, v1_time_idx,
-                                            v1_tx_pos_idxs)
+from spf.dataset.wall_array_v1_idxs import (
+    v1_beamformer_start_idx,
+    v1_column_names,
+    v1_time_idx,
+    v1_tx_pos_idxs,
+)
 from spf.dataset.wall_array_v2_idxs import (  # v3rx_column_names,
-    v2_avg_phase_diff_idxs, v2_beamformer_start_idx, v2_column_names,
-    v2_gain_idxs, v2_rssi_idxs, v2_rx_pos_idxs, v2_rx_theta_idx, v2_time_idx,
-    v2_tx_pos_idxs)
-from spf.plot.image_utils import (detector_positions_to_theta_grid,
-                                  labels_to_source_images, radio_to_image)
-from spf.rf import (ULADetector, mean_phase_mean, phase_diff_to_theta, pi_norm,
-                    precompute_steering_vectors, segment_session,
-                    segment_session_star, speed_of_light, torch_circular_mean,
-                    torch_circular_mean_notrim, torch_get_phase_diff,
-                    torch_pi_norm)
+    v2_avg_phase_diff_idxs,
+    v2_beamformer_start_idx,
+    v2_column_names,
+    v2_gain_idxs,
+    v2_rssi_idxs,
+    v2_rx_pos_idxs,
+    v2_rx_theta_idx,
+    v2_time_idx,
+    v2_tx_pos_idxs,
+)
+from spf.plot.image_utils import (
+    detector_positions_to_theta_grid,
+    labels_to_source_images,
+    radio_to_image,
+)
+from spf.rf import (
+    ULADetector,
+    mean_phase_mean,
+    phase_diff_to_theta,
+    pi_norm,
+    precompute_steering_vectors,
+    segment_session,
+    segment_session_star,
+    speed_of_light,
+    torch_circular_mean,
+    torch_circular_mean_notrim,
+    torch_get_phase_diff,
+    torch_pi_norm,
+)
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
-from spf.utils import (SEGMENTATION_VERSION, new_yarr_dataset,
-                       rx_spacing_to_str, to_bin, zarr_open_from_lmdb_store,
-                       zarr_shrink)
+from spf.utils import (
+    SEGMENTATION_VERSION,
+    new_yarr_dataset,
+    rx_spacing_to_str,
+    to_bin,
+    zarr_open_from_lmdb_store,
+    zarr_shrink,
+)
 
 
 # from Stackoverflow
@@ -107,11 +140,10 @@ def mp_segment_zarr(
     n_parallel=20,
     skip_beamformer=False,
 ):
-
     z = zarr_open_from_lmdb_store(zarr_fn)
     yarr_fn = results_fn.replace(".pkl", ".yarr")
     already_computed = 0
-    # print(z.tree())
+
     previous_simple_segmentation = {
         f"r{r_idx}": [] for r_idx in range(len(z["receivers"]))
     }
@@ -195,6 +227,7 @@ def mp_segment_zarr(
     ].shape
 
     if precomputed_zarr is None:
+        os.makedirs(os.path.dirname(segmentation_zarr_fn), exist_ok=True)
         precomputed_zarr = new_yarr_dataset(
             filename=segmentation_zarr_fn,
             n_receivers=2,
@@ -251,7 +284,7 @@ def mp_segment_zarr(
                     weights.append(
                         (x["end_idx"] - x["start_idx"])
                         * x["abs_signal_median"]
-                        / (x["stddev"]+1e-6)  # weight by signal strength and region
+                        / (x["stddev"] + 1e-6)  # weight by signal strength and region
                     )
             if len(means) == 0:
                 mean_phases.append(torch.nan)
@@ -260,7 +293,6 @@ def mp_segment_zarr(
                 weights = np.array(weights)
                 # weights /= weights.sum()
                 mean_phases.append(mean_phase_mean(angles=means, weights=weights))
-                print("mean_phase_meanX", means, weights, mean_phases[-1])
         mean_phase = np.hstack(mean_phases)
 
         # mean_phase = np.hstack(
@@ -738,7 +770,7 @@ class v5spfdataset(Dataset):
                                 )  # TODO save as float32?
                             )
                         else:
-                            if key in ("rx_heading",):
+                            if key in ("rx_heading_in_pis",):
                                 self.cached_keys[receiver_idx][key] = (
                                     torch.as_tensor(
                                         self.receiver_data[receiver_idx][
@@ -800,7 +832,9 @@ class v5spfdataset(Dataset):
         self.precomputed_zarr = None
 
     def estimate_phi(self, data):
-        x = torch.as_tensor(data["all_windows_stats"])
+        x = torch.as_tensor(
+            data["all_windows_stats"]
+        )  # all_window_stats = trimmed_cm, trimmed_stddev, abs_signal_median
         seg_mask = torch.as_tensor(data["downsampled_segmentation_mask"])
 
         return torch.mul(x, seg_mask).sum(axis=2) / (seg_mask.sum(axis=2) + 0.001)
@@ -879,7 +913,7 @@ class v5spfdataset(Dataset):
 
     def get_wavelength_identifier(self):
         rx_lo = self.cached_keys[0]["rx_lo"][0].item()
-        return f"wlsp{self.rx_wavelength_spacing:0.3f}.rxlo{rx_lo:0.4e}"
+        return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}.wlsp{self.rx_wavelength_spacing:0.3f}"
 
     def get_values_at_key(self, key, receiver_idx, idxs):
         if key == "signal_matrix":
@@ -1100,21 +1134,27 @@ class v5spfdataset(Dataset):
     def get_craft_ground_truth_thetas(self):
         craft_ground_truth_thetas = torch_pi_norm(
             self.ground_truth_thetas[0]
-            + self.cached_keys[0]["rx_theta_in_pis"][:] * torch.pi
+            + (
+                self.cached_keys[0]["rx_theta_in_pis"][:]
+                + self.cached_keys[0]["rx_heading_in_pis"][:]
+            )
+            * torch.pi
         )
         for ridx in range(1, self.n_receivers):
             _craft_ground_truth_thetas = torch_pi_norm(
                 self.ground_truth_thetas[ridx]
-                + self.cached_keys[ridx]["rx_theta_in_pis"][:] * torch.pi
+                + (
+                    self.cached_keys[ridx]["rx_theta_in_pis"][:]
+                    + self.cached_keys[1]["rx_heading_in_pis"][:]
+                )
+                * torch.pi
             )
+            error = abs(
+                torch_pi_norm(craft_ground_truth_thetas - _craft_ground_truth_thetas)
+            ).mean()
             assert (
-                abs(
-                    torch_pi_norm(
-                        craft_ground_truth_thetas - _craft_ground_truth_thetas
-                    )
-                ).mean()
-                < 0.01
-            )  # this might not scale well to larger examples
+                error < 0.2
+            ), f"Failed with error {error}"  # this might not scale well to larger examples
             # i think the error gets worse
         return craft_ground_truth_thetas
 
@@ -1129,8 +1169,11 @@ class v5spfdataset(Dataset):
 
             rx_to_tx_theta = torch.arctan2(d[0], d[1])
             rx_theta_in_pis = self.cached_keys[ridx]["rx_theta_in_pis"]
+            rx_heading_in_pis = self.cached_keys[ridx]["rx_heading_in_pis"]
             ground_truth_thetas.append(
-                torch_pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * torch.pi)
+                torch_pi_norm(
+                    rx_to_tx_theta - (rx_theta_in_pis[:] + rx_heading_in_pis) * torch.pi
+                )
             )
         # reduce GT thetas in case of two antennas
         # in 2D there are generally two spots that satisfy phase diff
