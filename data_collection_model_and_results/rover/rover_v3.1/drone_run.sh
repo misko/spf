@@ -62,7 +62,7 @@ sudo date -s "$(cat time)"
 echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 
 if [ ${rover_id} -eq 1 ]; then
-    routine=bounce
+    routine=center
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
     n=1000
 elif [ ${rover_id} -eq 2 ]; then
@@ -71,7 +71,7 @@ elif [ ${rover_id} -eq 2 ]; then
     routine=circle
     n=1200
 elif [ ${rover_id} -eq 3 ]; then
-    routine=center
+    routine=bounce
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
     n=1000
 else
