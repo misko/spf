@@ -450,11 +450,6 @@ if __name__ == "__main__":
             required=False,
         )
         parser.add_argument(
-            "--output",
-            type=str,
-            required=True,
-        )
-        parser.add_argument(
             "--work-dir",
             type=str,
             required=True,

@@ -332,8 +332,12 @@ def compare_and_copy(prefix, src, dst, skip_signal_matrix=False):
     if isinstance(src, zarr.hierarchy.Group):
         for key in src.keys():
             if not skip_signal_matrix or key != "signal_matrix":
+                if key == "rx_heading" and key not in dst:
+                    dst_key = "rx_heading_in_pis"
+                else:
+                    dst_key = key
                 compare_and_copy(
-                    prefix + "/" + key, src[key], dst[key], skip_signal_matrix
+                    prefix + "/" + key, src[key], dst[dst_key], skip_signal_matrix
                 )
     else:
         if prefix == "/config":
