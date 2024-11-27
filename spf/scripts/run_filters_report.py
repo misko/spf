@@ -46,6 +46,8 @@ def merge_results(results, header):
                 movement = "circle"
             elif "bounce" in _fn:
                 movement = "bounce"
+            elif "calibrate" in _fn:
+                movement = "calibrate"
             else:
                 raise ValueError(f"Cannot figure out movement {_fn}")
             result["movement"] = movement

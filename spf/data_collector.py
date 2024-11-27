@@ -239,7 +239,7 @@ class ThreadedRXRaw(ThreadedRX):
 
         # process the data
         signal_matrix = np.vstack(sdr_rx["signal_matrix"])
-        current_time = time.time() - self.time_offset  # timestamp
+        current_time = time.time() - self.time_offset  # timestamp after sample arrives
 
         avg_phase_diff = get_avg_phase(signal_matrix)
 

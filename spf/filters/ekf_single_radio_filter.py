@@ -148,7 +148,7 @@ class SPFKalmanFilter(ExtendedKalmanFilter, SPFFilter):
             # compute update = likelihood * prior
             observation = self.observation(idx)
 
-            if observation.isfinite().all():
+            if np.isfinite(observation).all():
                 self.update(observation=observation)
 
             current_instance = {

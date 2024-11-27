@@ -87,10 +87,13 @@ def run_jobs_with_one_dataset(kwargs):
                     result["ds_fn"] = kwargs["ds_fn"]
                 pickle.dump(new_results, open(result_fn + ".tmp", "wb"))
                 os.rename(result_fn + ".tmp", result_fn)
+                assert os.path.exists(result_fn)
             else:
                 # print("SKIPPING", result_fn)
                 pass
             result_fns.append(result_fn)
+            # breakpoint()
+            # a = 1
         return result_fns
 
 
@@ -187,7 +190,7 @@ def run_EKF_xy_dual_radio(
 
 def run_PF_single_theta_single_radio_NN(
     ds,
-    checkpoint_dir,
+    checkpoint_fn,
     inference_cache,
     theta_err=0.1,
     theta_dot_err=0.001,
@@ -195,8 +198,7 @@ def run_PF_single_theta_single_radio_NN(
 ):
 
     all_metrics = []
-    checkpoint_fn = f"{checkpoint_dir}/best.pth"
-    config_fn = f"{checkpoint_dir}/config.yml"
+    config_fn = f"{os.path.dirname(checkpoint_fn)}/config.yml"
     for rx_idx in [0, 1]:
         start_time = time.time()
         pf = PFSingleThetaSingleRadioNN(
@@ -290,14 +292,13 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
 
 def run_PF_single_theta_dual_radio_NN(
     ds,
-    checkpoint_dir,
+    checkpoint_fn,
     inference_cache,
     theta_err=0.1,
     theta_dot_err=0.001,
     N=128,
 ):
-    checkpoint_fn = f"{checkpoint_dir}/best.pth"
-    config_fn = f"{checkpoint_dir}/config.yml"
+    config_fn = f"{os.path.dirname(checkpoint_fn)}/config.yml"
     start_time = time.time()
     pf = PFSingleThetaDualRadioNN(
         ds=ds,
