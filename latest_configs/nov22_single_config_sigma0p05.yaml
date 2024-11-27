@@ -3,9 +3,9 @@ datasets:
   empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl
   empirical_individual_radio: false
   empirical_symmetry: true
-  flip: false
-  double_flip: True
-  precompute_cache: /home/mouse9911/precompute_cache_chunk16_sept
+  flip: true
+  double_flip: false
+  precompute_cache: /mnt/4tb_ssd/precompute_cache_new/ 
   scatter: continuous
   scatter_k: 21
   shuffle: true
@@ -17,9 +17,9 @@ datasets:
   random_snapshot_size: False
   snapshots_stride: 1
   train_paths:
-  - /mnt/4tb_ssd/nosig_data/train.txt
+  - /mnt/4tb_ssd/nosig_data/nov22_split_train.txt
   val_paths:
-  - /mnt/4tb_ssd/nosig_data/val.txt
+  - /mnt/4tb_ssd/nosig_data/nov22_split_val.txt
   val_holdout_fraction: 0.2
   val_subsample_fraction: 0.2
   workers: 20
@@ -35,7 +35,7 @@ logger:
   log_every: 100
   name: wandb
   plot_every: 15000
-  project: 2024_nov2_single_paired_multi
+  project: 2024_nov22_single_paired_multi
 model:
   block: true
   bn: true
@@ -43,32 +43,22 @@ model:
   detach: true
   dropout: 0.0
   hidden: 1024
-  load_single: true
-  name: pairedbeamformer
+  input_dropout: 0.3
+  name: beamformer
   norm: layer
-  single:
-    block: true
-    bn: true
-    depth: 4
-    detach: true
-    dropout: 0.0
-    hidden: 1024
-    input_dropout: 0.3
-    norm: layer
 optim:
-  amp: true
-  checkpoint: /home/mouse9911/gits/spf/nov4_checkpoints/single_checkpoints_inputdo0p3/best.pth
+  amp: false
   checkpoint_every: 5000
   device: cuda
   direct_loss: false
   dtype: torch.float32
-  epochs: 60
+  epochs: 30
   head_start: 0
-  learning_rate: 0.0002
+  learning_rate: 0.002
   loss: mse
-  output: /home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05
+  output: /home/mouse9911/gits/spf/nov22_checkpoints/single_checkpoints_inputdo0p3_sigma0p05
   resume_step: 0
-  save_on: val_paired_loss
-  scheduler_step: 6
+  save_on: val/single_loss
+  scheduler_step: 7
   val_every: 10000
   weight_decay: 0.0

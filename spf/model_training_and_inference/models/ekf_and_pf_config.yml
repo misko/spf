@@ -28,29 +28,15 @@ runs:
     theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]
     theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
 - run_PF_single_theta_single_radio_NN:
-    checkpoint_dir:
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p5/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p5_from_sigma0p05/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_outputNtheta129/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p01_from_sigma0p05/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p15_from_sigma0p05/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p15_from_sigma0p05_ntheta129/"
+    checkpoint_fn:
+      - "/home/mouse9911/gits/spf/nov22_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_beamformerOnly_withMag/best.pth"
     inference_cache: ["/mnt/4tb_ssd/inference_cache/"]
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 ,  128*128  ]
     theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15, 0.2]
     theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
 - run_PF_single_theta_dual_radio_NN:
-    checkpoint_dir:
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p5/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p5_from_sigma0p05/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_outputNtheta129/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p01_from_sigma0p05/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p15_from_sigma0p05/"
-      - "/home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p15_from_sigma0p05_ntheta129/"
+    checkpoint_fn:
+      - "/home/mouse9911/gits/spf/nov22_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_beamformerOnly_withMag/best.pth"
     inference_cache: ["/mnt/4tb_ssd/inference_cache/"]
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 , 128*128,128*256 ]
     theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15,0.2]

@@ -79,6 +79,7 @@ def run_jobs_with_one_dataset(kwargs):
                 + args_to_str(fn_kwargs)
                 + "results.pkl"
             )
+
             os.makedirs(os.path.dirname(result_fn), exist_ok=True)
             if not os.path.exists(result_fn):
                 fn_kwargs["ds"] = ds
@@ -117,6 +118,8 @@ def run_EKF_single_theta_single_radio(ds, phi_std, p, noise_std, dynamic_R):
         all_metrics.append(
             {
                 "type": "EKF_single_theta_single_radio",
+                "frequency": ds.cached_keys[0]["rx_lo"][0],
+                "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "phi_std": phi_std,
                 "p": p,
@@ -149,6 +152,8 @@ def run_EKF_single_theta_dual_radio(
     return [
         {
             "type": "EKF_single_theta_dual_radio",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "phi_std": phi_std,
             "p": p,
             "noise_std": noise_std,
@@ -179,6 +184,8 @@ def run_EKF_xy_dual_radio(
     return [
         {
             "type": "EKF_XY_dual_radio",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "phi_std": phi_std,
             "p": p,
             "noise_std": noise_std,
@@ -221,6 +228,8 @@ def run_PF_single_theta_single_radio_NN(
         all_metrics.append(
             {
                 "type": "PF_single_theta_single_radio_NN",
+                "frequency": ds.cached_keys[0]["rx_lo"][0],
+                "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
                 "theta_dot_err": theta_dot_err,
@@ -257,6 +266,8 @@ def run_PF_single_theta_single_radio(
         all_metrics.append(
             {
                 "type": "PF_single_theta_single_radio",
+                "frequency": ds.cached_keys[0]["rx_lo"][0],
+                "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
                 "theta_dot_err": theta_dot_err,
@@ -282,6 +293,8 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
     return [
         {
             "type": "PF_single_theta_dual_radio",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
             "N": N,
@@ -318,6 +331,8 @@ def run_PF_single_theta_dual_radio_NN(
     return [
         {
             "type": "PF_single_theta_dual_radio_NN",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
             "N": N,
@@ -345,6 +360,8 @@ def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
     return [
         {
             "type": "PF_xy_dual_radio",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "vel_err": vel_err,
             "pos_err": pos_err,
             "N": N,

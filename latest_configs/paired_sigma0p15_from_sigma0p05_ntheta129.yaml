@@ -9,7 +9,7 @@ datasets:
   scatter: continuous
   scatter_k: 21
   shuffle: true
-  sigma: 0.05
+  sigma: 0.15
   skip_qc: true
   snapshots_adjacent_stride: 1
   train_snapshots_per_session: 1
@@ -37,6 +37,7 @@ logger:
   plot_every: 15000
   project: 2024_nov2_single_paired_multi
 model:
+  output_ntheta: 129
   block: true
   bn: true
   depth: 4
@@ -57,16 +58,16 @@ model:
     norm: layer
 optim:
   amp: true
-  checkpoint: /home/mouse9911/gits/spf/nov4_checkpoints/single_checkpoints_inputdo0p3/best.pth
+  checkpoint: /home/mouse9911/gits/spf/nov4_checkpoints/single_checkpoints_inputdo0p3_sigma0p05/best.pth
   checkpoint_every: 5000
   device: cuda
   direct_loss: false
   dtype: torch.float32
-  epochs: 60
+  epochs: 30
   head_start: 0
   learning_rate: 0.0002
   loss: mse
-  output: /home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05
+  output: /home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p15_from_sigma0p05_ntheta129
   resume_step: 0
   save_on: val_paired_loss
   scheduler_step: 6

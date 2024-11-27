@@ -4,6 +4,7 @@ import logging
 import os
 import pickle
 
+import torch
 import tqdm
 
 
@@ -29,7 +30,10 @@ def cannonical(_ty, params):
 def result_to_tuple(result, header):
     l = []
     for key in header:
-        l.append(result[key])
+        v = result[key]
+        if isinstance(v, torch.Tensor):
+            v = f"{v.item():0.4e}"
+        l.append(v)
     return tuple(l)
 
 

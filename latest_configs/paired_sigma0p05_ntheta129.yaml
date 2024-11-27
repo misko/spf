@@ -44,6 +44,7 @@ model:
   dropout: 0.0
   hidden: 1024
   load_single: true
+  output_ntheta: 129
   name: pairedbeamformer
   norm: layer
   single:
@@ -57,18 +58,18 @@ model:
     norm: layer
 optim:
   amp: true
-  checkpoint: /home/mouse9911/gits/spf/nov4_checkpoints/single_checkpoints_inputdo0p3/best.pth
+  checkpoint: /home/mouse9911/gits/spf/nov4_checkpoints/single_checkpoints_inputdo0p3_sigma0p05/best.pth
   checkpoint_every: 5000
   device: cuda
   direct_loss: false
   dtype: torch.float32
-  epochs: 60
+  epochs: 80
   head_start: 0
   learning_rate: 0.0002
   loss: mse
-  output: /home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05
+  output: /home/mouse9911/gits/spf/nov4_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_outputNtheta129
   resume_step: 0
   save_on: val_paired_loss
-  scheduler_step: 6
+  scheduler_step: 9
   val_every: 10000
   weight_decay: 0.0
