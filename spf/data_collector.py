@@ -1,4 +1,6 @@
 import logging
+import multiprocessing
+import queue
 import struct
 import sys
 import threading
@@ -135,9 +137,8 @@ def data_to_snapshot(
 class ThreadedRX:
     def __init__(self, pplus: PPlus, time_offset, nthetas, seconds_per_sample=0):
         self.pplus = pplus
-        self.read_lock = threading.Lock()
-        self.ready_lock = threading.Lock()
-        self.ready_lock.acquire()
+        # self.read_q = queue.Queue(maxsize=1)
+        self.read_q = multiprocessing.Queue(maxsize=1)
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
@@ -158,15 +159,13 @@ class ThreadedRX:
         idx = 0
         while self.run:
             start_time = time.time()
-            if self.read_lock.acquire(blocking=True, timeout=0.5):
-                # got the semaphore, read some data!
-                self.get_data()
+            data = self.get_data()
+            put_on_queue = False
+            while self.run and not put_on_queue:
                 try:
-                    self.ready_lock.release()  # tell the parent we are ready to provide
-                except Exception as e:
-                    logging.error(f"Thread encountered an issue exiting {str(e)}")
-                    self.run = False
-                # logging.info(f"{self.pplus.rx_config.uri} READY")
+                    self.read_q.put(data, timeout=0.5)
+                except queue.Full:
+                    pass
             finish_time = time.time()
             elapsed_time = finish_time - start_time
             if idx % 100 == 0:
@@ -190,10 +189,15 @@ class ThreadedRX:
     def join(self):
         self.t.join()
 
-    def start_read_thread(self):
-        self.t = threading.Thread(target=self.read_forever, daemon=True)
-        self.run = True
-        self.t.start()
+    def start_read_thread(self, thread=True):
+        if thread:
+            self.t = threading.Thread(target=self.read_forever, daemon=True)
+            self.run = True
+            self.t.start()
+        else:
+            self.t = multiprocessing.Process(target=self.read_forever, daemon=True)
+            self.run = True
+            self.t.start()
 
     def get_rx(self, max_retries=15) -> Dict[str, Any]:
         tries = 0
@@ -221,7 +225,7 @@ class ThreadedRX:
         signal_matrix = np.vstack(sdr_rx["signal_matrix"])
         current_time = time.time() - self.time_offset  # timestamp
 
-        self.data = data_to_snapshot(
+        return data_to_snapshot(
             current_time=current_time,
             signal_matrix=signal_matrix,
             steering_vectors=self.steering_vectors,
@@ -233,7 +237,6 @@ class ThreadedRX:
 
 class ThreadedRXRaw(ThreadedRX):
     def get_data(self):
-        self.data = None
 
         sdr_rx = self.get_rx()
 
@@ -243,7 +246,7 @@ class ThreadedRXRaw(ThreadedRX):
 
         avg_phase_diff = get_avg_phase(signal_matrix)
 
-        self.data = self.snapshot_class(
+        return self.snapshot_class(
             signal_matrix=signal_matrix,
             system_timestamp=current_time,
             rssis=sdr_rx["rssis"],
@@ -401,21 +404,17 @@ class DataCollector:
         raise NotImplementedError
 
     def run_collector_thread(self):
+        logging.info("Collector thread is running!")
         for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
             for read_thread_idx, read_thread in enumerate(self.read_threads):
-                while not read_thread.ready_lock.acquire(timeout=0.5):
-                    pass
-                ###
-                # copy the data out
-                data = read_thread.data
+                data = read_thread.read_q.get()
 
                 self.write_to_record_matrix(
                     read_thread_idx,
                     record_idx=record_index,
                     data=data,
                 )
-
-                read_thread.read_lock.release()
+        # read_thread.read_q.shutdown() # py 3.13
         logging.info("Collector thread is exiting!")
         self.finished_collecting = True
 
