@@ -26,7 +26,7 @@ from spf.model_training_and_inference.models.single_point_networks import (
     TrajPairedMultiPointWithBeamformer,
 )
 from spf.rf import torch_pi_norm
-from spf.utils import StatefulBatchsampler
+from spf.utils import SEGMENTATION_VERSION, StatefulBatchsampler
 
 
 def worker_init_fn(worker_id):
@@ -137,60 +137,94 @@ def load_dataloaders(
         "val_snapshots_adjacent_stride", datasets_config["snapshots_adjacent_stride"]
     )
     logging.info(f"Using validation stride of {val_adjacent_stride}")
-    val_datasets = [
-        v5spfdataset(
-            prefix,
-            precompute_cache=datasets_config["precompute_cache"],
-            nthetas=global_config["nthetas"],
-            target_ntheta=model_config["output_ntheta"],
-            paired=global_config["n_radios"] > 1,
-            ignore_qc=datasets_config["skip_qc"],
-            gpu=optim_config["device"] == "cuda",
-            snapshots_per_session=datasets_config["val_snapshots_per_session"],
-            snapshots_stride=datasets_config["snapshots_stride"],
-            snapshots_adjacent_stride=val_adjacent_stride,
-            readahead=False,
-            skip_fields=skip_fields,
-            empirical_data_fn=datasets_config.get("empirical_data_fn", None),
-            empirical_individual_radio=datasets_config.get(
-                "empirical_individual_radio"
-            ),
-            empirical_symmetry=datasets_config.get("empirical_symmetry", None),
-            target_dtype=optim_config["dtype"],
+
+    def load_val_dataset(prefix):
+        try:
+            return v5spfdataset(
+                prefix,
+                precompute_cache=datasets_config["precompute_cache"],
+                nthetas=global_config["nthetas"],
+                target_ntheta=model_config["output_ntheta"],
+                paired=global_config["n_radios"] > 1,
+                ignore_qc=datasets_config["skip_qc"],
+                gpu=optim_config["device"] == "cuda",
+                snapshots_per_session=datasets_config["val_snapshots_per_session"],
+                snapshots_stride=datasets_config["snapshots_stride"],
+                snapshots_adjacent_stride=val_adjacent_stride,
+                readahead=False,
+                skip_fields=skip_fields,
+                empirical_data_fn=datasets_config.get("empirical_data_fn", None),
+                empirical_individual_radio=datasets_config.get(
+                    "empirical_individual_radio"
+                ),
+                empirical_symmetry=datasets_config.get("empirical_symmetry", None),
+                target_dtype=optim_config["dtype"],
+                segmentation_version=datasets_config.get(
+                    "segmentation_version", SEGMENTATION_VERSION
+                ),
+            )
+        except Exception as e:
+            logging.error(f"Val: Failed to load {prefix} with error {e}")
+        return None
+
+    logging.info("Loading validation datasets...")
+    val_datasets = list(
+        filter(
+            lambda x: x, tqdm(map(load_val_dataset, val_paths), total=len(val_paths))
         )
-        for prefix in val_paths
-    ]
-    train_datasets = [
-        v5spfdataset(
-            prefix,
-            precompute_cache=datasets_config["precompute_cache"],
-            nthetas=global_config["nthetas"],
-            target_ntheta=model_config["output_ntheta"],
-            paired=global_config["n_radios"] > 1,
-            ignore_qc=datasets_config["skip_qc"],
-            gpu=optim_config["device"] == "cuda",
-            snapshots_per_session=datasets_config["train_snapshots_per_session"],
-            snapshots_stride=datasets_config["snapshots_stride"],
-            snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
-            readahead=False,
-            skip_fields=skip_fields,
-            empirical_data_fn=datasets_config.get("empirical_data_fn", None),
-            empirical_individual_radio=datasets_config.get(
-                "empirical_individual_radio"
-            ),
-            empirical_symmetry=datasets_config.get("empirical_symmetry", None),
-            target_dtype=optim_config["dtype"],
-            # difference
-            flip=datasets_config["flip"],
-            double_flip=datasets_config["double_flip"],
-            random_adjacent_stride=datasets_config.get("random_adjacent_stride", False),
+    )
+    logging.info(f"Val: Loaded {len(val_datasets)} of {len(val_paths)} datasets")
+
+    def load_train_dataset(prefix):
+        try:
+            return v5spfdataset(
+                prefix,
+                precompute_cache=datasets_config["precompute_cache"],
+                nthetas=global_config["nthetas"],
+                target_ntheta=model_config["output_ntheta"],
+                paired=global_config["n_radios"] > 1,
+                ignore_qc=datasets_config["skip_qc"],
+                gpu=optim_config["device"] == "cuda",
+                snapshots_per_session=datasets_config["train_snapshots_per_session"],
+                snapshots_stride=datasets_config["snapshots_stride"],
+                snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
+                readahead=False,
+                skip_fields=skip_fields,
+                empirical_data_fn=datasets_config.get("empirical_data_fn", None),
+                empirical_individual_radio=datasets_config.get(
+                    "empirical_individual_radio"
+                ),
+                empirical_symmetry=datasets_config.get("empirical_symmetry", None),
+                target_dtype=optim_config["dtype"],
+                # difference
+                flip=datasets_config["flip"],
+                double_flip=datasets_config["double_flip"],
+                random_adjacent_stride=datasets_config.get(
+                    "random_adjacent_stride", False
+                ),
+                segmentation_version=datasets_config.get(
+                    "segmentation_version", SEGMENTATION_VERSION
+                ),
+            )
+        except Exception as e:
+            logging.error(f"Train: Failed to load {prefix} with error {e}")
+        return None
+
+    logging.info("Loading training datasets...")
+    train_datasets = list(
+        filter(
+            lambda x: x,
+            tqdm(map(load_train_dataset, train_paths), total=len(train_paths)),
         )
-        for prefix in train_paths
-    ]
+    )
+    logging.info(f"Train: Loaded {len(train_datasets)} of {len(train_paths)} datasets")
+
     assert len(train_paths) > 0
     assert len(val_paths) > 0
     for ds in val_datasets + train_datasets:
-        ds.get_segmentation()
+        ds.get_segmentation(
+            version=datasets_config.get("segmentation_version", SEGMENTATION_VERSION)
+        )
 
     val_ds = torch.utils.data.ConcatDataset(val_datasets)
     train_ds = torch.utils.data.ConcatDataset(train_datasets)
@@ -846,6 +880,10 @@ def train_single_point(args):
     optimizer, scheduler = load_optimizer(config["optim"], m.parameters())
 
     load_seed(config["global"])
+
+    # DEBUG MODE
+    if args.debug:
+        config["datasets"]["workers"] = 0
 
     if config["logger"]["name"] == "simple" or args.debug:
         logger = SimpleLogger(args, config.get("logger", {}), config)
