@@ -137,8 +137,8 @@ def data_to_snapshot(
 class ThreadedRX:
     def __init__(self, pplus: PPlus, time_offset, nthetas, seconds_per_sample=0):
         self.pplus = pplus
-        # self.read_q = queue.Queue(maxsize=1)
-        self.read_q = multiprocessing.Queue(maxsize=1)
+        self.read_q = queue.Queue(maxsize=1)
+        # self.read_q = multiprocessing.Queue(maxsize=1)
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
