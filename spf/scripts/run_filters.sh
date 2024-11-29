@@ -9,5 +9,5 @@ inference_cache=/mnt/4tb_ssd/inference_cache/
 shuf --random-source ${val_file} ${val_file} | while read x; do 
    python ${root}/spf/scripts/run_filters_on_data.py -d $x --nthetas 65 --device cpu --skip-qc  \
 	   --precompute-cache ${precompute_cache} --empirical-pkl-fn ${root}/empirical_dists/full.pkl \
-	   --parallel 12 --work-dir ${root}/spf/run_on_filters_nov27 --config ${root}/spf/model_training_and_inference/models/ekf_and_pf_config.yml
+	   --parallel 32 --work-dir ${root}/spf/run_on_filters_nov27 --config ${root}/spf/model_training_and_inference/models/ekf_and_pf_config.yml
 done
