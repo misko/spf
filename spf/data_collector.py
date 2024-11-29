@@ -1,3 +1,4 @@
+import concurrent
 import logging
 import multiprocessing
 import queue
@@ -5,6 +6,7 @@ import struct
 import sys
 import threading
 import time
+from concurrent import futures
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -26,6 +28,12 @@ from spf.sdrpluto.sdr_controller import (
     setup_rxtx,
 )
 from spf.utils import zarr_shrink
+
+
+class ThreadPoolExecutorWithQueueSizeLimit(futures.ThreadPoolExecutor):
+    def __init__(self, maxsize=50, *args, **kwargs):
+        super(ThreadPoolExecutorWithQueueSizeLimit, self).__init__(*args, **kwargs)
+        self._work_queue = queue.Queue(maxsize=maxsize)
 
 
 @dataclass
@@ -406,15 +414,19 @@ class DataCollector:
 
     def run_collector_thread(self):
         logging.info("Collector thread is running!")
-        for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
-            for read_thread_idx, read_thread in enumerate(self.read_threads):
-                data = read_thread.read_q.get()
-
-                self.write_to_record_matrix(
-                    read_thread_idx,
-                    record_idx=record_index,
-                    data=data,
-                )
+        # https://stackoverflow.com/questions/48263704/threadpoolexecutor-how-to-limit-the-queue-maxsize
+        with ThreadPoolExecutorWithQueueSizeLimit(
+            max_workers=6, maxsize=12
+        ) as executor:
+            for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
+                for read_thread_idx, read_thread in enumerate(self.read_threads):
+                    data = read_thread.read_q.get()
+                    executor.submit(
+                        self.write_to_record_matrix,
+                        read_thread_idx,
+                        record_idx=record_index,
+                        data=data,
+                    )
         # read_thread.read_q.shutdown() # py 3.13
         logging.info("Collector thread is exiting!")
         self.finished_collecting = True
