@@ -530,6 +530,7 @@ class v5spfdataset(Dataset):
         distance_normalization: int = 1000,
         target_ntheta: bool | None = None,
         segmentation_version: float = SEGMENTATION_VERSION,
+        segment_if_not_exist: bool = False,
     ):
         logging.debug(f"loading... {prefix}")
         self.n_parallel = n_parallel
@@ -544,6 +545,7 @@ class v5spfdataset(Dataset):
         self.temp_file = temp_file
 
         self.segmentation_version = segmentation_version
+        self.segment_if_not_exist = segment_if_not_exist
 
         self.distance_normalization = distance_normalization
 
@@ -588,6 +590,9 @@ class v5spfdataset(Dataset):
         self.wavelengths = [
             speed_of_light / receiver["f-carrier"]
             for receiver in self.yaml_config["receivers"]
+        ]
+        self.carrier_frequencies = [
+            receiver["f-carrier"] for receiver in self.yaml_config["receivers"]
         ]
 
         for rx_idx in range(1, self.n_receivers):
@@ -666,7 +671,10 @@ class v5spfdataset(Dataset):
             ).expand(1, self.snapshots_per_session)
 
         if not self.temp_file:
-            self.get_segmentation(version=self.segmentation_version)
+            self.get_segmentation(
+                version=self.segmentation_version,
+                segment_if_not_exist=self.segment_if_not_exist,
+            )
 
             self.all_phi_drifts = self.get_all_phi_drifts()
             self.phi_drifts = torch.tensor(
@@ -858,7 +866,10 @@ class v5spfdataset(Dataset):
                 self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
             ]
         if not self.temp_file and self.precomputed_zarr is None:
-            self.get_segmentation(version=self.segmentation_version)
+            self.get_segmentation(
+                version=self.segmentation_version,
+                segment_if_not_exist=self.segment_if_not_exist,
+            )
             # self.precomputed_zarr = zarr_open_from_lmdb_store(
             #     self.results_fn().replace(".pkl", ".yarr"), mode="r"
             # )
@@ -1033,7 +1044,9 @@ class v5spfdataset(Dataset):
         # find out if this is a temp file and we either need to precompute, or its not ready
         if self.temp_file and self.precomputed_entries <= session_idx:
             self.get_segmentation(
-                version=self.segmentation_version, precompute_to_idx=session_idx
+                version=self.segmentation_version,
+                precompute_to_idx=session_idx,
+                segment_if_not_exist=self.segment_if_not_exist,
             )
 
         self.populate_from_precomputed(data, receiver_idx, snapshot_idxs)
@@ -1242,7 +1255,7 @@ class v5spfdataset(Dataset):
             return None
         return segmentation["version"]
 
-    def get_segmentation(self, version, precompute_to_idx=-1):
+    def get_segmentation(self, version, segment_if_not_exist, precompute_to_idx=-1):
         if (
             not self.temp_file
             and hasattr(self, "segmentation")
@@ -1253,6 +1266,12 @@ class v5spfdataset(Dataset):
         # otherwise its the first time loading for non temp
         # or this is a temp file
         results_fn = self.results_fn()
+        if (
+            not segment_if_not_exist
+            and not self.temp_file
+            and not os.path.exists(results_fn)
+        ):
+            raise ValueError(f"Segmentation file does not exist for {results_fn}")
 
         if self.temp_file or not os.path.exists(results_fn):
             skip_beamformer = False
@@ -1299,7 +1318,9 @@ class v5spfdataset(Dataset):
         except pickle.UnpicklingError:
             os.remove(results_fn)
             return self.get_segmentation(
-                version=version, precompute_to_idx=precompute_to_idx
+                version=version,
+                segment_if_not_exist=segment_if_not_exist,
+                precompute_to_idx=precompute_to_idx,
             )
 
         current_version = self.get_segmentation_version(precomputed_zarr, segmentation)

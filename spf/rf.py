@@ -471,33 +471,57 @@ def drop_noise_windows(windows):
     return valid_windows
 
 
+# 3.3 SEGMENTATION VERSION HAS THIS
 def keep_signal_surrounded_by_noise(windows):
     valid_windows = []
     for window_idx, window in enumerate(windows):
         if window["type"] == "signal":
-            if window["stddev"] > 1.0:
-                continue
             if window["stddev"] > 0.03:
                 #     # check if one before was signal
-                before_is_different_signal = False
-                if (
-                    window_idx > 0
-                    and windows[window_idx - 1]["type"] == "signal"
-                    and pi_norm(windows[window_idx - 1]["mean"] - window["mean"]) > 0.5
-                ):
-                    before_is_different_signal = True
+                before_is_signal = False
+                if window_idx > 0 and windows[window_idx - 1]["type"] == "signal":
+                    before_is_signal = True
                 # check if one after was signal
-                after_is_different_signal = False
+                after_is_signal = False
                 if (
                     window_idx + 1 < len(windows)
                     and windows[window_idx + 1]["type"] == "signal"
-                ) and pi_norm(windows[window_idx + 1]["mean"] - window["mean"]) < 0.5:
-                    after_is_different_signal = True
-                # if the means are different enough then dont
-                if before_is_different_signal and after_is_different_signal:
+                ):
+                    after_is_signal = True
+                if before_is_signal and after_is_signal:
                     continue
             valid_windows.append(window)
     return valid_windows
+
+
+# 3.2 SEGMENTATION VERSION HAD THIS
+# def keep_signal_surrounded_by_noise(windows):
+#     valid_windows = []
+#     for window_idx, window in enumerate(windows):
+#         if window["type"] == "signal":
+#             if window["stddev"] > 1.0:
+#                 continue
+#             if window["stddev"] > 0.03:
+#                 #     # check if one before was signal
+#                 before_is_different_signal = False
+#                 if (
+#                     window_idx > 0
+#                     and windows[window_idx - 1]["type"] == "signal"
+#                     and pi_norm(windows[window_idx - 1]["mean"] - window["mean"]) > 0.5
+#                 ):
+#                     before_is_different_signal = True
+#                 # check if one after was signal
+#                 after_is_different_signal = False
+#                 if (
+#                     window_idx + 1 < len(windows)
+#                     and windows[window_idx + 1]["type"] == "signal"
+#                 ) and pi_norm(windows[window_idx + 1]["mean"] - window["mean"]) < 0.5:
+#                     after_is_different_signal = True
+#                 # if the means are different enough then dont
+#                 if before_is_different_signal and after_is_different_signal:
+#                     continue
+#             valid_windows.append(window)
+#     return valid_windows
 
 
 def drop_windows_smaller_than(windows, drop_less_than_size):

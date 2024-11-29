@@ -25,5 +25,6 @@ if __name__ == "__main__":
         ignore_qc=True,
         # readahead=True, #this is hard coded in the segmentation code
         n_parallel=args.parallel,
+        segment_if_not_exist=True,
     )
     print(args.input_zarr, ds.phi_drifts[0], ds.phi_drifts[1])

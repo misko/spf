@@ -13,7 +13,7 @@ from deepdiff.diff import DeepDiff
 from numcodecs import Blosc
 from torch.utils.data import BatchSampler, DistributedSampler
 
-SEGMENTATION_VERSION = 3.2
+SEGMENTATION_VERSION = 3.3
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
@@ -144,7 +144,7 @@ def zarr_open_from_lmdb_store(filename, mode="r", readahead=False, map_size=2**3
             map_size=map_size,
             writemap=False,
             readonly=True,
-            max_readers=32,  # 1024 * 1024,
+            max_readers=1024,  # 1024 * 1024,
             lock=False,
             meminit=False,
             readahead=readahead,
