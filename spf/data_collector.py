@@ -164,6 +164,7 @@ class ThreadedRX:
             while self.run and not put_on_queue:
                 try:
                     self.read_q.put(data, timeout=0.5)
+                    put_on_queue = True
                 except queue.Full:
                     pass
             finish_time = time.time()
