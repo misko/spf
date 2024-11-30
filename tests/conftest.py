@@ -28,6 +28,7 @@ def noise1_n128_obits2():
             precompute_cache=tmpdirname,
             paired=True,
             skip_fields=set(["signal_matrix"]),
+            segment_if_not_exist=True,
         )
 
         empirical_pkl_fn = create_empirical_dist_for_datasets(
