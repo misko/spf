@@ -933,7 +933,7 @@ class v5spfdataset(Dataset):
 
     def get_values_at_key(self, key, receiver_idx, idxs):
         if key == "signal_matrix":
-            return torch.as_tensor(self.receiver_data[receiver_idx][key][idxs])
+            return torch.as_tensor(self.receiver_data[receiver_idx][key][idxs])[None]
         return self.cached_keys[receiver_idx][key][idxs]
 
     def get_session_idxs(self, session_idx):
@@ -1036,9 +1036,10 @@ class v5spfdataset(Dataset):
 
         if "signal_matrix" not in self.skip_fields:
             abs_signal = data["signal_matrix"].abs().to(torch.float32)
-            pd = torch_get_phase_diff(data["signal_matrix"]).to(torch.float32)
+            assert data["signal_matrix"].shape[0] == 1
+            pd = torch_get_phase_diff(data["signal_matrix"][0]).to(torch.float32)
             data["abs_signal_and_phase_diff"] = torch.concatenate(
-                [abs_signal[:, [0]], abs_signal[:, [1]], pd[:, None]], dim=1
+                [abs_signal, pd[None, :, None]], dim=2
             )
 
         # find out if this is a temp file and we either need to precompute, or its not ready
@@ -1046,7 +1047,7 @@ class v5spfdataset(Dataset):
             self.get_segmentation(
                 version=self.segmentation_version,
                 precompute_to_idx=session_idx,
-                segment_if_not_exist=self.segment_if_not_exist,
+                segment_if_not_exist=True,
             )
 
         self.populate_from_precomputed(data, receiver_idx, snapshot_idxs)

@@ -9,6 +9,7 @@ import yaml
 import zarr
 
 # V5 data format
+from spf.dataset.spf_dataset import v5spfdataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.rf import speed_of_light, torch_get_avg_phase_notrim, torch_pi_norm_pi
 from spf.scripts.create_empirical_p_dist import (
@@ -112,6 +113,11 @@ seconds-per-sample: 5.0
 
 def create_empirical_dist_for_datasets(datasets, precompute_cache, nthetas):
 
+    for dataset in datasets:
+        segment_dataset(
+            ds_fn=dataset, precompute_cache=precompute_cache, nthetas=nthetas
+        )
+
     parser = get_empirical_p_dist_parser()
 
     empirical_pkl_fn = precompute_cache + "/full.pkl"
@@ -134,6 +140,16 @@ def create_empirical_dist_for_datasets(datasets, precompute_cache, nthetas):
     )
     create_empirical_p_dist(args)
     return empirical_pkl_fn
+
+
+def segment_dataset(ds_fn, nthetas, precompute_cache):
+    v5spfdataset(
+        ds_fn,
+        nthetas=nthetas,
+        ignore_qc=True,
+        precompute_cache=precompute_cache,
+        segment_if_not_exist=True,
+    )
 
 
 def create_fake_dataset(

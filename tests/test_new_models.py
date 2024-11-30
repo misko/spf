@@ -21,6 +21,7 @@ from spf.scripts.train_single_point import (
     load_dataloaders,
     train_single_point,
 )
+from spf.utils import SEGMENTATION_VERSION
 
 
 def merge_dictionary(d, u):
@@ -211,7 +212,11 @@ def test_inference_single_checkpoint(
     # prepare inference configs
     optim_config = {"device": "cpu", "dtype": torch.float32}
     datasets_config = convert_datasets_config_to_inference(
-        config["datasets"], ds_fn=ds_fn, batch_size=3, precompute_cache=precompute_cache
+        config["datasets"],
+        ds_fn=ds_fn,
+        batch_size=3,
+        precompute_cache=precompute_cache,
+        segmentation_version=SEGMENTATION_VERSION,
     )
 
     # inference using dataloader
@@ -249,7 +254,11 @@ def test_inference_single_checkpoint_against_ds_inference(
     # prepare inference configs
     optim_config = {"device": "cpu", "dtype": torch.float32}
     datasets_config = convert_datasets_config_to_inference(
-        config["datasets"], ds_fn=ds_fn, batch_size=3, precompute_cache=precompute_cache
+        config["datasets"],
+        ds_fn=ds_fn,
+        batch_size=3,
+        precompute_cache=precompute_cache,
+        segmentation_version=SEGMENTATION_VERSION,
     )
 
     # run inference one at a time
@@ -296,6 +305,7 @@ def test_inference_paired_checkpoint(
         ds_fn=ds_fn,
         batch_size=3,
         precompute_cache=precompute_cache,
+        segmentation_version=SEGMENTATION_VERSION,
     )
 
     # inference using dataloader
@@ -323,6 +333,7 @@ def test_inference_paired_checkpoint(
         paired_config["datasets"],
         ds_fn=ds_fn,
         precompute_cache=precompute_cache,
+        segmentation_version=SEGMENTATION_VERSION,
     )
 
     # inference using dataloader

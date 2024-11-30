@@ -11,7 +11,7 @@ from spf.scripts.train_single_point import (
     load_dataloaders,
     load_model,
 )
-from spf.utils import get_md5_of_file
+from spf.utils import SEGMENTATION_VERSION, get_md5_of_file
 
 
 def load_model_and_config_from_config_fn_and_checkpoint(
@@ -34,7 +34,12 @@ def load_model_and_config_from_config_fn_and_checkpoint(
 
 
 def convert_datasets_config_to_inference(
-    datasets_config, ds_fn, precompute_cache, batch_size=1, workers=1
+    datasets_config,
+    ds_fn,
+    precompute_cache,
+    segmentation_version,
+    batch_size=1,
+    workers=1,
 ):
     datasets_config = datasets_config.copy()
     datasets_config.update(
@@ -52,11 +57,41 @@ def convert_datasets_config_to_inference(
             "train_paths": [ds_fn],
             "train_on_val": True,
             "workers": workers,
+            "segmentation_version": segmentation_version,
         }
     )
     if precompute_cache is not None:
         datasets_config.update({"precompute_cache": precompute_cache})
     return datasets_config
+
+
+def get_inference_on_ds_noexceptions(
+    ds_fn,
+    config_fn,
+    checkpoint_fn,
+    inference_cache=None,
+    device="cpu",
+    batch_size=128,
+    workers=8,
+    precompute_cache=None,
+    crash_if_not_cached=True,
+    segmentation_version=None,
+):
+    try:
+        get_inference_on_ds(
+            ds_fn,
+            config_fn,
+            checkpoint_fn,
+            inference_cache=inference_cache,
+            device=device,
+            batch_size=batch_size,
+            workers=workers,
+            precompute_cache=precompute_cache,
+            crash_if_not_cached=crash_if_not_cached,
+            segmentation_version=segmentation_version,
+        )
+    except Exception as e:
+        logging.error(f"Failed to process {ds_fn} with {e}")
 
 
 def get_inference_on_ds(
@@ -69,7 +104,13 @@ def get_inference_on_ds(
     workers=8,
     precompute_cache=None,
     crash_if_not_cached=True,
+    segmentation_version=None,
 ):
+    if segmentation_version is None:
+        logging.warning(
+            f"Segmentation version not specified using default {SEGMENTATION_VERSION}"
+        )
+        segmentation_version = SEGMENTATION_VERSION
     if inference_cache is None:
         assert not crash_if_not_cached
         logging.debug("Inference cache: Skipping cache because not specified")
@@ -81,14 +122,13 @@ def get_inference_on_ds(
             batch_size=batch_size,
             workers=workers,
             precompute_cache=precompute_cache,
+            segmentation_version=segmentation_version,
         )
 
     config_checksum = get_md5_of_file(config_fn)
     checkpoint_checksum = get_md5_of_file(checkpoint_fn)
     ds_basename = os.path.basename(ds_fn)
-    inference_cache_fn = (
-        f"{inference_cache}/{ds_basename}/{checkpoint_checksum}/{config_checksum}.npz"
-    )
+    inference_cache_fn = f"{inference_cache}/{ds_basename}/{segmentation_version:0.3f}/{checkpoint_checksum}/{config_checksum}.npz"
     if os.path.exists(inference_cache_fn):
         logging.debug("Inference cache: Using cached results")
         return {k: v for k, v in np.load(inference_cache_fn).items()}
@@ -104,6 +144,7 @@ def get_inference_on_ds(
         batch_size=batch_size,
         workers=workers,
         precompute_cache=precompute_cache,
+        segmentation_version=segmentation_version,
     )
     results = {key: value.numpy() for key, value in results.items()}
     np.savez_compressed(inference_cache_fn + ".tmp", **results)
@@ -112,7 +153,14 @@ def get_inference_on_ds(
 
 
 def run_inference_on_ds(
-    ds_fn, config_fn, checkpoint_fn, device, batch_size, workers, precompute_cache
+    ds_fn,
+    config_fn,
+    checkpoint_fn,
+    device,
+    batch_size,
+    workers,
+    precompute_cache,
+    segmentation_version,
 ):
     # load model and model config
     model, config = load_model_and_config_from_config_fn_and_checkpoint(
@@ -127,16 +175,21 @@ def run_inference_on_ds(
         batch_size=batch_size,
         workers=workers,
         precompute_cache=precompute_cache,
+        segmentation_version=segmentation_version,
     )
-
-    _, val_dataloader, _ = load_dataloaders(
-        datasets_config=datasets_config,
-        optim_config=optim_config,
-        global_config=config["global"],
-        model_config=config["model"],
-        step=0,
-        epoch=0,
-    )
+    try:
+        _, val_dataloader, _ = load_dataloaders(
+            datasets_config=datasets_config,
+            optim_config=optim_config,
+            global_config=config["global"],
+            model_config=config["model"],
+            step=0,
+            epoch=0,
+            no_tqdm=True,
+        )
+    except Exception as e:
+        logging.error(f"Failed to load file {ds_fn}")
+        raise e
     model.eval()
     outputs = []
     with torch.no_grad():

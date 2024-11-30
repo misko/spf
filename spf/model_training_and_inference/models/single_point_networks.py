@@ -20,6 +20,7 @@ class PrepareInput(nn.Module):
         self.phase_input = global_config["phase_input"]
         self.rx_spacing_input = global_config["rx_spacing_input"]
         self.inputs = 0
+        self.frequency_input = global_config.get("frequency_input", False)
         self.input_dropout = model_config.get("input_dropout", 0.0)
         beamformer_dropout_p = model_config.get("beamformer_dropout", 0.0)
 
@@ -38,6 +39,8 @@ class PrepareInput(nn.Module):
             self.inputs += 3
         if self.rx_spacing_input:
             self.inputs += 1
+        if self.frequency_input:
+            self.inputs += 1
         assert (
             self.input_dropout == 0
             or (
@@ -51,7 +54,7 @@ class PrepareInput(nn.Module):
 
     def prepare_input(self, batch):
         dropout_mask = (
-            torch.rand((4, *batch["y_rad"].shape), device=batch["y_rad"].device)
+            torch.rand((5, *batch["y_rad"].shape), device=batch["y_rad"].device)
             < self.input_dropout
         )
         # 1 , 65
@@ -89,6 +92,11 @@ class PrepareInput(nn.Module):
             if self.training:
                 v[dropout_mask[3]] = 0
             inputs.append(v)
+        if self.frequency_input:
+            v = batch["rx_lo"][..., None].log10() / 20
+            if self.training:
+                v[dropout_mask[4]] = 0
+            inputs.append(v)
         return torch.concatenate(inputs, axis=2)
 
 
@@ -107,13 +115,77 @@ def check_and_load_config(model_config, global_config):
     check_and_load_ntheta(model_config=model_config, global_config=global_config)
 
 
+class SignalMatrixNet(nn.Module):
+    def __init__(self, k=11, hidden_channels=32, outputs=8):
+        super().__init__()
+        padding = k // 2
+        self.outputs = outputs
+        self.conv_net = torch.nn.Sequential(
+            nn.Conv1d(4, hidden_channels, k, stride=2, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, outputs, k, stride=1, padding=padding),
+        )
+
+    def forward(self, x):
+        return self.conv_net(x).mean(axis=2)
+
+
+class AllWindowsStatsNet(nn.Module):
+    def __init__(self, k=11, hidden_channels=32, outputs=8):
+        super().__init__()
+        padding = k // 2
+        self.outputs = outputs
+        self.conv_net = torch.nn.Sequential(
+            nn.Conv1d(3, hidden_channels, k, stride=1, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, hidden_channels, k, stride=1, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.ReLU(),
+            nn.Conv1d(hidden_channels, outputs, k, stride=1, padding=padding),
+        )
+
+    def forward(self, x):
+        return self.conv_net(x).mean(axis=2)
+
+
 class SinglePointWithBeamformer(nn.Module):
     def __init__(self, model_config, global_config):
         super().__init__()
         check_and_load_config(model_config=model_config, global_config=global_config)
         self.prepare_input = PrepareInput(model_config, global_config)
+
+        additional_inputs = 0
+
+        self.signal_matrix_net = None
+        self.windows_stats_net = None
+        if "signal_matrix_net" in model_config:
+            self.signal_matrix_net = SignalMatrixNet(
+                **model_config["signal_matrix_net"]
+            )
+            additional_inputs += self.signal_matrix_net.outputs
+        if "windows_stats_net" in model_config:
+            self.windows_stats_net = AllWindowsStatsNet(
+                **model_config["windows_stats_net"]
+            )
+            additional_inputs += self.windows_stats_net.outputs
+
         self.single_point_with_beamformer_ffnn = FFNN(
-            inputs=self.prepare_input.inputs,
+            inputs=self.prepare_input.inputs + additional_inputs,
             depth=model_config["depth"],  # 4
             hidden=model_config["hidden"],  # 128
             outputs=model_config["output_ntheta"],
@@ -127,10 +199,53 @@ class SinglePointWithBeamformer(nn.Module):
 
     def forward(self, batch):
         # first dim odd / even is the radios
+        additional_inputs = []
+        if self.windows_stats_net:
+            normalize_by = batch["all_windows_stats"].max(dim=3, keepdims=True)[0]
+            normalize_by[:, :, :2] = torch.pi
+
+            input = batch["all_windows_stats"] / normalize_by
+            assert input.shape[1] == 1
+            additional_inputs.append(
+                self.windows_stats_net(input.select(1, 0))[:, None]
+            )
+            # breakpoint()
+            # a = 1
+        if self.signal_matrix_net:
+            normalize_by = batch["abs_signal_and_phase_diff"].max(dim=3, keepdims=True)[
+                0
+            ]
+
+            normalize_by[:, :, 2] = torch.pi
+            input = batch["abs_signal_and_phase_diff"] / normalize_by
+
+            batch["rx_wavelength_spacing"][:, :, None, None].expand(
+                batch["rx_lo"].shape + (1, batch["abs_signal_and_phase_diff"].shape[-1])
+            )
+
+            input_with_spacing = torch.concatenate(
+                [
+                    input,
+                    batch["rx_wavelength_spacing"][:, :, None, None].expand(
+                        batch["rx_lo"].shape
+                        + (1, batch["abs_signal_and_phase_diff"].shape[-1])
+                    ),
+                ],
+                dim=2,
+            )
+            additional_inputs.append(
+                self.signal_matrix_net(input_with_spacing.select(1, 0))[:, None]
+            )
         return {
             "single": torch.nn.functional.normalize(
                 self.single_point_with_beamformer_ffnn(
-                    self.prepare_input.prepare_input(batch)
+                    torch.concatenate(
+                        [
+                            self.prepare_input.prepare_input(batch),
+                        ]
+                        + additional_inputs,
+                        dim=2,
+                    )
                 ).abs(),
                 dim=2,
                 p=1,

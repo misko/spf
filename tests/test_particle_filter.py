@@ -25,6 +25,7 @@ def test_single_theta_single_radio(temp_file, noise1_n128_obits2):
         gpu=False,
         temp_file=temp_file,
         temp_file_suffix="",
+        segment_if_not_exist=not temp_file,
     ) as ds:
         args = {
             "ds": ds,
@@ -52,6 +53,7 @@ def test_single_theta_dual_radio(temp_file, noise1_n128_obits2):
         gpu=False,
         temp_file=temp_file,
         temp_file_suffix="",
+        segment_if_not_exist=not temp_file,
     ) as ds:
         args = {
             "ds": ds,
@@ -78,6 +80,7 @@ def test_XY_dual_radio(temp_file, noise1_n128_obits2):
         gpu=False,
         temp_file=temp_file,
         temp_file_suffix="",
+        segment_if_not_exist=not temp_file,
     ) as ds:
         args = {
             "ds": ds,

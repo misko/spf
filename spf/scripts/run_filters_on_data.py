@@ -41,40 +41,38 @@ def fake_runner(ds, **kwargs):
 
 
 def run_jobs_with_one_dataset(kwargs):
-    with v5spfdataset_manager(
-        kwargs["ds_fn"],
-        nthetas=65,
-        ignore_qc=True,
-        precompute_cache=kwargs["precompute_cache"],
-        paired=True,
-        snapshots_per_session=1,
-        readahead=True,
-        skip_fields=set(
-            [
-                "windowed_beamformer",
-                "weighted_beamformer",
-                "all_windows_stats",
-                "downsampled_segmentation_mask",
-                "signal_matrix",
-                "simple_segmentations",
-            ]
-        ),
-        empirical_data_fn=kwargs["empirical_pkl_fn"],
-    ) as ds:
-        # fake_runner(ds=ds)
-        # return
-        result_fns = []
-        # logging.info(kwargs["jobs"])
-        for fn, fn_kwargs in kwargs["jobs"]:
+    result_fns = []
+    # logging.info(kwargs["jobs"])
+    for fn, fn_kwargs in kwargs["jobs"]:
+        precompute_cache = fn_kwargs.pop("precompute_cache")
+        segmentation_version = fn_kwargs.pop("segmentation_version")
+        with v5spfdataset_manager(
+            kwargs["ds_fn"],
+            nthetas=65,
+            ignore_qc=True,
+            precompute_cache=precompute_cache,
+            paired=True,
+            snapshots_per_session=1,
+            readahead=True,
+            skip_fields=set(
+                [
+                    "windowed_beamformer",
+                    "weighted_beamformer",
+                    "all_windows_stats",
+                    "downsampled_segmentation_mask",
+                    "signal_matrix",
+                    "simple_segmentations",
+                ]
+            ),
+            empirical_data_fn=kwargs["empirical_pkl_fn"],
+            segmentation_version=segmentation_version,
+        ) as ds:
             workdir = fn_kwargs.pop("workdir")
             result_fn = (
                 workdir
-                + "/fn_"
-                + str(fn.__name__)
-                + "/"
-                + "_ds_"
-                + os.path.basename(kwargs["ds_fn"])
-                + "/"
+                + f"/fn_{fn.__name__}"
+                + f"/{segmentation_version:0.3f}"
+                + f"/ds_{os.path.basename(kwargs["ds_fn"])}/"
                 + "_"
                 + args_to_str(fn_kwargs)
                 + "results.pkl"
@@ -86,6 +84,8 @@ def run_jobs_with_one_dataset(kwargs):
                 new_results = fn(**fn_kwargs)
                 for result in new_results:
                     result["ds_fn"] = kwargs["ds_fn"]
+                    result["segmentation_version"] = segmentation_version
+                    result["precompute_cache"] = precompute_cache
                 pickle.dump(new_results, open(result_fn + ".tmp", "wb"))
                 os.rename(result_fn + ".tmp", result_fn)
                 assert os.path.exists(result_fn)
@@ -93,9 +93,13 @@ def run_jobs_with_one_dataset(kwargs):
                 # print("SKIPPING", result_fn)
                 pass
             result_fns.append(result_fn)
-            # breakpoint()
-            # a = 1
-        return result_fns
+        # breakpoint()
+        # a = 1
+
+        # fake_runner(ds=ds)
+        # return
+
+    return result_fns
 
 
 def run_EKF_single_theta_single_radio(ds, phi_std, p, noise_std, dynamic_R):
@@ -387,6 +391,14 @@ fn_key_to_fn = {
 }
 
 
+#
+# {
+# kwarg1: v1 , v2
+# kwarg2: v3 , v4
+# }
+#
+# -> (kwarg1: v1, kwarg2: v3) , (kwarg1: v1, kwarg2: v4) ...
+#
 def config_to_job_params(config):
     jobs = [{}]
     for key, values in config.items():
@@ -414,6 +426,24 @@ def config_to_jobs(list_config):
             fn = fn_key_to_fn[fn_key]
             jobs += [(fn, job_params) for job_params in config_to_job_params(fn_config)]
     return jobs
+
+
+def add_precompute_cache_to_job(job, precompute_caches):
+    fn, args = job
+    args = args.copy()
+    if "segmentation_version" in args:
+        args["precompute_cache"] = precompute_caches[args["segmentation_version"]]
+    elif "checkpoint_fn_and_segmentation_version" in args:
+        d = args["checkpoint_fn_and_segmentation_version"]
+        args["checkpoint_fn"] = d["checkpoint_fn"]
+        args["segmentation_version"] = d["segmentation_version"]
+        args.pop("checkpoint_fn_and_segmentation_version")
+        args["precompute_cache"] = precompute_caches[args["segmentation_version"]]
+    else:
+        raise ValueError(
+            "Must have segmentation_version or checkpoint_fn_and_segmentation_version in job"
+        )
+    return (fn, args)
 
 
 if __name__ == "__main__":
@@ -444,11 +474,6 @@ if __name__ == "__main__":
             "--skip-qc",
             action=argparse.BooleanOptionalAction,
             default=False,
-        )
-        parser.add_argument(
-            "--precompute-cache",
-            type=str,
-            required=True,
         )
         parser.add_argument(
             "--empirical-pkl-fn",
@@ -501,6 +526,12 @@ if __name__ == "__main__":
     yaml_config = yaml.safe_load(open(args.config, "r"))
     jobs_per_ds_fn = config_to_jobs(yaml_config)
 
+    # assign the precompute cache
+    jobs_per_ds_fn = [
+        add_precompute_cache_to_job(job, yaml_config["precompute_caches"])
+        for job in jobs_per_ds_fn
+    ]
+
     for _, job_params in jobs_per_ds_fn:
         assert "workdir" not in job_params
         job_params["workdir"] = args.work_dir
@@ -527,12 +558,12 @@ if __name__ == "__main__":
 
     jobs = []
     # try to read the same ds back to back so that OS can cache it
+    # job [0] = fn, job[1] = args
     for ds_fn in dataset_fns:
         for job in jobs_per_ds_fn:
             jobs.append(
                 {
                     "ds_fn": ds_fn,
-                    "precompute_cache": args.precompute_cache,
                     "empirical_pkl_fn": args.empirical_pkl_fn,
                     "jobs": [[job[0], job[1].copy()]],
                 }

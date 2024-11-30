@@ -32,7 +32,7 @@ class PFSingleThetaDualRadioNN(ParticleFilter):
         assert (
             self.ds.empirical_data_fn
             == checkpoint_config["datasets"]["empirical_data_fn"]
-        )
+        ), f"Empirical pkl path from ds does not match that from checkpoint {self.ds.empirical_data_fn} vs {checkpoint_config["datasets"]["empirical_data_fn"]}"
 
         if not self.ds.temp_file:
             # cache model results
@@ -46,6 +46,7 @@ class PFSingleThetaDualRadioNN(ParticleFilter):
                     batch_size=64,
                     workers=0,
                     precompute_cache=ds.precompute_cache,
+                    segmentation_version=ds.segmentation_version,
                 )["paired"]
             )
         else:

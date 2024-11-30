@@ -62,6 +62,7 @@ def global_config_to_keys_used(global_config):
         # "rx_pos_xy",
         # "tx_pos_xy",
         # "downsampled_segmentation_mask",
+        "rx_lo",
         "rx_wavelength_spacing",
         "y_rad",
         "craft_y_rad",
@@ -74,6 +75,8 @@ def global_config_to_keys_used(global_config):
         "rx_pos_xy",
         "tx_pos_xy",
     ]
+    if global_config.get("signal_matrix_input", False):
+        keys_to_get += ["abs_signal_and_phase_diff"]
     if global_config["beamformer_input"]:
         # keys_to_get += ["windowed_beamformer"]
         keys_to_get += ["weighted_beamformer"]
@@ -81,9 +84,17 @@ def global_config_to_keys_used(global_config):
 
 
 def load_dataloaders(
-    datasets_config, optim_config, global_config, model_config, step=0, epoch=0
+    datasets_config,
+    optim_config,
+    global_config,
+    model_config,
+    step=0,
+    epoch=0,
+    no_tqdm=False,
 ):
-    skip_fields = set(["signal_matrix", "simple_segmentations"])
+    skip_fields = set(["simple_segmentations"])
+    if not global_config.get("signal_matrix_input", False):
+        skip_fields |= set(["signal_matrix"])
     # if not global_config["beamformer_input"]:
     skip_fields |= set(["windowed_beamformer"])
     # import glob
@@ -138,6 +149,10 @@ def load_dataloaders(
     )
     logging.info(f"Using validation stride of {val_adjacent_stride}")
 
+    monitor = tqdm
+    if no_tqdm:
+        monitor = lambda x, total: x
+
     def load_val_dataset(prefix):
         try:
             return v5spfdataset(
@@ -162,6 +177,7 @@ def load_dataloaders(
                 segmentation_version=datasets_config.get(
                     "segmentation_version", SEGMENTATION_VERSION
                 ),
+                segment_if_not_exist=False,
             )
         except Exception as e:
             logging.error(f"Val: Failed to load {prefix} with error {e}")
@@ -170,7 +186,7 @@ def load_dataloaders(
     logging.info("Loading validation datasets...")
     val_datasets = list(
         filter(
-            lambda x: x, tqdm(map(load_val_dataset, val_paths), total=len(val_paths))
+            lambda x: x, monitor(map(load_val_dataset, val_paths), total=len(val_paths))
         )
     )
     logging.info(f"Val: Loaded {len(val_datasets)} of {len(val_paths)} datasets")
@@ -205,6 +221,7 @@ def load_dataloaders(
                 segmentation_version=datasets_config.get(
                     "segmentation_version", SEGMENTATION_VERSION
                 ),
+                segment_if_not_exist=False,
             )
         except Exception as e:
             logging.error(f"Train: Failed to load {prefix} with error {e}")
@@ -214,7 +231,7 @@ def load_dataloaders(
     train_datasets = list(
         filter(
             lambda x: x,
-            tqdm(map(load_train_dataset, train_paths), total=len(train_paths)),
+            monitor(map(load_train_dataset, train_paths), total=len(train_paths)),
         )
     )
     logging.info(f"Train: Loaded {len(train_datasets)} of {len(train_paths)} datasets")
@@ -223,7 +240,8 @@ def load_dataloaders(
     assert len(val_paths) > 0
     for ds in val_datasets + train_datasets:
         ds.get_segmentation(
-            version=datasets_config.get("segmentation_version", SEGMENTATION_VERSION)
+            version=datasets_config.get("segmentation_version", SEGMENTATION_VERSION),
+            segment_if_not_exist=False,
         )
 
     val_ds = torch.utils.data.ConcatDataset(val_datasets)

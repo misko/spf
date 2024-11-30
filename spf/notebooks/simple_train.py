@@ -170,11 +170,12 @@ def simple_train(args):
             paired=args.n_radios > 1,
             ignore_qc=True,  # args.skip_qc,
             gpu=args.device == "cuda",
+            segment_if_not_exist=True,
         )
         for prefix in args.datasets
     ]
     for ds in datasets:
-        ds.get_segmentation(version=SEGMENTATION_VERSION)
+        ds.get_segmentation(version=SEGMENTATION_VERSION, segment_if_not_exist=True)
     complete_ds = torch.utils.data.ConcatDataset(datasets)
 
     if args.val_on_train:

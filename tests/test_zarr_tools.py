@@ -19,12 +19,14 @@ def test_zarr_rechunk(perfect_circle_dataset_n5_noise0):
             nthetas=11,
             ignore_qc=True,
             precompute_cache=tmpdirname,
+            segment_if_not_exist=True,
         )
         ds_rechunked = v5spfdataset(
             ds_fn_rechunked,
             nthetas=11,
             ignore_qc=True,
             precompute_cache=tmpdirname,
+            segment_if_not_exist=True,
         )
         identical_datasets(ds, ds_rechunked)
 
@@ -37,6 +39,7 @@ def test_zarr_rechunk(perfect_circle_dataset_n5_noise0):
             ignore_qc=True,
             precompute_cache=tmpdirname,
             skip_fields="signal_matrix",
+            segment_if_not_exist=True,
         )
 
         with pytest.raises(AssertionError):

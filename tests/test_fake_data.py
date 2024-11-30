@@ -20,6 +20,7 @@ def test_dataset_load():
             nthetas=11,
             ignore_qc=True,
             precompute_cache=tmpdirname,
+            segment_if_not_exist=True,
         )
         assert np.isclose([0.0, 0.0], ds.phi_drifts, atol=0.05).all()
 
@@ -40,6 +41,7 @@ def test_dataset_load_drift():
                 nthetas=11,
                 ignore_qc=True,
                 precompute_cache=tmpdirname,
+                segment_if_not_exist=True,
             )
             assert np.isclose(
                 [phi_drift * np.pi, -phi_drift * np.pi], ds.phi_drifts, atol=0.05
@@ -68,6 +70,7 @@ def test_fake_data_array_orientation():
         paired=True,
         skip_fields=set(["signal_matrix"]),
         n_parallel=0,
+        segment_if_not_exist=True,
     )
 
     assert np.isclose(ds.ground_truth_phis[0], ds.mean_phase["r0"], atol=0.001).all()
@@ -128,18 +131,21 @@ def test_identical_datasets():
             nthetas=11,
             ignore_qc=True,
             precompute_cache=tmpdirname,
+            segment_if_not_exist=True,
         )
         dsB = v5spfdataset(
             dsB_fn,
             nthetas=11,
             ignore_qc=True,
             precompute_cache=tmpdirname,
+            segment_if_not_exist=True,
         )
         dsC = v5spfdataset(
             dsC_fn,
             nthetas=11,
             ignore_qc=True,
             precompute_cache=tmpdirname,
+            segment_if_not_exist=True,
         )
 
         for a in [dsA, dsB, dsC]:
