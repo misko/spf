@@ -72,7 +72,7 @@ def run_jobs_with_one_dataset(kwargs):
                 workdir
                 + f"/fn_{fn.__name__}"
                 + f"/{segmentation_version:0.3f}"
-                + f"/ds_{os.path.basename(kwargs["ds_fn"])}/"
+                + f"/ds_{os.path.basename(kwargs['ds_fn'])}/"
                 + "_"
                 + args_to_str(fn_kwargs)
                 + "results.pkl"
