@@ -64,10 +64,17 @@ def zarr_shrink(filename):
 
 @contextmanager
 def zarr_open_from_lmdb_store_cm(filename, mode="r", readahead=False):
+    f = None
     try:
+        if mode == "r":
+            f = open(filename + "/data.mdb", "rb")
+            os.posix_fadvise(f.fileno(), 0, 0, os.POSIX_FADV_WILLNEED)
         z = zarr_open_from_lmdb_store(filename, mode, readahead=readahead)
         yield z
     finally:
+        if f:
+            os.posix_fadvise(f.fileno(), 0, 0, os.POSIX_FADV_DONTNEED)
+            f.close()
         z.store.close()
 
 

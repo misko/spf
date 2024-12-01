@@ -117,7 +117,7 @@ def report_workdir_to_csv(workdir, output_csv_fn):
                 total=len(fns),
             )
         )
-        header = ["type", "movement"]
+        header = ["type", "movement", "segmentation_version"]
         for field in results[0][0].keys():
             if field == "ds_fn":
                 pass
