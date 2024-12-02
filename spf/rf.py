@@ -267,15 +267,19 @@ def torch_circular_mean_noweight(angles: torch.Tensor, trim: float):
 
 
 def mean_phase_mean(angles, weights):
-    if isinstance(weights, np.ndarray):
-        assert np.isfinite(weights).all()
-    elif isinstance(weights, torch.tensor):
-        assert weights.isfinite().all()
+    assert np.isfinite(weights).all()
     _sin_angles = np.sin(angles) * weights
     _cos_angles = np.cos(angles) * weights
     cm = np.arctan2(_sin_angles.sum(), _cos_angles.sum()) % (2 * np.pi)
-
     return pi_norm(cm)
+
+
+def torch_mean_phase_mean(angles, weights):
+    assert weights.isfinite().all()
+    _sin_angles = np.sin(angles) * weights
+    _cos_angles = np.cos(angles) * weights
+    cm = np.arctan2(_sin_angles.sum(), _cos_angles.sum()) % (2 * np.pi)
+    return torch_pi_norm(cm)
 
 
 def torch_circular_mean(angles: torch.Tensor, trim: float, weights=None):
@@ -471,27 +475,45 @@ def drop_noise_windows(windows):
     return valid_windows
 
 
-# 3.3 SEGMENTATION VERSION HAS THIS
+# 3.11 has this
 def keep_signal_surrounded_by_noise(windows):
     valid_windows = []
     for window_idx, window in enumerate(windows):
         if window["type"] == "signal":
-            if window["stddev"] > 0.03:
-                #     # check if one before was signal
-                before_is_signal = False
-                if window_idx > 0 and windows[window_idx - 1]["type"] == "signal":
-                    before_is_signal = True
-                # check if one after was signal
-                after_is_signal = False
-                if (
-                    window_idx + 1 < len(windows)
-                    and windows[window_idx + 1]["type"] == "signal"
-                ):
-                    after_is_signal = True
-                if before_is_signal and after_is_signal:
-                    continue
+            # check if one before was signal
+            if window_idx > 0 and windows[window_idx - 1]["type"] == "signal":
+                continue
+            # check if one after was signal
+            if (
+                window_idx + 1 < len(windows)
+                and windows[window_idx + 1]["type"] == "signal"
+            ):
+                continue
             valid_windows.append(window)
     return valid_windows
+
+
+# 3.3 SEGMENTATION VERSION HAS THIS
+# def keep_signal_surrounded_by_noise(windows):
+#     valid_windows = []
+#     for window_idx, window in enumerate(windows):
+#         if window["type"] == "signal":
+#             if window["stddev"] > 0.03:
+#                 #     # check if one before was signal
+#                 before_is_signal = False
+#                 if window_idx > 0 and windows[window_idx - 1]["type"] == "signal":
+#                     before_is_signal = True
+#                 # check if one after was signal
+#                 after_is_signal = False
+#                 if (
+#                     window_idx + 1 < len(windows)
+#                     and windows[window_idx + 1]["type"] == "signal"
+#                 ):
+#                     after_is_signal = True
+#                 if before_is_signal and after_is_signal:
+#                     continue
+#             valid_windows.append(window)
+#     return valid_windows
 
 
 # 3.2 SEGMENTATION VERSION HAD THIS
@@ -560,6 +582,8 @@ def recompute_stats_for_windows(windows, v, pd, trim):
     for window in windows:
         _pd = pd[window["start_idx"] : window["end_idx"]]
         _v = v[:, window["start_idx"] : window["end_idx"]]
+        # TODO THIS ISNT RIGHT???
+        # _v = v[window["start_idx"] : window["end_idx"]]
         r = get_stats_for_signal(_v, _pd, trim)
         window["mean"] = r[0]
         window["stddev"] = r[1]
@@ -621,7 +645,7 @@ def simple_segment(
     # only keep signal windows surounded by noise
     candidate_windows = keep_signal_surrounded_by_noise(candidate_windows)
     #
-    candidate_windows = drop_noise_windows(candidate_windows)
+    # candidate_windows = drop_noise_windows(candidate_windows)
 
     simple_segmentation = recompute_stats_for_windows(candidate_windows, v, pd, trim)
     downsampled_segmentation_mask = compute_downsampled_segmentation_mask(

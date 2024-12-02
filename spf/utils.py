@@ -13,7 +13,7 @@ from deepdiff.diff import DeepDiff
 from numcodecs import Blosc
 from torch.utils.data import BatchSampler, DistributedSampler
 
-SEGMENTATION_VERSION = 3.3
+SEGMENTATION_VERSION = 3.4
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 

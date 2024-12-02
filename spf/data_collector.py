@@ -167,7 +167,12 @@ class ThreadedRX:
         idx = 0
         while self.run:
             start_time = time.time()
-            data = self.get_data()
+            try:
+                data = self.get_data()
+            except Exception as e:
+                logging.error(f"Failed to read data , aborting {e}")
+                self.run = False
+                continue
             put_on_queue = False
             while self.run and not put_on_queue:
                 try:
@@ -412,21 +417,27 @@ class DataCollector:
     def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
         raise NotImplementedError
 
-    def run_collector_thread(self):
-        logging.info("Collector thread is running!")
-        # https://stackoverflow.com/questions/48263704/threadpoolexecutor-how-to-limit-the-queue-maxsize
+    def run_inner_collector_thread(self):
         with ThreadPoolExecutorWithQueueSizeLimit(
             max_workers=6, maxsize=12
         ) as executor:
             for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
                 for read_thread_idx, read_thread in enumerate(self.read_threads):
                     data = read_thread.read_q.get()
+                    if data is None:
+                        return
                     executor.submit(
                         self.write_to_record_matrix,
                         read_thread_idx,
                         record_idx=record_index,
                         data=data,
                     )
+        return
+
+    def run_collector_thread(self):
+        logging.info("Collector thread is running!")
+        # https://stackoverflow.com/questions/48263704/threadpoolexecutor-how-to-limit-the-queue-maxsize
+        self.run_inner_collector_thread()
         # read_thread.read_q.shutdown() # py 3.13
         logging.info("Collector thread is exiting!")
         self.finished_collecting = True
