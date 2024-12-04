@@ -1063,6 +1063,10 @@ class v5spfdataset(Dataset):
         # ] = 0.0
 
         if flip_left_right or double_flip:
+            # data["all_windows_stats"] ~ batch, snapshots, channel, window
+            # channels are trimmed mean, stddev, abs_signal_median
+            # need to flip mean (phase diff)
+            data["all_windows_stats"][:, :, 0] = -data["all_windows_stats"][:, :, 0]
             data["mean_phase_segmentation"] = -data["mean_phase_segmentation"]
 
         data["rx_pos_xy"] = (
