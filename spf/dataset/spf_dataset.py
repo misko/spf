@@ -998,7 +998,6 @@ class v5spfdataset(Dataset):
         flip_up_down = self.flip and (torch.rand(1) > 0.5).item()
 
         snapshot_idxs = self.get_session_idxs(session_idx)
-        # breakpoint()
 
         data = {
             # key: r[key][snapshot_start_idx:snapshot_end_idx]
@@ -1035,6 +1034,7 @@ class v5spfdataset(Dataset):
         data["craft_y_rad"] = data["craft_ground_truth_theta"]
 
         if "signal_matrix" not in self.skip_fields:
+            # WARNGING this does not respect flipping!
             abs_signal = data["signal_matrix"].abs().to(torch.float32)
             assert data["signal_matrix"].shape[0] == 1
             pd = torch_get_phase_diff(data["signal_matrix"][0]).to(torch.float32)
@@ -1113,6 +1113,10 @@ class v5spfdataset(Dataset):
             # already flipped in mean phase
             # data["empirical"] = data["empirical"].flip(dims=(2,))
             data["weighted_beamformer"] = data["weighted_beamformer"].flip(dims=(2,))
+            if "windowed_beamformer" in data:
+                data["windowed_beamformer"] = data["windowed_beamformer"].flip(
+                    dims=(3,)
+                )
 
         return data
 

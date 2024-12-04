@@ -65,6 +65,7 @@ def global_config_to_keys_used(global_config):
         "rx_lo",
         "rx_wavelength_spacing",
         "y_rad",
+        "y_phi",
         "craft_y_rad",
         "y_phi",
         "system_timestamp",
@@ -75,8 +76,10 @@ def global_config_to_keys_used(global_config):
         "rx_pos_xy",
         "tx_pos_xy",
     ]
-    if global_config.get("signal_matrix_input", False):
+    if global_config["signal_matrix_input"]:
         keys_to_get += ["abs_signal_and_phase_diff"]
+    if global_config["windowed_beamformer_input"]:
+        keys_to_get += ["windowed_beamformer"]
     if global_config["beamformer_input"]:
         # keys_to_get += ["windowed_beamformer"]
         keys_to_get += ["weighted_beamformer"]
@@ -93,10 +96,10 @@ def load_dataloaders(
     no_tqdm=False,
 ):
     skip_fields = set(["simple_segmentations"])
-    if not global_config.get("signal_matrix_input", False):
+    if not global_config["signal_matrix_input"]:
         skip_fields |= set(["signal_matrix"])
-    # if not global_config["beamformer_input"]:
-    skip_fields |= set(["windowed_beamformer"])
+    if not global_config["windowed_beamformer_input"]:
+        skip_fields |= set(["windowed_beamformer"])
     # import glob
     # glob.glob('./[0-9].*')
 
@@ -121,7 +124,7 @@ def load_dataloaders(
         logging.info(
             f"Using train and val from txt: val_files {len(val_paths)} , train_files {len(train_paths)}"
         )
-    elif datasets_config.get("train_on_val", False):
+    elif datasets_config["train_on_val"]:
         val_paths = train_dataset_filenames
         train_paths = train_dataset_filenames
         logging.info(
@@ -144,9 +147,7 @@ def load_dataloaders(
             f"Using val_holdout: val_files {len(val_paths)} , train_files {len(train_paths)}"
         )
 
-    val_adjacent_stride = datasets_config.get(
-        "val_snapshots_adjacent_stride", datasets_config["snapshots_adjacent_stride"]
-    )
+    val_adjacent_stride = datasets_config["val_snapshots_adjacent_stride"]
     logging.info(f"Using validation stride of {val_adjacent_stride}")
 
     monitor = tqdm
@@ -168,15 +169,13 @@ def load_dataloaders(
                 snapshots_adjacent_stride=val_adjacent_stride,
                 readahead=False,
                 skip_fields=skip_fields,
-                empirical_data_fn=datasets_config.get("empirical_data_fn", None),
-                empirical_individual_radio=datasets_config.get(
+                empirical_data_fn=datasets_config["empirical_data_fn"],
+                empirical_individual_radio=datasets_config[
                     "empirical_individual_radio"
-                ),
-                empirical_symmetry=datasets_config.get("empirical_symmetry", None),
+                ],
+                empirical_symmetry=datasets_config["empirical_symmetry"],
                 target_dtype=optim_config["dtype"],
-                segmentation_version=datasets_config.get(
-                    "segmentation_version", SEGMENTATION_VERSION
-                ),
+                segmentation_version=datasets_config["segmentation_version"],
                 segment_if_not_exist=False,
             )
         except Exception as e:
@@ -206,21 +205,17 @@ def load_dataloaders(
                 snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
                 readahead=False,
                 skip_fields=skip_fields,
-                empirical_data_fn=datasets_config.get("empirical_data_fn", None),
-                empirical_individual_radio=datasets_config.get(
+                empirical_data_fn=datasets_config["empirical_data_fn"],
+                empirical_individual_radio=datasets_config[
                     "empirical_individual_radio"
-                ),
-                empirical_symmetry=datasets_config.get("empirical_symmetry", None),
+                ],
+                empirical_symmetry=datasets_config["empirical_symmetry"],
                 target_dtype=optim_config["dtype"],
                 # difference
                 flip=datasets_config["flip"],
                 double_flip=datasets_config["double_flip"],
-                random_adjacent_stride=datasets_config.get(
-                    "random_adjacent_stride", False
-                ),
-                segmentation_version=datasets_config.get(
-                    "segmentation_version", SEGMENTATION_VERSION
-                ),
+                random_adjacent_stride=datasets_config["random_adjacent_stride"],
+                segmentation_version=datasets_config["segmentation_version"],
                 segment_if_not_exist=False,
             )
         except Exception as e:
@@ -240,7 +235,7 @@ def load_dataloaders(
     assert len(val_paths) > 0
     for ds in val_datasets + train_datasets:
         ds.get_segmentation(
-            version=datasets_config.get("segmentation_version", SEGMENTATION_VERSION),
+            version=datasets_config["segmentation_version"],
             segment_if_not_exist=False,
         )
 
@@ -259,14 +254,14 @@ def load_dataloaders(
         alternate_val_ds[key] = torch.utils.data.ConcatDataset(ds_list)
 
     # if we train_on_val just take everything
-    if not datasets_config.get("train_on_val", False):
+    if not datasets_config["train_on_val"]:
         val_idxs = list(range(len(val_ds)))
         if datasets_config["shuffle"]:
             random.shuffle(val_idxs)
         val_idxs = val_idxs[
             : max(
                 1,
-                int(len(val_idxs) * datasets_config.get("val_subsample_fraction", 1.0)),
+                int(len(val_idxs) * datasets_config["val_subsample_fraction"]),
             )
         ]
         val_ds = torch.utils.data.Subset(val_ds, val_idxs)
@@ -279,10 +274,7 @@ def load_dataloaders(
             val_idxs = val_idxs[
                 : max(
                     1,
-                    int(
-                        len(val_idxs)
-                        * datasets_config.get("val_subsample_fraction", 1.0)
-                    ),
+                    int(len(val_idxs) * datasets_config["val_subsample_fraction"]),
                 )
             ]
             alternate_val_ds[key] = torch.utils.data.Subset(ds, val_idxs)
@@ -362,7 +354,7 @@ def load_optimizer(optim_config, params):
     )
     scheduler = StepLR(
         optimizer,
-        step_size=optim_config.get("scheduler_step", 1),
+        step_size=optim_config["scheduler_step"],
         gamma=0.5,
         verbose=True,
     )
@@ -439,14 +431,14 @@ def load_checkpoint(
 
     # check if we loading a single network
     if not force_load:
-        if config["model"].get("load_single", False):
+        if config["model"]["load_single"]:
             logging.info("Loading single_radio_net only")
             model.single_radio_net.load_state_dict(checkpoint["model_state_dict"])
             for param in model.single_radio_net.parameters():
                 param.requires_grad = False
             # model.single_radio_net = FrozenModule(model_being_loaded)
             return (model, optimizer, scheduler, 0, 0)  # epoch  # step
-        elif config["model"].get("load_paired", False):
+        elif config["model"]["load_paired"]:
             # check if we loading a paired network
             logging.info("Loading paired_radio net only")
             model.multi_radio_net.load_state_dict(checkpoint["model_state_dict"])
@@ -592,6 +584,7 @@ def new_log():
         "uniform_loss_paired": [],
         "uniform_loss_multipaired": [],
         "single_loss": [],
+        "single_all_windows_phi_loss": [],
         "paired_loss": [],
         "multipaired_loss": [],
         "learning_rate": [],
@@ -698,6 +691,12 @@ def compute_loss(
         )
         loss_d["single_loss"] = loss_fn(output["single"], target)
         loss += loss_d["single_loss"]
+
+        if "output_phi" in output:
+            loss_d["single_all_windows_phi_loss"] = (
+                (torch_pi_norm(output["output_phi"] - batch_data["y_phi"])) ** 2
+            ).mean()
+            loss += 0.01 * loss_d["single_all_windows_phi_loss"]
 
         loss_d["uniform_loss_single"] = loss_fn(
             torch.nn.functional.normalize(
@@ -850,14 +849,67 @@ def run_val_on_dataloader(
     return val_losses, fig
 
 
+def get_key_or_set_default(d, key, default):
+    if "/" in key:
+        this_part = key.split("/")[0]
+        if this_part not in d:
+            d[this_part] = {}
+        return get_key_or_set_default(
+            d[key.split("/")[0]], "/".join(key.split("/")[1:]), default
+        )
+    if key not in d:
+        d[key] = default
+
+
+def load_defaults(config):
+    get_key_or_set_default(config, "global/signal_matrix_input", False)
+    get_key_or_set_default(config, "optim/output", None)
+    get_key_or_set_default(config, "datasets/flip", False)
+    get_key_or_set_default(config, "logger", {})
+    get_key_or_set_default(config, "datasets/random_snapshot_size", False)
+    get_key_or_set_default(config, "optim/save_on", "")
+    get_key_or_set_default(config, "global/signal_matrix_input", False)
+    get_key_or_set_default(config, "global/windowed_beamformer_input", False)
+    get_key_or_set_default(config, "datasets/train_on_val", False)
+    get_key_or_set_default(config, "datasets/empirical_data_fn", None)
+    get_key_or_set_default(config, "datasets/empirical_symmetry", None)
+    get_key_or_set_default(
+        config, "datasets/segmentation_version", SEGMENTATION_VERSION
+    )
+    get_key_or_set_default(config, "datasets/random_adjacent_stride", False)
+    get_key_or_set_default(config, "datasets/val_subsample_fraction", 1.0)
+    get_key_or_set_default(config, "optim/scheduler_step", 1)
+    get_key_or_set_default(config, "model/load_single", False)
+    get_key_or_set_default(config, "model/load_paired", False)
+
+    get_key_or_set_default(
+        config,
+        "datasets/val_snapshots_adjacent_stride",
+        config["datasets"]["snapshots_adjacent_stride"],
+    )
+    get_key_or_set_default(
+        config,
+        "model/output_ntheta",
+        config["global"]["nthetas"],
+    )
+
+    # config['global'][("signal_matrix_input", False)
+
+
 def train_single_point(args):
     config = load_config_from_fn(args.config)
+
+    load_defaults(config)
+
     config["args"] = vars(args)
+    if args.steps:
+        config["optim"]["steps"] = args.steps
+
     logging.info(config)
 
     running_config = copy.deepcopy(config)
 
-    output_from_config = config["optim"].get("output", None)
+    output_from_config = config["optim"]["output"]
     if args.output is None and output_from_config is not None:
         args.output = output_from_config
     if args.output is None:
@@ -880,7 +932,7 @@ def train_single_point(args):
     config["optim"]["dtype"] = dtype
 
     load_seed(config["global"])
-    if config["datasets"].get("flip", False):
+    if config["datasets"]["flip"]:
         # Cant flip when doing paired!
         assert config["model"]["name"] == "beamformer"
     if config["model"]["name"] in (
@@ -904,7 +956,7 @@ def train_single_point(args):
         config["datasets"]["workers"] = 0
 
     if config["logger"]["name"] == "simple" or args.debug:
-        logger = SimpleLogger(args, config.get("logger", {}), config)
+        logger = SimpleLogger(args, config["logger"], config)
     elif config["logger"]["name"] == "wandb":
         logger = WNBLogger(args, config["logger"], config)
 
@@ -968,7 +1020,7 @@ def train_single_point(args):
         )
 
         for _, batch_data in enumerate(tqdm(train_dataloader)):
-            if config["datasets"].get("random_snapshot_size", False):
+            if config["datasets"]["random_snapshot_size"]:
                 effective_snapshots_per_session = max(
                     1,
                     math.ceil(
@@ -1037,8 +1089,8 @@ def train_single_point(args):
                             val_losses, step=step, prefix=f"val_{alternate_val}/"
                         )
 
-                    if config["optim"].get("save_on", "") != "":
-                        this_loss = reported_losses[config["optim"].get("save_on")]
+                    if config["optim"]["save_on"] != "":
+                        this_loss = reported_losses[config["optim"]["save_on"]]
                         if (
                             best_val_loss_so_far == None
                             or this_loss < best_val_loss_so_far
@@ -1154,6 +1206,11 @@ def get_parser_filter():
         "--beamnet-latent",
         type=int,
         default=0,
+    )
+    parser.add_argument(
+        "--steps",
+        type=int,
+        default=None,
     )
     parser.add_argument(
         "--debug-model",

@@ -143,24 +143,97 @@ class SignalMatrixNet(nn.Module):
 
 
 class AllWindowsStatsNet(nn.Module):
-    def __init__(self, k=11, hidden_channels=32, outputs=8):
+    def __init__(
+        self,
+        k=11,
+        hidden_channels=32,
+        outputs=8,
+        output_phi=False,
+        dropout=0.0,
+        norm=False,
+        norm_size=256,
+        n_layers=1,
+        windowed_beamformer=False,
+        nthetas=0,
+    ):
         super().__init__()
         padding = k // 2
         self.outputs = outputs
-        self.conv_net = torch.nn.Sequential(
-            nn.Conv1d(3, hidden_channels, k, stride=1, padding=padding),
+        self.output_phi = output_phi
+        self.dropout = dropout
+        self.windowed_beamformer = windowed_beamformer
+        self.nthetas = nthetas
+        assert not dropout or not norm, "currently cannot do norm if dropout > 0.0"
+        input_channels = 3
+        if self.windowed_beamformer:
+            input_channels += self.nthetas
+        layers = [
+            nn.Conv1d(input_channels, hidden_channels, k, stride=1, padding=padding),
+            # nn.LayerNorm(norm_size) if norm else nn.Identity(),
             nn.ReLU(),
             nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.LayerNorm(norm_size // 2) if norm else nn.Identity(),
             nn.ReLU(),
-            nn.Conv1d(hidden_channels, hidden_channels, k, stride=1, padding=padding),
-            nn.ReLU(),
+        ]
+        for idx in range(n_layers):
+            layers += [
+                nn.Conv1d(
+                    hidden_channels, hidden_channels, k, stride=1, padding=padding
+                ),
+                nn.LayerNorm(norm_size // 2) if norm else nn.Identity(),
+                nn.ReLU(),
+            ]
+        layers += [
             nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
+            nn.LayerNorm(norm_size // 4) if norm else nn.Identity(),
             nn.ReLU(),
             nn.Conv1d(hidden_channels, outputs, k, stride=1, padding=padding),
-        )
+        ]
+        self.conv_net = torch.nn.Sequential(*layers)
+        if output_phi:
+            self.phi_network = torch.nn.Sequential(
+                nn.Linear(outputs, hidden_channels),
+                nn.ReLU(),
+                nn.Linear(hidden_channels, hidden_channels),
+                nn.ReLU(),
+                nn.Linear(hidden_channels, hidden_channels),
+                nn.ReLU(),
+                nn.Linear(hidden_channels, 1),
+            )
 
-    def forward(self, x):
-        return self.conv_net(x).mean(axis=2)
+    def forward(self, batch):
+        normalize_by = batch["all_windows_stats"].max(dim=3, keepdims=True)[0]
+        normalize_by[:, :, :2] = torch.pi
+
+        all_windows_normalized_input = (
+            batch["all_windows_stats"] / normalize_by
+        )  # batch, snapshots, channels, time (256)
+
+        # want B x C x L
+
+        inputs = [all_windows_normalized_input]
+        if self.windowed_beamformer:
+            inputs.append(batch["windowed_beamformer"].transpose(2, 3) / 500)
+        input = torch.concatenate(inputs, dim=2)
+
+        size_batch, size_snapshots, channels, windows = input.shape
+        input = input.reshape(-1, channels, windows)
+
+        if self.training and self.dropout > 0.0:
+            if torch.rand(1) > 0.5:
+                input = input[:, :, torch.rand(windows) > self.dropout]
+            else:
+                start_idx = int(torch.rand(1) * self.dropout * windows)
+                end_idx = min(start_idx + int(windows * (1 - self.dropout)), windows)
+                input = input[:, :, start_idx:end_idx]
+        r = {
+            "all_windows_embedding": self.conv_net(input)
+            .mean(axis=2)
+            .reshape(size_batch, size_snapshots, self.outputs)
+        }
+        if self.output_phi:
+            r["output_phi"] = self.phi_network(r["all_windows_embedding"])
+        return r
 
 
 class SinglePointWithBeamformer(nn.Module):
@@ -180,7 +253,7 @@ class SinglePointWithBeamformer(nn.Module):
             additional_inputs += self.signal_matrix_net.outputs
         if "windows_stats_net" in model_config:
             self.windows_stats_net = AllWindowsStatsNet(
-                **model_config["windows_stats_net"]
+                nthetas=global_config["nthetas"], **model_config["windows_stats_net"]
             )
             additional_inputs += self.windows_stats_net.outputs
 
@@ -198,17 +271,17 @@ class SinglePointWithBeamformer(nn.Module):
         )
 
     def forward(self, batch):
+        return_dict = {}
         # first dim odd / even is the radios
         additional_inputs = []
         if self.windows_stats_net:
-            normalize_by = batch["all_windows_stats"].max(dim=3, keepdims=True)[0]
-            normalize_by[:, :, :2] = torch.pi
+            all_windows_output = self.windows_stats_net(batch)
 
-            input = batch["all_windows_stats"] / normalize_by
-            assert input.shape[1] == 1
-            additional_inputs.append(
-                self.windows_stats_net(input.select(1, 0))[:, None]
-            )
+            if "output_phi" in all_windows_output:
+                return_dict["output_phi"] = all_windows_output["output_phi"]
+
+            additional_inputs.append(all_windows_output["all_windows_embedding"])
+
             # breakpoint()
             # a = 1
         if self.signal_matrix_net:
@@ -236,21 +309,20 @@ class SinglePointWithBeamformer(nn.Module):
             additional_inputs.append(
                 self.signal_matrix_net(input_with_spacing.select(1, 0))[:, None]
             )
-        return {
-            "single": torch.nn.functional.normalize(
-                self.single_point_with_beamformer_ffnn(
-                    torch.concatenate(
-                        [
-                            self.prepare_input.prepare_input(batch),
-                        ]
-                        + additional_inputs,
-                        dim=2,
-                    )
-                ).abs(),
-                dim=2,
-                p=1,
-            )
-        }
+        return_dict["single"] = torch.nn.functional.normalize(
+            self.single_point_with_beamformer_ffnn(
+                torch.concatenate(
+                    [
+                        self.prepare_input.prepare_input(batch),
+                    ]
+                    + additional_inputs,
+                    dim=2,
+                )
+            ).abs(),
+            dim=2,
+            p=1,
+        )
+        return return_dict
 
 
 class PairedSinglePointWithBeamformer(nn.Module):
