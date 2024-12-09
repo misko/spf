@@ -1,10 +1,13 @@
 import argparse
+import logging
 import math
+import os
 import pickle
 
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from spf.dataset.spf_dataset import v5spfdataset
 from spf.utils import rx_spacing_to_str
@@ -146,35 +149,58 @@ def get_empirical_p_dist_parser():
 
 
 def create_empirical_p_dist(args):
+    if args.output_fig_prefix is not None:
+        os.makedirs(os.path.dirname(args.output_fig_prefix), exist_ok=True)
+    datasets = []
 
-    datasets = [
-        v5spfdataset(
-            prefix,
-            precompute_cache=args.precompute_cache,
-            nthetas=args.nthetas,
-            skip_fields=set(["signal_matrix"]),
-            paired=False,
-            ignore_qc=True,
-            gpu=args.device == "cuda",
-        )
-        for prefix in args.datasets
-    ]
+    for prefix in tqdm(args.datasets, total=len(args.datasets)):
+        try:
+            ds = v5spfdataset(
+                prefix,
+                precompute_cache=args.precompute_cache,
+                nthetas=args.nthetas,
+                skip_fields=set(["signal_matrix"]),
+                paired=False,
+                ignore_qc=True,
+                gpu=args.device == "cuda",
+            )
+            datasets.append(ds)
+        except ValueError as e:
+            logging.error(f"Failed to load {prefix} with error {str(e)}")
 
     datasets_by_spacing = {}
 
     counts = {}
 
     for dataset in datasets:
-        rx_wavelength_spacing = dataset.cached_keys[0]["rx_wavelength_spacing"][
-            0
-        ].item()
-        assert (
-            dataset.cached_keys[0]["rx_wavelength_spacing"] == rx_wavelength_spacing
-        ).all()
-        assert (
-            dataset.cached_keys[1]["rx_wavelength_spacing"] == rx_wavelength_spacing
-        ).all()
-        rx_spacing_str = rx_spacing_to_str(rx_wavelength_spacing)
+        check0 = (
+            (
+                dataset.cached_keys[0]["rx_wavelength_spacing"]
+                == dataset.cached_keys[0]["rx_wavelength_spacing"].median()
+            )
+            .to(torch.float)
+            .mean()
+        )
+        check1 = (
+            (
+                dataset.cached_keys[1]["rx_wavelength_spacing"]
+                == dataset.cached_keys[1]["rx_wavelength_spacing"].median()
+            )
+            .to(torch.float)
+            .mean()
+        )
+        if check0 != 1.0 or check1 != 1.0:
+            breakpoint()
+            logging.warning(
+                f"{dataset.zarr_fn} Failed consistentcy check for rx spacing! {check0} {check1}"
+            )
+
+        rx_spacing_str = rx_spacing_to_str(
+            dataset.cached_keys[0]["rx_wavelength_spacing"].median()
+        )
+        assert rx_spacing_str == rx_spacing_to_str(
+            dataset.cached_keys[1]["rx_wavelength_spacing"].median()
+        )
 
         if rx_spacing_str not in counts:
             counts[rx_spacing_str] = {}

@@ -57,7 +57,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_fn = partial(
-        get_inference_on_ds_noexceptions,
+        get_inference_on_ds_noexceptions if not args.debug else get_inference_on_ds,
         config_fn=args.config_fn,
         checkpoint_fn=args.checkpoint_fn,
         device=args.device,
@@ -68,6 +68,10 @@ if __name__ == "__main__":
         crash_if_not_cached=False,
         segmentation_version=args.segmentation_version,
     )
+
+    if len(args.datasets) == 1 and args.datasets[0][-4:] == ".txt":
+        with open(args.datasets[0], "r") as f:
+            args.datasets = [x.strip() for x in f]
 
     if args.debug:
         results = list(

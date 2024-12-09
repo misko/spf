@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import random
+import sys
 from functools import partial
 
 import numpy as np
@@ -13,8 +14,9 @@ import torch
 import torchvision
 import yaml
 from matplotlib import pyplot as plt
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import LambdaLR, SequentialLR, StepLR
 from tqdm import tqdm
+from warmup_scheduler_pytorch import WarmUpScheduler
 
 import wandb
 from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
@@ -40,7 +42,7 @@ def worker_init_fn(worker_id):
 
 def load_config_from_fn(fn):
     with open(fn, "r") as f:
-        return yaml.safe_load(f)
+        return load_defaults(yaml.safe_load(f))
     return None
 
 
@@ -179,7 +181,7 @@ def load_dataloaders(
                 segment_if_not_exist=False,
             )
         except Exception as e:
-            logging.error(f"Val: Failed to load {prefix} with error {e}")
+            logging.error(f"Val: Failed to load {prefix} with error {str(e)}")
         return None
 
     logging.info("Loading validation datasets...")
@@ -352,13 +354,22 @@ def load_optimizer(optim_config, params):
         lr=optim_config["learning_rate"],
         weight_decay=optim_config["weight_decay"],
     )
-    scheduler = StepLR(
-        optimizer,
-        step_size=optim_config["scheduler_step"],
-        gamma=0.5,
-        verbose=True,
-    )
-    return optimizer, scheduler
+    if optim_config["scheduler"] == "step":
+        train_scheduler = StepLR(
+            optimizer,
+            step_size=optim_config["scheduler_step"],
+            gamma=0.5,
+            verbose=True,
+        )
+    elif optim_config["scheduler"] == "cosine":
+        # scheduler1 = ConstantLR(optimizer, factor=0.1, total_iters=2)
+        # scheduler2 = ExponentialLR(optimizer, gamma=0.9)
+        # scheduler = SequentialLR(optimizer, schedulers=[scheduler1, scheduler2], milestones=[2])
+        pass
+    else:
+        raise ValueError(f"Invalid scheduler choice {optim_config['scheduler']}")
+
+    return optimizer, train_scheduler
 
 
 class FrozenModule(torch.nn.Module):
@@ -868,6 +879,7 @@ def load_defaults(config):
     get_key_or_set_default(config, "logger", {})
     get_key_or_set_default(config, "datasets/random_snapshot_size", False)
     get_key_or_set_default(config, "optim/save_on", "")
+    get_key_or_set_default(config, "optim/scheduler", "step")
     get_key_or_set_default(config, "global/signal_matrix_input", False)
     get_key_or_set_default(config, "global/windowed_beamformer_input", False)
     get_key_or_set_default(config, "datasets/train_on_val", False)
@@ -894,12 +906,11 @@ def load_defaults(config):
     )
 
     # config['global'][("signal_matrix_input", False)
+    return config
 
 
 def train_single_point(args):
     config = load_config_from_fn(args.config)
-
-    load_defaults(config)
 
     config["args"] = vars(args)
     if args.steps:
@@ -917,7 +928,10 @@ def train_single_point(args):
     try:
         os.makedirs(args.output)
     except FileExistsError:
-        pass
+        logging.error(
+            f"Failed to run. Cannot run when output checkpoint directory exists (you'll thank me later or never): {args.output}"
+        )
+        sys.exit(1)
 
     torch_device_str = config["optim"]["device"]
     config["optim"]["device"] = torch.device(config["optim"]["device"])
@@ -1140,7 +1154,7 @@ def train_single_point(args):
             with torch.no_grad():
                 for key, value in loss_d.items():
                     losses[key].append(value.item())
-                losses["learning_rate"].append(scheduler.get_lr()[0])
+                losses["learning_rate"].append(scheduler.get_last_lr()[0])
 
                 if step == 0 or (step + 1) % config["logger"]["log_every"] == 0:
 
@@ -1168,7 +1182,7 @@ def train_single_point(args):
             if "steps" in config["optim"] and step >= config["optim"]["steps"]:
                 return
         scheduler.step()
-        logging.info(f"LR STEP: {scheduler.get_lr()}")
+        logging.info(f"LR STEP: {scheduler.get_last_lr()}")
 
 
 def get_parser_filter():

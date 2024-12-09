@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 
 import torch
 from torch import nn
@@ -52,7 +53,7 @@ class PrepareInput(nn.Module):
             > 1
         )
 
-    def prepare_input(self, batch):
+    def prepare_input(self, batch, additional_inputs=[]):
         dropout_mask = (
             torch.rand((5, *batch["y_rad"].shape), device=batch["y_rad"].device)
             < self.input_dropout
@@ -97,7 +98,11 @@ class PrepareInput(nn.Module):
             if self.training:
                 v[dropout_mask[4]] = 0
             inputs.append(v)
-        return torch.concatenate(inputs, axis=2)
+
+        return torch.concatenate(
+            inputs + additional_inputs,
+            dim=2,
+        )
 
 
 def sigmoid_dist(x):
@@ -105,9 +110,15 @@ def sigmoid_dist(x):
     return x / x.sum(dim=-1, keepdim=True)
 
 
+# Keep track of 10 different messages and then warn again
+@lru_cache(1)
+def warn_ntheta():
+    logging.warning("output_ntheta is not specified, defaulting to global_config")
+
+
 def check_and_load_ntheta(model_config, global_config):
     if "output_ntheta" not in model_config:
-        logging.warning("output_ntheta is not specified, defaulting to global_config")
+        warn_ntheta()
         model_config["output_ntheta"] = global_config["nthetas"]
 
 
@@ -142,6 +153,18 @@ class SignalMatrixNet(nn.Module):
         return self.conv_net(x).mean(axis=2)
 
 
+class SkipConnect(nn.Module):
+    def __init__(self, internal_module):
+        super().__init__()
+        self.internal_module = internal_module
+
+    def forward(self, x):
+        out = self.internal_module(x)
+        if out.shape == x.shape:
+            return out + x
+        return out
+
+
 class AllWindowsStatsNet(nn.Module):
     def __init__(
         self,
@@ -154,50 +177,126 @@ class AllWindowsStatsNet(nn.Module):
         norm_size=256,
         n_layers=1,
         windowed_beamformer=False,
+        normalize_windowed_beamformer=False,
         nthetas=0,
+        act="relu",
     ):
         super().__init__()
+        if act == "relu":
+            self.act = nn.ReLU
+        elif act == "leaky":
+            self.act = nn.LeakyReLU
+        elif act == "selu":
+            self.act = nn.SELU
+        else:
+            raise ValueError("invalid activation")
         padding = k // 2
         self.outputs = outputs
         self.output_phi = output_phi
         self.dropout = dropout
         self.windowed_beamformer = windowed_beamformer
+        self.normalize_windowed_beamformer = normalize_windowed_beamformer
         self.nthetas = nthetas
         assert not dropout or not norm, "currently cannot do norm if dropout > 0.0"
         input_channels = 3
         if self.windowed_beamformer:
             input_channels += self.nthetas
         layers = [
-            nn.Conv1d(input_channels, hidden_channels, k, stride=1, padding=padding),
-            # nn.LayerNorm(norm_size) if norm else nn.Identity(),
-            nn.ReLU(),
-            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
-            nn.LayerNorm(norm_size // 2) if norm else nn.Identity(),
-            nn.ReLU(),
+            SkipConnect(
+                nn.Sequential(
+                    nn.Conv1d(
+                        input_channels, hidden_channels, k, stride=1, padding=padding
+                    ),
+                    (
+                        nn.LayerNorm([hidden_channels, norm_size])
+                        if norm
+                        else nn.Identity()
+                    ),
+                    self.act(),
+                )
+            ),
+        ]
+        # added extra layer here
+        for idx in range(n_layers - 1):
+            layers += [
+                SkipConnect(
+                    nn.Sequential(
+                        nn.Conv1d(
+                            hidden_channels,
+                            hidden_channels,
+                            k,
+                            stride=1,
+                            padding=padding,
+                        ),
+                        (
+                            nn.LayerNorm([hidden_channels, norm_size])
+                            if norm
+                            else nn.Identity()
+                        ),
+                        self.act(),
+                    )
+                ),
+            ]
+        layers += [
+            SkipConnect(
+                nn.Sequential(
+                    nn.Conv1d(
+                        hidden_channels, hidden_channels, k, stride=2, padding=padding
+                    ),
+                    (
+                        nn.LayerNorm([hidden_channels, norm_size // 2])
+                        if norm
+                        else nn.Identity()
+                    ),
+                    self.act(),
+                )
+            ),
         ]
         for idx in range(n_layers):
             layers += [
-                nn.Conv1d(
-                    hidden_channels, hidden_channels, k, stride=1, padding=padding
+                SkipConnect(
+                    nn.Sequential(
+                        nn.Conv1d(
+                            hidden_channels,
+                            hidden_channels,
+                            k,
+                            stride=1,
+                            padding=padding,
+                        ),
+                        (
+                            nn.LayerNorm([hidden_channels, norm_size // 2])
+                            if norm
+                            else nn.Identity()
+                        ),
+                        self.act(),
+                    )
                 ),
-                nn.LayerNorm(norm_size // 2) if norm else nn.Identity(),
-                nn.ReLU(),
             ]
         layers += [
-            nn.Conv1d(hidden_channels, hidden_channels, k, stride=2, padding=padding),
-            nn.LayerNorm(norm_size // 4) if norm else nn.Identity(),
-            nn.ReLU(),
+            SkipConnect(
+                nn.Sequential(
+                    nn.Conv1d(
+                        hidden_channels, hidden_channels, k, stride=2, padding=padding
+                    ),
+                    (
+                        nn.LayerNorm([hidden_channels, norm_size // 4])
+                        if norm
+                        else nn.Identity()
+                    ),
+                    self.act(),
+                )
+            ),
             nn.Conv1d(hidden_channels, outputs, k, stride=1, padding=padding),
         ]
         self.conv_net = torch.nn.Sequential(*layers)
         if output_phi:
             self.phi_network = torch.nn.Sequential(
                 nn.Linear(outputs, hidden_channels),
-                nn.ReLU(),
+                self.act(),
                 nn.Linear(hidden_channels, hidden_channels),
-                nn.ReLU(),
+                self.act(),
                 nn.Linear(hidden_channels, hidden_channels),
-                nn.ReLU(),
+                self.act(),
                 nn.Linear(hidden_channels, 1),
             )
 
@@ -213,7 +312,15 @@ class AllWindowsStatsNet(nn.Module):
 
         inputs = [all_windows_normalized_input]
         if self.windowed_beamformer:
-            inputs.append(batch["windowed_beamformer"].transpose(2, 3) / 500)
+            if self.normalize_windowed_beamformer:
+                inputs.append(
+                    torch.nn.functional.normalize(
+                        batch["windowed_beamformer"].transpose(2, 3), p=1, dim=2
+                    )
+                    - 1 / 65.0
+                )
+            else:
+                inputs.append(batch["windowed_beamformer"].transpose(2, 3) / 500)
         input = torch.concatenate(inputs, dim=2)
 
         size_batch, size_snapshots, channels, windows = input.shape
@@ -311,13 +418,7 @@ class SinglePointWithBeamformer(nn.Module):
             )
         return_dict["single"] = torch.nn.functional.normalize(
             self.single_point_with_beamformer_ffnn(
-                torch.concatenate(
-                    [
-                        self.prepare_input.prepare_input(batch),
-                    ]
-                    + additional_inputs,
-                    dim=2,
-                )
+                self.prepare_input.prepare_input(batch, additional_inputs),
             ).abs(),
             dim=2,
             p=1,

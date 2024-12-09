@@ -1,7 +1,8 @@
 precompute_caches:
-  3.2: "/mnt/4tb_ssd/precompute_cache_new"
-  3.11: "/mnt/4tb_ssd/precompute_cache"
-  3.3: "/mnt/4tb_ssd/precompute_cache_3p3"
+  # 3.2: "/mnt/4tb_ssd/precompute_cache_new"
+  # 3.11: "/mnt/4tb_ssd/precompute_cache"
+  # 3.3: "/mnt/4tb_ssd/precompute_cache_3p3"
+  3.4: "/mnt/4tb_ssd/precompute_cache_3p4"
 
 runs:
 - run_EKF_single_theta_single_radio:
@@ -9,52 +10,60 @@ runs:
     p: [10.0, 5.0, 2.5, 1.0,0.5,0.1]
     noise_std: [0.1, 0.01, 0.001, 0.0001,0.00001,0.0005,0.0002, 0.00002,0.00005]
     dynamic_R: [0.0]
-    segmentation_version: [ 3.11 , 3.2 ]
+    segmentation_version: [ 3.4]
 - run_EKF_single_theta_single_radio:
     phi_std: [0.0]
     p: [10.0, 5.0, 2.5, 1.0,0.5,0.1]
     noise_std: [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.0005,0.0002, 0.00002,0.00005]
     dynamic_R: [1.0, 0.1]
-    segmentation_version: [ 3.11 , 3.2  ]
+    segmentation_version: [ 3.4  ]
 - run_EKF_single_theta_dual_radio:
     phi_std: [20,18,16, 14,12,10.0,8, 5.0, 2.5,1.0]
     p: [10.0, 5.0, 2.5, 1.0, 0.5, 0.1]
     noise_std: [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.0005,0.0002,0.000001, 0.00002,0.00005,0.000002,0.000005]
     dynamic_R: [0.0]
-    segmentation_version: [ 3.11 , 3.2  ]
+    segmentation_version: [ 3.4]
 - run_EKF_single_theta_dual_radio:
     phi_std: [0.0]
     p: [10.0, 5.0, 2.5, 1.0, 0.5, 0.1]
     noise_std: [0.1, 0.01, 0.001, 0.0001,0.00001, 0.0005, 0.0002,0.000001, 0.00002,0.00005,0.000002,0.000005]
     dynamic_R: [1.0,0.1]
-    segmentation_version: [ 3.11 , 3.2 ]
+    segmentation_version: [ 3.4]
 - run_PF_single_theta_single_radio:
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128*128,128*256]
     theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]
     theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
-    segmentation_version: [ 3.11 , 3.2  ]
+    segmentation_version: [ 3.4 ]
 - run_PF_single_theta_dual_radio:
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64,  128*128,128*256]
     theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]
     theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
-    segmentation_version: [ 3.11 , 3.2  ]
+    segmentation_version: [ 3.4 ]
 - run_PF_single_theta_single_radio_NN:
     checkpoint_fn_and_segmentation_version:
-      - checkpoint_fn: "/home/mouse9911/gits/spf/nov22_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_beamformerOnly_withMag/best.pth"
-        segmentation_version: 3.2
-      - checkpoint_fn: "/home/mouse9911/gits/spf/nov26_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05/best.pth"
-        segmentation_version: 3.2
-    inference_cache: ["/mnt/4tb_ssd/inference_cache_nov29/"]
+      - checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4/best.pth"
+        segmentation_version: 3.4
+      - checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized/best.pth"
+        segmentation_version: 3.4
+      - checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized_big2/best.pth"
+        segmentation_version: 3.4
+      - checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
+        segmentation_version: 3.4
+    inference_cache: ["/mnt/md2/cache/inference"]
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 ,  128*128  ]
     theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15, 0.2]
     theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
 - run_PF_single_theta_dual_radio_NN:
     checkpoint_fn_and_segmentation_version:
-      - checkpoint_fn: "/home/mouse9911/gits/spf/nov22_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_beamformerOnly_withMag/best.pth"
-        segmentation_version: 3.2
-      - checkpoint_fn: "/home/mouse9911/gits/spf/nov26_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05/best.pth"
-        segmentation_version: 3.2
-    inference_cache: ["/mnt/4tb_ssd/inference_cache_nov29/"]
+      - checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4/best.pth"
+        segmentation_version: 3.4
+      - checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized/best.pth"
+        segmentation_version: 3.4
+      - checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized_big2/best.pth"
+        segmentation_version: 3.4
+      - checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
+        segmentation_version: 3.4
+    inference_cache: ["/mnt/md2/cache/inference"]
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 , 128*128,128*256 ]
     theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15,0.2]
     theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05,0.075,0.09,0.1,0.12, 0.15, 0.2]
