@@ -304,8 +304,8 @@ class AllWindowsStatsNet(nn.Module):
         normalize_by = batch["all_windows_stats"].max(dim=3, keepdims=True)[0]
         normalize_by[:, :, :2] = torch.pi
 
-        all_windows_normalized_input = (
-            batch["all_windows_stats"] / normalize_by
+        all_windows_normalized_input = batch["all_windows_stats"] / (
+            normalize_by + 1e-5
         )  # batch, snapshots, channels, time (256)
 
         # want B x C x L
@@ -326,6 +326,7 @@ class AllWindowsStatsNet(nn.Module):
         size_batch, size_snapshots, channels, windows = input.shape
         input = input.reshape(-1, channels, windows)
 
+        # self.dropout = 0.2 means drop 20%
         if self.training and self.dropout > 0.0:
             if torch.rand(1) > 0.5:
                 input = input[:, :, torch.rand(windows) > self.dropout]
@@ -333,6 +334,7 @@ class AllWindowsStatsNet(nn.Module):
                 start_idx = int(torch.rand(1) * self.dropout * windows)
                 end_idx = min(start_idx + int(windows * (1 - self.dropout)), windows)
                 input = input[:, :, start_idx:end_idx]
+        # assert input.isfinite().all()
         r = {
             "all_windows_embedding": self.conv_net(input)
             .mean(axis=2)

@@ -6,7 +6,9 @@ import logging
 import math
 import os
 import random
+import shutil
 import sys
+import uuid
 from functools import partial
 
 import numpy as np
@@ -16,7 +18,6 @@ import yaml
 from matplotlib import pyplot as plt
 from torch.optim.lr_scheduler import LambdaLR, SequentialLR, StepLR
 from tqdm import tqdm
-from warmup_scheduler_pytorch import WarmUpScheduler
 
 import wandb
 from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
@@ -606,7 +607,10 @@ def new_log():
 
 class SimpleLogger:
     def __init__(self, args, logger_config, full_config):
-        pass
+        if "run_id" in logger_config:
+            self.id = logger_config["run_id"]
+        else:
+            self.id = str(uuid.uuid4())
 
     def log(self, data, step, prefix=""):
 
@@ -640,14 +644,22 @@ class WNBLogger:
                 + datetime.datetime.now().strftime("%Y-%m-%d")
             )
 
+        self.id = None
+        if "run_id" in logger_config:
+            self.id = logger_config["run_id"]
+
         wandb.init(
             # set the wandb project where this run will be logged
             project=logger_config["project"],
             # track hyperparameters and run metadata
             config=full_config,
             name=wandb_name,
+            resume="allow",
+            id=self.id,
             # id="d7i47byn",  # "iconic-fog-63",
         )
+        if self.id is None:
+            self.id = wandb.run.id
 
     def log(self, data, step, prefix=""):
         losses = {
@@ -910,40 +922,46 @@ def load_defaults(config):
 
 
 def train_single_point(args):
+
     config = load_config_from_fn(args.config)
 
-    config["args"] = vars(args)
-    if args.steps:
-        config["optim"]["steps"] = args.steps
-
     logging.info(config)
-
-    running_config = copy.deepcopy(config)
 
     output_from_config = config["optim"]["output"]
     if args.output is None and output_from_config is not None:
         args.output = output_from_config
     if args.output is None:
         args.output = datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
+
+    if args.resume:
+        assert args.resume_from is None
+        # get checkpoints and sort by checkpoint iteration
+        args.resume_from = sorted(
+            [
+                (int(".".join(os.path.basename(x).split(".")[:-1]).split("_s")[-1]), x)
+                for x in glob.glob(f"{args.output}/*.pth")
+                if "best.pth" not in x
+            ]
+        )[-1][1]
+        resume_from_config = load_config_from_fn(f"{args.output}/config.yml")
+        if "run_id" in resume_from_config["logger"]:
+            shutil.copyfile(
+                f"{args.output}/config.yml",
+                f'{args.output}/{datetime.datetime.now().strftime("config-bkup-%Y-%m-%d_%H-%M-%S")}.yml',
+            )
+            config["logger"]["run_id"] = resume_from_config["logger"]["run_id"]
+
+    config["args"] = vars(args)
+    if args.steps:
+        config["optim"]["steps"] = args.steps
+
     try:
-        os.makedirs(args.output)
+        os.makedirs(args.output, exist_ok=args.resume)
     except FileExistsError:
         logging.error(
             f"Failed to run. Cannot run when output checkpoint directory exists (you'll thank me later or never): {args.output}"
         )
         sys.exit(1)
-
-    torch_device_str = config["optim"]["device"]
-    config["optim"]["device"] = torch.device(config["optim"]["device"])
-
-    dtype = torch.float16
-    if config["optim"]["dtype"] == "torch.float32":
-        dtype = torch.float32
-    elif config["optim"]["dtype"] == "torch.float16":
-        dtype = torch.float16
-    else:
-        raise ValueError
-    config["optim"]["dtype"] = dtype
 
     load_seed(config["global"])
     if config["datasets"]["flip"]:
@@ -958,13 +976,6 @@ def train_single_point(args):
     else:
         assert config["datasets"]["random_snapshot_size"] is False
 
-    m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
-
-    model_checksum("load_model:", m)
-    optimizer, scheduler = load_optimizer(config["optim"], m.parameters())
-
-    load_seed(config["global"])
-
     # DEBUG MODE
     if args.debug:
         config["datasets"]["workers"] = 0
@@ -974,9 +985,39 @@ def train_single_point(args):
     elif config["logger"]["name"] == "wandb":
         logger = WNBLogger(args, config["logger"], config)
 
+    #####
+    # CONSIDER CONFIG HERE FINAL FOR THE RUN
+    #####
+    config["logger"]["run_id"] = logger.id
+    running_config = copy.deepcopy(config)
+
+    with open(f"{args.output}/config.yml", "w") as outfile:
+        yaml.dump(running_config, outfile)
+    #####
+
+    torch_device_str = config["optim"]["device"]
+    config["optim"]["device"] = torch.device(config["optim"]["device"])
+
+    dtype = torch.float16
+    if config["optim"]["dtype"] == "torch.float32":
+        dtype = torch.float32
+    elif config["optim"]["dtype"] == "torch.float16":
+        dtype = torch.float16
+    else:
+        raise ValueError
+    config["optim"]["dtype"] = dtype
+
+    m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
+
+    model_checksum("load_model:", m)
+    optimizer, scheduler = load_optimizer(config["optim"], m.parameters())
+
+    load_seed(config["global"])
+
     step = 0
     start_epoch = 0
 
+    just_loaded_checkpoint = False
     if args.resume_from is not None:
         m, optimizer, scheduler, start_epoch, step = load_checkpoint(
             checkpoint_fn=args.resume_from,
@@ -986,6 +1027,7 @@ def train_single_point(args):
             scheduler=scheduler,
             force_load=True,
         )
+        just_loaded_checkpoint = True
     elif "checkpoint" in config["optim"]:
         m, optimizer, scheduler, start_epoch, step = load_checkpoint(
             checkpoint_fn=config["optim"]["checkpoint"],
@@ -996,6 +1038,7 @@ def train_single_point(args):
         )
         # start_epoch = checkpoint["epoch"]
         # step = checkpoint["step"]
+        just_loaded_checkpoint = True
 
     load_seed(config["global"])
 
@@ -1046,7 +1089,11 @@ def train_single_point(args):
                 logging.debug(
                     f"effective_snapshots_per_session: {effective_snapshots_per_session}"
                 )
-            if args.val and step % config["optim"]["val_every"] == 0:
+            if (
+                args.val
+                and step % config["optim"]["val_every"] == 0
+                and not just_loaded_checkpoint
+            ):
                 model_checksum(f"val.e{epoch}.s{step}: ", m)
                 m.eval()
                 with torch.no_grad():
@@ -1121,6 +1168,7 @@ def train_single_point(args):
                                 running_config=running_config,
                                 checkpoint_fn="best.pth",
                             )
+            just_loaded_checkpoint = False
 
             m.train()
             batch_data = batch_data.to(config["optim"]["device"])
@@ -1240,6 +1288,11 @@ def get_parser_filter():
         "--val",
         action=argparse.BooleanOptionalAction,
         default=True,
+    )
+    parser.add_argument(
+        "--resume",
+        action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument("--save-prefix", type=str, default="./this_model_")
     return parser
