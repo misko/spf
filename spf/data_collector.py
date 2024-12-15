@@ -234,7 +234,8 @@ class ThreadedRX:
 
     def get_data(self):
         sdr_rx = self.get_rx()
-
+        if sdr_rx is None:
+            raise ValueError("SDR RX is None, aborting.")
         # process the data
         signal_matrix = np.vstack(sdr_rx["signal_matrix"])
         current_time = time.time() - self.time_offset  # timestamp
@@ -259,6 +260,7 @@ class ThreadedRXRaw(ThreadedRX):
         current_time = time.time() - self.time_offset  # timestamp after sample arrives
 
         avg_phase_diff = get_avg_phase(signal_matrix)
+        assert self.pplus.rx_config.rx_spacing > 0.001
 
         return self.snapshot_class(
             signal_matrix=signal_matrix,
@@ -578,6 +580,9 @@ class GrblDataCollectorRaw(DataCollector):
         data.tx_pos_y_mm = tx_pos[1]
         data.rx_pos_x_mm = rx_pos[0]
         data.rx_pos_y_mm = rx_pos[1]
+
+
+        assert data.rx_lo > 1
 
         if not self.yaml_config["dry-run"]:
             z = self.zarr[f"receivers/r{thread_idx}"]
