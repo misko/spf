@@ -6,6 +6,9 @@ import logging
 import math
 import os
 import random
+import shutil
+import sys
+import uuid
 from functools import partial
 
 import numpy as np
@@ -13,7 +16,7 @@ import torch
 import torchvision
 import yaml
 from matplotlib import pyplot as plt
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import LambdaLR, SequentialLR, StepLR
 from tqdm import tqdm
 
 import wandb
@@ -26,7 +29,7 @@ from spf.model_training_and_inference.models.single_point_networks import (
     TrajPairedMultiPointWithBeamformer,
 )
 from spf.rf import torch_pi_norm
-from spf.utils import StatefulBatchsampler
+from spf.utils import SEGMENTATION_VERSION, StatefulBatchsampler
 
 
 def worker_init_fn(worker_id):
@@ -40,7 +43,7 @@ def worker_init_fn(worker_id):
 
 def load_config_from_fn(fn):
     with open(fn, "r") as f:
-        return yaml.safe_load(f)
+        return load_defaults(yaml.safe_load(f))
     return None
 
 
@@ -62,8 +65,10 @@ def global_config_to_keys_used(global_config):
         # "rx_pos_xy",
         # "tx_pos_xy",
         # "downsampled_segmentation_mask",
+        "rx_lo",
         "rx_wavelength_spacing",
         "y_rad",
+        "y_phi",
         "craft_y_rad",
         "y_phi",
         "system_timestamp",
@@ -74,6 +79,10 @@ def global_config_to_keys_used(global_config):
         "rx_pos_xy",
         "tx_pos_xy",
     ]
+    if global_config["signal_matrix_input"]:
+        keys_to_get += ["abs_signal_and_phase_diff"]
+    if global_config["windowed_beamformer_input"]:
+        keys_to_get += ["windowed_beamformer"]
     if global_config["beamformer_input"]:
         # keys_to_get += ["windowed_beamformer"]
         keys_to_get += ["weighted_beamformer"]
@@ -81,11 +90,19 @@ def global_config_to_keys_used(global_config):
 
 
 def load_dataloaders(
-    datasets_config, optim_config, global_config, model_config, step=0, epoch=0
+    datasets_config,
+    optim_config,
+    global_config,
+    model_config,
+    step=0,
+    epoch=0,
+    no_tqdm=False,
 ):
-    skip_fields = set(["signal_matrix", "simple_segmentations"])
-    # if not global_config["beamformer_input"]:
-    skip_fields |= set(["windowed_beamformer"])
+    skip_fields = set(["simple_segmentations"])
+    if not global_config["signal_matrix_input"]:
+        skip_fields |= set(["signal_matrix"])
+    if not global_config["windowed_beamformer_input"]:
+        skip_fields |= set(["windowed_beamformer"])
     # import glob
     # glob.glob('./[0-9].*')
 
@@ -110,7 +127,7 @@ def load_dataloaders(
         logging.info(
             f"Using train and val from txt: val_files {len(val_paths)} , train_files {len(train_paths)}"
         )
-    elif datasets_config.get("train_on_val", False):
+    elif datasets_config["train_on_val"]:
         val_paths = train_dataset_filenames
         train_paths = train_dataset_filenames
         logging.info(
@@ -133,87 +150,147 @@ def load_dataloaders(
             f"Using val_holdout: val_files {len(val_paths)} , train_files {len(train_paths)}"
         )
 
-    val_adjacent_stride = datasets_config.get(
-        "val_snapshots_adjacent_stride", datasets_config["snapshots_adjacent_stride"]
-    )
+    val_adjacent_stride = datasets_config["val_snapshots_adjacent_stride"]
     logging.info(f"Using validation stride of {val_adjacent_stride}")
-    val_datasets = [
-        v5spfdataset(
-            prefix,
-            precompute_cache=datasets_config["precompute_cache"],
-            nthetas=global_config["nthetas"],
-            target_ntheta=model_config["output_ntheta"],
-            paired=global_config["n_radios"] > 1,
-            ignore_qc=datasets_config["skip_qc"],
-            gpu=optim_config["device"] == "cuda",
-            snapshots_per_session=datasets_config["val_snapshots_per_session"],
-            snapshots_stride=datasets_config["snapshots_stride"],
-            snapshots_adjacent_stride=val_adjacent_stride,
-            readahead=False,
-            skip_fields=skip_fields,
-            empirical_data_fn=datasets_config.get("empirical_data_fn", None),
-            empirical_individual_radio=datasets_config.get(
-                "empirical_individual_radio"
-            ),
-            empirical_symmetry=datasets_config.get("empirical_symmetry", None),
-            target_dtype=optim_config["dtype"],
+
+    monitor = tqdm
+    if no_tqdm:
+        monitor = lambda x, total: x
+
+    def load_val_dataset(prefix):
+        try:
+            return v5spfdataset(
+                prefix,
+                precompute_cache=datasets_config["precompute_cache"],
+                nthetas=global_config["nthetas"],
+                target_ntheta=model_config["output_ntheta"],
+                paired=global_config["n_radios"] > 1,
+                ignore_qc=datasets_config["skip_qc"],
+                gpu=optim_config["device"] == "cuda",
+                snapshots_per_session=datasets_config["val_snapshots_per_session"],
+                snapshots_stride=datasets_config["snapshots_stride"],
+                snapshots_adjacent_stride=val_adjacent_stride,
+                readahead=False,
+                skip_fields=skip_fields,
+                empirical_data_fn=datasets_config["empirical_data_fn"],
+                empirical_individual_radio=datasets_config[
+                    "empirical_individual_radio"
+                ],
+                empirical_symmetry=datasets_config["empirical_symmetry"],
+                target_dtype=optim_config["dtype"],
+                segmentation_version=datasets_config["segmentation_version"],
+                segment_if_not_exist=False,
+            )
+        except Exception as e:
+            logging.error(f"Val: Failed to load {prefix} with error {str(e)}")
+        return None
+
+    logging.info("Loading validation datasets...")
+    val_datasets = list(
+        filter(
+            lambda x: x, monitor(map(load_val_dataset, val_paths), total=len(val_paths))
         )
-        for prefix in val_paths
-    ]
-    train_datasets = [
-        v5spfdataset(
-            prefix,
-            precompute_cache=datasets_config["precompute_cache"],
-            nthetas=global_config["nthetas"],
-            target_ntheta=model_config["output_ntheta"],
-            paired=global_config["n_radios"] > 1,
-            ignore_qc=datasets_config["skip_qc"],
-            gpu=optim_config["device"] == "cuda",
-            snapshots_per_session=datasets_config["train_snapshots_per_session"],
-            snapshots_stride=datasets_config["snapshots_stride"],
-            snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
-            readahead=False,
-            skip_fields=skip_fields,
-            empirical_data_fn=datasets_config.get("empirical_data_fn", None),
-            empirical_individual_radio=datasets_config.get(
-                "empirical_individual_radio"
-            ),
-            empirical_symmetry=datasets_config.get("empirical_symmetry", None),
-            target_dtype=optim_config["dtype"],
-            # difference
-            flip=datasets_config["flip"],
-            double_flip=datasets_config["double_flip"],
-            random_adjacent_stride=datasets_config.get("random_adjacent_stride", False),
+    )
+    logging.info(f"Val: Loaded {len(val_datasets)} of {len(val_paths)} datasets")
+
+    def load_train_dataset(prefix):
+        try:
+            return v5spfdataset(
+                prefix,
+                precompute_cache=datasets_config["precompute_cache"],
+                nthetas=global_config["nthetas"],
+                target_ntheta=model_config["output_ntheta"],
+                paired=global_config["n_radios"] > 1,
+                ignore_qc=datasets_config["skip_qc"],
+                gpu=optim_config["device"] == "cuda",
+                snapshots_per_session=datasets_config["train_snapshots_per_session"],
+                snapshots_stride=datasets_config["snapshots_stride"],
+                snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
+                readahead=False,
+                skip_fields=skip_fields,
+                empirical_data_fn=datasets_config["empirical_data_fn"],
+                empirical_individual_radio=datasets_config[
+                    "empirical_individual_radio"
+                ],
+                empirical_symmetry=datasets_config["empirical_symmetry"],
+                target_dtype=optim_config["dtype"],
+                # difference
+                flip=datasets_config["flip"],
+                double_flip=datasets_config["double_flip"],
+                random_adjacent_stride=datasets_config["random_adjacent_stride"],
+                segmentation_version=datasets_config["segmentation_version"],
+                segment_if_not_exist=False,
+            )
+        except Exception as e:
+            logging.error(f"Train: Failed to load {prefix} with error {e}")
+        return None
+
+    logging.info("Loading training datasets...")
+    train_datasets = list(
+        filter(
+            lambda x: x,
+            monitor(map(load_train_dataset, train_paths), total=len(train_paths)),
         )
-        for prefix in train_paths
-    ]
+    )
+    logging.info(f"Train: Loaded {len(train_datasets)} of {len(train_paths)} datasets")
+
     assert len(train_paths) > 0
     assert len(val_paths) > 0
     for ds in val_datasets + train_datasets:
-        ds.get_segmentation()
+        ds.get_segmentation(
+            version=datasets_config["segmentation_version"],
+            segment_if_not_exist=False,
+        )
 
     val_ds = torch.utils.data.ConcatDataset(val_datasets)
     train_ds = torch.utils.data.ConcatDataset(train_datasets)
 
-    train_idxs = range(len(train_ds))
-    val_idxs = list(range(len(val_ds)))
+    # create alternate val_ds
+    alternate_val_ds_lists = {}
+    for ds in val_datasets:
+        key = f"{ds.get_wavelength_identifier()}.{ds.yaml_config['routine']}"
+        if key not in alternate_val_ds_lists:
+            alternate_val_ds_lists[key] = []
+        alternate_val_ds_lists[key].append(ds)
+    alternate_val_ds = {}
+    for key, ds_list in alternate_val_ds_lists.items():
+        alternate_val_ds[key] = torch.utils.data.ConcatDataset(ds_list)
 
-    if datasets_config["shuffle"]:
-        random.shuffle(val_idxs)
-    if not datasets_config.get("train_on_val", False):
+    # if we train_on_val just take everything
+    if not datasets_config["train_on_val"]:
+        val_idxs = list(range(len(val_ds)))
+        if datasets_config["shuffle"]:
+            random.shuffle(val_idxs)
         val_idxs = val_idxs[
             : max(
                 1,
-                int(len(val_idxs) * datasets_config.get("val_subsample_fraction", 1.0)),
+                int(len(val_idxs) * datasets_config["val_subsample_fraction"]),
             )
         ]
+        val_ds = torch.utils.data.Subset(val_ds, val_idxs)
 
-    train_ds = torch.utils.data.Subset(train_ds, train_idxs)
-    val_ds = torch.utils.data.Subset(val_ds, val_idxs)
+        # deal with alternative val ds
+        for key, ds in alternate_val_ds.items():
+            val_idxs = list(range(len(ds)))
+            if datasets_config["shuffle"]:
+                random.shuffle(val_idxs)
+            val_idxs = val_idxs[
+                : max(
+                    1,
+                    int(len(val_idxs) * datasets_config["val_subsample_fraction"]),
+                )
+            ]
+            alternate_val_ds[key] = torch.utils.data.Subset(ds, val_idxs)
+    else:
+        val_ds = torch.utils.data.Subset(val_ds, range(len(val_ds)))
+        alternate_val_ds = {}
+
+    # select everything anyway, shuffle later in batchsampler
+    train_ds = torch.utils.data.Subset(train_ds, range(len(train_ds)))
 
     logging.info(f"Train-dataset size {len(train_ds)}, Val dataset size {len(val_ds)}")
 
-    def params_for_ds(ds, batch_size):
+    def params_for_ds(ds, batch_size, num_workers):
         sampler = StatefulBatchsampler(
             ds,
             shuffle=datasets_config["shuffle"],
@@ -224,7 +301,7 @@ def load_dataloaders(
 
         return {
             # "batch_size": args.batch,
-            "num_workers": datasets_config["workers"],
+            "num_workers": num_workers,
             "collate_fn": partial(v5_collate_keys_fast, keys_to_get),
             "worker_init_fn": worker_init_fn,
             # "pin_memory": True,
@@ -237,6 +314,7 @@ def load_dataloaders(
         **params_for_ds(
             train_ds,
             batch_size=datasets_config["batch_size"],
+            num_workers=datasets_config["workers"],
         ),
     )
     val_dataloader = torch.utils.data.DataLoader(
@@ -244,14 +322,31 @@ def load_dataloaders(
         **params_for_ds(
             val_ds,
             batch_size=datasets_config["batch_size"],
+            num_workers=datasets_config["workers"],
         ),
     )
 
     logging.info(
         f"Train dataloader size: {len(train_dataloader)}, Val dataloader size: {len(val_dataloader)}"
     )
+    alternate_dataloaders = {
+        key: torch.utils.data.DataLoader(
+            ds,
+            **params_for_ds(
+                ds,
+                batch_size=datasets_config["batch_size"],
+                num_workers=datasets_config["workers"],
+            ),
+        )
+        for key, ds in alternate_val_ds.items()
+    }
 
-    return train_dataloader, val_dataloader
+    logging.info(
+        "Additional dataloaders: "
+        + ",".join([key for key in alternate_dataloaders.keys()])
+    )
+
+    return train_dataloader, val_dataloader, alternate_dataloaders
 
 
 def load_optimizer(optim_config, params):
@@ -260,13 +355,22 @@ def load_optimizer(optim_config, params):
         lr=optim_config["learning_rate"],
         weight_decay=optim_config["weight_decay"],
     )
-    scheduler = StepLR(
-        optimizer,
-        step_size=optim_config.get("scheduler_step", 1),
-        gamma=0.5,
-        verbose=True,
-    )
-    return optimizer, scheduler
+    if optim_config["scheduler"] == "step":
+        train_scheduler = StepLR(
+            optimizer,
+            step_size=optim_config["scheduler_step"],
+            gamma=0.5,
+            verbose=True,
+        )
+    elif optim_config["scheduler"] == "cosine":
+        # scheduler1 = ConstantLR(optimizer, factor=0.1, total_iters=2)
+        # scheduler2 = ExponentialLR(optimizer, gamma=0.9)
+        # scheduler = SequentialLR(optimizer, schedulers=[scheduler1, scheduler2], milestones=[2])
+        pass
+    else:
+        raise ValueError(f"Invalid scheduler choice {optim_config['scheduler']}")
+
+    return optimizer, train_scheduler
 
 
 class FrozenModule(torch.nn.Module):
@@ -339,14 +443,14 @@ def load_checkpoint(
 
     # check if we loading a single network
     if not force_load:
-        if config["model"].get("load_single", False):
+        if config["model"]["load_single"]:
             logging.info("Loading single_radio_net only")
             model.single_radio_net.load_state_dict(checkpoint["model_state_dict"])
             for param in model.single_radio_net.parameters():
                 param.requires_grad = False
             # model.single_radio_net = FrozenModule(model_being_loaded)
             return (model, optimizer, scheduler, 0, 0)  # epoch  # step
-        elif config["model"].get("load_paired", False):
+        elif config["model"]["load_paired"]:
             # check if we loading a paired network
             logging.info("Loading paired_radio net only")
             model.multi_radio_net.load_state_dict(checkpoint["model_state_dict"])
@@ -492,6 +596,7 @@ def new_log():
         "uniform_loss_paired": [],
         "uniform_loss_multipaired": [],
         "single_loss": [],
+        "single_all_windows_phi_loss": [],
         "paired_loss": [],
         "multipaired_loss": [],
         "learning_rate": [],
@@ -502,7 +607,10 @@ def new_log():
 
 class SimpleLogger:
     def __init__(self, args, logger_config, full_config):
-        pass
+        if "run_id" in logger_config:
+            self.id = logger_config["run_id"]
+        else:
+            self.id = str(uuid.uuid4())
 
     def log(self, data, step, prefix=""):
 
@@ -536,14 +644,22 @@ class WNBLogger:
                 + datetime.datetime.now().strftime("%Y-%m-%d")
             )
 
+        self.id = None
+        if "run_id" in logger_config:
+            self.id = logger_config["run_id"]
+
         wandb.init(
             # set the wandb project where this run will be logged
             project=logger_config["project"],
             # track hyperparameters and run metadata
             config=full_config,
             name=wandb_name,
+            resume="allow",
+            id=self.id,
             # id="d7i47byn",  # "iconic-fog-63",
         )
+        if self.id is None:
+            self.id = wandb.run.id
 
     def log(self, data, step, prefix=""):
         losses = {
@@ -598,6 +714,12 @@ def compute_loss(
         )
         loss_d["single_loss"] = loss_fn(output["single"], target)
         loss += loss_d["single_loss"]
+
+        if "output_phi" in output:
+            loss_d["single_all_windows_phi_loss"] = (
+                (torch_pi_norm(output["output_phi"] - batch_data["y_phi"])) ** 2
+            ).mean()
+            loss += 0.01 * loss_d["single_all_windows_phi_loss"]
 
         loss_d["uniform_loss_single"] = loss_fn(
             torch.nn.functional.normalize(
@@ -717,22 +839,161 @@ def compute_loss(
     return loss_d, fig
 
 
+def run_val_on_dataloader(
+    dataloader, config, loss_fn, scatter_fn, epoch, m, plot=False
+):
+    val_losses = new_log()
+    fig = None
+    for _, val_batch_data in enumerate(tqdm(dataloader, leave=False)):
+        # for val_batch_data in val_dataloader:
+        val_batch_data = val_batch_data.to(config["optim"]["device"])
+        # run beamformer and segmentation
+
+        output = m(val_batch_data)
+        loss_d, fig = compute_loss(
+            output,
+            val_batch_data,
+            loss_fn=loss_fn,
+            datasets_config=config["datasets"],
+            scatter_fn=scatter_fn,
+            single=True,
+            plot=plot,  # only take one batch?
+            paired=epoch >= config["optim"]["head_start"],
+            direct_loss=config["optim"]["direct_loss"],
+        )
+        if plot:
+            plot = False
+
+        # for accumulaing and averaging
+        for key, value in loss_d.items():
+            val_losses[key].append(value.item())
+
+        val_losses["epoch"].append(epoch)
+    return val_losses, fig
+
+
+def get_key_or_set_default(d, key, default):
+    if "/" in key:
+        this_part = key.split("/")[0]
+        if this_part not in d:
+            d[this_part] = {}
+        return get_key_or_set_default(
+            d[key.split("/")[0]], "/".join(key.split("/")[1:]), default
+        )
+    if key not in d:
+        d[key] = default
+
+
+def load_defaults(config):
+    get_key_or_set_default(config, "global/signal_matrix_input", False)
+    get_key_or_set_default(config, "optim/output", None)
+    get_key_or_set_default(config, "datasets/flip", False)
+    get_key_or_set_default(config, "logger", {})
+    get_key_or_set_default(config, "datasets/random_snapshot_size", False)
+    get_key_or_set_default(config, "optim/save_on", "")
+    get_key_or_set_default(config, "optim/scheduler", "step")
+    get_key_or_set_default(config, "global/signal_matrix_input", False)
+    get_key_or_set_default(config, "global/windowed_beamformer_input", False)
+    get_key_or_set_default(config, "datasets/train_on_val", False)
+    get_key_or_set_default(config, "datasets/empirical_data_fn", None)
+    get_key_or_set_default(config, "datasets/empirical_symmetry", None)
+    get_key_or_set_default(
+        config, "datasets/segmentation_version", SEGMENTATION_VERSION
+    )
+    get_key_or_set_default(config, "datasets/random_adjacent_stride", False)
+    get_key_or_set_default(config, "datasets/val_subsample_fraction", 1.0)
+    get_key_or_set_default(config, "optim/scheduler_step", 1)
+    get_key_or_set_default(config, "model/load_single", False)
+    get_key_or_set_default(config, "model/load_paired", False)
+
+    get_key_or_set_default(
+        config,
+        "datasets/val_snapshots_adjacent_stride",
+        config["datasets"]["snapshots_adjacent_stride"],
+    )
+    get_key_or_set_default(
+        config,
+        "model/output_ntheta",
+        config["global"]["nthetas"],
+    )
+
+    # config['global'][("signal_matrix_input", False)
+    return config
+
+
 def train_single_point(args):
+
     config = load_config_from_fn(args.config)
-    config["args"] = vars(args)
+
     logging.info(config)
 
-    running_config = copy.deepcopy(config)
-
-    output_from_config = config["optim"].get("output", None)
+    output_from_config = config["optim"]["output"]
     if args.output is None and output_from_config is not None:
         args.output = output_from_config
     if args.output is None:
         args.output = datetime.datetime.now().strftime("spf-run-%Y-%m-%d_%H-%M-%S")
+
+    if args.resume:
+        assert args.resume_from is None
+        # get checkpoints and sort by checkpoint iteration
+        args.resume_from = sorted(
+            [
+                (int(".".join(os.path.basename(x).split(".")[:-1]).split("_s")[-1]), x)
+                for x in glob.glob(f"{args.output}/*.pth")
+                if "best.pth" not in x
+            ]
+        )[-1][1]
+        resume_from_config = load_config_from_fn(f"{args.output}/config.yml")
+        if "run_id" in resume_from_config["logger"]:
+            shutil.copyfile(
+                f"{args.output}/config.yml",
+                f'{args.output}/{datetime.datetime.now().strftime("config-bkup-%Y-%m-%d_%H-%M-%S")}.yml',
+            )
+            config["logger"]["run_id"] = resume_from_config["logger"]["run_id"]
+
+    config["args"] = vars(args)
+    if args.steps:
+        config["optim"]["steps"] = args.steps
+
     try:
-        os.makedirs(args.output)
+        os.makedirs(args.output, exist_ok=args.resume)
     except FileExistsError:
-        pass
+        logging.error(
+            f"Failed to run. Cannot run when output checkpoint directory exists (you'll thank me later or never): {args.output}"
+        )
+        sys.exit(1)
+
+    load_seed(config["global"])
+    if config["datasets"]["flip"]:
+        # Cant flip when doing paired!
+        assert config["model"]["name"] == "beamformer"
+    if config["model"]["name"] in (
+        "multipairedbeamformer",
+        "trajmultipairedbeamformer",
+    ):
+        assert config["datasets"]["train_snapshots_per_session"] > 1
+        assert config["datasets"]["val_snapshots_per_session"] > 1
+    else:
+        assert config["datasets"]["random_snapshot_size"] is False
+
+    # DEBUG MODE
+    if args.debug:
+        config["datasets"]["workers"] = 0
+
+    if config["logger"]["name"] == "simple" or args.debug:
+        logger = SimpleLogger(args, config["logger"], config)
+    elif config["logger"]["name"] == "wandb":
+        logger = WNBLogger(args, config["logger"], config)
+
+    #####
+    # CONSIDER CONFIG HERE FINAL FOR THE RUN
+    #####
+    config["logger"]["run_id"] = logger.id
+    running_config = copy.deepcopy(config)
+
+    with open(f"{args.output}/config.yml", "w") as outfile:
+        yaml.dump(running_config, outfile)
+    #####
 
     torch_device_str = config["optim"]["device"]
     config["optim"]["device"] = torch.device(config["optim"]["device"])
@@ -746,19 +1007,6 @@ def train_single_point(args):
         raise ValueError
     config["optim"]["dtype"] = dtype
 
-    load_seed(config["global"])
-    if config["datasets"].get("flip", False):
-        # Cant flip when doing paired!
-        assert config["model"]["name"] == "beamformer"
-    if config["model"]["name"] in (
-        "multipairedbeamformer",
-        "trajmultipairedbeamformer",
-    ):
-        assert config["datasets"]["train_snapshots_per_session"] > 1
-        assert config["datasets"]["val_snapshots_per_session"] > 1
-    else:
-        assert config["datasets"]["random_snapshot_size"] is False
-
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
 
     model_checksum("load_model:", m)
@@ -766,14 +1014,10 @@ def train_single_point(args):
 
     load_seed(config["global"])
 
-    if config["logger"]["name"] == "simple" or args.debug:
-        logger = SimpleLogger(args, config.get("logger", {}), config)
-    elif config["logger"]["name"] == "wandb":
-        logger = WNBLogger(args, config["logger"], config)
-
     step = 0
     start_epoch = 0
 
+    just_loaded_checkpoint = False
     if args.resume_from is not None:
         m, optimizer, scheduler, start_epoch, step = load_checkpoint(
             checkpoint_fn=args.resume_from,
@@ -783,6 +1027,7 @@ def train_single_point(args):
             scheduler=scheduler,
             force_load=True,
         )
+        just_loaded_checkpoint = True
     elif "checkpoint" in config["optim"]:
         m, optimizer, scheduler, start_epoch, step = load_checkpoint(
             checkpoint_fn=config["optim"]["checkpoint"],
@@ -793,10 +1038,11 @@ def train_single_point(args):
         )
         # start_epoch = checkpoint["epoch"]
         # step = checkpoint["step"]
+        just_loaded_checkpoint = True
 
     load_seed(config["global"])
 
-    train_dataloader, val_dataloader = load_dataloaders(
+    train_dataloader, val_dataloader, alternate_val_dataloaders = load_dataloaders(
         config["datasets"], config["optim"], config["global"], config["model"]
     )
 
@@ -831,7 +1077,7 @@ def train_single_point(args):
         )
 
         for _, batch_data in enumerate(tqdm(train_dataloader)):
-            if config["datasets"].get("random_snapshot_size", False):
+            if config["datasets"]["random_snapshot_size"]:
                 effective_snapshots_per_session = max(
                     1,
                     math.ceil(
@@ -843,73 +1089,69 @@ def train_single_point(args):
                 logging.debug(
                     f"effective_snapshots_per_session: {effective_snapshots_per_session}"
                 )
-            if step % config["optim"]["val_every"] == 0:
+            if (
+                args.val
+                and step % config["optim"]["val_every"] == 0
+                and not just_loaded_checkpoint
+            ):
                 model_checksum(f"val.e{epoch}.s{step}: ", m)
                 m.eval()
                 with torch.no_grad():
-                    val_losses = new_log()
                     # for  in val_dataloader:
                     logging.info("Running validation:")
-                    for _, val_batch_data in enumerate(
-                        tqdm(val_dataloader, leave=False)
-                    ):
-                        # for val_batch_data in val_dataloader:
-                        val_batch_data = val_batch_data.to(config["optim"]["device"])
-                        # run beamformer and segmentation
-                        should_we_plot = (
-                            "val_plot_pred" not in losses
-                            and (step - last_val_plot) > config["logger"]["plot_every"]
+
+                    #####
+                    # MAIN VAL
+                    #####
+                    # figure out if we should plot
+                    should_we_plot = (
+                        "val_plot_pred" not in losses
+                        and (step - last_val_plot) > config["logger"]["plot_every"]
+                    )
+                    if should_we_plot:
+                        last_val_plot = step
+                    assert "val_plot_pred" not in losses
+
+                    val_losses, fig = run_val_on_dataloader(
+                        val_dataloader,
+                        config,
+                        loss_fn,
+                        scatter_fn,
+                        epoch,
+                        m,
+                        plot=should_we_plot,
+                    )
+
+                    if fig is not None:
+                        losses["val_plot_pred"] = fig
+
+                    reported_losses = logger.log(val_losses, step=step, prefix="val/")
+
+                    #####
+                    # MAIN VAL - DONE
+                    #####
+
+                    # TODO run alternate vals here! worst case 2x val slowdown
+                    for (
+                        alternate_val,
+                        alternate_val_dataloader,
+                    ) in alternate_val_dataloaders.items():
+                        logging.info(f"Running validation {alternate_val}:")
+                        val_losses, _ = run_val_on_dataloader(
+                            alternate_val_dataloader,
+                            config,
+                            loss_fn,
+                            scatter_fn,
+                            epoch,
+                            m,
+                            plot=False,
                         )
-                        if should_we_plot:
-                            last_val_plot = step
-
-                        output = m(val_batch_data)
-                        loss_d, fig = compute_loss(
-                            output,
-                            val_batch_data,
-                            loss_fn=loss_fn,
-                            datasets_config=config["datasets"],
-                            scatter_fn=scatter_fn,
-                            single=True,
-                            plot=should_we_plot,  # only take one batch?
-                            paired=epoch >= config["optim"]["head_start"],
-                            direct_loss=config["optim"]["direct_loss"],
-                        )
-
-                        if fig is not None:
-                            assert "val_plot_pred" not in losses
-                            losses["val_plot_pred"] = fig
-                        # scheduler.step(loinss_d["loss"])
-                        # val_losses["learning_rate"] = [scheduler.get_last_lr()]
-
-                        # TODO refactor
-                        # target_empirical = target_from_scatter(
-                        #     val_batch_data,
-                        #     y_rad=val_batch_data["y_rad"][..., None],
-                        #     y_rad_binned=val_batch_data["y_rad_binned"][..., None],
-                        #     sigma=config["datasets"]["sigma"],
-                        #     k=config["datasets"]["scatter_k"],
-                        #     target_ntheta=val_batch_data["empirical"].shape[-1],
-                        # )
-                        # loss_d["passthrough_loss"] = loss_fn(
-                        #     val_batch_data["empirical"],
-                        #     target_empirical,
-                        # )
-
-                        # for accumulaing and averaging
-                        for key, value in loss_d.items():
-                            val_losses[key].append(value.item())
-
-                        val_losses["epoch"].append(step / len(train_dataloader))
-                        val_losses["data_seen"].append(
-                            step
-                            * config["datasets"]["val_snapshots_per_session"]
-                            * config["datasets"]["batch_size"]
+                        _ = logger.log(
+                            val_losses, step=step, prefix=f"val_{alternate_val}/"
                         )
 
-                    reported_losses = logger.log(val_losses, step=step, prefix="val_")
-                    if config["optim"].get("save_on", "") != "":
-                        this_loss = reported_losses[config["optim"].get("save_on")]
+                    if config["optim"]["save_on"] != "":
+                        this_loss = reported_losses[config["optim"]["save_on"]]
                         if (
                             best_val_loss_so_far == None
                             or this_loss < best_val_loss_so_far
@@ -926,6 +1168,7 @@ def train_single_point(args):
                                 running_config=running_config,
                                 checkpoint_fn="best.pth",
                             )
+            just_loaded_checkpoint = False
 
             m.train()
             batch_data = batch_data.to(config["optim"]["device"])
@@ -950,6 +1193,8 @@ def train_single_point(args):
                 losses["train_plot_pred"] = fig
 
             scaler.scale(loss_d["loss"]).backward()
+            if args.debug:
+                assert loss_d["loss"].isfinite().all()
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad(set_to_none=True)
@@ -957,7 +1202,7 @@ def train_single_point(args):
             with torch.no_grad():
                 for key, value in loss_d.items():
                     losses[key].append(value.item())
-                losses["learning_rate"].append(scheduler.get_lr()[0])
+                losses["learning_rate"].append(scheduler.get_last_lr()[0])
 
                 if step == 0 or (step + 1) % config["logger"]["log_every"] == 0:
 
@@ -967,7 +1212,7 @@ def train_single_point(args):
                         * config["datasets"]["train_snapshots_per_session"]
                         * config["datasets"]["batch_size"]
                     )
-                    logger.log(losses, step=step, prefix="train_")
+                    logger.log(losses, step=step, prefix="train/")
                     losses = new_log()
             step += 1
             if step % config["optim"]["checkpoint_every"] == 0:
@@ -985,7 +1230,7 @@ def train_single_point(args):
             if "steps" in config["optim"] and step >= config["optim"]["steps"]:
                 return
         scheduler.step()
-        logging.info(f"LR STEP: {scheduler.get_lr()}")
+        logging.info(f"LR STEP: {scheduler.get_last_lr()}")
 
 
 def get_parser_filter():
@@ -1025,12 +1270,27 @@ def get_parser_filter():
         default=0,
     )
     parser.add_argument(
+        "--steps",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
         "--debug-model",
         action=argparse.BooleanOptionalAction,
         default=False,
     )
     parser.add_argument(
         "--debug",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--val",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
+        "--resume",
         action=argparse.BooleanOptionalAction,
         default=False,
     )

@@ -22,6 +22,7 @@ from spf.model_training_and_inference.models.beamsegnet import (
     UNet1D,
 )
 from spf.rf import reduce_theta_to_positive_y
+from spf.utils import SEGMENTATION_VERSION
 
 
 def imshow_predictions_pi(
@@ -169,11 +170,12 @@ def simple_train(args):
             paired=args.n_radios > 1,
             ignore_qc=True,  # args.skip_qc,
             gpu=args.device == "cuda",
+            segment_if_not_exist=True,
         )
         for prefix in args.datasets
     ]
     for ds in datasets:
-        ds.get_segmentation()
+        ds.get_segmentation(version=SEGMENTATION_VERSION, segment_if_not_exist=True)
     complete_ds = torch.utils.data.ConcatDataset(datasets)
 
     if args.val_on_train:

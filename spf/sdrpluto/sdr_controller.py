@@ -224,6 +224,7 @@ class FakeSdr:
         self.buffer_size = buffer_size
 
     def rx(self):
+        time.sleep(0.3)
         return random_signal_matrix(2 * self.buffer_size).reshape(2, self.buffer_size)
 
     def tx(self, _):

@@ -1,8 +1,12 @@
+import concurrent
 import logging
+import multiprocessing
+import queue
 import struct
 import sys
 import threading
 import time
+from concurrent import futures
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -26,6 +30,12 @@ from spf.sdrpluto.sdr_controller import (
 from spf.utils import zarr_shrink
 
 
+class ThreadPoolExecutorWithQueueSizeLimit(futures.ThreadPoolExecutor):
+    def __init__(self, maxsize=50, *args, **kwargs):
+        super(ThreadPoolExecutorWithQueueSizeLimit, self).__init__(*args, **kwargs)
+        self._work_queue = queue.Queue(maxsize=maxsize)
+
+
 @dataclass
 class DataSnapshotRaw:
     signal_matrix: np.array
@@ -37,7 +47,7 @@ class DataSnapshotRaw:
     rx_lo: float
     rx_bandwidth: float
     avg_phase_diff: float
-    rx_heading: float = 0.0  # wall array did not originally have this
+    rx_heading_in_pis: float = 0.0  # wall array did not originally have this
 
 
 @dataclass
@@ -135,9 +145,8 @@ def data_to_snapshot(
 class ThreadedRX:
     def __init__(self, pplus: PPlus, time_offset, nthetas, seconds_per_sample=0):
         self.pplus = pplus
-        self.read_lock = threading.Lock()
-        self.ready_lock = threading.Lock()
-        self.ready_lock.acquire()
+        self.read_q = queue.Queue(maxsize=1)
+        # self.read_q = multiprocessing.Queue(maxsize=1)
         self.run = False
         self.time_offset = time_offset
         self.nthetas = nthetas
@@ -158,15 +167,19 @@ class ThreadedRX:
         idx = 0
         while self.run:
             start_time = time.time()
-            if self.read_lock.acquire(blocking=True, timeout=0.5):
-                # got the semaphore, read some data!
-                self.get_data()
+            try:
+                data = self.get_data()
+            except Exception as e:
+                logging.error(f"Failed to read data , aborting {e}")
+                self.run = False
+                continue
+            put_on_queue = False
+            while self.run and not put_on_queue:
                 try:
-                    self.ready_lock.release()  # tell the parent we are ready to provide
-                except Exception as e:
-                    logging.error(f"Thread encountered an issue exiting {str(e)}")
-                    self.run = False
-                # logging.info(f"{self.pplus.rx_config.uri} READY")
+                    self.read_q.put(data, timeout=0.5)
+                    put_on_queue = True
+                except queue.Full:
+                    pass
             finish_time = time.time()
             elapsed_time = finish_time - start_time
             if idx % 100 == 0:
@@ -190,10 +203,15 @@ class ThreadedRX:
     def join(self):
         self.t.join()
 
-    def start_read_thread(self):
-        self.t = threading.Thread(target=self.read_forever, daemon=True)
-        self.run = True
-        self.t.start()
+    def start_read_thread(self, thread=True):
+        if thread:
+            self.t = threading.Thread(target=self.read_forever, daemon=True)
+            self.run = True
+            self.t.start()
+        else:
+            self.t = multiprocessing.Process(target=self.read_forever, daemon=True)
+            self.run = True
+            self.t.start()
 
     def get_rx(self, max_retries=15) -> Dict[str, Any]:
         tries = 0
@@ -216,12 +234,13 @@ class ThreadedRX:
 
     def get_data(self):
         sdr_rx = self.get_rx()
-
+        if sdr_rx is None:
+            raise ValueError("SDR RX is None, aborting.")
         # process the data
         signal_matrix = np.vstack(sdr_rx["signal_matrix"])
         current_time = time.time() - self.time_offset  # timestamp
 
-        self.data = data_to_snapshot(
+        return data_to_snapshot(
             current_time=current_time,
             signal_matrix=signal_matrix,
             steering_vectors=self.steering_vectors,
@@ -233,17 +252,17 @@ class ThreadedRX:
 
 class ThreadedRXRaw(ThreadedRX):
     def get_data(self):
-        self.data = None
 
         sdr_rx = self.get_rx()
 
         # process the data
         signal_matrix = np.vstack(sdr_rx["signal_matrix"])
-        current_time = time.time() - self.time_offset  # timestamp
+        current_time = time.time() - self.time_offset  # timestamp after sample arrives
 
         avg_phase_diff = get_avg_phase(signal_matrix)
+        assert self.pplus.rx_config.rx_spacing > 0.001
 
-        self.data = self.snapshot_class(
+        return self.snapshot_class(
             signal_matrix=signal_matrix,
             system_timestamp=current_time,
             rssis=sdr_rx["rssis"],
@@ -400,22 +419,28 @@ class DataCollector:
     def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
         raise NotImplementedError
 
+    def run_inner_collector_thread(self):
+        with ThreadPoolExecutorWithQueueSizeLimit(
+            max_workers=6, maxsize=12
+        ) as executor:
+            for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
+                for read_thread_idx, read_thread in enumerate(self.read_threads):
+                    data = read_thread.read_q.get()
+                    if data is None:
+                        return
+                    executor.submit(
+                        self.write_to_record_matrix,
+                        read_thread_idx,
+                        record_idx=record_index,
+                        data=data,
+                    )
+        return
+
     def run_collector_thread(self):
-        for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
-            for read_thread_idx, read_thread in enumerate(self.read_threads):
-                while not read_thread.ready_lock.acquire(timeout=0.5):
-                    pass
-                ###
-                # copy the data out
-                data = read_thread.data
-
-                self.write_to_record_matrix(
-                    read_thread_idx,
-                    record_idx=record_index,
-                    data=data,
-                )
-
-                read_thread.read_lock.release()
+        logging.info("Collector thread is running!")
+        # https://stackoverflow.com/questions/48263704/threadpoolexecutor-how-to-limit-the-queue-maxsize
+        self.run_inner_collector_thread()
+        # read_thread.read_q.shutdown() # py 3.13
         logging.info("Collector thread is exiting!")
         self.finished_collecting = True
 
@@ -555,6 +580,9 @@ class GrblDataCollectorRaw(DataCollector):
         data.tx_pos_y_mm = tx_pos[1]
         data.rx_pos_x_mm = rx_pos[0]
         data.rx_pos_y_mm = rx_pos[1]
+
+
+        assert data.rx_lo > 1
 
         if not self.yaml_config["dry-run"]:
             z = self.zarr[f"receivers/r{thread_idx}"]

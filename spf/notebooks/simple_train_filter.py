@@ -13,7 +13,7 @@ from tqdm import tqdm
 import wandb
 from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
 from spf.model_training_and_inference.models.funkynet1 import DebugFunkyNet, FunkyNet
-from spf.utils import StatefulBatchsampler
+from spf.utils import SEGMENTATION_VERSION, StatefulBatchsampler
 
 torch.set_float32_matmul_precision("high")
 
@@ -254,7 +254,7 @@ def simple_train_filter(args):
         for prefix in args.datasets
     ]
     for ds in datasets:
-        ds.get_segmentation()
+        ds.get_segmentation(version=SEGMENTATION_VERSION, segment_if_not_exist=True)
     complete_ds = torch.utils.data.ConcatDataset(datasets)
 
     if args.val_on_train:

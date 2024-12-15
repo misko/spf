@@ -480,9 +480,15 @@ class Drone:
         # point is long, lat
         yp = self.planner.yield_points()
         point = None
+        logging.info(f"About to enter planned main loop {self.planner}")
+        # breakpoint()
         while True:
             next_point = next(yp)
-            if point is not None and np.isclose(next_point, point).all():
+            # logging.info(f"In planner main loop {next_point} {point}")
+            if (
+                point is not None
+                and np.isclose(next_point, point, atol=1e-10, rtol=1e-10).all()
+            ):
                 time.sleep(0.2)
             else:
                 point = next_point
@@ -859,7 +865,7 @@ def get_ardupilot_serial():
     return available_pilots[0]
 
 
-if __name__ == "__main__":
+def get_mavlink_controller_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--serial", type=str, help="Serial port", required=False, default=""
@@ -932,9 +938,10 @@ if __name__ == "__main__":
         required=False,
         default=None,
     )
-    args = parser.parse_args()
-    # Create the connection
-    # Need to provide the serial port and baudrate
+    return parser
+
+
+def mavlink_controller_run(args):
     if args.serial == "" and args.ip == "":
         args.serial = get_ardupilot_serial()
         if args.serial is None:
@@ -1081,6 +1088,14 @@ if __name__ == "__main__":
 
     while True:
         time.sleep(200)
+
+
+if __name__ == "__main__":
+    args = get_mavlink_controller_parser().parse_args()
+    mavlink_controller_run(args)
+    # Create the connection
+    # Need to provide the serial port and baudrate
+
     # logging.info(f"MODE {drone.mav_mode}")
 
     # logging.info("DONE")

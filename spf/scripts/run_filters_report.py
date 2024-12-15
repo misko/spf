@@ -4,6 +4,7 @@ import logging
 import os
 import pickle
 
+import torch
 import tqdm
 
 
@@ -29,7 +30,10 @@ def cannonical(_ty, params):
 def result_to_tuple(result, header):
     l = []
     for key in header:
-        l.append(result[key])
+        v = result[key]
+        if isinstance(v, torch.Tensor):
+            v = f"{v.item():0.4e}"
+        l.append(v)
     return tuple(l)
 
 
@@ -46,6 +50,8 @@ def merge_results(results, header):
                 movement = "circle"
             elif "bounce" in _fn:
                 movement = "bounce"
+            elif "calibrate" in _fn:
+                movement = "calibrate"
             else:
                 raise ValueError(f"Cannot figure out movement {_fn}")
             result["movement"] = movement
@@ -111,7 +117,7 @@ def report_workdir_to_csv(workdir, output_csv_fn):
                 total=len(fns),
             )
         )
-        header = ["type", "movement"]
+        header = ["type", "movement", "segmentation_version"]
         for field in results[0][0].keys():
             if field == "ds_fn":
                 pass

@@ -1,4 +1,7 @@
+import argparse
 import bisect
+import logging
+import os
 from dataclasses import dataclass
 
 import numpy as np
@@ -7,12 +10,8 @@ import zarr
 from pyproj import Proj
 
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
-from spf.utils import (
-    compare_and_copy,
-    zarr_new_dataset,
-    zarr_open_from_lmdb_store,
-    zarr_shrink,
-)
+from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
+from spf.utils import zarr_new_dataset, zarr_open_from_lmdb_store, zarr_shrink
 
 
 def lat_lon_to_xy(lat, lon, center_lat, center_lon):
@@ -27,6 +26,7 @@ class TimestampAndGPS:
     gps_longs: np.ndarray  # Array to store GPS coordinates
 
 
+# the timestamps are at the end of capture, this is off by sample acq time
 def get_tx_xy_at_rx(rx_time_and_gps, tx_time_and_gps, gps_center_long_lat):
     tx_gps_lookups = []
     for rx_idx in range(rx_time_and_gps.times.shape[0]):
@@ -132,12 +132,15 @@ def compare_and_copy_with_idxs_and_aux_data(
         for key in dst.keys():
             if not skip_signal_matrix or key != "signal_matrix":
                 src_key = key
-                if src_key == "rx_heading":
-                    src_key = "heading"
                 _aux_data = (
                     aux_data[key] if aux_data is not None and key in aux_data else None
                 )
-                _src = src[src_key] if src_key in src else _aux_data
+                if src_key == "rx_heading_in_pis":
+                    src_key = "heading"
+                    assert _aux_data is None
+                    _src = (src[src_key][:] / 360) * 2
+                else:
+                    _src = src[src_key] if src_key in src else _aux_data
                 compare_and_copy_with_idxs_and_aux_data(
                     prefix + "/" + key,
                     _src,
@@ -148,7 +151,9 @@ def compare_and_copy_with_idxs_and_aux_data(
                 )
     else:
         if prefix == "/config":
-            if src.shape != ():
+            if aux_data:
+                dst[:] = aux_data
+            elif src.shape != ():
                 dst[:] = src[:]
         else:
             for idx in range(len(idxs)):
@@ -157,7 +162,7 @@ def compare_and_copy_with_idxs_and_aux_data(
                 ]  # TODO why cant we just copy the whole thing at once? # too big?
 
 
-def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
+def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat, fix_config):
     tx_zarr = zarr_open_from_lmdb_store(tx_fn, readahead=True, mode="r")
     rx_zarr = zarr_open_from_lmdb_store(rx_fn, readahead=True, mode="r")
 
@@ -187,8 +192,10 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
 
     # timesteps = original_zarr["receivers/r0/system_timestamp"].shape[0]
     # timesteps needs to be updated since missing some RX points because of out of sync with TX times TODO
-
     timesteps = len(valid_idxs_and_tx_rx_pos["idxs"])
+    logging.info(
+        f"Found {timesteps} valid data points, out of {rx_time_and_gpses['r0'].times.shape[0]} total"
+    )
 
     buffer_size = rx_zarr["receivers/r0/signal_matrix"].shape[-1]
     n_receivers = 2
@@ -198,7 +205,15 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
 
     prefix = rx_fn.replace(".zarr", "")
     yaml_fn = f"{prefix}.yaml"
-    config = yaml.dump(yaml.safe_load(open(yaml_fn, "r")))
+    config = yaml.safe_load(open(yaml_fn, "r"))
+
+    assert (
+        config["receivers"][0]["theta-in-pis"] != 0.0 or fix_config
+    ), "Early rovers had this set incorrectly, refusing to run in this state, its ambiguous"
+    config["receivers"][0]["theta-in-pis"] = 1.0
+
+    with open(zarr_out_fn.replace(".zarr", ".yaml"), "w") as outfile:
+        yaml.dump(config, outfile, default_flow_style=False)
 
     new_zarr = zarr_new_dataset(
         zarr_out_fn,
@@ -219,9 +234,48 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat):
         new_zarr,
         skip_signal_matrix=False,
         idxs=valid_idxs_and_tx_rx_pos["idxs"],
-        aux_data={"receivers": valid_idxs_and_tx_rx_pos},
+        aux_data={"receivers": valid_idxs_and_tx_rx_pos, "config": yaml.dump(config)},
     )
+    if fix_config:
+        new_zarr["receivers/r0/rx_theta_in_pis"][:] = config["receivers"][0][
+            "theta-in-pis"
+        ]
 
     new_zarr.store.close()
     new_zarr = None
     zarr_shrink(zarr_out_fn)
+
+
+if __name__ == "__main__":
+
+    logging.basicConfig(
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        level=os.environ.get("LOGLEVEL", "INFO").upper(),
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tx", type=str, help="input tx zarr", required=True)
+    parser.add_argument("--rx", type=str, help="input rx zarr", required=True)
+    parser.add_argument("--output", type=str, help="output zarr", required=True)
+    parser.add_argument("--gps-fence", type=str, help="gps fence", default="franklin")
+
+    parser.add_argument(  # the early rovers had antenna array 0 off by 180deg
+        "--fix-config",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    args = parser.parse_args()
+
+    if args.gps_fence == "franklin":
+        gps_center = franklin_safe.mean(axis=0)
+    else:
+        raise ValueError("Invalid gps fence")
+
+    merge_v4rx_v4tx_into_v5(
+        tx_fn=args.tx,
+        rx_fn=args.rx,
+        zarr_out_fn=args.output,
+        gps_center_long_lat=gps_center,
+        fix_config=args.fix_config,
+    )

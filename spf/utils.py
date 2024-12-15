@@ -13,7 +13,7 @@ from deepdiff.diff import DeepDiff
 from numcodecs import Blosc
 from torch.utils.data import BatchSampler, DistributedSampler
 
-SEGMENTATION_VERSION = 3.11
+SEGMENTATION_VERSION = 3.4
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
@@ -64,10 +64,17 @@ def zarr_shrink(filename):
 
 @contextmanager
 def zarr_open_from_lmdb_store_cm(filename, mode="r", readahead=False):
+    f = None
     try:
+        if mode == "r":
+            f = open(filename + "/data.mdb", "rb")
+            os.posix_fadvise(f.fileno(), 0, 0, os.POSIX_FADV_WILLNEED)
         z = zarr_open_from_lmdb_store(filename, mode, readahead=readahead)
         yield z
     finally:
+        if f:
+            os.posix_fadvise(f.fileno(), 0, 0, os.POSIX_FADV_DONTNEED)
+            f.close()
         z.store.close()
 
 
@@ -144,7 +151,7 @@ def zarr_open_from_lmdb_store(filename, mode="r", readahead=False, map_size=2**3
             map_size=map_size,
             writemap=False,
             readonly=True,
-            max_readers=32,  # 1024 * 1024,
+            max_readers=1024,  # 1024 * 1024,
             lock=False,
             meminit=False,
             readahead=readahead,
@@ -332,8 +339,12 @@ def compare_and_copy(prefix, src, dst, skip_signal_matrix=False):
     if isinstance(src, zarr.hierarchy.Group):
         for key in src.keys():
             if not skip_signal_matrix or key != "signal_matrix":
+                if key == "rx_heading" and key not in dst:
+                    dst_key = "rx_heading_in_pis"
+                else:
+                    dst_key = key
                 compare_and_copy(
-                    prefix + "/" + key, src[key], dst[key], skip_signal_matrix
+                    prefix + "/" + key, src[key], dst[dst_key], skip_signal_matrix
                 )
     else:
         if prefix == "/config":
@@ -442,4 +453,8 @@ class PositionalEncoding(torch.nn.Module):
 
 @torch.jit.script
 def to_bin(x: torch.Tensor, bins: int):
-    return ((x / (2 * torch.pi) + 0.5) * bins).to(torch.long)
+    x = x.clamp(min=-torch.pi, max=torch.pi - 1e-5)
+    # assert (x >= -torch.pi).all() and (x <= torch.pi).all()
+    bins = ((x / (2 * torch.pi) + 0.5) * bins).to(torch.long)
+    bins[x.isnan()] = 0
+    return bins

@@ -41,57 +41,65 @@ def fake_runner(ds, **kwargs):
 
 
 def run_jobs_with_one_dataset(kwargs):
-    with v5spfdataset_manager(
-        kwargs["ds_fn"],
-        nthetas=65,
-        ignore_qc=True,
-        precompute_cache=kwargs["precompute_cache"],
-        paired=True,
-        snapshots_per_session=1,
-        readahead=True,
-        skip_fields=set(
-            [
-                "windowed_beamformer",
-                "weighted_beamformer",
-                "all_windows_stats",
-                "downsampled_segmentation_mask",
-                "signal_matrix",
-                "simple_segmentations",
-            ]
-        ),
-        empirical_data_fn=kwargs["empirical_pkl_fn"],
-    ) as ds:
-        # fake_runner(ds=ds)
-        # return
-        result_fns = []
-        # logging.info(kwargs["jobs"])
-        for fn, fn_kwargs in kwargs["jobs"]:
+    result_fns = []
+    # logging.info(kwargs["jobs"])
+    for fn, fn_kwargs in kwargs["jobs"]:
+        precompute_cache = fn_kwargs.pop("precompute_cache")
+        segmentation_version = fn_kwargs.pop("segmentation_version")
+        with v5spfdataset_manager(
+            kwargs["ds_fn"],
+            nthetas=65,
+            ignore_qc=True,
+            precompute_cache=precompute_cache,
+            paired=True,
+            snapshots_per_session=1,
+            readahead=True,
+            skip_fields=set(
+                [
+                    "windowed_beamformer",
+                    "weighted_beamformer",
+                    "all_windows_stats",
+                    "downsampled_segmentation_mask",
+                    "signal_matrix",
+                    "simple_segmentations",
+                ]
+            ),
+            empirical_data_fn=kwargs["empirical_pkl_fn"],
+            segmentation_version=segmentation_version,
+        ) as ds:
             workdir = fn_kwargs.pop("workdir")
             result_fn = (
                 workdir
-                + "/fn_"
-                + str(fn.__name__)
-                + "/"
-                + "_ds_"
-                + os.path.basename(kwargs["ds_fn"])
-                + "/"
+                + f"/fn_{fn.__name__}"
+                + f"/{segmentation_version:0.3f}"
+                + f"/ds_{os.path.basename(kwargs['ds_fn'])}/"
                 + "_"
                 + args_to_str(fn_kwargs)
                 + "results.pkl"
             )
+
             os.makedirs(os.path.dirname(result_fn), exist_ok=True)
             if not os.path.exists(result_fn):
                 fn_kwargs["ds"] = ds
                 new_results = fn(**fn_kwargs)
                 for result in new_results:
                     result["ds_fn"] = kwargs["ds_fn"]
+                    result["segmentation_version"] = segmentation_version
+                    result["precompute_cache"] = precompute_cache
                 pickle.dump(new_results, open(result_fn + ".tmp", "wb"))
                 os.rename(result_fn + ".tmp", result_fn)
+                assert os.path.exists(result_fn)
             else:
                 # print("SKIPPING", result_fn)
                 pass
             result_fns.append(result_fn)
-        return result_fns
+        # breakpoint()
+        # a = 1
+
+        # fake_runner(ds=ds)
+        # return
+
+    return result_fns
 
 
 def run_EKF_single_theta_single_radio(ds, phi_std, p, noise_std, dynamic_R):
@@ -114,6 +122,8 @@ def run_EKF_single_theta_single_radio(ds, phi_std, p, noise_std, dynamic_R):
         all_metrics.append(
             {
                 "type": "EKF_single_theta_single_radio",
+                "frequency": ds.cached_keys[0]["rx_lo"][0],
+                "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "phi_std": phi_std,
                 "p": p,
@@ -146,6 +156,8 @@ def run_EKF_single_theta_dual_radio(
     return [
         {
             "type": "EKF_single_theta_dual_radio",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "phi_std": phi_std,
             "p": p,
             "noise_std": noise_std,
@@ -176,6 +188,8 @@ def run_EKF_xy_dual_radio(
     return [
         {
             "type": "EKF_XY_dual_radio",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "phi_std": phi_std,
             "p": p,
             "noise_std": noise_std,
@@ -187,7 +201,7 @@ def run_EKF_xy_dual_radio(
 
 def run_PF_single_theta_single_radio_NN(
     ds,
-    checkpoint_dir,
+    checkpoint_fn,
     inference_cache,
     theta_err=0.1,
     theta_dot_err=0.001,
@@ -195,8 +209,7 @@ def run_PF_single_theta_single_radio_NN(
 ):
 
     all_metrics = []
-    checkpoint_fn = f"{checkpoint_dir}/best.pth"
-    config_fn = f"{checkpoint_dir}/config.yml"
+    config_fn = f"{os.path.dirname(checkpoint_fn)}/config.yml"
     for rx_idx in [0, 1]:
         start_time = time.time()
         pf = PFSingleThetaSingleRadioNN(
@@ -219,6 +232,8 @@ def run_PF_single_theta_single_radio_NN(
         all_metrics.append(
             {
                 "type": "PF_single_theta_single_radio_NN",
+                "frequency": ds.cached_keys[0]["rx_lo"][0],
+                "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
                 "theta_dot_err": theta_dot_err,
@@ -255,6 +270,8 @@ def run_PF_single_theta_single_radio(
         all_metrics.append(
             {
                 "type": "PF_single_theta_single_radio",
+                "frequency": ds.cached_keys[0]["rx_lo"][0],
+                "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
                 "theta_dot_err": theta_dot_err,
@@ -280,6 +297,8 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
     return [
         {
             "type": "PF_single_theta_dual_radio",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
             "N": N,
@@ -290,14 +309,13 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
 
 def run_PF_single_theta_dual_radio_NN(
     ds,
-    checkpoint_dir,
+    checkpoint_fn,
     inference_cache,
     theta_err=0.1,
     theta_dot_err=0.001,
     N=128,
 ):
-    checkpoint_fn = f"{checkpoint_dir}/best.pth"
-    config_fn = f"{checkpoint_dir}/config.yml"
+    config_fn = f"{os.path.dirname(checkpoint_fn)}/config.yml"
     start_time = time.time()
     pf = PFSingleThetaDualRadioNN(
         ds=ds,
@@ -317,6 +335,8 @@ def run_PF_single_theta_dual_radio_NN(
     return [
         {
             "type": "PF_single_theta_dual_radio_NN",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
             "N": N,
@@ -344,6 +364,8 @@ def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
     return [
         {
             "type": "PF_xy_dual_radio",
+            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "vel_err": vel_err,
             "pos_err": pos_err,
             "N": N,
@@ -369,6 +391,14 @@ fn_key_to_fn = {
 }
 
 
+#
+# {
+# kwarg1: v1 , v2
+# kwarg2: v3 , v4
+# }
+#
+# -> (kwarg1: v1, kwarg2: v3) , (kwarg1: v1, kwarg2: v4) ...
+#
 def config_to_job_params(config):
     jobs = [{}]
     for key, values in config.items():
@@ -396,6 +426,24 @@ def config_to_jobs(list_config):
             fn = fn_key_to_fn[fn_key]
             jobs += [(fn, job_params) for job_params in config_to_job_params(fn_config)]
     return jobs
+
+
+def add_precompute_cache_to_job(job, precompute_caches):
+    fn, args = job
+    args = args.copy()
+    if "segmentation_version" in args:
+        args["precompute_cache"] = precompute_caches[args["segmentation_version"]]
+    elif "checkpoint_fn_and_segmentation_version" in args:
+        d = args["checkpoint_fn_and_segmentation_version"]
+        args["checkpoint_fn"] = d["checkpoint_fn"]
+        args["segmentation_version"] = d["segmentation_version"]
+        args.pop("checkpoint_fn_and_segmentation_version")
+        args["precompute_cache"] = precompute_caches[args["segmentation_version"]]
+    else:
+        raise ValueError(
+            "Must have segmentation_version or checkpoint_fn_and_segmentation_version in job"
+        )
+    return (fn, args)
 
 
 if __name__ == "__main__":
@@ -428,11 +476,6 @@ if __name__ == "__main__":
             default=False,
         )
         parser.add_argument(
-            "--precompute-cache",
-            type=str,
-            required=True,
-        )
-        parser.add_argument(
             "--empirical-pkl-fn",
             type=str,
             required=True,
@@ -448,11 +491,6 @@ if __name__ == "__main__":
             type=int,
             default=30,
             required=False,
-        )
-        parser.add_argument(
-            "--output",
-            type=str,
-            required=True,
         )
         parser.add_argument(
             "--work-dir",
@@ -488,6 +526,12 @@ if __name__ == "__main__":
     yaml_config = yaml.safe_load(open(args.config, "r"))
     jobs_per_ds_fn = config_to_jobs(yaml_config)
 
+    # assign the precompute cache
+    jobs_per_ds_fn = [
+        add_precompute_cache_to_job(job, yaml_config["precompute_caches"])
+        for job in jobs_per_ds_fn
+    ]
+
     for _, job_params in jobs_per_ds_fn:
         assert "workdir" not in job_params
         job_params["workdir"] = args.work_dir
@@ -514,12 +558,12 @@ if __name__ == "__main__":
 
     jobs = []
     # try to read the same ds back to back so that OS can cache it
+    # job [0] = fn, job[1] = args
     for ds_fn in dataset_fns:
         for job in jobs_per_ds_fn:
             jobs.append(
                 {
                     "ds_fn": ds_fn,
-                    "precompute_cache": args.precompute_cache,
                     "empirical_pkl_fn": args.empirical_pkl_fn,
                     "jobs": [[job[0], job[1].copy()]],
                 }

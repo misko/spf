@@ -28,4 +28,7 @@ test_data.txt
 **/*.pkl
 **/filter_reports
 **/*checkpoints*
+**/*.chkpnt
+**/*.csv
+**/*output*
 wandb

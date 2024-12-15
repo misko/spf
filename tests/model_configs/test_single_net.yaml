@@ -61,5 +61,5 @@ optim:
   steps: 11
   val_every: 3
   scheduler_step: 20
-  save_on: val_single_loss
+  save_on: val/single_loss
   checkpoint_every: 10

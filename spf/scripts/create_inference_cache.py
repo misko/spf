@@ -6,6 +6,7 @@ import tqdm
 
 from spf.model_training_and_inference.models.single_point_networks_inference import (
     get_inference_on_ds,
+    get_inference_on_ds_noexceptions,
 )
 
 if __name__ == "__main__":
@@ -25,6 +26,11 @@ if __name__ == "__main__":
         parser.add_argument(
             "--inference-cache",
             type=str,
+            required=True,
+        )
+        parser.add_argument(
+            "--segmentation-version",
+            type=float,
             required=True,
         )
         parser.add_argument("--parallel", type=int, required=False, default=16)
@@ -51,7 +57,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_fn = partial(
-        get_inference_on_ds,
+        get_inference_on_ds_noexceptions if not args.debug else get_inference_on_ds,
         config_fn=args.config_fn,
         checkpoint_fn=args.checkpoint_fn,
         device=args.device,
@@ -60,7 +66,12 @@ if __name__ == "__main__":
         workers=0,
         precompute_cache=args.precompute_cache,
         crash_if_not_cached=False,
+        segmentation_version=args.segmentation_version,
     )
+
+    if len(args.datasets) == 1 and args.datasets[0][-4:] == ".txt":
+        with open(args.datasets[0], "r") as f:
+            args.datasets = [x.strip() for x in f]
 
     if args.debug:
         results = list(
@@ -74,7 +85,7 @@ if __name__ == "__main__":
         with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
             results = list(
                 tqdm.tqdm(
-                    pool.imap(run_fn, args.datasets),
+                    pool.imap_unordered(run_fn, args.datasets),
                     total=len(args.datasets),
                 )
             )

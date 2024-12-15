@@ -266,6 +266,22 @@ def torch_circular_mean_noweight(angles: torch.Tensor, trim: float):
     return torch_pi_norm_pi(cm), torch_pi_norm_pi(_cm)
 
 
+def mean_phase_mean(angles, weights):
+    assert np.isfinite(weights).all()
+    _sin_angles = np.sin(angles) * weights
+    _cos_angles = np.cos(angles) * weights
+    cm = np.arctan2(_sin_angles.sum(), _cos_angles.sum()) % (2 * np.pi)
+    return pi_norm(cm)
+
+
+def torch_mean_phase_mean(angles, weights):
+    assert weights.isfinite().all()
+    _sin_angles = np.sin(angles) * weights
+    _cos_angles = np.cos(angles) * weights
+    cm = np.arctan2(_sin_angles.sum(), _cos_angles.sum()) % (2 * np.pi)
+    return torch_pi_norm(cm)
+
+
 def torch_circular_mean(angles: torch.Tensor, trim: float, weights=None):
     assert angles.ndim == 2
     _sin_angles = torch.sin(angles)
@@ -451,6 +467,15 @@ def windowed_trimmed_circular_mean_and_stddev(v, pd, window_size, stride, trim=5
     return step_idxs, step_stats
 
 
+def drop_noise_windows(windows):
+    valid_windows = []
+    for _, window in enumerate(windows):
+        if window["type"] == "signal":
+            valid_windows.append(window)
+    return valid_windows
+
+
+# 3.11 has this
 def keep_signal_surrounded_by_noise(windows):
     valid_windows = []
     for window_idx, window in enumerate(windows):
@@ -466,6 +491,59 @@ def keep_signal_surrounded_by_noise(windows):
                 continue
             valid_windows.append(window)
     return valid_windows
+
+
+# 3.3 SEGMENTATION VERSION HAS THIS
+# def keep_signal_surrounded_by_noise(windows):
+#     valid_windows = []
+#     for window_idx, window in enumerate(windows):
+#         if window["type"] == "signal":
+#             if window["stddev"] > 0.03:
+#                 #     # check if one before was signal
+#                 before_is_signal = False
+#                 if window_idx > 0 and windows[window_idx - 1]["type"] == "signal":
+#                     before_is_signal = True
+#                 # check if one after was signal
+#                 after_is_signal = False
+#                 if (
+#                     window_idx + 1 < len(windows)
+#                     and windows[window_idx + 1]["type"] == "signal"
+#                 ):
+#                     after_is_signal = True
+#                 if before_is_signal and after_is_signal:
+#                     continue
+#             valid_windows.append(window)
+#     return valid_windows
+
+
+# 3.2 SEGMENTATION VERSION HAD THIS
+# def keep_signal_surrounded_by_noise(windows):
+#     valid_windows = []
+#     for window_idx, window in enumerate(windows):
+#         if window["type"] == "signal":
+#             if window["stddev"] > 1.0:
+#                 continue
+#             if window["stddev"] > 0.03:
+#                 #     # check if one before was signal
+#                 before_is_different_signal = False
+#                 if (
+#                     window_idx > 0
+#                     and windows[window_idx - 1]["type"] == "signal"
+#                     and pi_norm(windows[window_idx - 1]["mean"] - window["mean"]) > 0.5
+#                 ):
+#                     before_is_different_signal = True
+#                 # check if one after was signal
+#                 after_is_different_signal = False
+#                 if (
+#                     window_idx + 1 < len(windows)
+#                     and windows[window_idx + 1]["type"] == "signal"
+#                 ) and pi_norm(windows[window_idx + 1]["mean"] - window["mean"]) < 0.5:
+#                     after_is_different_signal = True
+#                 # if the means are different enough then dont
+#                 if before_is_different_signal and after_is_different_signal:
+#                     continue
+#             valid_windows.append(window)
+#     return valid_windows
 
 
 def drop_windows_smaller_than(windows, drop_less_than_size):
@@ -503,7 +581,9 @@ def combine_windows(windows, max_stddev_threshold, min_abs_signal):
 def recompute_stats_for_windows(windows, v, pd, trim):
     for window in windows:
         _pd = pd[window["start_idx"] : window["end_idx"]]
-        _v = v[window["start_idx"] : window["end_idx"]]
+        _v = v[:, window["start_idx"] : window["end_idx"]]
+        # TODO THIS ISNT RIGHT???
+        # _v = v[window["start_idx"] : window["end_idx"]]
         r = get_stats_for_signal(_v, _pd, trim)
         window["mean"] = r[0]
         window["stddev"] = r[1]
@@ -564,6 +644,8 @@ def simple_segment(
 
     # only keep signal windows surounded by noise
     candidate_windows = keep_signal_surrounded_by_noise(candidate_windows)
+    #
+    # candidate_windows = drop_noise_windows(candidate_windows)
 
     simple_segmentation = recompute_stats_for_windows(candidate_windows, v, pd, trim)
     downsampled_segmentation_mask = compute_downsampled_segmentation_mask(

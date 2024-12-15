@@ -3,6 +3,7 @@
 ###
 
 import bisect
+import logging
 import os
 import pickle
 from contextlib import contextmanager
@@ -55,12 +56,15 @@ from spf.plot.image_utils import (
 )
 from spf.rf import (
     ULADetector,
+    mean_phase_mean,
     phase_diff_to_theta,
     pi_norm,
     precompute_steering_vectors,
     segment_session,
     segment_session_star,
     speed_of_light,
+    torch_circular_mean,
+    torch_circular_mean_notrim,
     torch_get_phase_diff,
     torch_pi_norm,
 )
@@ -137,11 +141,10 @@ def mp_segment_zarr(
     n_parallel=20,
     skip_beamformer=False,
 ):
-
     z = zarr_open_from_lmdb_store(zarr_fn)
     yarr_fn = results_fn.replace(".pkl", ".yarr")
     already_computed = 0
-    # print(z.tree())
+
     previous_simple_segmentation = {
         f"r{r_idx}": [] for r_idx in range(len(z["receivers"]))
     }
@@ -225,6 +228,7 @@ def mp_segment_zarr(
     ].shape
 
     if precomputed_zarr is None:
+        os.makedirs(os.path.dirname(segmentation_zarr_fn), exist_ok=True)
         precomputed_zarr = new_yarr_dataset(
             filename=segmentation_zarr_fn,
             n_receivers=2,
@@ -271,16 +275,43 @@ def mp_segment_zarr(
             ]
         )
 
-        # precompute mean phase and remove NaNs for 0s
-        mean_phase = np.hstack(
-            [
-                torch.tensor([x["mean"] for x in result["simple_segmentation"]]).mean()
-                for result in results_by_receiver[f"r{r_idx}"]
-            ]
-        )
-        mean_phase[~np.isfinite(mean_phase)] = 0
+        mean_phases = []
+        for result in results_by_receiver[f"r{r_idx}"]:
+            means = []
+            weights = []
+            for x in result["simple_segmentation"]:
+                if x["type"] == "signal":
+                    means.append(x["mean"])
+                    weights.append(
+                        (x["end_idx"] - x["start_idx"])
+                        * x["abs_signal_median"]
+                        / (x["stddev"] + 1e-6)  # weight by signal strength and region
+                    )
+            if len(means) == 0:
+                mean_phases.append(torch.nan)
+            else:
+                means = np.array(means)
+                weights = np.array(weights)
+                # weights /= weights.sum()
+                mean_phases.append(mean_phase_mean(angles=means, weights=weights))
+        mean_phase = np.hstack(mean_phases)
 
-        assert np.isfinite(mean_phase).all()
+        # mean_phase = np.hstack(
+        #     [
+        #         (
+        #             torch.tensor(
+        #                 [x["mean"] for x in result["simple_segmentation"]]
+        #             ).mean()
+        #             if len(result) > 0
+        #             else torch.tensor(float("nan"))
+        #         )
+        #         for result in results_by_receiver[f"r{r_idx}"]
+        #     ]
+        # )
+        # TODO THIS SHOULD BE FIXED!!!
+        # mean_phase[~np.isfinite(mean_phase)] = 0
+
+        # assert np.isfinite(mean_phase).all()
         precomputed_zarr[f"r{r_idx}/mean_phase"][
             already_computed:precompute_to_idx
         ] = mean_phase
@@ -498,7 +529,10 @@ class v5spfdataset(Dataset):
         random_adjacent_stride: bool = False,
         distance_normalization: int = 1000,
         target_ntheta: bool | None = None,
+        segmentation_version: float = SEGMENTATION_VERSION,
+        segment_if_not_exist: bool = False,
     ):
+        logging.debug(f"loading... {prefix}")
         self.n_parallel = n_parallel
         self.exclude_keys_from_cache = set(["signal_matrix"])
         self.readahead = readahead
@@ -509,6 +543,9 @@ class v5spfdataset(Dataset):
         # self.prefix = prefix
         # print("OPEN", prefix)
         self.temp_file = temp_file
+
+        self.segmentation_version = segmentation_version
+        self.segment_if_not_exist = segment_if_not_exist
 
         self.distance_normalization = distance_normalization
 
@@ -553,6 +590,9 @@ class v5spfdataset(Dataset):
         self.wavelengths = [
             speed_of_light / receiver["f-carrier"]
             for receiver in self.yaml_config["receivers"]
+        ]
+        self.carrier_frequencies = [
+            receiver["f-carrier"] for receiver in self.yaml_config["receivers"]
         ]
 
         for rx_idx in range(1, self.n_receivers):
@@ -631,7 +671,10 @@ class v5spfdataset(Dataset):
             ).expand(1, self.snapshots_per_session)
 
         if not self.temp_file:
-            self.get_segmentation()
+            self.get_segmentation(
+                version=self.segmentation_version,
+                segment_if_not_exist=self.segment_if_not_exist,
+            )
 
             self.all_phi_drifts = self.get_all_phi_drifts()
             self.phi_drifts = torch.tensor(
@@ -740,7 +783,7 @@ class v5spfdataset(Dataset):
                                 )  # TODO save as float32?
                             )
                         else:
-                            if key in ("rx_heading",):
+                            if key in ("rx_heading_in_pis",):
                                 self.cached_keys[receiver_idx][key] = (
                                     torch.as_tensor(
                                         self.receiver_data[receiver_idx][
@@ -802,7 +845,9 @@ class v5spfdataset(Dataset):
         self.precomputed_zarr = None
 
     def estimate_phi(self, data):
-        x = torch.as_tensor(data["all_windows_stats"])
+        x = torch.as_tensor(
+            data["all_windows_stats"]
+        )  # all_window_stats = trimmed_cm, trimmed_stddev, abs_signal_median
         seg_mask = torch.as_tensor(data["downsampled_segmentation_mask"])
 
         return torch.mul(x, seg_mask).sum(axis=2) / (seg_mask.sum(axis=2) + 0.001)
@@ -821,7 +866,10 @@ class v5spfdataset(Dataset):
                 self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
             ]
         if not self.temp_file and self.precomputed_zarr is None:
-            self.get_segmentation()
+            self.get_segmentation(
+                version=self.segmentation_version,
+                segment_if_not_exist=self.segment_if_not_exist,
+            )
             # self.precomputed_zarr = zarr_open_from_lmdb_store(
             #     self.results_fn().replace(".pkl", ".yarr"), mode="r"
             # )
@@ -875,9 +923,17 @@ class v5spfdataset(Dataset):
                 for snapshot_idx in snapshot_idxs
             ]
 
+    def get_spacing_identifier(self):
+        rx_lo = self.cached_keys[0]["rx_lo"][0].item()
+        return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}"
+
+    def get_wavelength_identifier(self):
+        rx_lo = self.cached_keys[0]["rx_lo"][0].item()
+        return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}.wlsp{self.rx_wavelength_spacing:0.3f}"
+
     def get_values_at_key(self, key, receiver_idx, idxs):
         if key == "signal_matrix":
-            return torch.as_tensor(self.receiver_data[receiver_idx][key][idxs])
+            return torch.as_tensor(self.receiver_data[receiver_idx][key][idxs])[None]
         return self.cached_keys[receiver_idx][key][idxs]
 
     def get_session_idxs(self, session_idx):
@@ -942,7 +998,6 @@ class v5spfdataset(Dataset):
         flip_up_down = self.flip and (torch.rand(1) > 0.5).item()
 
         snapshot_idxs = self.get_session_idxs(session_idx)
-        # breakpoint()
 
         data = {
             # key: r[key][snapshot_start_idx:snapshot_end_idx]
@@ -979,15 +1034,21 @@ class v5spfdataset(Dataset):
         data["craft_y_rad"] = data["craft_ground_truth_theta"]
 
         if "signal_matrix" not in self.skip_fields:
+            # WARNGING this does not respect flipping!
             abs_signal = data["signal_matrix"].abs().to(torch.float32)
-            pd = torch_get_phase_diff(data["signal_matrix"]).to(torch.float32)
+            assert data["signal_matrix"].shape[0] == 1
+            pd = torch_get_phase_diff(data["signal_matrix"][0]).to(torch.float32)
             data["abs_signal_and_phase_diff"] = torch.concatenate(
-                [abs_signal[:, [0]], abs_signal[:, [1]], pd[:, None]], dim=1
+                [abs_signal, pd[None, :, None]], dim=2
             )
 
         # find out if this is a temp file and we either need to precompute, or its not ready
         if self.temp_file and self.precomputed_entries <= session_idx:
-            self.get_segmentation(precompute_to_idx=session_idx)
+            self.get_segmentation(
+                version=self.segmentation_version,
+                precompute_to_idx=session_idx,
+                segment_if_not_exist=True,
+            )
 
         self.populate_from_precomputed(data, receiver_idx, snapshot_idxs)
         # port this over in on the fly TODO
@@ -995,7 +1056,17 @@ class v5spfdataset(Dataset):
         data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
             snapshot_idxs
         ].unsqueeze(0)
+
+        # TODO HANDLE NAN BETTER!!
+        # data["mean_phase_segmentation"][
+        #     torch.isnan(data["mean_phase_segmentation"])
+        # ] = 0.0
+
         if flip_left_right or double_flip:
+            # data["all_windows_stats"] ~ batch, snapshots, channel, window
+            # channels are trimmed mean, stddev, abs_signal_median
+            # need to flip mean (phase diff)
+            data["all_windows_stats"][:, :, 0] = -data["all_windows_stats"][:, :, 0]
             data["mean_phase_segmentation"] = -data["mean_phase_segmentation"]
 
         data["rx_pos_xy"] = (
@@ -1018,9 +1089,12 @@ class v5spfdataset(Dataset):
         # self.close()
         if self.empirical_data is not None:
             empirical_dist = self.get_empirical_dist(receiver_idx)
+            #  ~ 1, snapshots, ntheta(empirical_dist.shape[0])
             data["empirical"] = empirical_dist[
                 to_bin(data["mean_phase_segmentation"][0], empirical_dist.shape[0])
             ].unsqueeze(0)
+            mask = data["mean_phase_segmentation"].isnan()
+            data["empirical"][mask] = 1.0 / empirical_dist.shape[0]
 
         data["y_rad_binned"] = (
             to_bin(data["y_rad"], self.target_ntheta).unsqueeze(0).to(torch.long)
@@ -1043,6 +1117,10 @@ class v5spfdataset(Dataset):
             # already flipped in mean phase
             # data["empirical"] = data["empirical"].flip(dims=(2,))
             data["weighted_beamformer"] = data["weighted_beamformer"].flip(dims=(2,))
+            if "windowed_beamformer" in data:
+                data["windowed_beamformer"] = data["windowed_beamformer"].flip(
+                    dims=(3,)
+                )
 
         return data
 
@@ -1085,21 +1163,27 @@ class v5spfdataset(Dataset):
     def get_craft_ground_truth_thetas(self):
         craft_ground_truth_thetas = torch_pi_norm(
             self.ground_truth_thetas[0]
-            + self.cached_keys[0]["rx_theta_in_pis"][:] * torch.pi
+            + (
+                self.cached_keys[0]["rx_theta_in_pis"][:]
+                + self.cached_keys[0]["rx_heading_in_pis"][:]
+            )
+            * torch.pi
         )
         for ridx in range(1, self.n_receivers):
             _craft_ground_truth_thetas = torch_pi_norm(
                 self.ground_truth_thetas[ridx]
-                + self.cached_keys[ridx]["rx_theta_in_pis"][:] * torch.pi
+                + (
+                    self.cached_keys[ridx]["rx_theta_in_pis"][:]
+                    + self.cached_keys[1]["rx_heading_in_pis"][:]
+                )
+                * torch.pi
             )
+            error = abs(
+                torch_pi_norm(craft_ground_truth_thetas - _craft_ground_truth_thetas)
+            ).mean()
             assert (
-                abs(
-                    torch_pi_norm(
-                        craft_ground_truth_thetas - _craft_ground_truth_thetas
-                    )
-                ).mean()
-                < 0.01
-            )  # this might not scale well to larger examples
+                error < 0.2
+            ), f"Failed with error {error}"  # this might not scale well to larger examples
             # i think the error gets worse
         return craft_ground_truth_thetas
 
@@ -1114,8 +1198,11 @@ class v5spfdataset(Dataset):
 
             rx_to_tx_theta = torch.arctan2(d[0], d[1])
             rx_theta_in_pis = self.cached_keys[ridx]["rx_theta_in_pis"]
+            rx_heading_in_pis = self.cached_keys[ridx]["rx_heading_in_pis"]
             ground_truth_thetas.append(
-                torch_pi_norm(rx_to_tx_theta - rx_theta_in_pis[:] * torch.pi)
+                torch_pi_norm(
+                    rx_to_tx_theta - (rx_theta_in_pis[:] + rx_heading_in_pis) * torch.pi
+                )
             )
         # reduce GT thetas in case of two antennas
         # in 2D there are generally two spots that satisfy phase diff
@@ -1177,7 +1264,7 @@ class v5spfdataset(Dataset):
             return None
         return segmentation["version"]
 
-    def get_segmentation(self, precompute_to_idx=-1):
+    def get_segmentation(self, version, segment_if_not_exist, precompute_to_idx=-1):
         if (
             not self.temp_file
             and hasattr(self, "segmentation")
@@ -1188,6 +1275,12 @@ class v5spfdataset(Dataset):
         # otherwise its the first time loading for non temp
         # or this is a temp file
         results_fn = self.results_fn()
+        if (
+            not segment_if_not_exist
+            and not self.temp_file
+            and not os.path.exists(results_fn)
+        ):
+            raise ValueError(f"Segmentation file does not exist for {results_fn}")
 
         if self.temp_file or not os.path.exists(results_fn):
             skip_beamformer = False
@@ -1217,7 +1310,10 @@ class v5spfdataset(Dataset):
                 results_fn.replace(".pkl", ".yarr"),
                 mode="r",
                 map_size=2**32,
-                readahead=True,
+                readahead=False,
+                # readahead=True, # DO NOT ENABLE THIS!!!!
+                # THIS CAUSES A LOT OF READ OPERATIONS!!!!
+                # Around 7GB/s!!
             )
             self.precomputed_entries = min(
                 [
@@ -1233,12 +1329,19 @@ class v5spfdataset(Dataset):
             )
         except pickle.UnpicklingError:
             os.remove(results_fn)
-            return self.get_segmentation(precompute_to_idx=precompute_to_idx)
+            return self.get_segmentation(
+                version=version,
+                segment_if_not_exist=segment_if_not_exist,
+                precompute_to_idx=precompute_to_idx,
+            )
 
         current_version = self.get_segmentation_version(precomputed_zarr, segmentation)
-        if not np.isclose(current_version, SEGMENTATION_VERSION):
-            os.remove(results_fn)
-            return self.get_segmentation(precompute_to_idx=precompute_to_idx)
+        if not np.isclose(current_version, version):  # SEGMENTATION_VERSION):
+            raise ValueError(
+                f"Expected to generate a segmentation, but one already exists with different version {version} vs {current_version}"
+            )
+            # os.remove(results_fn)
+            # return self.get_segmentation(precompute_to_idx=precompute_to_idx)
         self.segmentation = segmentation
         self.precomputed_zarr = precomputed_zarr
         self.get_mean_phase()

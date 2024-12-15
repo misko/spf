@@ -321,12 +321,14 @@ class ParticleFilter(SPFFilter):
             )
             self.fix_particles()
 
-            self.update(z=self.observation(idx))
+            z = self.observation(idx)
+            if z.isfinite().all():
+                self.update(z)
 
-            # resample if too few effective particles
-            if neff(self.weights) < N / 2:
-                indexes = torch.as_tensor(systematic_resample(self.weights.numpy()))
-                resample_from_index(self.particles, self.weights, indexes)
+                # resample if too few effective particles
+                if neff(self.weights) < N / 2:
+                    indexes = torch.as_tensor(systematic_resample(self.weights.numpy()))
+                    resample_from_index(self.particles, self.weights, indexes)
 
             mu, var = estimate(self.particles, self.weights)
 
