@@ -91,7 +91,7 @@ def get_inference_on_ds_noexceptions(
             segmentation_version=segmentation_version,
         )
     except Exception as e:
-        logging.error(f"Failed to process {ds_fn} with {e}")
+        logging.error(f"Failed to process {ds_fn} with {str(e)}")
 
 
 def get_inference_on_ds(
@@ -124,9 +124,11 @@ def get_inference_on_ds(
             precompute_cache=precompute_cache,
             segmentation_version=segmentation_version,
         )
-
     config_checksum = get_md5_of_file(config_fn)
     checkpoint_checksum = get_md5_of_file(checkpoint_fn)
+    logging.debug(
+        f"checkpoint_checksum {checkpoint_checksum} config_checksum {config_checksum}"
+    )
     ds_basename = os.path.basename(ds_fn)
     inference_cache_fn = f"{inference_cache}/{ds_basename}/{segmentation_version:0.3f}/{checkpoint_checksum}/{config_checksum}.npz"
     if os.path.exists(inference_cache_fn):

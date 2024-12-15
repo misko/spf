@@ -1310,7 +1310,10 @@ class v5spfdataset(Dataset):
                 results_fn.replace(".pkl", ".yarr"),
                 mode="r",
                 map_size=2**32,
-                readahead=True,
+                readahead=False,
+                # readahead=True, # DO NOT ENABLE THIS!!!!
+                # THIS CAUSES A LOT OF READ OPERATIONS!!!!
+                # Around 7GB/s!!
             )
             self.precomputed_entries = min(
                 [
