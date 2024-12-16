@@ -423,7 +423,7 @@ class Drone:
                 collision_soon = (
                     (not self.disable_distance_finder)
                     and self.distance_finder is not None
-                    and distance < 70
+                    and distance < 30
                 )
                 if self.mav_mode == "ROVER_MODE_GUIDED":
                     if self.armed and collision_soon:
