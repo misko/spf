@@ -1009,6 +1009,9 @@ def train_single_point(args):
 
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
 
+    logging.info("MODEL:")
+    logging.info(m)
+
     model_checksum("load_model:", m)
     optimizer, scheduler = load_optimizer(config["optim"], m.parameters())
 

@@ -19,6 +19,19 @@ def lat_lon_to_xy(lat, lon, center_lat, center_lon):
     return proj_centered(lon, lat)
 
 
+def smooth_out_timestamps_and_gps(timestamps_and_gps):
+    for prop in ["times", "gps_lats", "gps_longs"]:
+        arr = getattr(timestamps_and_gps, prop)
+        for missing_idx in np.where(arr == 0)[0]:
+            neighbors = []
+            if missing_idx > 0 and arr[missing_idx - 1] != 0:
+                neighbors.append(arr[missing_idx - 1])
+            if missing_idx < len(arr) and arr[missing_idx + 1] != 0:
+                neighbors.append(arr[missing_idx + 1])
+            arr[missing_idx] = sum(neighbors) / len(neighbors)
+    return timestamps_and_gps
+
+
 @dataclass
 class TimestampAndGPS:
     times: np.ndarray  # Array to store timestamps
@@ -167,10 +180,12 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat, fix_
     rx_zarr = zarr_open_from_lmdb_store(rx_fn, readahead=True, mode="r")
 
     rx_time_and_gpses = {
-        rx_idx: TimestampAndGPS(
-            times=rx_zarr["receivers"][rx_idx]["gps_timestamp"][:],
-            gps_lats=rx_zarr["receivers"][rx_idx]["gps_lat"][:],
-            gps_longs=rx_zarr["receivers"][rx_idx]["gps_long"][:],
+        rx_idx: smooth_out_timestamps_and_gps(
+            TimestampAndGPS(
+                times=rx_zarr["receivers"][rx_idx]["gps_timestamp"][:],
+                gps_lats=rx_zarr["receivers"][rx_idx]["gps_lat"][:],
+                gps_longs=rx_zarr["receivers"][rx_idx]["gps_long"][:],
+            )
         )
         for rx_idx in ["r0", "r1"]
     }
