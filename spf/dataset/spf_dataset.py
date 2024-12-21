@@ -927,6 +927,11 @@ class v5spfdataset(Dataset):
         rx_lo = self.cached_keys[0]["rx_lo"][0].item()
         return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}"
 
+    def get_collector_identifier(self):
+        if "collector" in self.yaml_config:
+            return f'{self.yaml_config["collector"]["type"]}'
+        return "wallarray"
+
     def get_wavelength_identifier(self):
         rx_lo = self.cached_keys[0]["rx_lo"][0].item()
         return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}.wlsp{self.rx_wavelength_spacing:0.3f}"

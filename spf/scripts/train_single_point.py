@@ -248,7 +248,7 @@ def load_dataloaders(
     # create alternate val_ds
     alternate_val_ds_lists = {}
     for ds in val_datasets:
-        key = f"{ds.get_wavelength_identifier()}.{ds.yaml_config['routine']}"
+        key = f"{ds.get_collector_identifier()}:{ds.get_wavelength_identifier()}:{ds.yaml_config['routine']}"
         if key not in alternate_val_ds_lists:
             alternate_val_ds_lists[key] = []
         alternate_val_ds_lists[key].append(ds)

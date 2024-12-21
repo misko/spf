@@ -190,7 +190,7 @@ def create_empirical_p_dist(args):
             .mean()
         )
         if check0 != 1.0 or check1 != 1.0:
-            breakpoint()
+            # breakpoint()
             logging.warning(
                 f"{dataset.zarr_fn} Failed consistentcy check for rx spacing! {check0} {check1}"
             )

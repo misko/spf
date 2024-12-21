@@ -16,7 +16,7 @@ from spf.utils import zarr_new_dataset, zarr_open_from_lmdb_store, zarr_shrink
 
 def lat_lon_to_xy(lat, lon, center_lat, center_lon):
     proj_centered = Proj(proj="aeqd", lat_0=center_lat, lon_0=center_lon, datum="WGS84")
-    return proj_centered(lon, lat)
+    return np.array(proj_centered(lon, lat))
 
 
 def smooth_out_timestamps_and_gps(timestamps_and_gps):
@@ -101,6 +101,11 @@ def convert_list_dict_to_dict_lists(list_dict):
 
 # trim them accordingly
 def trim_valid_idxs_and_tx_rx_pos(valid_idxs_and_tx_rx_pos):
+    if len(valid_idxs_and_tx_rx_pos) == 1:
+        return {
+            "r0": convert_list_dict_to_dict_lists(valid_idxs_and_tx_rx_pos["r0"]),
+            "idxs": [x["idx"] for x in valid_idxs_and_tx_rx_pos["r0"]],
+        }
     start_idxs = (
         valid_idxs_and_tx_rx_pos["r0"][0]["idx"],
         valid_idxs_and_tx_rx_pos["r1"][0]["idx"],
@@ -175,25 +180,36 @@ def compare_and_copy_with_idxs_and_aux_data(
                 ]  # TODO why cant we just copy the whole thing at once? # too big?
 
 
-def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat, fix_config):
+def merge_v4rx_v4tx_into_v5(
+    tx_fn,
+    rx_fn,
+    zarr_out_fn,
+    gps_center_long_lat,
+    fix_config,
+    collector_type="unknown",
+    collector_version="0.0",
+    receivers=2,
+):
     tx_zarr = zarr_open_from_lmdb_store(tx_fn, readahead=True, mode="r")
     rx_zarr = zarr_open_from_lmdb_store(rx_fn, readahead=True, mode="r")
 
     rx_time_and_gpses = {
-        rx_idx: smooth_out_timestamps_and_gps(
+        f"r{rx_idx}": smooth_out_timestamps_and_gps(
             TimestampAndGPS(
-                times=rx_zarr["receivers"][rx_idx]["gps_timestamp"][:],
-                gps_lats=rx_zarr["receivers"][rx_idx]["gps_lat"][:],
-                gps_longs=rx_zarr["receivers"][rx_idx]["gps_long"][:],
+                times=rx_zarr["receivers"][f"r{rx_idx}"]["gps_timestamp"][:],
+                gps_lats=rx_zarr["receivers"][f"r{rx_idx}"]["gps_lat"][:],
+                gps_longs=rx_zarr["receivers"][f"r{rx_idx}"]["gps_long"][:],
             )
         )
-        for rx_idx in ["r0", "r1"]
+        for rx_idx in range(receivers)
     }
 
-    tx_time_and_gps = TimestampAndGPS(
-        times=tx_zarr["receivers"]["r0"]["gps_timestamp"][:],
-        gps_lats=tx_zarr["receivers"]["r0"]["gps_lat"][:],
-        gps_longs=tx_zarr["receivers"]["r0"]["gps_long"][:],
+    tx_time_and_gps = smooth_out_timestamps_and_gps(
+        TimestampAndGPS(
+            times=tx_zarr["receivers"]["r0"]["gps_timestamp"][:],
+            gps_lats=tx_zarr["receivers"]["r0"]["gps_lat"][:],
+            gps_longs=tx_zarr["receivers"]["r0"]["gps_long"][:],
+        )
     )
 
     valid_idxs_and_tx_rx_pos = trim_valid_idxs_and_tx_rx_pos(
@@ -213,7 +229,6 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat, fix_
     )
 
     buffer_size = rx_zarr["receivers/r0/signal_matrix"].shape[-1]
-    n_receivers = 2
     keys_f64 = v5rx_f64_keys
     keys_2xf64 = v5rx_2xf64_keys
     chunk_size = 512
@@ -227,20 +242,26 @@ def merge_v4rx_v4tx_into_v5(tx_fn, rx_fn, zarr_out_fn, gps_center_long_lat, fix_
     ), "Early rovers had this set incorrectly, refusing to run in this state, its ambiguous"
     config["receivers"][0]["theta-in-pis"] = 1.0
 
+    if "collector" not in config:  #
+        logging.warning(
+            f"Adding collector type {collector_type} and collection version {collector_version} to config!"
+        )
+        config["collector"] = {"type": "rover", "version": "3.1"}
+
     with open(zarr_out_fn.replace(".zarr", ".yaml"), "w") as outfile:
         yaml.dump(config, outfile, default_flow_style=False)
 
     new_zarr = zarr_new_dataset(
-        zarr_out_fn,
-        timesteps,
-        buffer_size,
-        n_receivers,
-        keys_f64,
-        keys_2xf64,
-        rx_zarr["config"],
+        filename=zarr_out_fn,
+        timesteps=timesteps,
+        buffer_size=buffer_size,
+        keys_f64=keys_f64,
+        keys_2xf64=keys_2xf64,
+        config=rx_zarr["config"],
         chunk_size=512,  # tested , blosc1 / chunk_size=512 / buffer_size (2^18~20) = seems pretty good
         compressor=None,
         skip_signal_matrix=False,
+        n_receivers=receivers,
     )
 
     compare_and_copy_with_idxs_and_aux_data(
@@ -273,6 +294,8 @@ if __name__ == "__main__":
     parser.add_argument("--tx", type=str, help="input tx zarr", required=True)
     parser.add_argument("--rx", type=str, help="input rx zarr", required=True)
     parser.add_argument("--output", type=str, help="output zarr", required=True)
+    parser.add_argument("--collector-type", type=str, default="rover")
+    parser.add_argument("--collector-version", type=str, default="3.1")
     parser.add_argument("--gps-fence", type=str, help="gps fence", default="franklin")
 
     parser.add_argument(  # the early rovers had antenna array 0 off by 180deg
@@ -293,4 +316,6 @@ if __name__ == "__main__":
         zarr_out_fn=args.output,
         gps_center_long_lat=gps_center,
         fix_config=args.fix_config,
+        collector_type=args.collector_type,
+        collector_version=args.collector_version,
     )
