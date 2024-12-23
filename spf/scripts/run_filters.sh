@@ -9,5 +9,5 @@ root=/home/mouse9911/gits/spf
 shuf --random-source ${val_file} ${val_file} | while read x; do 
    python ${root}/spf/scripts/run_filters_on_data.py -d $x --nthetas 65 --device cpu --skip-qc  \
 	--empirical-pkl-fn ${root}/empirical_dists/full.pkl \
-	--parallel 4  --work-dir ${root}/spf/run_on_filters_dec7 --config ${root}/spf/model_training_and_inference/models/ekf_and_pf_config.yml
+	--parallel 30  --work-dir ${root}/spf/run_on_filters_dec7 --config ${root}/spf/model_training_and_inference/models/ekf_and_pf_config.yml
 done
