@@ -755,7 +755,7 @@ class Drone:
     def handle_HOME_POSITION(self, msg):
         # HOME_POSITION message fields are in 1e7 scaled integers
         self.launch_home = np.array([msg.longitude / 1e7, msg.latitude / 1e7])
-        logging.info(f"Launch home position set to: {self.launch_home}")
+        logging.debug(f"Launch home position set to: {self.launch_home}")
 
     def handle_NAV_CONTROLLER_OUTPUT(self, msg):
         # breakpoint()
