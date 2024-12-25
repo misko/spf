@@ -41,3 +41,6 @@ dry-run: False
 
 
 data-version: 4
+collector:
+  type: "rover"
+  version: "3.1"

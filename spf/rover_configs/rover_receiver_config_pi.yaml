@@ -56,3 +56,8 @@ dry-run: False
 data-version: 4
 
 seconds-per-sample: 0.5
+
+
+collector:
+  type: "rover"
+  version: "3.1"

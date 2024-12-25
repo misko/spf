@@ -40,3 +40,7 @@ drone-uri: tcp:127.0.0.1:14591
 dry-run: False
 
 data-version: 4
+
+collector:
+  type: "rover"
+  version: "3.1"
