@@ -1,7 +1,7 @@
 import os
 import sys
 
-from spf.utils import new_yarr_dataset, zarr_open_from_lmdb_store
+from spf.scripts.zarr_utils import new_yarr_dataset, zarr_open_from_lmdb_store
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:

@@ -8,11 +8,7 @@ import numpy as np
 
 import spf
 from spf.dataset.v4_data import v4rx_f64_keys
-from spf.mavlink.mavlink_controller import (
-    get_mavlink_controller_parser,
-    mavlink_controller_run,
-)
-from spf.utils import zarr_open_from_lmdb_store
+from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 
 root_dir = os.path.dirname(os.path.dirname(spf.__file__))
 

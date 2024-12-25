@@ -1,7 +1,9 @@
 import argparse
 import sys
+
 from spf.dataset.spf_dataset import v5spfdataset
-from spf.utils import compare_and_check, identical_datasets
+from spf.scripts.zarr_utils import compare_and_check
+from spf.utils import identical_datasets
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

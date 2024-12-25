@@ -1,6 +1,6 @@
 import sys
 
-from spf.utils import zarr_shrink
+from spf.scripts.zarr_utils import zarr_shrink
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

@@ -10,8 +10,9 @@ import zarr
 from pyproj import Proj
 
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
-from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
-from spf.utils import zarr_new_dataset, zarr_open_from_lmdb_store, zarr_shrink
+from spf.gps.boundaries import franklin_safe
+from spf.scripts.zarr_utils import zarr_new_dataset  # crissy_boundary_convex
+from spf.scripts.zarr_utils import zarr_open_from_lmdb_store, zarr_shrink
 
 
 def lat_lon_to_xy(lat, lon, center_lat, center_lon):

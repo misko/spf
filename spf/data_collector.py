@@ -1,4 +1,3 @@
-import concurrent
 import logging
 import multiprocessing
 import queue
@@ -18,6 +17,7 @@ from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import beamformer_given_steering, get_avg_phase, precompute_steering_vectors
+from spf.scripts.zarr_utils import zarr_shrink
 from spf.sdrpluto.sdr_controller import (
     EmitterConfig,
     PPlus,
@@ -27,7 +27,6 @@ from spf.sdrpluto.sdr_controller import (
     setup_rx,
     setup_rxtx,
 )
-from spf.utils import zarr_shrink
 
 
 class ThreadPoolExecutorWithQueueSizeLimit(futures.ThreadPoolExecutor):
@@ -580,7 +579,6 @@ class GrblDataCollectorRaw(DataCollector):
         data.tx_pos_y_mm = tx_pos[1]
         data.rx_pos_x_mm = rx_pos[0]
         data.rx_pos_y_mm = rx_pos[1]
-
 
         assert data.rx_lo > 1
 

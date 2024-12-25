@@ -4,13 +4,11 @@ import shutil
 import sys
 
 import yaml
-import zarr
 
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
-from spf.utils import (
+from spf.scripts.zarr_utils import (
     compare_and_check,
     compare_and_copy,
-    new_yarr_dataset,
     zarr_new_dataset,
     zarr_open_from_lmdb_store,
     zarr_shrink,

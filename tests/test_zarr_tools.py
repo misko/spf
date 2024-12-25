@@ -3,7 +3,7 @@ import tempfile
 import pytest
 
 from spf.dataset.spf_dataset import v5spfdataset
-from spf.dataset.zarr_rechunk import zarr_rechunk
+from spf.scripts.zarr_rechunk import zarr_rechunk
 from spf.utils import identical_datasets
 
 
