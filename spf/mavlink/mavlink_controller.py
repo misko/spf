@@ -163,6 +163,7 @@ tones = {
     "git": "MFT240L4 < F P2 F P4 L8dcdc",
     "planner": "MFT240L8 G G F F P4 G G F F P4 L8dc",
     "ready": "MFT240L8 G P8 < G P8 < G P8 > > G P8 < G P8 < G",
+    "failure": "MFT240L8 D D D P4 D D D P4 L8dddddc",
 }
 tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
 
