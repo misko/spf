@@ -40,11 +40,8 @@ if [ $# -eq 0 ]; then
 	fi
 fi
 
-# do this a bit later to give them time to boot
-echo "check pluto radios"
-bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/check_and_set_pluto.sh
-
 rover_id=`cat ~/rover_id`
+
 
 #make sure parameters are set correctly on ardupilot
 params_root=${repo_root}/data_collection_model_and_results/rover/rover_v3.1/
@@ -65,19 +62,38 @@ if [ ${rover_id} -eq 1 ]; then
     routine=center
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
     n=2000
+	expected_radios=2
 elif [ ${rover_id} -eq 2 ]; then
     #config=${repo_root}/spf/rover_configs/rover_emitter_config_pi.yaml 
     config=${repo_root}/spf/rover_configs/rover_single_receiver_config_pi.yaml
     routine=circle
     n=2400
+	expected_radios=2
 elif [ ${rover_id} -eq 3 ]; then
     routine=bounce
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
     n=2000
+	expected_radios=2
 else
     echo Invalid rover_id 
     exit
 fi
+
+while [ 1 -gt 0 ]; do
+	found_radios=`lsusb  | grep ADALM | wc -l`
+	if [ ${found_radios} -eq ${expected_radios} ]; then
+		break
+	fi
+	echo "EXPECTED ${expected_radios} but found ${found_radios}, trying again"
+	python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer failure
+	sleep 15
+done
+
+
+# do this a bit later to give them time to boot
+echo "check pluto radios"
+bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/check_and_set_pluto.sh
+
 
 if [ $# -eq 0 ]; then
 	python3 ${repo_root}/spf/mavlink_radio_collection.py \
