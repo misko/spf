@@ -63,8 +63,6 @@ from spf.rf import (
     segment_session,
     segment_session_star,
     speed_of_light,
-    torch_circular_mean,
-    torch_circular_mean_notrim,
     torch_get_phase_diff,
     torch_pi_norm,
 )
@@ -592,6 +590,9 @@ class v5spfdataset(Dataset):
         self.carrier_frequencies = [
             receiver["f-carrier"] for receiver in self.yaml_config["receivers"]
         ]
+        self.rf_bandwidths = [
+            receiver["bandwidth"] for receiver in self.yaml_config["receivers"]
+        ]
 
         for rx_idx in range(1, self.n_receivers):
             assert (
@@ -600,6 +601,7 @@ class v5spfdataset(Dataset):
             )
 
             assert self.wavelengths[0] == self.wavelengths[rx_idx]
+            assert self.rf_bandwidths[0] == self.rf_bandwidths[rx_idx]
 
         self.rx_spacing = self.yaml_config["receivers"][0]["antenna-spacing-m"]
         self.rx_wavelength_spacing = self.rx_spacing / self.wavelengths[0]
