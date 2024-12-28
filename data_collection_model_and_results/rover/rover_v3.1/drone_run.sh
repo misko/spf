@@ -68,7 +68,7 @@ elif [ ${rover_id} -eq 2 ]; then
     config=${repo_root}/spf/rover_configs/rover_single_receiver_config_pi.yaml
     routine=circle
     n=2500
-	expected_radios=2
+	expected_radios=1
 elif [ ${rover_id} -eq 3 ]; then
     routine=bounce
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi.yaml 
