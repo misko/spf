@@ -1,6 +1,6 @@
 
 splits=/mnt/md2/splits/
-name=dec19
+name=dec26
 n=90 # 90% for train
 
 ls /mnt/ssd/2d_wallarray_v2_data/*/*.zarr -d | shuf > ${splits}/${name}_full.txt
@@ -15,4 +15,5 @@ tail -n $(( total - cutoff )) "${splits}/${name}_notcircle.txt" >> ${splits}/${n
 
 # add in rover to validation
 ls /mnt/ssd/rovers/merged/nov*.zarr -d >> ${splits}/${name}_train.txt
-ls /mnt/ssd/rovers/merged/dec*.zarr -d >> ${splits}/${name}_val.txt
+ls /mnt/ssd/rovers/merged/dec*.zarr -d | grep -v dec26 >> ${splits}/${name}_train.txt
+ls /mnt/ssd/rovers/merged/dec*.zarr -d | grep dec26 >> ${splits}/${name}_val.txt
