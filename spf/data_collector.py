@@ -170,6 +170,7 @@ class ThreadedRX:
                 data = self.get_data()
             except Exception as e:
                 logging.error(f"Failed to read data , aborting {e}")
+                self.read_q.put(None, timeout=5)
                 self.run = False
                 continue
             put_on_queue = False
