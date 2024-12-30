@@ -441,8 +441,8 @@ class PPlus:
         self.sdr.gain_control_mode_chan1 = self.rx_config.gain_control_modes[1]
         assert self.sdr.gain_control_mode_chan1 == self.rx_config.gain_control_modes[1]
         if self.rx_config.gain_control_modes[1] == "manual":
-            self.sdr.rx_hardwaregain_chan0 = self.rx_config.gains[1]
-            assert self.sdr.rx_hardwaregain_chan0 == self.rx_config.gains[1]
+            self.sdr.rx_hardwaregain_chan1 = self.rx_config.gains[1]
+            assert self.sdr.rx_hardwaregain_chan1 == self.rx_config.gains[1]
 
         if self.rx_config.buffer_size is not None:
             self.sdr.rx_buffer_size = self.rx_config.buffer_size
