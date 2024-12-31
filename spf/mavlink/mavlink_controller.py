@@ -517,8 +517,9 @@ class Drone:
             return False
 
         # Switch to RTL mode
-        self.set_rtl_mode()
-        logging.info("RTL mode set. Waiting for the drone to reach home...")
+        # self.set_rtl_mode()
+        # logging.info("RTL mode set. Waiting for the drone to reach home...")
+        self.move_to_point(self.home)
 
         start_time = time.time()
         while time.time() - start_time < max_wait:
