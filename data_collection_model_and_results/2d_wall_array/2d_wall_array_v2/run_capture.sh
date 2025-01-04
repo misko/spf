@@ -13,7 +13,9 @@ if [ $? -eq 0 ]; then
 fi       
 
 export ROOT="../../../"
-config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_manual.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth.yaml
+config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_manual60.yaml
 
 #reboot_plutos
 sleep 3

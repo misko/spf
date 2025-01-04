@@ -1,24 +1,23 @@
+import os
+import pickle
+import random
+
+# ds_fn = "/mnt/4tb_ssd/june_fix/wallarrayv3_2024_06_15_11_44_13_nRX2_bounce.zarr"
+import sys
+import time
 from functools import partial
+
 import numpy as np
 import scipy
-from tqdm import tqdm
+import torch
 from filterpy.monte_carlo import systematic_resample
-
-import pickle
-import os
-
-import time
+from tqdm import tqdm
 
 from spf.dataset.spf_dataset import (
     v5_collate_beamsegnet,
     v5_collate_keys_fast,
     v5spfdataset,
 )
-import torch
-import random
-
-# ds_fn = "/mnt/4tb_ssd/june_fix/wallarrayv3_2024_06_15_11_44_13_nRX2_bounce.zarr"
-import sys
 
 if len(sys.argv) != 2:
     print(f"{sys.argv[0]} input")

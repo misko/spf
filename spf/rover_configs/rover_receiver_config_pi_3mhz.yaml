@@ -15,7 +15,7 @@ distance-finder:
 #USB  2   (Radio A)  |     USB 1 (Radio B)
 receivers:
   #radio A
-  - receiver-uri: usb:1.1.5
+  - receiver-port: 2
     theta-in-pis: 0
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
@@ -23,23 +23,40 @@ receivers:
     rx-gain-mode: fast_attack
     rx-buffers: 4
     rx-gain: -3
-    buffer-size: 4096 # 2**12
+    buffer-size: 524288 # 2**12
     f-intermediate: 100000 #1.0e5
     f-carrier: 2467000000 #2.5e9
     f-sampling: 16000000 # 16.0e6
-    bandwidth: 300000 #3.0e5
+    bandwidth: 3000000 #3.0e5
+  #radio B
+  - receiver-port: 1
+    theta-in-pis: 0.5
+    antenna-spacing-m: 0.05075 # 50.75 mm 
+    nelements: 2
+    array-type: linear
+    rx-gain-mode: fast_attack
+    rx-buffers: 4
+    rx-gain: -3
+    buffer-size: 524288 # 2**12
+    f-intermediate: 100000 #1.0e5
+    f-carrier: 2467000000 #2.5e9
+    f-sampling: 16000000 # 16.0e6
+    bandwidth: 3000000 #3.0e5
 
 n-thetas: 65
-n-records-per-receiver: 2000
+n-records-per-receiver: 600000
 width: 4000
 calibration-frames: 800
 routine: null
 
-drone-uri: tcp:127.0.0.1:14591
+drone-uri: serial
 
 dry-run: False
 
 data-version: 4
+
+seconds-per-sample: 0.5
+
 
 collector:
   type: "rover"

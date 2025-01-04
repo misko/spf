@@ -63,20 +63,16 @@ from spf.rf import (
     segment_session,
     segment_session_star,
     speed_of_light,
-    torch_circular_mean,
-    torch_circular_mean_notrim,
     torch_get_phase_diff,
     torch_pi_norm,
 )
-from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
-from spf.utils import (
-    SEGMENTATION_VERSION,
+from spf.scripts.zarr_utils import (
     new_yarr_dataset,
-    rx_spacing_to_str,
-    to_bin,
     zarr_open_from_lmdb_store,
     zarr_shrink,
 )
+from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
+from spf.utils import SEGMENTATION_VERSION, rx_spacing_to_str, to_bin
 
 
 # from Stackoverflow
@@ -594,6 +590,9 @@ class v5spfdataset(Dataset):
         self.carrier_frequencies = [
             receiver["f-carrier"] for receiver in self.yaml_config["receivers"]
         ]
+        self.rf_bandwidths = [
+            receiver["bandwidth"] for receiver in self.yaml_config["receivers"]
+        ]
 
         for rx_idx in range(1, self.n_receivers):
             assert (
@@ -602,6 +601,7 @@ class v5spfdataset(Dataset):
             )
 
             assert self.wavelengths[0] == self.wavelengths[rx_idx]
+            assert self.rf_bandwidths[0] == self.rf_bandwidths[rx_idx]
 
         self.rx_spacing = self.yaml_config["receivers"][0]["antenna-spacing-m"]
         self.rx_wavelength_spacing = self.rx_spacing / self.wavelengths[0]
@@ -926,6 +926,11 @@ class v5spfdataset(Dataset):
     def get_spacing_identifier(self):
         rx_lo = self.cached_keys[0]["rx_lo"][0].item()
         return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}"
+
+    def get_collector_identifier(self):
+        if "collector" in self.yaml_config:
+            return f'{self.yaml_config["collector"]["type"]}'
+        return "wallarray"
 
     def get_wavelength_identifier(self):
         rx_lo = self.cached_keys[0]["rx_lo"][0].item()

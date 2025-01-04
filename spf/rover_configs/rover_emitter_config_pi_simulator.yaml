@@ -51,3 +51,8 @@ drone-uri: udpin:127.0.0.1:14552
 dry-run: False
 
 data-version: 4
+
+
+collector:
+  type: "rover"
+  version: "3.1"

@@ -15,7 +15,7 @@ dependencies = [
  "torch>=2.2",
  "shapely",
  "attrs",
- "pymavlink",
+ "pymavlink>=2.4.42",
  "pyserial",
  "tqdm",
  "numba",

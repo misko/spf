@@ -240,6 +240,8 @@ if __name__ == "__main__":
     for k in temp_filenames:
         os.rename(temp_filenames[k], final_filenames[k])
 
+    drone.set_rtl_mode_and_wait()
+
     if is_pi() and not args.fake_drone:
         time.sleep(5)
         subprocess.getoutput("sudo halt")

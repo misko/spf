@@ -248,14 +248,13 @@ def load_dataloaders(
     # create alternate val_ds
     alternate_val_ds_lists = {}
     for ds in val_datasets:
-        key = f"{ds.get_wavelength_identifier()}.{ds.yaml_config['routine']}"
+        key = f"{ds.get_collector_identifier()}:{ds.get_wavelength_identifier()}:rf_{ds.rf_bandwidths[0]:0.3e}:{ds.yaml_config['routine']}"
         if key not in alternate_val_ds_lists:
             alternate_val_ds_lists[key] = []
         alternate_val_ds_lists[key].append(ds)
     alternate_val_ds = {}
     for key, ds_list in alternate_val_ds_lists.items():
         alternate_val_ds[key] = torch.utils.data.ConcatDataset(ds_list)
-
     # if we train_on_val just take everything
     if not datasets_config["train_on_val"]:
         val_idxs = list(range(len(val_ds)))
@@ -1008,6 +1007,9 @@ def train_single_point(args):
     config["optim"]["dtype"] = dtype
 
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
+
+    logging.info("MODEL:")
+    logging.info(m)
 
     model_checksum("load_model:", m)
     optimizer, scheduler = load_optimizer(config["optim"], m.parameters())

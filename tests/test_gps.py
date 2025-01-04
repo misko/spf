@@ -1,10 +1,10 @@
 import numpy as np
 from haversine import inverse_haversine
 
-from spf.dataset.v4_tx_rx_to_v5 import lat_lon_to_xy
 from spf.gps.boundaries import franklin_safe
 from spf.gps.gps_utils import calc_bearing, swap_lat_long
 from spf.rf import pi_norm
+from spf.scripts.v4_tx_rx_to_v5 import lat_lon_to_xy
 
 
 # create a circle in GPS long/lat , then calculate the bearing

@@ -5,13 +5,14 @@ import sys
 import tempfile
 import time
 
-import numpy as np
 import docker
+import numpy as np
 import pytest
-from spf.dataset.v4_data import v4rx_f64_keys
+
 import spf.mavlink.mavlink_controller
 from spf import mavlink_radio_collection
-from spf.utils import zarr_open_from_lmdb_store
+from spf.dataset.v4_data import v4rx_f64_keys
+from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 
 root_dir = os.path.dirname(os.path.dirname(spf.__file__))
 

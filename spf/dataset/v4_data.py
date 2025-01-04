@@ -1,4 +1,4 @@
-from spf.utils import zarr_new_dataset
+from spf.scripts.zarr_utils import zarr_new_dataset
 
 v4rx_f64_keys = [
     "system_timestamp",

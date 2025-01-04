@@ -150,6 +150,8 @@ custom_mode_mapping = {
     16: "ROVER_MODE_INITIALIZING",
 }
 
+ROVER_MODE_RTL = 11
+
 switchable_modes = {"GUIDED": "ROVER_MODE_GUIDED", "MANUAL": "ROVER_MODE_MANUAL"}
 
 mav_cmds_num2name = {}
@@ -161,6 +163,7 @@ tones = {
     "git": "MFT240L4 < F P2 F P4 L8dcdc",
     "planner": "MFT240L8 G G F F P4 G G F F P4 L8dc",
     "ready": "MFT240L8 G P8 < G P8 < G P8 > > G P8 < G P8 < G",
+    "failure": "MFT240L8 D D D P4 D D D P4 L8dddddc",
 }
 tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
 
@@ -423,7 +426,7 @@ class Drone:
                 collision_soon = (
                     (not self.disable_distance_finder)
                     and self.distance_finder is not None
-                    and distance < 70
+                    and distance < 30
                 )
                 if self.mav_mode == "ROVER_MODE_GUIDED":
                     if self.armed and collision_soon:
@@ -502,6 +505,54 @@ class Drone:
         self.mav_cmd_num2name[v] = cmd
         return v
 
+    def set_rtl_mode_and_wait(self, max_wait=300):
+        """
+        Sets the drone mode to RTL and blocks until the drone has reached home
+        or the max_wait time (in seconds) has elapsed.
+        Returns True if the drone reaches home within max_wait, else False.
+        """
+        # Make sure we know the home location
+        if not hasattr(self, "home"):
+            logging.error("Home location is not known. Set home first.")
+            return False
+
+        # Switch to RTL mode
+        # self.set_rtl_mode()
+        # logging.info("RTL mode set. Waiting for the drone to reach home...")
+        self.move_to_point(self.home)
+
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            dist = self.distance_to_target(self.home)
+            logging.debug(f"Distance to home: {dist:.2f} meters")
+            if dist <= self.tolerance_in_m:
+                logging.info("Drone has reached home!")
+                return True
+            time.sleep(1)
+
+        logging.warning("Timed out waiting for the drone to reach home.")
+        return False
+
+    def set_rtl_mode(self):
+        """
+        Sets the drone mode to RTL (Return to Launch).
+        """
+        # According to the custom_mode_mapping, mode 11 is ROVER_MODE_RTL.
+        # We can use the underlying MAV_CMD_DO_SET_MODE command to switch modes.
+        self.connection.mav.command_long_send(
+            self.connection.target_system,
+            self.connection.target_component,
+            self.get_cmd("MAV_CMD_DO_SET_MODE"),
+            0,  # Confirmation
+            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,  # Base mode flags
+            ROVER_MODE_RTL,  # Custom mode index for RTL
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+
     def run_compass_calibration(self):
         message = self.connection.mav.command_long_encode(
             self.connection.target_system,  # Target system ID
@@ -556,6 +607,7 @@ class Drone:
             0,
         )
         # self.ack("COMMAND_ACK")
+        self.home = np.array([long, lat])  # Store home for later use
 
     def turn_off_hardware_safety(self):
         self.connection.mav.set_mode_send(
@@ -702,6 +754,11 @@ class Drone:
                 msg = self.connection.recv_match(blocking=True, timeout=0.5)
                 self.process_message(msg)
 
+    def handle_HOME_POSITION(self, msg):
+        # HOME_POSITION message fields are in 1e7 scaled integers
+        self.launch_home = np.array([msg.longitude / 1e7, msg.latitude / 1e7])
+        logging.debug(f"Launch home position set to: {self.launch_home}")
+
     def handle_NAV_CONTROLLER_OUTPUT(self, msg):
         # breakpoint()
         # self.target_
@@ -843,6 +900,7 @@ class Drone:
         "NAV_CONTROLLER_OUTPUT": handle_NAV_CONTROLLER_OUTPUT,
         "RC_CHANNELS_SCALED": handle_RC_CHANNELS_SCALED,
         "PARAM_VALUE": handle_PARAM_VALUE,
+        "HOME_POSITION": handle_HOME_POSITION,
     }
 
     def process_message(self, msg):

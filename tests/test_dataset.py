@@ -9,12 +9,8 @@ from spf.dataset.spf_generate import generate_session_and_dump
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.rf import get_peaks_for_2rx
-from spf.utils import (
-    dotdict,
-    random_signal_matrix,
-    zarr_open_from_lmdb_store,
-    zarr_shrink,
-)
+from spf.scripts.zarr_utils import zarr_open_from_lmdb_store, zarr_shrink
+from spf.utils import dotdict, random_signal_matrix
 
 
 @pytest.fixture
