@@ -17,7 +17,12 @@ from spf.mavlink.mavlink_controller import (
     drone_get_planner,
     get_ardupilot_serial,
 )
-from spf.utils import DataVersionNotImplemented, filenames_from_time_in_seconds, is_pi
+from spf.utils import (
+    DataVersionNotImplemented,
+    filenames_from_time_in_seconds,
+    is_pi,
+    load_config,
+)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -89,8 +94,8 @@ if __name__ == "__main__":
 
     run_started_at = datetime.now().timestamp()  #
     # read YAML
-    with open(args.yaml_config, "r") as stream:
-        yaml_config = yaml.safe_load(stream)
+    # with open(args.yaml_config, "r") as stream:
+    yaml_config = load_config(args.yaml_config)  # yaml.safe_load(stream)
 
     # open device mapping and figure out URIs
     with open(args.device_mapping, "r") as device_mapping:
@@ -209,7 +214,7 @@ if __name__ == "__main__":
             sys.exit(0)
 
     start_time = time.time()
-    while not args.fake_drone and not drone.has_planner_started_moving():
+    while not args.fake_drone and not drone.is_planner_in_control():
         logging.info(
             f"MavRadioCollection: Waiting for drone to start moving {time.time()}"
         )
@@ -234,13 +239,20 @@ if __name__ == "__main__":
 
     data_collector.done()
 
+    drone.planner_should_move = False
     # we finished lets move files out to final positions
 
     logging.info("MavRadioCollection: Moving files to final location ...")
     for k in temp_filenames:
         os.rename(temp_filenames[k], final_filenames[k])
 
-    drone.set_rtl_mode_and_wait()
+    # wait for it to release control back, that happens when this goes false
+    seconds_to_wait = 60
+    while seconds_to_wait > 0 and drone.is_planner_in_control():
+        time.sleep(2)
+        seconds_to_wait -= 2
+
+    drone.move_to_home()
 
     if is_pi() and not args.fake_drone:
         time.sleep(5)

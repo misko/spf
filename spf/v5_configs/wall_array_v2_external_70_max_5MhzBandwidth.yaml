@@ -22,9 +22,9 @@ receivers:
     rx-gain: -3
     buffer-size: 524288
     f-intermediate: 100000 #1.0e5
-    f-carrier: 2412000000 #2.5e9
-    f-sampling: 16000000 # 16.0e6
-    bandwidth: 5000000 #5e6
+    f-carrier: 2.412e+9 #2.5e9
+    f-sampling: 16.0e+6 # 16.0e6
+    bandwidth: 5.0e+6 #5e6
     motor_channel: 0
   - receiver-uri: ip:192.168.1.18
     theta-in-pis: 1.25
@@ -36,9 +36,9 @@ receivers:
     rx-gain: -3
     buffer-size: 524288
     f-intermediate: 100000 #1.0e5
-    f-carrier: 2412000000 #2.5e9
-    f-sampling: 16000000 # 16.0e6
-    bandwidth: 5000000 #5.0e6
+    f-carrier: 2.412e+9 #2.5e9
+    f-sampling: 16.0e+6 # 16.0e6
+    bandwidth: 5.0e+6 #5.0e6
     motor_channel: 0
 
 

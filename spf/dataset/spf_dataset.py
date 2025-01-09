@@ -72,7 +72,7 @@ from spf.scripts.zarr_utils import (
     zarr_shrink,
 )
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
-from spf.utils import SEGMENTATION_VERSION, rx_spacing_to_str, to_bin
+from spf.utils import SEGMENTATION_VERSION, load_config, rx_spacing_to_str, to_bin
 
 
 # from Stackoverflow
@@ -563,7 +563,9 @@ class v5spfdataset(Dataset):
         self.z = zarr_open_from_lmdb_store(
             self.zarr_fn, readahead=self.readahead, map_size=2**32
         )
-        self.yaml_config = yaml.safe_load(open(self.yaml_fn, "r"))
+        self.yaml_config = load_config(
+            self.yaml_fn
+        )  # yaml.safe_load(open(self.yaml_fn, "r"))
 
         self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
@@ -924,7 +926,7 @@ class v5spfdataset(Dataset):
             ]
 
     def get_spacing_identifier(self):
-        rx_lo = self.cached_keys[0]["rx_lo"][0].item()
+        rx_lo = self.cached_keys[0]["rx_lo"].median().item()
         return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}"
 
     def get_collector_identifier(self):
@@ -933,7 +935,7 @@ class v5spfdataset(Dataset):
         return "wallarray"
 
     def get_wavelength_identifier(self):
-        rx_lo = self.cached_keys[0]["rx_lo"][0].item()
+        rx_lo = self.cached_keys[0]["rx_lo"].median().item()
         return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}.wlsp{self.rx_wavelength_spacing:0.3f}"
 
     def get_values_at_key(self, key, receiver_idx, idxs):
