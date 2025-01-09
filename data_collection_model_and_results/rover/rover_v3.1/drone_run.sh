@@ -61,18 +61,18 @@ echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_gover
 if [ ${rover_id} -eq 1 ]; then
     routine=center
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi_3mhz.yaml 
-    n=2000
+    n=3000
 	expected_radios=2
 elif [ ${rover_id} -eq 2 ]; then
     #config=${repo_root}/spf/rover_configs/rover_emitter_config_pi.yaml 
     config=${repo_root}/spf/rover_configs/rover_single_receiver_config_pi.yaml
     routine=circle
-    n=2500
+    n=3500
 	expected_radios=1
 elif [ ${rover_id} -eq 3 ]; then
     routine=bounce
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi_3mhz.yaml 
-    n=2000
+    n=3000
 	expected_radios=2
 else
     echo Invalid rover_id 

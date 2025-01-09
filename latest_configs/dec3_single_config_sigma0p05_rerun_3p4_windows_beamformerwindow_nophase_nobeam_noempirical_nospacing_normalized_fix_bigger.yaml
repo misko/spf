@@ -3,9 +3,9 @@ datasets:
   empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl
   empirical_individual_radio: false
   empirical_symmetry: true
-  flip: false
-  double_flip: True
-  precompute_cache: /mnt/4tb_ssd/precompute_cache_3p4/
+  flip: true
+  double_flip: false
+  precompute_cache: /mnt/4tb_ssd/precompute_cache_3p4/ 
   scatter: continuous
   scatter_k: 21
   shuffle: true
@@ -25,12 +25,14 @@ datasets:
   workers: 20
   segmentation_version: 3.4
 global:
-  beamformer_input: true
-  empirical_input: true
+  beamformer_input: false
+  windowed_beamformer_input: true
+  empirical_input: false
   n_radios: 2
   nthetas: 65
-  phase_input: true
-  rx_spacing_input: true
+  phase_input: false
+  rx_spacing_input: false
+  signal_matrix_input: false
   seed: 10
 logger:
   log_every: 100
@@ -40,36 +42,35 @@ logger:
 model:
   block: true
   bn: true
-  depth: 4
+  depth: 8
   detach: true
   dropout: 0.0
   hidden: 1024
-  load_single: true
-  name: pairedbeamformer
+  input_dropout: 0.0
+  name: beamformer
   norm: layer
-  single:
-    block: true
-    bn: true
-    depth: 4
-    detach: true
+  windows_stats_net:
     dropout: 0.0
-    hidden: 1024
-    input_dropout: 0.3
-    norm: layer
+    windowed_beamformer: true
+    normalize_windowed_beamformer: true
+    hidden_channels: 32
+    outputs: 8
+    n_layers: 6
+    norm: false
+    act: selu
 optim:
-  amp: true
-  checkpoint: /home/mouse9911/gits/spf/dec3_checkpoints/single_checkpoints_inputdo0p3_sigma0p05_rerun_3p4/best.pth
+  amp: false
   checkpoint_every: 5000
   device: cuda
   direct_loss: false
   dtype: torch.float32
-  epochs: 30
+  epochs: 24
   head_start: 0
-  learning_rate: 0.0002
+  learning_rate: 0.002
   loss: mse
-  output: /home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4
+  output: /home/mouse9911/gits/spf/dec3_checkpoints/single_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized_bigger_fix
   resume_step: 0
-  save_on: val/paired_loss
-  scheduler_step: 6
+  save_on: val/single_loss
+  scheduler_step: 14
   val_every: 10000
   weight_decay: 0.0
