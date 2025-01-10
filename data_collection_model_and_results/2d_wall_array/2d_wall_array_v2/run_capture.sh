@@ -15,15 +15,22 @@ fi
 export ROOT="../../../"
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_manual.yaml
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth.yaml
-config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_manual60.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_manual60.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_slow.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_slow.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_1MhzIF.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_50khzIF.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_50khzIF_2xbuffer_2xfs.yaml
+config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_915M_max_2xfs.yaml
 
 #reboot_plutos
+
 sleep 3
 python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r bounce -s /dev/ttyACM0 --dry-run --n-records 1
 sleep 1
-
 python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r rx_random_circle -s /dev/ttyACM0 --n-records 5000
 sleep 1
+
 
 python ${ROOT}/spf/grbl_radio_collection.py  -c ${config} -r bounce -s /dev/ttyACM0 --dry-run --n-records 1
 
