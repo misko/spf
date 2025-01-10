@@ -25,9 +25,9 @@ receivers:
     rx-gain: -3
     buffer-size: 524288 # 2**12
     f-intermediate: 100000 #1.0e5
-    f-carrier: 2467000000 #2.5e9
-    f-sampling: 16000000 # 16.0e6
-    bandwidth: 3000000 #3.0e5
+    f-carrier: 2.4671e+9 #2.5e9
+    f-sampling: 30.0e+6 # 16.0e6
+    bandwidth: 3.0e+5 #3.0e5
   #radio B
   - receiver-port: 1
     theta-in-pis: 0.5
@@ -39,9 +39,9 @@ receivers:
     rx-gain: -3
     buffer-size: 524288 # 2**12
     f-intermediate: 100000 #1.0e5
-    f-carrier: 2467000000 #2.5e9
-    f-sampling: 16000000 # 16.0e6
-    bandwidth: 3000000 #3.0e5
+    f-carrier: 2.4671e+9 #2.5e9
+    f-sampling: 30.0e+6 # 16.0e6
+    bandwidth: 3.0e+5 #3.0e5
 
 n-thetas: 65
 n-records-per-receiver: 600000

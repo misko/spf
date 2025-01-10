@@ -65,7 +65,7 @@ if [ ${rover_id} -eq 1 ]; then
 	expected_radios=2
 elif [ ${rover_id} -eq 2 ]; then
     #config=${repo_root}/spf/rover_configs/rover_emitter_config_pi.yaml 
-    config=${repo_root}/spf/rover_configs/rover_single_receiver_config_pi.yaml
+    config=${repo_root}/spf/rover_configs/rover_single_receiver_config_pi_3mhz.yaml
     routine=circle
     n=3500
 	expected_radios=1
