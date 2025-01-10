@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from numba import njit
 
+from spf.detrend import detrend_np, merge_dynamic_windows_np
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store_cm
 
 try:
@@ -322,6 +323,11 @@ def segment_session(
         # z[f"receivers/r{receiver}/system_timestamp"][session_idx] > 0
 
         v = z.receivers[receiver].signal_matrix[session_idx][:].astype(np.complex64)
+
+        ##
+        # detrend here
+        v = detrend_np(v)
+        ##
 
         segmentation_results = simple_segment(v, **kwrgs)
 

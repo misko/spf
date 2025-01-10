@@ -9,7 +9,11 @@ import yaml
 
 from spf.data_collector import GrblDataCollector, GrblDataCollectorRaw
 from spf.grbl.grbl_interactive import get_default_gm
-from spf.utils import DataVersionNotImplemented, filenames_from_time_in_seconds
+from spf.utils import (
+    DataVersionNotImplemented,
+    filenames_from_time_in_seconds,
+    load_config,
+)
 
 
 def grbl_radio_parser():
@@ -71,8 +75,8 @@ def grbl_radio_parser():
 def grbl_radio_main(args):
     run_started_at = datetime.now().timestamp()  #
     # read YAML
-    with open(args.yaml_config, "r") as stream:
-        yaml_config = yaml.safe_load(stream)
+    # with open(args.yaml_config, "r") as stream:
+    yaml_config = load_config(args.yaml_config)  # yaml.safe_load(stream)
     if args.serial is not None or "grbl-serial" not in yaml_config:
         yaml_config["grbl-serial"] = args.serial
     if args.routine is not None:

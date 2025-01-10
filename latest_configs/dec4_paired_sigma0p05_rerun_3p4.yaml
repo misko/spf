@@ -63,7 +63,7 @@ optim:
   device: cuda
   direct_loss: false
   dtype: torch.float32
-  epochs: 60
+  epochs: 30
   head_start: 0
   learning_rate: 0.0002
   loss: mse

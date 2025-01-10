@@ -1,0 +1,80 @@
+datasets:
+  batch_size: 256
+  empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl
+  empirical_individual_radio: false
+  empirical_symmetry: true
+  flip: false
+  double_flip: True
+  precompute_cache: /mnt/4tb_ssd/precompute_cache_3p4/
+  scatter: continuous
+  scatter_k: 21
+  shuffle: true
+  sigma: 0.05
+  skip_qc: true
+  snapshots_adjacent_stride: 1
+  train_snapshots_per_session: 1
+  val_snapshots_per_session: 1
+  random_snapshot_size: False
+  snapshots_stride: 1
+  train_paths:
+  - /mnt/4tb_ssd/nosig_data/train.txt
+  val_paths:
+  - /mnt/4tb_ssd/nosig_data/val.txt
+  val_holdout_fraction: 0.2
+  val_subsample_fraction: 0.2
+  workers: 20
+  segmentation_version: 3.4
+global:
+  beamformer_input: false
+  windowed_beamformer_input: true
+  empirical_input: true
+  n_radios: 2
+  nthetas: 65
+  phase_input: false
+  rx_spacing_input: true
+  signal_matrix_input: false
+  seed: 10
+logger:
+  log_every: 100
+  name: wandb
+  plot_every: 15000
+  project: 2024_nov22_single_paired_multi
+model:
+  block: true
+  bn: true
+  depth: 4
+  detach: true
+  dropout: 0.0
+  hidden: 1024
+  load_single: true
+  name: pairedbeamformer
+  norm: layer
+  single:
+    block: true
+    bn: true
+    depth: 4
+    detach: true
+    dropout: 0.0
+    hidden: 1024
+    input_dropout: 0.3
+    norm: layer
+    windows_stats_net:
+      dropout: 0.0
+      windowed_beamformer: true
+optim:
+  amp: true
+  checkpoint: /home/mouse9911/gits/spf/dec3_checkpoints/single_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_fix/best.pth
+  checkpoint_every: 5000
+  device: cuda
+  direct_loss: false
+  dtype: torch.float32
+  epochs: 30
+  head_start: 0
+  learning_rate: 0.0002
+  loss: mse
+  output: /home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_fix
+  resume_step: 0
+  save_on: val/paired_loss
+  scheduler_step: 6
+  val_every: 10000
+  weight_decay: 0.0

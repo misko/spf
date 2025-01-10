@@ -2,9 +2,10 @@ import argparse
 import concurrent
 
 from spf.dataset.spf_dataset import v5spfdataset
-
+import cupy
 
 def process_zarr(args):
+    print(args["input_zarr"])
     ds = v5spfdataset(
         args["input_zarr"],
         nthetas=65,
@@ -42,7 +43,7 @@ if __name__ == "__main__":
         }
         for zarr_fn in args.input_zarrs
     ]
-    if args.debug:
+    if args.debug or args.workers==0:
         list(map(process_zarr, jobs))
     else:
         with concurrent.futures.ProcessPoolExecutor(

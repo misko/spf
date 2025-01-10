@@ -6,10 +6,11 @@ from datetime import datetime
 
 import numpy as np
 import torch
+import yaml
 from deepdiff.diff import DeepDiff
 from torch.utils.data import BatchSampler, DistributedSampler
 
-SEGMENTATION_VERSION = 3.4
+SEGMENTATION_VERSION = 3.5
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
@@ -218,3 +219,13 @@ def to_bin(x: torch.Tensor, bins: int):
     bins = ((x / (2 * torch.pi) + 0.5) * bins).to(torch.long)
     bins[x.isnan()] = 0
     return bins
+
+
+def load_config(yaml_fn):
+    yaml_config = yaml.safe_load(open(yaml_fn, "r"))
+    int_fields = ["f-carrier", "f-sampling", "f-intermediate", "bandwidth"]
+    for receiver_config in yaml_config["receivers"]:
+        for int_field in int_fields:
+            if int_field in receiver_config:
+                receiver_config[int_field] = int(receiver_config[int_field])
+    return yaml_config

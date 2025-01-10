@@ -316,7 +316,7 @@ class Drone:
         )
 
         self.planner = planner
-        self.planner_started_moving = False
+        self.planner_in_control = False
 
         if self.planner is not None:
             self.planner_thread = threading.Thread(target=self.run_planner, daemon=True)
@@ -379,8 +379,8 @@ class Drone:
             mavutil.mavlink.MAV_SEVERITY_CRITICAL, text.encode()
         )
 
-    def has_planner_started_moving(self):
-        return self.planner_started_moving
+    def is_planner_in_control(self):
+        return self.planner_in_control
 
     def get_position_bearing_and_time(self):
         return {"gps": self.gps, "heading": self.heading, "gps_time": self.gps_time}
@@ -447,6 +447,7 @@ class Drone:
     def run_planner(self):
         # self.single_operation_mode_on()
         logging.info("Start planner...")
+        self.planner_should_move = True
         # self.single_operation_mode_on()
         # logging.info("SINGLE OPERATION MODE")
         home = self.planner.dynamics.bounding_box.mean(axis=0)
@@ -485,7 +486,7 @@ class Drone:
         point = None
         logging.info(f"About to enter planned main loop {self.planner}")
         # breakpoint()
-        while True:
+        while self.planner_should_move:
             next_point = next(yp)
             # logging.info(f"In planner main loop {next_point} {point}")
             if (
@@ -496,8 +497,9 @@ class Drone:
             else:
                 point = next_point
                 self.move_to_point(point)
-            self.planner_started_moving = True
+            self.planner_in_control = True
             # time.sleep(2)
+        self.planner_in_control = False
 
     def get_cmd(self, cmd):
         v = getattr(mavutil.mavlink, cmd)
@@ -505,7 +507,7 @@ class Drone:
         self.mav_cmd_num2name[v] = cmd
         return v
 
-    def set_rtl_mode_and_wait(self, max_wait=300):
+    def move_to_home(self, max_wait=300):
         """
         Sets the drone mode to RTL and blocks until the drone has reached home
         or the max_wait time (in seconds) has elapsed.

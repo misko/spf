@@ -1,0 +1,76 @@
+datasets:
+  batch_size: 256
+  empirical_data_fn: /home/mouse9911/gits/spf/empirical_dists/full.pkl
+  empirical_individual_radio: false
+  empirical_symmetry: true
+  flip: true
+  double_flip: false
+  precompute_cache: /mnt/ssd/cache/precompute_cache_3p4/ 
+  scatter: continuous
+  scatter_k: 21
+  shuffle: true
+  sigma: 0.05
+  skip_qc: true
+  snapshots_adjacent_stride: 1
+  train_snapshots_per_session: 1
+  val_snapshots_per_session: 1
+  random_snapshot_size: False
+  snapshots_stride: 1
+  train_paths:
+  - /mnt/md2/splits/ssd_dec7_train.txt
+  val_paths:
+  - /mnt/md2/splits/ssd_dec7_val.txt
+  val_holdout_fraction: 0.2
+  val_subsample_fraction: 0.2
+  workers: 12
+  segmentation_version: 3.4
+global:
+  beamformer_input: false
+  windowed_beamformer_input: true
+  empirical_input: false
+  n_radios: 2
+  nthetas: 65
+  phase_input: false
+  rx_spacing_input: false
+  signal_matrix_input: false
+  seed: 10
+logger:
+  log_every: 100
+  name: wandb
+  plot_every: 15000
+  project: 2024_nov22_single_paired_multi
+model:
+  block: true
+  bn: true
+  depth: 4
+  detach: true
+  dropout: 0.0
+  hidden: 1024
+  input_dropout: 0.0
+  name: beamformer
+  norm: layer
+  windows_stats_net:
+    dropout: 0.0
+    windowed_beamformer: true
+    normalize_windowed_beamformer: true
+    hidden_channels: 64
+    outputs: 12
+    n_layers: 6
+    norm: false
+    act: leaky
+optim:
+  amp: false
+  checkpoint_every: 5000
+  device: cuda
+  direct_loss: false
+  dtype: torch.float32
+  epochs: 24
+  head_start: 0
+  learning_rate: 0.00025
+  loss: mse
+  output: /home/mouse9911/gits/spf/dec7_checkpoints/single_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized_big2_fix_long_dec7_all
+  resume_step: 0
+  save_on: val/single_loss
+  scheduler_step: 14
+  val_every: 10000
+  weight_decay: 0.0
