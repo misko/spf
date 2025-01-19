@@ -335,6 +335,11 @@ class AllWindowsStatsNet(nn.Module):
                 end_idx = min(start_idx + int(windows * (1 - self.dropout)), windows)
                 input = input[:, :, start_idx:end_idx]
         # assert input.isfinite().all()
+        # shuffle 25% of the time
+        if self.training and torch.rand(1) > 0.85:
+            input = input.index_select(
+                2, torch.randperm(input.shape[2], device=input.device)
+            )
         r = {
             "all_windows_embedding": self.conv_net(input)
             .mean(axis=2)

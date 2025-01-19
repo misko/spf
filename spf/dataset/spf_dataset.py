@@ -494,6 +494,15 @@ def v5spfdataset_manager(*args, **kwds):
         ds.close()
 
 
+def subsample_tensor(x, dim, new_size):
+    old_size = x.shape[dim]
+    assert old_size >= new_size
+    offset = torch.randint(low=0, high=old_size - new_size, size=(1,)).item()
+    slices = [slice(None)] * x.ndim
+    slices[dim] = slice(offset, offset + new_size, 1)
+    return x[tuple(slices)]
+
+
 class v5spfdataset(Dataset):
     def __init__(
         self,
@@ -527,6 +536,7 @@ class v5spfdataset(Dataset):
         target_ntheta: bool | None = None,
         segmentation_version: float = SEGMENTATION_VERSION,
         segment_if_not_exist: bool = False,
+        windows_per_snapshot: int = 256,
     ):
         logging.debug(f"loading... {prefix}")
         self.n_parallel = n_parallel
@@ -552,6 +562,7 @@ class v5spfdataset(Dataset):
         self.snapshots_per_session = snapshots_per_session
         self.snapshots_adjacent_stride = snapshots_adjacent_stride
         self.random_adjacent_stride = random_adjacent_stride
+        self.windows_per_snapshot = windows_per_snapshot
 
         self.prefix = prefix.replace(".zarr", "")
         self.zarr_fn = f"{self.prefix}.zarr"
@@ -600,7 +611,7 @@ class v5spfdataset(Dataset):
             assert (
                 self.yaml_config["receivers"][0]["antenna-spacing-m"]
                 == self.yaml_config["receivers"][rx_idx]["antenna-spacing-m"]
-            )
+            ), self.zarr_fn
 
             assert self.wavelengths[0] == self.wavelengths[rx_idx]
             assert self.rf_bandwidths[0] == self.rf_bandwidths[rx_idx]
@@ -883,6 +894,11 @@ class v5spfdataset(Dataset):
                     snapshot_idxs
                 ]
             ).unsqueeze(0)
+            # TODO this is hacky and not right
+            if data["windowed_beamformer"].shape[2] > self.windows_per_snapshot:
+                data["windowed_beamformer"] = subsample_tensor(
+                    data["windowed_beamformer"], 2, self.windows_per_snapshot
+                )
 
         if "weighted_beamformer" not in self.skip_fields:
             data["weighted_beamformer"] = torch.as_tensor(
@@ -898,6 +914,11 @@ class v5spfdataset(Dataset):
                     snapshot_idxs
                 ]
             ).unsqueeze(0)
+            # TODO this is hacky and not right
+            if data["all_windows_stats"].shape[3] > self.windows_per_snapshot:
+                data["all_windows_stats"] = subsample_tensor(
+                    data["all_windows_stats"], 3, self.windows_per_snapshot
+                )
 
         if "weighted_windows_stats" not in self.skip_fields:
             data["weighted_windows_stats"] = torch.as_tensor(
