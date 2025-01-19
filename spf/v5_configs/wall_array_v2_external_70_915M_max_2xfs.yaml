@@ -28,7 +28,7 @@ receivers:
     motor_channel: 0
   - receiver-uri: ip:192.168.1.18
     theta-in-pis: 1.25
-    antenna-spacing-m: 0.040 # 40 mm 
+    antenna-spacing-m: 0.070 # 40 mm 
     nelements: 2
     array-type: linear
     rx-gain-mode: fast_attack
