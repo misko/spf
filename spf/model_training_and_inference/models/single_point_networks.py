@@ -2,12 +2,312 @@ import logging
 from functools import lru_cache
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torch.nn import LayerNorm, TransformerEncoder, TransformerEncoderLayer
 
 from spf.model_training_and_inference.models.beamsegnet import FFNN
 
 TEMP = 10
+
+
+# chat GPT
+
+
+class PositionalEncoding(nn.Module):
+    """
+    Standard Transformer positional encoding for 1D sequences.
+    If you want a simpler approach, you can skip this module
+    and rely on the transformer's learned attention alone,
+    but positional encoding often helps with sequence order.
+    """
+
+    def __init__(self, d_model, max_len=10000):
+        super().__init__()
+
+        # Create a (max_len, d_model) position encoding matrix
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float()
+            * (-torch.log(torch.tensor(10000.0)) / d_model)
+        )
+
+        pe[:, 0::2] = torch.sin(position * div_term)  # even indices
+        pe[:, 1::2] = torch.cos(position * div_term)  # odd indices
+
+        # Register as a buffer so it’s not a learnable parameter
+        self.register_buffer("pe", pe)
+
+    def forward(self, x):
+        """
+        x shape = (batch_size, seq_len, d_model)
+        We'll add the positional encoding up to seq_len.
+        """
+        seq_len = x.size(1)
+        # Add (1, seq_len, d_model) to (batch, seq_len, d_model)
+        x = x + self.pe[:seq_len, :]
+        return x
+
+
+class TransformerTimeModel(nn.Module):
+    """
+    Treats the input (batch, channels=68, time=256)
+    as a sequence of length=256 with 68-dim features at each step.
+
+    Steps:
+      1) Transpose to (batch, seq=256, features=68)
+      2) Project 68 -> d_model
+      3) (Optional) add positional encoding
+      4) Pass through TransformerEncoder (num_layers)
+      5) Pool over seq dimension
+      6) Final linear to output_dim=12
+    """
+
+    def __init__(
+        self,
+        d_model=64,
+        nhead=4,
+        num_layers=3,
+        dim_feedforward=128,
+        output_channels=12,
+        use_positional_encoding=True,
+    ):
+        super().__init__()
+
+        self.d_model = d_model
+        self.use_pe = use_positional_encoding
+
+        # 1) Linear embedding from input_dim=68 -> d_model
+        self.input_fc = nn.Linear(68, d_model)
+
+        # 2) Positional encoding (optional)
+        if self.use_pe:
+            self.pos_encoder = PositionalEncoding(d_model=d_model)
+
+        # 3) Transformer Encoder
+        #    The PyTorch nn.TransformerEncoder requires an EncoderLayer + num_layers
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            batch_first=True,  # crucial so our shape can be (batch, seq, d_model)
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer, num_layers=num_layers
+        )
+
+        # 4) Final linear -> 12
+        self.fc_out = nn.Linear(d_model, output_channels)
+
+    def forward(self, x):
+        """
+        x shape: (batch, 68, 256)
+        return: (batch, 12)
+        """
+        # --- (A) Transpose to (batch, seq=256, feat=68) ---
+        x = x.transpose(1, 2)  # (batch, 256, 68)
+
+        # --- (B) Embedding: project from 68 -> d_model ---
+        x = self.input_fc(x)  # (batch, 256, d_model)
+
+        # --- (C) Positional encoding (optional) ---
+        if self.use_pe:
+            x = self.pos_encoder(x)
+
+        # --- (D) Pass through Transformer Encoder ---
+        # shape remains (batch, seq=256, d_model)
+        x = self.transformer_encoder(x)  # shape: (batch, 256, d_model)
+
+        # --- (E) Pool over the seq dimension to get a single vector per sample ---
+        # e.g., global average:
+        x = x.mean(dim=1)  # (batch, d_model)
+
+        # --- (F) Final projection to 12 ---
+        x = self.fc_out(x)  # (batch, 12)
+
+        return x
+
+
+# chatGPT
+class CrossAttentionNet(nn.Module):
+    def __init__(
+        self, hidden_1d=16, hidden_2d=32, attn_dim=64, num_heads=4, output_channels=12
+    ):
+        super().__init__()
+
+        # 1D path for the first 3 channels
+        self.path1d = nn.Sequential(
+            nn.Conv1d(3, hidden_1d, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv1d(hidden_1d, hidden_1d, kernel_size=3, padding=1),
+            nn.ReLU(),
+            # ... more layers if needed ...
+        )
+
+        # 2D path for the remaining 65 channels
+        self.path2d = nn.Sequential(
+            nn.Conv2d(1, hidden_2d, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(hidden_2d, hidden_2d, kernel_size=3, padding=1),
+            nn.ReLU(),
+            # ... more layers if needed ...
+        )
+
+        # (Optional) linear to get key/value dimension = attn_dim
+        self.to_keyvalue = nn.Linear(hidden_2d, attn_dim)
+        # (Optional) linear to get query dimension = attn_dim
+        self.to_query = nn.Linear(hidden_1d, attn_dim)
+
+        # Multi-head attention module
+        # For a single query vector per sample, we can do it carefully with
+        # torch.nn.MultiheadAttention(attn_dim, num_heads),
+        # but we need to shape the data properly.
+        self.cross_attn = nn.MultiheadAttention(
+            embed_dim=attn_dim, num_heads=num_heads, batch_first=True
+        )
+
+        # Final linear out
+        # We'll produce a final embedding (attn_dim) and then go to 12
+        self.fc_out = nn.Linear(attn_dim, output_channels)
+
+    def forward(self, x):
+        """
+        x shape = (batch, 68, 256)
+          first 3 = x[:, :3, :]
+          next 65 = x[:, 3:, :]
+        output = (batch, output_channels)
+        """
+        # ---------------- Path A: 1D (first 3 channels) ----------------
+        x_1d = x[:, :3, :]  # (batch, 3, 256)
+        x_1d = self.path1d(x_1d)  # (batch, hidden_1d, 256)
+        # pool over time dimension to get a single vector:
+        x_1d = F.adaptive_avg_pool1d(x_1d, 1).squeeze(-1)  # (batch, hidden_1d)
+
+        # We'll transform it to attn_dim (query)
+        q = self.to_query(x_1d)  # (batch, attn_dim)
+
+        # ---------------- Path B: 2D (beamformer channels) ----------------
+        x_2d = x[:, 3:, :]  # (batch, 65, 256)
+        x_2d = x_2d.unsqueeze(1)  # (batch, 1, 65, 256)
+        x_2d = self.path2d(
+            x_2d
+        )  # (batch, hidden_2d, H=65, W=256) [assuming no strides]
+
+        # Flatten to sequence for attention:
+        # Let's say x_2d is (batch, hidden_2d, 65, 256).
+        B, C, H, W = x_2d.shape
+        x_2d = x_2d.view(B, C, H * W)  # (batch, hidden_2d, 65*256)
+        x_2d = x_2d.permute(0, 2, 1)  # (batch, seq_len=65*256, hidden_2d)
+
+        # transform to attn_dim for keys/values
+        kv = self.to_keyvalue(x_2d)  # (batch, seq_len, attn_dim)
+
+        # ---------------- Cross Attention ----------------
+        # MultiheadAttention in PyTorch expects (batch, seq, embed) if batch_first=True
+        # But we have a single query per batch element -> shape (batch, 1, attn_dim)
+        q = q.unsqueeze(1)  # (batch, 1, attn_dim)
+
+        # q, kv => cross-attention
+        # MHA returns (attn_output, attn_weights)
+        attn_out, attn_weights = self.cross_attn(q, kv, kv)
+        # attn_out shape: (batch, 1, attn_dim)
+        # attn_weights shape: (batch, 1, seq_len)
+
+        # We can just use attn_out's first dimension
+        attn_out = attn_out.squeeze(1)  # (batch, attn_dim)
+
+        # ---------------- Final MLP / linear ----------------
+        out = self.fc_out(attn_out)  # (batch, output_channels)
+        return out
+
+
+# chatGPT
+class Separate1D2DNet(nn.Module):
+    """
+    Split input into two parts:
+      - First 3 channels (using 1D conv over time),
+      - Remaining 65 channels (using 2D conv with "height"=65, "width"=256),
+    then combine and project to final output.
+
+    Input shape : (batch_size, 68, 256)
+      - x[:,  :3, :] --> shape (batch, 3,   time=256)  -> 1D conv path
+      - x[:, 3:, :] --> shape (batch, 65,  time=256)  -> 2D conv path
+    Output shape: (batch_size, output_channels)
+    """
+
+    def __init__(
+        self,
+        hidden_channels_1d: int,
+        num_layers_1d: int,
+        hidden_channels_2d: int,
+        num_layers_2d: int,
+        output_channels: int = 12,
+    ):
+        super().__init__()
+
+        # -------- 1D Conv Path for first 3 channels --------
+        self.path1d = nn.ModuleList()
+        in_ch_1d = 3  # The first path sees 3 channels
+        for _ in range(num_layers_1d):
+            self.path1d.append(
+                nn.Conv1d(in_ch_1d, hidden_channels_1d, kernel_size=3, padding=1)
+            )
+            self.path1d.append(nn.ReLU(inplace=True))
+            in_ch_1d = hidden_channels_1d
+
+        # -------- 2D Conv Path for the remaining 65 channels --------
+        self.path2d = nn.ModuleList()
+        in_ch_2d = 1  # We'll treat (65,256) as a single-channel 2D “image”
+        for _ in range(num_layers_2d):
+            self.path2d.append(
+                nn.Conv2d(in_ch_2d, hidden_channels_2d, kernel_size=3, padding=1)
+            )
+            self.path2d.append(nn.ReLU(inplace=True))
+            in_ch_2d = hidden_channels_2d
+
+        # Global pooling modules (we'll just use AdaptiveAvgPool)
+        self.pool1d = None  # We'll use F.adaptive_avg_pool1d
+        self.pool2d = nn.AdaptiveAvgPool2d((1, 1))
+
+        # Final linear layer: input dim = hidden_channels_1d + hidden_channels_2d
+        self.fc = nn.Linear(hidden_channels_1d + hidden_channels_2d, output_channels)
+
+    def forward(self, x):
+        """
+        x shape: (batch, 68, 256)
+        returns: (batch, output_channels)
+        """
+        # ---------------- Path A: 1D conv on first 3 channels ----------------
+        x_1d = x[:, :3, :]  # shape (batch, 3, 256)
+        for layer in self.path1d:
+            x_1d = layer(x_1d)  # each Conv1d expects (batch, in_channels, time)
+
+        # Global average pool over the time dimension: shape -> (batch, hidden_channels_1d)
+        # x_1d is (batch, hidden_channels_1d, time), so we pool to (batch, hidden_channels_1d, 1)
+        # then squeeze or flatten
+        x_1d = F.adaptive_avg_pool1d(x_1d, 1).squeeze(
+            -1
+        )  # shape (batch, hidden_channels_1d)
+
+        # ---------------- Path B: 2D conv on the last 65 channels ----------------
+        x_2d = x[:, 3:, :]  # shape (batch, 65, 256)
+        # turn (batch, 65, 256) into (batch, 1, 65, 256) so it looks like a single-channel 2D image
+        x_2d = x_2d.unsqueeze(1)  # shape (batch, 1, 65, 256)
+
+        for layer in self.path2d:
+            x_2d = layer(x_2d)  # (batch, hidden_channels_2d, H, W)
+
+        # Global pool to (batch, hidden_channels_2d, 1, 1) then flatten
+        x_2d = self.pool2d(x_2d).view(x_2d.size(0), -1)  # (batch, hidden_channels_2d)
+
+        # ---------------- Concatenate and project to final output ----------------
+        x_cat = torch.cat(
+            [x_1d, x_2d], dim=1
+        )  # shape (batch, hidden_channels_1d + hidden_channels_2d)
+        out = self.fc(x_cat)  # shape (batch, output_channels)
+
+        return out
 
 
 class PrepareInput(nn.Module):
@@ -165,6 +465,140 @@ class SkipConnect(nn.Module):
         return out
 
 
+def create_1dconv(
+    input_channels, hidden_channels, padding, k, norm_size, norm, n_layers, act, outputs
+):
+
+    layers = [
+        SkipConnect(
+            nn.Sequential(
+                nn.Conv1d(
+                    input_channels, hidden_channels, k, stride=1, padding=padding
+                ),
+                (nn.LayerNorm([hidden_channels, norm_size]) if norm else nn.Identity()),
+                act(),
+            )
+        ),
+    ]
+    # added extra layer here
+    for idx in range(n_layers - 1):
+        layers += [
+            SkipConnect(
+                nn.Sequential(
+                    nn.Conv1d(
+                        hidden_channels,
+                        hidden_channels,
+                        k,
+                        stride=1,
+                        padding=padding,
+                    ),
+                    (
+                        nn.LayerNorm([hidden_channels, norm_size])
+                        if norm
+                        else nn.Identity()
+                    ),
+                    act(),
+                )
+            ),
+        ]
+    layers += [
+        SkipConnect(
+            nn.Sequential(
+                nn.Conv1d(
+                    hidden_channels, hidden_channels, k, stride=2, padding=padding
+                ),
+                (
+                    nn.LayerNorm([hidden_channels, norm_size // 2])
+                    if norm
+                    else nn.Identity()
+                ),
+                act(),
+            )
+        ),
+    ]
+    for idx in range(n_layers):
+        layers += [
+            SkipConnect(
+                nn.Sequential(
+                    nn.Conv1d(
+                        hidden_channels,
+                        hidden_channels,
+                        k,
+                        stride=1,
+                        padding=padding,
+                    ),
+                    (
+                        nn.LayerNorm([hidden_channels, norm_size // 2])
+                        if norm
+                        else nn.Identity()
+                    ),
+                    act(),
+                )
+            ),
+        ]
+    layers += [
+        SkipConnect(
+            nn.Sequential(
+                nn.Conv1d(
+                    hidden_channels, hidden_channels, k, stride=2, padding=padding
+                ),
+                (
+                    nn.LayerNorm([hidden_channels, norm_size // 4])
+                    if norm
+                    else nn.Identity()
+                ),
+                act(),
+            )
+        ),
+        nn.Conv1d(hidden_channels, outputs, k, stride=1, padding=padding),
+    ]
+    # self.conv_net = torch.nn.Sequential(*layers)
+    return torch.nn.Sequential(*layers)
+
+
+def create_2dconv(hidden_channels, padding, k, n_layers, act):
+    # h = 68, w = 256
+    layers = [
+        SkipConnect(
+            nn.Sequential(
+                nn.Conv2d(1, hidden_channels, k, stride=1, padding=padding),
+                act(),
+            )
+        ),
+    ]
+    # added extra layer here
+    for idx in range(n_layers - 1):
+        layers += [
+            SkipConnect(
+                nn.Sequential(
+                    nn.Conv2d(
+                        hidden_channels,
+                        hidden_channels,
+                        k,
+                        stride=1,
+                        padding=padding,
+                    ),
+                    act(),
+                )
+            ),
+        ]
+    layers += [
+        SkipConnect(
+            nn.Sequential(
+                nn.Conv2d(
+                    hidden_channels,
+                    1,
+                    k,
+                    stride=1,
+                    padding=padding,
+                ),
+                act(),
+            )
+        ),
+    ]
+    return torch.nn.Sequential(*layers)
+
+
 class AllWindowsStatsNet(nn.Module):
     def __init__(
         self,
@@ -180,6 +614,10 @@ class AllWindowsStatsNet(nn.Module):
         normalize_windowed_beamformer=False,
         nthetas=0,
         act="relu",
+        network_inputs=["all_windows_stats"],
+        conv_type="1d",
+        hidden_channels_2d=4,
+        n_layers_2d=4,
     ):
         super().__init__()
         if act == "relu":
@@ -201,94 +639,54 @@ class AllWindowsStatsNet(nn.Module):
         input_channels = 3
         if self.windowed_beamformer:
             input_channels += self.nthetas
-        layers = [
-            SkipConnect(
-                nn.Sequential(
-                    nn.Conv1d(
-                        input_channels, hidden_channels, k, stride=1, padding=padding
-                    ),
-                    (
-                        nn.LayerNorm([hidden_channels, norm_size])
-                        if norm
-                        else nn.Identity()
-                    ),
-                    self.act(),
-                )
-            ),
-        ]
-        # added extra layer here
-        for idx in range(n_layers - 1):
-            layers += [
-                SkipConnect(
-                    nn.Sequential(
-                        nn.Conv1d(
-                            hidden_channels,
-                            hidden_channels,
-                            k,
-                            stride=1,
-                            padding=padding,
-                        ),
-                        (
-                            nn.LayerNorm([hidden_channels, norm_size])
-                            if norm
-                            else nn.Identity()
-                        ),
-                        self.act(),
-                    )
-                ),
-            ]
-        layers += [
-            SkipConnect(
-                nn.Sequential(
-                    nn.Conv1d(
-                        hidden_channels, hidden_channels, k, stride=2, padding=padding
-                    ),
-                    (
-                        nn.LayerNorm([hidden_channels, norm_size // 2])
-                        if norm
-                        else nn.Identity()
-                    ),
-                    self.act(),
-                )
-            ),
-        ]
-        for idx in range(n_layers):
-            layers += [
-                SkipConnect(
-                    nn.Sequential(
-                        nn.Conv1d(
-                            hidden_channels,
-                            hidden_channels,
-                            k,
-                            stride=1,
-                            padding=padding,
-                        ),
-                        (
-                            nn.LayerNorm([hidden_channels, norm_size // 2])
-                            if norm
-                            else nn.Identity()
-                        ),
-                        self.act(),
-                    )
-                ),
-            ]
-        layers += [
-            SkipConnect(
-                nn.Sequential(
-                    nn.Conv1d(
-                        hidden_channels, hidden_channels, k, stride=2, padding=padding
-                    ),
-                    (
-                        nn.LayerNorm([hidden_channels, norm_size // 4])
-                        if norm
-                        else nn.Identity()
-                    ),
-                    self.act(),
-                )
-            ),
-            nn.Conv1d(hidden_channels, outputs, k, stride=1, padding=padding),
-        ]
-        self.conv_net = torch.nn.Sequential(*layers)
+        self.network_inputs = network_inputs
+
+        self.conv_type = conv_type
+        self.conv_net = create_1dconv(
+            input_channels,
+            hidden_channels,
+            padding,
+            k,
+            norm_size,
+            norm,
+            n_layers,
+            self.act,
+            outputs,
+        )
+        if conv_type == "2d":
+            self.conv_net_2d = create_2dconv(
+                hidden_channels_2d,
+                padding,
+                k,
+                n_layers,
+                self.act,
+            )
+        if conv_type == "1d2d":
+            self.conv_net = Separate1D2DNet(
+                hidden_channels,
+                n_layers,
+                hidden_channels_2d,
+                n_layers_2d,
+                outputs,
+            )
+        if conv_type == "cross":
+            self.conv_net = CrossAttentionNet(
+                hidden_1d=hidden_channels,
+                hidden_2d=hidden_channels_2d,
+                attn_dim=64,
+                num_heads=4,
+                output_channels=outputs,
+            )
+        if conv_type == "transformer":
+            TransformerTimeModel(
+                d_model=hidden_channels,
+                nhead=4,
+                num_layers=n_layers,
+                dim_feedforward=128,
+                output_channels=12,
+                use_positional_encoding=True,
+            )
+
         if output_phi:
             self.phi_network = torch.nn.Sequential(
                 nn.Linear(outputs, hidden_channels),
@@ -301,16 +699,19 @@ class AllWindowsStatsNet(nn.Module):
             )
 
     def forward(self, batch):
-        normalize_by = batch["all_windows_stats"].max(dim=3, keepdims=True)[0]
-        normalize_by[:, :, :2] = torch.pi
+        inputs = []
+        if "all_windows_stats" in self.network_inputs:
+            normalize_by = batch["all_windows_stats"].max(dim=3, keepdims=True)[0]
+            normalize_by[:, :, :2] = torch.pi
 
-        all_windows_normalized_input = batch["all_windows_stats"] / (
-            normalize_by + 1e-5
-        )  # batch, snapshots, channels, time (256)
+            all_windows_normalized_input = batch["all_windows_stats"] / (
+                normalize_by + 1e-5
+            )  # batch, snapshots, channels, time (256)
 
-        # want B x C x L
+            # want B x C x L
 
-        inputs = [all_windows_normalized_input]
+            inputs.append(all_windows_normalized_input)
+
         if self.windowed_beamformer:
             if self.normalize_windowed_beamformer:
                 inputs.append(
@@ -340,10 +741,18 @@ class AllWindowsStatsNet(nn.Module):
             input = input.index_select(
                 2, torch.randperm(input.shape[2], device=input.device)
             )
+
+        if self.conv_type == "2d":
+            input = self.conv_net_2d(input.unsqueeze(1)).select(1, 0)
+
+        if self.conv_type in ["1d2d", "cross"]:
+            output = self.conv_net(input)
+        else:
+            output = self.conv_net(input).mean(axis=2)
         r = {
-            "all_windows_embedding": self.conv_net(input)
-            .mean(axis=2)
-            .reshape(size_batch, size_snapshots, self.outputs)
+            "all_windows_embedding": output.reshape(
+                size_batch, size_snapshots, self.outputs
+            )
         }
         if self.output_phi:
             r["output_phi"] = self.phi_network(r["all_windows_embedding"])

@@ -25,7 +25,7 @@ home_bounding_box = np.array(
         [500, 500],
     ]
 )
-#rx_calibration_point = np.array([1930, 2770])
+# rx_calibration_point = np.array([1930, 2770])
 rx_calibration_point = np.array([1930, 2600])
 tx_calibration_point = np.array([550, 450])
 circle_center = np.array([2000, 1500])
@@ -402,6 +402,38 @@ class StationaryPlanner(Planner):
 
     def get_planner_start_position(self):
         return self.stationary_point
+
+
+class PointCycle(Planner):
+    def __init__(
+        self,
+        dynamics,
+        start_point,
+        points,
+        step_size=GRBL_STEP_SIZE,
+    ):
+        super().__init__(
+            dynamics=dynamics, start_point=start_point, step_size=step_size
+        )
+        self.points = points
+
+    def get_planner_start_position(self):
+        return self.points[0]
+
+    def yield_points(self):
+        # start at the top of the circle
+        current_p = self.start_point
+
+        # start at the top
+        while True:
+            for point in self.points:
+                next_p = point
+                yield from a_to_b_in_stepsize(
+                    current_p,
+                    next_p,
+                    step_size=self.step_size,
+                )
+                current_p = next_p
 
 
 class CirclePlanner(Planner):
@@ -865,7 +897,7 @@ class GRBLManager:
                 stationary_point=circle_center,
             ),
         ]
-    
+
     def v4_calibrate(self):
         self.planners = [
             BouncePlanner(

@@ -14,12 +14,13 @@ import numpy as np
 from haversine import Unit, haversine
 from pymavlink import mavutil
 
-from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
+from spf.gps.boundaries import franklin_diamond, franklin_safe  # crissy_boundary_convex
 from spf.gps.gps_utils import swap_lat_long
 from spf.grbl.grbl_interactive import (
     BouncePlanner,
     CirclePlanner,
     Dynamics,
+    PointCycle,
     StationaryPlanner,
 )
 from spf.mavlink.mavparm import MAVParmDict
@@ -202,6 +203,17 @@ def drone_get_planner(routine, boundary):
             epsilon=0.0000001,
             step_size=0.1,
         )
+    elif routine == "diamond":
+        return PointCycle(
+            dynamics=Dynamics(
+                bounding_box=boundary,
+                bounds_radius=0.000000001,
+            ),
+            start_point=boundary.mean(axis=0),
+            step_size=0.1,
+            points=franklin_diamond * 0.85 + boundary.mean(axis=0) * 0.15,
+        )
+
     else:
         raise Exception("Missing planner")
 

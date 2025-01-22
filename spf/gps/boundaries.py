@@ -46,3 +46,12 @@ franklin_boundary = np.array(
         (-122.4088588, 37.7654108),
     ]
 )
+
+franklin_diamond = np.array(
+    [
+        (franklin_boundary[0] + franklin_boundary[3]) / 2,
+        (franklin_boundary[0] + franklin_boundary[1]) / 2,
+        (franklin_boundary[1] + franklin_boundary[2]) / 2,
+        (franklin_boundary[2] + franklin_boundary[3]) / 2,
+    ]
+)

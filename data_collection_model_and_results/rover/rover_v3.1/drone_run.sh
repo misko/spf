@@ -70,7 +70,7 @@ elif [ ${rover_id} -eq 2 ]; then
     n=3500
 	expected_radios=1
 elif [ ${rover_id} -eq 3 ]; then
-    routine=bounce
+    routine=diamond
     config=${repo_root}/spf/rover_configs/rover_receiver_config_pi_3mhz.yaml 
     n=3000
 	expected_radios=2
