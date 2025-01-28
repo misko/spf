@@ -1047,9 +1047,17 @@ class v5spfdataset(Dataset):
             data["ground_truth_phi"] = -data["ground_truth_phi"]
             data["ground_truth_theta"] = -data["ground_truth_theta"]
         if flip_up_down or double_flip:
+            offset = (
+                data["craft_ground_truth_theta"] - data["ground_truth_theta"]
+            )  # this is (rx_theta_in_pis + rx_head_in_pis ) *torch.pi
+            # compute the flipped gt theta
             data["ground_truth_theta"] = (
                 data["ground_truth_theta"].sign() * torch.pi
                 - data["ground_truth_theta"]
+            )
+            # update craft theta
+            data["craft_ground_truth_theta"] = torch_pi_norm(
+                data["ground_truth_theta"] + offset
             )
             # phi shouldnt change
         if double_flip:
