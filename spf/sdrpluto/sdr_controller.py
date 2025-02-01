@@ -151,6 +151,7 @@ def rx_config_from_receiver_yaml(receiver_yaml):
             receiver_yaml["motor_channel"] if "motor_channel" in receiver_yaml else None
         ),
         rx_buffers=receiver_yaml["rx-buffers"],
+        filter_fir_en=receiver_yaml["filter_fir_en"],
     )
 
 
@@ -400,7 +401,6 @@ class PPlus:
         # self.sdr.rx_enabled_channels = []
         # assert len(self.sdr.rx_enabled_channels) == 0
         self.sdr.rx_destroy_buffer()
-
 
         # Fix the phase inversion on channel RX1
         self.sdr._ctrl.debug_attrs["adi,rx1-rx2-phase-inversion-enable"].value = "1"
