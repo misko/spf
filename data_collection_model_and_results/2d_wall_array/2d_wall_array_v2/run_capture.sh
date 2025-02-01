@@ -21,7 +21,7 @@ export ROOT="../../../"
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_1MhzIF.yaml
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_50khzIF.yaml
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_5MhzBandwidth_50khzIF_2xbuffer_2xfs.yaml
-config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_915M_max_2xfs.yaml
+config=${ROOT}/spf/v5_configs/wall_array_v2_external_70_max_2xfs_wifichan12_slowattack.yaml
 
 #reboot_plutos
 
