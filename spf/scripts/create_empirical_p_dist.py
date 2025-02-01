@@ -200,8 +200,8 @@ def create_empirical_p_dist(args):
         )
         assert rx_spacing_str == rx_spacing_to_str(
             dataset.cached_keys[1]["rx_wavelength_spacing"].median()
-        )
-
+        ), f'Failed rx_spacing_str check {rx_spacing_str} vs  {rx_spacing_to_str( dataset.cached_keys[1]["rx_wavelength_spacing"].median())}'
+        # breakpoint()
         if rx_spacing_str not in counts:
             counts[rx_spacing_str] = {}
         rx_lo_and_spacing = dataset.get_spacing_identifier()
@@ -216,6 +216,7 @@ def create_empirical_p_dist(args):
     print("Found spacings:", datasets_by_spacing.keys())
     for rx_spacing_str in counts:
         print(rx_spacing_str)
+        # breakpoint()
         for rx_lo_and_spacing, count in counts[rx_spacing_str].items():
             print("\t", rx_lo_and_spacing, count)
 

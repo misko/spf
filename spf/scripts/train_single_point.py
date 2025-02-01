@@ -670,7 +670,7 @@ class WNBLogger:
         logging.info(f"SUBMIT losses to wandb, {losses}")
         for key, value in data.items():
             if "plot" in key:
-                losses[key] = value
+                losses[f"{prefix}{key}"] = value
         wandb.log(
             losses,
             step=step,
@@ -849,7 +849,7 @@ def run_val_on_dataloader(
         # run beamformer and segmentation
 
         output = m(val_batch_data)
-        loss_d, fig = compute_loss(
+        loss_d, new_fig = compute_loss(
             output,
             val_batch_data,
             loss_fn=loss_fn,
@@ -861,6 +861,7 @@ def run_val_on_dataloader(
             direct_loss=config["optim"]["direct_loss"],
         )
         if plot:
+            fig = new_fig
             plot = False
 
         # for accumulaing and averaging
@@ -1139,15 +1140,17 @@ def train_single_point(args):
                         alternate_val_dataloader,
                     ) in alternate_val_dataloaders.items():
                         logging.info(f"Running validation {alternate_val}:")
-                        val_losses, _ = run_val_on_dataloader(
+                        val_losses, fig = run_val_on_dataloader(
                             alternate_val_dataloader,
                             config,
                             loss_fn,
                             scatter_fn,
                             epoch,
                             m,
-                            plot=False,
+                            plot=True,
                         )
+                        if fig is not None:
+                            val_losses["val_plot_pred"] = fig
                         _ = logger.log(
                             val_losses, step=step, prefix=f"val_{alternate_val}/"
                         )

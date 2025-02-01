@@ -21,13 +21,19 @@ def lat_lon_to_xy(lat, lon, center_lat, center_lon):
 
 
 def smooth_out_timestamps_and_gps(timestamps_and_gps):
+    last_valid_idx = timestamps_and_gps.times.shape[0] - 1
+    while timestamps_and_gps.times[last_valid_idx] < 0.1 and last_valid_idx > 0:
+        last_valid_idx -= 1
+    assert last_valid_idx >= 0
+
     for prop in ["times", "gps_lats", "gps_longs"]:
         arr = getattr(timestamps_and_gps, prop)
-        for missing_idx in np.where(arr == 0)[0]:
+
+        for missing_idx in np.where(arr[:last_valid_idx] == 0)[0]:
             neighbors = []
             if missing_idx > 0 and arr[missing_idx - 1] != 0:
                 neighbors.append(arr[missing_idx - 1])
-            if missing_idx < len(arr) and arr[missing_idx + 1] != 0:
+            if missing_idx < (len(arr) - 1) and arr[missing_idx + 1] != 0:
                 neighbors.append(arr[missing_idx + 1])
             arr[missing_idx] = sum(neighbors) / len(neighbors)
     return timestamps_and_gps

@@ -65,6 +65,7 @@ class ReceiverConfig(Config):
         rx_theta_in_pis=0.0,
         motor_channel=None,
         rx_buffers=4,
+        filter_fir_en=1,
     ):
         self.lo = lo
         self.rf_bandwidth = rf_bandwidth
@@ -79,6 +80,7 @@ class ReceiverConfig(Config):
         self.rx_theta_in_pis = rx_theta_in_pis
         self.motor_channel = motor_channel
         self.rx_buffers = rx_buffers
+        self.filter_fir_en = filter_fir_en
 
         if self.rx_spacing is not None:
             self.rx_pos = ULADetector(
@@ -398,6 +400,21 @@ class PPlus:
         # self.sdr.rx_enabled_channels = []
         # assert len(self.sdr.rx_enabled_channels) == 0
         self.sdr.rx_destroy_buffer()
+
+        # set filter_fir_en according to config
+        for rx_channel in [
+            self.sdr._ctrl.find_channel("voltage0", is_output=False),
+            self.sdr._ctrl.find_channel("voltage1", is_output=False),
+        ]:
+            if rx_channel.attrs["filter_fir_en"].value != str(
+                self.rx_config.filter_fir_en
+            ):
+                rx_channel.attrs["filter_fir_en"].value = str(
+                    self.rx_config.filter_fir_en
+                )
+            assert rx_channel.attrs["filter_fir_en"].value == str(
+                self.rx_config.filter_fir_en
+            )
 
         # Fix the phase inversion on channel RX1
         self.sdr._ctrl.debug_attrs["adi,rx1-rx2-phase-inversion-enable"].value = "1"

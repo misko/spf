@@ -4,6 +4,7 @@ import functools
 import numpy as np
 import torch
 from numba import njit
+from scipy.signal import find_peaks
 
 from spf.detrend import detrend_np, merge_dynamic_windows_np
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store_cm
@@ -12,6 +13,9 @@ try:
     import cupy as cp
 except:
     pass
+import math
+
+import torch
 from scipy.stats import trim_mean
 
 # numba = False
@@ -1201,6 +1205,8 @@ def beamformer(
 
 
 def get_peaks_for_2rx(beam_former_output):
+    # beam_former_output /= beam_former_output.max()
+    # beam_former_output = beam_former_output.round(decimals=2)
     n = beam_former_output.shape[0]
     first_peak = np.argmax(beam_former_output)
 
@@ -1213,3 +1219,109 @@ def get_peaks_for_2rx(beam_former_output):
     d = np.abs(first_peak - pivot)
 
     return pivot + d, pivot - d, third_peak
+
+
+# chat gpt
+def get_top_3_peaks(beam_former_output, distance=1, prominence=0.1):
+    """
+    Return indices of the 3 highest local maxima in beam_former_output.
+
+    Parameters:
+    -----------
+    beam_former_output : 1D array-like
+        Beamformer output.
+    distance : int
+        Minimum distance between peaks. Increase if you want to avoid
+        finding peaks that are very close to each other.
+    prominence : float
+        Required prominence of peaks. Increase if you want to filter out
+        small (noisy) peaks.
+
+    Returns:
+    --------
+    peaks[:3] : list
+        Indices of up to 3 highest local maxima (by amplitude).
+    """
+    # 1. Find all local maxima with constraints
+    peaks, properties = find_peaks(
+        beam_former_output, distance=distance, prominence=prominence
+    )
+
+    # 2. Sort the found peaks by their amplitude in descending order
+    peaks_sorted = sorted(peaks, key=lambda idx: beam_former_output[idx], reverse=True)
+
+    # 3. Return up to 3 highest
+    return peaks_sorted[:3]
+
+
+# Example usage
+# beam_former_output = ...
+# top_3_peaks = get_top_3_peaks(beam_former_output)
+# print("Indices of top 3 peaks:", top_3_peaks)
+
+
+# chatgpt
+def rotate_dist(input_dist: torch.Tensor, rotations: torch.Tensor) -> torch.Tensor:
+    """
+    Rotate discrete distributions defined over angles -pi to +pi by the
+    specified rotations (in radians).
+
+    Arguments:
+    ----------
+    input_dist : (B, 65) tensor
+        Each row is a discrete distribution over 65 equally spaced angles in [-pi, pi].
+    rotations : (B,) or (B, 1) tensor
+        The rotation (in radians) for each distribution in the batch.
+
+    Returns:
+    --------
+    rotated : (B, 65) tensor
+        The input distributions rotated by the specified angles (with interpolation).
+    """
+
+    rotations = rotations.view(-1)  # Make sure rotations has shape (B,)
+
+    B, n_bins = input_dist.shape
+    assert n_bins == 65, "Expected distributions of size 65 along axis=1."
+
+    # 1) Define the angle grid for the 65 bins
+    # angles = torch.linspace(-math.pi, math.pi, steps=n_bins, device=input_dist.device)
+    dtheta = 2.0 * math.pi / n_bins  # 2π / 65
+    angles = (
+        torch.arange(n_bins, device=input_dist.device, dtype=input_dist.dtype) * dtheta
+    )
+
+    # Bin width
+    bin_width = angles[1] - angles[0]  # ~ 2*pi/64
+
+    # 2) For each bin j in [0..64], the "rotated" angle is angles[j] - rotation.
+    angles_2d = angles.unsqueeze(0)  # shape (1, 65)
+    rotations_2d = rotations.unsqueeze(1)  # shape (B, 1)
+
+    # (B, 65)
+    target_angles = angles_2d - rotations_2d  # %(2*torch.pi)
+
+    # 3) Convert these target angles to float indices in [0..64]
+    float_indices = torch.round(
+        (target_angles - angles[0]) / bin_width, decimals=4
+    )  # shape (B, 65)
+
+    # 4) Floor to get lower bin index, then +1 for upper bin
+    idx0 = torch.floor(float_indices).long()  # can be negative
+    idx1 = idx0 + 1
+
+    # Wrap both with modulo 65
+    idx0_mod = idx0 % n_bins
+    idx1_mod = idx1 % n_bins
+
+    # 5) Interpolation weights
+    w1 = float_indices - idx0.float()
+    w0 = 1.0 - w1
+
+    # 6) Gather the corresponding values from input_dist
+    dist_gather_0 = input_dist.gather(1, idx0_mod)
+    dist_gather_1 = input_dist.gather(1, idx1_mod)
+
+    # 7) Linear interpolation
+    rotated = w0 * dist_gather_0 + w1 * dist_gather_1
+    return torch.nn.functional.normalize(rotated, p=1.0, dim=1)
