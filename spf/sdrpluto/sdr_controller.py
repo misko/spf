@@ -65,7 +65,7 @@ class ReceiverConfig(Config):
         rx_theta_in_pis=0.0,
         motor_channel=None,
         rx_buffers=4,
-        filter_fir_en=0,
+        filter_fir_en=1,
     ):
         self.lo = lo
         self.rf_bandwidth = rf_bandwidth
