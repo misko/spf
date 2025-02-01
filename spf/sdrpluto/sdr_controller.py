@@ -65,7 +65,7 @@ class ReceiverConfig(Config):
         rx_theta_in_pis=0.0,
         motor_channel=None,
         rx_buffers=4,
-        filter_fir_en=1,
+        filter_fir_en=0,
     ):
         self.lo = lo
         self.rf_bandwidth = rf_bandwidth
@@ -401,20 +401,6 @@ class PPlus:
         # assert len(self.sdr.rx_enabled_channels) == 0
         self.sdr.rx_destroy_buffer()
 
-        # set filter_fir_en according to config
-        for rx_channel in [
-            self.sdr._ctrl.find_channel("voltage0", is_output=False),
-            self.sdr._ctrl.find_channel("voltage1", is_output=False),
-        ]:
-            if rx_channel.attrs["filter_fir_en"].value != str(
-                self.rx_config.filter_fir_en
-            ):
-                rx_channel.attrs["filter_fir_en"].value = str(
-                    self.rx_config.filter_fir_en
-                )
-            assert rx_channel.attrs["filter_fir_en"].value == str(
-                self.rx_config.filter_fir_en
-            )
 
         # Fix the phase inversion on channel RX1
         self.sdr._ctrl.debug_attrs["adi,rx1-rx2-phase-inversion-enable"].value = "1"
@@ -447,6 +433,21 @@ class PPlus:
         assert (
             abs(self.sdr.rx_lo - self.rx_config.lo) < 10
         ), f"failed to set radio lo {self.sdr.rx_lo} != {self.rx_config.lo}"
+
+        # set filter_fir_en according to config
+        for rx_channel in [
+            self.sdr._ctrl.find_channel("voltage0", is_output=False),
+            self.sdr._ctrl.find_channel("voltage1", is_output=False),
+        ]:
+            if rx_channel.attrs["filter_fir_en"].value != str(
+                self.rx_config.filter_fir_en
+            ):
+                rx_channel.attrs["filter_fir_en"].value = str(
+                    self.rx_config.filter_fir_en
+                )
+            assert rx_channel.attrs["filter_fir_en"].value == str(
+                self.rx_config.filter_fir_en
+            )
 
         # setup the gain mode
         self.sdr.gain_control_mode_chan0 = self.rx_config.gain_control_modes[0]
