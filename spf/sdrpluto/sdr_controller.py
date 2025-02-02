@@ -478,6 +478,16 @@ class PPlus:
         self.sdr._ctrl.find_channel("altvoltage1", is_output=True).attrs[
             "powerdown"
         ].value = "1"
+        # default setting for RX
+        if (
+            self.sdr._ctrl.find_channel("altvoltage0", is_output=True).attrs[
+                "powerdown"
+            ]
+            != "0"
+        ):
+            self.sdr._ctrl.find_channel("altvoltage0", is_output=True).attrs[
+                "powerdown"
+            ].value = "0"
 
     """
     Setup the Tx side of the pluto
