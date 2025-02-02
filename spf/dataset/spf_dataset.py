@@ -617,6 +617,7 @@ class v5spfdataset(Dataset):
             assert self.rf_bandwidths[0] == self.rf_bandwidths[rx_idx]
 
         self.rx_spacing = self.yaml_config["receivers"][0]["antenna-spacing-m"]
+        assert self.yaml_config["receivers"][1]["antenna-spacing-m"] == self.rx_spacing
         self.rx_wavelength_spacing = self.rx_spacing / self.wavelengths[0]
 
         self.rx_configs = [
@@ -842,7 +843,9 @@ class v5spfdataset(Dataset):
             self.ground_truth_thetas = self.get_ground_truth_thetas()
             self.ground_truth_phis = self.get_ground_truth_phis()
             self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
-
+            assert (
+                self.cached_keys[0]["rx_spacing"] != self.cached_keys[1]["rx_spacing"]
+            ).to(float).sum() < 10
             return True
         return False
 
@@ -1043,27 +1046,27 @@ class v5spfdataset(Dataset):
 
         # duplicate some fields
         # no idea how to flip phi
+        craft_offset = (
+            data["craft_ground_truth_theta"] - data["ground_truth_theta"]
+        )  # this is (rx_theta_in_pis + rx_head_in_pis ) *torch.pi
         if flip_left_right or double_flip:
             data["ground_truth_phi"] = -data["ground_truth_phi"]
             data["ground_truth_theta"] = -data["ground_truth_theta"]
         if flip_up_down or double_flip:
-            offset = (
-                data["craft_ground_truth_theta"] - data["ground_truth_theta"]
-            )  # this is (rx_theta_in_pis + rx_head_in_pis ) *torch.pi
             # compute the flipped gt theta
             data["ground_truth_theta"] = (
                 data["ground_truth_theta"].sign() * torch.pi
                 - data["ground_truth_theta"]
             )
-            # update craft theta
-            data["craft_ground_truth_theta"] = torch_pi_norm(
-                data["ground_truth_theta"] + offset
-            )
             # phi shouldnt change
-        if double_flip:
-            data["craft_ground_truth_theta"] = torch_pi_norm(
-                data["craft_ground_truth_theta"] + torch.pi
-            )
+        # update craft theta
+        data["craft_ground_truth_theta"] = torch_pi_norm(
+            data["ground_truth_theta"] + craft_offset
+        )
+        # if double_flip:
+        #     data["craft_ground_truth_theta"] = torch_pi_norm(
+        #         data["craft_ground_truth_theta"] + torch.pi
+        #     )
 
         data["y_rad"] = data["ground_truth_theta"]
         data["y_phi"] = data["ground_truth_phi"]
@@ -1210,7 +1213,7 @@ class v5spfdataset(Dataset):
                 self.ground_truth_thetas[ridx]
                 + (
                     self.cached_keys[ridx]["rx_theta_in_pis"][:]
-                    + self.cached_keys[1]["rx_heading_in_pis"][:]
+                    + self.cached_keys[ridx]["rx_heading_in_pis"][:]
                 )
                 * torch.pi
             )

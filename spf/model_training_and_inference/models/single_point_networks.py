@@ -7,6 +7,7 @@ from torch import nn
 from torch.nn import LayerNorm, TransformerEncoder, TransformerEncoderLayer
 
 from spf.model_training_and_inference.models.beamsegnet import FFNN
+from spf.rf import rotate_dist
 
 TEMP = 10
 
@@ -865,8 +866,13 @@ class PairedSinglePointWithBeamformer(nn.Module):
     def forward(self, batch):
         single_radio_estimates = self.single_radio_net(batch)["single"]
 
+        # rotate to align with respect to craft theta
+        single_radio_estimates_rotated = rotate_dist(
+            single_radio_estimates[:, 0], batch["rx_theta_in_pis"]
+        ).unsqueeze(1)
+
         single_radio_estimates_input = detach_or_not(
-            single_radio_estimates, self.detach
+            single_radio_estimates_rotated, self.detach
         )
 
         x = self.paired_single_point_with_beamformer_ffnn(
