@@ -473,6 +473,12 @@ class PPlus:
 
         self.sdr.rx_enabled_channels = self.rx_config.enabled_channels
 
+        # turn off TX
+        # TODO this could cause an issue when actually using TX
+        self.sdr._ctrl.find_channel("altvoltage0", is_output=True).attrs[
+            "powerdown"
+        ].value = "1"
+
     """
     Setup the Tx side of the pluto
     """
