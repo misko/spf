@@ -1,6 +1,5 @@
 import argparse
 import os
-import sys
 
 from spf.rf import torch_pi_norm
 
@@ -50,5 +49,8 @@ if __name__ == "__main__":
         err = torch_pi_norm(ds.mean_phase[f"r{rx_idx}"] - ds.ground_truth_phis[rx_idx])
         rx_theta_in_pis = ds.z.receivers[f"r{rx_idx}"].rx_theta_in_pis[:].mean().item()
         print(
-            f"{os.path.basename(args.dataset)} r{rx_idx} {err.nanmean()} / {err[err.isfinite()].var()} theta {rx_theta_in_pis} freq {ds.carrier_frequencies[0]} {ds.carrier_frequencies[0]} {ds.yaml_config["receivers"][rx_idx]["antenna-spacing-m"]}"
+            f"{os.path.basename(args.dataset)} r{rx_idx} {err.nanmean()}"
+            + f" / {err[err.isfinite()].var()} theta {rx_theta_in_pis}"
+            + f" freq {ds.carrier_frequencies[0]} {ds.carrier_frequencies[0]}"
+            + f" {ds.yaml_config["receivers"][rx_idx]["antenna-spacing-m"]}"
         )
