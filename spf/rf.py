@@ -1282,7 +1282,7 @@ def rotate_dist(input_dist: torch.Tensor, rotations: torch.Tensor) -> torch.Tens
     rotations = rotations.view(-1)  # Make sure rotations has shape (B,)
 
     B, n_bins = input_dist.shape
-    assert n_bins == 65, "Expected distributions of size 65 along axis=1."
+    # assert n_bins == 65, "Expected distributions of size 65 along axis=1."
 
     # 1) Define the angle grid for the 65 bins
     # angles = torch.linspace(-math.pi, math.pi, steps=n_bins, device=input_dist.device)
