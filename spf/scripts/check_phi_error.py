@@ -52,5 +52,5 @@ if __name__ == "__main__":
             f"{os.path.basename(args.dataset)} r{rx_idx} {err.nanmean()}"
             + f" / {err[err.isfinite()].var()} theta {rx_theta_in_pis}"
             + f" freq {ds.carrier_frequencies[0]} {ds.carrier_frequencies[0]}"
-            + f" {ds.yaml_config["receivers"][rx_idx]["antenna-spacing-m"]}"
+            + f" {ds.yaml_config['receivers'][rx_idx]['antenna-spacing-m']}"
         )
