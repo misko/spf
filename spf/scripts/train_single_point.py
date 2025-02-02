@@ -28,7 +28,7 @@ from spf.model_training_and_inference.models.single_point_networks import (
     SinglePointWithBeamformer,
     TrajPairedMultiPointWithBeamformer,
 )
-from spf.rf import torch_pi_norm
+from spf.rf import rotate_dist, torch_pi_norm
 from spf.utils import SEGMENTATION_VERSION, StatefulBatchsampler
 
 
@@ -78,6 +78,8 @@ def global_config_to_keys_used(global_config):
         "weighted_windows_stats",
         "rx_pos_xy",
         "tx_pos_xy",
+        "rx_theta_in_pis",
+        "rx_heading_in_pis",
     ]
     if global_config["signal_matrix_input"]:
         keys_to_get += ["abs_signal_and_phase_diff"]
@@ -595,6 +597,8 @@ def new_log():
         "uniform_loss_paired": [],
         "uniform_loss_multipaired": [],
         "single_loss": [],
+        "single_plus_rand_loss": [],
+        "single_craft_loss": [],
         "single_all_windows_phi_loss": [],
         "paired_loss": [],
         "multipaired_loss": [],
@@ -691,6 +695,7 @@ def compute_loss(
     paired=True,
     plot=False,
     direct_loss=True,
+    training=True,
 ):
     loss_d = {}
     loss = 0
@@ -703,6 +708,7 @@ def compute_loss(
         show_n = min(n, 80)
 
     if single and "single" in output:
+
         target = scatter_fn(
             batch_data,
             y_rad=batch_data["y_rad"][..., None],
@@ -711,7 +717,50 @@ def compute_loss(
             k=datasets_config["scatter_k"],
             target_ntheta=output["single"].shape[-1],
         )
+
+        with torch.no_grad():  # craft loss
+            _target = scatter_fn(
+                batch_data,
+                y_rad=batch_data["craft_y_rad"][..., None],
+                y_rad_binned=batch_data["y_rad_binned"][..., None],
+                sigma=datasets_config["sigma"],
+                k=datasets_config["scatter_k"],
+                target_ntheta=output["single"].shape[-1],
+            )
+            _output = rotate_dist(
+                output["single"][:, 0],
+                torch_pi_norm(
+                    (batch_data["rx_theta_in_pis"] + batch_data["rx_heading_in_pis"])
+                    * torch.pi
+                ),
+            ).unsqueeze(1)
+            loss_d["single_craft_loss"] = loss_fn(_output, _target)
+
+        with torch.no_grad():
+            rand_rotation = torch_pi_norm(
+                torch.rand(batch_data["y_rad"].shape, device=batch_data["y_rad"].device)
+                * 2
+                * torch.pi
+            )
+            _target = scatter_fn(
+                batch_data,
+                y_rad=torch_pi_norm(
+                    batch_data["y_rad"][..., None] + rand_rotation[..., None]
+                ),
+                y_rad_binned=batch_data["y_rad_binned"][..., None],
+                sigma=datasets_config["sigma"],
+                k=datasets_config["scatter_k"],
+                target_ntheta=output["single"].shape[-1],
+            )
+            _output = rotate_dist(
+                output["single"][:, 0],
+                rand_rotation,
+            ).unsqueeze(1)
+            loss_d["single_plus_rand_loss"] = loss_fn(_output, _target)
+
         loss_d["single_loss"] = loss_fn(output["single"], target)
+
+        # breakpoint()
         loss += loss_d["single_loss"]
 
         if "output_phi" in output:
@@ -859,6 +908,7 @@ def run_val_on_dataloader(
             plot=plot,  # only take one batch?
             paired=epoch >= config["optim"]["head_start"],
             direct_loss=config["optim"]["direct_loss"],
+            training=False,
         )
         if plot:
             fig = new_fig
@@ -1192,6 +1242,7 @@ def train_single_point(args):
                     single=True,
                     paired=epoch >= config["optim"]["head_start"],
                     direct_loss=config["optim"]["direct_loss"],
+                    training=True,
                 )
             if fig is not None:
                 assert "train_plot_pred" not in losses
