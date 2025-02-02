@@ -81,6 +81,24 @@ def perfect_circle_dataset_n33():
 
 
 @pytest.fixture(scope="session")
+def perfect_circle_n50_0p01():
+    n = 50
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        fn = tmpdirname + f"/perfect_circle_n{n}_noise0p0"
+        create_fake_dataset(filename=fn, yaml_config_str=fake_yaml, n=50, noise=0.01)
+        v5spfdataset(  # make sure everything gets segmented here
+            fn,
+            nthetas=65,
+            ignore_qc=True,
+            precompute_cache=tmpdirname,
+            paired=True,
+            skip_fields=set(["signal_matrix"]),
+            segment_if_not_exist=True,
+        )
+        yield tmpdirname, fn
+
+
+@pytest.fixture(scope="session")
 def perfect_circle_dataset_n5_noise0():
     n = 5
     with tempfile.TemporaryDirectory() as tmpdirname:
