@@ -151,7 +151,9 @@ def rx_config_from_receiver_yaml(receiver_yaml):
             receiver_yaml["motor_channel"] if "motor_channel" in receiver_yaml else None
         ),
         rx_buffers=receiver_yaml["rx-buffers"],
-        filter_fir_en=receiver_yaml["filter_fir_en"],
+        filter_fir_en=(
+            receiver_yaml["filter_fir_en"] if "filter_fir_en" in receiver_yaml else 1
+        ),
     )
 
 
