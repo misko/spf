@@ -475,7 +475,7 @@ class PPlus:
 
         # turn off TX
         # TODO this could cause an issue when actually using TX
-        self.sdr._ctrl.find_channel("altvoltage0", is_output=True).attrs[
+        self.sdr._ctrl.find_channel("altvoltage1", is_output=True).attrs[
             "powerdown"
         ].value = "1"
 
