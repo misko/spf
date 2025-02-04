@@ -20,7 +20,7 @@ receivers:
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
     array-type: linear
-    rx-gain-mode: fast_attack
+    rx-gain-mode: slow_attack
     rx-buffers: 4
     rx-gain: -3
     buffer-size: 524288 # 2**12
