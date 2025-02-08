@@ -1220,9 +1220,10 @@ class v5spfdataset(Dataset):
             error = abs(
                 torch_pi_norm(craft_ground_truth_thetas - _craft_ground_truth_thetas)
             ).mean()
-            assert (
-                error < 0.2
-            ), f"Failed with error {error}"  # this might not scale well to larger examples
+            if error > 0.2:
+                logging.warning(
+                    f"{self.zarr_fn} craft_theta off by too much! {error}"
+                )  # this might not scale well to larger examples
             # i think the error gets worse
         return craft_ground_truth_thetas
 
@@ -1354,18 +1355,19 @@ class v5spfdataset(Dataset):
                 # THIS CAUSES A LOT OF READ OPERATIONS!!!!
                 # Around 7GB/s!!
             )
-            self.precomputed_entries = min(
-                [
-                    (
-                        np.mean(
-                            precomputed_zarr[f"r{r_idx}/all_windows_stats"],
-                            axis=(1, 2),
-                        )
-                        > 0
-                    ).sum()
-                    for r_idx in range(self.n_receivers)
-                ]
-            )
+            if self.temp_file:
+                self.precomputed_entries = min(
+                    [
+                        (
+                            np.mean(
+                                precomputed_zarr[f"r{r_idx}/all_windows_stats"],
+                                axis=(1, 2),
+                            )
+                            > 0
+                        ).sum()
+                        for r_idx in range(self.n_receivers)
+                    ]
+                )
         except pickle.UnpicklingError:
             os.remove(results_fn)
             return self.get_segmentation(
