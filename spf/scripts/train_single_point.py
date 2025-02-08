@@ -1,6 +1,7 @@
 import argparse
 import copy
 import datetime
+import functools
 import glob
 import logging
 import math
@@ -10,6 +11,7 @@ import shutil
 import sys
 import uuid
 from functools import partial
+from multiprocessing import Pool
 
 import numpy as np
 import torch
@@ -89,6 +91,24 @@ def global_config_to_keys_used(global_config):
         # keys_to_get += ["windowed_beamformer"]
         keys_to_get += ["weighted_beamformer"]
     return keys_to_get
+
+
+def preload_dataset(prefix, nthetas, precompute_cache, segmentation_version):
+    try:
+        v5spfdataset(
+            prefix,
+            precompute_cache=precompute_cache,
+            nthetas=nthetas,
+            paired=True,
+            ignore_qc=True,
+            skip_fields=["signal_matrix"],
+            gpu=False,
+            segmentation_version=segmentation_version,
+            segment_if_not_exist=False,
+        )
+    except Exception as e:
+        logging.error(f"Val: Failed to load {prefix} with error {str(e)}")
+    return None
 
 
 def load_dataloaders(
@@ -186,6 +206,21 @@ def load_dataloaders(
         except Exception as e:
             logging.error(f"Val: Failed to load {prefix} with error {str(e)}")
         return None
+
+    with Pool(16) as p:
+        logging.info("Preloading dataset")
+        preload_func = functools.partial(
+            preload_dataset,
+            nthetas=global_config["nthetas"],
+            precompute_cache=datasets_config["precompute_cache"],
+            segmentation_version=datasets_config["segmentation_version"],
+        )
+
+        list(monitor(p.imap(preload_func, val_paths), total=len(val_paths)))
+        list(
+            monitor(p.imap(preload_func, train_paths), total=len(train_paths)),
+        )
+        logging.info("Preloading dataset ... Done")
 
     logging.info("Loading validation datasets...")
     val_datasets = list(
