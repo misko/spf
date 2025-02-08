@@ -395,7 +395,7 @@ class PrepareInput(nn.Module):
                 v[dropout_mask[3]] = 0
             inputs.append(v)
         if self.frequency_input:
-            v = batch["rx_lo"][..., None].log10() / 20
+            v = (batch["rx_lo"][..., None] + 1).log10() / 20
             if self.training:
                 v[dropout_mask[4]] = 0
             inputs.append(v)
