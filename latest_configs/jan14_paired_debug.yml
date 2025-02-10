@@ -17,7 +17,7 @@ datasets:
   random_snapshot_size: False
   snapshots_stride: 1
   train_paths:
-  - /mnt/md2/splits/jan14_train_nosig.txt
+  - /mnt/md2/splits/jan14_val_nosig.txt
   val_paths:
   - /mnt/md2/splits/jan14_val_nosig.txt
   val_holdout_fraction: 0.2
@@ -80,7 +80,7 @@ optim:
   learning_rate: 0.0002
   loss: mse
   resume_step: 0
-  output: /home/mouse9911/gits/spf/jan14_checkpoints/paired_checkpoints_windowedbeamformer_nosig_3p5_randx
+  output: /home/mouse9911/gits/spf/jan14_checkpoints/paired_checkpoints_windowedbeamformer_nosig_3p5_randx_debug
   save_on: val/paired_loss
   scheduler_step: 12
   val_every: 10000

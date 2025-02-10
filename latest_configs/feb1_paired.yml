@@ -70,7 +70,7 @@ model:
       act: leaky
 optim:
   amp: false 
-  checkpoint: /home/mouse9911/gits/spf/jan14_checkpoints/single_checkpoints_windowedbeamformer_nosig_3p5_randx/best.pth
+  checkpoint: /home/mouse9911/gits/spf/jan14_checkpoints/single_checkpoints_windowedbeamformer_nosig_3p5_rotatedist_x2/best.pth
   checkpoint_every: 5000
   device: cuda
   direct_loss: false
@@ -80,7 +80,7 @@ optim:
   learning_rate: 0.0002
   loss: mse
   resume_step: 0
-  output: /home/mouse9911/gits/spf/jan14_checkpoints/paired_checkpoints_windowedbeamformer_nosig_3p5_randx
+  output: /home/mouse9911/gits/spf/checkpoints/feb1/paired_checkpoints_windowedbeamformer_nosig_3p5_randx
   save_on: val/paired_loss
   scheduler_step: 12
   val_every: 10000
