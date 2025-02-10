@@ -207,20 +207,20 @@ def load_dataloaders(
             logging.error(f"Val: Failed to load {prefix} with error {str(e)}")
         return None
 
-    with Pool(16) as p:
-        logging.info("Preloading dataset")
-        preload_func = functools.partial(
-            preload_dataset,
-            nthetas=global_config["nthetas"],
-            precompute_cache=datasets_config["precompute_cache"],
-            segmentation_version=datasets_config["segmentation_version"],
-        )
+    # with Pool(max(16, len(train_paths))) as p:
+    #     logging.info("Preloading dataset")
+    #     preload_func = functools.partial(
+    #         preload_dataset,
+    #         nthetas=global_config["nthetas"],
+    #         precompute_cache=datasets_config["precompute_cache"],
+    #         segmentation_version=datasets_config["segmentation_version"],
+    #     )
 
-        list(monitor(p.imap(preload_func, val_paths), total=len(val_paths)))
-        list(
-            monitor(p.imap(preload_func, train_paths), total=len(train_paths)),
-        )
-        logging.info("Preloading dataset ... Done")
+    #     list(monitor(p.imap(preload_func, val_paths), total=len(val_paths)))
+    #     list(
+    #         monitor(p.imap(preload_func, train_paths), total=len(train_paths)),
+    #     )
+    #     logging.info("Preloading dataset ... Done")
 
     logging.info("Loading validation datasets...")
     val_datasets = list(
@@ -545,7 +545,9 @@ def uniform_preds(batch, target_ntheta):
     )
 
 
-def target_from_scatter(batch, y_rad, y_rad_binned, sigma, k, target_ntheta):
+def target_from_scatter(
+    batch, y_rad, y_rad_binned, sigma, k, target_ntheta, single=False
+):
     assert y_rad.max() <= torch.pi and y_rad.min() >= -torch.pi
     torch.zeros(
         *batch["empirical"].shape[:2], target_ntheta, device=batch["empirical"].device
@@ -564,11 +566,27 @@ def target_from_scatter(batch, y_rad, y_rad_binned, sigma, k, target_ntheta):
     diff = ((m - y_rad) / sigma) ** 2
     rescaled = torch.nn.functional.normalize((-diff / 2).exp(), p=1.0, dim=2)
 
-    batch, session, _ = rescaled.shape
-    return rescaled.reshape(batch, session, 3, n).sum(axis=2)
+    batch_size, session, _ = rescaled.shape
+    target = rescaled.reshape(batch_size, session, 3, n).sum(axis=2)
+
+    if single:
+        y_rad_flipped_up_down = y_rad.sign() * torch.pi - y_rad
+        target_flipped_up_down = target_from_scatter(
+            batch,
+            y_rad_flipped_up_down,
+            y_rad_binned,
+            sigma,
+            k,
+            target_ntheta,
+            single=False,
+        )
+        target = (target + target_flipped_up_down) / 2
+    return target
 
 
-def target_from_scatter_binned(batch, y_rad, y_rad_binned, sigma, k, target_ntheta):
+def target_from_scatter_binned(
+    batch, y_rad, y_rad_binned, sigma, k, target_ntheta, single=False
+):
     # if paired:
     #     y_rad_binned = batch["craft_y_rad_binned"][..., None]
     # else:
@@ -632,6 +650,7 @@ def new_log():
         "uniform_loss_paired": [],
         "uniform_loss_multipaired": [],
         "single_loss": [],
+        "single_loss_old": [],
         "single_plus_rand_loss": [],
         "single_craft_loss": [],
         "single_all_windows_phi_loss": [],
@@ -744,15 +763,6 @@ def compute_loss(
 
     if single and "single" in output:
 
-        target = scatter_fn(
-            batch_data,
-            y_rad=batch_data["y_rad"][..., None],
-            y_rad_binned=batch_data["y_rad_binned"][..., None],
-            sigma=datasets_config["sigma"],
-            k=datasets_config["scatter_k"],
-            target_ntheta=output["single"].shape[-1],
-        )
-
         with torch.no_grad():  # craft loss
             _target = scatter_fn(
                 batch_data,
@@ -761,6 +771,7 @@ def compute_loss(
                 sigma=datasets_config["sigma"],
                 k=datasets_config["scatter_k"],
                 target_ntheta=output["single"].shape[-1],
+                single=True,
             )
             _output = rotate_dist(
                 output["single"][:, 0],
@@ -771,7 +782,7 @@ def compute_loss(
             ).unsqueeze(1)
             loss_d["single_craft_loss"] = loss_fn(_output, _target)
 
-        with torch.no_grad():
+        with torch.no_grad():  # random rotate loss
             rand_rotation = torch_pi_norm(
                 torch.rand(batch_data["y_rad"].shape, device=batch_data["y_rad"].device)
                 * 2
@@ -786,6 +797,7 @@ def compute_loss(
                 sigma=datasets_config["sigma"],
                 k=datasets_config["scatter_k"],
                 target_ntheta=output["single"].shape[-1],
+                single=True,
             )
             _output = rotate_dist(
                 output["single"][:, 0],
@@ -793,6 +805,27 @@ def compute_loss(
             ).unsqueeze(1)
             loss_d["single_plus_rand_loss"] = loss_fn(_output, _target)
 
+        with torch.no_grad():  # old loss
+            _target = scatter_fn(
+                batch_data,
+                y_rad=batch_data["y_rad"][..., None],
+                y_rad_binned=batch_data["y_rad_binned"][..., None],
+                sigma=datasets_config["sigma"],
+                k=datasets_config["scatter_k"],
+                target_ntheta=output["single"].shape[-1],
+                single=False,
+            )
+            loss_d["single_loss_old"] = loss_fn(output["single"], _target)
+
+        target = scatter_fn(
+            batch_data,
+            y_rad=batch_data["y_rad"][..., None],
+            y_rad_binned=batch_data["y_rad_binned"][..., None],
+            sigma=datasets_config["sigma"],
+            k=datasets_config["scatter_k"],
+            target_ntheta=output["single"].shape[-1],
+            single=True,
+        )
         loss_d["single_loss"] = loss_fn(output["single"], target)
 
         # breakpoint()

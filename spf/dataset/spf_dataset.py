@@ -1026,7 +1026,7 @@ class v5spfdataset(Dataset):
         self.reinit()
 
         flip_left_right = self.flip and (torch.rand(1) > 0.5).item()
-        flip_up_down = self.flip and (torch.rand(1) > 0.5).item()
+        # flip_up_down = self.flip and (torch.rand(1) > 0.5).item() # MOVED TO LOSS FUNCTION
 
         snapshot_idxs = self.get_session_idxs(session_idx)
 
@@ -1052,7 +1052,7 @@ class v5spfdataset(Dataset):
         if flip_left_right or double_flip:
             data["ground_truth_phi"] = -data["ground_truth_phi"]
             data["ground_truth_theta"] = -data["ground_truth_theta"]
-        if flip_up_down or double_flip:
+        if double_flip:
             # compute the flipped gt theta
             data["ground_truth_theta"] = (
                 data["ground_truth_theta"].sign() * torch.pi
