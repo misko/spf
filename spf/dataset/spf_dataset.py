@@ -1199,12 +1199,13 @@ class v5spfdataset(Dataset):
             all_phi_drifts.append(c)
         return all_phi_drifts
 
+    # ground truth theta is relative to heading of the craft!!!!
     def get_craft_ground_truth_thetas(self):
         craft_ground_truth_thetas = torch_pi_norm(
             self.ground_truth_thetas[0]
             + (
                 self.cached_keys[0]["rx_theta_in_pis"][:]
-                + self.cached_keys[0]["rx_heading_in_pis"][:]
+                # + self.cached_keys[0]["rx_heading_in_pis"][:] # if we add this then its relative to absolute 0deg not craft!
             )
             * torch.pi
         )
@@ -1213,7 +1214,7 @@ class v5spfdataset(Dataset):
                 self.ground_truth_thetas[ridx]
                 + (
                     self.cached_keys[ridx]["rx_theta_in_pis"][:]
-                    + self.cached_keys[ridx]["rx_heading_in_pis"][:]
+                    # + self.cached_keys[ridx]["rx_heading_in_pis"][:]# if we add this then its relative to absolute 0deg not craft!
                 )
                 * torch.pi
             )

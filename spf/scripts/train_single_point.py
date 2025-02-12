@@ -653,6 +653,7 @@ def new_log():
         "single_loss_old": [],
         "single_plus_rand_loss": [],
         "single_craft_loss": [],
+        "single_target_aligned_loss": [],
         "single_all_windows_phi_loss": [],
         "paired_loss": [],
         "multipaired_loss": [],
@@ -763,6 +764,46 @@ def compute_loss(
 
     if single and "single" in output:
 
+        with torch.no_grad():  # zero aligned loss
+            _target = scatter_fn(
+                batch_data,
+                y_rad=batch_data["craft_y_rad"][..., None] * 0,
+                y_rad_binned=batch_data["y_rad_binned"][..., None],
+                sigma=datasets_config["sigma"],
+                k=datasets_config["scatter_k"],
+                target_ntheta=output["single"].shape[-1],
+                single=False,
+            )
+            _output = rotate_dist(
+                output["single"][:, 0],
+                torch_pi_norm(
+                    # (batch_data["rx_theta_in_pis"] + batch_data["rx_heading_in_pis"])
+                    (
+                        batch_data["rx_theta_in_pis"]  # reference frame of craft
+                        # + batch_data[
+                        #    "rx_heading_in_pis"
+                        # ]  # reference frame of absolute north
+                    )
+                    * torch.pi
+                    - batch_data["craft_y_rad"]
+                ),
+            ).unsqueeze(1)
+            loss_d["single_target_aligned_loss"] = loss_fn(_output, _target)
+
+            if plot:
+                axs[2, 0].imshow(
+                    _output.reshape(n, -1).cpu().detach().numpy()[:show_n],
+                    aspect="auto",
+                )
+                axs[2, 1].imshow(
+                    _target.reshape(n, -1).cpu().detach().numpy()[:show_n],
+                    aspect="auto",
+                )
+                axs[2, 0].set_title("1radio x 1timestep (Pred)")
+                axs[2, 0].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
+                axs[2, 1].set_title("1radio x 1timestep (label)")
+                axs[2, 1].set_xticks([0, d // 2, d - 1], labels=["-pi", "0", "+pi"])
+
         with torch.no_grad():  # craft loss
             _target = scatter_fn(
                 batch_data,
@@ -771,12 +812,18 @@ def compute_loss(
                 sigma=datasets_config["sigma"],
                 k=datasets_config["scatter_k"],
                 target_ntheta=output["single"].shape[-1],
-                single=True,
+                single=False,
             )
             _output = rotate_dist(
                 output["single"][:, 0],
                 torch_pi_norm(
-                    (batch_data["rx_theta_in_pis"] + batch_data["rx_heading_in_pis"])
+                    # (batch_data["rx_theta_in_pis"] + batch_data["rx_heading_in_pis"])
+                    (
+                        batch_data["rx_theta_in_pis"]  # reference frame of craft
+                        # + batch_data[
+                        #    "rx_heading_in_pis"
+                        # ]  # reference frame of absolute north
+                    )
                     * torch.pi
                 ),
             ).unsqueeze(1)
@@ -797,7 +844,7 @@ def compute_loss(
                 sigma=datasets_config["sigma"],
                 k=datasets_config["scatter_k"],
                 target_ntheta=output["single"].shape[-1],
-                single=True,
+                single=False,
             )
             _output = rotate_dist(
                 output["single"][:, 0],
@@ -1150,7 +1197,7 @@ def train_single_point(args):
         )
         just_loaded_checkpoint = True
     elif "checkpoint" in config["optim"]:
-        m, optimizer, scheduler, start_epoch, step = load_checkpoint(
+        m, optimizer, scheduler, _start_epoch, _step = load_checkpoint(
             checkpoint_fn=config["optim"]["checkpoint"],
             config=config,
             model=m,
@@ -1159,7 +1206,7 @@ def train_single_point(args):
         )
         # start_epoch = checkpoint["epoch"]
         # step = checkpoint["step"]
-        just_loaded_checkpoint = True
+        # just_loaded_checkpoint = True
 
     load_seed(config["global"])
 
