@@ -5,9 +5,12 @@ spf/data
 **/*.npy
 **/*.zip
 **/*.pth
+**/wandb
+**/run_on_filters_results
 test_data.zip
 test_data_dl.zip
 test_data.txt
+**/*checkpoints
 .ipynb_checkpoints
 **/.ipynb_checkpoints
 **/*.log

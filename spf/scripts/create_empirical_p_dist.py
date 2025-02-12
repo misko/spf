@@ -165,7 +165,7 @@ def create_empirical_p_dist(args):
                 gpu=args.device == "cuda",
             )
             datasets.append(ds)
-        except ValueError as e:
+        except Exception as e:
             logging.error(f"Failed to load {prefix} with error {str(e)}")
 
     datasets_by_spacing = {}
@@ -201,6 +201,9 @@ def create_empirical_p_dist(args):
         assert rx_spacing_str == rx_spacing_to_str(
             dataset.cached_keys[1]["rx_wavelength_spacing"].median()
         ), f'Failed rx_spacing_str check {rx_spacing_str} vs  {rx_spacing_to_str( dataset.cached_keys[1]["rx_wavelength_spacing"].median())}'
+        if "0.0000" in rx_spacing_str:
+            print(dataset.zarr_fn, rx_spacing_str)
+        # assert "0.00000" not in rx_spacing_str
         # breakpoint()
         if rx_spacing_str not in counts:
             counts[rx_spacing_str] = {}

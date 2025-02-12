@@ -1,0 +1,88 @@
+datasets:
+  batch_size: 256
+  empirical_data_fn:  /home/mouse9911/gits/spf/empirical_dists/full.pkl 
+  empirical_individual_radio: false
+  empirical_symmetry: true
+  flip: false
+  double_flip: false
+  precompute_cache: /mnt/md2/cache/precompute_cache_3p5/
+  scatter: continuous
+  scatter_k: 21
+  shuffle: true
+  sigma: 0.05
+  skip_qc: true
+  snapshots_adjacent_stride: 1
+  train_snapshots_per_session: 1
+  val_snapshots_per_session: 1
+  random_snapshot_size: False
+  snapshots_stride: 1
+  train_paths:
+  - /mnt/md2/splits/feb9_train_nosig.txt
+  val_paths:
+  - /mnt/md2/splits/feb9_val_nosig.txt
+  val_holdout_fraction: 0.2
+  val_subsample_fraction: 0.2
+  workers: 30
+  segmentation_version: 3.5
+global:
+  windowed_beamformer_input: true
+  signal_matrix_input: false
+  beamformer_input: false
+  empirical_input: false
+  n_radios: 2
+  nthetas: 65
+  phase_input: false
+  rx_spacing_input: true
+  frequency_input: true
+  seed: 10
+logger:
+  log_every: 100
+  name: wandb
+  plot_every: 15000
+  project: 2024_nov22_single_paired_multi
+model:
+  block: true
+  bn: true
+  depth: 4
+  detach: true
+  dropout: 0.0
+  hidden: 1024
+  load_single: true
+  name: pairedbeamformer
+  norm: layer
+  single:
+    block: true
+    bn: true
+    depth: 4
+    detach: true
+    dropout: 0.0
+    hidden: 1024
+    input_dropout: 0.0
+    name: beamformer
+    norm: layer
+    windows_stats_net:
+      dropout: 0.25
+      windowed_beamformer: true
+      normalize_windowed_beamformer: false
+      hidden_channels: 128
+      outputs: 12
+      n_layers: 8
+      norm: false
+      act: leaky
+optim:
+  amp: false 
+  checkpoint: /home/mouse9911/gits/spf/checkpoints/feb9/single_checkpoints_windowedbeamformer_nosig_3p5_rotatedist_x2_freq_spac_newloss_nonorm/best.pth
+  checkpoint_every: 5000
+  device: cuda
+  direct_loss: false
+  dtype: torch.float32
+  epochs: 60
+  head_start: 0
+  learning_rate: 0.0002
+  loss: mse
+  resume_step: 0
+  output: /home/mouse9911/gits/spf/checkpoints/feb11/paired_checkpoints_windowedbeamformer_nosig_3p5_randx
+  save_on: val/paired_loss
+  scheduler_step: 12
+  val_every: 10000
+  weight_decay: 0.0

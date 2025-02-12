@@ -15,27 +15,31 @@ LS_VERSION = 1.1
 def ls_zarr(ds_fn, force=False):
     ls_fn = ds_fn + ".ls.json"
     if force or not os.path.exists(ls_fn):
-        ds = v5spfdataset(
-            ds_fn,
-            nthetas=65,
-            precompute_cache=None,
-            skip_fields=set(["signal_matrix"]),
-            ignore_qc=True,
-            segment_if_not_exist=False,
-            temp_file=True,
-            temp_file_suffix="",
-        )
-        ls_info = {
-            "ds_fn": ds_fn,
-            "frequency": ds.carrier_frequencies[0],
-            "rf_bandwidth": ds.rf_bandwidths[0],
-            "rx_spacing": ds.rx_spacing,
-            "samples": len(ds),
-            "routine": ds.yaml_config["routine"],
-            "version": LS_VERSION,
-        }
-        with open(ls_fn, "w") as fp:
-            json.dump(ls_info, fp, indent=4)
+        try:
+            ds = v5spfdataset(
+                ds_fn,
+                nthetas=65,
+                precompute_cache=None,
+                skip_fields=set(["signal_matrix"]),
+                ignore_qc=True,
+                segment_if_not_exist=False,
+                temp_file=True,
+                temp_file_suffix="",
+            )
+            ls_info = {
+                "ds_fn": ds_fn,
+                "frequency": ds.carrier_frequencies[0],
+                "rf_bandwidth": ds.rf_bandwidths[0],
+                "rx_spacing": ds.rx_spacing,
+                "samples": len(ds),
+                "routine": ds.yaml_config["routine"],
+                "version": LS_VERSION,
+            }
+            with open(ls_fn, "w") as fp:
+                json.dump(ls_info, fp, indent=4)
+        except Exception as e:
+            print(f"Failed to load {ds_fn} with {e}")
+            return None
     with open(ls_fn, "r") as file:
         ls_info = json.load(file)
         if "version" not in ls_info or ls_info["version"] != LS_VERSION:
@@ -70,10 +74,11 @@ if __name__ == "__main__":
     # aggregate results
     merged_stats = {}
     for result in results:
-        key = f"{result['frequency']},{result['rx_spacing']},{result['routine']},{result['rf_bandwidth']}"
-        if key not in merged_stats:
-            merged_stats[key] = 0
-        merged_stats[key] += result["samples"]
+        if result:
+            key = f"{result['frequency']},{result['rx_spacing']},{result['routine']},{result['rf_bandwidth']}"
+            if key not in merged_stats:
+                merged_stats[key] = 0
+            merged_stats[key] += result["samples"]
 
     print("frequency,rx_spacing,routine,rf_bandwidth,samples")
     for key in sorted(merged_stats.keys()):
