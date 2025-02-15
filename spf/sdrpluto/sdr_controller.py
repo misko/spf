@@ -328,6 +328,9 @@ class PPlus:
             self.sdr.rx_destroy_buffer()
             self.sdr.tx_enabled_channels = []
 
+    def rx(self, num_samples=None):
+        return self.sdr.rx()
+
     def soft_reset_radio(self):
         return  # disable reset
         old_freq = self.sdr.rx_lo
@@ -555,7 +558,7 @@ class PPlus:
         freq = np.fft.fftfreq(
             self.rx_config.buffer_size, d=1.0 / self.rx_config.sample_rate
         )
-        signal_matrix = np.vstack(self.sdr.rx())
+        signal_matrix = np.vstack(self.rx())
         sp = np.fft.fft(signal_matrix[0])
         max_freq = freq[np.abs(np.argmax(sp.real))]
         if np.abs(max_freq - self.rx_config.intermediate) < (
@@ -593,7 +596,7 @@ def setup_rx(rx_config, provided_pplus_rx=None):
     time.sleep(2)
     # get RX and drop it
     for _ in range(10):
-        pplus_rx.sdr.rx()
+        pplus_rx.rx()
 
     logging.info(f"RX came online with config\nRX_config:{pplus_rx.rx_config}")
     pplus_rx.phase_calibration = 0.0
@@ -610,7 +613,7 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
     time.sleep(1)
     # get RX and drop it
     for _ in range(400):
-        pplus_rx.sdr.rx()
+        pplus_rx.rx()
 
     while run_radios and retries < 15:
         logging.info(f"setup_rxtx({rx_config.uri}, {tx_config.uri}) retry {retries}")
@@ -626,7 +629,7 @@ def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
 
         # get RX and drop it
         for _ in range(400):
-            pplus_rx.sdr.rx()
+            pplus_rx.rx()
 
         # test to see what frequency we are seeing
         if pplus_rx.check_for_freq_peak():
@@ -704,7 +707,7 @@ def setup_rxtx_and_phase_calibration(
         for idx in range(n_calibration_frames):
             if not run_radios:
                 break
-            signal_matrix = np.vstack(pplus_rx.sdr.rx())
+            signal_matrix = np.vstack(pplus_rx.rx())
             phase_calibrations[idx] = (
                 pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
             ).mean()  # TODO THIS BREAKS if diff is near 2*np.pi...
@@ -768,7 +771,7 @@ def plot_recv_signal(
     while run_radios and frame_idx != frames:
         pplus_rx.soft_reset_radio()
         if signal_matrixs is None:
-            signal_matrix = np.vstack(pplus_rx.sdr.rx())
+            signal_matrix = np.vstack(pplus_rx.rx())
             # signal_matrix[1] *= np.exp(1j * pplus_rx.phase_calibration)
         else:
             signal_matrix = signal_matrixs[frame_idx]
