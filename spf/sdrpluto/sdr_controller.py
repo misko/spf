@@ -414,6 +414,9 @@ class FakePPlus:
         self.set_config(rx_config=rx_config, tx_config=tx_config)
         self.sdr = FakeSdr()
 
+    def rx(self, num_samples=None):
+        return self.sdr.rx()
+
     def soft_reset_radio(self):
         time.sleep(0.1)
 
