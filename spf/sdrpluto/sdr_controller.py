@@ -7,6 +7,7 @@ from math import gcd
 from typing import List, Optional
 
 import adi
+import bladerf
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
@@ -216,6 +217,10 @@ def get_pplus(
             pplus_online[uri] = FakePPlus(
                 rx_config=rx_config, tx_config=tx_config, uri=uri
             )
+        elif "bladerf" in uri:
+            pplus_online[uri] = BladeRFSdr(
+                rx_config=rx_config, tx_config=tx_config, uri=uri
+            )
         else:
             pplus_online[uri] = PPlus(rx_config=rx_config, tx_config=tx_config, uri=uri)
     else:
@@ -234,6 +239,158 @@ class FakeSdr:
 
     def tx(self, _):
         pass
+
+
+class BladeRFSdr:
+    def __init__(
+        self,
+        uri: str,
+        rx_config: ReceiverConfig = None,
+        tx_config: EmitterConfig = None,
+        phase_calibration=0.0,
+    ):
+        super(BladeRFSdr, self).__init__()
+        self.uri = uri
+        assert self.uri == "bladerf"  # only support one device per machine
+
+        self.tx_config = None
+        self.rx_config = None
+        self.set_config(rx_config=rx_config, tx_config=tx_config)
+
+        self.uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
+        logging.info(f"{self.uri}: Open bladeRF")
+
+        # Open the first available bladeRF device (or parse URI if needed).
+        self.sdr = bladerf.BladeRF()
+
+        self.rx_channels = (
+            self.sdr.Channel(bladerf.CHANNEL_RX(0)),
+            self.sdr.Channel(bladerf.CHANNEL_RX(1)),
+        )
+        self.tx_channels = (
+            self.sdr.Channel(bladerf.CHANNEL_RX(0)),
+            self.sdr.Channel(bladerf.CHANNEL_RX(1)),
+        )
+        for tx_ch in self.tx_channels:
+            tx_ch.enable = False
+
+    def soft_reset_radio(self):
+        return
+
+    def rssis(self):
+        return np.array(
+            [
+                self.rx_channels[0].rssi,
+                self.rx_channels[0].rssi,
+            ]
+        )
+
+    def gains(self):
+        return np.array(
+            [
+                self.rx_channels[0].gain,
+                self.rx_channels[0].gain,
+            ]
+        )
+
+    def set_config(
+        self, rx_config: ReceiverConfig = None, tx_config: EmitterConfig = None
+    ):
+        logging.debug(f"{self.uri}: set_config RX{str(rx_config)} TX{str(tx_config)})")
+        # RX should be setup like this
+        if rx_config is not None:
+            assert self.rx_config is None
+            self.rx_config = rx_config
+            self.sdr = FakeSdr()
+
+        assert tx_config is None
+
+    def close(self):
+        pass
+
+    def setup_rx_config(self):
+        for rx_ch_idx, rx_ch in enumerate(self.rx_channels):
+            rx_ch.bandwidth = self.rx_config.rf_bandwidth
+            assert rx_ch.bandwidth == self.rx_config.rf_bandwidth
+
+            rx_ch.sample_rate = self.rx_config.sample_rate
+            assert rx_ch.sample_rate == self.rx_config.sample_rate
+
+            rx_ch.frequency = self.rx_config.lo
+            assert (
+                abs(rx_ch.frequency - self.rx_config.lo) < 10
+            ), f"failed to set radio lo {rx_ch.frequency} != {self.rx_config.lo}"
+
+            if self.rx_config.gain_control_modes[rx_ch_idx] == "slow_attack":
+                rx_ch.gain_mode = (
+                    bladerf._bladerf.GainMode.SlowAttack_AGC
+                )  # FastAttack_AGC , Manual, Hybrid_AGC
+            elif self.rx_config.gain_control_modes[rx_ch_idx] == "fast_attack":
+                rx_ch.gain_mode = (
+                    bladerf._bladerf.GainMode.FastAttack_AGC
+                )  # FastAttack_AGC , Manual, Hybrid_AGC
+            elif self.rx_config.gain_control_modes[rx_ch_idx] == "manual":
+                rx_ch.gain_mode = (
+                    bladerf._bladerf.GainMode.Manual
+                )  # FastAttack_AGC , Manual, Hybrid_AGC
+                rx_ch.gain = self.rx_config.gains[rx_ch_idx]
+            else:
+                assert 1 == 0
+            rx_ch.enable = True
+
+        # typedef enum {
+        #     BLADERF_RX_X1 = 0, /**< x1 RX (SISO) */
+        #     BLADERF_TX_X1 = 1, /**< x1 TX (SISO) */
+        #     BLADERF_RX_X2 = 2, /**< x2 RX (MIMO) */
+        #     BLADERF_TX_X2 = 3, /**< x2 TX (MIMO) */
+        # } bladerf_channel_layout;
+        #  * When a multi-channel ::bladerf_channel_layout is selected, samples
+        # * will be interleaved per channel. For example, with ::BLADERF_RX_X2
+        # * or ::BLADERF_TX_X2 (x2 MIMO), the buffer is structured like:
+        # *
+        # * <pre>
+        # *  .-------------.--------------.--------------.------------------.
+        # *  | Byte offset | Bits 31...16 | Bits 15...0  |    Description   |
+        # *  +-------------+--------------+--------------+------------------+
+        # *  |    0x00     |     Q0[0]    |     I0[0]    |  Ch 0, sample 0  |
+        # *  |    0x04     |     Q1[0]    |     I1[0]    |  Ch 1, sample 0  |
+        # *  |    0x08     |     Q0[1]    |     I0[1]    |  Ch 0, sample 1  |
+        # *  |    0x0c     |     Q1[1]    |     I1[1]    |  Ch 1, sample 1  |
+        # *  |    ...      |      ...     |      ...     |        ...       |
+        # *  |    0xxx     |     Q0[n]    |     I0[n]    |  Ch 0, sample n  |
+        # *  |    0xxx     |     Q1[n]    |     I1[n]    |  Ch 1, sample n  |
+        # *  `-------------`--------------`--------------`------------------`
+        # * </pre>
+        self.sdr.sync_config(
+            layout=bladerf._bladerf.ChannelLayout.RX_X2,
+            fmt=bladerf._bladerf.Format.SC16_Q11,
+            num_buffers=self.rx_config.rx_buffers,
+            buffer_size=self.rx_config.buffer_size,  # size in samples
+            num_transfers=1,
+            stream_timeout=3500,
+        )
+
+    def setup_tx_config(self):
+        pass
+
+    def close_rx(self):
+        pass
+
+    def close_tx(self):
+        pass
+
+    def check_for_freq_peak(self):
+        return True
+
+    def rx(self):
+        bytes_per_sample = 4  # 4 bytes, 16bit I, 16bit Q
+        buf = bytearray(self.rx_config.buffer_size * bytes_per_sample * 2)  # 2 channels
+        self.sdr.sync_rx(buf, self.rx_config.buffer_size * 2)
+        samples = np.frombuffer(buf, dtype=np.int16)
+        samples = samples[0::2] + 1j * samples[1::2]  # Convert to complex type
+        # samples /= 2048.0  # Scale to -1 to 1 (its using 12 bit ADC)
+        samples = np.vstack([samples[::2], samples[1::2]])
+        return samples
 
 
 class FakePPlus:
@@ -260,6 +417,37 @@ class FakePPlus:
 
     def gains(self):
         return np.random.rand(2)
+
+    def get_rssi_and_gain(self):
+        """
+        The original code used ADI debug attrs to read RSSI, hardware gains, etc.
+        bladeRF does not provide direct 'RSSI' readouts in the same way.
+
+        You *could* approximate by reading RSSI from actual samples (e.g. measure power).
+        Below is a placeholder.
+        """
+        # Pseudo-code: measure a short burst, compute power -> 'RSSI'
+        # Gains are typically set on LNA, VGA1, VGA2 for bladeRF.
+        # We'll just provide some placeholders for demonstration.
+
+        # For example, read the current front-end gains:
+        lna_gain = self.dev.lna_gain  # e.g. "max" or a numeric
+        rxvga1 = self.dev.vga1  # typically an integer in dB
+        rxvga2 = self.dev.vga2  # also dB
+
+        # Placeholder 'RSSI' values
+        measured_rssi_0 = -50.0
+        measured_rssi_1 = -50.0
+
+        # Return an array of [RSSI0, RSSI1, gain0, gain1]
+        return np.array(
+            [
+                measured_rssi_0,
+                measured_rssi_1,
+                float(rxvga1),
+                float(rxvga2),
+            ]
+        )
 
     def set_config(
         self, rx_config: ReceiverConfig = None, tx_config: EmitterConfig = None
@@ -758,7 +946,7 @@ def plot_recv_signal(
     if fig is None:
         fig, axs = plt.subplots(2, 4, figsize=(16, 6), layout="constrained")
 
-    rx_n = pplus_rx.sdr.rx_buffer_size
+    rx_n = pplus_rx.rx_config.buffer_size
     t = np.arange(rx_n)
     frame_idx = 0
 
@@ -792,7 +980,7 @@ def plot_recv_signal(
                 steering_vectors=steering_vectors, signal_matrix=signal_matrix
             )
 
-        freq = np.fft.fftfreq(t.shape[-1], d=1.0 / pplus_rx.sdr.sample_rate)
+        freq = np.fft.fftfreq(t.shape[-1], d=1.0 / pplus_rx.rx_config.sample_rate)
         assert t.shape[-1] == rx_n
         for idx in [0, 1]:
             axs[idx][0].clear()
@@ -979,7 +1167,7 @@ if __name__ == "__main__":
                 spacing=args.nthetas,
             )
             for _ in tqdm(range(int(1e6))):
-                signal_matrix = np.vstack(pplus_rx.sdr.rx())
+                signal_matrix = np.vstack(pplus_rx.rx())
 
                 beam_sds = beamformer_given_steering(
                     steering_vectors=steering_vectors, signal_matrix=signal_matrix

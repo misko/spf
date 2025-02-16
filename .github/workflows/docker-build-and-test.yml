@@ -38,6 +38,19 @@ jobs:
         pip install flake8 pytest
         pip install -e . 
         # if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Install bladeRF
+      run: |
+        # sudo apt-get update
+        # sudo apt-get install -y cmake python3-pip libusb-1.0-0
+        git clone --depth 1 https://github.com/Nuand/bladeRF.git
+        # cd bladeRF/host
+        # mkdir build && cd build
+        # cmake ..
+        # make
+        # sudo make install
+        # sudo ldconfig
+        cd bladeRF/host/libraries/libbladeRF_bindings/python
+        python setup.py install
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
