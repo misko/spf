@@ -7,7 +7,12 @@ from math import gcd
 from typing import List, Optional
 
 import adi
-import bladerf
+
+try:
+    import bladerf
+except ImportError:
+    pass
+
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
