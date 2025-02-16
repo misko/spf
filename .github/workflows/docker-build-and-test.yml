@@ -40,6 +40,8 @@ jobs:
         # if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Install bladeRF
       run: |
+        TEMP_DIR="$(mktemp -d)"
+        echo "Cloning bladeRF into: $TEMP_DIR"
         # sudo apt-get update
         # sudo apt-get install -y cmake python3-pip libusb-1.0-0
         git clone --depth 1 https://github.com/Nuand/bladeRF.git
@@ -51,6 +53,7 @@ jobs:
         # sudo ldconfig
         cd bladeRF/host/libraries/libbladeRF_bindings/python
         python3 setup.py install
+        cd ~
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
