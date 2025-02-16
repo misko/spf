@@ -34,9 +34,9 @@ jobs:
     #    sudo apt-get install -y git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev
     - name: Install dependencies (pip)
       run: |
-        python -m pip install --upgrade pip
-        pip install flake8 pytest
-        pip install -e . 
+        python3 -m pip install --upgrade pip
+        pip3 install flake8 pytest
+        pip3 install -e . 
         # if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Install bladeRF
       run: |
@@ -50,7 +50,7 @@ jobs:
         # sudo make install
         # sudo ldconfig
         cd bladeRF/host/libraries/libbladeRF_bindings/python
-        python setup.py install
+        python3 setup.py install
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -59,4 +59,4 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        python -m pytest
+        python3 -m pytest
