@@ -1,7 +1,6 @@
 import argparse
 import copy
 import datetime
-import functools
 import glob
 import logging
 import math
@@ -11,14 +10,13 @@ import shutil
 import sys
 import uuid
 from functools import partial
-from multiprocessing import Pool
 
 import numpy as np
 import torch
 import torchvision
 import yaml
 from matplotlib import pyplot as plt
-from torch.optim.lr_scheduler import LambdaLR, SequentialLR, StepLR
+from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
 import wandb

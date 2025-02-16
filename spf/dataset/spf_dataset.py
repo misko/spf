@@ -380,6 +380,9 @@ def v5_collate_keys_fast(keys: List[str], batch: List[List[Dict[str, torch.Tenso
         )
         if key == "windowed_beamformer" or key == "all_windows_stats":
             d[key] = d[key].to(torch.float32)
+    # d["random_rotations"] = torch_pi_norm(
+    #     torch.rand(d["y_rad"].shape[0], 1) * 2 * torch.pi
+    # )
     return TensorDict(d, batch_size=d["y_rad"].shape)
 
 

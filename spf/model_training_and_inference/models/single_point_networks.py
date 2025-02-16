@@ -867,9 +867,10 @@ class PairedSinglePointWithBeamformer(nn.Module):
         single_radio_estimates = self.single_radio_net(batch)["single"]
 
         # rotate to align with respect to craft theta
+        rotation_offets = batch["rx_theta_in_pis"] * torch.pi
         single_radio_estimates_rotated = rotate_dist(
             single_radio_estimates[:, 0],
-            torch_pi_norm(batch["rx_theta_in_pis"] * torch.pi),
+            torch_pi_norm(rotation_offets),
         ).unsqueeze(1)
 
         single_radio_estimates_input = detach_or_not(
