@@ -15,7 +15,7 @@ from spf.utils import SEGMENTATION_VERSION
 def zarr_open_from_lmdb_store_cm(filename, mode="r", readahead=False):
     f = None
     try:
-        if mode == "r":
+        if mode == "r" and readahead:
             f = open(filename + "/data.mdb", "rb")
             os.posix_fadvise(f.fileno(), 0, 0, os.POSIX_FADV_WILLNEED)
         z = zarr_open_from_lmdb_store(filename, mode, readahead=readahead)
@@ -36,6 +36,7 @@ def new_yarr_dataset(
     downsampled_segmentation_mask_shape,
     mean_phase_shape,
     # compressor=None,
+    chunk_size=1,  # changed quietly to 1 from 16 during 3p5
 ):
     zarr_remove_if_exists(filename)
     z = zarr_open_from_lmdb_store(filename, mode="w", map_size=2**32)
@@ -51,35 +52,36 @@ def new_yarr_dataset(
         receiver_z.create_dataset(
             "all_windows_stats",
             shape=all_windows_stats_shape,
-            chunks=(16, -1, -1),
+            chunks=(chunk_size, -1, -1),
             dtype="float16",
             compressor=None,
         )
         receiver_z.create_dataset(
             "weighted_windows_stats",
             shape=all_windows_stats_shape[:-1],
-            chunks=(16, -1),
+            chunks=(chunk_size, -1),
             dtype="float32",
             compressor=None,
         )
         receiver_z.create_dataset(
             "windowed_beamformer",
             shape=windowed_beamformer_shape,
-            chunks=(16, -1, -1),
+            chunks=(chunk_size, -1, -1),
             dtype="float16",
-            compressor=compressor,
+            compressor=None,  # quiet change during 3p5
+            # compressor=compressor,
         )
         receiver_z.create_dataset(
             "weighted_beamformer",
             shape=weighted_beamformer_shape,
-            chunks=(16, -1),
+            chunks=(chunk_size, -1),
             dtype="float32",
             compressor=None,
         )
         receiver_z.create_dataset(
             "downsampled_segmentation_mask",
             shape=downsampled_segmentation_mask_shape,
-            chunks=(16, -1),
+            chunks=(chunk_size, -1),
             dtype="bool",
             compressor=None,
         )
