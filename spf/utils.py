@@ -1,3 +1,4 @@
+import functools
 import hashlib
 import math
 import os
@@ -12,6 +13,35 @@ from torch.utils.data import BatchSampler, DistributedSampler
 
 SEGMENTATION_VERSION = 3.5
 warnings.simplefilter(action="ignore", category=FutureWarning)
+
+
+@functools.cache
+def running_on_pi_zero_2():
+    """
+    Returns True if we're running on a Raspberry Pi Zero 2,
+    determined by reading /proc/device-tree/model.
+    """
+    model_file = "/proc/device-tree/model"
+    if not os.path.exists(model_file):
+        return False
+
+    try:
+        with open(model_file, "r") as f:
+            model_str = f.read()
+            return "Raspberry Pi Zero 2" in model_str
+    except IOError:
+        return False
+
+
+def no_op_script(obj=None, *args, **kwargs):
+    # Return obj unchanged (ignore JIT compilation).
+    return obj
+
+
+if running_on_pi_zero_2():
+    # If we are on Pi Zero 2, define a dummy (no-op) decorator
+    torch.jit.script = no_op_script
+    print("Detected Pi Zero 2: Disabling torch JIT script.")
 
 
 class dotdict(dict):
