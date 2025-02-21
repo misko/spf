@@ -204,6 +204,9 @@ def drone_get_planner(routine, boundary):
             step_size=0.1,
         )
     elif routine == "diamond":
+        points = franklin_diamond * 0.85 + boundary.mean(axis=0) * 0.15
+        if np.random.rand() > 0.5:
+            points = np.flip(points, axis=0)
         return PointCycle(
             dynamics=Dynamics(
                 bounding_box=boundary,
