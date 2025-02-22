@@ -7,11 +7,13 @@ import time
 from datetime import datetime
 
 import yaml
+from haversine import Unit, haversine
 from pymavlink import mavutil
 
 from spf.data_collector import DroneDataCollector, DroneDataCollectorRaw
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
-from spf.gps.boundaries import franklin_safe  # crissy_boundary_convex
+from spf.gps.boundaries import boundaries  # crissy_boundary_convex
+from spf.gps.gps_utils import swap_lat_long
 from spf.mavlink.mavlink_controller import (
     Drone,
     drone_get_planner,
@@ -162,9 +164,6 @@ if __name__ == "__main__":
             echo=yaml_config["distance-finder"]["echo"],
         )
 
-    boundary = franklin_safe
-    planner = drone_get_planner(yaml_config["routine"], boundary=boundary)
-
     logging.info("MavRadioCollection: Starting data collector...")
     if not args.fake_drone:
         if yaml_config["drone-uri"] == "serial":
@@ -178,18 +177,46 @@ if __name__ == "__main__":
             connection = mavutil.mavlink_connection(yaml_config["drone-uri"])
         drone = Drone(
             connection,
-            planner=planner,
             distance_finder=distance_finder,
         )
-
         drone.start()
+
     else:
         drone = Drone(
             None,
-            planner=planner,
             distance_finder=distance_finder,
             fake=True,
         )
+
+    while not drone.drone_ready:
+        logging.info(
+            f"Drone startup wait for drone ready: gps:{str(drone.gps)} , ekf:{str(drone.ekf_healthy)}"
+        )
+        time.sleep(10)
+
+    boundary_name = yaml_config.get("boundary", "franklin_safe")
+    if boundary_name == "auto":
+        # find out which one is closest
+        boundary_name = sorted(
+            [
+                (
+                    haversine(
+                        swap_lat_long(drone.gps),
+                        swap_lat_long(boundary_points.mean(axis=0)),
+                        unit=Unit.METERS,
+                    ),
+                    boundary_name,
+                )
+                for boundary_name, boundary_points in boundaries.items()
+            ]
+        )[0][1]
+        print(f"Closest boundary is {boundary_name}")
+    elif boundary_name not in boundaries:
+        logging.error(f"Failed to find boundary {boundary_name} in valid boundaries")
+        sys.exit(1)
+    drone.set_and_start_planner(
+        drone_get_planner(yaml_config["routine"], boundary=boundaries[boundary_name])
+    )
 
     if yaml_config["data-version"] == 3:
         data_collector = DroneDataCollector(

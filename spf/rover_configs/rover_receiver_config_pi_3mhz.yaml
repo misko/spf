@@ -10,7 +10,7 @@ emitter:
 distance-finder:
   trigger: 2
   echo: 3
-
+boundary: 'auto'
 #USB PORTS
 #USB  2   (Radio A)  |     USB 1 (Radio B)
 receivers:

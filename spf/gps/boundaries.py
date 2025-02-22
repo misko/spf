@@ -47,11 +47,29 @@ franklin_boundary = np.array(
     ]
 )
 
-franklin_diamond = np.array(
+
+def boundary_to_diamond(boundary):
+    return np.array(
+        [
+            (boundary[0] + boundary[3]) / 2,
+            (boundary[0] + boundary[1]) / 2,
+            (boundary[1] + boundary[2]) / 2,
+            (boundary[2] + boundary[3]) / 2,
+        ]
+    )
+
+
+fort_baker_boundary = np.array(
     [
-        (franklin_boundary[0] + franklin_boundary[3]) / 2,
-        (franklin_boundary[0] + franklin_boundary[1]) / 2,
-        (franklin_boundary[1] + franklin_boundary[2]) / 2,
-        (franklin_boundary[2] + franklin_boundary[3]) / 2,
+        (-122.47849870754949, 37.8346129400644),
+        (-122.47781031352912, 37.83575589657535),
+        (-122.4785852164001, 37.83604915163242),
+        (-122.47933261070422, 37.83508052068589),
     ]
 )
+
+
+boundaries = {
+    "franklin_safe": franklin_safe,
+    "fort_baker_boundary": fort_baker_boundary,
+}

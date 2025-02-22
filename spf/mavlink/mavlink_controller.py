@@ -14,7 +14,8 @@ import numpy as np
 from haversine import Unit, haversine
 from pymavlink import mavutil
 
-from spf.gps.boundaries import franklin_diamond, franklin_safe  # crissy_boundary_convex
+from spf.gps.boundaries import boundary_to_diamond  # crissy_boundary_convex
+from spf.gps.boundaries import franklin_safe
 from spf.gps.gps_utils import swap_lat_long
 from spf.grbl.grbl_interactive import (
     BouncePlanner,
@@ -204,7 +205,8 @@ def drone_get_planner(routine, boundary):
             step_size=0.1,
         )
     elif routine == "diamond":
-        points = franklin_diamond * 0.85 + boundary.mean(axis=0) * 0.15
+        base_points = boundary_to_diamond(boundary)
+        points = base_points * 0.85 + boundary.mean(axis=0) * 0.15
         if np.random.rand() > 0.5:
             points = np.flip(points, axis=0)
         return PointCycle(
@@ -233,7 +235,6 @@ class Drone:
     def __init__(
         self,
         connection,
-        planner=None,
         tolerance_in_m=5,
         distance_finder=None,
         fake=False,
@@ -330,12 +331,6 @@ class Drone:
             target=self.process_messages, daemon=True
         )
 
-        self.planner = planner
-        self.planner_in_control = False
-
-        if self.planner is not None:
-            self.planner_thread = threading.Thread(target=self.run_planner, daemon=True)
-
         self.last_heartbeat_log = None
         self.armed = False
 
@@ -343,6 +338,14 @@ class Drone:
         self.gps_fix_type = "NOT_SET_YET"
         # self.mission_item_condition = threading.Condition()
         # self.mission_item_reached = False
+
+    def set_and_start_planner(self, planner):
+        self.planner = planner
+        self.planner_in_control = False
+        assert self.planner is not None
+
+        self.planner_thread = threading.Thread(target=self.run_planner, daemon=True)
+        self.planner_thread.start()
 
     def buzzer(self, tone_bytes):
         for _ in range(5):
@@ -385,8 +388,6 @@ class Drone:
     # motion interface
     def start(self):
         self.message_loop_thread.start()
-        if self.planner is not None:
-            self.planner_thread.start()
         return self
 
     def send_status(self, text):
@@ -463,6 +464,7 @@ class Drone:
         # self.single_operation_mode_on()
         logging.info("Start planner...")
         self.planner_should_move = True
+
         # self.single_operation_mode_on()
         # logging.info("SINGLE OPERATION MODE")
         home = self.planner.dynamics.bounding_box.mean(axis=0)

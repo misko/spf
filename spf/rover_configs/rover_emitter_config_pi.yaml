@@ -1,3 +1,5 @@
+boundary: 'auto'
+
 # Two receivers each with two antennas
 # When a receiver is brought online it performs
 # phase calibration using an emitter equidistant from
