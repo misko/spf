@@ -214,7 +214,7 @@ def drone_get_planner(routine, boundary):
             ),
             start_point=boundary.mean(axis=0),
             step_size=0.1,
-            points=franklin_diamond * 0.85 + boundary.mean(axis=0) * 0.15,
+            points=points,
         )
 
     else:
