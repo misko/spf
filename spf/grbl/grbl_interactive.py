@@ -448,6 +448,7 @@ class CirclePlanner(Planner):
         super().__init__(
             dynamics=dynamics, start_point=start_point, step_size=step_size
         )
+        self.direction = ((np.random.rand() > 0.5) - 0.5) * 2
         self.circle_center = circle_center
         self.circle_radius = circle_diameter / 2
         self.angle_increment = chord_length_to_angle(self.step_size, self.circle_radius)
@@ -474,7 +475,7 @@ class CirclePlanner(Planner):
                 step_size=self.step_size,
             )
             current_p = next_p
-            current_angle += self.angle_increment
+            current_angle += self.direction * self.angle_increment
 
 
 class CalibrationV1Planner(Planner):
