@@ -9,13 +9,13 @@ from tqdm import tqdm
 
 from spf.dataset.spf_dataset import v5spfdataset
 
-LS_VERSION = 1.1
+LS_VERSION = 1.4
 
 
 def ls_zarr(ds_fn, force=False):
     ls_fn = ds_fn + ".ls.json"
     if force or not os.path.exists(ls_fn):
-        try:
+        if True:
             ds = v5spfdataset(
                 ds_fn,
                 nthetas=65,
@@ -34,19 +34,36 @@ def ls_zarr(ds_fn, force=False):
                 "samples": len(ds),
                 "routine": ds.yaml_config["routine"],
                 "version": LS_VERSION,
+                "vehicle_type": ds.vehicle_type,
+                "rx_theta_in_pis_cached": {
+                    f"r{rx_idx}": {
+                        "cached": ds.cached_keys[rx_idx]["rx_theta_in_pis"]
+                        .median()
+                        .item(),
+                        "config": ds.yaml_config["receivers"][rx_idx]["theta-in-pis"],
+                    }
+                    for rx_idx in range(2)
+                },
             }
             with open(ls_fn, "w") as fp:
                 json.dump(ls_info, fp, indent=4)
-        except Exception as e:
-            print(f"Failed to load {ds_fn} with {e}")
-            return None
+        # except Exception as e:
+        #    print(f"Failed to write {ds_fn} with {e}")
+        #    raise ValueError(f"Could not not process file {ds_fn} , {str(e)}")
     with open(ls_fn, "r") as file:
-        ls_info = json.load(file)
-        if "version" not in ls_info or ls_info["version"] != LS_VERSION:
-            assert not force, f"LS_DS version not found(?) {ls_info} vs {LS_VERSION}"
-            return ls_zarr(ds_fn, force=True)
-        return ls_info
-    raise ValueError("Could not not process file {ds_fn}")
+        try:
+            ls_info = json.load(file)
+            if "version" not in ls_info or ls_info["version"] != LS_VERSION:
+                assert (
+                    not force
+                ), f"LS_DS version not found(?) {ls_info} vs {LS_VERSION}"
+                return ls_zarr(ds_fn, force=True)
+            return ls_info
+        except Exception as e:
+            if not force:
+                print("FAILED TO LOAD< TYRING TO FORCE")
+                return ls_zarr(ds_fn, force=True)
+    raise ValueError(f"Could not not process file {ds_fn}")
 
 
 if __name__ == "__main__":
@@ -69,7 +86,7 @@ if __name__ == "__main__":
                     executor.map(ls_zarr, args.input_zarrs), total=len(args.input_zarrs)
                 )
             )
-    print(results[0], len(results))
+    # print(results[0], len(results))
 
     # aggregate results
     merged_stats = {}

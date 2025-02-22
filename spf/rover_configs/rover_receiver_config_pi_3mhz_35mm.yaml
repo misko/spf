@@ -1,0 +1,63 @@
+# Two receivers each with two antennas
+# When a receiver is brought online it performs
+# phase calibration using an emitter equidistant from
+# both receiver antenna
+# The orientation of the receiver is described in 
+# multiples of pi
+emitter:
+  type: external
+
+distance-finder:
+  trigger: 2
+  echo: 3
+
+#USB PORTS
+#USB  2   (Radio A)  |     USB 1 (Radio B)
+receivers:
+  #radio A
+  - receiver-port: 2
+    theta-in-pis: 0
+    antenna-spacing-m: 0.035 # 50.75 mm 
+    nelements: 2
+    array-type: linear
+    rx-gain-mode: slow_attack
+    rx-buffers: 4
+    rx-gain: -3
+    buffer-size: 524288 # 2**12
+    f-intermediate: 100000 #1.0e5
+    f-carrier: 5.866e+9 #f-carrier: 2.4671e+9 #2.5e9
+    f-sampling: 30.0e+6 # 16.0e6
+    bandwidth: 3.0e+5 #3.0e5
+  #radio B
+  - receiver-port: 1
+    theta-in-pis: 0.5
+    antenna-spacing-m: 0.035 # 50.75 mm 
+    nelements: 2
+    array-type: linear
+    rx-gain-mode: slow_attack
+    rx-buffers: 4
+    rx-gain: -3
+    buffer-size: 524288 # 2**12
+    f-intermediate: 100000 #1.0e5
+    f-carrier: 5.866e+9 #f-carrier: 2.4671e+9 #2.5e9
+    f-sampling: 30.0e+6 # 16.0e6
+    bandwidth: 3.0e+5 #3.0e5
+
+n-thetas: 65
+n-records-per-receiver: 600000
+width: 4000
+calibration-frames: 800
+routine: null
+
+drone-uri: serial
+
+dry-run: False
+
+data-version: 4
+
+seconds-per-sample: 0.5
+
+
+collector:
+  type: "rover"
+  version: "3.1"

@@ -88,6 +88,10 @@ def global_config_to_keys_used(global_config):
     if global_config["beamformer_input"]:
         # keys_to_get += ["windowed_beamformer"]
         keys_to_get += ["weighted_beamformer"]
+    if global_config["gains_input"]:
+        keys_to_get += ["gains"]
+    if global_config["vehicle_type_input"]:
+        keys_to_get += ["vehicle_type"]
     return keys_to_get
 
 
@@ -339,8 +343,9 @@ def load_dataloaders(
             "collate_fn": partial(v5_collate_keys_fast, keys_to_get),
             "worker_init_fn": worker_init_fn,
             # "pin_memory": True,
-            "prefetch_factor": 2 if datasets_config["workers"] > 0 else None,
+            "prefetch_factor": 1 if datasets_config["workers"] > 0 else None,
             "batch_sampler": sampler,
+            "persistent_workers": False,
         }
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -1049,6 +1054,7 @@ def get_key_or_set_default(d, key, default):
 
 def load_defaults(config):
     get_key_or_set_default(config, "global/signal_matrix_input", False)
+    get_key_or_set_default(config, "global/gains_input", False)
     get_key_or_set_default(config, "optim/output", None)
     get_key_or_set_default(config, "datasets/flip", False)
     get_key_or_set_default(config, "logger", {})
@@ -1259,7 +1265,7 @@ def train_single_point(args):
                 args.val
                 and step % config["optim"]["val_every"] == 0
                 and not just_loaded_checkpoint
-            ):
+            ) or args.val_and_exit:
                 model_checksum(f"val.e{epoch}.s{step}: ", m)
                 m.eval()
                 with torch.no_grad():
@@ -1336,6 +1342,8 @@ def train_single_point(args):
                                 running_config=running_config,
                                 checkpoint_fn="best.pth",
                             )
+                if args.val_and_exit:
+                    return
             just_loaded_checkpoint = False
 
             m.train()
@@ -1457,6 +1465,11 @@ def get_parser_filter():
         "--val",
         action=argparse.BooleanOptionalAction,
         default=True,
+    )
+    parser.add_argument(
+        "--val-and-exit",
+        action=argparse.BooleanOptionalAction,
+        default=False,
     )
     parser.add_argument(
         "--resume",

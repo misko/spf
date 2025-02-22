@@ -321,6 +321,8 @@ class PrepareInput(nn.Module):
         self.empirical_input = global_config["empirical_input"]
         self.phase_input = global_config["phase_input"]
         self.rx_spacing_input = global_config["rx_spacing_input"]
+        self.gains_input = global_config["gains_input"]
+        self.vehicle_type_input = global_config["vehicle_type_input"]
         self.inputs = 0
         self.frequency_input = global_config.get("frequency_input", False)
         self.input_dropout = model_config.get("input_dropout", 0.0)
@@ -339,9 +341,13 @@ class PrepareInput(nn.Module):
             self.inputs += global_config["nthetas"]
         if self.phase_input:
             self.inputs += 3
+        if self.gains_input:
+            self.inputs += 2
         if self.rx_spacing_input:
             self.inputs += 1
         if self.frequency_input:
+            self.inputs += 1
+        if self.vehicle_type_input:
             self.inputs += 1
         assert (
             self.input_dropout == 0
@@ -350,13 +356,16 @@ class PrepareInput(nn.Module):
                 + self.empirical_input
                 + self.phase_input
                 + self.rx_spacing_input
+                + self.vehicle_type_input
+                + self.frequency_input
+                + self.gains_input
             )
             > 1
         )
 
     def prepare_input(self, batch, additional_inputs=[]):
         dropout_mask = (
-            torch.rand((5, *batch["y_rad"].shape), device=batch["y_rad"].device)
+            torch.rand((7, *batch["y_rad"].shape), device=batch["y_rad"].device)
             < self.input_dropout
         )
         # 1 , 65
@@ -398,6 +407,16 @@ class PrepareInput(nn.Module):
             v = (batch["rx_lo"][..., None] + 1).log10() / 20
             if self.training:
                 v[dropout_mask[4]] = 0
+            inputs.append(v)
+        if self.gains_input:
+            v = batch["gains"] / 120
+            if self.training:
+                v[dropout_mask[5]] = 0
+            inputs.append(v)
+        if self.vehicle_type_input:
+            v = batch["vehicle_type"][..., None]
+            if self.training:
+                v[dropout_mask[6]] = 0
             inputs.append(v)
 
         return torch.concatenate(

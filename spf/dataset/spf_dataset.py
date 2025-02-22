@@ -94,6 +94,14 @@ def rel_to_pos(r, width):
     return ((r / 2) + 0.5) * width
 
 
+def encode_vehicle_type(vehicle_type):
+    if vehicle_type == "2dwallarrayv2":
+        return -0.5
+    elif vehicle_type == "rover":
+        return 0.5
+    assert 1 == 0
+
+
 # from stackoverflow
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -581,6 +589,10 @@ class v5spfdataset(Dataset):
             self.yaml_fn
         )  # yaml.safe_load(open(self.yaml_fn, "r"))
 
+        self.vehicle_type = "2dwallarrayv2"
+        if "rover" in self.zarr_fn:
+            self.vehicle_type = "rover"
+
         self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
         self.gpu = gpu
@@ -680,6 +692,16 @@ class v5spfdataset(Dataset):
             self.keys_per_session.append("signal_matrix")
 
         self.refresh()
+
+        if not self.temp_file:
+            assert (
+                self.cached_keys[0]["rx_theta_in_pis"].median()
+                == self.yaml_config["receivers"][0]["theta-in-pis"]
+            )
+            assert (
+                self.cached_keys[1]["rx_theta_in_pis"].median()
+                == self.yaml_config["receivers"][1]["theta-in-pis"]
+            )
 
         self.receiver_idxs_expanded = {}
         for idx in range(self.n_receivers):
@@ -848,7 +870,7 @@ class v5spfdataset(Dataset):
             self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
             assert (
                 self.cached_keys[0]["rx_spacing"] != self.cached_keys[1]["rx_spacing"]
-            ).to(float).sum() < 10
+            ).to(float).sum() < 20
             return True
         return False
 
@@ -1040,12 +1062,16 @@ class v5spfdataset(Dataset):
             # 'rx_theta_in_pis', 'rx_spacing', 'rx_lo', 'rx_bandwidth', 'avg_phase_diff', 'rssis', 'gains']
         }
 
+        data["gains"] = data["gains"][:, None]
         data["receiver_idx"] = self.receiver_idxs_expanded[receiver_idx]
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][
             snapshot_idxs
         ]
         data["ground_truth_phi"] = self.ground_truth_phis[receiver_idx][snapshot_idxs]
         data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[snapshot_idxs]
+        data["vehicle_type"] = torch.tensor(
+            [encode_vehicle_type(self.vehicle_type)]
+        ).reshape(1)
 
         # duplicate some fields
         # no idea how to flip phi
