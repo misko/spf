@@ -188,7 +188,7 @@ if __name__ == "__main__":
             fake=True,
         )
 
-    while not drone.drone_ready:
+    while not args.fake_drone and not drone.drone_ready:
         logging.info(
             f"Drone startup wait for drone ready: gps:{str(drone.gps)} , ekf:{str(drone.ekf_healthy)}"
         )
