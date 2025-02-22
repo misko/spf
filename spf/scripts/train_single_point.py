@@ -1055,6 +1055,7 @@ def get_key_or_set_default(d, key, default):
 def load_defaults(config):
     get_key_or_set_default(config, "global/signal_matrix_input", False)
     get_key_or_set_default(config, "global/gains_input", False)
+    get_key_or_set_default(config, "global/vehicle_type_input", False)
     get_key_or_set_default(config, "optim/output", None)
     get_key_or_set_default(config, "datasets/flip", False)
     get_key_or_set_default(config, "logger", {})
