@@ -1049,7 +1049,6 @@ def mavlink_controller_run(args):
             tone_bytes = args.buzzer.replace(" ", "").encode()
         drone = Drone(
             connection=connection,
-            planner=None,
         )
         drone.buzzer(tone_bytes)
         sys.exit(0)
@@ -1069,7 +1068,6 @@ def mavlink_controller_run(args):
 
     drone = Drone(
         connection,
-        planner=planner,
     )
 
     logging.info("Drone start()")
