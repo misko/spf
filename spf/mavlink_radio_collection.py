@@ -12,7 +12,10 @@ from pymavlink import mavutil
 
 from spf.data_collector import DroneDataCollector, DroneDataCollectorRaw
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
-from spf.gps.boundaries import boundaries  # crissy_boundary_convex
+from spf.gps.boundaries import (
+    boundaries,  # crissy_boundary_convex
+    find_closest_boundary,
+)
 from spf.gps.gps_utils import swap_lat_long
 from spf.mavlink.mavlink_controller import (
     Drone,
@@ -197,19 +200,7 @@ if __name__ == "__main__":
     boundary_name = yaml_config.get("boundary", "franklin_safe")
     if boundary_name == "auto":
         # find out which one is closest
-        boundary_name = sorted(
-            [
-                (
-                    haversine(
-                        swap_lat_long(drone.gps),
-                        swap_lat_long(boundary_points.mean(axis=0)),
-                        unit=Unit.METERS,
-                    ),
-                    boundary_name,
-                )
-                for boundary_name, boundary_points in boundaries.items()
-            ]
-        )[0][1]
+        boundary_name = find_closest_boundary(drone.gps)
         print(f"Closest boundary is {boundary_name}")
     elif boundary_name not in boundaries:
         logging.error(f"Failed to find boundary {boundary_name} in valid boundaries")

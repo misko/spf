@@ -1062,9 +1062,9 @@ def mavlink_controller_run(args):
 
     boundary = franklin_safe
 
-    planner = None
-    if args.planner is not None:
-        planner = drone_get_planner(args.planner, boundary=boundary)
+    # planner = None
+    # if args.planner is not None:
+    #    planner = drone_get_planner(args.planner, boundary=boundary)
 
     drone = Drone(
         connection,

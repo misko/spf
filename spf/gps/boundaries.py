@@ -1,4 +1,7 @@
 import numpy as np
+from haversine import Unit, haversine
+
+from spf.gps.gps_utils import swap_lat_long
 
 #  long, long
 # san francisco ~ 37 lat, -122 long
@@ -73,3 +76,21 @@ boundaries = {
     "franklin_safe": franklin_safe,
     "fort_baker_boundary": fort_baker_boundary,
 }
+
+
+def find_closest_boundary(gps):
+    distances = sorted(
+        [
+            (
+                haversine(
+                    swap_lat_long(gps),
+                    swap_lat_long(boundary_points.mean(axis=0)),
+                    unit=Unit.METERS,
+                ),
+                boundary_name,
+            )
+            for boundary_name, boundary_points in boundaries.items()
+        ]
+    )
+    print(distances)
+    return distances[0][1]

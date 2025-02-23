@@ -10,7 +10,7 @@ import zarr
 from pyproj import Proj
 
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
-from spf.gps.boundaries import franklin_safe
+from spf.gps.boundaries import boundaries, find_closest_boundary
 from spf.scripts.zarr_utils import zarr_new_dataset  # crissy_boundary_convex
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store, zarr_shrink
 
@@ -108,6 +108,9 @@ def convert_list_dict_to_dict_lists(list_dict):
 
 # trim them accordingly
 def trim_valid_idxs_and_tx_rx_pos(valid_idxs_and_tx_rx_pos):
+    assert len(valid_idxs_and_tx_rx_pos["r0"]) > 0
+    assert len(valid_idxs_and_tx_rx_pos["r1"]) > 0
+
     if len(valid_idxs_and_tx_rx_pos) == 1:
         return {
             "r0": convert_list_dict_to_dict_lists(valid_idxs_and_tx_rx_pos["r0"]),
@@ -181,21 +184,27 @@ def compare_and_copy_with_idxs_and_aux_data(
             elif src.shape != ():
                 dst[:] = src[:]
         else:
+            failures = 0
             for idx in range(len(idxs)):
-                dst[idx] = src[
-                    idx
-                ]  # TODO why cant we just copy the whole thing at once? # too big?
+                try:
+                    dst[idx] = src[
+                        idx
+                    ]  # TODO why cant we just copy the whole thing at once? # too big?
+                except RuntimeError as e:
+                    failures += 1
+            if failures > 0:
+                logging.error(f"There were {failures} when copying")
 
 
 def merge_v4rx_v4tx_into_v5(
     tx_fn,
     rx_fn,
     zarr_out_fn,
-    gps_center_long_lat,
     fix_config,
     collector_type="unknown",
     collector_version="0.0",
     receivers=2,
+    dry_run=False,
 ):
     tx_zarr = zarr_open_from_lmdb_store(tx_fn, readahead=True, mode="r")
     rx_zarr = zarr_open_from_lmdb_store(rx_fn, readahead=True, mode="r")
@@ -219,6 +228,13 @@ def merge_v4rx_v4tx_into_v5(
         )
     )
 
+    # could just take the mean of TX if this is not working
+    # but this would be more canonical
+    boundary_name = find_closest_boundary(
+        (tx_time_and_gps.gps_longs.mean(), tx_time_and_gps.gps_lats.mean())
+    )
+    gps_center_long_lat = boundaries[boundary_name].mean(axis=0)
+
     valid_idxs_and_tx_rx_pos = trim_valid_idxs_and_tx_rx_pos(
         {
             rx_idx: get_tx_xy_at_rx(
@@ -234,6 +250,8 @@ def merge_v4rx_v4tx_into_v5(
     logging.info(
         f"Found {timesteps} valid data points, out of {rx_time_and_gpses['r0'].times.shape[0]} total"
     )
+    if dry_run:
+        return
 
     buffer_size = rx_zarr["receivers/r0/signal_matrix"].shape[-1]
     keys_f64 = v5rx_f64_keys
@@ -303,7 +321,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, help="output zarr", required=True)
     parser.add_argument("--collector-type", type=str, default="rover")
     parser.add_argument("--collector-version", type=str, default="3.1")
-    parser.add_argument("--gps-fence", type=str, help="gps fence", default="franklin")
+    parser.add_argument("--dry-run", action="store_true", default=False)
 
     parser.add_argument(  # the early rovers had antenna array 0 off by 180deg
         "--fix-config",
@@ -311,18 +329,16 @@ if __name__ == "__main__":
         default=True,
     )
     args = parser.parse_args()
-
-    if args.gps_fence == "franklin":
-        gps_center = franklin_safe.mean(axis=0)
+    if os.path.isdir(args.output):
+        logging.error(f"Output file already exists {args.output}")
     else:
-        raise ValueError("Invalid gps fence")
-
-    merge_v4rx_v4tx_into_v5(
-        tx_fn=args.tx,
-        rx_fn=args.rx,
-        zarr_out_fn=args.output,
-        gps_center_long_lat=gps_center,
-        fix_config=args.fix_config,
-        collector_type=args.collector_type,
-        collector_version=args.collector_version,
-    )
+        logging.info(f"tx: {args.tx}, rx: {args.rx}, out: {args.output}")
+        merge_v4rx_v4tx_into_v5(
+            tx_fn=args.tx,
+            rx_fn=args.rx,
+            zarr_out_fn=args.output,
+            fix_config=args.fix_config,
+            collector_type=args.collector_type,
+            collector_version=args.collector_version,
+            dry_run=args.dry_run,
+        )
