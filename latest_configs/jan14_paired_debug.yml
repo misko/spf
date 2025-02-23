@@ -26,6 +26,7 @@ datasets:
   segmentation_version: 3.5
 global:
   windowed_beamformer_input: true
+  gains_input: True
   signal_matrix_input: false
   beamformer_input: false
   empirical_input: false

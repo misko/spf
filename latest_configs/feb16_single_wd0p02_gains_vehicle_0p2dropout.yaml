@@ -5,7 +5,7 @@ datasets:
   empirical_symmetry: true
   flip: true
   double_flip: false
-  precompute_cache: /mnt/md2/cache/precompute_cache_3p5/ 
+  precompute_cache: /mnt/md2/cache/precompute_cache_3p5_chunk1/ 
   scatter: continuous
   scatter_k: 21
   shuffle: true
@@ -17,15 +17,17 @@ datasets:
   random_snapshot_size: False
   snapshots_stride: 1
   train_paths:
-  - /mnt/md2/splits/feb11_train_nosig.txt
+  - /mnt/md2/splits/feb16_train_nosig.txt
   val_paths:
-  - /mnt/md2/splits/feb11_val_nosig.txt
+  - /mnt/md2/splits/feb16_val_nosig.txt
   val_holdout_fraction: 0.2
   val_subsample_fraction: 0.2
-  workers: 30
+  workers: 24
   segmentation_version: 3.5
 global:
   beamformer_input: false
+  vehicle_type_input: true
+  gains_input: True
   windowed_beamformer_input: true
   empirical_input: false
   n_radios: 2
@@ -47,7 +49,7 @@ model:
   detach: true
   dropout: 0.0
   hidden: 1024
-  input_dropout: 0.0
+  input_dropout: 0.2
   name: beamformer
   norm: layer
   windows_stats_net:
@@ -69,9 +71,9 @@ optim:
   head_start: 0
   learning_rate: 0.0001 # started at 0.0002
   loss: mse
-  output: /home/mouse9911/gits/spf/checkpoints/feb11/single
+  output: /home/mouse9911/gits/spf/checkpoints/feb16/single_wd0p02_gains_vehicle_0p2dropout
   resume_step: 0
   save_on: val/single_loss
-  scheduler_step: 10
+  scheduler_step: 12
   val_every: 10000
-  weight_decay: 0.2
+  weight_decay: 0.002
