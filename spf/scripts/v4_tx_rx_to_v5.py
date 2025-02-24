@@ -108,8 +108,11 @@ def convert_list_dict_to_dict_lists(list_dict):
 
 # trim them accordingly
 def trim_valid_idxs_and_tx_rx_pos(valid_idxs_and_tx_rx_pos):
-    assert len(valid_idxs_and_tx_rx_pos["r0"]) > 0
-    assert len(valid_idxs_and_tx_rx_pos["r1"]) > 0
+    if (
+        len(valid_idxs_and_tx_rx_pos["r0"]) == 0
+        or len(valid_idxs_and_tx_rx_pos["r1"]) == 0
+    ):
+        return {"idxs": []}
 
     if len(valid_idxs_and_tx_rx_pos) == 1:
         return {
