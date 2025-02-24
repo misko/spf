@@ -205,6 +205,7 @@ def merge_v4rx_v4tx_into_v5(
     collector_version="0.0",
     receivers=2,
     dry_run=False,
+    min_timesteps=500,
 ):
     tx_zarr = zarr_open_from_lmdb_store(tx_fn, readahead=True, mode="r")
     rx_zarr = zarr_open_from_lmdb_store(rx_fn, readahead=True, mode="r")
@@ -250,8 +251,8 @@ def merge_v4rx_v4tx_into_v5(
     logging.info(
         f"Found {timesteps} valid data points, out of {rx_time_and_gpses['r0'].times.shape[0]} total"
     )
-    if dry_run:
-        return
+    if dry_run or timesteps < min_timesteps:
+        return timesteps
 
     buffer_size = rx_zarr["receivers/r0/signal_matrix"].shape[-1]
     keys_f64 = v5rx_f64_keys
@@ -306,6 +307,8 @@ def merge_v4rx_v4tx_into_v5(
     new_zarr = None
     zarr_shrink(zarr_out_fn)
 
+    return timesteps
+
 
 if __name__ == "__main__":
 
@@ -316,9 +319,13 @@ if __name__ == "__main__":
     )
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tx", type=str, help="input tx zarr", required=True)
-    parser.add_argument("--rx", type=str, help="input rx zarr", required=True)
-    parser.add_argument("--output", type=str, help="output zarr", required=True)
+    parser.add_argument(
+        "--txs", type=str, nargs="+", help="input tx zarrs", required=True
+    )
+    parser.add_argument(
+        "--rxs", type=str, nargs="+", help="input rx zarrs", required=True
+    )
+    parser.add_argument("--output", type=str, help="output prefix", required=True)
     parser.add_argument("--collector-type", type=str, default="rover")
     parser.add_argument("--collector-version", type=str, default="3.1")
     parser.add_argument("--dry-run", action="store_true", default=False)
@@ -329,16 +336,22 @@ if __name__ == "__main__":
         default=True,
     )
     args = parser.parse_args()
-    if os.path.isdir(args.output):
-        logging.error(f"Output file already exists {args.output}")
-    else:
-        logging.info(f"tx: {args.tx}, rx: {args.rx}, out: {args.output}")
-        merge_v4rx_v4tx_into_v5(
-            tx_fn=args.tx,
-            rx_fn=args.rx,
-            zarr_out_fn=args.output,
-            fix_config=args.fix_config,
-            collector_type=args.collector_type,
-            collector_version=args.collector_version,
-            dry_run=args.dry_run,
-        )
+
+    for tx_zarr_fn in args.txs:
+        for rx_zarr_fn in args.rxs:
+            output_zarr_fn = f"{args.output}/{os.path.basename(rx_zarr_fn).replace('.zarr','')}.{os.path.basename(tx_zarr_fn).replace('.zarr','')}.zarr"
+            if os.path.isdir(output_zarr_fn):
+                logging.error(f"Output file already exists {output_zarr_fn}")
+            else:
+                logging.info(
+                    f"tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}"
+                )
+                timesteps = merge_v4rx_v4tx_into_v5(
+                    tx_fn=tx_zarr_fn,
+                    rx_fn=rx_zarr_fn,
+                    zarr_out_fn=output_zarr_fn,
+                    fix_config=args.fix_config,
+                    collector_type=args.collector_type,
+                    collector_version=args.collector_version,
+                    dry_run=args.dry_run,
+                )
