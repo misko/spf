@@ -26,7 +26,8 @@ export ROOT="../../../"
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_65_max_2xfs_bee577mhz_slowattack_nofir.yaml
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_65_max_2xfs_runcam5839_fastattack_nofir.yaml
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_65_max_2xfs_o4_5838_fastattack_nofir.yaml
-config=${ROOT}/spf/v5_configs/wall_array_v2_external_25_max_2xfs_o4_5838_fastattack_nofir.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_v2_external_25_max_2xfs_o4_5838_fastattack_nofir.yaml
+config=${ROOT}/spf/v5_configs/wall_array_v2_external_25_max_2xfs_o4_5766_fastattack_nofir.yaml
 #reboot_plutos
 
 sleep 3
