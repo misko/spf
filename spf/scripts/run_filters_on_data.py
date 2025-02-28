@@ -446,7 +446,7 @@ def add_precompute_cache_to_job(job, precompute_caches):
     return (fn, args)
 
 
-def process_filters_on_datasets(yaml_config_fn, work_dir, dataset_fns, seed):
+def generate_configs_to_run(yaml_config_fn, work_dir, dataset_fns, seed):
 
     try:
         os.makedirs(work_dir)
@@ -487,24 +487,9 @@ def process_filters_on_datasets(yaml_config_fn, work_dir, dataset_fns, seed):
                     "jobs": [[job[0], job[1].copy()]],
                 }
             )
+    return jobs
 
-    if args.debug:
 
-        results = list(
-            tqdm.tqdm(
-                map(run_jobs_with_one_dataset, jobs),
-                total=len(jobs),
-            )
-        )
-    else:
-        torch.set_num_threads(1)
-        with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
-            results = list(
-                tqdm.tqdm(
-                    pool.imap_unordered(run_jobs_with_one_dataset, jobs),
-                    total=len(jobs),
-                )
-            )
 
     # final_results = []
     # for result in results:
@@ -590,9 +575,27 @@ if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
     random.seed(args.seed)
-    process_filters_on_datasets(
+    jobs=generate_configs_to_run(
         yaml_config_fn=args.config,
         work_dir=args.work_dir,
         dataset_fns=args.datasets,
         seed=args.seed,
     )
+
+    if args.debug:
+
+        results = list(
+            tqdm.tqdm(
+                map(run_jobs_with_one_dataset, jobs),
+                total=len(jobs),
+            )
+        )
+    else:
+        torch.set_num_threads(1)
+        with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
+            results = list(
+                tqdm.tqdm(
+                    pool.imap_unordered(run_jobs_with_one_dataset, jobs),
+                    total=len(jobs),
+                )
+            )
