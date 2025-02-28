@@ -20,7 +20,7 @@ dependencies = [
  "tqdm",
  "numba",
  "scipy",
- "zarr==2.18.4",
+ "zarr<=2.18.4",
  "pyadi-iio",
  "pyproj",
  "compress-pickle",
