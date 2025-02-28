@@ -196,7 +196,7 @@ def load_dataloaders(
         )
 
     logging.info(
-        f"Using validation stride of {datasets_config["val_snapshots_adjacent_stride"]}"
+        f"Using validation stride of {datasets_config['val_snapshots_adjacent_stride']}"
     )
 
     monitor = tqdm
