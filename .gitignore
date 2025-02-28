@@ -6,6 +6,7 @@ spf/data
 **/*.zip
 **/*.pth
 **/wandb
+spf/aws
 **/run_on_filters_results
 test_data.zip
 test_data_dl.zip
