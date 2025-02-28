@@ -86,7 +86,6 @@ def main():
     print(config_checksum,checkpoint_checksum)
 
     #download inference cache /mnt/md2$ ls cache/inference/dec18_mission1_rover1.zarr/3.500/dc0661eb09c048996e81545363ff8e33/d1655af080f3721a7e4852221955950e.npz 
-
     prefix = 'md2/cache/nosig_data'
 
     # Use the *custom* client for listing and downloading:
@@ -100,8 +99,6 @@ def main():
 
             # download the nosig data
             download_folder(b2_client,bucket,remote_zarr_fn,base_zarr_fn)
-            # download the inference cache
-
 
             #print(f"Downloading {filename} -> {base_filename}")
             # Use that same custom client
