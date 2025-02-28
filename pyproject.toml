@@ -20,7 +20,7 @@ dependencies = [
  "tqdm",
  "numba",
  "scipy",
- "zarr==2.18.4", # newer versions remove support for lmdb
+ "zarr<=2.18.4", # newer versions remove support for lmdb
  "pyadi-iio",
  "pyproj",
  "compress-pickle",
