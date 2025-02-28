@@ -113,6 +113,27 @@ def preload_dataset(prefix, nthetas, precompute_cache, segmentation_version):
     return None
 
 
+def load_single_dataset_using_configs(
+    prefix, datasets_config, global_config, model_config, optim_config, **kwargs
+):
+    return v5spfdataset(
+        prefix,
+        precompute_cache=datasets_config["precompute_cache"],
+        nthetas=global_config["nthetas"],
+        target_ntheta=model_config["output_ntheta"],
+        paired=global_config["n_radios"] > 1,
+        ignore_qc=datasets_config["skip_qc"],
+        gpu=optim_config["device"] == "cuda",
+        snapshots_stride=datasets_config["snapshots_stride"],
+        empirical_data_fn=datasets_config["empirical_data_fn"],
+        empirical_individual_radio=datasets_config["empirical_individual_radio"],
+        empirical_symmetry=datasets_config["empirical_symmetry"],
+        target_dtype=optim_config["dtype"],
+        segmentation_version=datasets_config["segmentation_version"],
+        **kwargs,
+    )
+
+
 def load_dataloaders(
     datasets_config,
     optim_config,
@@ -174,8 +195,9 @@ def load_dataloaders(
             f"Using val_holdout: val_files {len(val_paths)} , train_files {len(train_paths)}"
         )
 
-    val_adjacent_stride = datasets_config["val_snapshots_adjacent_stride"]
-    logging.info(f"Using validation stride of {val_adjacent_stride}")
+    logging.info(
+        f"Using validation stride of {datasets_config["val_snapshots_adjacent_stride"]}"
+    )
 
     monitor = tqdm
     if no_tqdm:
@@ -183,26 +205,19 @@ def load_dataloaders(
 
     def load_val_dataset(prefix):
         try:
-            return v5spfdataset(
+            return load_single_dataset_using_configs(
                 prefix,
-                precompute_cache=datasets_config["precompute_cache"],
-                nthetas=global_config["nthetas"],
-                target_ntheta=model_config["output_ntheta"],
-                paired=global_config["n_radios"] > 1,
-                ignore_qc=datasets_config["skip_qc"],
-                gpu=optim_config["device"] == "cuda",
+                datasets_config,
+                global_config,
+                model_config,
+                optim_config,
+                # custom args
                 snapshots_per_session=datasets_config["val_snapshots_per_session"],
-                snapshots_stride=datasets_config["snapshots_stride"],
-                snapshots_adjacent_stride=val_adjacent_stride,
+                snapshots_adjacent_stride=datasets_config[
+                    "val_snapshots_adjacent_stride"
+                ],
                 readahead=False,
                 skip_fields=skip_fields,
-                empirical_data_fn=datasets_config["empirical_data_fn"],
-                empirical_individual_radio=datasets_config[
-                    "empirical_individual_radio"
-                ],
-                empirical_symmetry=datasets_config["empirical_symmetry"],
-                target_dtype=optim_config["dtype"],
-                segmentation_version=datasets_config["segmentation_version"],
                 segment_if_not_exist=False,
             )
         except Exception as e:
@@ -234,31 +249,21 @@ def load_dataloaders(
 
     def load_train_dataset(prefix):
         try:
-            return v5spfdataset(
+            return load_single_dataset_using_configs(
                 prefix,
-                precompute_cache=datasets_config["precompute_cache"],
-                nthetas=global_config["nthetas"],
-                target_ntheta=model_config["output_ntheta"],
-                paired=global_config["n_radios"] > 1,
-                ignore_qc=datasets_config["skip_qc"],
-                gpu=optim_config["device"] == "cuda",
-                snapshots_per_session=datasets_config["train_snapshots_per_session"],
-                snapshots_stride=datasets_config["snapshots_stride"],
+                datasets_config,
+                global_config,
+                model_config,
+                optim_config,
+                # custom args
                 snapshots_adjacent_stride=datasets_config["snapshots_adjacent_stride"],
+                snapshots_per_session=datasets_config["train_snapshots_per_session"],
                 readahead=False,
                 skip_fields=skip_fields,
-                empirical_data_fn=datasets_config["empirical_data_fn"],
-                empirical_individual_radio=datasets_config[
-                    "empirical_individual_radio"
-                ],
-                empirical_symmetry=datasets_config["empirical_symmetry"],
-                target_dtype=optim_config["dtype"],
-                # difference
+                segment_if_not_exist=False,
+                #
                 flip=datasets_config["flip"],
                 double_flip=datasets_config["double_flip"],
-                random_adjacent_stride=datasets_config["random_adjacent_stride"],
-                segmentation_version=datasets_config["segmentation_version"],
-                segment_if_not_exist=False,
             )
         except Exception as e:
             logging.error(f"Train: Failed to load {prefix} with error {e}")

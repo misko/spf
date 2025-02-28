@@ -92,5 +92,4 @@ def find_closest_boundary(gps):
             for boundary_name, boundary_points in boundaries.items()
         ]
     )
-    print(distances)
     return distances[0][1]

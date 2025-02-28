@@ -638,6 +638,8 @@ class AllWindowsStatsNet(nn.Module):
         conv_type="1d",
         hidden_channels_2d=4,
         n_layers_2d=4,
+        window_shrink=0.0,
+        window_shuffle=0.0,
     ):
         super().__init__()
         if act == "relu":
@@ -652,10 +654,12 @@ class AllWindowsStatsNet(nn.Module):
         self.outputs = outputs
         self.output_phi = output_phi
         self.dropout = dropout
+        self.window_shrink = window_shrink
+        self.window_shuffle = window_shuffle
         self.windowed_beamformer = windowed_beamformer
         self.normalize_windowed_beamformer = normalize_windowed_beamformer
         self.nthetas = nthetas
-        assert not dropout or not norm, "currently cannot do norm if dropout > 0.0"
+        assert dropout == 0.0 or not norm, "currently cannot do norm if dropout > 0.0"
         input_channels = 3
         if self.windowed_beamformer:
             input_channels += self.nthetas
@@ -749,15 +753,24 @@ class AllWindowsStatsNet(nn.Module):
 
         # self.dropout = 0.2 means drop 20%
         if self.training and self.dropout > 0.0:
-            if torch.rand(1) > 0.5:
-                input = input[:, :, torch.rand(windows) > self.dropout]
-            else:
-                start_idx = int(torch.rand(1) * self.dropout * windows)
-                end_idx = min(start_idx + int(windows * (1 - self.dropout)), windows)
-                input = input[:, :, start_idx:end_idx]
+            input = input[:, :, torch.rand(windows) > self.dropout]
+
+        if (
+            self.training
+            and self.window_shrink > 0.0
+            and torch.rand(1) < self.window_shrink
+        ):
+            window_fraction = 0.25
+            start_idx = int(torch.rand(1) * window_fraction * windows)
+            end_idx = min(start_idx + int(windows * (1 - window_fraction)), windows)
+            input = input[:, :, start_idx:end_idx]
         # assert input.isfinite().all()
         # shuffle 25% of the time
-        if self.training and torch.rand(1) > 0.85:
+        if (
+            self.training
+            and self.window_shuffle > 0.0
+            and torch.rand(1) < self.window_shuffle
+        ):
             input = input.index_select(
                 2, torch.randperm(input.shape[2], device=input.device)
             )

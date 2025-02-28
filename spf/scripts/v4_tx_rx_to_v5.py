@@ -4,6 +4,7 @@ import logging
 import os
 from dataclasses import dataclass
 
+import lmdb
 import numpy as np
 import yaml
 import zarr
@@ -199,6 +200,10 @@ def compare_and_copy_with_idxs_and_aux_data(
                 logging.error(f"There were {failures} when copying")
 
 
+def get_min_max_of_times(times):
+    return times[times > 0].min(), times.max()
+
+
 def merge_v4rx_v4tx_into_v5(
     tx_fn,
     rx_fn,
@@ -251,12 +256,13 @@ def merge_v4rx_v4tx_into_v5(
     # timesteps = original_zarr["receivers/r0/system_timestamp"].shape[0]
     # timesteps needs to be updated since missing some RX points because of out of sync with TX times TODO
     timesteps = len(valid_idxs_and_tx_rx_pos["idxs"])
-    logging.info(
-        f"Found {timesteps} valid data points, out of {rx_time_and_gpses['r0'].times.shape[0]} total"
-    )
+
     if dry_run or timesteps < min_timesteps:
         return timesteps
 
+    logging.info(
+        f"Found {timesteps} valid data points, out of {rx_time_and_gpses['r0'].times.shape[0]} total"
+    )
     buffer_size = rx_zarr["receivers/r0/signal_matrix"].shape[-1]
     keys_f64 = v5rx_f64_keys
     keys_2xf64 = v5rx_2xf64_keys
@@ -346,15 +352,21 @@ if __name__ == "__main__":
             if os.path.isdir(output_zarr_fn):
                 logging.error(f"Output file already exists {output_zarr_fn}")
             else:
-                logging.info(
-                    f"tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}"
-                )
-                timesteps = merge_v4rx_v4tx_into_v5(
-                    tx_fn=tx_zarr_fn,
-                    rx_fn=rx_zarr_fn,
-                    zarr_out_fn=output_zarr_fn,
-                    fix_config=args.fix_config,
-                    collector_type=args.collector_type,
-                    collector_version=args.collector_version,
-                    dry_run=args.dry_run,
-                )
+                try:
+                    timesteps = merge_v4rx_v4tx_into_v5(
+                        tx_fn=tx_zarr_fn,
+                        rx_fn=rx_zarr_fn,
+                        zarr_out_fn=output_zarr_fn,
+                        fix_config=args.fix_config,
+                        collector_type=args.collector_type,
+                        collector_version=args.collector_version,
+                        dry_run=args.dry_run,
+                    )
+                    if timesteps > 0 or args.dry_run:
+                        logging.info(
+                            f"{timesteps} tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}"
+                        )
+                except lmdb.CorruptedError as e:
+                    logging.error(
+                        f"CORRUPT tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}"
+                    )
