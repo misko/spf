@@ -446,6 +446,78 @@ def add_precompute_cache_to_job(job, precompute_caches):
     return (fn, args)
 
 
+def process_filters_on_datasets(yaml_config_fn, work_dir, dataset_fns, seed):
+
+    try:
+        os.makedirs(work_dir)
+    except FileExistsError as e:
+        pass
+    yaml_config = yaml.safe_load(open(yaml_config_fn, "r"))
+    jobs_per_ds_fn = config_to_jobs(yaml_config)
+
+    # assign the precompute cache
+    jobs_per_ds_fn = [
+        add_precompute_cache_to_job(job, yaml_config["precompute_caches"])
+        for job in jobs_per_ds_fn
+    ]
+
+    for _, job_params in jobs_per_ds_fn:
+        assert "workdir" not in job_params
+        job_params["workdir"] = work_dir
+
+    random.seed(seed)
+    random.shuffle(jobs_per_ds_fn)
+
+    dataset_fns = sorted(dataset_fns)
+    if len(dataset_fns) == 1 and dataset_fns[0][-4:] == ".txt":
+        dataset_fns = [x.strip() for x in open(dataset_fns[0]).readlines()]
+
+    random.seed(seed)
+    random.shuffle(dataset_fns)
+
+    jobs = []
+    # try to read the same ds back to back so that OS can cache it
+    # job [0] = fn, job[1] = args
+    for ds_fn in dataset_fns:
+        for job in jobs_per_ds_fn:
+            jobs.append(
+                {
+                    "ds_fn": ds_fn,
+                    "empirical_pkl_fn": args.empirical_pkl_fn,
+                    "jobs": [[job[0], job[1].copy()]],
+                }
+            )
+
+    if args.debug:
+
+        results = list(
+            tqdm.tqdm(
+                map(run_jobs_with_one_dataset, jobs),
+                total=len(jobs),
+            )
+        )
+    else:
+        torch.set_num_threads(1)
+        with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
+            results = list(
+                tqdm.tqdm(
+                    pool.imap_unordered(run_jobs_with_one_dataset, jobs),
+                    total=len(jobs),
+                )
+            )
+
+    # final_results = []
+    # for result in results:
+    #     final_results += result
+    # pickle.dump(results, open(args.output, "wb"))
+
+    # run_single_theta_single_radio()
+    # run_single_theta_dual_radio(
+    #     ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn
+    # )
+    # run_xy_dual_radio(ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn)
+
+
 if __name__ == "__main__":
 
     def get_parser():
@@ -518,82 +590,9 @@ if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
     random.seed(args.seed)
-
-    try:
-        os.makedirs(args.work_dir)
-    except FileExistsError as e:
-        pass
-    yaml_config = yaml.safe_load(open(args.config, "r"))
-    jobs_per_ds_fn = config_to_jobs(yaml_config)
-
-    # assign the precompute cache
-    jobs_per_ds_fn = [
-        add_precompute_cache_to_job(job, yaml_config["precompute_caches"])
-        for job in jobs_per_ds_fn
-    ]
-
-    for _, job_params in jobs_per_ds_fn:
-        assert "workdir" not in job_params
-        job_params["workdir"] = args.work_dir
-
-    random.seed(args.seed)
-    random.shuffle(jobs_per_ds_fn)
-    # one job per dataset
-    # jobs = [
-    #     {
-    #         "ds_fn": ds_fn,
-    #         "precompute_cache": args.precompute_cache,
-    #         "empirical_pkl_fn": args.empirical_pkl_fn,
-    #         "jobs": jobs_per_ds_fn,
-    #     }
-    #     for ds_fn in args.datasets
-    # ]
-
-    dataset_fns = sorted(args.datasets)
-    if len(dataset_fns) == 1 and dataset_fns[0][-4:] == ".txt":
-        dataset_fns = [x.strip() for x in open(dataset_fns[0]).readlines()]
-
-    random.seed(args.seed)
-    random.shuffle(dataset_fns)
-
-    jobs = []
-    # try to read the same ds back to back so that OS can cache it
-    # job [0] = fn, job[1] = args
-    for ds_fn in dataset_fns:
-        for job in jobs_per_ds_fn:
-            jobs.append(
-                {
-                    "ds_fn": ds_fn,
-                    "empirical_pkl_fn": args.empirical_pkl_fn,
-                    "jobs": [[job[0], job[1].copy()]],
-                }
-            )
-
-    if args.debug:
-
-        results = list(
-            tqdm.tqdm(
-                map(run_jobs_with_one_dataset, jobs),
-                total=len(jobs),
-            )
-        )
-    else:
-        torch.set_num_threads(1)
-        with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
-            results = list(
-                tqdm.tqdm(
-                    pool.imap_unordered(run_jobs_with_one_dataset, jobs),
-                    total=len(jobs),
-                )
-            )
-
-    # final_results = []
-    # for result in results:
-    #     final_results += result
-    # pickle.dump(results, open(args.output, "wb"))
-
-    # run_single_theta_single_radio()
-    # run_single_theta_dual_radio(
-    #     ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn
-    # )
-    # run_xy_dual_radio(ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn)
+    process_filters_on_datasets(
+        yaml_config_fn=args.config,
+        work_dir=args.work_dir,
+        dataset_fns=args.datasets,
+        seed=args.seed,
+    )
