@@ -9,9 +9,17 @@ import pickle
 from contextlib import contextmanager
 from functools import cache
 from multiprocessing import Pool, cpu_count
+import tempfile
 from typing import Dict, List
 
 import numpy as np
+from spf.s3_utils import (
+    b2_download_folder,
+    b2_download_folder_cache,
+    b2_file_to_local_with_cache,
+    b2path_to_bucket_and_path,
+    get_b2_client,
+)
 import torch
 import tqdm
 import yaml
@@ -498,11 +506,45 @@ def v5_segmentation_mask(session):
 
 @contextmanager
 def v5spfdataset_manager(*args, **kwds):
-    ds = v5spfdataset(*args, **kwds)
-    try:
-        yield ds
-    finally:
-        ds.close()
+    if "b2:" == kwds["precompute_cache"][:3]:
+        b2_client = get_b2_client()
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            local_precompute_cache_path = f"{tmpdirname}/precompute_cache/"
+
+            bucket, precompute_cache_path = b2path_to_bucket_and_path(
+                kwds["precompute_cache"]
+            )
+            normalized_name = (
+                os.path.basename(kwds["prefix"])
+                .replace(".zarr", "")
+                .replace("_nosig", "")
+                + f"_segmentation_nthetas{kwds['nthetas']}"
+            )
+
+            os.makedirs(local_precompute_cache_path)
+            local_yarr_fn = b2_download_folder_cache(
+                f"b2://{bucket}/{precompute_cache_path}/{normalized_name}.yarr"
+            )
+            local_precompute_cache_path = os.path.dirname(local_yarr_fn)
+
+            b2_file_to_local_with_cache(
+                f"b2://{bucket}/{precompute_cache_path}/{normalized_name}.pkl"
+            )
+
+            local_kwds = kwds.copy()
+            local_kwds["precompute_cache"] = local_precompute_cache_path
+
+            ds = v5spfdataset(*args, **local_kwds)
+            try:
+                yield ds
+            finally:
+                ds.close()
+    else:
+        ds = v5spfdataset(*args, **kwds)
+        try:
+            yield ds
+        finally:
+            ds.close()
 
 
 def subsample_tensor(x, dim, new_size):

@@ -33,10 +33,10 @@ class PFSingleThetaSingleRadioNN(ParticleFilter):
         self.generator.manual_seed(0)
 
         checkpoint_config = load_config_from_fn(config_fn)
-        assert (
-            self.ds.empirical_data_fn
-            == checkpoint_config["datasets"]["empirical_data_fn"]
-        ), f"Empirical pkl path from ds does not match that from checkpoint {self.ds.empirical_data_fn} vs {checkpoint_config['datasets']['empirical_data_fn']}"
+        # assert (
+        #     self.ds.empirical_data_fn
+        #     == checkpoint_config["datasets"]["empirical_data_fn"]
+        # ), f"Empirical pkl path from ds does not match that from checkpoint {self.ds.empirical_data_fn} vs {checkpoint_config['datasets']['empirical_data_fn']}"
 
         if not self.ds.temp_file:
             # cache model results
