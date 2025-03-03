@@ -116,31 +116,52 @@ def run_jobs_with_one_dataset(kwargs):
             segmentation_version=segmentation_version,
         ) as ds:
             workdir = fn_kwargs.pop("workdir")
-            result_fn = (
-                workdir
-                + f"/fn_{fn.__name__}"
+            result_fn_without_workdir = (
+                f"fn_{fn.__name__}"
                 + f"/{segmentation_version:0.3f}"
                 + f"/ds_{os.path.basename(kwargs['ds_fn'])}/"
                 + "_"
                 + args_to_str(fn_kwargs)
                 + "results.pkl"
             )
+            result_fn = workdir + "/" + result_fn_without_workdir
 
-            os.makedirs(os.path.dirname(result_fn), exist_ok=True)
-            if not os.path.exists(result_fn):
-                fn_kwargs["ds"] = ds
-                new_results = fn(**fn_kwargs)
-                for result in new_results:
-                    result["full_name"] = result_fn
-                    result["ds_fn"] = kwargs["ds_fn"]
-                    result["segmentation_version"] = segmentation_version
-                    result["precompute_cache"] = precompute_cache
-                # dump to file
-                # pickle.dump(new_results, open(result_fn + ".tmp", "wb"))
-                # os.rename(result_fn + ".tmp", result_fn)
-                # ssert os.path.exists(result_fn)
-                # dump to table
-                table.put_item(Item=float_to_decimal(result))
+            use_file_system = False
+            if use_file_system:
+
+                os.makedirs(os.path.dirname(result_fn), exist_ok=True)
+                if not os.path.exists(result_fn):
+                    fn_kwargs["ds"] = ds
+                    new_results = fn(**fn_kwargs)
+                    for result in new_results:
+                        result["full_name"] = result_fn_without_workdir
+                        result["ds_fn"] = kwargs["ds_fn"]
+                        result["segmentation_version"] = segmentation_version
+                        result["precompute_cache"] = precompute_cache
+                    # dump to file
+                    pickle.dump(new_results, open(result_fn + ".tmp", "wb"))
+                    os.rename(result_fn + ".tmp", result_fn)
+                    assert os.path.exists(result_fn)
+            else:
+                existing_item_response = table.get_item(Key={"full_name": result_fn})
+                if "Item" in existing_item_response:
+                    print(
+                        f"Item with full_name={result_fn} already exists in DynamoDB. Skipping..."
+                    )
+                else:
+                    fn_kwargs["ds"] = ds
+                    new_results = fn(**fn_kwargs)
+                    for result in new_results:
+                        result["ds_fn"] = kwargs["ds_fn"]
+                        result["segmentation_version"] = segmentation_version
+                        result["precompute_cache"] = precompute_cache
+
+                    table.put_item(
+                        Item={
+                            "full_name": result_fn,
+                            "results": float_to_decimal(new_results),
+                        }
+                    )
 
             result_fns.append(result_fn)
 

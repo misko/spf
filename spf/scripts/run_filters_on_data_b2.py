@@ -10,6 +10,7 @@ from spf.s3_utils import (
     b2_download_folder_cache,
     b2_file_to_local_with_cache,
     b2_get_or_set_cache,
+    b2_reset_cache,
     b2path_to_bucket_and_path,
     get_b2_client,
 )
@@ -88,6 +89,7 @@ def main():
         # Use the *custom* client for listing and downloading:
         resp = b2_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
         for obj in resp.get("Contents", []):
+            b2_reset_cache()
             filename = obj["Key"]
             if ".yaml" in filename:
                 remote_zarr_fn = filename.replace(".yaml", ".zarr")

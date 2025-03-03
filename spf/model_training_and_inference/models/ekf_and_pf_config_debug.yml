@@ -3,7 +3,7 @@ precompute_caches:
   # 3.11: "/mnt/4tb_ssd/precompute_cache"
   # 3.3: "/mnt/4tb_ssd/precompute_cache_3p3"
   # 3.4: "/mnt/4tb_ssd/precompute_cache_3p4"
-  3.5: "/mnt/md2/cache/precompute_cache_3p5_chunk1"
+  3.5: "b2://projectspf/md2/cache/precompute_cache_3p5_chunk1"
 
 runs:
 - run_PF_single_theta_single_radio_NN:
@@ -16,9 +16,9 @@ runs:
       #  segmentation_version: 3.4
       #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
       #  segmentation_version: 3.4
-      - checkpoint_fn: "/home/mouse9911/gits/spf/checkpoints/feb16/paired_checkpoints_windowedbeamformer_nosig_3p5_randx_wd0p02_gains_vehicle_0p2dropout_noroverbounce/best.pth"
+      - checkpoint_fn: "b2://projectspf/md2/cache/inference_models/paired_checkpoints_windowedbeamformer_nosig_3p5_randx_wd0p02_gains_vehicle_0p2dropout_noroverbounce/best.pth"
         segmentation_version: 3.5
-    inference_cache: ["/mnt/md2/cache/inference"]
+    inference_cache: ["b2://projectspf/md2/cache/inference"]
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 ,  128*128  ]
     theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15, 0.2]
     theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
@@ -32,9 +32,9 @@ runs:
       #  segmentation_version: 3.4
       #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
       #  segmentation_version: 3.4
-      - checkpoint_fn: "/home/mouse9911/gits/spf/checkpoints/feb16/paired_checkpoints_windowedbeamformer_nosig_3p5_randx_wd0p02_gains_vehicle_0p2dropout_noroverbounce/best.pth"
+      - checkpoint_fn: "b2://projectspf/md2/cache/inference_models/paired_checkpoints_windowedbeamformer_nosig_3p5_randx_wd0p02_gains_vehicle_0p2dropout_noroverbounce/best.pth"
         segmentation_version: 3.5
-    inference_cache: ["/mnt/md2/cache/inference"]
+    inference_cache: ["b2://projectspf/md2/cache/inference"]
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 , 128*128,128*256 ]
     theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15,0.2]
     theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05,0.075,0.09,0.1,0.12, 0.15, 0.2]
