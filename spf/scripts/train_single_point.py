@@ -461,6 +461,7 @@ def save_model(
     )
     with open(f"{prefix}/config.yml", "w") as outfile:
         yaml.dump(running_config, outfile)
+    shutil.copyfile(config['datasets']['empirical_data_fn'],f"{prefix}/empirical_dist.pkl")
 
 
 def load_checkpoint(

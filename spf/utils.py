@@ -86,7 +86,10 @@ def rx_spacing_to_str(rx_spacing):
 
 def get_md5_of_file(fn, cache_md5=True):
     if os.path.exists(fn + ".md5"):
-        return open(fn + ".md5", "r").readlines()[0].strip()
+        try:
+            return open(fn + ".md5", "r").readlines()[0].strip()
+        except:
+            pass
     hash_md5 = hashlib.md5()
     with open(fn, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):

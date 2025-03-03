@@ -3,12 +3,21 @@ import logging
 import os
 import pickle
 import random
+import tempfile
 import time
 from multiprocessing import Pool
+from decimal import Decimal
 
+from spf.s3_utils import (
+    b2_file_to_local_with_cache,
+    b2_reset_cache,
+    b2path_to_bucket_and_path,
+    get_b2_client,
+)
 import torch
 import tqdm
 import yaml
+import boto3
 
 from spf.dataset.spf_dataset import v5spfdataset_manager
 from spf.filters.ekf_dualradio_filter import SPFPairedKalmanFilter
@@ -20,6 +29,27 @@ from spf.filters.particle_dualradioXY_filter import PFXYDualRadio
 from spf.filters.particle_single_radio_filter import PFSingleThetaSingleRadio
 from spf.filters.particle_single_radio_nn_filter import PFSingleThetaSingleRadioNN
 from spf.utils import get_md5_of_file
+
+
+def float_to_decimal(obj):
+    """
+    Recursively convert all floating point values in a dict, list, or float
+    to Decimal for DynamoDB.
+    """
+    if isinstance(obj, float):
+        # Convert float to a string, then to Decimal to avoid precision issues
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            obj[k] = float_to_decimal(v)
+        return obj
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            obj[i] = float_to_decimal(v)
+        return obj
+    else:
+        # For other types (int, str, bool, None, Decimal, etc.), return as-is
+        return obj
 
 
 def args_to_str(args):
@@ -41,13 +71,31 @@ def fake_runner(ds, **kwargs):
 
 
 def run_jobs_with_one_dataset(kwargs):
+
+    dynamodb = boto3.resource("dynamodb")
+    table = dynamodb.Table("spf_filter_results")
+    # b2_reset_cache()  # different processes need different folders for cache
     result_fns = []
-    # logging.info(kwargs["jobs"])
+
     for fn, fn_kwargs in kwargs["jobs"]:
         precompute_cache = fn_kwargs.pop("precompute_cache")
         segmentation_version = fn_kwargs.pop("segmentation_version")
+
+        if "checkpoint_fn" in fn_kwargs:
+
+            b2_checkpoint_fn = fn_kwargs["checkpoint_fn"]
+            local_checkpoint_fn = b2_file_to_local_with_cache(
+                fn_kwargs["checkpoint_fn"]
+            )
+            bucket, b2_path = b2path_to_bucket_and_path(b2_checkpoint_fn)
+            config_b2_path = os.path.join(os.path.dirname(b2_path), "config.yml")
+            _ = b2_file_to_local_with_cache(f"b2://{bucket}/{config_b2_path}")
+
+            fn_kwargs["checkpoint_fn"] = local_checkpoint_fn
+
+        # with get_local_precompute_cache(precompute_cache) as local_precompute_cache
         with v5spfdataset_manager(
-            kwargs["ds_fn"],
+            prefix=kwargs["ds_fn"],
             nthetas=65,
             ignore_qc=True,
             precompute_cache=precompute_cache,
@@ -68,36 +116,54 @@ def run_jobs_with_one_dataset(kwargs):
             segmentation_version=segmentation_version,
         ) as ds:
             workdir = fn_kwargs.pop("workdir")
-            result_fn = (
-                workdir
-                + f"/fn_{fn.__name__}"
+            result_fn_without_workdir = (
+                f"fn_{fn.__name__}"
                 + f"/{segmentation_version:0.3f}"
                 + f"/ds_{os.path.basename(kwargs['ds_fn'])}/"
                 + "_"
                 + args_to_str(fn_kwargs)
                 + "results.pkl"
             )
+            result_fn = workdir + "/" + result_fn_without_workdir
 
-            os.makedirs(os.path.dirname(result_fn), exist_ok=True)
-            if not os.path.exists(result_fn):
-                fn_kwargs["ds"] = ds
-                new_results = fn(**fn_kwargs)
-                for result in new_results:
-                    result["ds_fn"] = kwargs["ds_fn"]
-                    result["segmentation_version"] = segmentation_version
-                    result["precompute_cache"] = precompute_cache
-                pickle.dump(new_results, open(result_fn + ".tmp", "wb"))
-                os.rename(result_fn + ".tmp", result_fn)
-                assert os.path.exists(result_fn)
+            use_file_system = False
+            if use_file_system:
+
+                os.makedirs(os.path.dirname(result_fn), exist_ok=True)
+                if not os.path.exists(result_fn):
+                    fn_kwargs["ds"] = ds
+                    new_results = fn(**fn_kwargs)
+                    for result in new_results:
+                        result["full_name"] = result_fn_without_workdir
+                        result["ds_fn"] = kwargs["ds_fn"]
+                        result["segmentation_version"] = segmentation_version
+                        result["precompute_cache"] = precompute_cache
+                    # dump to file
+                    pickle.dump(new_results, open(result_fn + ".tmp", "wb"))
+                    os.rename(result_fn + ".tmp", result_fn)
+                    assert os.path.exists(result_fn)
             else:
-                # print("SKIPPING", result_fn)
-                pass
-            result_fns.append(result_fn)
-        # breakpoint()
-        # a = 1
+                existing_item_response = table.get_item(Key={"full_name": result_fn})
+                if "Item" in existing_item_response:
+                    print(
+                        f"Item with full_name={result_fn} already exists in DynamoDB. Skipping..."
+                    )
+                else:
+                    fn_kwargs["ds"] = ds
+                    new_results = fn(**fn_kwargs)
+                    for result in new_results:
+                        result["ds_fn"] = kwargs["ds_fn"]
+                        result["segmentation_version"] = segmentation_version
+                        result["precompute_cache"] = precompute_cache
 
-        # fake_runner(ds=ds)
-        # return
+                    table.put_item(
+                        Item={
+                            "full_name": result_fn,
+                            "results": float_to_decimal(new_results),
+                        }
+                    )
+
+            result_fns.append(result_fn)
 
     return result_fns
 
@@ -122,7 +188,7 @@ def run_EKF_single_theta_single_radio(ds, phi_std, p, noise_std, dynamic_R):
         all_metrics.append(
             {
                 "type": "EKF_single_theta_single_radio",
-                "frequency": ds.cached_keys[0]["rx_lo"][0],
+                "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
                 "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "phi_std": phi_std,
@@ -156,7 +222,7 @@ def run_EKF_single_theta_dual_radio(
     return [
         {
             "type": "EKF_single_theta_dual_radio",
-            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "phi_std": phi_std,
             "p": p,
@@ -188,7 +254,7 @@ def run_EKF_xy_dual_radio(
     return [
         {
             "type": "EKF_XY_dual_radio",
-            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "phi_std": phi_std,
             "p": p,
@@ -232,7 +298,7 @@ def run_PF_single_theta_single_radio_NN(
         all_metrics.append(
             {
                 "type": "PF_single_theta_single_radio_NN",
-                "frequency": ds.cached_keys[0]["rx_lo"][0],
+                "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
                 "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
@@ -270,7 +336,7 @@ def run_PF_single_theta_single_radio(
         all_metrics.append(
             {
                 "type": "PF_single_theta_single_radio",
-                "frequency": ds.cached_keys[0]["rx_lo"][0],
+                "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
                 "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
@@ -297,7 +363,7 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
     return [
         {
             "type": "PF_single_theta_dual_radio",
-            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
@@ -335,7 +401,7 @@ def run_PF_single_theta_dual_radio_NN(
     return [
         {
             "type": "PF_single_theta_dual_radio_NN",
-            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
@@ -364,7 +430,7 @@ def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
     return [
         {
             "type": "PF_xy_dual_radio",
-            "frequency": ds.cached_keys[0]["rx_lo"][0],
+            "frequency": ds.cached_keys[0]["rx_lo"].median().item(),
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "vel_err": vel_err,
             "pos_err": pos_err,
@@ -446,6 +512,82 @@ def add_precompute_cache_to_job(job, precompute_caches):
     return (fn, args)
 
 
+def generate_configs_to_run(
+    yaml_config_fn, work_dir, dataset_fns, seed, empirical_pkl_fn
+):
+
+    try:
+        os.makedirs(work_dir)
+    except FileExistsError as e:
+        pass
+    yaml_config = yaml.safe_load(open(yaml_config_fn, "r"))
+    jobs_per_ds_fn = config_to_jobs(yaml_config)
+
+    # assign the precompute cache
+    jobs_per_ds_fn = [
+        add_precompute_cache_to_job(job, yaml_config["precompute_caches"])
+        for job in jobs_per_ds_fn
+    ]
+
+    for _, job_params in jobs_per_ds_fn:
+        assert "workdir" not in job_params
+        job_params["workdir"] = work_dir
+
+    random.seed(seed)
+    random.shuffle(jobs_per_ds_fn)
+
+    dataset_fns = sorted(dataset_fns)
+    if len(dataset_fns) == 1 and dataset_fns[0][-4:] == ".txt":
+        dataset_fns = [x.strip() for x in open(dataset_fns[0]).readlines()]
+
+    random.seed(seed)
+    random.shuffle(dataset_fns)
+
+    jobs = []
+    # try to read the same ds back to back so that OS can cache it
+    # job [0] = fn, job[1] = args
+    for ds_fn in dataset_fns:
+        for job in jobs_per_ds_fn:
+            jobs.append(
+                {
+                    "ds_fn": ds_fn,
+                    "empirical_pkl_fn": empirical_pkl_fn,
+                    "jobs": [[job[0], job[1].copy()]],
+                }
+            )
+    return jobs
+
+    # final_results = []
+    # for result in results:
+    #     final_results += result
+    # pickle.dump(results, open(args.output, "wb"))
+
+    # run_single_theta_single_radio()
+    # run_single_theta_dual_radio(
+    #     ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn
+    # )
+    # run_xy_dual_radio(ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn)
+
+
+def run_filter_jobs(jobs, nparallel, debug=False):
+    if debug:
+        _ = list(
+            tqdm.tqdm(
+                map(run_jobs_with_one_dataset, jobs),
+                total=len(jobs),
+            )
+        )
+    else:
+        torch.set_num_threads(1)
+        with Pool(nparallel) as pool:  # cpu_count())  # cpu_count() // 4)
+            _ = list(
+                tqdm.tqdm(
+                    pool.imap_unordered(run_jobs_with_one_dataset, jobs),
+                    total=len(jobs),
+                )
+            )
+
+
 if __name__ == "__main__":
 
     def get_parser():
@@ -518,82 +660,11 @@ if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
     random.seed(args.seed)
-
-    try:
-        os.makedirs(args.work_dir)
-    except FileExistsError as e:
-        pass
-    yaml_config = yaml.safe_load(open(args.config, "r"))
-    jobs_per_ds_fn = config_to_jobs(yaml_config)
-
-    # assign the precompute cache
-    jobs_per_ds_fn = [
-        add_precompute_cache_to_job(job, yaml_config["precompute_caches"])
-        for job in jobs_per_ds_fn
-    ]
-
-    for _, job_params in jobs_per_ds_fn:
-        assert "workdir" not in job_params
-        job_params["workdir"] = args.work_dir
-
-    random.seed(args.seed)
-    random.shuffle(jobs_per_ds_fn)
-    # one job per dataset
-    # jobs = [
-    #     {
-    #         "ds_fn": ds_fn,
-    #         "precompute_cache": args.precompute_cache,
-    #         "empirical_pkl_fn": args.empirical_pkl_fn,
-    #         "jobs": jobs_per_ds_fn,
-    #     }
-    #     for ds_fn in args.datasets
-    # ]
-
-    dataset_fns = sorted(args.datasets)
-    if len(dataset_fns) == 1 and dataset_fns[0][-4:] == ".txt":
-        dataset_fns = [x.strip() for x in open(dataset_fns[0]).readlines()]
-
-    random.seed(args.seed)
-    random.shuffle(dataset_fns)
-
-    jobs = []
-    # try to read the same ds back to back so that OS can cache it
-    # job [0] = fn, job[1] = args
-    for ds_fn in dataset_fns:
-        for job in jobs_per_ds_fn:
-            jobs.append(
-                {
-                    "ds_fn": ds_fn,
-                    "empirical_pkl_fn": args.empirical_pkl_fn,
-                    "jobs": [[job[0], job[1].copy()]],
-                }
-            )
-
-    if args.debug:
-
-        results = list(
-            tqdm.tqdm(
-                map(run_jobs_with_one_dataset, jobs),
-                total=len(jobs),
-            )
-        )
-    else:
-        torch.set_num_threads(1)
-        with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
-            results = list(
-                tqdm.tqdm(
-                    pool.imap_unordered(run_jobs_with_one_dataset, jobs),
-                    total=len(jobs),
-                )
-            )
-
-    # final_results = []
-    # for result in results:
-    #     final_results += result
-    # pickle.dump(results, open(args.output, "wb"))
-
-    # run_single_theta_single_radio()
-    # run_single_theta_dual_radio(
-    #     ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn
-    # )
-    # run_xy_dual_radio(ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn)
+    jobs = generate_configs_to_run(
+        yaml_config_fn=args.config,
+        work_dir=args.work_dir,
+        dataset_fns=args.datasets,
+        seed=args.seed,
+        empirical_pkl_fn=args.empirical_pkl_fn,
+    )
+    run_filter_jobs(jobs)
