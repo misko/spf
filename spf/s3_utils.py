@@ -1,18 +1,20 @@
-from contextlib import contextmanager
+import os
 import tempfile
 import time
+from contextlib import contextmanager
+
 import boto3  # REQUIRED! - Details here: https://pypi.org/project/boto3/
-from botocore.exceptions import ClientError
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv  # Project Must install Python Package:  python-dotenv
-import os
 from filelock import FileLock
 
 os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = "when_required"
 os.environ["AWS_RESPONSE_CHECKSUM_VALIDATION"] = "when_required"
 
-import os
 import io
+import os
+
 import boto3
 from botocore.config import Config
 from dotenv import load_dotenv
@@ -115,38 +117,41 @@ class B2WriteIO:
         self.close()
 
 
-b2_cache_folder=None
+b2_cache_folder = None
+
+
 def b2_get_or_set_cache():
     global b2_cache_folder
     if b2_cache_folder is None:
-        b2_cache_folder=tempfile.TemporaryDirectory()
+        b2_cache_folder = tempfile.TemporaryDirectory()
     return b2_cache_folder
+
 
 def b2_reset_cache():
     global b2_cache_folder
-    old_b2_cache_folder=b2_cache_folder
-    b2_cache_folder=tempfile.TemporaryDirectory()
+    old_b2_cache_folder = b2_cache_folder
+    b2_cache_folder = tempfile.TemporaryDirectory()
     return old_b2_cache_folder
+
 
 def b2_download_folder_cache(fn):
     b2_client = get_b2_client()
-    bucket, b2_path = b2path_to_bucket_and_path(
-                fn
-            )
+    bucket, b2_path = b2path_to_bucket_and_path(fn)
     resp = b2_client.list_objects_v2(Bucket=bucket, Prefix=b2_path)
     for obj in resp.get("Contents", []):
         b2_file_to_local_with_cache(f'b2://{bucket}/{obj["Key"]}')
     return os.path.join(b2_cache_folder.name, bucket, b2_path)
+
 
 def b2_file_to_local_with_cache(fn, *args, **kwargs):
     global b2_cache_folder
     if "b2:" == fn[:3]:
         b2_client = get_b2_client()
         if b2_cache_folder is None:
-            b2_cache_folder=tempfile.TemporaryDirectory()
-        tmpdirname=b2_cache_folder.name
-        local_fn=f'{tmpdirname}/{fn[5:]}'
-        os.makedirs(os.path.dirname(local_fn),exist_ok=True)
+            b2_cache_folder = tempfile.TemporaryDirectory()
+        tmpdirname = b2_cache_folder.name
+        local_fn = f"{tmpdirname}/{fn[5:]}"
+        os.makedirs(os.path.dirname(local_fn), exist_ok=True)
 
         # Create a lock file *specific* to this B2 file to avoid collisions with other files
         # For instance, local_fn + ".lock"
@@ -169,10 +174,8 @@ def b2_file_as_local(fn, *args, **kwargs):
     if "b2:" == fn[:3]:
         b2_client = get_b2_client()
         with tempfile.TemporaryDirectory() as tmpdirname:
-            local_fn=f'{tmpdirname}/{fn.split('/')[-1]}'
-            bucket, b2_path = b2path_to_bucket_and_path(
-                fn
-            )
+            local_fn = f"{tmpdirname}/{fn.split('/')[-1]}"
+            bucket, b2_path = b2path_to_bucket_and_path(fn)
             b2_client.download_file(
                 bucket,
                 b2_path,
@@ -182,7 +185,7 @@ def b2_file_as_local(fn, *args, **kwargs):
                 yield f
     else:
         with open(local_fn, *args, **kwargs) as f:
-                        yield f
+            yield f
 
 
 def spf_open(fn, mode="r", **kwargs):
