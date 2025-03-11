@@ -162,6 +162,7 @@ def b2_file_to_local_with_cache(fn, *args, **kwargs):
         with lock:
             # Double-check after acquiring the lock in case another process just downloaded it
             if not os.path.exists(local_fn):
+                print("DOWNLOADING", fn, local_fn)
                 bucket, b2_path = b2path_to_bucket_and_path(fn)
                 b2_client.download_file(bucket, b2_path, local_fn)
 
@@ -184,7 +185,7 @@ def b2_file_as_local(fn, *args, **kwargs):
             with open(local_fn, *args, **kwargs) as f:
                 yield f
     else:
-        with open(local_fn, *args, **kwargs) as f:
+        with open(fn, *args, **kwargs) as f:
             yield f
 
 

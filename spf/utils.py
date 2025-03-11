@@ -84,6 +84,7 @@ def rx_spacing_to_str(rx_spacing):
     return f"{rx_spacing:0.5f}"
 
 
+@functools.cache
 def get_md5_of_file(fn, cache_md5=True):
     if os.path.exists(fn + ".md5"):
         try:
