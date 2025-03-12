@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import hashlib
 import logging
 import os
 import random
@@ -12,9 +13,8 @@ from dotenv import load_dotenv  # Project Must install Python Package:  python-d
 
 from spf.s3_utils import (
     b2_download_folder_cache,
+    b2_file_as_local,
     b2_file_to_local_with_cache,
-    b2_get_or_set_cache,
-    b2_reset_cache,
     b2path_to_bucket_and_path,
     get_b2_client,
 )
@@ -136,7 +136,7 @@ def main():
     chunks_total = int(os.environ.get("AWS_BATCH_JOB_ARRAY_SIZE", "1"))
 
     files_to_process = set()
-    with open(args.manifest, "r") as f:
+    with b2_file_as_local(args.manifest, "r") as f:
         files_to_process = set(
             [os.path.basename(line.strip()).replace(".zarr", ".yaml") for line in f]
         )
@@ -188,8 +188,8 @@ def main():
             if os.path.basename(filename) not in files_to_process:
                 print("Skipping", filename)
                 continue
-            if ".yaml" in filename and "_tag_" in filename:
-                print(filename)
+            if ".yaml" in filename:  #  and "_tag_" in filename:
+                # print(filename)
                 remote_zarr_fn = filename.replace(".yaml", ".zarr")
 
                 _ = b2_file_to_local_with_cache(f'b2://{bucket}/{obj["Key"]}')
@@ -205,18 +205,21 @@ def main():
                     empirical_pkl_fn=local_empirical_pkl_fn,
                 )
 
-                run_filter_jobs(
-                    jobs,
-                    nparallel=args.parallel,
-                    debug=args.debug,
-                    already_processed=set(
-                        [
-                            x
-                            for x in already_processed
-                            if os.path.basename(local_zarr_fn) in x
-                        ]
-                    ),
-                )
+                try:
+                    run_filter_jobs(
+                        jobs,
+                        nparallel=args.parallel,
+                        debug=args.debug,
+                        already_processed=set(
+                            [
+                                x
+                                for x in already_processed
+                                if os.path.basename(local_zarr_fn) in x
+                            ]
+                        ),
+                    )
+                except Exception as e:
+                    print("Failed to process", str(e))
 
 
 if __name__ == "__main__":

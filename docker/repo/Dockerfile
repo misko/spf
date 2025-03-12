@@ -17,6 +17,8 @@ WORKDIR /spf
 RUN python3 -m venv /opt/spf-env
 ENV PATH="/opt/spf-env/bin:$PATH"
 
+COPY b2_env /app/.env
+
 RUN pip install --upgrade pip
 # In this stage, you can confirm everything's installed
 

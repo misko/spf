@@ -3,9 +3,9 @@ import logging
 import os
 
 import numpy as np
-from spf.s3_utils import b2_file_as_local, spf_exists, spf_open
 import torch
 
+from spf.s3_utils import b2_file_as_local, spf_exists, spf_open
 from spf.scripts.train_single_point import (
     load_checkpoint,
     load_config_from_fn,
