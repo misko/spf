@@ -134,6 +134,22 @@ def load_single_dataset_using_configs(
     )
 
 
+def load_dataset_manifest_with_sampling(dataset_manifest_fn):
+    ds_paths = []
+    for line in open(dataset_manifest_fn).readlines():
+        line = line.strip().split()
+        sampling = 1
+        if len(line) == 2:
+            # has sampling
+            sampling = int(line[1])
+        elif len(line) == 1:
+            pass
+        else:
+            raise ValueError(f"Cannot process line {line}")
+        ds_paths += [line[0]] * sampling
+    return ds_paths
+
+
 def load_dataloaders(
     datasets_config,
     optim_config,
@@ -167,8 +183,8 @@ def load_dataloaders(
         and train_dataset_filenames[0][-4:] == ".txt"
         and val_dataset_filenames[0][-4:] == ".txt"
     ):
-        val_paths = [x.strip() for x in open(val_dataset_filenames[0]).readlines()]
-        train_paths = [x.strip() for x in open(train_dataset_filenames[0]).readlines()]
+        val_paths = load_dataset_manifest_with_sampling(val_dataset_filenames[0])
+        train_paths = load_dataset_manifest_with_sampling(train_dataset_filenames[0])
         logging.info(
             f"Using train and val from txt: val_files {len(val_paths)} , train_files {len(train_paths)}"
         )
@@ -461,7 +477,9 @@ def save_model(
     )
     with open(f"{prefix}/config.yml", "w") as outfile:
         yaml.dump(running_config, outfile)
-    shutil.copyfile(config['datasets']['empirical_data_fn'],f"{prefix}/empirical_dist.pkl")
+    shutil.copyfile(
+        config["datasets"]["empirical_data_fn"], f"{prefix}/empirical_dist.pkl"
+    )
 
 
 def load_checkpoint(
@@ -669,6 +687,7 @@ def new_log():
         "learning_rate": [],
         "multipaired_direct_loss": [],
         "multipaired_tx_pos_loss": [],
+        "num_batches": [],
     }
 
 
@@ -1043,6 +1062,7 @@ def run_val_on_dataloader(
             val_losses[key].append(value.item())
 
         val_losses["epoch"].append(epoch)
+        val_losses["num_batches"].append(len(dataloader))
     return val_losses, fig
 
 

@@ -255,8 +255,8 @@ class BladeRFSdr:
         phase_calibration=0.0,
     ):
         super(BladeRFSdr, self).__init__()
-        self.uri = uri
-        assert self.uri == "bladerf"  # only support one device per machine
+        assert "bladerf://" in uri  # only support one device per machine
+        self.uri = uri[len("bladerf://") :]
 
         self.tx_config = None
         self.rx_config = None
@@ -266,7 +266,7 @@ class BladeRFSdr:
         logging.info(f"{self.uri}: Open bladeRF")
 
         # Open the first available bladeRF device (or parse URI if needed).
-        self.sdr = bladerf.BladeRF()
+        self.sdr = bladerf.BladeRF(device_identifier=self.uri)
 
         self.rx_channels = (
             self.sdr.Channel(bladerf.CHANNEL_RX(0)),
