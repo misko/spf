@@ -5,19 +5,14 @@ import pickle
 import random
 import tempfile
 import time
-from multiprocessing import Pool
 from decimal import Decimal
+from functools import partial
+from multiprocessing import Pool
 
-from spf.s3_utils import (
-    b2_file_to_local_with_cache,
-    b2_reset_cache,
-    b2path_to_bucket_and_path,
-    get_b2_client,
-)
+import boto3
 import torch
 import tqdm
 import yaml
-import boto3
 
 from spf.dataset.spf_dataset import v5spfdataset_manager
 from spf.filters.ekf_dualradio_filter import SPFPairedKalmanFilter
@@ -28,6 +23,12 @@ from spf.filters.particle_dualradio_filter import PFSingleThetaDualRadio
 from spf.filters.particle_dualradioXY_filter import PFXYDualRadio
 from spf.filters.particle_single_radio_filter import PFSingleThetaSingleRadio
 from spf.filters.particle_single_radio_nn_filter import PFSingleThetaSingleRadioNN
+from spf.s3_utils import (
+    b2_file_to_local_with_cache,
+    b2_reset_cache,
+    b2path_to_bucket_and_path,
+    get_b2_client,
+)
 from spf.utils import get_md5_of_file
 
 
@@ -70,10 +71,10 @@ def fake_runner(ds, **kwargs):
         a = ds[idx][0]
 
 
-def run_jobs_with_one_dataset(kwargs):
+def run_jobs_with_one_dataset(kwargs, already_processed=[]):
 
     dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table("spf_filter_results")
+    table = dynamodb.Table("filter_metrics")
     # b2_reset_cache()  # different processes need different folders for cache
     result_fns = []
 
@@ -81,6 +82,7 @@ def run_jobs_with_one_dataset(kwargs):
         precompute_cache = fn_kwargs.pop("precompute_cache")
         segmentation_version = fn_kwargs.pop("segmentation_version")
 
+        original_b2_paths = {}
         if "checkpoint_fn" in fn_kwargs:
 
             b2_checkpoint_fn = fn_kwargs["checkpoint_fn"]
@@ -91,7 +93,29 @@ def run_jobs_with_one_dataset(kwargs):
             config_b2_path = os.path.join(os.path.dirname(b2_path), "config.yml")
             _ = b2_file_to_local_with_cache(f"b2://{bucket}/{config_b2_path}")
 
+            original_b2_paths["checkpoint_fn"] = fn_kwargs["checkpoint_fn"]
+            original_b2_paths["config_fn"] = (
+                f"{os.path.dirname(fn_kwargs['checkpoint_fn'])}/config.yml"
+            )
             fn_kwargs["checkpoint_fn"] = local_checkpoint_fn
+
+        # before downloading anything lets check that it isnt already finished!
+        workdir = fn_kwargs.pop("workdir")
+        result_fn_without_workdir = (
+            f"fn_{fn.__name__}"
+            + f"/{segmentation_version:0.3f}"
+            + f"/ds_{os.path.basename(kwargs['ds_fn'])}/"
+            + "_"
+            + args_to_str(fn_kwargs)
+            + "results.pkl"
+        )
+        result_fn = workdir + "/" + result_fn_without_workdir
+
+        if result_fn_without_workdir in already_processed:
+            # print(
+            #    f"Item with full_name={result_fn} already exists in DynamoDB. Skipping..."
+            # )
+            continue
 
         # with get_local_precompute_cache(precompute_cache) as local_precompute_cache
         with v5spfdataset_manager(
@@ -115,16 +139,6 @@ def run_jobs_with_one_dataset(kwargs):
             empirical_data_fn=kwargs["empirical_pkl_fn"],
             segmentation_version=segmentation_version,
         ) as ds:
-            workdir = fn_kwargs.pop("workdir")
-            result_fn_without_workdir = (
-                f"fn_{fn.__name__}"
-                + f"/{segmentation_version:0.3f}"
-                + f"/ds_{os.path.basename(kwargs['ds_fn'])}/"
-                + "_"
-                + args_to_str(fn_kwargs)
-                + "results.pkl"
-            )
-            result_fn = workdir + "/" + result_fn_without_workdir
 
             use_file_system = False
             if use_file_system:
@@ -143,25 +157,23 @@ def run_jobs_with_one_dataset(kwargs):
                     os.rename(result_fn + ".tmp", result_fn)
                     assert os.path.exists(result_fn)
             else:
-                existing_item_response = table.get_item(Key={"full_name": result_fn})
-                if "Item" in existing_item_response:
-                    print(
-                        f"Item with full_name={result_fn} already exists in DynamoDB. Skipping..."
-                    )
-                else:
-                    fn_kwargs["ds"] = ds
-                    new_results = fn(**fn_kwargs)
-                    for result in new_results:
-                        result["ds_fn"] = kwargs["ds_fn"]
-                        result["segmentation_version"] = segmentation_version
-                        result["precompute_cache"] = precompute_cache
 
-                    table.put_item(
-                        Item={
-                            "full_name": result_fn,
-                            "results": float_to_decimal(new_results),
-                        }
-                    )
+                fn_kwargs["ds"] = ds
+                new_results = fn(**fn_kwargs)
+                for result in new_results:
+                    result["ds_fn"] = kwargs["ds_fn"]
+                    result["segmentation_version"] = segmentation_version
+                    result["precompute_cache"] = precompute_cache
+                    for replace_key, replace_value in original_b2_paths.items():
+                        if replace_key in result:
+                            result[replace_key] = replace_value
+                table.put_item(
+                    Item={
+                        "bucket": workdir,
+                        "full_name": result_fn_without_workdir,
+                        "results": float_to_decimal(new_results),
+                    }
+                )
 
             result_fns.append(result_fn)
 
@@ -569,11 +581,12 @@ def generate_configs_to_run(
     # run_xy_dual_radio(ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn)
 
 
-def run_filter_jobs(jobs, nparallel, debug=False):
+def run_filter_jobs(jobs, nparallel, debug=False, already_processed=[]):
+    f = partial(run_jobs_with_one_dataset, already_processed=already_processed)
     if debug:
         _ = list(
             tqdm.tqdm(
-                map(run_jobs_with_one_dataset, jobs),
+                map(f, jobs),
                 total=len(jobs),
             )
         )
@@ -582,7 +595,7 @@ def run_filter_jobs(jobs, nparallel, debug=False):
         with Pool(nparallel) as pool:  # cpu_count())  # cpu_count() // 4)
             _ = list(
                 tqdm.tqdm(
-                    pool.imap_unordered(run_jobs_with_one_dataset, jobs),
+                    pool.imap_unordered(f, jobs),
                     total=len(jobs),
                 )
             )

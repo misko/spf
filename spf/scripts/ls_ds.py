@@ -15,7 +15,7 @@ LS_VERSION = 1.4
 def ls_zarr(ds_fn, force=False):
     ls_fn = ds_fn + ".ls.json"
     if force or not os.path.exists(ls_fn):
-        if True:
+        try:
             ds = v5spfdataset(
                 ds_fn,
                 nthetas=65,
@@ -47,9 +47,10 @@ def ls_zarr(ds_fn, force=False):
             }
             with open(ls_fn, "w") as fp:
                 json.dump(ls_info, fp, indent=4)
-        # except Exception as e:
-        #    print(f"Failed to write {ds_fn} with {e}")
-        #    raise ValueError(f"Could not not process file {ds_fn} , {str(e)}")
+        except Exception as e:
+            print(f"Failed to write {ds_fn} with {e}")
+            return None
+            # raise ValueError(f"Could not not process file {ds_fn} , {str(e)}")
     with open(ls_fn, "r") as file:
         try:
             ls_info = json.load(file)
