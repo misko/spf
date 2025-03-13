@@ -256,14 +256,15 @@ class BladeRFSdr:
     ):
         super(BladeRFSdr, self).__init__()
         assert "bladerf://" in uri  # only support one device per machine
-        self.uri = uri[len("bladerf://") :]
 
         self.tx_config = None
         self.rx_config = None
-        self.set_config(rx_config=rx_config, tx_config=tx_config)
 
         self.uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
+        self.uri = self.uri[len("bladerf://") :]
         logging.info(f"{self.uri}: Open bladeRF")
+
+        self.set_config(rx_config=rx_config, tx_config=tx_config)
 
         # Open the first available bladeRF device (or parse URI if needed).
         self.sdr = bladerf.BladeRF(device_identifier=self.uri)
