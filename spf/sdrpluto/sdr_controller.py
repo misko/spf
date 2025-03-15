@@ -15,6 +15,7 @@ except ImportError:
 
 import matplotlib.pyplot as plt
 import numpy as np
+from bladerf import _bladerf
 from tqdm import tqdm
 
 from spf.rf import (
@@ -27,6 +28,21 @@ from spf.rf import (
     precompute_steering_vectors,
 )
 from spf.utils import random_signal_matrix
+
+
+def bladerf_serial_to_info():
+    try:
+        serial_to_uri = {}
+        for dev in _bladerf.get_device_list():
+            dev_dict = dev._asdict()
+            serial_to_uri[dev_dict["serial"].decode()] = (
+                f'bladerf://libusb:device={dev_dict["usb_bus"]}:{dev_dict["usb_addr"]}'
+            )
+        return serial_to_uri
+    except _bladerf.BladeRFError:
+        print("No bladeRF devices found.")
+        return {}
+
 
 # TODO close SDR on exit
 # import signal
@@ -261,6 +277,15 @@ class BladeRFSdr:
         self.rx_config = None
 
         self.uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
+
+        if "serial" in self.uri:
+            serial_to_find = self.uri.split("serial:")[1]
+            bladerfs_on_system = bladerf_serial_to_info()
+            if serial_to_find in bladerfs_on_system:
+                self.uri = bladerfs_on_system[serial_to_find]
+            else:
+                raise ValueError(f"Missing bladerf {serial_to_find}")
+
         self.uri = self.uri[len("bladerf://") :]
         logging.info(f"{self.uri}: Open bladeRF")
 
@@ -268,6 +293,7 @@ class BladeRFSdr:
 
         # Open the first available bladeRF device (or parse URI if needed).
         self.sdr = bladerf.BladeRF(device_identifier=self.uri)
+        self.sdr.rx = self.rx  # TODO make this nicer
 
         self.rx_channels = (
             self.sdr.Channel(bladerf.CHANNEL_RX(0)),
@@ -307,7 +333,11 @@ class BladeRFSdr:
         if rx_config is not None:
             assert self.rx_config is None
             self.rx_config = rx_config
-            self.sdr = FakeSdr()
+
+        # TX should be setup like this
+        if tx_config is not None:
+            assert self.tx_config is None
+            self.tx_config = tx_config
 
         assert tx_config is None
 
