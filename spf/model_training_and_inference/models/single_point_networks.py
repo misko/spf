@@ -626,7 +626,6 @@ class AllWindowsStatsNet(nn.Module):
         hidden_channels=32,
         outputs=8,
         output_phi=False,
-        dropout=0.0,
         norm=False,
         norm_size=256,
         n_layers=1,
@@ -640,6 +639,8 @@ class AllWindowsStatsNet(nn.Module):
         n_layers_2d=4,
         window_shrink=0.0,
         window_shuffle=0.0,
+        window_dropout=0.0,
+        window_fraction=0.25,
     ):
         super().__init__()
         if act == "relu":
@@ -653,13 +654,19 @@ class AllWindowsStatsNet(nn.Module):
         padding = k // 2
         self.outputs = outputs
         self.output_phi = output_phi
-        self.dropout = dropout
         self.window_shrink = window_shrink
         self.window_shuffle = window_shuffle
+        self.window_dropout = window_dropout
+        self.window_fraction = window_fraction
+        logging.info(
+            f"ALLWINDOW CONFIG {self.window_fraction} {self.window_dropout} {self.window_shuffle}"
+        )
         self.windowed_beamformer = windowed_beamformer
         self.normalize_windowed_beamformer = normalize_windowed_beamformer
         self.nthetas = nthetas
-        assert dropout == 0.0 or not norm, "currently cannot do norm if dropout > 0.0"
+        assert (
+            window_dropout == 0.0 or not norm
+        ), "currently cannot do norm if dropout > 0.0"
         input_channels = 3
         if self.windowed_beamformer:
             input_channels += self.nthetas
@@ -751,29 +758,24 @@ class AllWindowsStatsNet(nn.Module):
         size_batch, size_snapshots, channels, windows = input.shape
         input = input.reshape(-1, channels, windows)
 
-        # self.dropout = 0.2 means drop 20%
-        if self.training and self.dropout > 0.0:
-            input = input[:, :, torch.rand(windows) > self.dropout]
+        if self.training:
+            if self.window_shrink > 0.0 and torch.rand(1) < self.window_shrink:
+                start_idx = int(torch.rand(1) * self.window_fraction * windows)
+                end_idx = min(
+                    start_idx + int(windows * (1 - self.window_fraction)), windows
+                )
+                input = input[:, :, start_idx:end_idx]
 
-        if (
-            self.training
-            and self.window_shrink > 0.0
-            and torch.rand(1) < self.window_shrink
-        ):
-            window_fraction = 0.25
-            start_idx = int(torch.rand(1) * window_fraction * windows)
-            end_idx = min(start_idx + int(windows * (1 - window_fraction)), windows)
-            input = input[:, :, start_idx:end_idx]
-        # assert input.isfinite().all()
-        # shuffle 25% of the time
-        if (
-            self.training
-            and self.window_shuffle > 0.0
-            and torch.rand(1) < self.window_shuffle
-        ):
-            input = input.index_select(
-                2, torch.randperm(input.shape[2], device=input.device)
-            )
+            # self.dropout = 0.2 means drop 20%
+            elif self.window_dropout > 0.0:
+                input = input[:, :, torch.rand(windows) > self.window_dropout]
+
+            # assert input.isfinite().all()
+            # shuffle 25% of the time
+            if self.window_shuffle > 0.0 and torch.rand(1) < self.window_shuffle:
+                input = input.index_select(
+                    2, torch.randperm(input.shape[2], device=input.device)
+                )
 
         if self.conv_type == "2d":
             input = self.conv_net_2d(input.unsqueeze(1)).select(1, 0)
@@ -882,9 +884,12 @@ class PairedSinglePointWithBeamformer(nn.Module):
         self.single_radio_net = SinglePointWithBeamformer(
             model_config["single"], global_config
         )
+        self.prepare_input = PrepareInput(model_config["single"], global_config)
+
         self.detach = model_config.get("detach", True)
         self.paired_single_point_with_beamformer_ffnn = FFNN(
-            inputs=model_config["single"]["output_ntheta"] * 2,
+            inputs=(model_config["single"]["output_ntheta"] + self.prepare_input.inputs)
+            * 2,
             depth=model_config["depth"],  # 4
             hidden=model_config["hidden"],  # 128
             outputs=model_config["output_ntheta"],
@@ -905,16 +910,22 @@ class PairedSinglePointWithBeamformer(nn.Module):
             torch_pi_norm(rotation_offets),
         ).unsqueeze(1)
 
-        single_radio_estimates_input = detach_or_not(
-            single_radio_estimates_rotated, self.detach
+        # these inputs are invariant
+        additional_inputs = self.prepare_input.prepare_input(batch)
+
+        joined_input = torch.concatenate(
+            [single_radio_estimates_rotated, additional_inputs], dim=2
         )
+
+        joined_input_detached_or_not = detach_or_not(joined_input, self.detach)
 
         x = self.paired_single_point_with_beamformer_ffnn(
             torch.concatenate(
-                [single_radio_estimates_input[::2], single_radio_estimates_input[1::2]],
+                [joined_input_detached_or_not[::2], joined_input_detached_or_not[1::2]],
                 dim=2,
             )
         )
+
         idxs = torch.arange(x.shape[0]).reshape(-1, 1).repeat(1, 2).reshape(-1)
         # first dim odd / even is the radios
         return {
