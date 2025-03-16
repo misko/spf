@@ -84,6 +84,8 @@ def get_tx_xy_at_rx(rx_time_and_gps, tx_time_and_gps, gps_center_long_lat):
                 )
                 * 1000
             )  # in mm
+            if np.abs(tx_xy).max() > 300000 or np.abs(rx_xy).max() > 300000:
+                logging.error("Something is wrong! 300000 v4 merge")
 
             tx_gps_lookups.append(
                 {
@@ -204,6 +206,10 @@ def get_min_max_of_times(times):
     return times[times > 0].min(), times.max()
 
 
+def get_non_zero_mean(x):
+    return x[~np.isclose(x, 0.0)].mean()
+
+
 def merge_v4rx_v4tx_into_v5(
     tx_fn,
     rx_fn,
@@ -240,7 +246,10 @@ def merge_v4rx_v4tx_into_v5(
     # could just take the mean of TX if this is not working
     # but this would be more canonical
     boundary_name = find_closest_boundary(
-        (tx_time_and_gps.gps_longs.mean(), tx_time_and_gps.gps_lats.mean())
+        (
+            get_non_zero_mean(tx_time_and_gps.gps_longs),
+            get_non_zero_mean(tx_time_and_gps.gps_lats),
+        )
     )
     gps_center_long_lat = boundaries[boundary_name].mean(axis=0)
 
@@ -253,6 +262,7 @@ def merge_v4rx_v4tx_into_v5(
         }
     )
 
+    breakpoint()
     # timesteps = original_zarr["receivers/r0/system_timestamp"].shape[0]
     # timesteps needs to be updated since missing some RX points because of out of sync with TX times TODO
     timesteps = len(valid_idxs_and_tx_rx_pos["idxs"])
@@ -366,7 +376,8 @@ if __name__ == "__main__":
                         logging.info(
                             f"{timesteps} tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}"
                         )
-                except lmdb.CorruptedError as e:
+                except (lmdb.CorruptedError, KeyError) as e:
                     logging.error(
                         f"CORRUPT tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}"
                     )
+                    logging.error(f"{str(e)}")
