@@ -262,7 +262,6 @@ def merge_v4rx_v4tx_into_v5(
         }
     )
 
-    breakpoint()
     # timesteps = original_zarr["receivers/r0/system_timestamp"].shape[0]
     # timesteps needs to be updated since missing some RX points because of out of sync with TX times TODO
     timesteps = len(valid_idxs_and_tx_rx_pos["idxs"])
