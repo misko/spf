@@ -12,7 +12,6 @@ distance-finder:
   echo: 3
 
 boundary: 'auto'
-
 #USB PORTS
 #USB  2   (Radio A)  |     USB 1 (Radio B)
 receivers:

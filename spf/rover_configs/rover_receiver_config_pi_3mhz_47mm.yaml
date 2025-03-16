@@ -18,7 +18,7 @@ receivers:
   #radio A
   - receiver-port: 2
     theta-in-pis: 0
-    antenna-spacing-m: 0.043 # 50.75 mm 
+    antenna-spacing-m: 0.047 # 50.75 mm 
     nelements: 2
     array-type: linear
     rx-gain-mode: slow_attack
@@ -32,7 +32,7 @@ receivers:
   #radio B
   - receiver-port: 1
     theta-in-pis: 0.5
-    antenna-spacing-m: 0.043 # 50.75 mm 
+    antenna-spacing-m: 0.047 # 50.75 mm 
     nelements: 2
     array-type: linear
     rx-gain-mode: slow_attack

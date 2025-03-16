@@ -60,7 +60,7 @@ echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_gover
 
 if [ ${rover_id} -eq 1 ]; then
     routine=diamond
-    config=${repo_root}/spf/rover_configs/rover_receiver_config_pi_3mhz_47mm.yaml 
+    config=${repo_root}/spf/rover_configs/rover_receiver_config_pi_3mhz_35mm.yaml 
     n=3000
 	expected_radios=2
 elif [ ${rover_id} -eq 2 ]; then
