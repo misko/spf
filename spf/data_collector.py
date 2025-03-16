@@ -223,7 +223,7 @@ class ThreadedRX:
                 return {"signal_matrix": signal_matrix, "rssis": rssis, "gains": gains}
             except Exception as e:
                 logging.error(
-                    f"Failed to receive RX data! removing file : retry {tries} {e}",
+                    f"Failed to receive RX data! : retry {tries} {e}",
                 )
                 time.sleep(0.1)
                 tries += 1
