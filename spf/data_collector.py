@@ -447,10 +447,13 @@ class DataCollector:
         self.close()
 
         # clean up lost threads
+        logging.info("Collector tell threads to quit!")
         for read_thread_idx, read_thread in enumerate(self.read_threads):
             read_thread.run = False
+        logging.info("Collector wait for join!")
         for read_thread_idx, read_thread in enumerate(self.read_threads):
             read_thread.join()
+        logging.info("Collector clean exit!")
 
     def close(self):
         pass
@@ -502,6 +505,7 @@ class DroneDataCollectorRaw(DataCollector):
     def close(self):
         self.zarr.store.close()
         self.zarr = None
+        logging.info(f"Trying to shrink... {self.data_filename}")
         zarr_shrink(self.data_filename)
 
 
@@ -587,12 +591,16 @@ class GrblDataCollectorRaw(DataCollector):
             z = self.zarr[f"receivers/r{thread_idx}"]
             z.signal_matrix[record_idx] = data.signal_matrix
             for k in v5rx_f64_keys + v5rx_2xf64_keys:
+                # print("writting", k, record_idx, getattr(data, k))
                 z[k][record_idx] = getattr(data, k)
 
     def close(self):
         if not self.yaml_config["dry-run"]:
+            logging.info(f"Trying to close LMDB... {self.data_filename}")
             self.zarr.store.close()
+            logging.info(f"Trying to close 2 LMDB... {self.data_filename}")
             self.zarr = None
+            logging.info(f"Trying to shrink... {self.data_filename}")
             zarr_shrink(self.data_filename)
 
 

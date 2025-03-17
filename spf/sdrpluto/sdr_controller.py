@@ -300,8 +300,8 @@ class BladeRFSdr:
             self.sdr.Channel(bladerf.CHANNEL_RX(1)),
         )
         self.tx_channels = (
-            self.sdr.Channel(bladerf.CHANNEL_RX(0)),
-            self.sdr.Channel(bladerf.CHANNEL_RX(1)),
+            self.sdr.Channel(bladerf.CHANNEL_TX(0)),
+            self.sdr.Channel(bladerf.CHANNEL_TX(1)),
         )
         for tx_ch in self.tx_channels:
             tx_ch.enable = False
@@ -310,20 +310,25 @@ class BladeRFSdr:
         return
 
     def rssis(self):
-        return np.array(
-            [
-                self.rx_channels[0].rssi,
-                self.rx_channels[0].rssi,
-            ]
-        )
+        # rssis = np.array(
+        #     [
+        #         self.rx_channels[0].rssi,
+        #         self.rx_channels[1].rssi,
+        #     ]
+        # )
+        # return rssis.mean(axis=1)
+        rssis = np.array([0, 0])
+        return rssis
 
     def gains(self):
-        return np.array(
-            [
-                self.rx_channels[0].gain,
-                self.rx_channels[0].gain,
-            ]
-        )
+        gains = np.array([0, 0])
+        # gains = np.array(
+        #     [
+        #         self.rx_channels[0].gain,
+        #         self.rx_channels[1].gain,
+        #     ]
+        # )
+        return gains
 
     def set_config(
         self, rx_config: ReceiverConfig = None, tx_config: EmitterConfig = None
@@ -345,6 +350,71 @@ class BladeRFSdr:
         pass
 
     def setup_rx_config(self):
+        """
+        Configure the AD9361 on the bladeRF 2.0 Micro to enable:
+        1) LNA bypass phase inversion correction (reg 0x022 bit6)
+        2) RX1-RX2 phase alignment (reg 0x011 bit5)
+        3) Clear bit5 in reg 0x189 to disable inversion in RX2's DC correction path
+
+        This replicates the effect of 'rx1-rx2-phase-inversion-enable' on PlutoSDR.
+        """
+
+        # Shortcuts to libbladeRF C API functions
+        get_register = bladerf._bladerf.libbladeRF.bladerf_get_rfic_register
+        set_register = bladerf._bladerf.libbladeRF.bladerf_set_rfic_register
+
+        # 'self.sdr' presumably is a bladerf.BladeRF() instance or similar
+        # 'dev = self.sdr.dev[0]' references the raw C device handle array
+        dev = self.sdr.dev[0]
+
+        # -- Register 0x022: AGC Attack Delay & LNA polarity --
+        val22_ptr = bladerf._bladerf.ffi.new("uint8_t *")
+        # Read the current register value into 'val22_ptr[0]'
+        get_register(dev, 0x22, val22_ptr)
+        current_022 = val22_ptr[0]
+
+        # Set bit 6 (0x40) to invert the signal phase when LNA is bypassed
+        new_022 = current_022 | (1 << 6)  # (1 << 6) = 0x40
+        set_register(dev, 0x22, new_022)
+        print(f"Register 0x022: 0x{current_022:02X} -> 0x{new_022:02X}")
+
+        # -- Register 0x011: Parallel Port Conf 2 --
+        #    (Handles RX1/RX2 phase inversion)
+        val11_ptr = bladerf._bladerf.ffi.new("uint8_t *")
+        get_register(dev, 0x11, val11_ptr)
+        current_011 = val11_ptr[0]
+
+        # Set bit 5 (0x20) to enable phase inversion on RX2
+        new_011 = current_011 | (1 << 5)
+        set_register(dev, 0x11, new_011)
+        print(f"Register 0x011: 0x{current_011:02X} -> 0x{new_011:02X}")
+
+        # -- Register 0x0189: Invert Bits (RX DC correction paths) --
+        val189_ptr = bladerf._bladerf.ffi.new("uint8_t *")
+        get_register(dev, 0x189, val189_ptr)
+        current_0189 = val189_ptr[0]
+
+        # Clear bit 5 to ensure RX2 DC offset correction is NOT inverted now
+        new_0189 = current_0189 & ~(1 << 5)
+        set_register(dev, 0x189, new_0189)
+        print(f"Register 0x0189: 0x{current_0189:02X} -> 0x{new_0189:02X}")
+
+        # Check for missing parenthesis
+        # Original code was missing a right parenthesis here.
+        # Correct line:
+        # print(f"Register 0x0189: 0x{current_0189:02X} -> 0x{new_0189:02X}")
+
+        # (Optional) Verify by reading back the registers
+        get_register(dev, 0x22, val22_ptr)
+        get_register(dev, 0x11, val11_ptr)
+        get_register(dev, 0x189, val189_ptr)
+
+        print(
+            f"New 0x022 = 0x{val22_ptr[0]:02X}, "
+            + f"New 0x011 = 0x{val11_ptr[0]:02X}, "
+            + f"New 0x189 = 0x{val189_ptr[0]:02X}"
+        )
+
         for rx_ch_idx, rx_ch in enumerate(self.rx_channels):
             rx_ch.bandwidth = self.rx_config.rf_bandwidth
             assert rx_ch.bandwidth == self.rx_config.rf_bandwidth
@@ -1207,6 +1277,8 @@ if __name__ == "__main__":
             )
             for _ in tqdm(range(int(1e6))):
                 signal_matrix = np.vstack(pplus_rx.rx())
+                # rssis = pplus_rx.rssis()
+                # gains = pplus_rx.gains()
 
                 beam_sds = beamformer_given_steering(
                     steering_vectors=steering_vectors, signal_matrix=signal_matrix
