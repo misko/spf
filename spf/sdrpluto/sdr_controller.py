@@ -321,13 +321,13 @@ class BladeRFSdr:
         # return rssis
 
     def gains(self):
-        # gains = np.array([0, 0])
-        gains = np.array(
-            [
-                self.rx_channels[0].gain,
-                self.rx_channels[1].gain,
-            ]
-        )
+        gains = np.array([0, 0])
+        # gains = np.array(
+        #     [
+        #         self.rx_channels[0].gain,
+        #         self.rx_channels[1].gain,
+        #     ]
+        # )
         return gains
 
     def set_config(

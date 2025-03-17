@@ -32,7 +32,7 @@ export ROOT="../../../"
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_25_max_2xfs_o4_5804_fastattack_nofir_300khz.yaml
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_80_max_2xfs_o4_5804_fastattack_nofir_300khz.yaml
 #config=${ROOT}/spf/v5_configs/wall_array_v2_external_43_max_2xfs_o4_5804_fastattack_nofir_300khz.yaml
-config=${ROOT}/spf/v5_configs/wall_array_nuand_v2_extern^C_25_o4_5766_fastattack.yaml
+config=${ROOT}/spf/v5_configs/wall_array_nuand_v2_external_25_o4_5804_fastattack.yaml
 #reboot_plutos
 
 sleep 3
