@@ -10,12 +10,12 @@ import adi
 
 try:
     import bladerf
+    from bladerf import _bladerf
 except ImportError:
     pass
 
 import matplotlib.pyplot as plt
 import numpy as np
-from bladerf import _bladerf
 from tqdm import tqdm
 
 from spf.rf import (
