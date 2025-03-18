@@ -163,7 +163,12 @@ def grbl_radio_main(args):
     if not yaml_config["dry-run"]:
         logging.info("GRBLRadioCollection: Moving files to final location ...")
         for k in temp_filenames:
+            logging.info(
+                f" > GRBLRadioCollection: Moving files to final location ... {temp_filenames[k]}, {final_filenames[k]}"
+            )
             os.rename(temp_filenames[k], final_filenames[k])
+    logging.info("GRBLRadioCollection: sleep before exit")
+    time.sleep(10)
 
 
 if __name__ == "__main__":

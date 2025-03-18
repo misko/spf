@@ -13,9 +13,9 @@ emitter:
 # The orientation of the receiver is described in 
 # multiples of pi
 receivers:
-  - receiver-uri: bladerf://serial:86303349cded495984b77180464db2e8
+  - receiver-uri: ip:192.168.1.17
     theta-in-pis: -0.25
-    antenna-spacing-m: 0.025 # 40 mm 
+    antenna-spacing-m: 0.043 # 40 mm 
     nelements: 2
     array-type: linear
     rx-gain-mode: fast_attack
@@ -23,14 +23,14 @@ receivers:
     rx-gain: -3
     buffer-size: 524288
     f-intermediate: 100000 #1.0e5
-    f-carrier: 5.766e+9 #2.5e9
+    f-carrier: 5.804e+9 #2.5e9
     f-sampling: 30.0e+6 # 16.0e6
-    bandwidth: 12.0e+6 #5.0e6
+    bandwidth: 3.0e+5 #5.0e6
     motor_channel: 0
     filter_fir_en: 0
-  - receiver-uri: bladerf://serial:7d50f504c96a4dfdb885052d802c05db
+  - receiver-uri: ip:192.168.1.18
     theta-in-pis: 1.25
-    antenna-spacing-m: 0.025 # 40 mm 
+    antenna-spacing-m: 0.043 # 40 mm 
     nelements: 2
     array-type: linear
     rx-gain-mode: fast_attack
@@ -38,9 +38,9 @@ receivers:
     rx-gain: -3
     buffer-size: 524288
     f-intermediate: 100000 #1.0e5
-    f-carrier: 5.766e+9 #2.5e9
+    f-carrier: 5.804e+9 #2.5e9
     f-sampling: 30.0e+6 # 16.0e6
-    bandwidth: 12.0e+6 #5.0e6
+    bandwidth: 3.0e+5 #5.0e6
     motor_channel: 0
     filter_fir_en: 0
 
