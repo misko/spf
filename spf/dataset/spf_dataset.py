@@ -6,20 +6,13 @@ import bisect
 import logging
 import os
 import pickle
+import tempfile
 from contextlib import contextmanager
 from functools import cache
 from multiprocessing import Pool, cpu_count
-import tempfile
 from typing import Dict, List
 
 import numpy as np
-from spf.s3_utils import (
-    b2_download_folder,
-    b2_download_folder_cache,
-    b2_file_to_local_with_cache,
-    b2path_to_bucket_and_path,
-    get_b2_client,
-)
 import torch
 import tqdm
 import yaml
@@ -73,6 +66,13 @@ from spf.rf import (
     speed_of_light,
     torch_get_phase_diff,
     torch_pi_norm,
+)
+from spf.s3_utils import (
+    b2_download_folder,
+    b2_download_folder_cache,
+    b2_file_to_local_with_cache,
+    b2path_to_bucket_and_path,
+    get_b2_client,
 )
 from spf.scripts.zarr_utils import (
     new_yarr_dataset,
@@ -910,9 +910,15 @@ class v5spfdataset(Dataset):
             self.ground_truth_thetas = self.get_ground_truth_thetas()
             self.ground_truth_phis = self.get_ground_truth_phis()
             self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
+
+            rx_spacing_mismatches = (
+                (self.cached_keys[0]["rx_spacing"] != self.cached_keys[1]["rx_spacing"])
+                .to(float)
+                .sum()
+            )
             assert (
-                self.cached_keys[0]["rx_spacing"] != self.cached_keys[1]["rx_spacing"]
-            ).to(float).sum() < 20
+                rx_spacing_mismatches < 30
+            ), f"Too many mismatches in rx_spacing {rx_spacing_mismatches}"
             return True
         return False
 

@@ -78,18 +78,29 @@ boundaries = {
 }
 
 
-def find_closest_boundary(gps):
-    distances = sorted(
-        [
-            (
-                haversine(
-                    swap_lat_long(gps),
-                    swap_lat_long(boundary_points.mean(axis=0)),
-                    unit=Unit.METERS,
-                ),
-                boundary_name,
-            )
-            for boundary_name, boundary_points in boundaries.items()
-        ]
-    )
-    return distances[0][1]
+# gps = (long,lat) as input to this function
+def find_closest_boundary_with_distance(gps):
+    try:
+        distances = sorted(
+            [
+                (
+                    haversine(
+                        swap_lat_long(gps),
+                        swap_lat_long(boundary_points.mean(axis=0)),
+                        unit=Unit.METERS,
+                    ),
+                    boundary_name,
+                )
+                for boundary_name, boundary_points in boundaries.items()
+            ]
+        )
+        return distances[0]
+    except ValueError:
+        return np.inf, None
+
+
+def find_closest_boundary(gps, cutoff=np.inf):
+    distance, boundary = find_closest_boundary_with_distance(gps)
+    if distance > cutoff:
+        return None
+    return boundary

@@ -123,7 +123,7 @@ def get_chunk_index(filename: str, total_chunks: int) -> int:
 
 
 def main():
-    load_dotenv()
+    load_dotenv(".env")
     logging.basicConfig(
         format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
         level=os.environ.get("LOGLEVEL", "INFO").upper(),

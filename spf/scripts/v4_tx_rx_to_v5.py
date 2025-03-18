@@ -245,13 +245,45 @@ def merge_v4rx_v4tx_into_v5(
 
     # could just take the mean of TX if this is not working
     # but this would be more canonical
-    boundary_name = find_closest_boundary(
-        (
-            get_non_zero_mean(tx_time_and_gps.gps_longs),
-            get_non_zero_mean(tx_time_and_gps.gps_lats),
-        )
+    tx_gps_long_lat = get_non_zero_mean(tx_time_and_gps.gps_longs), get_non_zero_mean(
+        tx_time_and_gps.gps_lats
     )
-    gps_center_long_lat = boundaries[boundary_name].mean(axis=0)
+    if (~np.isfinite(tx_gps_long_lat)).any():
+        raise ValueError(f"No valid TX GPS {tx_gps_long_lat}")
+
+    rx_gps_long_lats = [
+        (
+            get_non_zero_mean(rx_time_and_gps.gps_longs),
+            get_non_zero_mean(rx_time_and_gps.gps_lats),
+        )
+        for rx_time_and_gps in rx_time_and_gpses.values()
+    ]
+    for ridx in range(2):
+        rx_gps_long_lat = rx_gps_long_lats[ridx]
+        if (~np.isfinite(rx_gps_long_lat)).any():
+            raise ValueError(f"No valid RX r{ridx} GPS {rx_gps_long_lat}")
+
+    tx_boundary_name = find_closest_boundary(
+        tx_gps_long_lat,
+        cutoff=500,
+    )
+    rx_boundary_names = [
+        find_closest_boundary(
+            rx_gps_long_lat,
+            cutoff=500,
+        )
+        for rx_gps_long_lat in rx_gps_long_lats
+    ]
+
+    if (
+        rx_boundary_names[0] != rx_boundary_names[1]
+        or tx_boundary_name != rx_boundary_names[0]
+    ):
+        raise ValueError(
+            f"Inconsistent gps coordinates {rx_boundary_names[0]},{rx_boundary_names[1]},{tx_boundary_name}"
+        )
+
+    gps_center_long_lat = boundaries[tx_boundary_name].mean(axis=0)
 
     valid_idxs_and_tx_rx_pos = trim_valid_idxs_and_tx_rx_pos(
         {
@@ -375,8 +407,11 @@ if __name__ == "__main__":
                         logging.info(
                             f"{timesteps} tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}"
                         )
-                except (lmdb.CorruptedError, KeyError) as e:
+                except (lmdb.CorruptedError,) as e:
                     logging.error(
-                        f"CORRUPT tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}"
+                        f"CORRUPT tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}, {e}"
                     )
-                    logging.error(f"{str(e)}")
+                except (KeyError, ValueError) as e:
+                    logging.error(
+                        f"DataError tx: {tx_zarr_fn}, rx: {rx_zarr_fn}, out: {output_zarr_fn}, {e}"
+                    )
