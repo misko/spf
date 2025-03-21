@@ -6,6 +6,7 @@ import bisect
 import logging
 import os
 import pickle
+import shutil
 import tempfile
 from contextlib import contextmanager
 from enum import Enum
@@ -508,38 +509,38 @@ def v5_segmentation_mask(session):
 @contextmanager
 def v5spfdataset_manager(*args, **kwds):
     if "b2:" == kwds["precompute_cache"][:3]:
-        b2_client = get_b2_client()
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            local_precompute_cache_path = f"{tmpdirname}/precompute_cache/"
+        b2_cache_folder = None
+        if "b2_cache_folder" in kwds:
+            b2_cache_folder = kwds.pop("b2_cache_folder")
 
-            bucket, precompute_cache_path = b2path_to_bucket_and_path(
-                kwds["precompute_cache"]
-            )
-            normalized_name = (
-                os.path.basename(kwds["prefix"])
-                .replace(".zarr", "")
-                .replace("_nosig", "")
-                + f"_segmentation_nthetas{kwds['nthetas']}"
-            )
+        bucket, precompute_cache_path = b2path_to_bucket_and_path(
+            kwds["precompute_cache"]
+        )
+        normalized_name = (
+            os.path.basename(kwds["prefix"]).replace(".zarr", "").replace("_nosig", "")
+            + f"_segmentation_nthetas{kwds['nthetas']}"
+        )
 
-            os.makedirs(local_precompute_cache_path)
-            local_yarr_fn = b2_download_folder_cache(
-                f"b2://{bucket}/{precompute_cache_path}/{normalized_name}.yarr"
-            )
-            local_precompute_cache_path = os.path.dirname(local_yarr_fn)
+        local_yarr_fn = b2_download_folder_cache(
+            f"b2://{bucket}/{precompute_cache_path}/{normalized_name}.yarr",
+            b2_cache_folder=b2_cache_folder,
+        )
+        local_precompute_cache_path = os.path.dirname(local_yarr_fn)
 
-            b2_file_to_local_with_cache(
-                f"b2://{bucket}/{precompute_cache_path}/{normalized_name}.pkl"
-            )
+        _ = b2_file_to_local_with_cache(
+            f"b2://{bucket}/{precompute_cache_path}/{normalized_name}.pkl",
+            b2_cache_folder=b2_cache_folder,
+        )
 
-            local_kwds = kwds.copy()
-            local_kwds["precompute_cache"] = local_precompute_cache_path
+        local_kwds = kwds.copy()
+        local_kwds["precompute_cache"] = local_precompute_cache_path
 
-            ds = v5spfdataset(*args, **local_kwds)
-            try:
-                yield ds
-            finally:
-                ds.close()
+        ds = v5spfdataset(*args, **local_kwds)
+        try:
+            yield ds
+        finally:
+            ds.close()
+
     else:
         ds = v5spfdataset(*args, **kwds)
         try:

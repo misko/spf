@@ -100,35 +100,54 @@ class B2WriteIO:
 b2_cache_folder = None
 
 
+def b2_push_new_cache_folder():
+    global b2_cache_folder
+    if b2_cache_folder is None:
+        b2_cache_folder = [tempfile.TemporaryDirectory()]
+    else:
+        b2_cache_folder.append(tempfile.TemporaryDirectory())
+    return b2_cache_folder[-1]
+
+
+def b2_pop_cache_folder():
+    global b2_cache_folder
+    assert b2_cache_folder is not None
+    return b2_cache_folder.pop()
+
+
 def b2_get_or_set_cache():
     global b2_cache_folder
     if b2_cache_folder is None:
-        b2_cache_folder = tempfile.TemporaryDirectory()
-    return b2_cache_folder
+        b2_cache_folder = [tempfile.TemporaryDirectory()]
+    return b2_cache_folder[-1]
 
 
 def b2_reset_cache():
     global b2_cache_folder
-    old_b2_cache_folder = b2_cache_folder
-    b2_cache_folder = tempfile.TemporaryDirectory()
+    assert b2_cache_folder is not None
+    old_b2_cache_folder = b2_cache_folder[-1]
+    b2_cache_folder[-1] = tempfile.TemporaryDirectory()
     return old_b2_cache_folder
 
 
-def b2_download_folder_cache(fn):
+def b2_download_folder_cache(fn, b2_cache_folder=None):
     b2_client = get_b2_client()
+    if b2_cache_folder is None:
+        b2_cache_folder = b2_get_or_set_cache()
     bucket, b2_path = b2path_to_bucket_and_path(fn)
     resp = b2_client.list_objects_v2(Bucket=bucket, Prefix=b2_path)
     for obj in resp.get("Contents", []):
-        b2_file_to_local_with_cache(f'b2://{bucket}/{obj["Key"]}')
+        b2_file_to_local_with_cache(
+            f'b2://{bucket}/{obj["Key"]}', b2_cache_folder=b2_cache_folder
+        )
     return os.path.join(b2_cache_folder.name, bucket, b2_path)
 
 
-def b2_file_to_local_with_cache(fn, *args, **kwargs):
-    global b2_cache_folder
+def b2_file_to_local_with_cache(fn, b2_cache_folder=None):
     if "b2:" == fn[:3]:
         b2_client = get_b2_client()
         if b2_cache_folder is None:
-            b2_cache_folder = tempfile.TemporaryDirectory()
+            b2_cache_folder = b2_get_or_set_cache()
         tmpdirname = b2_cache_folder.name
         local_fn = f"{tmpdirname}/{fn[5:]}"
         os.makedirs(os.path.dirname(local_fn), exist_ok=True)
