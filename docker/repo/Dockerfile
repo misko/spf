@@ -35,6 +35,6 @@ ENV PKLFN=b2://projectspf/md2/cache/inference_models/checkpoints/march16/paired_
 ENV NAME=march16inference
 #ENV MANIFEST=b2://projectspf/md2/splits/feb16_val_nosig_with_rover.txt 
 ENV MANIFEST=b2://projectspf/md2/splits/march16_val_nosig_noroverbounce.txt 
-CMD /opt/spf-env/bin/python3 /spf/spf/scripts/run_filters_on_data_b2.py --config "$CONFIG" --empirical-pkl-fn "$PKLFN"  --parallel 28 --work-dir "$NAME" --manifest "$MANIFEST"
+CMD /opt/spf-env/bin/python3 /spf/spf/scripts/run_filters_on_data_b2.py --config "$CONFIG" --empirical-pkl-fn "$PKLFN"  --parallel 192 --work-dir "$NAME" --manifest "$MANIFEST"
 
 #CMD ["pytest", "tests"]
