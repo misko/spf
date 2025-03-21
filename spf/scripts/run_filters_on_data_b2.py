@@ -5,6 +5,7 @@ import hashlib
 import logging
 import os
 import random
+import shutil
 import tempfile
 
 import boto3
@@ -15,6 +16,9 @@ from spf.s3_utils import (
     b2_download_folder_cache,
     b2_file_as_local,
     b2_file_to_local_with_cache,
+    b2_get_or_set_cache,
+    b2_push_new_cache_folder,
+    b2_reset_cache,
     b2path_to_bucket_and_path,
     get_b2_client,
 )
@@ -87,7 +91,7 @@ def get_all_items_by_bucket_scan(prefix, projection_expression=None):
 
     n = 50000
     k = 0
-    while len(items)>0 and "LastEvaluatedKey" in response:
+    while len(items) > 0 and "LastEvaluatedKey" in response:
         if projection_expression == None:
             response = table.scan(
                 FilterExpression=Attr("bucket").eq(prefix),
@@ -103,7 +107,8 @@ def get_all_items_by_bucket_scan(prefix, projection_expression=None):
         if len(items) // n != k:
             print(len(items))
             k = len(items) // n
-
+    print("TOTAL ITEMS", len(items))
+    # breakpoint()
     return items
 
 
@@ -136,7 +141,7 @@ def main():
     chunks_total = int(os.environ.get("AWS_BATCH_JOB_ARRAY_SIZE", "1"))
 
     files_to_process = set()
-    print("GET",args.manifest)
+    print("GET", args.manifest)
     with b2_file_as_local(args.manifest, "r") as f:
         files_to_process = set(
             [os.path.basename(line.strip()).replace(".zarr", ".yaml") for line in f]
@@ -157,7 +162,7 @@ def main():
             # download to local
             local_empirical_pkl_fn = f"{tmpdirname}/empirical_dist.pkl"
             _, b2_path = b2path_to_bucket_and_path(args.empirical_pkl_fn)
-            print("DOWNLOAD",bucket, b2_path)
+            print("DOWNLOAD", bucket, b2_path)
             b2_client.download_file(bucket, b2_path, local_empirical_pkl_fn)
         else:
             local_empirical_pkl_fn = args.empirical_pkl_fn
@@ -168,7 +173,7 @@ def main():
         prefix = "md2/cache/nosig_data"
 
         # Use the *custom* client for listing and downloading:
-        print("LIST b2 objects",bucket,prefix)
+        print("LIST b2 objects", bucket, prefix)
         resp = b2_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
 
         print("getting already processed")
@@ -181,10 +186,12 @@ def main():
         # breakpoint()
 
         print("done processed")
+        checkpoints_cache_dir = tempfile.TemporaryDirectory()
+
         files_on_remote = resp.get("Contents", [])
         random.shuffle(files_on_remote)
+        b2_get_or_set_cache()
         for obj in files_on_remote:
-            # b2_reset_cache()
             filename = obj["Key"]
 
             if (
@@ -193,7 +200,7 @@ def main():
             ):
                 continue
             if os.path.basename(filename) not in files_to_process:
-                print("Skipping", filename)
+                # print("Skipping", filename)
                 continue
             if ".yaml" in filename:  #  and "_tag_" in filename:
                 # print(filename)
@@ -217,6 +224,7 @@ def main():
                         jobs,
                         nparallel=args.parallel,
                         debug=args.debug,
+                        checkpoints_cache_dir=checkpoints_cache_dir,
                         already_processed=set(
                             [
                                 x
@@ -227,6 +235,13 @@ def main():
                     )
                 except Exception as e:
                     print("Failed to process", str(e))
+
+                try:
+                    shutil.rmtree(local_zarr_fn)
+                except:
+                    logging.error("Failed to remove {local_zarr_fn}")
+
+                b2_reset_cache()
 
 
 if __name__ == "__main__":

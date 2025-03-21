@@ -25,11 +25,14 @@ from spf.filters.particle_single_radio_filter import PFSingleThetaSingleRadio
 from spf.filters.particle_single_radio_nn_filter import PFSingleThetaSingleRadioNN
 from spf.s3_utils import (
     b2_file_to_local_with_cache,
+    b2_push_new_cache_folder,
     b2_reset_cache,
     b2path_to_bucket_and_path,
     get_b2_client,
 )
 from spf.utils import get_md5_of_file
+
+checkpoints_cache_dir = None
 
 
 def float_to_decimal(obj):
@@ -71,7 +74,7 @@ def fake_runner(ds, **kwargs):
         a = ds[idx][0]
 
 
-def run_jobs_with_one_dataset(kwargs, already_processed=[]):
+def run_jobs_with_one_dataset(kwargs, checkpoints_cache_dir, already_processed=[]):
 
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table("filter_metrics")
@@ -87,11 +90,13 @@ def run_jobs_with_one_dataset(kwargs, already_processed=[]):
 
             b2_checkpoint_fn = fn_kwargs["checkpoint_fn"]
             local_checkpoint_fn = b2_file_to_local_with_cache(
-                fn_kwargs["checkpoint_fn"]
+                fn_kwargs["checkpoint_fn"], b2_cache_folder=checkpoints_cache_dir
             )
             bucket, b2_path = b2path_to_bucket_and_path(b2_checkpoint_fn)
             config_b2_path = os.path.join(os.path.dirname(b2_path), "config.yml")
-            _ = b2_file_to_local_with_cache(f"b2://{bucket}/{config_b2_path}")
+            _ = b2_file_to_local_with_cache(
+                f"b2://{bucket}/{config_b2_path}", b2_cache_folder=checkpoints_cache_dir
+            )
 
             original_b2_paths["checkpoint_fn"] = fn_kwargs["checkpoint_fn"]
             original_b2_paths["config_fn"] = (
@@ -100,6 +105,7 @@ def run_jobs_with_one_dataset(kwargs, already_processed=[]):
             fn_kwargs["checkpoint_fn"] = local_checkpoint_fn
 
         # before downloading anything lets check that it isnt already finished!
+
         workdir = fn_kwargs.pop("workdir")
         result_fn_without_workdir = (
             f"fn_{fn.__name__}"
@@ -118,6 +124,7 @@ def run_jobs_with_one_dataset(kwargs, already_processed=[]):
             continue
 
         # with get_local_precompute_cache(precompute_cache) as local_precompute_cache
+
         with v5spfdataset_manager(
             prefix=kwargs["ds_fn"],
             nthetas=65,
@@ -581,8 +588,14 @@ def generate_configs_to_run(
     # run_xy_dual_radio(ds_fn=ds_fn, precompute_fn=precompute_fn, full_p_fn=full_p_fn)
 
 
-def run_filter_jobs(jobs, nparallel, debug=False, already_processed=[]):
-    f = partial(run_jobs_with_one_dataset, already_processed=already_processed)
+def run_filter_jobs(
+    jobs, nparallel, debug=False, checkpoints_cache_dir=None, already_processed=[]
+):
+    f = partial(
+        run_jobs_with_one_dataset,
+        checkpoints_cache_dir=checkpoints_cache_dir,
+        already_processed=already_processed,
+    )
     if debug:
         _ = list(
             tqdm.tqdm(
