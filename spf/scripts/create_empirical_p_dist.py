@@ -168,7 +168,7 @@ def create_empirical_p_dist(args):
         except Exception as e:
             logging.error(f"Failed to load {prefix} with error {str(e)}")
 
-    datasets_by_spacing = {}
+    datasets_by_devicetype_and_spacing = {}
 
     counts = {}
 
@@ -203,32 +203,40 @@ def create_empirical_p_dist(args):
         ), f'Failed rx_spacing_str check {rx_spacing_str} vs  {rx_spacing_to_str( dataset.cached_keys[1]["rx_wavelength_spacing"].median())}'
         if "0.0000" in rx_spacing_str:
             print(dataset.zarr_fn, rx_spacing_str)
+        rx_devicetype_and_spacing_str = (
+            f"{dataset.sdr_device_types[0]}_{rx_spacing_str}"
+        )
         # assert "0.00000" not in rx_spacing_str
         # breakpoint()
-        if rx_spacing_str not in counts:
-            counts[rx_spacing_str] = {}
+        if rx_devicetype_and_spacing_str not in counts:
+            counts[rx_devicetype_and_spacing_str] = {}
         rx_lo_and_spacing = dataset.get_spacing_identifier()
-        if rx_lo_and_spacing not in counts[rx_spacing_str]:
-            counts[rx_spacing_str][rx_lo_and_spacing] = 0
-        counts[rx_spacing_str][rx_lo_and_spacing] += 1
+        if rx_lo_and_spacing not in counts[rx_devicetype_and_spacing_str]:
+            counts[rx_devicetype_and_spacing_str][rx_lo_and_spacing] = 0
+        counts[rx_devicetype_and_spacing_str][rx_lo_and_spacing] += 1
 
-        if rx_spacing_str not in datasets_by_spacing:
-            datasets_by_spacing[rx_spacing_str] = []
-        datasets_by_spacing[rx_spacing_str].append(dataset)
+        if rx_devicetype_and_spacing_str not in datasets_by_devicetype_and_spacing:
+            datasets_by_devicetype_and_spacing[rx_devicetype_and_spacing_str] = []
+        datasets_by_devicetype_and_spacing[rx_devicetype_and_spacing_str].append(
+            dataset
+        )
 
-    print("Found spacings:", datasets_by_spacing.keys())
-    for rx_spacing_str in counts:
-        print(rx_spacing_str)
+    print("Found spacings:", datasets_by_devicetype_and_spacing.keys())
+    for rx_devicetype_and_spacing_str in counts:
+        print(rx_devicetype_and_spacing_str)
         # breakpoint()
-        for rx_lo_and_spacing, count in counts[rx_spacing_str].items():
+        for rx_lo_and_spacing, count in counts[rx_devicetype_and_spacing_str].items():
             print("\t", rx_lo_and_spacing, count)
 
     heatmaps = {}
-    for rx_spacing_str, _datasets in datasets_by_spacing.items():
-        heatmaps[rx_spacing_str] = create_heatmaps_and_plot(
+    for (
+        rx_devicetype_and_spacing_str,
+        _datasets,
+    ) in datasets_by_devicetype_and_spacing.items():
+        heatmaps[rx_devicetype_and_spacing_str] = create_heatmaps_and_plot(
             _datasets,
             args.nbins,
-            save_fig_to_prefix=f"{args.output_fig_prefix}_rxwavelengthspacing{rx_spacing_str}_nbins{args.nbins}",
+            save_fig_to_prefix=f"{args.output_fig_prefix}_rxwavelengthspacing{rx_devicetype_and_spacing_str}_nbins{args.nbins}",
         )
 
     pickle.dump(heatmaps, open(args.out, "wb"))

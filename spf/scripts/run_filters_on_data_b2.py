@@ -87,7 +87,7 @@ def get_all_items_by_bucket_scan(prefix, projection_expression=None):
 
     n = 50000
     k = 0
-    while "LastEvaluatedKey" in response:
+    while len(items)>0 and "LastEvaluatedKey" in response:
         if projection_expression == None:
             response = table.scan(
                 FilterExpression=Attr("bucket").eq(prefix),
@@ -136,6 +136,7 @@ def main():
     chunks_total = int(os.environ.get("AWS_BATCH_JOB_ARRAY_SIZE", "1"))
 
     files_to_process = set()
+    print("GET",args.manifest)
     with b2_file_as_local(args.manifest, "r") as f:
         files_to_process = set(
             [os.path.basename(line.strip()).replace(".zarr", ".yaml") for line in f]
@@ -150,22 +151,27 @@ def main():
     # first need to download the model and get checksums
 
     with tempfile.TemporaryDirectory() as tmpdirname:
+        print(tmpdirname)
 
         if args.empirical_pkl_fn[:3] == "b2:":
             # download to local
             local_empirical_pkl_fn = f"{tmpdirname}/empirical_dist.pkl"
             _, b2_path = b2path_to_bucket_and_path(args.empirical_pkl_fn)
-            # print(bucket, b2_path)
+            print("DOWNLOAD",bucket, b2_path)
             b2_client.download_file(bucket, b2_path, local_empirical_pkl_fn)
         else:
             local_empirical_pkl_fn = args.empirical_pkl_fn
+
+        print("dist downloaded")
 
         # download inference cache /mnt/md2$ ls cache/inference/dec18_mission1_rover1.zarr/3.500/dc0661eb09c048996e81545363ff8e33/d1655af080f3721a7e4852221955950e.npz
         prefix = "md2/cache/nosig_data"
 
         # Use the *custom* client for listing and downloading:
+        print("LIST b2 objects",bucket,prefix)
         resp = b2_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
 
+        print("getting already processed")
         already_processed = set(
             [
                 item["full_name"]
@@ -174,6 +180,7 @@ def main():
         )
         # breakpoint()
 
+        print("done processed")
         files_on_remote = resp.get("Contents", [])
         random.shuffle(files_on_remote)
         for obj in files_on_remote:

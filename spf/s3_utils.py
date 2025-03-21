@@ -17,26 +17,6 @@ import os
 
 import boto3
 from botocore.config import Config
-from dotenv import load_dotenv
-
-
-def get_b2_client():
-    """
-    Return a boto3 client object configured for Backblaze B2.
-    You can adjust or load ENV variables as needed.
-    """
-    load_dotenv()
-    endpoint = os.getenv("B2_ENDPOINT")
-    key_id = os.getenv("B2_KEY_ID")
-    application_key = os.getenv("B2_APP_KEY")
-
-    return boto3.client(
-        service_name="s3",
-        endpoint_url=endpoint,
-        aws_access_key_id=key_id,
-        aws_secret_access_key=application_key,
-        config=Config(s3={"checksum_mode": "disabled"}),
-    )
 
 
 class B2ReadIO:
@@ -276,7 +256,6 @@ def b2path_to_bucket_and_path(b2path):
 
 # Return a boto3 client object for B2 service
 def get_b2_client():
-    load_dotenv()
     endpoint = os.getenv("B2_ENDPOINT")
     key_id = os.getenv("B2_KEY_ID")
     application_key = os.getenv("B2_APP_KEY")
@@ -296,7 +275,6 @@ def get_b2_client():
 
 # Return a boto3 resource object for B2 service
 def get_b2_resource():
-    load_dotenv()
     endpoint = os.getenv("B2_ENDPOINT")
     key_id = os.getenv("B2_KEY_ID")
     application_key = os.getenv("B2_APP_KEY")

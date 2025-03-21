@@ -271,12 +271,12 @@ class BladeRFSdr:
         phase_calibration=0.0,
     ):
         super(BladeRFSdr, self).__init__()
-        assert "bladerf://" in uri  # only support one device per machine
 
         self.tx_config = None
         self.rx_config = None
 
         self.uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
+        assert self.uri.startswith("bladerf://")
 
         if "serial" in self.uri:
             serial_to_find = self.uri.split("serial:")[1]
@@ -602,6 +602,8 @@ class PPlus:
     ):
         super(PPlus, self).__init__()
         self.uri = get_uri(rx_config=rx_config, tx_config=tx_config, uri=uri)
+        assert self.uri.startswith("pluto://")
+        self.uri = self.uri[len("pluto://") :]
         logging.info(f"{self.uri}: Open PlutoPlus")
 
         # try to fix issue with radios coming online

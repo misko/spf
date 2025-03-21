@@ -8,6 +8,7 @@ import os
 import pickle
 import tempfile
 from contextlib import contextmanager
+from enum import Enum
 from functools import cache
 from multiprocessing import Pool, cpu_count
 from typing import Dict, List
@@ -556,6 +557,23 @@ def subsample_tensor(x, dim, new_size):
     return x[tuple(slices)]
 
 
+class SDRDEVICE(Enum):
+    UNKNOWN = 0
+    SIMULATION = 1
+    PLUTO = 2
+    BLADERF2 = 3
+
+
+def uri_to_device_type(uri):
+    if "bladerf" in uri:
+        return SDRDEVICE.BLADERF2
+    if "simulation" in uri:
+        return SDRDEVICE.SIMULATION
+    if "pluto" in uri or uri.startswith("usb") or uri.startswith("ip"):
+        return SDRDEVICE.PLUTO
+    return SDRDEVICE.UNKNOWN
+
+
 class v5spfdataset(Dataset):
     def __init__(
         self,
@@ -681,6 +699,13 @@ class v5spfdataset(Dataset):
             rx_config_from_receiver_yaml(receiver)
             for receiver in self.yaml_config["receivers"]
         ]
+
+        self.sdr_device_types = [
+            uri_to_device_type(rx_config.uri) for rx_config in self.rx_configs
+        ]
+        if len(self.sdr_device_types) > 1:
+            for device_type in self.sdr_device_types:
+                assert device_type == self.sdr_device_types[0]
 
         self.receiver_data = [
             self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
