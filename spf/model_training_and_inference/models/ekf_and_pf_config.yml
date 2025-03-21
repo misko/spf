@@ -50,7 +50,7 @@ runs:
       #  segmentation_version: 3.4
       #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
       #  segmentation_version: 3.4
-      - checkpoint_fn: "b2://projectspf/mnt/md2/cache/inference_models/checkpoints/march16/paired_wd0p02_gains_vehicle_0p2dropout_noroverbounceREAL_lowdrop_x2/best.pth"
+      - checkpoint_fn: "b2://projectspf/md2/cache/inference_models/checkpoints/march16/paired_wd0p02_gains_vehicle_0p2dropout_noroverbounceREAL_lowdrop_x2/best.pth"
         segmentation_version: 3.5
     inference_cache: ["b2://projectspf/md2/cache/inference"]
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 ,  128*128  ]
@@ -66,7 +66,7 @@ runs:
       #  segmentation_version: 3.4
       #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
       #  segmentation_version: 3.4
-      - checkpoint_fn: "b2://projectspf/mnt/md2/cache/inference_models/checkpoints/march16/paired_wd0p02_gains_vehicle_0p2dropout_noroverbounceREAL_lowdrop_x2/best.pth"
+      - checkpoint_fn: "b2://projectspf/md2/cache/inference_models/checkpoints/march16/paired_wd0p02_gains_vehicle_0p2dropout_noroverbounceREAL_lowdrop_x2/best.pth"
         segmentation_version: 3.5
     inference_cache: ["b2://projectspf/md2/cache/inference"]
     N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 , 128*128,128*256 ]
