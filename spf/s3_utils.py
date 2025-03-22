@@ -115,6 +115,23 @@ def b2_pop_cache_folder():
     return b2_cache_folder.pop()
 
 
+def list_b2_objects(b2_client, bucket, prefix):
+    """
+    Returns a list of all object keys under the specified bucket and prefix
+    from a B2 (S3-compatible) storage using boto3.
+    """
+    object_keys = []
+
+    # Use a paginator to retrieve all pages of results
+    paginator = b2_client.get_paginator("list_objects_v2")
+
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            object_keys.append(obj["Key"])
+
+    return object_keys
+
+
 def b2_get_or_set_cache():
     global b2_cache_folder
     if b2_cache_folder is None:

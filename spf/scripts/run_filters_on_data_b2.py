@@ -21,6 +21,7 @@ from spf.s3_utils import (
     b2_reset_cache,
     b2path_to_bucket_and_path,
     get_b2_client,
+    list_b2_objects,
 )
 from spf.scripts.run_filters_on_data import generate_configs_to_run, run_filter_jobs
 
@@ -174,7 +175,10 @@ def main():
 
         # Use the *custom* client for listing and downloading:
         print("LIST b2 objects", bucket, prefix)
-        resp = b2_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        # resp = b2_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        files_on_remote = [
+            x for x in list_b2_objects(b2_client, bucket, prefix) if x.endswith(".yaml")
+        ]
 
         print("getting already processed")
         already_processed = set(
@@ -188,11 +192,11 @@ def main():
         print("done processed")
         checkpoints_cache_dir = tempfile.TemporaryDirectory()
 
-        files_on_remote = resp.get("Contents", [])
         random.shuffle(files_on_remote)
         b2_get_or_set_cache()
-        for obj in files_on_remote:
-            filename = obj["Key"]
+        for remote_file_idx in range(len(files_on_remote)):
+            filename = files_on_remote[remote_file_idx]
+            print("starting on ", remote_file_idx, "of", len(files_on_remote), filename)
 
             if (
                 get_chunk_index(filename=filename, total_chunks=chunks_total)
@@ -206,7 +210,7 @@ def main():
                 # print(filename)
                 remote_zarr_fn = filename.replace(".yaml", ".zarr")
 
-                _ = b2_file_to_local_with_cache(f'b2://{bucket}/{obj["Key"]}')
+                _ = b2_file_to_local_with_cache(f"b2://{bucket}/{filename}")
                 local_zarr_fn = b2_download_folder_cache(
                     f"b2://{bucket}/{remote_zarr_fn}"
                 )
@@ -242,6 +246,7 @@ def main():
                     logging.error("Failed to remove {local_zarr_fn}")
 
                 b2_reset_cache()
+        print("FINISHED PROCESSING")
 
 
 if __name__ == "__main__":
