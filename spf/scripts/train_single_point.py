@@ -92,6 +92,8 @@ def global_config_to_keys_used(global_config):
         keys_to_get += ["gains"]
     if global_config["vehicle_type_input"]:
         keys_to_get += ["vehicle_type"]
+    if global_config["sdr_device_type_input"]:
+        keys_to_get += ["sdr_device_type"]
     return keys_to_get
 
 
@@ -185,21 +187,14 @@ def load_dataloaders(
     ):
         val_paths = load_dataset_manifest_with_sampling(val_dataset_filenames[0])
         train_paths = load_dataset_manifest_with_sampling(train_dataset_filenames[0])
-        logging.info(
-            f"Using train and val from txt: val_files {len(val_paths)} , train_files {len(train_paths)}"
-        )
     elif datasets_config["train_on_val"]:
         val_paths = train_dataset_filenames
         train_paths = train_dataset_filenames
-        logging.info(
-            f"Using train on val: val_files {len(val_paths)} , train_files {len(train_paths)}"
-        )
+
     elif val_dataset_filenames is not None:
         val_paths = val_dataset_filenames
         train_paths = train_dataset_filenames
-        logging.info(
-            f"Using val_paths: val_files {len(val_paths)} , train_files {len(train_paths)}"
-        )
+
     else:
         n_val_files = max(
             1,
@@ -207,9 +202,16 @@ def load_dataloaders(
         )
         val_paths = train_dataset_filenames[-n_val_files:]
         train_paths = train_dataset_filenames[:-n_val_files]
-        logging.info(
-            f"Using val_holdout: val_files {len(val_paths)} , train_files {len(train_paths)}"
-        )
+
+    if "debug" in datasets_config and datasets_config["debug"]:
+        val_paths = val_paths[:10]
+        train_paths = train_paths[:10]
+    logging.info(
+        f"Using train on val: val_files {len(val_paths)} , train_files {len(train_paths)}"
+    )
+    logging.info(
+        f"Using val_paths: val_files {len(val_paths)} , train_files {len(train_paths)}"
+    )
 
     logging.info(
         f"Using validation stride of {datasets_config['val_snapshots_adjacent_stride']}"
@@ -308,7 +310,7 @@ def load_dataloaders(
     # create alternate val_ds
     alternate_val_ds_lists = {}
     for ds in val_datasets:
-        key = f"{ds.get_collector_identifier()}:{ds.get_wavelength_identifier()}:rf_{ds.rf_bandwidths[0]:0.3e}:{ds.yaml_config['routine']}"
+        key = f"{ds.sdr_device_type}:{ds.get_collector_identifier()}:{ds.get_wavelength_identifier()}:rf_{ds.rf_bandwidths[0]:0.3e}:{ds.yaml_config['routine']}"
         if key not in alternate_val_ds_lists:
             alternate_val_ds_lists[key] = []
         alternate_val_ds_lists[key].append(ds)
@@ -1090,6 +1092,7 @@ def load_defaults(config):
     get_key_or_set_default(config, "optim/scheduler", "step")
     get_key_or_set_default(config, "global/signal_matrix_input", False)
     get_key_or_set_default(config, "global/windowed_beamformer_input", False)
+    get_key_or_set_default(config, "global/sdr_device_type_input", False)
     get_key_or_set_default(config, "datasets/train_on_val", False)
     get_key_or_set_default(config, "datasets/empirical_data_fn", None)
     get_key_or_set_default(config, "datasets/empirical_symmetry", None)
@@ -1175,6 +1178,7 @@ def train_single_point(args):
     # DEBUG MODE
     if args.debug:
         config["datasets"]["workers"] = 0
+        config["datasets"]["debug"] = True
 
     if config["logger"]["name"] == "simple" or args.debug:
         logger = SimpleLogger(args, config["logger"], config)

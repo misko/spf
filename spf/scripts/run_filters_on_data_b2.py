@@ -138,6 +138,8 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
+    random.seed(args.seed)
+
     chunk_idx = int(os.environ.get("AWS_BATCH_JOB_ARRAY_INDEX", "0"))
     chunks_total = int(os.environ.get("AWS_BATCH_JOB_ARRAY_SIZE", "1"))
 
@@ -176,17 +178,20 @@ def main():
         # Use the *custom* client for listing and downloading:
         print("LIST b2 objects", bucket, prefix)
         # resp = b2_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        files_on_remote = [
-            x for x in list_b2_objects(b2_client, bucket, prefix) if x.endswith(".yaml")
-        ]
-
-        print("getting already processed")
-        already_processed = set(
+        files_on_remote = sorted(
             [
-                item["full_name"]
-                for item in get_all_items_by_bucket_scan_full_name(args.work_dir)
+                x
+                for x in list_b2_objects(b2_client, bucket, prefix)
+                if x.endswith(".yaml")
             ]
         )
+
+        print("getting already processed")
+        already_processed_list = [
+            item["full_name"]
+            for item in get_all_items_by_bucket_scan_full_name(args.work_dir)
+        ]
+        already_processed = set(already_processed_list)
         # breakpoint()
 
         print("done processed")
@@ -197,14 +202,16 @@ def main():
         for remote_file_idx in range(len(files_on_remote)):
             filename = files_on_remote[remote_file_idx]
             print("starting on ", remote_file_idx, "of", len(files_on_remote), filename)
+            # breakpoint()
 
             if (
                 get_chunk_index(filename=filename, total_chunks=chunks_total)
                 != chunk_idx
             ):
+                print("WRONG CHUNK")
                 continue
             if os.path.basename(filename) not in files_to_process:
-                # print("Skipping", filename)
+                print("Skipping", filename)
                 continue
             if ".yaml" in filename:  #  and "_tag_" in filename:
                 # print(filename)

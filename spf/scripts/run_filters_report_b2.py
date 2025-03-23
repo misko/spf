@@ -98,7 +98,7 @@ def write_csv(merged, output_csv_fn, header):
 
     output = open(output_csv_fn, "w")
     # write header
-    output.write(",".join(header) + "\n")
+    output.write(",".join(header) + ",num_samples\n")
 
     # write lines
     for run_key in merged:
@@ -113,6 +113,8 @@ def write_csv(merged, output_csv_fn, header):
         line = [str(x) for x in run_key]
         for header_idx in range(len(run_key), len(header)):
             line.append(f"{summed_metrics[header[header_idx]]:.4f}")
+
+        line.append(f"{n}")
 
         output.write(",".join(line) + "\n")
 

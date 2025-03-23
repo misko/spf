@@ -707,6 +707,7 @@ class v5spfdataset(Dataset):
         if len(self.sdr_device_types) > 1:
             for device_type in self.sdr_device_types:
                 assert device_type == self.sdr_device_types[0]
+        self.sdr_device_type = self.sdr_device_types[0]
 
         self.receiver_data = [
             self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
@@ -933,7 +934,9 @@ class v5spfdataset(Dataset):
                 )
             self.valid_entries = valid_entries
 
-            self.ground_truth_thetas = self.get_ground_truth_thetas()
+            self.ground_truth_thetas, self.absolute_thetas = (
+                self.get_ground_truth_thetas()
+            )
             self.ground_truth_phis = self.get_ground_truth_phis()
             self.craft_ground_truth_thetas = self.get_craft_ground_truth_thetas()
 
@@ -1117,9 +1120,9 @@ class v5spfdataset(Dataset):
         empirical_radio_key = (
             f"r{receiver_idx}" if self.empirical_individual_radio else "r"
         )
-        return self.empirical_data[rx_spacing_str][empirical_radio_key][
-            "sym" if self.empirical_symmetry else "nosym"
-        ]
+        return self.empirical_data[f"{self.sdr_device_type}_{rx_spacing_str}"][
+            empirical_radio_key
+        ]["sym" if self.empirical_symmetry else "nosym"]
 
     def render_session(self, receiver_idx, session_idx, double_flip=False):
         self.reinit()
@@ -1146,6 +1149,7 @@ class v5spfdataset(Dataset):
         data["vehicle_type"] = torch.tensor(
             [encode_vehicle_type(self.vehicle_type)]
         ).reshape(1)
+        data["sdr_device_type"] = torch.tensor([self.sdr_device_type.value]).reshape(1)
 
         # duplicate some fields
         # no idea how to flip phi
@@ -1333,6 +1337,7 @@ class v5spfdataset(Dataset):
 
     def get_ground_truth_thetas(self):
         ground_truth_thetas = []
+        absolute_thetas = []
         for ridx in range(self.n_receivers):
             tx_pos = self.cached_keys[ridx]["tx_pos_mm"].T
             rx_pos = self.cached_keys[ridx]["rx_pos_mm"].T
@@ -1343,6 +1348,7 @@ class v5spfdataset(Dataset):
             rx_to_tx_theta = torch.arctan2(d[0], d[1])
             rx_theta_in_pis = self.cached_keys[ridx]["rx_theta_in_pis"]
             rx_heading_in_pis = self.cached_keys[ridx]["rx_heading_in_pis"]
+            absolute_thetas.append(torch_pi_norm(rx_to_tx_theta))
             ground_truth_thetas.append(
                 torch_pi_norm(
                     rx_to_tx_theta - (rx_theta_in_pis[:] + rx_heading_in_pis) * torch.pi
@@ -1352,7 +1358,7 @@ class v5spfdataset(Dataset):
         # in 2D there are generally two spots that satisfy phase diff
         # lets pick the one thats infront of the craft (array)
         assert self.n_receivers == 2
-        return torch.vstack(ground_truth_thetas)
+        return torch.vstack(ground_truth_thetas), torch.vstack(absolute_thetas)
 
     def get_mean_phase(self):
         self.mean_phase = {

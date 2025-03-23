@@ -323,6 +323,7 @@ class PrepareInput(nn.Module):
         self.rx_spacing_input = global_config["rx_spacing_input"]
         self.gains_input = global_config["gains_input"]
         self.vehicle_type_input = global_config["vehicle_type_input"]
+        self.sdr_device_type_input = global_config["sdr_device_type_input"]
         self.inputs = 0
         self.frequency_input = global_config.get("frequency_input", False)
         self.input_dropout = model_config.get("input_dropout", 0.0)
@@ -349,6 +350,8 @@ class PrepareInput(nn.Module):
             self.inputs += 1
         if self.vehicle_type_input:
             self.inputs += 1
+        if self.sdr_device_type_input:
+            self.inputs += 1
         assert (
             self.input_dropout == 0
             or (
@@ -359,13 +362,14 @@ class PrepareInput(nn.Module):
                 + self.vehicle_type_input
                 + self.frequency_input
                 + self.gains_input
+                + self.sdr_device_type_input
             )
             > 1
         )
 
     def prepare_input(self, batch, additional_inputs=[]):
         dropout_mask = (
-            torch.rand((7, *batch["y_rad"].shape), device=batch["y_rad"].device)
+            torch.rand((8, *batch["y_rad"].shape), device=batch["y_rad"].device)
             < self.input_dropout
         )
         # 1 , 65
@@ -417,6 +421,11 @@ class PrepareInput(nn.Module):
             v = batch["vehicle_type"][..., None]
             if self.training:
                 v[dropout_mask[6]] = 0
+            inputs.append(v)
+        if self.sdr_device_type_input:
+            v = batch["sdr_device_type"][..., None] / 10
+            # if self.training: # always pass in
+            #    v[dropout_mask[6]] = 0
             inputs.append(v)
 
         return torch.concatenate(
