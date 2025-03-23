@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from spf.dataset.spf_dataset import v5spfdataset
 
-LS_VERSION = 1.4
+LS_VERSION = 1.5
 
 
 def ls_zarr(ds_fn, force=False):
@@ -35,6 +35,7 @@ def ls_zarr(ds_fn, force=False):
                 "routine": ds.yaml_config["routine"],
                 "version": LS_VERSION,
                 "vehicle_type": ds.vehicle_type,
+                "sdr_device_type": str(ds.sdr_device_type),
                 "rx_theta_in_pis_cached": {
                     f"r{rx_idx}": {
                         "cached": ds.cached_keys[rx_idx]["rx_theta_in_pis"]
@@ -93,11 +94,13 @@ if __name__ == "__main__":
     merged_stats = {}
     for result in results:
         if result:
-            key = f"{result['frequency']},{result['rx_spacing']},{result['routine']},{result['rf_bandwidth']}"
+            key = f"{result['frequency']},{result['vehicle_type']},{result['sdr_device_type']},{result['rx_spacing']},{result['routine']},{result['rf_bandwidth']}"
             if key not in merged_stats:
                 merged_stats[key] = 0
             merged_stats[key] += result["samples"]
 
-    print("frequency,rx_spacing,routine,rf_bandwidth,samples")
+    print(
+        "frequency,vehicle_type,sdr_device_type,rx_spacing,routine,rf_bandwidth,samples"
+    )
     for key in sorted(merged_stats.keys()):
         print(f"{key},{merged_stats[key]}")
