@@ -223,13 +223,21 @@ def main():
         # Use the *custom* client for listing and downloading:
         print("LIST b2 objects", bucket, prefix)
         # resp = b2_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        files_on_remote = sorted(
+        files_on_remote_full = sorted(
             [
                 x
                 for x in list_b2_objects(b2_client, bucket, prefix)
                 if x.endswith(".yaml")
             ]
         )
+
+        files_on_remote_to_process = list(
+            filter(
+                lambda x: os.path.basename(x) in files_to_process, files_on_remote_full
+            )
+        )
+
+        random.shuffle(files_on_remote_to_process)
 
         print("getting already processed")
         already_processed_list = [
@@ -242,11 +250,16 @@ def main():
         print("done processed")
         checkpoints_cache_dir = tempfile.TemporaryDirectory()
 
-        random.shuffle(files_on_remote)
         b2_get_or_set_cache()
-        for remote_file_idx in range(len(files_on_remote)):
-            filename = files_on_remote[remote_file_idx]
-            print("starting on ", remote_file_idx, "of", len(files_on_remote), filename)
+        for remote_file_idx in range(len(files_on_remote_to_process)):
+            filename = files_on_remote_to_process[remote_file_idx]
+            print(
+                "starting on ",
+                remote_file_idx,
+                "of",
+                len(files_on_remote_to_process),
+                filename,
+            )
             # breakpoint()
 
             if (

@@ -71,6 +71,7 @@ class PFSingleThetaDualRadioNN(ParticleFilter):
                     workers=0,
                     precompute_cache=ds.precompute_cache,
                     crash_if_not_cached=False,
+                    segmentation_version=ds.segmentation_version,
                 )["paired"]
             )
             if self.absolute:
