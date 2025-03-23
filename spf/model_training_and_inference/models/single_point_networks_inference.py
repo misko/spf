@@ -5,7 +5,12 @@ import os
 import numpy as np
 import torch
 
-from spf.s3_utils import b2_file_as_local, spf_exists, spf_open
+from spf.s3_utils import (
+    b2_file_as_local,
+    b2_file_to_local_with_cache,
+    spf_exists,
+    spf_open,
+)
 from spf.scripts.train_single_point import (
     load_checkpoint,
     load_config_from_fn,
@@ -134,7 +139,8 @@ def get_inference_on_ds(
     inference_cache_fn = f"{inference_cache}/{ds_basename}/{segmentation_version:0.3f}/{checkpoint_checksum}/{config_checksum}.npz"
     if spf_exists(inference_cache_fn):
         logging.debug("Inference cache: Using cached results")
-        with b2_file_as_local(inference_cache_fn, "rb") as f:
+        inference_cache_local_fn = b2_file_to_local_with_cache(inference_cache_fn)
+        with open(inference_cache_local_fn, "rb") as f:
             return {k: v for k, v in np.load(f).items()}
     # run inference
     assert not crash_if_not_cached, inference_cache_fn

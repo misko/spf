@@ -198,6 +198,7 @@ def b2_file_as_local(fn, *args, **kwargs):
                 b2_path,
                 local_fn,
             )
+            print("DL", bucket, b2_path, "->", local_fn)
             with open(local_fn, *args, **kwargs) as f:
                 yield f
     else:

@@ -9,7 +9,7 @@ import shutil
 import tempfile
 
 import boto3
-from boto3.dynamodb.conditions import Attr
+from boto3.dynamodb.conditions import Attr, Key
 from dotenv import load_dotenv  # Project Must install Python Package:  python-dotenv
 
 from spf.s3_utils import (
@@ -70,47 +70,92 @@ def get_parser():
     return parser
 
 
-def get_all_items_by_bucket_scan_full_name(prefix):
-    return get_all_items_by_bucket_scan(prefix, "full_name")
-
-
-def get_all_items_by_bucket_scan(prefix, projection_expression=None):
+def get_all_items_by_bucket(prefix, projection_expression=None):
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table("filter_metrics")
 
-    if projection_expression == None:
-        response = table.scan(
-            FilterExpression=Attr("bucket").eq(prefix),
-        )
+    # Perform a query using "bucket" as the partition key
+    if projection_expression is None:
+        response = table.query(KeyConditionExpression=Key("bucket").eq(prefix))
     else:
-        response = table.scan(
-            FilterExpression=Attr("bucket").eq(prefix),
+        response = table.query(
+            KeyConditionExpression=Key("bucket").eq(prefix),
             ProjectionExpression=projection_expression,
         )
 
     items = response.get("Items", [])
 
+    # You can print out progress every time we reach an additional 50k items.
     n = 50000
     k = 0
-    while len(items) > 0 and "LastEvaluatedKey" in response:
-        if projection_expression == None:
-            response = table.scan(
-                FilterExpression=Attr("bucket").eq(prefix),
+
+    # Keep paginating if there is more data to retrieve
+    while "LastEvaluatedKey" in response:
+        if projection_expression is None:
+            response = table.query(
+                KeyConditionExpression=Key("bucket").eq(prefix),
                 ExclusiveStartKey=response["LastEvaluatedKey"],
             )
         else:
-            response = table.scan(
-                FilterExpression=Attr("bucket").eq(prefix),
+            response = table.query(
+                KeyConditionExpression=Key("bucket").eq(prefix),
                 ProjectionExpression=projection_expression,
                 ExclusiveStartKey=response["LastEvaluatedKey"],
             )
+
         items.extend(response.get("Items", []))
+
+        # Simple progress indicator if you have a large number of items
         if len(items) // n != k:
             print(len(items))
             k = len(items) // n
+
     print("TOTAL ITEMS", len(items))
-    # breakpoint()
     return items
+
+
+def get_all_items_by_bucket_scan_full_name(prefix):
+    return get_all_items_by_bucket(prefix, "full_name")
+    # return get_all_items_by_bucket_scan(prefix, "full_name")
+
+
+# def get_all_items_by_bucket_scan(prefix, projection_expression=None):
+#     dynamodb = boto3.resource("dynamodb")
+#     table = dynamodb.Table("filter_metrics")
+
+#     if projection_expression == None:
+#         response = table.scan(
+#             FilterExpression=Attr("bucket").eq(prefix),
+#         )
+#     else:
+#         response = table.scan(
+#             FilterExpression=Attr("bucket").eq(prefix),
+#             ProjectionExpression=projection_expression,
+#         )
+
+#     items = response.get("Items", [])
+
+#     n = 50000
+#     k = 0
+#     while len(items) > 0 and "LastEvaluatedKey" in response:
+#         if projection_expression == None:
+#             response = table.scan(
+#                 FilterExpression=Attr("bucket").eq(prefix),
+#                 ExclusiveStartKey=response["LastEvaluatedKey"],
+#             )
+#         else:
+#             response = table.scan(
+#                 FilterExpression=Attr("bucket").eq(prefix),
+#                 ProjectionExpression=projection_expression,
+#                 ExclusiveStartKey=response["LastEvaluatedKey"],
+#             )
+#         items.extend(response.get("Items", []))
+#         if len(items) // n != k:
+#             print(len(items))
+#             k = len(items) // n
+#     print("TOTAL ITEMS", len(items))
+#     # breakpoint()
+#     return items
 
 
 def get_chunk_index(filename: str, total_chunks: int) -> int:

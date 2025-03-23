@@ -12,27 +12,51 @@ from spf.model_training_and_inference.models.single_point_networks_inference imp
     get_inference_on_ds,
     load_model_and_config_from_config_fn_and_checkpoint,
 )
-from spf.rf import torch_pi_norm_pi
+from spf.rf import rotate_dist, torch_pi_norm_pi
 from spf.scripts.train_single_point import (
     global_config_to_keys_used,
     load_config_from_fn,
 )
 
 
+def cached_model_inference_to_absolute_north(ds, cached_model_inference):
+    _rx_heading = torch.concatenate(
+        [
+            torch_pi_norm_pi(
+                ds.cached_keys[ridx]["rx_heading_in_pis"][:, None] * torch.pi
+            )
+            for ridx in range(2)
+        ],
+        dim=1,
+    ).reshape(-1, 1)
+    _cached_model_inference = cached_model_inference.reshape(-1, 65)
+    cached_model_inference_rotated = rotate_dist(
+        _cached_model_inference,
+        rotations=_rx_heading,
+    ).reshape(cached_model_inference.shape)
+    return cached_model_inference_rotated
+
+
 class PFSingleThetaDualRadioNN(ParticleFilter):
     def __init__(
-        self, ds, checkpoint_fn, config_fn, inference_cache=None, device="cpu"
+        self,
+        ds,
+        checkpoint_fn,
+        config_fn,
+        inference_cache=None,
+        device="cpu",
+        absolute=False,
     ):
         self.ds = ds
-
+        self.absolute = absolute
         self.generator = torch.Generator()
         self.generator.manual_seed(0)
 
-        checkpoint_config = load_config_from_fn(config_fn)
+        # checkpoint_config = load_config_from_fn(config_fn)
         # assert (
         #     self.ds.empirical_data_fn
         #     == checkpoint_config["datasets"]["empirical_data_fn"]
-        # ), f"Empirical pkl path from ds does not match that from checkpoint {self.ds.empirical_data_fn} vs {checkpoint_config['datasets']['empirical_data_fn']}"
+        # )
 
         if not self.ds.temp_file:
             # cache model results
@@ -46,9 +70,13 @@ class PFSingleThetaDualRadioNN(ParticleFilter):
                     batch_size=64,
                     workers=0,
                     precompute_cache=ds.precompute_cache,
-                    segmentation_version=ds.segmentation_version,
+                    crash_if_not_cached=False,
                 )["paired"]
             )
+            if self.absolute:
+                self.cached_model_inference = cached_model_inference_to_absolute_north(
+                    ds, self.cached_model_inference
+                )
         else:
             # load the model and such
             self.model, self.model_config = (
@@ -69,6 +97,7 @@ class PFSingleThetaDualRadioNN(ParticleFilter):
             self.model_keys_to_get = global_config_to_keys_used(
                 global_config=self.model_config["global"]
             )
+            assert not self.absolute  # this needs to be implemented
 
     def model_inference_at_observation_idx(self, idx):
         if not self.ds.temp_file:
@@ -106,7 +135,12 @@ class PFSingleThetaDualRadioNN(ParticleFilter):
 
     def metrics(self, trajectory):
         return dual_radio_mse_theta_metrics(
-            trajectory, self.ds.craft_ground_truth_thetas
+            trajectory,
+            (
+                self.ds.craft_ground_truth_thetas
+                if not self.absolute
+                else self.ds.absolute_thetas.mean(axis=0)
+            ),
         )
 
     def trajectory(self, **kwargs):

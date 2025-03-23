@@ -174,6 +174,7 @@ def run_jobs_with_one_dataset(kwargs, checkpoints_cache_dir, already_processed=[
                     for replace_key, replace_value in original_b2_paths.items():
                         if replace_key in result:
                             result[replace_key] = replace_value
+
                 table.put_item(
                     Item={
                         "bucket": workdir,
@@ -399,6 +400,7 @@ def run_PF_single_theta_dual_radio_NN(
     theta_err=0.1,
     theta_dot_err=0.001,
     N=128,
+    absolute=False,
 ):
     config_fn = f"{os.path.dirname(checkpoint_fn)}/config.yml"
     start_time = time.time()
@@ -407,6 +409,7 @@ def run_PF_single_theta_dual_radio_NN(
         checkpoint_fn=checkpoint_fn,
         config_fn=config_fn,
         inference_cache=inference_cache,
+        absolute=absolute,
     )
     traj_paired = pf.trajectory(
         mean=torch.tensor([[0, 0]]),
@@ -428,6 +431,7 @@ def run_PF_single_theta_dual_radio_NN(
             "metrics": metrics,
             "checkpoint_fn": checkpoint_fn,
             "config_fn": config_fn,
+            "absolute": absolute,
         }
     ]
 
