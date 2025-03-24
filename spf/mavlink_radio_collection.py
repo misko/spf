@@ -7,16 +7,12 @@ import time
 from datetime import datetime
 
 import yaml
-from haversine import Unit, haversine
 from pymavlink import mavutil
 
 from spf.data_collector import DroneDataCollector, DroneDataCollectorRaw
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
-from spf.gps.boundaries import (
-    boundaries,  # crissy_boundary_convex
-    find_closest_boundary,
-)
-from spf.gps.gps_utils import swap_lat_long
+from spf.gps.boundaries import boundaries  # crissy_boundary_convex
+from spf.gps.boundaries import find_closest_boundary
 from spf.mavlink.mavlink_controller import (
     Drone,
     drone_get_planner,
@@ -105,7 +101,7 @@ if __name__ == "__main__":
     # open device mapping and figure out URIs
     with open(args.device_mapping, "r") as device_mapping:
         port_to_uri = {
-            int(mapping[0]): f"usb:1.{mapping[1]}.5"
+            int(mapping[0]): f"pluto://usb:1.{mapping[1]}.5"
             for mapping in [line.strip().split() for line in device_mapping]
         }
 
