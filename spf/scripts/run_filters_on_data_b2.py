@@ -9,7 +9,7 @@ import shutil
 import tempfile
 
 import boto3
-from boto3.dynamodb.conditions import Attr, Key
+from boto3.dynamodb.conditions import Key
 from dotenv import load_dotenv  # Project Must install Python Package:  python-dotenv
 
 from spf.s3_utils import (
@@ -17,7 +17,6 @@ from spf.s3_utils import (
     b2_file_as_local,
     b2_file_to_local_with_cache,
     b2_get_or_set_cache,
-    b2_push_new_cache_folder,
     b2_reset_cache,
     b2path_to_bucket_and_path,
     get_b2_client,

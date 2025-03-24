@@ -4,12 +4,10 @@ import logging
 import os
 import pickle
 
-import boto3
 import torch
 import tqdm
-from boto3.dynamodb.conditions import Attr
 
-from spf.scripts.run_filters_on_data_b2 import get_all_items_by_bucket_scan
+from spf.scripts.run_filters_on_data_b2 import get_all_items_by_bucket_scan_full_name
 
 
 def read_pkl(pkl_fn):
@@ -183,7 +181,7 @@ if __name__ == "__main__":
 
     results_pkl_fn = f"{os.path.join(args.output_prefix,args.work_dir+'.pkl')}"
     if not os.path.exists(results_pkl_fn):
-        items = get_all_items_by_bucket_scan(args.work_dir)
+        items = get_all_items_by_bucket_scan_full_name(args.work_dir)
         pickle.dump(items, open(results_pkl_fn, "wb"))
 
     all_results = pickle.load(open(results_pkl_fn, "rb"))

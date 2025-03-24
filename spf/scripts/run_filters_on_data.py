@@ -3,7 +3,6 @@ import logging
 import os
 import pickle
 import random
-import tempfile
 import time
 from decimal import Decimal
 from functools import partial
@@ -23,13 +22,7 @@ from spf.filters.particle_dualradio_filter import PFSingleThetaDualRadio
 from spf.filters.particle_dualradioXY_filter import PFXYDualRadio
 from spf.filters.particle_single_radio_filter import PFSingleThetaSingleRadio
 from spf.filters.particle_single_radio_nn_filter import PFSingleThetaSingleRadioNN
-from spf.s3_utils import (
-    b2_file_to_local_with_cache,
-    b2_push_new_cache_folder,
-    b2_reset_cache,
-    b2path_to_bucket_and_path,
-    get_b2_client,
-)
+from spf.s3_utils import b2_file_to_local_with_cache, b2path_to_bucket_and_path
 from spf.utils import get_md5_of_file
 
 checkpoints_cache_dir = None
