@@ -48,23 +48,27 @@ def merge_results(results, header):
             # _ty = result.pop("type")
             _fn = result.pop("ds_fn").lower()
             movement = ""
-            if "rover" in _fn:
+            if "routine" in result and result["routine"] != "unknown":
+                movement = result["routine"]
+            else:
                 if "bounce" in _fn:
                     movement = "rover_bounce"
                 elif "center" in _fn:
                     movement = "rover_center"
                 elif "diamond" in _fn:
                     movement = "rover_diamond"
-                elif "mission" in _fn:
-                    movement = "rover_unknown"
-            elif "random_circle" in _fn:
-                movement = "random_circle"
-            elif "circle" in _fn:
-                movement = "circle"
-            elif "bounce" in _fn:
-                movement = "bounce"
-            elif "calibrate" in _fn:
-                movement = "calibrate"
+                elif "random_circle" in _fn:
+                    movement = "random_circle"
+                elif "circle" in _fn:
+                    movement = "circle"
+                elif "bounce" in _fn:
+                    movement = "bounce"
+                elif "calibrate" in _fn:
+                    movement = "calibrate"
+            if "rover" in _fn:
+                movement = f"rover_{movement}"
+            else:
+                movement = f"2dwallarray_{movement}"
 
             if movement == "":
                 raise ValueError(f"Cannot figure out movement {_fn}")

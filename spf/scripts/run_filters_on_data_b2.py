@@ -188,6 +188,13 @@ def main():
     chunks_total = int(os.environ.get("AWS_BATCH_JOB_ARRAY_SIZE", "1"))
 
     subset_files_str = os.environ.get("SPF_SUBSET_FILES", "")
+    env_work_dir = os.environ.get("SPF_WORKDIR", "")
+    env_manifest = os.environ.get("SPF_WORKDIR", "")
+
+    if env_work_dir != "":
+        args.work_dir = env_work_dir
+    if env_manifest != "":
+        args.manifest = env_manifest
 
     files_to_process = set()
     print("GET", args.manifest)
