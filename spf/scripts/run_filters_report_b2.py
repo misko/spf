@@ -194,6 +194,7 @@ if __name__ == "__main__":
     for algorithm_path in algorithm_paths:
         logging.info(f"Processing: {algorithm_path}")
         results = results_with_prefix(all_results, algorithm_path)
+
         header = ["type", "movement", "segmentation_version"]
         for field in results[0][0].keys():
             if field == "ds_fn":

@@ -167,7 +167,6 @@ def run_jobs_with_one_dataset(kwargs, checkpoints_cache_dir, already_processed=[
                     for replace_key, replace_value in original_b2_paths.items():
                         if replace_key in result:
                             result[replace_key] = replace_value
-
                 table.put_item(
                     Item={
                         "bucket": workdir,
@@ -201,7 +200,7 @@ def run_EKF_single_theta_single_radio(ds, phi_std, p, noise_std, dynamic_R):
         all_metrics.append(
             {
                 "type": "EKF_single_theta_single_radio",
-                "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
+                "frequency": ds.carrier_frequencies[0],
                 "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "phi_std": phi_std,
@@ -209,6 +208,11 @@ def run_EKF_single_theta_single_radio(ds, phi_std, p, noise_std, dynamic_R):
                 "noise_std": noise_std,
                 "dynamic_R": dynamic_R,
                 "metrics": metrics,
+                "routine": (
+                    ds.yaml_config["routine"]
+                    if "routine" in ds.yaml_config
+                    else "unknown"
+                ),
             }
         )
     return all_metrics
@@ -235,13 +239,16 @@ def run_EKF_single_theta_dual_radio(
     return [
         {
             "type": "EKF_single_theta_dual_radio",
-            "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
+            "frequency": ds.carrier_frequencies[0],
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "phi_std": phi_std,
             "p": p,
             "noise_std": noise_std,
             "dynamic_R": dynamic_R,
             "metrics": metrics,
+            "routine": (
+                ds.yaml_config["routine"] if "routine" in ds.yaml_config else "unknown"
+            ),
         }
     ]
 
@@ -267,13 +274,16 @@ def run_EKF_xy_dual_radio(
     return [
         {
             "type": "EKF_XY_dual_radio",
-            "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
+            "frequency": ds.carrier_frequencies[0],
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "phi_std": phi_std,
             "p": p,
             "noise_std": noise_std,
             "dynamic_R": dynamic_R,
             "metrics": metrics,
+            "routine": (
+                ds.yaml_config["routine"] if "routine" in ds.yaml_config else "unknown"
+            ),
         }
     ]
 
@@ -311,7 +321,7 @@ def run_PF_single_theta_single_radio_NN(
         all_metrics.append(
             {
                 "type": "PF_single_theta_single_radio_NN",
-                "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
+                "frequency": ds.carrier_frequencies[0],
                 "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
@@ -320,6 +330,11 @@ def run_PF_single_theta_single_radio_NN(
                 "metrics": metrics,
                 "checkpoint_fn": checkpoint_fn,
                 "config_fn": config_fn,
+                "routine": (
+                    ds.yaml_config["routine"]
+                    if "routine" in ds.yaml_config
+                    else "unknown"
+                ),
             }
         )
     return all_metrics
@@ -349,13 +364,18 @@ def run_PF_single_theta_single_radio(
         all_metrics.append(
             {
                 "type": "PF_single_theta_single_radio",
-                "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
+                "frequency": ds.carrier_frequencies[0],
                 "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
                 "theta_dot_err": theta_dot_err,
                 "N": N,
                 "metrics": metrics,
+                "routine": (
+                    ds.yaml_config["routine"]
+                    if "routine" in ds.yaml_config
+                    else "unknown"
+                ),
             }
         )
     return all_metrics
@@ -376,12 +396,15 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
     return [
         {
             "type": "PF_single_theta_dual_radio",
-            "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
+            "frequency": ds.carrier_frequencies[0],
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
             "N": N,
             "metrics": metrics,
+            "routine": (
+                ds.yaml_config["routine"] if "routine" in ds.yaml_config else "unknown"
+            ),
         }
     ]
 
@@ -416,7 +439,7 @@ def run_PF_single_theta_dual_radio_NN(
     return [
         {
             "type": "PF_single_theta_dual_radio_NN",
-            "frequency": ds.cached_keys[0]["rx_lo"][0].median().item(),
+            "frequency": ds.carrier_frequencies[0],
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
             "theta_dot_err": theta_dot_err,
@@ -425,6 +448,9 @@ def run_PF_single_theta_dual_radio_NN(
             "checkpoint_fn": checkpoint_fn,
             "config_fn": config_fn,
             "absolute": absolute,
+            "routine": (
+                ds.yaml_config["routine"] if "routine" in ds.yaml_config else "unknown"
+            ),
         }
     ]
 
@@ -446,12 +472,15 @@ def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
     return [
         {
             "type": "PF_xy_dual_radio",
-            "frequency": ds.cached_keys[0]["rx_lo"].median().item(),
+            "frequency": ds.carrier_frequencies[0],
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "vel_err": vel_err,
             "pos_err": pos_err,
             "N": N,
             "metrics": metrics,
+            "routine": (
+                ds.yaml_config["routine"] if "routine" in ds.yaml_config else "unknown"
+            ),
         }
     ]
 

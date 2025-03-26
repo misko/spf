@@ -187,6 +187,8 @@ def main():
     chunk_idx = int(os.environ.get("AWS_BATCH_JOB_ARRAY_INDEX", "0"))
     chunks_total = int(os.environ.get("AWS_BATCH_JOB_ARRAY_SIZE", "1"))
 
+    subset_files_str = os.environ.get("SPF_SUBSET_FILES", "")
+
     files_to_process = set()
     print("GET", args.manifest)
     with b2_file_as_local(args.manifest, "r") as f:
@@ -232,8 +234,13 @@ def main():
 
         files_on_remote_to_process = list(
             filter(
-                lambda x: os.path.basename(x) in files_to_process, files_on_remote_full
+                lambda x: os.path.basename(x) in files_to_process
+                and subset_files_str in x,
+                files_on_remote_full,
             )
+        )
+        print(
+            f"Target list of {len(files_on_remote_to_process)} to process, subset files str {subset_files_str}"
         )
 
         random.shuffle(files_on_remote_to_process)
