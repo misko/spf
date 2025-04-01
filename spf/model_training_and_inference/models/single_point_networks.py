@@ -1,15 +1,115 @@
 import logging
 from functools import lru_cache
+from math import sqrt
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.nn import LayerNorm, TransformerEncoder, TransformerEncoderLayer
 
-from spf.model_training_and_inference.models.beamsegnet import FFNN
 from spf.rf import rotate_dist, torch_pi_norm
 
 TEMP = 10
+
+
+@torch.jit.script
+def cdf(mean: torch.Tensor, sigma: torch.Tensor, value: float):
+    return 0.5 * (1 + torch.erf((value - mean) * sigma.reciprocal() / sqrt(2)))
+
+
+@torch.jit.script
+def normal_correction_for_bounded_range(
+    mean: torch.Tensor, sigma: torch.Tensor, max_y: float
+):
+    assert max_y > 0
+    left_p = cdf(mean, sigma, -max_y)
+    right_p = cdf(mean, sigma, max_y)
+    return (right_p - left_p).reciprocal()
+
+
+class BasicBlock(nn.Module):
+    def __init__(self, hidden, act, bn=True, norm="batch", dropout=0.0):
+        super(BasicBlock, self).__init__()
+        self.linear1 = nn.Linear(hidden, hidden)
+        self.linear2 = nn.Linear(hidden, hidden)
+        self.n1 = nn.Identity()
+        self.n2 = nn.Identity()
+        self.d1 = nn.Dropout(p=dropout)
+        self.d2 = nn.Dropout(p=dropout)
+        if bn:
+            if norm == "batch":
+                self.n1 = nn.BatchNorm1d(num_features=hidden)
+                self.n2 = nn.BatchNorm1d(num_features=hidden)
+            elif norm == "layer":
+                self.n1 = nn.LayerNorm(hidden)
+                self.n2 = nn.LayerNorm(hidden)
+        self.act = act()
+
+    def forward(self, x):
+        identity = x
+        out = self.act(self.n1(self.d1(self.linear1(x))))
+        out = self.act(self.n2(self.d2(self.linear2(out))))
+        return self.act(out + identity)
+
+
+class FFNN(nn.Module):
+    def __init__(
+        self,
+        inputs,
+        depth,
+        hidden,
+        outputs,
+        block,
+        bn,
+        norm,
+        act,
+        dropout=0.0,
+    ):
+        super(FFNN, self).__init__()
+        if bn == False or norm == "batch":
+            net_layout = [
+                nn.Linear(inputs, hidden),
+                nn.Dropout(dropout),
+                act(),
+                nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+            ]
+            for _ in range(depth):
+                if block:
+                    net_layout += [
+                        BasicBlock(hidden, act, bn=bn, norm=norm, dropout=dropout)
+                    ]
+                else:
+                    net_layout += [
+                        nn.Linear(hidden, hidden),
+                        act(),
+                        nn.BatchNorm1d(num_features=hidden) if bn else nn.Identity(),
+                    ]
+            net_layout += [nn.Linear(hidden, outputs)]
+        elif norm == "layer":
+            net_layout = [
+                nn.Linear(inputs, hidden),
+                nn.Dropout(dropout),
+                act(),
+                nn.LayerNorm(normalized_shape=hidden) if bn else nn.Identity(),
+            ]
+            for _ in range(depth):
+                if block:
+                    net_layout += [
+                        BasicBlock(hidden, act, bn=bn, norm=norm, dropout=dropout)
+                    ]
+                else:
+                    net_layout += [
+                        nn.Linear(hidden, hidden),
+                        act(),
+                        nn.LayerNorm(normalized_shape=hidden) if bn else nn.Identity(),
+                    ]
+            net_layout += [nn.Linear(hidden, outputs)]
+        else:
+            raise ValueError(f"Norm not implemented {norm}")
+        self.ffnn_internal_net = nn.Sequential(*net_layout)
+
+    def forward(self, x):
+        return self.ffnn_internal_net(x)
 
 
 # chat GPT

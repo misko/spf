@@ -105,7 +105,7 @@ def rel_to_pos(r, width):
 
 
 def encode_vehicle_type(vehicle_type):
-    if vehicle_type == "2dwallarrayv2":
+    if vehicle_type == "wallarray":
         return -0.5
     elif vehicle_type == "rover":
         return 0.5
@@ -650,9 +650,8 @@ class v5spfdataset(Dataset):
             self.yaml_fn
         )  # yaml.safe_load(open(self.yaml_fn, "r"))
 
-        self.vehicle_type = "2dwallarrayv2"
-        if "rover" in self.zarr_fn:
-            self.vehicle_type = "rover"
+        self.vehicle_type = self.get_collector_identifier()
+        self.emitter_type = self.get_emitter_type()
 
         self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
@@ -951,6 +950,11 @@ class v5spfdataset(Dataset):
             return True
         return False
 
+    def get_emitter_type(self):
+        if "emitter" in self.yaml_config and "type" in self.yaml_config["emitter"]:
+            return self.yaml_config["emitter"]["type"]
+        return "external"
+
     def close(self):
         # let workers open their own
         self.z.store.close()
@@ -1056,8 +1060,10 @@ class v5spfdataset(Dataset):
         return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}"
 
     def get_collector_identifier(self):
-        if "collector" in self.yaml_config:
-            return f'{self.yaml_config["collector"]["type"]}'
+        if "collector" in self.yaml_config and "type" in self.yaml_config["collector"]:
+            return self.yaml_config["collector"]["type"]
+        if "rover" in self.zarr_fn:
+            return "rover"
         return "wallarray"
 
     def get_wavelength_identifier(self):

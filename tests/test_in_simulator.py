@@ -5,10 +5,10 @@ import sys
 import tempfile
 import time
 
-import docker
 import numpy as np
 import pytest
 
+import docker
 import spf.mavlink.mavlink_controller
 from spf import mavlink_radio_collection
 from spf.dataset.v4_data import v4rx_f64_keys
@@ -147,7 +147,7 @@ def test_reboot(adrupilot_simulator):
 
 def generate_parameters_file(rover_id, file_name):
     subprocess.check_output(
-        f"cat {root_dir}/data_collection_model_and_results/rover/rover_v3.1/rover3_base_parameters.params \
+        f"cat {root_dir}/data_collection/rover/rover_v3.1/rover3_base_parameters.params \
               | sed 's/__ROVER_ID__/{rover_id}/g' > {file_name}",
         timeout=30,
         shell=True,
@@ -167,6 +167,7 @@ def load_params(file_name):
 
 
 def diff_params(file_name):
+    print(f"{mavlink_controller_base_command()} --diff-params {file_name}")
     subprocess.check_output(
         f"{mavlink_controller_base_command()} --diff-params {file_name}",
         timeout=180,
@@ -178,6 +179,7 @@ def diff_params(file_name):
 
 def test_load_and_diff_params(adrupilot_simulator):
     with tempfile.TemporaryDirectory() as tmpdirname:
+        tmpdirname = "./"
         param_file_nameA = tmpdirname + "/this_droneA.params"
         generate_parameters_file(5, param_file_nameA)
         param_file_nameB = tmpdirname + "/this_droneB.params"
