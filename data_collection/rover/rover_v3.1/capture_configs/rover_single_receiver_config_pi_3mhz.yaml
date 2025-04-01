@@ -5,7 +5,8 @@
 # The orientation of the receiver is described in 
 # multiples of pi
 emitter:
-  type: external
+  type: o4
+  signal: digital
 
 distance-finder:
   trigger: 2
@@ -25,7 +26,7 @@ receivers:
     rx-gain: -3
     buffer-size: 524288 # 2**12
     f-intermediate: 100000 #1.0e5
-    f-carrier: 5.866e+9 #f-carrier: 2.4671e+9 #2.5e9
+    f-carrier: 5.766e+9 #f-carrier: 2.4671e+9 #2.5e9
     f-sampling: 30.0e+6 # 16.0e6
     bandwidth: 3.0e+6 #3.0e5
 
