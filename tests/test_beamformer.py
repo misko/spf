@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+from spf.dataset.segmentation import simple_segment
 from spf.rf import (
     IQSource,
     UCADetector,
@@ -11,7 +12,6 @@ from spf.rf import (
     rotation_matrix,
     torch_circular_mean,
 )
-from spf.rf import simple_segment
 from spf.utils import random_signal_matrix
 
 

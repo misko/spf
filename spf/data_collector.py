@@ -12,7 +12,6 @@ import numpy as np
 from attr import dataclass
 from tqdm import tqdm
 
-from spf.dataset.rover_idxs import v3rx_column_names
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.dataset.wall_array_v2_idxs import v2_column_names
@@ -507,39 +506,6 @@ class DroneDataCollectorRaw(DataCollector):
         self.zarr = None
         logging.info(f"Trying to shrink... {self.data_filename}")
         zarr_shrink(self.data_filename)
-
-
-# V3 data format
-class DroneDataCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        super(DroneDataCollector, self).__init__(
-            *args,
-            thread_class=ThreadedRX,
-            **kwargs,
-        )
-
-    def setup_record_matrix(self):
-        # record matrix
-        self.record_matrix = np.memmap(
-            self.data_filename,
-            dtype="float32",
-            mode="w+",
-            shape=(
-                2,  # TODO should be nreceivers
-                self.yaml_config["n-records-per-receiver"],
-                len(v3rx_column_names(nthetas=self.yaml_config["n-thetas"])),
-            ),  # t,tx,ty,rx,ry,rtheta,rspacing /  avg1,avg2 /  sds
-        )
-
-    def write_to_record_matrix(self, thread_idx, record_idx, data):
-        current_pos_heading_and_time = (
-            self.position_controller.get_position_bearing_and_time()
-        )
-
-        self.record_matrix[thread_idx, record_idx] = prepare_record_entry_v3(
-            ds=data,
-            current_pos_heading_and_time=current_pos_heading_and_time,
-        )
 
 
 # V5 data format

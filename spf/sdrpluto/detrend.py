@@ -1,3 +1,6 @@
+# Detrend IQ data coming off the radio
+
+import numpy as np
 import torch
 
 # mostly chatgpt
@@ -292,9 +295,6 @@ def merge_dynamic_windows(
     x_detrended = torch.complex(r_detrended, i_detrended)
 
     return x_detrended, r_slopes, r_intercepts, i_slopes, i_intercepts
-
-
-import numpy as np
 
 
 def detrend_1d_np(

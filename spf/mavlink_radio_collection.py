@@ -9,7 +9,7 @@ from datetime import datetime
 import yaml
 from pymavlink import mavutil
 
-from spf.data_collector import DroneDataCollector, DroneDataCollectorRaw
+from spf.data_collector import DroneDataCollectorRaw
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
 from spf.gps.boundaries import boundaries  # crissy_boundary_convex
 from spf.gps.boundaries import find_closest_boundary
@@ -205,13 +205,7 @@ if __name__ == "__main__":
         drone_get_planner(yaml_config["routine"], boundary=boundaries[boundary_name])
     )
 
-    if yaml_config["data-version"] == 3:
-        data_collector = DroneDataCollector(
-            data_filename=temp_filenames["data"],
-            yaml_config=yaml_config,
-            position_controller=drone,
-        )
-    elif yaml_config["data-version"] == 4:
+    if yaml_config["data-version"] == 4:
         data_collector = DroneDataCollectorRaw(
             data_filename=temp_filenames["data"],
             yaml_config=yaml_config,
