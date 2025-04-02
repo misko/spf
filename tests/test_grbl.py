@@ -10,6 +10,7 @@ from shapely import geometry
 
 import spf
 from spf.grbl.grbl_interactive import (
+    GRBL_STEP_SIZE,
     BouncePlanner,
     GRBLDynamics,
     home_bounding_box,
@@ -112,7 +113,7 @@ def test_binary_search_edge():
         pB=home_pB,
         bounding_box=home_bounding_box,
     )
-    planner = BouncePlanner(dynamics, start_point=[0, 0])
+    planner = BouncePlanner(dynamics, start_point=[0, 0], step_size=GRBL_STEP_SIZE)
 
     direction = np.array([3, 1])
     p = np.array([1500, 900])

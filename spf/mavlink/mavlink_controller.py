@@ -17,14 +17,14 @@ from pymavlink import mavutil
 from spf.gps.boundaries import boundary_to_diamond  # crissy_boundary_convex
 from spf.gps.boundaries import franklin_safe
 from spf.gps.gps_utils import swap_lat_long
-from spf.grbl.grbl_interactive import (
+from spf.mavlink.mavparm import MAVParmDict
+from spf.motion_planners.dynamics import Dynamics
+from spf.motion_planners.planner import (
     BouncePlanner,
     CirclePlanner,
-    Dynamics,
     PointCycle,
     StationaryPlanner,
 )
-from spf.mavlink.mavparm import MAVParmDict
 
 logging.basicConfig(
     filename="logs.log",

@@ -6,12 +6,21 @@ import select
 import sys
 import threading
 import time
-from abc import ABC, abstractmethod
 
-import matplotlib.path as pltpath
 import numpy as np
 import serial
-from scipy.spatial import ConvexHull
+
+from spf.motion_planners.dynamics import (
+    Dynamics,
+    PointOutOfBoundsException,
+    a_to_b_in_stepsize,
+)
+from spf.motion_planners.planner import (
+    BouncePlanner,
+    CirclePlanner,
+    Planner,
+    StationaryPlanner,
+)
 
 home_pA = np.array([3568, 0])
 home_pB = np.array([0, 0])
@@ -33,10 +42,6 @@ max_circle_diameter = 1900
 min_circle_diameter = 900
 
 run_grbl = True
-
-
-def chord_length_to_angle(chord_length, radius):
-    return 2 * np.arcsin(chord_length / (2 * radius))
 
 
 def stop_grbl():
@@ -73,133 +78,54 @@ would be no tension on the GT2 belts
 home_calibration_point = np.array([500, 400])
 
 
-def a_to_b_in_stepsize_np(a, b, step_size):
-    if np.isclose(a, b).all():
-        return [b]
-    # move by step_size from where we are now to the target position
-    distance = np.linalg.norm(b - a)
-    steps = np.arange(1, np.ceil(distance / step_size) + 1) * step_size
+class CalibrationV1Planner(Planner):
+    def __init__(self, dynamics, start_point, step_size=GRBL_STEP_SIZE, y_bump=150):
+        super().__init__(
+            dynamics=dynamics, start_point=start_point, step_size=step_size
+        )
+        self.y_bump = y_bump
 
-    direction = (b - a) / np.linalg.norm(b - a)
-    points = a.reshape(1, 2) + direction.reshape(1, 2) * steps.reshape(len(steps), 1)
-    points[-1] = b
-    return points
+    def get_planner_start_position(self):
+        return tx_calibration_point
 
+    def yield_points(self):
+        start_p = np.array(tx_calibration_point)
+        max_y = np.max([x[1] for x in home_bounding_box])
+        direction_left = np.array([1, 0])  # ride the x dont change y
+        direction_right = np.array([-1, 0])  # ride the x dont change y
 
-def a_to_b_in_stepsize(a, b, step_size):
-    return a_to_b_in_stepsize_np(a, b, step_size)
-    if np.isclose(a, b).all():
-        return [b]
-    # move by step_size from where we are now to the target position
-    points = []
-    direction = (b - a) / np.linalg.norm(b - a)
-    distance = np.linalg.norm(b - a)
-    _l = step_size
-    while _l < distance:
-        points.append(_l * direction + a)
-        _l += step_size
-    points.append(b)
-    return points
+        current_p = self.start_point
 
+        while True:
+            # get to the starting position
+            yield from a_to_b_in_stepsize(current_p, start_p, step_size=self.step_size)
+            current_p = start_p
 
-class BoundingBoxIsNonConvexException(Exception):
-    pass
-
-
-class PointOutOfBoundsException(Exception):
-    pass
-
-
-class Dynamics:
-    def __init__(self, bounding_box, unsafe=False, bounds_radius=0.00001):
-        self.bounds_radius = bounds_radius
-        self.unsafe = unsafe
-        self.bounding_box = bounding_box
-        if len(bounding_box) >= 3:
-            hull = ConvexHull(bounding_box)
-            if len(np.unique(hull.simplices)) != len(bounding_box):
-                logging.error(
-                    "Points do not form a simple hull, most likely non convex"
+            while current_p[1] + self.y_bump < max_y:
+                # move to far wall
+                next_p, _ = self.get_bounce_pos_and_new_direction(
+                    current_p, direction_left
                 )
-                logging.error(
-                    "Points in the hull are, "
-                    + ",".join(
-                        map(str, [bounding_box[x] for x in np.unique(hull.simplices)])
-                    )
+                yield from a_to_b_in_stepsize(
+                    current_p, next_p, step_size=self.step_size
                 )
-                raise BoundingBoxIsNonConvexException()
-            self.polygon = pltpath.Path(bounding_box)
-        else:
-            self.polygon = None
+                current_p = next_p
 
-    def to_steps(self, p):
-        if (
-            (not self.unsafe)
-            and (self.polygon is not None)
-            and not self.polygon.contains_point(p, radius=self.bounds_radius)
-        ):  # todo a bit hacky but works
-            raise PointOutOfBoundsException(
-                "Point we want to move to will be out of bounds"
-            )
+                # move a tiny bit down
+                next_p = current_p + np.array([0, self.y_bump])
+                yield from a_to_b_in_stepsize(
+                    current_p, next_p, step_size=self.step_size
+                )
+                current_p = next_p
 
-    def from_steps(self, state):
-        return state
-
-    def binary_search_edge(self, left, right, xy, direction, epsilon):
-        if (right - left) < epsilon:
-            return left
-        midpoint = (right + left) / 2
-        p = midpoint * direction + xy
-        try:
-            steps = self.to_steps(p)  # noqa
-            # actual = self.from_steps(*steps)
-            return self.binary_search_edge(midpoint, right, xy, direction, epsilon)
-        except PointOutOfBoundsException:
-            return self.binary_search_edge(left, midpoint, xy, direction, epsilon)
-
-    def distance_from_point_to_segment(self, p, v0, v1):
-        # rint("DISTANCE SEGMENT", p, v0, v1)
-        # center to v0
-        v1 = v1 - v0
-        p = p - v0
-        # lets get v1 -> y axis
-        v1_norm = v1 / np.linalg.norm(v1)
-        v2_norm = np.array([-v1_norm[1], v1_norm[0]])
-
-        inv_m = np.vstack([v1_norm, v2_norm]).T
-        m = np.linalg.inv(inv_m)
-
-        _v1 = m @ v1
-        _p = m @ p
-        assert np.isclose(_v1[1], 0)
-        if _p[0] > _v1[0]:
-            return np.linalg.norm(_p - _v1)
-        elif _p[0] < 0:
-            return np.linalg.norm(_p)
-        return np.abs(_p[1])
-
-    def get_boundary_vector_near_point(self, p):
-        if self.polygon is None:
-            raise ValueError
-
-        bvec = None
-        max_score = np.inf
-        nverts = len(self.polygon.vertices)
-        for i in range(nverts):
-            v0 = self.polygon.vertices[i % nverts]
-            v1 = self.polygon.vertices[(i + 1) % nverts]
-
-            score = max(
-                np.dot(p - v0, v1 - v0)
-                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v0) + 0.00001),
-                np.dot(p - v1, v1 - v1)
-                / (np.linalg.norm(v0 - v1) * np.linalg.norm(p - v1) + 0.00001),
-            )
-            score = self.distance_from_point_to_segment(p, v0, v1)
-            if score < max_score:
-                max_score = score
-                bvec = (v1 - v0) / np.linalg.norm(v1 - v0)
-        return bvec
+                # move back
+                next_p, _ = self.get_bounce_pos_and_new_direction(
+                    current_p, direction_right
+                )
+                yield from a_to_b_in_stepsize(
+                    current_p, next_p, step_size=self.step_size
+                )
+                current_p = next_p
 
 
 class GRBLDynamics(Dynamics):
@@ -270,262 +196,6 @@ class GRBLDynamics(Dynamics):
             raise PointOutOfBoundsException("Inverted point is out of bounds")
 
         return a_motor_steps, b_motor_steps
-
-
-class Planner(ABC):
-    def __init__(
-        self, dynamics, start_point, step_size=GRBL_STEP_SIZE, epsilon=1, seed=None
-    ):
-        self.dynamics = dynamics
-        self.current_direction = None
-        self.epsilon = epsilon  # original was 0.001
-        self.start_point = start_point
-        self.step_size = step_size
-        self.rng = np.random.default_rng(seed)
-
-    def get_bounce_pos_and_new_direction(self, p, direction):
-        distance_to_bounce = self.dynamics.binary_search_edge(
-            0, 10000, p, direction, self.epsilon
-        )
-        last_point_before_bounce = distance_to_bounce * direction + p
-
-        # parallel component stays the same
-        # negatate the perpendicular component
-        bvec = self.dynamics.get_boundary_vector_near_point(last_point_before_bounce)
-        bvec_perp = np.array([bvec[1], -bvec[0]])
-        new_direction = (
-            np.dot(direction, bvec) * bvec - np.dot(direction, bvec_perp) * bvec_perp
-        )
-        new_direction /= np.linalg.norm(new_direction)
-        return last_point_before_bounce, new_direction
-
-    def random_direction(self):
-        theta = self.rng.uniform(0, 2 * np.pi)
-        return np.array([np.sin(theta), np.cos(theta)])
-
-    @abstractmethod
-    def yield_points(self):
-        pass
-
-    def get_planner_start_position(self):
-        return None
-
-
-class BouncePlanner(Planner):
-    def single_bounce(self, direction, p):
-        bounce_point, new_direction = self.get_bounce_pos_and_new_direction(
-            p, direction
-        )
-
-        to_points = a_to_b_in_stepsize(p, bounce_point, step_size=self.step_size)
-
-        # add some noise to the new direction
-        theta = self.rng.uniform(0, 2 * np.pi)
-        percent_random = 0.05
-        new_direction = (
-            1 - percent_random
-        ) * new_direction + percent_random * np.array([np.sin(theta), np.cos(theta)])
-        return to_points, new_direction
-
-    def yield_points(self):
-        yield from self.bounce(self.start_point)
-
-    def bounce(self, current_p, total_bounces=-1):
-        global run_grbl
-        # if no previous direciton lets initialize one
-        if self.current_direction is None:
-            self.current_direction = self.random_direction()
-        # add some random noise
-        percent_random = 0.05
-        self.current_direction = (
-            1 - percent_random
-        ) * self.current_direction + percent_random * self.random_direction()
-        self.current_direction /= np.linalg.norm(self.current_direction)
-
-        n_bounce = 0
-        stall = 0
-        last_point = None
-        while total_bounces < 0 or n_bounce < total_bounces:
-            print("BOUNCING")
-            if not run_grbl:
-                logging.info("Exiting bounce early")
-                break
-            to_points, new_direction = self.single_bounce(
-                self.current_direction, current_p
-            )
-
-            logging.info(
-                f"{str(self)},{str(to_points[0])},{str(to_points[-1])},{str(new_direction)},{len(to_points)}"
-            )
-            assert len(to_points) > 0
-            yield from to_points
-            current_p = to_points[-1]
-            if len(to_points) == 1:
-                if last_point is None:
-                    last_point = to_points[0]
-                elif (last_point == to_points[0]).all():
-                    stall += 1
-                    if stall > 3:
-                        new_direction = self.random_direction()
-                        logging.info("Stalled and picking random direction")
-                else:
-                    last_point = None
-                    stall = 0
-            else:
-                last_point = None
-                stall = 0
-            # else:
-            self.current_direction = new_direction
-            n_bounce += 1
-        logging.info("Exiting bounce")
-
-
-class StationaryPlanner(Planner):
-    def __init__(
-        self, dynamics, start_point, stationary_point, step_size=GRBL_STEP_SIZE
-    ):
-        super().__init__(
-            dynamics=dynamics, start_point=start_point, step_size=step_size
-        )
-        self.stationary_point = stationary_point
-
-    def yield_points(
-        self,
-    ):
-        # move to the stationary point
-        yield from a_to_b_in_stepsize(
-            self.start_point, self.stationary_point, step_size=self.step_size
-        )
-        # stay still
-        while True:
-            yield self.stationary_point
-
-    def get_planner_start_position(self):
-        return self.stationary_point
-
-
-class PointCycle(Planner):
-    def __init__(
-        self,
-        dynamics,
-        start_point,
-        points,
-        step_size=GRBL_STEP_SIZE,
-    ):
-        super().__init__(
-            dynamics=dynamics, start_point=start_point, step_size=step_size
-        )
-        self.points = points
-
-    def get_planner_start_position(self):
-        return self.points[0]
-
-    def yield_points(self):
-        # start at the top of the circle
-        current_p = self.start_point
-
-        # start at the top
-        while True:
-            for point in self.points:
-                next_p = point
-                yield from a_to_b_in_stepsize(
-                    current_p,
-                    next_p,
-                    step_size=self.step_size,
-                )
-                current_p = next_p
-
-
-class CirclePlanner(Planner):
-    def __init__(
-        self,
-        dynamics,
-        start_point,
-        step_size=GRBL_STEP_SIZE,
-        circle_diameter=max_circle_diameter,
-        circle_center=[0, 0],
-    ):
-        super().__init__(
-            dynamics=dynamics, start_point=start_point, step_size=step_size
-        )
-        self.direction = ((np.random.rand() > 0.5) - 0.5) * 2
-        self.circle_center = circle_center
-        self.circle_radius = circle_diameter / 2
-        self.angle_increment = chord_length_to_angle(self.step_size, self.circle_radius)
-
-    def get_planner_start_position(self):
-        return self.angle_to_pos(0)
-
-    def angle_to_pos(self, angle):
-        return self.circle_center + self.circle_radius * np.array(
-            [-np.sin(angle), np.cos(angle)]
-        )
-
-    def yield_points(self):
-        # start at the top of the circle
-        current_p = self.start_point
-
-        # start at the top
-        current_angle = 0
-        while current_angle < 360:
-            next_p = self.angle_to_pos(current_angle)
-            yield from a_to_b_in_stepsize(
-                current_p,
-                next_p,
-                step_size=self.step_size,
-            )
-            current_p = next_p
-            current_angle += self.direction * self.angle_increment
-
-
-class CalibrationV1Planner(Planner):
-    def __init__(self, dynamics, start_point, step_size=GRBL_STEP_SIZE, y_bump=150):
-        super().__init__(
-            dynamics=dynamics, start_point=start_point, step_size=step_size
-        )
-        self.y_bump = y_bump
-
-    def get_planner_start_position(self):
-        return tx_calibration_point
-
-    def yield_points(self):
-        start_p = np.array(tx_calibration_point)
-        max_y = np.max([x[1] for x in home_bounding_box])
-        direction_left = np.array([1, 0])  # ride the x dont change y
-        direction_right = np.array([-1, 0])  # ride the x dont change y
-
-        current_p = self.start_point
-
-        while True:
-            # get to the starting position
-            yield from a_to_b_in_stepsize(current_p, start_p, step_size=self.step_size)
-            current_p = start_p
-
-            while current_p[1] + self.y_bump < max_y:
-                # move to far wall
-                next_p, _ = self.get_bounce_pos_and_new_direction(
-                    current_p, direction_left
-                )
-                yield from a_to_b_in_stepsize(
-                    current_p, next_p, step_size=self.step_size
-                )
-                current_p = next_p
-
-                # move a tiny bit down
-                next_p = current_p + np.array([0, self.y_bump])
-                yield from a_to_b_in_stepsize(
-                    current_p, next_p, step_size=self.step_size
-                )
-                current_p = next_p
-
-                # move back
-                next_p, _ = self.get_bounce_pos_and_new_direction(
-                    current_p, direction_right
-                )
-                yield from a_to_b_in_stepsize(
-                    current_p, next_p, step_size=self.step_size
-                )
-                current_p = next_p
 
 
 class FakeStream:
@@ -843,6 +513,7 @@ class GRBLManager:
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][c_idx],
                 stationary_point=self.requested_start_points[c_idx],
+                step_size=GRBL_STEP_SIZE,
             ).yield_points()
             for c_idx in range(len(self.planners))
         }
@@ -865,6 +536,7 @@ class GRBLManager:
             BouncePlanner(
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][c_idx],
+                step_size=GRBL_STEP_SIZE,
             )
             for c_idx in range(len(self.planners))
         ]
@@ -875,12 +547,14 @@ class GRBLManager:
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][0],
                 stationary_point=circle_center,
+                step_size=GRBL_STEP_SIZE,
             ),
             CirclePlanner(
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][1],
                 circle_diameter=max_circle_diameter,
                 circle_center=circle_center,
+                step_size=GRBL_STEP_SIZE,
             ),
         ]
 
@@ -891,11 +565,13 @@ class GRBLManager:
                 start_point=self.controller.position["xy"][0],
                 circle_diameter=max_circle_diameter,
                 circle_center=circle_center,
+                step_size=GRBL_STEP_SIZE,
             ),
             StationaryPlanner(
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][1],
                 stationary_point=circle_center,
+                step_size=GRBL_STEP_SIZE,
             ),
         ]
 
@@ -904,11 +580,13 @@ class GRBLManager:
             BouncePlanner(
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][0],
+                step_size=GRBL_STEP_SIZE,
             ),
             StationaryPlanner(
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][0],
                 stationary_point=rx_calibration_point,
+                step_size=GRBL_STEP_SIZE,
             ),
         ]
 
@@ -921,11 +599,13 @@ class GRBLManager:
                     min_circle_diameter, max_circle_diameter
                 ),
                 circle_center=circle_center,
+                step_size=GRBL_STEP_SIZE,
             ),
             StationaryPlanner(
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][1],
                 stationary_point=circle_center,
+                step_size=GRBL_STEP_SIZE,
             ),
         ]
 
@@ -935,10 +615,12 @@ class GRBLManager:
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][0],
                 stationary_point=rx_calibration_point,
+                step_size=GRBL_STEP_SIZE,
             ),
             CalibrationV1Planner(
                 self.controller.dynamics,
                 start_point=self.controller.position["xy"][1],
+                step_size=GRBL_STEP_SIZE,
             ),
         ]
 
@@ -968,7 +650,9 @@ def get_default_gm(serial_fn, routine, unsafe=False):
     return GRBLManager(controller, routine=routine)
 
 
-def exit_fine():
+def exit_fine(gm):
+    for planner in gm.planners:
+        planner.stop()
     global run_grbl
     run_grbl = False
     print("EXIT!!")
@@ -1020,7 +704,7 @@ if __name__ == "__main__":
                 gm.get_ready()
                 gm.run()
             elif line.split()[0] == "timer":
-                t = threading.Timer(float(line.split()[1]), exit_fine)
+                t = threading.Timer(float(line.split()[1]), exit_fine, args=[gm])
                 t.start()
             elif len(line) == 0:
                 continue

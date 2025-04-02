@@ -1,7 +1,12 @@
 import numpy as np
 
 from spf.gps.boundaries import franklin_boundary
-from spf.grbl.grbl_interactive import BouncePlanner, Dynamics, home_bounding_box
+from spf.grbl.grbl_interactive import (
+    GRBL_STEP_SIZE,
+    BouncePlanner,
+    Dynamics,
+    home_bounding_box,
+)
 
 
 def test_grbl_bounce():
@@ -11,6 +16,7 @@ def test_grbl_bounce():
     bp = BouncePlanner(
         dynamics=Dynamics(bounding_box=boundary),
         start_point=boundary.mean(axis=0),
+        step_size=GRBL_STEP_SIZE,
     )
     n = 20000
     p = bp.yield_points()
