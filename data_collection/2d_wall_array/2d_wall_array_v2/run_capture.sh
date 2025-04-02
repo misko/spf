@@ -36,7 +36,8 @@ export ROOT="../../../"
 #config=${ROOT}/spf/v5_configs/wall_array_nuand_v2_external_25_o4_5838_fastattack.yaml
 #config=${ROOT}/spf/v5_configs/wall_array_nuand_v2_external_25_o4_5766_fastattack.yaml
 #config=${ROOT}/spf/v5_configs/wall_array_nuand_v2_external_25_blaster_2464_fastattack.yaml
-config=${ROOT}/spf/v5_configs/wall_array_nuand_v2_external_80_blaster_2464_fastattack.yaml
+#config=${ROOT}/spf/v5_configs/wall_array_nuand_v2_external_80_blaster_2464_fastattack.yaml
+config=${ROOT}/data_collection/2d_wall_array/2d_wall_array_v2/capture_configs/wall_array_nuand_v2_external_80_blaster_2464_fastattack.yaml
 #reboot_plutos
 
 sleep_for=10
