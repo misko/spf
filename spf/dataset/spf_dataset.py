@@ -294,86 +294,106 @@ def uri_to_device_type(uri):
 class v5spfdataset(Dataset):
     def __init__(
         self,
-        prefix: str,
-        nthetas: int,
-        precompute_cache: str,
-        phi_drift_max: float = 0.2,
-        min_mean_windows: int = 10,
-        ignore_qc: bool = False,
-        paired: bool = False,
-        gpu: bool = False,
-        snapshots_per_session: int = 1,
-        tiled_sessions: bool = True,  # session 0 overlaps heavily with session 1 except last snapshot
-        snapshots_stride: int = 1,
-        readahead: bool = False,
-        temp_file: bool = False,
-        temp_file_suffix: str = ".tmp",
-        skip_fields: List[str] = [],
-        n_parallel: int = 20,
-        empirical_data_fn: str | None = None,
-        empirical_individual_radio: bool = False,
-        empirical_symmetry: bool = True,
-        target_dtype=torch.float32,
-        snapshots_adjacent_stride: int = 1,
-        flip: bool = False,
-        double_flip: bool = False,
-        # if we want to use strides of something like
-        # 1,5,2,3 when getting 4 snapshots, for adjacent strde=5
-        random_adjacent_stride: bool = False,
-        distance_normalization: int = 1000,
-        target_ntheta: bool | None = None,
-        segmentation_version: float = SEGMENTATION_VERSION,
-        segment_if_not_exist: bool = False,
-        windows_per_snapshot: int = 256,
+        prefix: str,  # Base path for dataset files (without .zarr extension)
+        nthetas: int,  # Number of theta angles for beamforming discretization
+        precompute_cache: str,  # Directory to store/load precomputed segmentation data
+        phi_drift_max: float = 0.2,  # Maximum allowable phase drift for quality control
+        min_mean_windows: int = 10,  # Minimum average number of windows required for valid segmentation
+        ignore_qc: bool = False,  # Skip quality control checks if True
+        paired: bool = False,  # If True, return paired samples from all receivers at once
+        gpu: bool = False,  # Use GPU for segmentation computation if available
+        snapshots_per_session: int = 1,  # Number of snapshots to include in each returned session
+        tiled_sessions: bool = True,  # If True, sessions overlap with stride; if False, sessions are disjoint
+        snapshots_stride: int = 1,  # Step size between consecutive session starting points
+        readahead: bool = False,  # Enable read-ahead for zarr storage I/O optimization
+        temp_file: bool = False,  # Whether dataset is using temporary files (for in-progress recordings)
+        temp_file_suffix: str = ".tmp",  # Suffix for temporary files
+        skip_fields: List[
+            str
+        ] = [],  # Data fields to exclude during loading to save memory
+        n_parallel: int = 20,  # Number of parallel processes for segmentation
+        empirical_data_fn: (
+            str | None
+        ) = None,  # Path to empirical distribution data file for phase-to-angle mapping
+        empirical_individual_radio: bool = False,  # Use per-radio empirical distributions if True
+        empirical_symmetry: bool = True,  # Use symmetric empirical distributions if True
+        target_dtype=torch.float32,  # Target dtype for tensor conversion (memory optimization)
+        snapshots_adjacent_stride: int = 1,  # Stride between adjacent snapshots within a session
+        flip: bool = False,  # Randomly flip data horizontally for data augmentation
+        double_flip: bool = False,  # Apply additional flipping transformation for data augmentation
+        random_adjacent_stride: bool = False,  # Use random non-uniform strides between adjacent snapshots
+        distance_normalization: int = 1000,  # Divisor to normalize distance measurements (mm to meters)
+        target_ntheta: (
+            bool | None
+        ) = None,  # Target number of theta bins for classification (defaults to nthetas)
+        segmentation_version: float = SEGMENTATION_VERSION,  # Version of segmentation algorithm (3.5 by default)
+        segment_if_not_exist: bool = False,  # Generate segmentation cache if missing when True
+        windows_per_snapshot: int = 256,  # Maximum number of windows per snapshot to use
     ):
         logging.debug(f"loading... {prefix}")
+        # Store configuration parameters
         self.n_parallel = n_parallel
         self.exclude_keys_from_cache = set(["signal_matrix"])
         self.readahead = readahead
         self.precompute_cache = precompute_cache
-        self.nthetas = nthetas
+        self.nthetas = nthetas  # Number of angles to discretize space for beamforming
         self.target_ntheta = self.nthetas if target_ntheta is None else target_ntheta
         self.valid_entries = None
-        # self.prefix = prefix
-        # print("OPEN", prefix)
         self.temp_file = temp_file
 
-        self.segmentation_version = segmentation_version
-        self.segment_if_not_exist = segment_if_not_exist
+        # Segmentation parameters control how raw signal is processed into windows
+        # and how phase difference is computed between antenna elements
+        self.segmentation_version = (
+            segmentation_version  # Controls algorithm version for signal segmentation
+        )
+        self.segment_if_not_exist = (
+            segment_if_not_exist  # Auto-generate segmentation if missing
+        )
 
         self.distance_normalization = distance_normalization
-
         self.flip = flip
         self.double_flip = double_flip
         self.skip_fields = skip_fields
+        self.paired = paired
+        self.gpu = gpu  # Whether to use GPU acceleration for beamforming calculations
+        self.target_dtype = target_dtype
+        self.precomputed_entries = 0
+        self.precomputed_zarr = (
+            None  # Will hold preprocessed beamforming and segmentation data
+        )
 
+        # Configure snapshot and session settings
         self.snapshots_per_session = snapshots_per_session
         self.snapshots_adjacent_stride = snapshots_adjacent_stride
         self.random_adjacent_stride = random_adjacent_stride
-        self.windows_per_snapshot = windows_per_snapshot
+        self.windows_per_snapshot = (
+            windows_per_snapshot  # Max windows per snapshot for segmentation
+        )
+        self.tiled_sessions = tiled_sessions
 
+        # Set up file paths
         self.prefix = prefix.replace(".zarr", "")
-        self.zarr_fn = f"{self.prefix}.zarr"
-        self.yaml_fn = f"{self.prefix}.yaml"
+        self.zarr_fn = f"{self.prefix}.zarr"  # Raw signal data storage
+        self.yaml_fn = f"{self.prefix}.yaml"  # Configuration file
         if temp_file:
             self.zarr_fn += temp_file_suffix
             self.yaml_fn += temp_file_suffix
             assert self.snapshots_per_session == 1
+
+        # Load data files
         self.z = zarr_open_from_lmdb_store(
             self.zarr_fn, readahead=self.readahead, map_size=2**32
         )
-        self.yaml_config = load_config(
-            self.yaml_fn
-        )  # yaml.safe_load(open(self.yaml_fn, "r"))
+        self.yaml_config = load_config(self.yaml_fn)
 
-        self.vehicle_type = self.get_collector_identifier()
+        # Get system metadata
+        self.vehicle_type = (
+            self.get_collector_identifier()
+        )  # Type of platform (wallarray/rover)
         self.emitter_type = self.get_emitter_type()
-
-        self.paired = paired
         self.n_receivers = len(self.yaml_config["receivers"])
-        self.gpu = gpu
-        self.tiled_sessions = tiled_sessions
 
+        # Configure stride for session sampling
         if snapshots_stride < 1.0:
             snapshots_stride = max(
                 int(
@@ -385,10 +405,9 @@ class v5spfdataset(Dataset):
             )
         self.snapshots_stride = int(snapshots_stride)
 
-        self.precomputed_entries = 0
-
+        # Extract receiver properties - important for beamforming calculations
         self.wavelengths = [
-            speed_of_light / receiver["f-carrier"]
+            speed_of_light / receiver["f-carrier"]  # λ = c/f
             for receiver in self.yaml_config["receivers"]
         ]
         self.carrier_frequencies = [
@@ -398,42 +417,53 @@ class v5spfdataset(Dataset):
             receiver["bandwidth"] for receiver in self.yaml_config["receivers"]
         ]
 
+        # Validate that all receivers have consistent configurations
         for rx_idx in range(1, self.n_receivers):
             assert (
                 self.yaml_config["receivers"][0]["antenna-spacing-m"]
                 == self.yaml_config["receivers"][rx_idx]["antenna-spacing-m"]
             ), self.zarr_fn
-
             assert self.wavelengths[0] == self.wavelengths[rx_idx]
             assert self.rf_bandwidths[0] == self.rf_bandwidths[rx_idx]
 
+        # Set up receiver spacing properties - critical for beamforming
+        # Spacing between antenna elements affects phase difference and angle estimation
         self.rx_spacing = self.yaml_config["receivers"][0]["antenna-spacing-m"]
         assert self.yaml_config["receivers"][1]["antenna-spacing-m"] == self.rx_spacing
+
+        # rx_wavelength_spacing (d/λ) is a key parameter for beamforming
+        # It determines how phase differences map to arrival angles
         self.rx_wavelength_spacing = self.rx_spacing / self.wavelengths[0]
 
+        # Create receiver configs and determine device types
         self.rx_configs = [
             rx_config_from_receiver_yaml(receiver)
             for receiver in self.yaml_config["receivers"]
         ]
-
         self.sdr_device_types = [
             uri_to_device_type(rx_config.uri) for rx_config in self.rx_configs
         ]
+
+        # Ensure all receivers use the same device type
         if len(self.sdr_device_types) > 1:
             for device_type in self.sdr_device_types:
                 assert device_type == self.sdr_device_types[0]
         self.sdr_device_type = self.sdr_device_types[0]
 
+        # Access receiver data
         self.receiver_data = [
             self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
         ]
 
+        # Get dimensions from the data
         self.n_snapshots, self.n_antennas_per_receiver = self.z.receivers.r0.gains.shape
-        assert self.n_antennas_per_receiver == 2
+        assert self.n_antennas_per_receiver == 2  # 2-element antenna array
 
+        # Handle snapshot count settings
         if self.snapshots_per_session == -1:
             self.snapshots_per_session = self.n_snapshots
 
+        # Calculate number of sessions based on tiling mode
         if self.tiled_sessions:
             self.n_sessions = (
                 self.n_snapshots
@@ -446,6 +476,7 @@ class v5spfdataset(Dataset):
                 self.snapshots_per_session * snapshots_adjacent_stride
             )
 
+        # Load signal matrices if needed (raw complex IQ samples from SDR)
         if "signal_matrix" not in self.skip_fields:
             self.signal_matrices = [
                 self.z.receivers[f"r{ridx}"].signal_matrix
@@ -453,6 +484,7 @@ class v5spfdataset(Dataset):
             ]
             _, _, self.session_length = self.z.receivers["r0"].signal_matrix.shape
 
+            # Verify signal matrix dimensions
             for ridx in range(self.n_receivers):
                 assert self.z.receivers[f"r{ridx}"].signal_matrix.shape == (
                     self.n_snapshots,
@@ -460,6 +492,10 @@ class v5spfdataset(Dataset):
                     self.session_length,
                 )
 
+        # Precompute steering vectors for beamforming
+        # Steering vectors are complex weights applied to each antenna element
+        # They're used to "steer" the array to look in a specific direction
+        # For each possible angle (theta), calculate the appropriate phase shifts
         self.steering_vectors = [
             precompute_steering_vectors(
                 receiver_positions=rx_config.rx_pos,
@@ -469,14 +505,17 @@ class v5spfdataset(Dataset):
             for rx_config in self.rx_configs
         ]
 
+        # Define keys to load per session
         self.keys_per_session = (
             v5rx_f64_keys + v5rx_2xf64_keys + ["rx_wavelength_spacing"]
         )
         if "signal_matrix" not in self.skip_fields:
             self.keys_per_session.append("signal_matrix")
 
+        # Load cached data
         self.refresh()
 
+        # Validate receiver configurations
         if not self.temp_file:
             assert (
                 self.cached_keys[0]["rx_theta_in_pis"].median()
@@ -487,23 +526,36 @@ class v5spfdataset(Dataset):
                 == self.yaml_config["receivers"][1]["theta-in-pis"]
             )
 
+        # Create expanded receiver indices for batching
         self.receiver_idxs_expanded = {}
         for idx in range(self.n_receivers):
             self.receiver_idxs_expanded[idx] = torch.tensor(
                 idx, dtype=torch.int32
             ).expand(1, self.snapshots_per_session)
 
+        # Load segmentation data for non-temporary files
+        # Segmentation processes raw signal data into usable features:
+        # 1. Identifies windows containing the target signal
+        # 2. Calculates phase differences between antenna elements
+        # 3. Computes beamforming outputs for different steering directions
+        # 4. Creates masks and statistics for signal quality assessment
         if not self.temp_file:
             self.get_segmentation(
                 version=self.segmentation_version,
                 segment_if_not_exist=self.segment_if_not_exist,
             )
 
+            # Calculate phase drifts and segmentation statistics
+            # Phase drift measures difference between expected and measured phase
+            # It's a quality metric for the dataset
             self.all_phi_drifts = self.get_all_phi_drifts()
             self.phi_drifts = torch.tensor(
                 [torch.nanmean(all_phi_drift) for all_phi_drift in self.all_phi_drifts]
             )
+
+            # Calculate statistics on segmentation quality
             if "simple_segmentations" not in self.skip_fields:
+                # Average number of identified signal windows per session
                 self.average_windows_in_segmentation = (
                     torch.tensor(
                         [
@@ -519,6 +571,7 @@ class v5spfdataset(Dataset):
                     .to(torch.float32)
                     .mean()
                 )
+                # Proportion of sessions with meaningful segmentation
                 self.mean_sessions_with_maybe_valid_segmentation = (
                     torch.tensor(
                         [
@@ -535,11 +588,16 @@ class v5spfdataset(Dataset):
                     .mean()
                 )
         else:
-            # if we are a temp verison
+            # Initialize mean phase for temporary files
             self.mean_phase = {}
             for ridx in range(self.n_receivers):
                 self.mean_phase[f"r{ridx}"] = torch.ones(len(self)) * torch.inf
 
+        # Perform quality control checks if enabled
+        # Ensures the dataset meets minimum quality standards:
+        # - Phase drift within acceptable range
+        # - Sufficient signal windows identified
+        # - Enough sessions with valid segmentation
         if not ignore_qc:
             if "simple_segmentations" in self.skip_fields:
                 raise ValueError("Cannot have QC and skip simple segmentations")
@@ -557,17 +615,16 @@ class v5spfdataset(Dataset):
                     "It looks like too few windows have a valid segmentation"
                 )
 
-        self.target_dtype = target_dtype
-
+        # Load empirical distribution data if provided
+        # These are learned phase-to-angle mappings that can improve angle estimation
         if empirical_data_fn is not None:
             self.empirical_data_fn = empirical_data_fn
             self.empirical_data = pickle.load(open(empirical_data_fn, "rb"))
             self.empirical_individual_radio = empirical_individual_radio
             self.empirical_symmetry = empirical_symmetry
         else:
-            empirical_data_fn = None
+            self.empirical_data_fn = None
             self.empirical_data = None
-        # self.close()
 
     def refresh(self):
         # get how many entries are in the underlying storage
@@ -1137,6 +1194,25 @@ class v5spfdataset(Dataset):
         return segmentation["version"]
 
     def get_segmentation(self, version, segment_if_not_exist, precompute_to_idx=-1):
+        """
+        Load or generate the signal segmentation and beamforming data.
+
+        Segmentation is a critical preprocessing step that:
+        1. Divides raw signal into windows (typically 2048 samples each)
+        2. Identifies which windows contain the actual RF signal vs noise
+        3. Computes phase differences between antenna elements
+        4. Applies beamforming across multiple look directions (thetas)
+        5. Extracts statistical features from the segmented signals
+
+        Args:
+            version: The segmentation algorithm version to use
+            segment_if_not_exist: Whether to generate segmentation if missing
+            precompute_to_idx: Index until which to precompute (-1 for all)
+
+        Returns:
+            Segmentation data dictionary
+        """
+        # Return cached segmentation if already loaded
         if (
             not self.temp_file
             and hasattr(self, "segmentation")
@@ -1144,9 +1220,10 @@ class v5spfdataset(Dataset):
         ):
             return self.segmentation
 
-        # otherwise its the first time loading for non temp
-        # or this is a temp file
+        # Set up paths for segmentation results
         results_fn = self.results_fn()
+
+        # Check if segmentation exists and if we should create it
         if (
             not segment_if_not_exist
             and not self.temp_file
@@ -1154,6 +1231,7 @@ class v5spfdataset(Dataset):
         ):
             raise ValueError(f"Segmentation file does not exist for {results_fn}")
 
+        # Generate segmentation if needed (file doesn't exist or is a temp file)
         if self.temp_file or not os.path.exists(results_fn):
             skip_beamformer = False
             if (
@@ -1162,31 +1240,45 @@ class v5spfdataset(Dataset):
                 and "weighted_beamformer" in self.skip_fields
             ):
                 skip_beamformer = True
+
+            # Call the multiprocessing segmentation function
+            # This performs the heavy computation:
+            # - Window the signal data
+            # - Identify signal-containing segments using statistics
+            # - Compute beamforming outputs for each direction in nthetas
+            # - Save results to yarr file for efficient loading
             mp_segment_zarr(
-                self.zarr_fn,
-                results_fn,
-                self.steering_vectors,
-                precompute_to_idx=precompute_to_idx,
-                gpu=self.gpu,
-                n_parallel=self.n_parallel,
-                skip_beamformer=skip_beamformer,
+                self.zarr_fn,  # Input raw signal data
+                results_fn,  # Output segmentation path
+                self.steering_vectors,  # Precomputed steering vectors for beamforming
+                precompute_to_idx=precompute_to_idx,  # How many samples to process
+                gpu=self.gpu,  # Whether to use GPU acceleration
+                n_parallel=self.n_parallel,  # Number of parallel workers
+                skip_beamformer=skip_beamformer,  # Skip beamforming calculation if not needed
             )
 
+        # Load the segmentation results
         try:
+            # Load the segmentation data if needed
             if "simple_segmentations" not in self.skip_fields:
                 segmentation = pickle.load(open(results_fn, "rb"))
             else:
                 segmentation = {}
 
+            # Open the precomputed data (contains beamforming outputs and statistics)
+            # This yarr file contains:
+            # - windowed_beamformer: Beamforming output for each window and angle
+            # - all_windows_stats: Statistics for each window (phase mean, stddev, signal strength)
+            # - downsampled_segmentation_mask: Binary mask indicating signal vs noise windows
+            # - mean_phase: Average phase difference across all signal windows
             precomputed_zarr = zarr_open_from_lmdb_store(
                 results_fn.replace(".pkl", ".yarr"),
                 mode="r",
                 map_size=2**32,
-                readahead=False,
-                # readahead=True, # DO NOT ENABLE THIS!!!!
-                # THIS CAUSES A LOT OF READ OPERATIONS!!!!
-                # Around 7GB/s!!
+                readahead=False,  # Readahead disabled to avoid excessive I/O
             )
+
+            # For temp files, determine how many entries are valid
             if self.temp_file:
                 self.precomputed_entries = min(
                     [
@@ -1201,6 +1293,7 @@ class v5spfdataset(Dataset):
                     ]
                 )
         except pickle.UnpicklingError:
+            # Handle corrupted segmentation file by removing and regenerating
             os.remove(results_fn)
             return self.get_segmentation(
                 version=version,
@@ -1208,16 +1301,21 @@ class v5spfdataset(Dataset):
                 precompute_to_idx=precompute_to_idx,
             )
 
+        # Verify segmentation version matches expected version
         current_version = self.get_segmentation_version(precomputed_zarr, segmentation)
-        if not np.isclose(current_version, version):  # SEGMENTATION_VERSION):
+        if not np.isclose(current_version, version):
             raise ValueError(
                 f"Expected to generate a segmentation, but one already exists with different version {version} vs {current_version}"
             )
-            # os.remove(results_fn)
-            # return self.get_segmentation(precompute_to_idx=precompute_to_idx)
+
+        # Store the loaded data
         self.segmentation = segmentation
         self.precomputed_zarr = precomputed_zarr
+
+        # Extract mean phase information from the precomputed data
+        # Mean phase is critical for angle-of-arrival estimation
         self.get_mean_phase()
+
         return self.segmentation
 
 
