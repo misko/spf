@@ -4,7 +4,7 @@ from spf.dataset.spf_dataset import v5spfdataset_manager
 from spf.filters.particle_dualradio_filter import plot_single_theta_dual_radio
 from spf.filters.particle_dualradioXY_filter import plot_xy_dual_radio
 from spf.filters.particle_single_radio_filter import plot_single_theta_single_radio
-from spf.scripts.run_filters_on_data import (
+from spf.filters.run_filters_on_data import (
     run_PF_single_theta_dual_radio,
     run_PF_single_theta_single_radio,
     run_PF_xy_dual_radio,

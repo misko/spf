@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import yaml
 import zarr
+from tqdm import tqdm
 
 # V5 data format
 from spf.dataset.spf_dataset import v5spfdataset
@@ -70,7 +71,7 @@ emitter:
 # The orientation of the receiver is described in 
 # multiples of pi
 receivers:
-  - receiver-uri: fake
+  - receiver-uri: fake-pluto
     theta-in-pis: -0.25
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
@@ -84,7 +85,7 @@ receivers:
     f-sampling: 16000000 # 16.0e6
     bandwidth: 300000 #3.0e5
     motor_channel: 0
-  - receiver-uri: fake
+  - receiver-uri: fake-pluto
     theta-in-pis: 1.25
     antenna-spacing-m: 0.05075 # 50.75 mm 
     nelements: 2
@@ -223,7 +224,11 @@ def create_fake_dataset(
         phis = torch_pi_norm_pi(phis_nonoise + rnd_noise * noise)
         # _thetas = phi_to_theta(phis, rx_config.rx_spacing, _lambda, limit=True)
 
-        for record_idx in range(yaml_config["n-records-per-receiver"]):
+        for record_idx in tqdm(
+            range(yaml_config["n-records-per-receiver"]),
+            desc=f"fake-dataset-r{receiver_idx}",
+            total=yaml_config["n-records-per-receiver"],
+        ):
             signal_matrix = phi_to_signal_matrix(
                 phis[[record_idx]],
                 rx_config.buffer_size,

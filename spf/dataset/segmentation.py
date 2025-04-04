@@ -56,6 +56,13 @@ def segment_single_session(
     return segment_session(**args)
 
 
+# MultiProcess segmentation and pre-processing
+# This contains the heart of pre-processing
+# The input here is a zarr file containing the raw radio signal
+# The output is another zarr file (yarr) containing the segmentation
+# and other pre-processed features. This yarr file can then be loaded
+# during training, avoiding touching any files containing the very large
+# raw radio features
 def mp_segment_zarr(
     zarr_fn,
     results_fn,
@@ -129,12 +136,18 @@ def mp_segment_zarr(
             ) as pool:  # cpu_count())  # cpu_count() // 4)
                 results_by_receiver[r_name] = list(
                     tqdm.tqdm(
-                        pool.imap(segment_session_star, inputs), total=len(inputs)
+                        pool.imap(segment_session_star, inputs),
+                        desc="segmentation",
+                        total=len(inputs),
                     )
                 )
         else:
             results_by_receiver[r_name] = list(
-                tqdm.tqdm(map(segment_session_star, inputs), total=len(inputs))
+                tqdm.tqdm(
+                    map(segment_session_star, inputs),
+                    desc="segmentation",
+                    total=len(inputs),
+                )
             )
 
     segmentation_zarr_fn = results_fn.replace(".pkl", ".yarr")
