@@ -847,71 +847,198 @@ def thetas_from_nthetas(nthetas):
 
 
 def beamformer_given_steering_nomean_cp(
-    steering_vectors,
-    signal_matrix,
+    steering_vectors,  # shape: [n_thetas, n_antennas]
+    signal_matrix,  # shape: [n_antennas, n_samples]
 ):
-    # the delay sum is performed in the matmul step, the absolute is over the summed value
-    phase_adjusted = np.dot(
-        steering_vectors, signal_matrix
-    )  # this is adjust and sum in one step
+    """
+    GPU-accelerated implementation of the beamforming algorithm using CuPy.
+
+    This function applies precomputed steering vectors to a signal matrix to perform
+    beamforming. For each potential angle (theta), it calculates the beamformer output
+    which represents the signal power in that direction.
+
+    Mathematical operation:
+    - For each angle θ with steering vector a(θ), compute: y(θ) = a(θ)ᴴ · signal
+    - Then calculate power: P(θ) = |y(θ)|
+
+    Args:
+        steering_vectors: Complex matrix of steering vectors [n_thetas, n_antennas]
+                          Each row is a steering vector for a specific angle
+        signal_matrix: Complex signal data from antenna array [n_antennas, n_samples]
+
+    Returns:
+        Array of shape [n_thetas, n_samples] containing beamformer power output
+        for each angle and time sample
+    """
+    # The matrix multiplication performs phase alignment and summation in one step
+    # For each theta, it multiplies the steering vector with all signal samples simultaneously
+    phase_adjusted = np.dot(steering_vectors, signal_matrix)
+
+    # Calculate magnitude (absolute value) to get power
+    # This converts complex values to real power measurements
     return np.absolute(phase_adjusted)
 
 
-# @njit
 def beamformer_given_steering_nomean(
-    steering_vectors,
-    signal_matrix,
+    steering_vectors,  # shape: [n_thetas, n_antennas]
+    signal_matrix,  # shape: [n_antennas, n_samples]
 ):
-    # the delay sum is performed in the matmul step, the absolute is over the summed value
-    phase_adjusted = np.dot(
-        steering_vectors, signal_matrix
-    )  # this is adjust and sum in one step
+    """
+    CPU implementation of the beamforming algorithm.
+
+    This is the CPU equivalent of beamformer_given_steering_nomean_cp. It applies the
+    precomputed steering vectors to the signal matrix to perform beamforming.
+
+    The beamforming principle works as follows:
+    1. Each steering vector contains complex weights for each antenna element
+    2. These weights delay/phase-shift signals to align them for a specific direction
+    3. When signals are summed after applying these weights:
+       - Signals from the target direction add constructively
+       - Signals from other directions add destructively
+
+    Args:
+        steering_vectors: Complex matrix of steering vectors [n_thetas, n_antennas]
+                          Each row is a steering vector for a specific angle
+        signal_matrix: Complex signal data from antenna array [n_antennas, n_samples]
+
+    Returns:
+        Array of shape [n_thetas, n_samples] containing beamformer power output
+        for each angle and time sample
+    """
+    # The dot product performs two operations:
+    # 1. Phase alignment: steering_vectors align signal phases for each potential angle
+    # 2. Summation: signals from all antennas are combined into a single output
+    phase_adjusted = np.dot(steering_vectors, signal_matrix)
+
+    # Convert to power (magnitude of complex values)
+    # Higher values indicate more energy from that direction
     return np.absolute(phase_adjusted)
 
 
-# @njit
 def beamformer_given_steering(
-    steering_vectors,
-    signal_matrix,
+    steering_vectors,  # shape: [n_thetas, n_antennas]
+    signal_matrix,  # shape: [n_antennas, n_samples]
 ):
-    return beamformer_given_steering_nomean(steering_vectors, signal_matrix).mean(
-        axis=1
-    )
+    """
+    High-level beamforming function that returns angle-power spectrum averaged over time.
+
+    This function extends beamformer_given_steering_nomean by averaging the
+    beamforming output across all time samples. This improves SNR and
+    provides a single power spectrum as a function of angle.
+
+    Args:
+        steering_vectors: Complex matrix of steering vectors [n_thetas, n_antennas]
+        signal_matrix: Complex signal data from antenna array [n_antennas, n_samples]
+
+    Returns:
+        Array of shape [n_thetas] containing time-averaged beamformer power output
+        for each angle
+    """
+    # First calculate power for each angle and time sample
+    beam_output = beamformer_given_steering_nomean(steering_vectors, signal_matrix)
+
+    # Then average over time (axis=1) to get a single power value per angle
+    # This improves SNR by averaging out temporal noise
+    return beam_output.mean(axis=1)
 
 
 def beamformer_thetas(spacing):
+    """
+    Generate an array of theta angles for beamforming.
+
+    Creates a uniform angular grid from -π to +π with the specified number of points.
+    These angles represent the potential directions of arrival to be evaluated.
+
+    Args:
+        spacing: Number of angular points to generate
+
+    Returns:
+        Array of theta values in radians
+    """
     return np.linspace(-np.pi, np.pi, spacing)
 
 
 def beamformer(
-    receiver_positions,  # recievers X 2[X,Y]
-    signal_matrix,  # receivers X samples
-    carrier_frequency,
-    calibration=None,
-    spacing=64 + 1,
-    offset=0.0,
+    receiver_positions,  # shape: [n_receivers, 2] - X,Y coordinates
+    signal_matrix,  # shape: [n_receivers, n_samples]
+    carrier_frequency,  # RF carrier frequency in Hz
+    calibration=None,  # Optional per-receiver calibration factors
+    spacing=64 + 1,  # Number of angular points (65 by default)
+    offset=0.0,  # Angular offset in radians
 ):
-    thetas = beamformer_thetas(spacing)  # -offset
+    """
+    Complete beamforming implementation that handles the entire process:
+    1. Generate angles to scan
+    2. Compute steering vectors for each angle
+    3. Apply steering vectors to signal matrix
+    4. Calculate power spectrum as a function of angle
+
+    This function implements the delay-and-sum beamforming algorithm for
+    arbitrary antenna geometries. It works as follows:
+
+    1. For each potential angle θ, calculate the expected phase offset at each antenna
+    2. Create steering vectors that compensate for these phase offsets
+    3. Apply steering vectors to align signals from direction θ
+    4. Measure power after alignment - higher power indicates likely signal direction
+
+    Mathematical basis:
+    - Path difference between antennas: d·sin(θ)
+    - Phase difference: 2π·d·sin(θ)/λ  where λ is wavelength
+    - Steering vector: e^(-j·phase_difference)
+
+    Args:
+        receiver_positions: Array of antenna positions [n_receivers, 2]
+        signal_matrix: Complex signal data [n_receivers, n_samples]
+        carrier_frequency: RF carrier frequency in Hz
+        calibration: Optional complex calibration factors for each receiver
+        spacing: Number of angular points to evaluate
+        offset: Angular offset to apply to all angles in radians
+
+    Returns:
+        thetas: Array of angles evaluated
+        steer_dot_signal: Power spectrum as a function of angle
+        steering_vectors: Computed steering vectors for each angle
+    """
+    # Generate set of angles to scan for signals
+    thetas = beamformer_thetas(spacing)
+
+    # Convert angles to unit vectors representing propagation directions
+    # Each row is a [sin(θ), cos(θ)] vector pointing in direction θ
     source_vectors = np.vstack(
         [np.sin(thetas + offset)[None], np.cos(thetas + offset)[None]]
     ).T
 
+    # Calculate projection of each receiver position onto each source direction
+    # This determines the path length difference for signals arriving from each direction
     projection_of_receiver_onto_source_directions = (
-        source_vectors @ receiver_positions.T
+        source_vectors @ receiver_positions.T  # Matrix multiplication
     )
 
+    # Convert physical path differences to phase differences
+    # Phase = 2π · distance / wavelength
     carrier_wavelength = c / carrier_frequency
     args = (
         2 * np.pi * projection_of_receiver_onto_source_directions / carrier_wavelength
     )
+
+    # Create steering vectors using complex exponentials
+    # steering_vectors[i,j] = e^(-j·phase) for angle i and receiver j
+    # The negative sign aligns phases to compensate for the path differences
     steering_vectors = np.exp(-1j * args)
+
+    # Apply calibration factors if provided
+    # These correct for hardware phase/amplitude imbalances between receivers
     if calibration is not None:
         steering_vectors = steering_vectors * calibration[None]
-    # the delay sum is performed in the matmul step, the absolute is over the summed value
-    phase_adjusted = np.matmul(
-        steering_vectors, signal_matrix
-    )  # this is adjust and sum in one step
-    steer_dot_signal = np.absolute(phase_adjusted).mean(axis=1)  # mean over samples
+
+    # Apply steering vectors to signal matrix
+    # For each angle, this aligns and sums signals from all receivers
+    phase_adjusted = np.matmul(steering_vectors, signal_matrix)
+
+    # Calculate magnitude and average over time
+    # Higher values indicate more energy from that direction
+    steer_dot_signal = np.absolute(phase_adjusted).mean(axis=1)
+
     return thetas, steer_dot_signal, steering_vectors
 
 
