@@ -264,4 +264,5 @@ if __name__ == "__main__":
 
     if is_pi() and not args.fake_drone:
         time.sleep(5)
-        subprocess.getoutput("sudo halt")
+        # subprocess.getoutput("sudo halt")
+        subprocess.getoutput("sudo sync")

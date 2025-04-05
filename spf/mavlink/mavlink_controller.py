@@ -164,6 +164,7 @@ tones = {
     "check-diff": "MFT240L8 A B P4 A B P4 L8dcdc",
     "git": "MFT240L4 < F P2 F P4 L8dcdc",
     "planner": "MFT240L8 G G F F P4 G G F F P4 L8dc",
+    "wait": "MFT240L8 G P4 < G P4 < G P4 > > G P4 < G P4 < G",
     "ready": "MFT240L8 G P8 < G P8 < G P8 > > G P8 < G P8 < G",
     "failure": "MFT240L8 D D D P4 D D D P4 L8dddddc",
 }
@@ -484,6 +485,10 @@ class Drone:
                 f"Planner wait for drone ready: gps:{str(self.gps)} , ekf:{str(self.ekf_healthy)}"
             )
             time.sleep(10)
+
+        while self.mav_mode != "ROVER_MODE_MANUAL":
+            time.sleep(10)
+            self.buzzer(tones["wait"])
 
         while self.mav_mode != "ROVER_MODE_GUIDED":
             time.sleep(10)

@@ -94,14 +94,16 @@ done
 echo "check pluto radios"
 bash ${repo_root}/data_collection/rover/rover_v3.1/check_and_set_pluto.sh
 
-
-if [ $# -eq 0 ]; then
-	python3 ${repo_root}/spf/mavlink_radio_collection.py \
-    	-c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n $n
-else
-	python3 ${repo_root}/spf/mavlink_radio_collection.py \
-	  -c ${config}  -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}"  -n 40 --drone-uri tcp:192.168.1.141:14590 --no-ultrasonic
-fi
+while [ 1 -lt 0 ]; do
+	if [ $# -eq 0 ]; then
+		python3 ${repo_root}/spf/mavlink_radio_collection.py \
+			-c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n $n
+	else
+		python3 ${repo_root}/spf/mavlink_radio_collection.py \
+		-c ${config}  -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}"  -n 40 --drone-uri tcp:192.168.1.141:14590 --no-ultrasonic
+	fi
+	sleep 10
+done
 
 #python spf/spf/mavlink_radio_collection.py -c spf/spf/rover_configs/rover_receiver_config_pi.yaml  -m /home/pi/device_mapping -r  bounce -t "RO1" -n 40000 --drone-uri tcp:192.168.1.136:14591
 #python spf/spf/mavlink_radio_collection.py -c spf/spf/rover_configs/rover_receiver_config_pi.yaml  -m /home/pi/device_mapping -r  bounce -t "RO3" -n 40 --drone-uri tcp:192.168.1.136:14590 --no-ultrasonic
