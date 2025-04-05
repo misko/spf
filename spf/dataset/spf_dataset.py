@@ -329,6 +329,7 @@ class v5spfdataset(Dataset):
         segmentation_version: float = SEGMENTATION_VERSION,  # Version of segmentation algorithm (3.5 by default)
         segment_if_not_exist: bool = False,  # Generate segmentation cache if missing when True
         windows_per_snapshot: int = 256,  # Maximum number of windows per snapshot to use
+        skip_detrend: bool = False,
     ):
         logging.debug(f"loading... {prefix}")
         # Store configuration parameters
@@ -349,6 +350,7 @@ class v5spfdataset(Dataset):
         self.segment_if_not_exist = (
             segment_if_not_exist  # Auto-generate segmentation if missing
         )
+        self.skip_detrend = skip_detrend
 
         self.distance_normalization = distance_normalization
         self.flip = flip
@@ -1256,6 +1258,7 @@ class v5spfdataset(Dataset):
                 n_parallel=self.n_parallel,  # Number of parallel workers
                 skip_beamformer=skip_beamformer,  # Skip beamforming calculation if not needed
                 temp_file=self.temp_file,
+                skip_detrend=self.skip_detrend,
             )
 
         # Load the segmentation results

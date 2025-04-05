@@ -381,7 +381,9 @@ def run_PF_single_theta_single_radio(
     return all_metrics
 
 
-def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128):
+def run_PF_single_theta_dual_radio(
+    ds, theta_err=0.1, theta_dot_err=0.001, N=128, progress_bar=False
+):
     start_time = time.time()
     pf = PFSingleThetaDualRadio(ds=ds)
     traj_paired = pf.trajectory(
@@ -390,6 +392,7 @@ def run_PF_single_theta_dual_radio(ds, theta_err=0.1, theta_dot_err=0.001, N=128
         std=torch.tensor([[20, 0.1]]),  # 20 should be random enough to loop around
         noise_std=torch.tensor([[theta_err, theta_dot_err]]),
         return_particles=False,
+        progress_bar=progress_bar,
     )
     metrics = pf.metrics(trajectory=traj_paired)
     metrics["runtime"] = time.time() - start_time

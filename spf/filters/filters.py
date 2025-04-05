@@ -2,6 +2,7 @@ from functools import cache
 
 import numpy as np
 import torch
+import tqdm
 from filterpy.common import Q_discrete_white_noise
 from filterpy.monte_carlo import systematic_resample
 
@@ -303,6 +304,7 @@ class ParticleFilter(SPFFilter):
         debug=False,
         seed=0,
         steps=None,
+        progress_bar=False,
     ):
         self.generator = torch.Generator()
         self.generator.manual_seed(seed)
@@ -312,8 +314,14 @@ class ParticleFilter(SPFFilter):
         self.fix_particles()
         self.weights = torch.ones((N,), dtype=torch.float64) / N
         # self.weights = torch.ones((N,), dtype=torch.float32) / N
+        monitor = lambda x: x
+        if progress_bar:
+            monitor = tqdm.tqdm
+
         trajectory = []
-        for idx in range(len(self.ds) if steps == None else min(steps, len(self.ds))):
+        for idx in monitor(
+            list(range(len(self.ds) if steps == None else min(steps, len(self.ds))))
+        ):
             self.predict(
                 dt=1.0,
                 noise_std=noise_std,

@@ -13,22 +13,14 @@ import torch
 import tqdm
 from scipy.stats import trim_mean
 
-from spf.rf import (
-    beamformer_given_steering_nomean,
-    beamformer_given_steering_nomean_cp,
-    get_phase_diff,
-    get_stats_for_signal,
-    mean_phase_mean,
-    pi_norm,
-    reduce_theta_to_positive_y,
-    windowed_trimmed_circular_mean_and_stddev,
-)
-from spf.scripts.zarr_utils import (
-    new_yarr_dataset,
-    zarr_open_from_lmdb_store,
-    zarr_open_from_lmdb_store_cm,
-    zarr_shrink,
-)
+from spf.rf import (beamformer_given_steering_nomean,
+                    beamformer_given_steering_nomean_cp, get_phase_diff,
+                    get_stats_for_signal, mean_phase_mean, pi_norm,
+                    reduce_theta_to_positive_y,
+                    windowed_trimmed_circular_mean_and_stddev)
+from spf.scripts.zarr_utils import (new_yarr_dataset,
+                                    zarr_open_from_lmdb_store,
+                                    zarr_open_from_lmdb_store_cm, zarr_shrink)
 from spf.sdrpluto.detrend import detrend_np
 
 default_segment_args = {
@@ -85,6 +77,7 @@ def mp_segment_zarr(
     n_parallel=20,
     skip_beamformer=False,
     temp_file=False,
+    skip_detrend=False,
 ):
     """
     Multiprocessing function to segment and precompute features for all sessions.
@@ -176,6 +169,7 @@ def mp_segment_zarr(
                 "steering_vectors": steering_vectors_for_all_receivers[r_idx],
                 "gpu": gpu,
                 "skip_beamformer": skip_beamformer,
+                "skip_detrend": skip_detrend,
                 **default_segment_args,
             }
             for idx in range(already_computed, precompute_to_idx)
@@ -349,7 +343,13 @@ def segment_session_star(arg_dict):
 
 # take a single zarr, receiver and session_idx and segment it
 def segment_session(
-    zarr_fn, receiver, session_idx, gpu=True, skip_beamformer=False, **kwrgs
+    zarr_fn,
+    receiver,
+    session_idx,
+    gpu=True,
+    skip_beamformer=False,
+    skip_detrend=False,
+    **kwrgs,
 ):
     """
     Process a single session's radio signal data to identify signal segments and calculate beamforming outputs.
@@ -385,7 +385,8 @@ def segment_session(
         # 2. Fits a linear trend to both the real and imaginary parts of each antenna's signal
         # 3. Subtracts the trend to center the signal around zero
         # 4. This improves phase estimation by removing hardware biases and drift
-        v = detrend_np(v)
+        if not skip_detrend:
+            v = detrend_np(v)
 
         # Simple segmentation identifies regions of the signal that likely contain useful data
         # The simple_segment function:

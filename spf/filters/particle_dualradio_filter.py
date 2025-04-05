@@ -110,22 +110,22 @@ def plot_single_theta_dual_radio(ds):
         ax[0].scatter(
             range(min(n, ds.mean_phase[f"r{rx_idx}"].shape[0])),
             ds.mean_phase[f"r{rx_idx}"][:n],
-            label=f"r{rx_idx} estimated phi",
+            label=f"r{rx_idx} measured phi (phase-difference)",
             s=1.0,
-            alpha=0.1,
+            alpha=0.3,
             color=colors[rx_idx],
         )
         ax[0].plot(
             ds.ground_truth_phis[rx_idx][:n],
             color=colors[rx_idx],
-            label=f"r{rx_idx} perfect phi",
+            label=f"r{rx_idx} perfect phi (phase-difference)",
             linestyle="dashed",
         )
 
     ax[1].plot(
         # torch_pi_norm_pi(ds[0][0]["craft_y_rad"][0]),
         torch_pi_norm_pi(ds.craft_ground_truth_thetas),
-        label="craft gt theta",
+        label="craft gt theta (rx-tx angle)",
         linestyle="dashed",
     )
 
@@ -142,11 +142,13 @@ def plot_single_theta_dual_radio(ds):
     )
     ax[1].scatter(range(xs.shape[0]), xs, label="PF-x", color="orange", s=0.5)
 
-    ax[0].set_ylabel("radio phi")
+    ax[0].set_ylabel("radio phi (phase-difference)")
+    ax[1].set_xlabel("sample idx (time)")
 
     ax[0].legend()
     ax[0].set_title(f"Radio 0 & 1")
     ax[1].legend()
     ax[1].set_xlabel("time step")
-    ax[1].set_ylabel("Theta between target and receiver craft")
+    ax[1].set_ylabel("Theta between target and receiver")
+    ax[1].set_title(f"Particle filter output")
     return fig
