@@ -94,7 +94,7 @@ done
 echo "check pluto radios"
 bash ${repo_root}/data_collection/rover/rover_v3.1/check_and_set_pluto.sh
 
-while [ 1 -lt 0 ]; do
+while [ 0 -lt 1 ]; do
 	if [ $# -eq 0 ]; then
 		python3 ${repo_root}/spf/mavlink_radio_collection.py \
 			-c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n $n
