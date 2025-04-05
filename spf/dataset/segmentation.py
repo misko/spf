@@ -84,6 +84,7 @@ def mp_segment_zarr(
     gpu=False,
     n_parallel=20,
     skip_beamformer=False,
+    temp_file=False,
 ):
     """
     Multiprocessing function to segment and precompute features for all sessions.
@@ -118,10 +119,13 @@ def mp_segment_zarr(
 
     # Check if results already exist and load them
     if os.path.exists(results_fn) and os.path.exists(yarr_fn):
+        # this might be really slow, like O(n^2)
         previous_simple_segmentation = pickle.load(open(results_fn, "rb"))[
             "segmentation_by_receiver"
         ]
-        precomputed_zarr = zarr_open_from_lmdb_store(yarr_fn, mode="rw", map_size=2**32)
+        precomputed_zarr = zarr_open_from_lmdb_store(
+            yarr_fn, mode="rw", map_size=2**32, lock=False
+        )
 
         # Determine how many sessions have already been computed
         # by checking which entries have non-zero values
@@ -189,8 +193,11 @@ def mp_segment_zarr(
                 )
         else:
             # Run sequentially if n_parallel is 0
+            monitor_fn = tqdm.tqdm
+            if temp_file:
+                monitor_fn = lambda x, desc, total: x
             results_by_receiver[r_name] = list(
-                tqdm.tqdm(
+                monitor_fn(
                     map(segment_session_star, inputs),
                     desc=f"Segmenting {r_name}",
                     total=len(inputs),
@@ -320,7 +327,8 @@ def mp_segment_zarr(
     precomputed_zarr = None
 
     # Optimize zarr storage by removing unnecessary parts
-    zarr_shrink(segmentation_zarr_fn)
+    if not temp_file:
+        zarr_shrink(segmentation_zarr_fn)
 
     # Save segmentation metadata to pickle file
     pickle.dump(

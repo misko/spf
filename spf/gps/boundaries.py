@@ -71,10 +71,58 @@ fort_baker_boundary = np.array(
     ]
 )
 
+fort_baker_right_boundary = np.array(
+    [
+        (
+            -122.47892,
+            37.83606,
+        ),
+        (
+            -122.47909,
+            37.83576,
+        ),
+        (
+            -122.47803,
+            37.83544,
+        ),
+        (
+            -122.47804,
+            37.83583,
+        ),
+        (
+            -122.47829,
+            37.83604,
+        ),
+    ]
+)
+
+fort_baker_left_boundary = np.array(
+    [
+        (
+            -122.47867,
+            37.83457,
+        ),
+        (
+            -122.4784,
+            37.83493,
+        ),
+        (
+            -122.47911,
+            37.83554,
+        ),
+        (
+            -122.47918,
+            37.83487,
+        ),
+    ]
+)
+
 
 boundaries = {
     "franklin_safe": franklin_safe,
     "fort_baker_boundary": fort_baker_boundary,
+    "fort_baker_right_boundary": fort_baker_right_boundary,
+    "fort_baker_left_boundary": fort_baker_left_boundary,
 }
 
 

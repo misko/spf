@@ -1255,6 +1255,7 @@ class v5spfdataset(Dataset):
                 gpu=self.gpu,  # Whether to use GPU acceleration
                 n_parallel=self.n_parallel,  # Number of parallel workers
                 skip_beamformer=skip_beamformer,  # Skip beamforming calculation if not needed
+                temp_file=self.temp_file,
             )
 
         # Load the segmentation results
