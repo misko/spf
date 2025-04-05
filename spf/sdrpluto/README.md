@@ -1,66 +1,141 @@
-# PlutoPlus SDR
+# SDR Interface Library
 
-## Introduction 
+## Introduction
 
-The PlutoPlus SDR [ link ](https://www.youtube.com/watch?v=higdhj46aUk) is a Adalm-Pluto like device based on the AD9361 [ link ](https://www.analog.com/en/products/ad9361.html). PlutoPlus has two coherent TX and RX ports. This allows the PlutoPlus to simultaneously sample from both RX ports and use the output to measure phase difference of an incoming signal.
+This library provides a unified interface for controlling Software-Defined Radios (SDRs) in the SPF project. It currently supports the following SDR platforms:
 
-## Interface
+- PlutoPlus SDR - based on the AD9361 with two coherent TX and RX ports
+- BladeRF - supporting similar functionality for signal processing tasks
 
-To interface with PlutoPlus SDR you can use libiio [ link ](https://github.com/analogdevicesinc/libiio) or the python wrapper (PyAdi-IIO) [ link ](https://wiki.analog.com/resources/tools-software/linux-software/pyadi-iio). 
+## Key Interface Classes
 
-## Issues
+### Configuration Classes
 
-Sometimes when an emitter is turned on and set to broadcast, it fails to do so. For this reason any emitter used in this project must be paired with two receivers that verify the emitter came online through receiving a pilot tone. 
+- `ReceiverConfig` - Configuration parameters for SDR receivers
+- `EmitterConfig` - Configuration parameters for SDR emitters
 
-Even though the two RX ports on a PlutoPlus are coherent and sampled simultaneously there seems to be a half pi phase difference between the two RX ports. For this reason whenever a pair of receivers from a single SDR is brought online they must be paired with an emitter 
+### SDR Controller Classes
 
-## Implementation
+- `PPlus` - Controller for PlutoPlus SDR
+- `BladeRFSdr` - Controller for BladeRF devices
+- `FakePPlus` - Emulates an SDR for testing purposes
 
-* setup_rxtx(receiver,emitter) 
+## Core Interface Functions
 
-Turn on the two RX ports on receiver SDR and TX0 on emitter SDR, then verify the pilot tone is received on the RX side. If the RX side does not hear the pilot tone, try again.
+### SDR Setup Functions
 
-This returns open objects to both receiver and emitter SDR. The emitter is left in the pilot tone transmitting state.
-
-* setup_rxtx_and_phase_calibration(receiver, emitter)
-
-Turn on the receiver + emitter SDRs using setup_rxtx. Then assuming the emitter is equidistant from both RX[0,1] ports, calculate the phase difference between RX0 and RX1. If the phase difference is too noisy (std>0.01), try again.
-
-This returns open objects to both receiver and emitter SDR. The emitter is not actively transmitting and the receiver SDR object has a phase_calibration field set.
-
-
-## Benchmarking
-
-[ Laptop / rpi4 ](https://docs.google.com/spreadsheets/d/1kEzWVTT2jg84SchoqwFrf9tJ0UjC-6dh6JA90qW3eL0/edit?usp=sharing)
+```python
+def setup_rx(rx_config, provided_pplus_rx=None):
+    """
+    Initialize and configure a receiver SDR.
+    
+    Args:
+        rx_config (ReceiverConfig): Configuration for the receiver
+        provided_pplus_rx (PPlus, optional): Existing SDR object to configure
+        
+    Returns:
+        PPlus: Configured receiver SDR object
+    """
 ```
-python spf/sdrpluto/benchmark.py --uri ip:192.168.1.17 --buffer-sizes '2**16' '2**18' '2**20' --rx-buffers 2 --write-to-file testdata  --chunk-size 512 1024 4096 --compress blosc1 blosc4  none zstd1 zstd4
+
+```python
+def setup_rxtx(rx_config, tx_config, leave_tx_on=False, provided_pplus_rx=None):
+    """
+    Initialize and configure both receiver and transmitter SDRs.
+    
+    Args:
+        rx_config (ReceiverConfig): Configuration for the receiver
+        tx_config (EmitterConfig): Configuration for the transmitter
+        leave_tx_on (bool): Whether to leave the transmitter active after setup
+        provided_pplus_rx (PPlus, optional): Existing receiver SDR object
+        
+    Returns:
+        tuple: (receiver_sdr, transmitter_sdr)
+    """
 ```
 
+```python
+def setup_rxtx_and_phase_calibration(rx_config, tx_config, tolerance=0.01, 
+                                    n_calibration_frames=800, leave_tx_on=False, 
+                                    using_tx_already_on=None):
+    """
+    Setup receiver and transmitter SDRs and perform phase calibration.
+    
+    The function assumes the emitter is equidistant from both RX ports,
+    calculates the phase difference, and sets calibration values.
+    
+    Args:
+        rx_config (ReceiverConfig): Configuration for the receiver
+        tx_config (EmitterConfig): Configuration for the transmitter
+        tolerance (float): Maximum allowed standard deviation for phase calibration
+        n_calibration_frames (int): Number of frames to use for calibration
+        leave_tx_on (bool): Whether to leave the transmitter active after setup
+        using_tx_already_on (PPlus, optional): Existing transmitter object
+        
+    Returns:
+        tuple: (receiver_sdr, transmitter_sdr)
+    """
+```
 
-## Command line client
+### Configuration Helper Functions
 
+```python
+def rx_config_from_receiver_yaml(receiver_yaml):
+    """Convert YAML configuration to ReceiverConfig object"""
+```
 
-### TX only
+```python
+def args_to_rx_config(args):
+    """Convert command line arguments to ReceiverConfig object"""
+```
 
-```python sdr_controller.py --emitter-ip 192.168.1.15 --mode tx --receiver-ip 192.168.1.15```
+```python
+def args_to_tx_config(args):
+    """Convert command line arguments to EmitterConfig object"""
+```
 
-Turn the emitter on for SDR 192.168.1.15 and leave it running after verifying its working from 192.168.1.15 (RX ports)
+## Integration with Data Collection
 
+The SDR interface is used in two primary data collection scenarios:
 
-### RX only (self)
+### GRBL-based Data Collection
 
-```python sdr_controller.py --receiver-ip 192.168.1.17 --emitter-ip 192.168.1.17 --mode rx```
+In `grbl_radio_collection.py`, SDRs are configured and used to collect data while a GRBL controller moves emitters or receivers. The workflow is:
 
-Turn on the receiver ports for SDR 192.168.1.17 and plot the signal received from each channel
+1. Load configuration from YAML file
+2. Set up GRBL controller
+3. Initialize data collector with SDR settings
+4. Call `radios_to_online()` to set up all SDRs
+5. Start data collection process
+6. Data collector uses `ThreadedRX` classes to continuously capture SDR data
 
-### RX only (other)
+### MAVLink-based Data Collection
 
-```python sdr_controller.py --receiver-ip 192.168.1.18 --emitter-ip 192.168.1.17 --mode rx```
+In `mavlink_radio_collection.py`, SDRs are used to collect data from drones or rovers controlled via MAVLink. The workflow is:
 
-Turn on the receiver ports for SDR 192.168.1.18 , using the emitter from SDR 192.168.1.17 to send pilot tone and plot the signal received from each channel
+1. Load configuration from YAML and device mapping file
+2. Set up drone/rover connection
+3. Initialize data collector with SDR settings
+4. Start data collection process
+5. Continuously capture SDR data while the vehicle moves
 
-### RX calibration (other)
+## Command Line Usage
 
-```python sdr_controller.py --receiver-ip 192.168.1.18 --emitter-ip 192.168.1.17 --mode rxcal ```
+For basic testing and manual control, use the `sdr_controller.py` script directly:
 
-Turn on the receiver ports for SDR 192.168.1.18 and perform phase calibration assumping that the emitter [TX0] on 192.168.1.17 is equidistance from both RX[0,1] on SDR 192.168.1.18
+```bash
+# Receiver only mode
+python sdr_controller.py --receiver-ip <IP_ADDRESS> --mode rx
+
+# Transmitter only mode 
+python sdr_controller.py --emitter-ip <IP_ADDRESS> --mode tx
+
+# Receiver with phase calibration
+python sdr_controller.py --receiver-ip <IP_ADDRESS> --emitter-ip <IP_ADDRESS> --mode rxcal
+```
+
+## Additional Documentation
+
+For specific information about the PlutoSDR implementation, please see the [plutosdr documentation](../docs/plutosdr.md).
+
+For BladeRF specific details, refer to the [bladerf documentation](../docs/bladerf.md).
