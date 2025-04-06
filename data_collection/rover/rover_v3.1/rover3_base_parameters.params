@@ -12,7 +12,7 @@ MODE4            11
 MODE5            0
 MODE6            15
 MODE_CH          8
-MOT_THR_MIN      5
+MOT_THR_MIN      10
 RTL_SPEED        3.000000
 SPEED_MAX        0.000000
 TURN_RADIUS      5.000000
