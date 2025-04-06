@@ -11,7 +11,7 @@ import yaml
 from deepdiff.diff import DeepDiff
 from torch.utils.data import BatchSampler, DistributedSampler
 
-SEGMENTATION_VERSION = 3.5
+SEGMENTATION_VERSION = 3.6
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 

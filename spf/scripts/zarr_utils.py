@@ -95,19 +95,25 @@ def new_yarr_dataset(
     return z
 
 
-def zarr_open_from_lmdb_store(filename, mode="r", readahead=False, map_size=2**37):
+def zarr_open_from_lmdb_store(
+    filename, mode="r", readahead=False, map_size=2**37, lock=None
+):
     if mode == "r":
+        if lock is None:
+            lock = False
         store = zarr.LMDBStore(
             filename,
             map_size=map_size,
             writemap=False,
             readonly=True,
             max_readers=1024,  # 1024 * 1024,
-            lock=False,
+            lock=lock,
             meminit=False,
             readahead=readahead,
         )
     elif mode == "rw":
+        if lock is None:
+            lock = True
         store = zarr.LMDBStore(
             filename,
             map_size=map_size,
@@ -115,7 +121,7 @@ def zarr_open_from_lmdb_store(filename, mode="r", readahead=False, map_size=2**3
             readonly=False,
             sync=True,
             max_readers=32,  # 1024 * 1024,
-            lock=True,
+            lock=lock,
             meminit=False,
             readahead=readahead,
         )

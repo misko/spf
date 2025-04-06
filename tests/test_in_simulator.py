@@ -57,8 +57,8 @@ def adrupilot_simulator():
         container.stop()
 
 
-def mavlink_controller_base_command():
-    return f"python3 {spf.mavlink.mavlink_controller.__file__} --ip 127.0.0.1 --port 14591 --proto tcp"
+def mavlink_controller_base_command(port=14591):
+    return f"python3 {spf.mavlink.mavlink_controller.__file__} --ip 127.0.0.1 --port {port} --proto tcp"
 
 
 def get_env():
@@ -104,9 +104,10 @@ def buzzer(tone):
     )
 
 
-def set_mode(mode):
+def set_mode(mode, port=14591):
+    print("SET MODE", f"{mavlink_controller_base_command(port)} --mode {mode}")
     subprocess.check_output(
-        f"{mavlink_controller_base_command()} --mode {mode}",
+        f"{mavlink_controller_base_command(port)} --mode {mode}",
         timeout=30,
         shell=True,
         env=get_env(),
@@ -229,16 +230,37 @@ def test_manual_mode_stationary(adrupilot_simulator):
 
 
 def test_guided_mode_moving_and_recording(adrupilot_simulator):
-    set_mode("guided")
+    set_mode("manual")
     with tempfile.TemporaryDirectory() as tmpdirname:
-        output = subprocess.check_output(
-            f"{mavlink_radio_collection_base_command()}  -r circle --temp {tmpdirname}",
-            timeout=180,
+        cmd = (
+            f"{mavlink_radio_collection_base_command()}  -r circle --temp {tmpdirname}"
+        )
+        outputs = []
+        with subprocess.Popen(
+            cmd,
             shell=True,
             env=get_env(),
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-        ).decode()
-        assert "Planner starting to issue move commands" in output
+            text=True,  # Ensures stdout is text rather than bytes
+        ) as process:
+
+            # Read each line as it arrives
+            for line in process.stdout:
+                # Do whatever processing you need on each line
+                if "waiting for rover to move into guided mode..." in line:
+                    print("SET GUIDED...")
+                    set_mode("guided", port=14590)  # other port is busy!
+                    print("SET GUIDED")
+                print(line)
+                outputs.append(line)
+
+            # After the loop ends, the process should have terminated.
+            returncode = process.wait()
+            if returncode != 0:
+                raise subprocess.CalledProcessError(returncode, cmd)
+
+        assert "Planner starting to issue move commands" in "\n".join(outputs)
         assert glob.glob(f"{tmpdirname}/*.zarr")
         assert glob.glob(f"{tmpdirname}/*.log")
         assert glob.glob(f"{tmpdirname}/*.yaml")

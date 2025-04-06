@@ -488,10 +488,12 @@ class Drone:
 
         while self.mav_mode != "ROVER_MODE_MANUAL":
             time.sleep(10)
+            logging.info("waiting for rover to move into manual mode...")
             self.buzzer(tones["wait"])
 
         while self.mav_mode != "ROVER_MODE_GUIDED":
             time.sleep(10)
+            logging.info("waiting for rover to move into guided mode...")
             self.buzzer(tones["ready"])
 
         if not self.armed:

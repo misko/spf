@@ -510,16 +510,6 @@ def detrend_1d_np(
 
 def merge_dynamic_windows_np(
     x: np.ndarray,
-    remove_real: bool = False,
-    remove_imag: bool = True,
-    window_size: int = 1024,
-    merge_similar: bool = False,
-    slope_threshold_I: float = 1e-3,
-    intercept_threshold_I: float = 1e-2,
-    slope_threshold_Q: float = 1e-3,
-    intercept_threshold_Q: float = 1e-2,
-    pad_mode: str = "constant",
-    pad_value: float = 0.0,
 ):
     """
     Detrend a 1D complex NumPy array by separately calling detrend_1d_np on the real and imaginary parts.
@@ -531,39 +521,10 @@ def merge_dynamic_windows_np(
     ----------
     x : np.ndarray
         1D complex array of shape (N,).
-    remove_real : bool
-        If True, remove linear trend from the real part. If False, leave real part as-is.
-    remove_imag : bool
-        If True, remove linear trend from the imaginary part. If False, leave imaginary part as-is.
-    window_size : int
-        The base window size for segmentation.
-    merge_similar : bool
-        If True, merges adjacent windows with similar slope/intercept for each part.
-    slope_threshold_I : float
-        Real-part slope difference threshold for merging.
-    intercept_threshold_I : float
-        Real-part intercept difference threshold for merging.
-    slope_threshold_Q : float
-        Imag-part slope difference threshold for merging.
-    intercept_threshold_Q : float
-        Imag-part intercept difference threshold for merging.
-    pad_mode : str
-        Padding mode for segmenting the real and imaginary parts.
-    pad_value : float
-        Padding value for constant mode.
-
     Returns
     -------
     x_detrended : np.ndarray
         1D complex array, same shape as x, with the specified detrending applied to real/imag parts.
-    slopes_real : np.ndarray
-        Slopes of the real part's final segments if remove_real=True, else empty array.
-    intercepts_real : np.ndarray
-        Intercepts of the real part's final segments if remove_real=True, else empty array.
-    slopes_imag : np.ndarray
-        Slopes of the imag part's final segments if remove_imag=True, else empty array.
-    intercepts_imag : np.ndarray
-        Intercepts of the imag part's final segments if remove_imag=True, else empty array.
     """
     if x.ndim != 1:
         raise ValueError("x must be 1D.")
@@ -575,56 +536,100 @@ def merge_dynamic_windows_np(
     imag_part = x.imag
 
     # Detrend real part
-    r_detrended, r_slopes, r_inters = detrend_1d_np(
-        real_part,
-        remove=remove_real,
-        window_size=window_size,
-        merge_similar=merge_similar,
-        slope_threshold=slope_threshold_I,
-        intercept_threshold=intercept_threshold_I,
-        pad_mode=pad_mode,
-        pad_value=pad_value,
-    )
+    r_detrended = detrend_1d_np_fastwindow(real_part)
 
     # Detrend imaginary part
-    i_detrended, i_slopes, i_inters = detrend_1d_np(
-        imag_part,
-        remove=remove_imag,
-        window_size=window_size,
-        merge_similar=merge_similar,
-        slope_threshold=slope_threshold_Q,
-        intercept_threshold=intercept_threshold_Q,
-        pad_mode=pad_mode,
-        pad_value=pad_value,
-    )
+    i_detrended = detrend_1d_np_fastwindow(imag_part)
 
     # Recombine into a single complex array
     x_detrended = r_detrended + 1j * i_detrended
 
-    return x_detrended, r_slopes, r_inters, i_slopes, i_inters
+    return x_detrended
 
 
 def detrend_np(v):
-    v0, _, _, _, _ = merge_dynamic_windows_np(
-        v[0],
-        remove_real=True,
-        remove_imag=True,
-        window_size=1024,
-        merge_similar=True,
-        slope_threshold_I=1e-3,
-        intercept_threshold_I=1e-2,
-        slope_threshold_Q=1e-3,
-        intercept_threshold_Q=1e-2,
-    )
-    v1, _, _, _, _ = merge_dynamic_windows_np(
-        v[1],
-        remove_real=True,
-        remove_imag=True,
-        window_size=1024,
-        merge_similar=True,
-        slope_threshold_I=1e-3,
-        intercept_threshold_I=1e-2,
-        slope_threshold_Q=1e-3,
-        intercept_threshold_Q=1e-2,
-    )
+    v0 = merge_dynamic_windows_np(v[0])
+    v1 = merge_dynamic_windows_np(v[1])
     return np.vstack([v0, v1])
+
+
+# by chatgpt
+def detrend_1d_np_fastwindow(
+    x: np.ndarray,
+    window_size: int = 1024,
+    pad_mode: str = "constant",
+    pad_value: float = 0.0,
+):
+    """
+    Detrend a 1D array by subtracting a linear trend in each fixed-size window.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Input 1D array.
+    window_size : int
+        Size of each segment/window.
+    pad_mode : str
+        How to pad if len(x) not divisible by window_size: 'constant', 'reflect', or 'replicate'.
+    pad_value : float
+        Value for constant padding.
+
+    Returns
+    -------
+    x_detrended : np.ndarray
+        Detrended output array, same length as input.
+    """
+    x = np.asarray(x, dtype=float)
+    N = x.size
+
+    # Pad if necessary
+    remainder = N % window_size
+    if remainder > 0:
+        pad_len = window_size - remainder
+        if pad_mode == "constant":
+            pad = np.full(pad_len, pad_value)
+        elif pad_mode == "reflect":
+            pad = x[-pad_len:][::-1]
+        elif pad_mode == "replicate":
+            pad = np.repeat(x[-1], pad_len)
+        else:
+            raise ValueError(f"Unsupported pad_mode: {pad_mode}")
+        x_padded = np.concatenate([x, pad])
+    else:
+        x_padded = x
+        pad_len = 0
+
+    # Reshape into windows
+    x_win = x_padded.reshape(-1, window_size)
+    nw = x_win.shape[0]
+
+    # Create time index (same for all windows)
+    t = np.linspace(0, 1, window_size)
+    t = t[None, :]  # shape (1, window_size)
+
+    # Compute means
+    t_mean = np.mean(t)
+    x_mean = np.mean(x_win, axis=1, keepdims=True)
+
+    # Compute slopes using least squares closed form (vectorized)
+    t_centered = t - t_mean
+    x_centered = x_win - x_mean
+
+    denom = np.sum(t_centered**2)
+    slopes = np.sum(t_centered * x_centered, axis=1) / denom
+
+    # Intercepts: mean(x) - slope * mean(t)
+    intercepts = x_mean[:, 0] - slopes * t_mean
+
+    # Reconstruct trends
+    trends = slopes[:, None] * t + intercepts[:, None]
+
+    # Subtract trend
+    x_detrended = x_win - trends
+
+    # Flatten and trim
+    x_detrended = x_detrended.reshape(-1)
+    if pad_len > 0:
+        x_detrended = x_detrended[:-pad_len]
+
+    return x_detrended

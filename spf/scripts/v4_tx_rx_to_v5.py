@@ -276,8 +276,9 @@ def merge_v4rx_v4tx_into_v5(
     ]
 
     if (
-        rx_boundary_names[0] != rx_boundary_names[1]
-        or tx_boundary_name != rx_boundary_names[0]
+        rx_boundary_names[0]
+        != rx_boundary_names[1]
+        # or tx_boundary_name != rx_boundary_names[0]
     ):
         raise ValueError(
             f"Inconsistent gps coordinates {rx_boundary_names[0]},{rx_boundary_names[1]},{tx_boundary_name}"

@@ -1,6 +1,5 @@
 import torch
 
-from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
 from spf.dataset.spf_dataset import v5spfdataset
 from spf.rf import rotate_dist
 
@@ -9,13 +8,13 @@ from spf.rf import rotate_dist
 # and when we bring the array beamformers back to craft theta
 # and multiply they correspond to craft theta ground truth
 def test_paired_rotate_dist(perfect_circle_n50_0p01):
-    _dirname, ds_fn = perfect_circle_n50_0p01
+    dirname, ds_fn = perfect_circle_n50_0p01
 
     ds = v5spfdataset(
         ds_fn,
         nthetas=65,
         ignore_qc=True,
-        precompute_cache="/tmp/",
+        precompute_cache=dirname,
         segment_if_not_exist=True,
         paired=True,
     )
