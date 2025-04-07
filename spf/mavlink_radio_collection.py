@@ -100,10 +100,17 @@ if __name__ == "__main__":
 
     # open device mapping and figure out URIs
     with open(args.device_mapping, "r") as device_mapping:
-        port_to_uri = {
-            int(mapping[0]): f"pluto://usb:1.{mapping[1]}.5"
-            for mapping in [line.strip().split() for line in device_mapping]
-        }
+        port_to_uri = {}
+        for line in device_mapping:
+            mapping = line.strip().split()
+            if len(mapping) == 2:
+                port_to_uri[int(mapping[0])] = f"pluto://usb:1.{mapping[1]}.5"
+            elif len(mapping) == 3:
+                port_to_uri[int(mapping[0])] = (
+                    f"pluto://usb:{mapping[1]}.{mapping[2]}.5"
+                )
+            else:
+                raise ValueError("port mapping invalid")
 
     for receiver in yaml_config["receivers"] + [yaml_config["emitter"]]:
         if "receiver-port" in receiver:
