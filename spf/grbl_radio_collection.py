@@ -117,8 +117,11 @@ def grbl_radio_main(args):
     if "n-records-per-receiver" not in yaml_config or args.n_records >= 0:
         yaml_config["n-records-per-receiver"] = args.n_records
 
-    if "seconds-per-sample" not in yaml_config or args.seconds_per_sample >= 0:
-        yaml_config["seconds-per-sample"] = args.n_records
+    if args.seconds_per_sample >= 0:
+        yaml_config["seconds-per-sample"] = args.seconds_per_sample
+
+    if "seconds-per-sample" not in yaml_config:
+        yaml_config["seconds-per-sample"] = 0.1
 
     for receiver in yaml_config["receivers"]:
         assert 'motor_channel' in receiver

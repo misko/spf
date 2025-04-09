@@ -41,7 +41,7 @@ receivers:
 
 
 n-thetas: 65
-n-records-per-receiver: 60
+n-records-per-receiver: 120
 width: 4000
 calibration-frames: 800
 routine: null
