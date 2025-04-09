@@ -51,7 +51,7 @@ serial: none
 data-version: 5
 
 collector:
-  type: "rpi5inference"
+  type: "rover"
   version: "0.1"
-  
+
 craft: 'rpi5inference'
