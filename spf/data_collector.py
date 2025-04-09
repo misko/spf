@@ -7,7 +7,7 @@ import threading
 import time
 from concurrent import futures
 from typing import Any, Dict, Optional
-
+import traceback
 import numpy as np
 from attr import dataclass
 from tqdm import tqdm
@@ -126,7 +126,6 @@ def data_to_snapshot(
     )
 
     avg_phase_diff = get_avg_phase(signal_matrix)
-
     return DataSnapshot(
         timestamp=current_time,
         rx_center_pos=rx_config.rx_spacing,
@@ -260,7 +259,6 @@ class ThreadedRXRaw(ThreadedRX):
 
         avg_phase_diff = get_avg_phase(signal_matrix)
         assert self.pplus.rx_config.rx_spacing > 0.001
-
         return self.snapshot_class(
             signal_matrix=signal_matrix,
             system_timestamp=current_time,
@@ -419,6 +417,7 @@ class DataCollector:
         raise NotImplementedError
 
     def run_inner_collector_thread(self):
+        futures=[]
         with ThreadPoolExecutorWithQueueSizeLimit(
             max_workers=6, maxsize=12
         ) as executor:
@@ -427,12 +426,16 @@ class DataCollector:
                     data = read_thread.read_q.get()
                     if data is None:
                         return
-                    executor.submit(
+                    futures.append(executor.submit(
                         self.write_to_record_matrix,
                         read_thread_idx,
                         record_idx=record_index,
                         data=data,
-                    )
+                    ))
+                    while len(futures)>4:
+                        future_exception=futures.pop(0).exception()
+                        if future_exception:
+                            logging.error( "".join(traceback.format_exception(type(future_exception), future_exception, future_exception.__traceback__)))
         return
 
     def run_collector_thread(self):
@@ -550,14 +553,12 @@ class GrblDataCollectorRaw(DataCollector):
         data.tx_pos_y_mm = tx_pos[1]
         data.rx_pos_x_mm = rx_pos[0]
         data.rx_pos_y_mm = rx_pos[1]
-
         assert data.rx_lo > 1
 
         if not self.yaml_config["dry-run"]:
             z = self.zarr[f"receivers/r{thread_idx}"]
             z.signal_matrix[record_idx] = data.signal_matrix
             for k in v5rx_f64_keys + v5rx_2xf64_keys:
-                # print("writting", k, record_idx, getattr(data, k))
                 z[k][record_idx] = getattr(data, k)
 
     def close(self):

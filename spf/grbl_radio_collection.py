@@ -38,6 +38,9 @@ def grbl_radio_parser():
         "--tx-gain", type=int, help="tag files", required=False, default=None
     )
     parser.add_argument(
+        "--device-mapping", type=str, help="device mapping", required=False, default=None
+    )
+    parser.add_argument(
         "--n-records", type=int, help="nrecords", required=False, default=-1
     )
     parser.add_argument(
@@ -83,9 +86,30 @@ def grbl_radio_main(args):
         yaml_config["routine"] = args.routine
     assert yaml_config["routine"] is not None
 
+    # open device mapping and figure out URIs
+    if args.device_mapping is not None:
+        with open(args.device_mapping, "r") as device_mapping:
+            port_to_uri = {}
+            for line in device_mapping:
+                mapping = line.strip().split()
+                if len(mapping) == 2:
+                    port_to_uri[int(mapping[0])] = f"pluto://usb:1.{mapping[1]}.5"
+                elif len(mapping) == 3:
+                    port_to_uri[int(mapping[0])] = (
+                        f"pluto://usb:{mapping[1]}.{mapping[2]}.5"
+                    )
+                else:
+                    raise ValueError("port mapping invalid")
+        for receiver in yaml_config["receivers"] + [yaml_config["emitter"]]:
+            if "receiver-port" in receiver:
+                receiver["receiver-uri"] = port_to_uri[receiver["receiver-port"]]
+
     if args.tx_gain is not None:
         assert yaml_config["emitter"]["type"] == "sdr"
         yaml_config["emitter"]["tx-gain"] = args.tx_gain
+
+    if 'craft' not in yaml_config:
+        yaml_config['craft']="wallarrayv3"
 
     if "dry-run" not in yaml_config or args.dry_run:
         yaml_config["dry-run"] = args.dry_run
@@ -96,12 +120,15 @@ def grbl_radio_main(args):
     if "seconds-per-sample" not in yaml_config or args.seconds_per_sample >= 0:
         yaml_config["seconds-per-sample"] = args.n_records
 
+    for receiver in yaml_config["receivers"]:
+        assert 'motor_channel' in receiver
+
     temp_filenames, final_filenames = filenames_from_time_in_seconds(
         run_started_at,
         args.temp,
         yaml_config,
         data_version=yaml_config["data-version"],
-        craft="wallarrayv3",
+        craft=yaml_config['craft'],
         tag=args.tag,
     )
 

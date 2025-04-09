@@ -1,0 +1,57 @@
+# The ip of the emitter
+# When the emitter is brought online it is verified
+# by a receiver that it actually is broadcasting
+emitter:
+  type: unknown
+  motor_channel: 1
+boundary: 'auto'
+#USB PORTS
+#USB  2   (Radio A)  |     USB 1 (Radio B)
+receivers:
+  #radio A
+  - receiver-port: 0
+    theta-in-pis: 0
+    antenna-spacing-m: 0.035 # 50.75 mm 
+    nelements: 2
+    array-type: linear
+    rx-gain-mode: slow_attack
+    rx-buffers: 4
+    rx-gain: -3
+    buffer-size: 524288 # 2**12
+    f-intermediate: 100000 #1.0e5
+    f-carrier: 5.866e+9 #f-carrier: 2.4671e+9 #2.5e9
+    f-sampling: 30.0e+6 # 16.0e6
+    bandwidth: 3.0e+6 #3.0e5
+    motor_channel: 0 
+  #radio B
+  - receiver-port: 1
+    theta-in-pis: 0.5
+    antenna-spacing-m: 0.035 # 50.75 mm 
+    nelements: 2
+    array-type: linear
+    rx-gain-mode: slow_attack
+    rx-buffers: 4
+    rx-gain: -3
+    buffer-size: 524288 # 2**12
+    f-intermediate: 100000 #1.0e5
+    f-carrier: 5.866e+9 #f-carrier: 2.4671e+9 #2.5e9
+    f-sampling: 30.0e+6 # 16.0e6
+    bandwidth: 3.0e+6 #3.0e5
+    motor_channel: 0 
+
+
+n-thetas: 65
+n-records-per-receiver: 60
+width: 4000
+calibration-frames: 800
+routine: null
+skip_phase_calibration: true
+serial: none
+
+data-version: 5
+
+collector:
+  type: "rpi5inference"
+  version: "0.1"
+  
+craft: 'rpi5inference'
