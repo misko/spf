@@ -102,7 +102,12 @@ while [ 0 -lt 1 ]; do
 		python3 ${repo_root}/spf/mavlink_radio_collection.py \
 		-c ${config}  -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}"  -n 40 --drone-uri tcp:192.168.1.141:14590 --no-ultrasonic
 	fi
-	sleep 10
+	sleep 8
+
+	#get GPS time
+	python ${repo_root}/spf/mavlink/mavlink_controller.py --get-time time
+	sudo date -s "$(cat time)"
+	sleep 2
 done
 
 #python spf/spf/mavlink_radio_collection.py -c spf/spf/rover_configs/rover_receiver_config_pi.yaml  -m /home/pi/device_mapping -r  bounce -t "RO1" -n 40000 --drone-uri tcp:192.168.1.136:14591

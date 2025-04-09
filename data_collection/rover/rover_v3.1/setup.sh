@@ -11,24 +11,30 @@ repo_root="/home/pi/spf/"
 rover_id=$1
 echo ${rover_id} > ~/rover_id
 
+cd /home/pi
+git clone https://github.com/misko/spf.git
 
-bash ${repo_root}/data_collection_model_and_results/rover/rover_v3.1/install_deps.sh
+bash ${repo_root}/data_collection/rover/rover_v3.1/install_deps.sh
+
 #sudo apt-get update
 #sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev sshpass -y
 
 # virtual enviornment setup
 python -m venv ~/spf-virtualenv
 source ~/spf-virtualenv/bin/activate
-git clone https://github.com/misko/spf.git
+
 cd spf
-pip install -r requirements.txt
+#pip install -r requirements.txt
+pip install -e . 
 pip install RPi.GPIO
 
 grep -v spf ~/.bashrc | grep -v lsusb  > /tmp/bashrc && mv /tmp/bashrc ~/.bashrc
 echo export PYTHONPATH=/home/pi/spf >> ~/.bashrc
 echo 'test -z "$VIRTUAL_ENV" && source ~/spf-virtualenv/bin/activate' >> ~/.bashrc
-echo "lsusb -t | grep usb-storage | sed 's/.*Port \([0-9]*\): Dev \([0-9]*\),.*/\1 \2/g' > ~/device_mapping" >> ~/.bashrc
 
+####PI 4####
+
+echo "lsusb -t | grep usb-storage | sed 's/.*Port \([0-9]*\): Dev \([0-9]*\),.*/\1 \2/g' > ~/device_mapping" >> ~/.bashrc
 # lets get eth0 to static ip
 cat > interfaces <<- EOM
 source /etc/network/interfaces.d/*
@@ -41,13 +47,49 @@ EOM
 sed -i "s/__ROVERID__/$(expr 40 + ${rover_id})/g" interfaces
 sudo cp -f interfaces /etc/network/interfaces
 
+# disable wifi so it wont interfere
+grep -v disable-wifi /boot/config.txt > /tmp/config.txt && sudo cp /tmp/config.txt /boot/config.txt # /boot/firmware/config.txt (pi5)
+sudo sh -c 'echo dtoverlay=disable-wifi >> /boot/config.txt' # /boot/firmware/config.txt pi5
+
+### END PI 4 ####
+
+
+
+
+####PI 5####
+sudo apt-get install systemd-resolved
+echo "lsusb  | grep PLUTO | awk '{print int(\$2)%3\" \"int(\$2)\" \"int(\$4) }' > ~/device_mapping" >> ~/.bashrc
+# lets get eth0 to static ip
+cat > interfaces <<- EOM
+[Match]
+Name=eth0
+
+[Network]
+Address=192.168.1.__ROVERID__/24
+Gateway=192.168.1.1
+DNS=8.8.8.8
+EOM
+sed -i "s/__ROVERID__/$(expr 40 + ${rover_id})/g" interfaces
+sudo cp -f interfaces /etc/systemd/network/10-eth0.network
+sudo systemctl enable systemd-networkd
+sudo systemctl start systemd-networkd
+
+# disable wifi so it wont interfere
+grep -v disable-wifi /boot/firmware/config.txt > /tmp/config.txt && sudo cp /tmp/config.txt /boot/firmware/config.txt # /boot/firmware/config.txt (pi5)
+sudo sh -c 'echo dtoverlay=disable-wifi >> /boot/firmware/config.txt' # pi5
+
+#echo 8.8.8.8 | sudo tee /etc/resolv.conf 
+sudo systemctl disable NetworkManager
+
+### END PI 5 ####
+
+
+
+
+
 # add USB permissions for all users
 grep -v usb_device /etc/udev/rules.d/99-com.rules > /tmp/99-com.rules && sudo cp /tmp/99-com.rules /etc/udev/rules.d/99-com.rules
 sudo sh -c 'echo SUBSYSTEM=="usb_device", MODE="0664", GROUP="usb" >> /etc/udev/rules.d/99-com.rules'
-
-# disable wifi so it wont interfere
-grep -v disable-wifi /boot/config.txt > /tmp/config.txt && sudo cp /tmp/config.txt /boot/config.txt
-sudo sh -c 'echo dtoverlay=disable-wifi >> /boot/config.txt'
 
 # flash pluto
 # sudo chmod -R 777 /dev/bus/usb/ # allow all USB access
