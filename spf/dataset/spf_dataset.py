@@ -330,6 +330,7 @@ class v5spfdataset(Dataset):
         segment_if_not_exist: bool = False,  # Generate segmentation cache if missing when True
         windows_per_snapshot: int = 256,  # Maximum number of windows per snapshot to use
         skip_detrend: bool = False,
+        vehicle_type: str = "",
     ):
         logging.debug(f"loading... {prefix}")
         # Store configuration parameters
@@ -389,9 +390,12 @@ class v5spfdataset(Dataset):
         self.yaml_config = load_config(self.yaml_fn)
 
         # Get system metadata
-        self.vehicle_type = (
-            self.get_collector_identifier()
-        )  # Type of platform (wallarray/rover)
+        if vehicle_type != "":
+            self.vehicle_type = vehicle_type
+        else:
+            self.vehicle_type = (
+                self.get_collector_identifier()
+            )  # Type of platform (wallarray/rover)
         self.emitter_type = self.get_emitter_type()
         self.n_receivers = len(self.yaml_config["receivers"])
 
