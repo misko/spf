@@ -81,19 +81,20 @@ def global_config_to_keys_used(global_config):
         "rx_theta_in_pis",
         "rx_heading_in_pis",
     ]
-    if global_config["signal_matrix_input"]:
-        keys_to_get += ["abs_signal_and_phase_diff"]
-    if global_config["windowed_beamformer_input"]:
-        keys_to_get += ["windowed_beamformer"]
-    if global_config["beamformer_input"]:
-        # keys_to_get += ["windowed_beamformer"]
-        keys_to_get += ["weighted_beamformer"]
-    if global_config["gains_input"]:
-        keys_to_get += ["gains"]
-    if global_config["vehicle_type_input"]:
-        keys_to_get += ["vehicle_type"]
-    if global_config["sdr_device_type_input"]:
-        keys_to_get += ["sdr_device_type"]
+    if global_config is not None:
+        if global_config["signal_matrix_input"]:
+            keys_to_get += ["abs_signal_and_phase_diff"]
+        if global_config["windowed_beamformer_input"]:
+            keys_to_get += ["windowed_beamformer"]
+        if global_config["beamformer_input"]:
+            # keys_to_get += ["windowed_beamformer"]
+            keys_to_get += ["weighted_beamformer"]
+        if global_config["gains_input"]:
+            keys_to_get += ["gains"]
+        if global_config["vehicle_type_input"]:
+            keys_to_get += ["vehicle_type"]
+        if global_config["sdr_device_type_input"]:
+            keys_to_get += ["sdr_device_type"]
     return keys_to_get
 
 

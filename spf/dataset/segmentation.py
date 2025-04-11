@@ -13,17 +13,25 @@ import torch
 import tqdm
 from scipy.stats import trim_mean
 
-from spf.rf import (beamformer_given_steering_nomean,
-                    beamformer_given_steering_nomean_cp, get_phase_diff,
-                    get_stats_for_signal, mean_phase_mean, pi_norm,
-                    reduce_theta_to_positive_y,
-                    windowed_trimmed_circular_mean_and_stddev)
-from spf.scripts.zarr_utils import (new_yarr_dataset,
-                                    zarr_open_from_lmdb_store,
-                                    zarr_open_from_lmdb_store_cm, zarr_shrink)
+from spf.rf import (
+    beamformer_given_steering_nomean,
+    beamformer_given_steering_nomean_cp,
+    get_phase_diff,
+    get_stats_for_signal,
+    mean_phase_mean,
+    pi_norm,
+    reduce_theta_to_positive_y,
+    windowed_trimmed_circular_mean_and_stddev,
+)
+from spf.scripts.zarr_utils import (
+    new_yarr_dataset,
+    zarr_open_from_lmdb_store,
+    zarr_open_from_lmdb_store_cm,
+    zarr_shrink,
+)
 from spf.sdrpluto.detrend import detrend_np
 
-default_segment_args = {
+DEFAULT_SEGMENT_ARGS = {
     "window_size": 2048,
     "stride": 2048,
     "trim": 20.0,
@@ -56,7 +64,7 @@ def segment_single_session(
         "session_idx": session_idx,
         "steering_vectors": steering_vectors_for_receiver,
         "gpu": gpu,
-        **default_segment_args,
+        **DEFAULT_SEGMENT_ARGS,
     }
     return segment_session(**args)
 
@@ -170,7 +178,7 @@ def mp_segment_zarr(
                 "gpu": gpu,
                 "skip_beamformer": skip_beamformer,
                 "skip_detrend": skip_detrend,
-                **default_segment_args,
+                **DEFAULT_SEGMENT_ARGS,
             }
             for idx in range(already_computed, precompute_to_idx)
         ]
@@ -180,7 +188,7 @@ def mp_segment_zarr(
             with Pool(min(cpu_count(), n_parallel)) as pool:
                 results_by_receiver[r_name] = list(
                     tqdm.tqdm(
-                        pool.imap(segment_session_star, inputs),
+                        pool.imap(segment_session_from_zarr_star, inputs),
                         desc=f"Segmenting {r_name}",
                         total=len(inputs),
                     )
@@ -192,7 +200,7 @@ def mp_segment_zarr(
                 monitor_fn = lambda x, desc, total: x
             results_by_receiver[r_name] = list(
                 monitor_fn(
-                    map(segment_session_star, inputs),
+                    map(segment_session_from_zarr_star, inputs),
                     desc=f"Segmenting {r_name}",
                     total=len(inputs),
                 )
@@ -337,15 +345,27 @@ def mp_segment_zarr(
 
 
 # helper function to expand a dictionary in keywords args
-def segment_session_star(arg_dict):
-    return segment_session(**arg_dict)
+def segment_session_from_zarr_star(arg_dict):
+    return segment_session_from_zarr(**arg_dict)
 
 
 # take a single zarr, receiver and session_idx and segment it
-def segment_session(
+def segment_session_from_zarr(
     zarr_fn,
     receiver,
     session_idx,
+    **kwrgs,
+):
+    with zarr_open_from_lmdb_store_cm(zarr_fn, mode="r", readahead=True) as z:
+        # Load raw signal from the specified session and receiver
+        # Signal matrix shape is (2, N) where 2 represents the two antenna elements
+        # and N is the number of IQ samples in the session
+        v = z.receivers[receiver].signal_matrix[session_idx][:].astype(np.complex64)
+        return segment_session(v, **kwrgs)
+
+
+def segment_session(
+    v,
     gpu=True,
     skip_beamformer=False,
     skip_detrend=False,
@@ -363,9 +383,6 @@ def segment_session(
     5. Extract statistical features for further processing
 
     Args:
-        zarr_fn: Path to the zarr file containing raw signal data
-        receiver: Receiver identifier (e.g., 'r0', 'r1')
-        session_idx: Index of the session to process
         gpu: Whether to use GPU for beamforming calculations (faster)
         skip_beamformer: If True, skip the beamforming calculation (saves time if not needed)
         **kwrgs: Additional arguments passed to the simple_segment function
@@ -373,207 +390,202 @@ def segment_session(
     Returns:
         Dictionary containing segmentation results and beamforming outputs
     """
-    with zarr_open_from_lmdb_store_cm(zarr_fn, mode="r", readahead=True) as z:
-        # Load raw signal from the specified session and receiver
-        # Signal matrix shape is (2, N) where 2 represents the two antenna elements
-        # and N is the number of IQ samples in the session
-        v = z.receivers[receiver].signal_matrix[session_idx][:].astype(np.complex64)
+    # Load raw signal from the specified session and receiver
+    # Signal matrix shape is (2, N) where 2 represents the two antenna elements
+    # and N is the number of IQ samples in the session
+    # v = z.receivers[receiver].signal_matrix[session_idx][:].astype(np.complex64)
 
-        # Detrend the signal to remove DC offsets and linear trends
-        # The detrend_np function:
-        # 1. Divides the signal into windows (1024 samples by default)
-        # 2. Fits a linear trend to both the real and imaginary parts of each antenna's signal
-        # 3. Subtracts the trend to center the signal around zero
-        # 4. This improves phase estimation by removing hardware biases and drift
-        if not skip_detrend:
-            v = detrend_np(v)
+    # Detrend the signal to remove DC offsets and linear trends
+    # The detrend_np function:
+    # 1. Divides the signal into windows (1024 samples by default)
+    # 2. Fits a linear trend to both the real and imaginary parts of each antenna's signal
+    # 3. Subtracts the trend to center the signal around zero
+    # 4. This improves phase estimation by removing hardware biases and drift
+    if not skip_detrend:
+        v = detrend_np(v)
 
-        # Simple segmentation identifies regions of the signal that likely contain useful data
-        # The simple_segment function:
-        # 1. Calculates phase difference between the two antenna elements
-        # 2. Divides the signal into windows (typically 2048 samples) with configurable stride
-        # 3. For each window, calculates trimmed circular mean and standard deviation of phase
-        #    and median of signal amplitude
-        # 4. Identifies windows as "signal" vs "noise" based on phase stability and amplitude
-        # 5. Combines adjacent windows with similar phase characteristics
-        # 6. Returns a list of segment information and signal statistics
-        segmentation_results = simple_segment(v, **kwrgs)
+    # Simple segmentation identifies regions of the signal that likely contain useful data
+    # The simple_segment function:
+    # 1. Calculates phase difference between the two antenna elements
+    # 2. Divides the signal into windows (typically 2048 samples) with configurable stride
+    # 3. For each window, calculates trimmed circular mean and standard deviation of phase
+    #    and median of signal amplitude
+    # 4. Identifies windows as "signal" vs "noise" based on phase stability and amplitude
+    # 5. Combines adjacent windows with similar phase characteristics
+    # 6. Returns a list of segment information and signal statistics
+    segmentation_results = simple_segment(v, **kwrgs)
 
-        # Transpose the window statistics for easier processing
-        # all_windows_stats shape is (3, N_windows) where:
-        # - Row 0: Trimmed circular mean of phase difference
-        # - Row 1: Trimmed standard deviation of phase difference
-        # - Row 2: Median absolute signal amplitude
-        segmentation_results["all_windows_stats"] = (
-            segmentation_results["all_windows_stats"].astype(np.float16).T
+    # Transpose the window statistics for easier processing
+    # all_windows_stats shape is (3, N_windows) where:
+    # - Row 0: Trimmed circular mean of phase difference
+    # - Row 1: Trimmed standard deviation of phase difference
+    # - Row 2: Median absolute signal amplitude
+    segmentation_results["all_windows_stats"] = (
+        segmentation_results["all_windows_stats"].astype(np.float16).T
+    )
+
+    # Get dimensions for further processing
+    _, windows = segmentation_results["all_windows_stats"].shape
+    nthetas = kwrgs["steering_vectors"].shape[0]  # Number of angle bins for beamforming
+
+    # Perform beamforming if not skipped
+    # Beamforming is the process of combining signals from multiple antennas
+    # to enhance reception from a specific direction while suppressing others
+
+    # BEAMFORMING EXPLANATION FOR 2-ELEMENT ARRAYS
+    #
+    # Beamforming is a signal processing technique used to direct or receive signals
+    # in a specific direction by combining signals from multiple antenna elements.
+    #
+    # For a 2-element antenna array (as used in this codebase), here's how it works:
+    #
+    # ASCII Diagram of a 2-element array with arriving signals:
+    #
+    #    Signal from           Signal from
+    #     θ = -45°              θ = +30°
+    #       \                     /
+    #        \                   /
+    #         \                 /
+    #          \               /
+    #           v             v
+    #          ┌─┐           ┌─┐
+    #          │ │           │ │
+    #          └─┘           └─┘
+    #        Element 0     Element 1
+    #          <------ d ------>
+    #
+    # PHYSICAL PRINCIPLES:
+    #
+    # 1. Path Length Difference:
+    #    When a signal arrives at angle θ, it reaches the two elements at different times.
+    #    - Path difference = d·sin(θ), where d is the spacing between elements
+    #    - This creates a phase difference between signals at each antenna
+    #
+    # 2. Phase Difference:
+    #    - Phase difference (φ) = 2π·d·sin(θ)/λ, where λ is the wavelength
+    #    - For our 2-element array, we measure this phase difference directly
+    #    - This is a key equation: it maps angle θ to phase difference φ
+    #
+    # 3. Direction Finding:
+    #    - Forward problem: Given angle θ, calculate expected phase φ
+    #    - Inverse problem: Given measured phase φ, estimate arrival angle θ
+    #    - For a 2-element array: θ = arcsin(φ·λ/(2π·d))
+    #
+    # MATHEMATICAL FORMULATION:
+    #
+    # 1. Signal Representation:
+    #    - Let x = [x₀, x₁]ᵀ be the complex signals received at the two antenna elements
+    #
+    # 2. Steering Vectors:
+    #    - For each potential arrival angle θ, we compute a steering vector a(θ):
+    #    - a(θ) = [1, e^(-j·2π·d·sin(θ)/λ)]ᵀ
+    #    - Where: d = antenna spacing, λ = wavelength
+    #
+    # 3. Beamforming Operation:
+    #    - The beamformer output for angle θ is: y(θ) = a(θ)ᴴ · x
+    #    - In expanded form: y(θ) = x₀ + x₁·e^(j·2π·d·sin(θ)/λ)
+    #
+    # 4. Power at angle θ:
+    #    - The power at each angle is: P(θ) = |y(θ)|²
+    #
+    # 5. Finding Direction of Arrival:
+    #    - The angle with maximum power is the estimated signal direction:
+    #    - θ̂ = argmax(P(θ))
+    #
+    # For a 2-element array, the phase difference φ between elements relates to angle θ:
+    #    φ = 2π·d·sin(θ)/λ
+    #
+    # This is the key relationship that allows us to estimate signal direction from
+    # the measured phase difference between antenna elements.
+    #
+    # In the code below:
+    # 1. We use precomputed steering vectors for many possible angles
+    # 2. Apply these steering vectors to the signal matrix
+    # 3. Calculate the beamformer power output for each potential angle
+    # 4. The angle with maximum power indicates the likely signal direction
+
+    if not skip_beamformer:
+        if gpu:
+            # GPU version of beamforming (much faster for large arrays)
+            # The beamformer_given_steering_nomean_cp function:
+            # 1. Applies the precomputed steering vectors to the signal matrix
+            # 2. For each angle θ in the steering vectors, calculates the array response
+            # 3. Returns the absolute value (magnitude) of the beamformed output
+            # 4. This creates a "spatial spectrum" showing signal power vs angle
+            segmentation_results["windowed_beamformer"] = cp.asnumpy(
+                beamformer_given_steering_nomean_cp(
+                    steering_vectors=cp.asarray(kwrgs["steering_vectors"]),
+                    signal_matrix=cp.asarray(v.astype(np.complex64)),
+                )
+                .reshape(nthetas, -1, kwrgs["window_size"])
+                .mean(axis=2)
+                .T
+            )
+        else:
+            # CPU version of beamforming (same algorithm but slower)
+            segmentation_results["windowed_beamformer"] = (
+                beamformer_given_steering_nomean(
+                    steering_vectors=kwrgs["steering_vectors"],
+                    signal_matrix=v.astype(np.complex64),
+                )
+                .reshape(nthetas, -1, kwrgs["window_size"])
+                .mean(axis=2)
+                .T
+            )
+
+        # Calculate a weighted beamformer output for the entire session
+        # by combining window-level beamformer outputs, using the segmentation mask
+        # as weights (so only signal windows contribute)
+        weighted_beamformer = (
+            segmentation_results["windowed_beamformer"].astype(np.float32)
+            * segmentation_results["downsampled_segmentation_mask"][:, None]
+        ).sum(axis=0) / (
+            segmentation_results["downsampled_segmentation_mask"].sum() + 0.001
         )
 
-        # Get dimensions for further processing
-        _, windows = segmentation_results["all_windows_stats"].shape
-        nthetas = kwrgs["steering_vectors"].shape[
-            0
-        ]  # Number of angle bins for beamforming
+        # Convert to float16 to save memory
+        segmentation_results["windowed_beamformer"] = segmentation_results[
+            "windowed_beamformer"
+        ].astype(np.float16)
 
-        # Perform beamforming if not skipped
-        # Beamforming is the process of combining signals from multiple antennas
-        # to enhance reception from a specific direction while suppressing others
+        # Store the session-level weighted beamformer
+        segmentation_results["weighted_beamformer"] = weighted_beamformer
+    else:
+        # If skipping beamforming, create empty placeholders
+        windowed_beamformer = np.zeros((windows, nthetas), dtype=np.float16)
+        windowed_beamformer.fill(np.nan)
+        segmentation_results["windowed_beamformer"] = windowed_beamformer
 
-        # BEAMFORMING EXPLANATION FOR 2-ELEMENT ARRAYS
-        #
-        # Beamforming is a signal processing technique used to direct or receive signals
-        # in a specific direction by combining signals from multiple antenna elements.
-        #
-        # For a 2-element antenna array (as used in this codebase), here's how it works:
-        #
-        # ASCII Diagram of a 2-element array with arriving signals:
-        #
-        #    Signal from           Signal from
-        #     θ = -45°              θ = +30°
-        #       \                     /
-        #        \                   /
-        #         \                 /
-        #          \               /
-        #           v             v
-        #          ┌─┐           ┌─┐
-        #          │ │           │ │
-        #          └─┘           └─┘
-        #        Element 0     Element 1
-        #          <------ d ------>
-        #
-        # PHYSICAL PRINCIPLES:
-        #
-        # 1. Path Length Difference:
-        #    When a signal arrives at angle θ, it reaches the two elements at different times.
-        #    - Path difference = d·sin(θ), where d is the spacing between elements
-        #    - This creates a phase difference between signals at each antenna
-        #
-        # 2. Phase Difference:
-        #    - Phase difference (φ) = 2π·d·sin(θ)/λ, where λ is the wavelength
-        #    - For our 2-element array, we measure this phase difference directly
-        #    - This is a key equation: it maps angle θ to phase difference φ
-        #
-        # 3. Direction Finding:
-        #    - Forward problem: Given angle θ, calculate expected phase φ
-        #    - Inverse problem: Given measured phase φ, estimate arrival angle θ
-        #    - For a 2-element array: θ = arcsin(φ·λ/(2π·d))
-        #
-        # MATHEMATICAL FORMULATION:
-        #
-        # 1. Signal Representation:
-        #    - Let x = [x₀, x₁]ᵀ be the complex signals received at the two antenna elements
-        #
-        # 2. Steering Vectors:
-        #    - For each potential arrival angle θ, we compute a steering vector a(θ):
-        #    - a(θ) = [1, e^(-j·2π·d·sin(θ)/λ)]ᵀ
-        #    - Where: d = antenna spacing, λ = wavelength
-        #
-        # 3. Beamforming Operation:
-        #    - The beamformer output for angle θ is: y(θ) = a(θ)ᴴ · x
-        #    - In expanded form: y(θ) = x₀ + x₁·e^(j·2π·d·sin(θ)/λ)
-        #
-        # 4. Power at angle θ:
-        #    - The power at each angle is: P(θ) = |y(θ)|²
-        #
-        # 5. Finding Direction of Arrival:
-        #    - The angle with maximum power is the estimated signal direction:
-        #    - θ̂ = argmax(P(θ))
-        #
-        # For a 2-element array, the phase difference φ between elements relates to angle θ:
-        #    φ = 2π·d·sin(θ)/λ
-        #
-        # This is the key relationship that allows us to estimate signal direction from
-        # the measured phase difference between antenna elements.
-        #
-        # In the code below:
-        # 1. We use precomputed steering vectors for many possible angles
-        # 2. Apply these steering vectors to the signal matrix
-        # 3. Calculate the beamformer power output for each potential angle
-        # 4. The angle with maximum power indicates the likely signal direction
+    # Calculate session-level statistics from the identified signal windows
+    if segmentation_results["downsampled_segmentation_mask"].sum() > 0:
+        # Calculate trimmed mean of phase differences from signal windows only
+        # Trimming removes extreme values to make the mean more robust
+        mean_phase = trim_mean(
+            reduce_theta_to_positive_y(segmentation_results["all_windows_stats"][0])[
+                segmentation_results["downsampled_segmentation_mask"]
+            ].astype(np.float32),
+            0.1,  # Trim 10% from both ends
+        )
 
-        if not skip_beamformer:
-            if gpu:
-                # GPU version of beamforming (much faster for large arrays)
-                # The beamformer_given_steering_nomean_cp function:
-                # 1. Applies the precomputed steering vectors to the signal matrix
-                # 2. For each angle θ in the steering vectors, calculates the array response
-                # 3. Returns the absolute value (magnitude) of the beamformed output
-                # 4. This creates a "spatial spectrum" showing signal power vs angle
-                segmentation_results["windowed_beamformer"] = cp.asnumpy(
-                    beamformer_given_steering_nomean_cp(
-                        steering_vectors=cp.asarray(kwrgs["steering_vectors"]),
-                        signal_matrix=cp.asarray(v.astype(np.complex64)),
-                    )
-                    .reshape(nthetas, -1, kwrgs["window_size"])
-                    .mean(axis=2)
-                    .T
-                )
-            else:
-                # CPU version of beamforming (same algorithm but slower)
-                segmentation_results["windowed_beamformer"] = (
-                    beamformer_given_steering_nomean(
-                        steering_vectors=kwrgs["steering_vectors"],
-                        signal_matrix=v.astype(np.complex64),
-                    )
-                    .reshape(nthetas, -1, kwrgs["window_size"])
-                    .mean(axis=2)
-                    .T
-                )
+        # Calculate trimmed mean of standard deviation and signal amplitude
+        stddev_and_abs_signal = trim_mean(
+            segmentation_results["all_windows_stats"][1:][
+                :, segmentation_results["downsampled_segmentation_mask"]
+            ].astype(np.float32),
+            0.1,
+            axis=1,
+        )
 
-            # Calculate a weighted beamformer output for the entire session
-            # by combining window-level beamformer outputs, using the segmentation mask
-            # as weights (so only signal windows contribute)
-            weighted_beamformer = (
-                segmentation_results["windowed_beamformer"].astype(np.float32)
-                * segmentation_results["downsampled_segmentation_mask"][:, None]
-            ).sum(axis=0) / (
-                segmentation_results["downsampled_segmentation_mask"].sum() + 0.001
-            )
+        # Store the session-level statistics
+        segmentation_results["weighted_stats"] = np.array(
+            [mean_phase, stddev_and_abs_signal[0], stddev_and_abs_signal[1]],
+            dtype=np.float32,
+        )
+    else:
+        # If no signal windows were identified, use placeholder values
+        segmentation_results["weighted_stats"] = np.array([-1, -1, -1])
 
-            # Convert to float16 to save memory
-            segmentation_results["windowed_beamformer"] = segmentation_results[
-                "windowed_beamformer"
-            ].astype(np.float16)
-
-            # Store the session-level weighted beamformer
-            segmentation_results["weighted_beamformer"] = weighted_beamformer
-        else:
-            # If skipping beamforming, create empty placeholders
-            windowed_beamformer = np.zeros((windows, nthetas), dtype=np.float16)
-            windowed_beamformer.fill(np.nan)
-            segmentation_results["windowed_beamformer"] = windowed_beamformer
-
-        # Calculate session-level statistics from the identified signal windows
-        if segmentation_results["downsampled_segmentation_mask"].sum() > 0:
-            # Calculate trimmed mean of phase differences from signal windows only
-            # Trimming removes extreme values to make the mean more robust
-            mean_phase = trim_mean(
-                reduce_theta_to_positive_y(
-                    segmentation_results["all_windows_stats"][0]
-                )[segmentation_results["downsampled_segmentation_mask"]].astype(
-                    np.float32
-                ),
-                0.1,  # Trim 10% from both ends
-            )
-
-            # Calculate trimmed mean of standard deviation and signal amplitude
-            stddev_and_abs_signal = trim_mean(
-                segmentation_results["all_windows_stats"][1:][
-                    :, segmentation_results["downsampled_segmentation_mask"]
-                ].astype(np.float32),
-                0.1,
-                axis=1,
-            )
-
-            # Store the session-level statistics
-            segmentation_results["weighted_stats"] = np.array(
-                [mean_phase, stddev_and_abs_signal[0], stddev_and_abs_signal[1]],
-                dtype=np.float32,
-            )
-        else:
-            # If no signal windows were identified, use placeholder values
-            segmentation_results["weighted_stats"] = np.array([-1, -1, -1])
-
-        return segmentation_results
+    return segmentation_results
 
 
 def simple_segment(

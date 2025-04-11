@@ -222,6 +222,40 @@ def v5_segmentation_mask(session):
     return seg_mask[:, None]
 
 
+def get_session_idxs(
+    session_idx: int,
+    tiled_sessions: bool,
+    snapshots_stride: int,
+    snapshots_adjacent_stride: int,
+    snapshots_per_session: int,
+    random_adjacent_stride: bool,
+):
+    if tiled_sessions:
+        snapshot_start_idx = session_idx * snapshots_stride
+        snapshot_end_idx = (
+            snapshot_start_idx + snapshots_adjacent_stride * snapshots_per_session
+        )
+    else:
+        snapshot_start_idx = (
+            session_idx * snapshots_per_session * snapshots_adjacent_stride
+        )
+        snapshot_end_idx = (
+            (session_idx + 1) * snapshots_per_session * snapshots_adjacent_stride
+        )
+    if random_adjacent_stride:
+        # TODO
+        # can choose random n numbers 0~1 scale by target cumsum
+        idxs = (
+            get_idx_for_rand_session(snapshots_adjacent_stride, snapshots_per_session)
+            + snapshot_start_idx
+        )
+        return idxs
+    else:
+        return np.arange(
+            snapshot_start_idx, snapshot_end_idx, snapshots_adjacent_stride
+        )
+
+
 @contextmanager
 def v5spfdataset_manager(*args, **kwds):
     if "b2:" == kwds["precompute_cache"][:3]:
@@ -855,46 +889,14 @@ class v5spfdataset(Dataset):
         return self.cached_keys[receiver_idx][key][idxs]
 
     def get_session_idxs(self, session_idx):
-        if self.tiled_sessions:
-            snapshot_start_idx = session_idx * self.snapshots_stride
-            snapshot_end_idx = (
-                snapshot_start_idx
-                + self.snapshots_adjacent_stride * self.snapshots_per_session
-            )
-        else:
-            snapshot_start_idx = (
-                session_idx
-                * self.snapshots_per_session
-                * self.snapshots_adjacent_stride
-            )
-            snapshot_end_idx = (
-                (session_idx + 1)
-                * self.snapshots_per_session
-                * self.snapshots_adjacent_stride
-            )
-        if self.random_adjacent_stride:
-            # TODO
-            # can choose random n numbers 0~1 scale by target cumsum
-            idxs = (
-                get_idx_for_rand_session(
-                    self.snapshots_adjacent_stride, self.snapshots_per_session
-                )
-                + snapshot_start_idx
-            )
-            return idxs
-            # return (
-            #     (
-            #         np.random.rand(self.snapshots_per_session)
-            #         * self.snapshots_adjacent_stride
-            #     )
-            #     .round()
-            #     .cumsum()
-            #     .astype(int)+snapshot_start_idx
-            # )
-        else:
-            return np.arange(
-                snapshot_start_idx, snapshot_end_idx, self.snapshots_adjacent_stride
-            )
+        return get_session_idxs(
+            session_idx,
+            tiled_sessions=self.tiled_sessions,
+            snapshots_stride=self.snapshots_stride,
+            snapshots_adjacent_stride=self.snapshots_adjacent_stride,
+            snapshots_per_session=self.snapshots_per_session,
+            random_adjacent_stride=self.random_adjacent_stride,
+        )
 
     @cache
     def get_empirical_dist(
