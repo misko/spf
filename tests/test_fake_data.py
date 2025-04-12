@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml
+from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml_v5
 from spf.dataset.spf_dataset import v5spfdataset
 from spf.utils import identical_datasets
 
@@ -13,7 +13,7 @@ def test_dataset_load():
     with tempfile.TemporaryDirectory() as tmpdirname:
         ds_fn = f"{tmpdirname}/test_circle"
         create_fake_dataset(
-            filename=ds_fn, yaml_config_str=fake_yaml, n=5, noise=0.0, phi_drift=0.0
+            filename=ds_fn, yaml_config_str=fake_yaml_v5, n=5, noise=0.0, phi_drift=0.0
         )
         ds = v5spfdataset(
             ds_fn,
@@ -31,7 +31,7 @@ def test_dataset_load_drift():
             ds_fn = f"{tmpdirname}/test_circle"
             create_fake_dataset(
                 filename=ds_fn,
-                yaml_config_str=fake_yaml,
+                yaml_config_str=fake_yaml_v5,
                 n=5,
                 noise=0.0,
                 phi_drift=phi_drift,
@@ -60,7 +60,7 @@ def test_fake_data_array_orientation():
     ds_fn = f"{tmpdirname}/sample_dataset_for_ekf_n{n}_noise{noise}"
 
     create_fake_dataset(
-        filename=ds_fn, yaml_config_str=fake_yaml, n=n, noise=noise, orbits=orbits
+        filename=ds_fn, yaml_config_str=fake_yaml_v5, n=n, noise=noise, orbits=orbits
     )
     ds = v5spfdataset(
         ds_fn,
@@ -101,7 +101,7 @@ def test_identical_datasets():
         dsA_fn = f"{tmpdirname}/test_circleA"
         create_fake_dataset(
             filename=dsA_fn,
-            yaml_config_str=fake_yaml,
+            yaml_config_str=fake_yaml_v5,
             n=5,
             noise=0.0,
             phi_drift=0.0,
@@ -110,7 +110,7 @@ def test_identical_datasets():
         dsB_fn = f"{tmpdirname}/test_circleB"
         create_fake_dataset(
             filename=dsB_fn,
-            yaml_config_str=fake_yaml,
+            yaml_config_str=fake_yaml_v5,
             n=6,
             noise=0.0,
             phi_drift=0.0,
@@ -119,7 +119,7 @@ def test_identical_datasets():
         dsC_fn = f"{tmpdirname}/test_circleC"
         create_fake_dataset(
             filename=dsC_fn,
-            yaml_config_str=fake_yaml,
+            yaml_config_str=fake_yaml_v5,
             n=5,
             noise=0.0,
             phi_drift=0.0,

@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 
+from spf.dataset.spf_dataset import get_empirical_dist
 from spf.filters.filters import (
     ParticleFilter,
     add_noise,
@@ -26,7 +27,7 @@ class PFSingleThetaSingleRadio(ParticleFilter):
         self.generator.manual_seed(0)
         if not self.ds.temp_file:
             self.all_observations = self.ds.mean_phase[f"r{self.rx_idx}"]
-        self.cached_empirical_dist = self.ds.get_empirical_dist(self.rx_idx).T
+        self.cached_empirical_dist = get_empirical_dist(ds, self.rx_idx).T
 
     def observation(self, idx):
         if not self.ds.temp_file:

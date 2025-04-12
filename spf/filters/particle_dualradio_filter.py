@@ -1,6 +1,7 @@
 import torch
 from matplotlib import pyplot as plt
 
+from spf.dataset.spf_dataset import get_empirical_dist
 from spf.filters.filters import (
     ParticleFilter,
     add_noise,
@@ -40,8 +41,8 @@ class PFSingleThetaDualRadio(ParticleFilter):
         self.generator.manual_seed(0)
         self.cached_empirical_dist = torch.vstack(
             [
-                self.ds.get_empirical_dist(0).T.unsqueeze(0),
-                self.ds.get_empirical_dist(1).T.unsqueeze(0),
+                get_empirical_dist(ds, 0).T.unsqueeze(0),
+                get_empirical_dist(ds, 1).T.unsqueeze(0),
             ]
         )
         if not self.ds.temp_file:

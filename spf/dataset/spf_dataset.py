@@ -4,6 +4,7 @@
 
 import bisect
 import logging
+import multiprocessing
 import os
 import pickle
 from contextlib import contextmanager
@@ -19,7 +20,12 @@ from compress_pickle import load
 from tensordict import TensorDict
 from torch.utils.data import Dataset
 
-from spf.dataset.segmentation import mp_segment_zarr
+from spf.dataset.segmentation import (
+    DEFAULT_SEGMENT_ARGS,
+    mean_phase_from_simple_segmentation,
+    mp_segment_zarr,
+    segment_session,
+)
 from spf.dataset.spf_generate import generate_session
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
 from spf.rf import (
@@ -34,6 +40,7 @@ from spf.s3_utils import (
     b2_file_to_local_with_cache,
     b2path_to_bucket_and_path,
 )
+from spf.scripts.train_utils import global_config_to_keys_used, load_config_from_fn
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 from spf.sdrpluto.sdr_controller import rx_config_from_receiver_yaml
 from spf.utils import SEGMENTATION_VERSION, load_config, rx_spacing_to_str, to_bin
@@ -387,6 +394,324 @@ def uri_to_device_type(uri):
     return SDRDEVICE.UNKNOWN
 
 
+class ZarrWrapper:
+    def __init__(self, zarr_array):
+        self.zarr_array = zarr_array
+        self.on_the_fly_dict = {}
+
+    def __contains__(self, item):
+        if item in self.zarr_array or item in self.on_the_fly_dict:
+            return True
+        return False
+
+    def __getitem__(self, key):
+        if key in self.zarr_array:
+            return self.zarr_array[key]
+        elif key in self.on_the_fly_dict:
+            return self.on_the_fly_dict[key]
+        print("NO KEY", key)
+        raise KeyError
+
+    def __setitem__(self, key, value):
+        if key in self.zarr_array:
+            raise ValueError
+        self.on_the_fly_dict[key] = value
+
+
+training_only_keys = [
+    "ground_truth_theta",
+    "ground_truth_phi",
+    "craft_ground_truth_theta",
+    "y_rad",
+    "y_phi",
+    "craft_y_rad",
+    "y_rad_binned",
+]
+
+segmentation_based_keys = [
+    "weighted_beamformer",
+    "all_windows_stats",
+    "weighted_windows_stats",
+    "downsampled_segmentation_mask",
+    "simple_segmentations",
+    "mean_phase_segmentation",
+]
+
+
+class v5inferencedataset(Dataset):
+    def __init__(
+        self,
+        yaml_fn: str,
+        nthetas: int,  # Number of theta angles for beamforming discretization
+        model_config_fn: str = "",
+        paired: bool = False,  # If True, return paired samples from all receivers at once
+        gpu: bool = False,  # Use GPU for segmentation computation if available
+        skip_fields: List[
+            str
+        ] = [],  # Data fields to exclude during loading to save memory
+        n_parallel: int = 20,  # Number of parallel processes for segmentation
+        empirical_data_fn: (
+            str | None
+        ) = None,  # Path to empirical distribution data file for phase-to-angle mapping
+        empirical_individual_radio: bool = False,  # Use per-radio empirical distributions if True
+        empirical_symmetry: bool = True,  # Use symmetric empirical distributions if True
+        target_dtype=torch.float32,  # Target dtype for tensor conversion (memory optimization)
+        distance_normalization: int = 1000,  # Divisor to normalize distance measurements (mm to meters)
+        target_ntheta: (
+            bool | None
+        ) = None,  # Target number of theta bins for classification (defaults to nthetas)
+        windows_per_snapshot: int = 256,  # Maximum number of windows per snapshot to use
+        skip_detrend: bool = False,
+        skip_segmentation: bool = True,
+        vehicle_type: str = "",
+        max_in_memory: int = 10,
+    ):
+        # Store configuration parameters
+        self.yaml_fn = yaml_fn
+        self.n_parallel = n_parallel
+        self.nthetas = nthetas  # Number of angles to discretize space for beamforming
+        self.target_ntheta = self.nthetas if target_ntheta is None else target_ntheta
+
+        self.max_in_memory = max_in_memory
+        self.min_idx = 0
+        self.condition = multiprocessing.Condition()
+        self.lock = multiprocessing.Lock()
+        self.store = {}
+
+        # Segmentation parameters control how raw signal is processed into windows
+        # and how phase difference is computed between antenna elements
+        self.skip_detrend = skip_detrend
+        self.windows_per_snapshot = windows_per_snapshot
+
+        self.distance_normalization = distance_normalization
+        self.skip_fields = skip_fields
+        self.skip_segmentation = skip_segmentation
+        if self.skip_segmentation:
+            self.skip_fields += segmentation_based_keys
+        self.paired = paired
+        assert self.paired
+        self.gpu = gpu  # Whether to use GPU acceleration for beamforming calculations
+        self.target_dtype = target_dtype
+        self.precomputed_entries = 0
+        self.precomputed_zarr = (
+            None  # Will hold preprocessed beamforming and segmentation data
+        )
+
+        self.yaml_config = load_config(self.yaml_fn)
+
+        if model_config_fn != "":
+            self.model_config = load_config_from_fn(model_config_fn)
+            self.keys_to_get = global_config_to_keys_used(self.model_config["global"])
+        else:
+            self.keys_to_get = global_config_to_keys_used(None)
+
+        # Get system metadata
+        self.vehicle_type = vehicle_type
+
+        # Extract receiver properties - important for beamforming calculations
+        self.wavelengths = [
+            speed_of_light / receiver["f-carrier"]  # λ = c/f
+            for receiver in self.yaml_config["receivers"]
+        ]
+        self.carrier_frequencies = [
+            receiver["f-carrier"] for receiver in self.yaml_config["receivers"]
+        ]
+        self.rf_bandwidths = [
+            receiver["bandwidth"] for receiver in self.yaml_config["receivers"]
+        ]
+
+        # Validate that all receivers have consistent configurations
+        for rx_idx in range(1, 2):
+            assert (
+                self.yaml_config["receivers"][0]["antenna-spacing-m"]
+                == self.yaml_config["receivers"][rx_idx]["antenna-spacing-m"]
+            )
+            assert self.wavelengths[0] == self.wavelengths[rx_idx]
+            assert self.rf_bandwidths[0] == self.rf_bandwidths[rx_idx]
+
+        # Set up receiver spacing properties - critical for beamforming
+        # Spacing between antenna elements affects phase difference and angle estimation
+        self.rx_spacing = self.yaml_config["receivers"][0]["antenna-spacing-m"]
+        assert self.yaml_config["receivers"][1]["antenna-spacing-m"] == self.rx_spacing
+
+        # rx_wavelength_spacing (d/λ) is a key parameter for beamforming
+        # It determines how phase differences map to arrival angles
+        self.rx_wavelength_spacing = self.rx_spacing / self.wavelengths[0]
+
+        # Create receiver configs and determine device types
+        self.rx_configs = [
+            rx_config_from_receiver_yaml(receiver)
+            for receiver in self.yaml_config["receivers"]
+        ]
+        self.sdr_device_types = [
+            uri_to_device_type(rx_config.uri) for rx_config in self.rx_configs
+        ]
+
+        # Ensure all receivers use the same device type
+        if len(self.sdr_device_types) > 1:
+            for device_type in self.sdr_device_types:
+                assert device_type == self.sdr_device_types[0]
+        self.sdr_device_type = self.sdr_device_types[0]
+
+        # Precompute steering vectors for beamforming
+        # Steering vectors are complex weights applied to each antenna element
+        # They're used to "steer" the array to look in a specific direction
+        # For each possible angle (theta), calculate the appropriate phase shifts
+        self.steering_vectors = [
+            precompute_steering_vectors(
+                receiver_positions=rx_config.rx_pos,
+                carrier_frequency=rx_config.lo,
+                spacing=nthetas,
+            )
+            for rx_config in self.rx_configs
+        ]
+
+        # Define keys to load per session
+        self.keys_per_session = (
+            v5rx_f64_keys + v5rx_2xf64_keys + ["rx_wavelength_spacing"]
+        )
+        if "signal_matrix" not in self.skip_fields:
+            self.keys_per_session.append("signal_matrix")
+
+        # Load empirical distribution data if provided
+        # These are learned phase-to-angle mappings that can improve angle estimation
+        if empirical_data_fn is not None:
+            self.empirical_data_fn = empirical_data_fn
+            self.empirical_data = pickle.load(open(empirical_data_fn, "rb"))
+            self.empirical_individual_radio = empirical_individual_radio
+            self.empirical_symmetry = empirical_symmetry
+        else:
+            self.empirical_data_fn = None
+            self.empirical_data = None
+
+    # ASSUMING EVERYTHING WILL BE REQUESTED IN SEQUENCE!!
+    def __getitem__(self, idx):
+        # return [
+        #     self.render_session(receiver_idx, idx)
+        #     for receiver_idx in range(self.n_receivers)
+        # ]
+        return None
+
+    def write_to_idx(self, idx, ridx, raw):
+        if idx < self.min_idx:
+            return  # we dont need this sample
+        rendered_data = self.render_session(idx, ridx, raw)
+
+        self.lock.acquire()
+        if idx not in self.store:
+            self.store[idx] = {"count": 0, "data": [None, None]}  # entry not ready
+        self.store[idx]["data"][ridx] = rendered_data
+        self.store[idx]["count"] += 1
+        self.lock.release()
+
+        with self.condition:
+            self.condition.notify_all()
+
+    def render_session(self, idx, ridx, data):
+        snapshot_idxs = [0]  # which snapshots to get
+
+        data["rx_wavelength_spacing"] = torch.tensor(self.rx_wavelength_spacing)
+
+        data["gains"] = data["gains"][:, None]
+        data["receiver_idx"] = torch.tensor([[ridx]], dtype=torch.int)
+
+        data["ground_truth_theta"] = torch.tensor([torch.inf])  # unknown
+        data["y_rad"] = data["ground_truth_theta"]  # torch.inf
+
+        data["ground_truth_phi"] = torch.tensor([torch.inf])  # unkown
+        data["y_phi"] = data["ground_truth_phi"]  # torch.inf
+
+        data["craft_ground_truth_theta"] = torch.tensor([torch.inf])  # unknown
+        data["craft_y_rad"] = data["craft_ground_truth_theta"]  # torch.inf
+
+        data["vehicle_type"] = torch.tensor(
+            [encode_vehicle_type(self.vehicle_type)]
+        ).reshape(1)
+        data["sdr_device_type"] = torch.tensor([self.sdr_device_type.value]).reshape(1)
+
+        if "signal_matrix" not in self.skip_fields:
+            # WARNGING this does not respect flipping!
+            abs_signal = data["signal_matrix"].abs().to(torch.float32)
+            assert data["signal_matrix"].shape[0] == 1
+            pd = torch_get_phase_diff(data["signal_matrix"][0]).to(torch.float32)
+            data["abs_signal_and_phase_diff"] = torch.concatenate(
+                [abs_signal, pd[None, :, None]], dim=2
+            )
+
+        data["rx_pos_mm"] = torch.vstack(
+            [
+                data["rx_pos_x_mm"],
+                data["rx_pos_y_mm"],
+            ]
+        ).T
+
+        data["tx_pos_mm"] = torch.vstack(
+            [
+                data["tx_pos_x_mm"],
+                data["tx_pos_y_mm"],
+            ]
+        ).T
+
+        data["rx_pos_xy"] = (
+            data["rx_pos_mm"][snapshot_idxs].unsqueeze(0) / self.distance_normalization
+        )
+
+        data["tx_pos_xy"] = (
+            data["tx_pos_mm"][snapshot_idxs].unsqueeze(0) / self.distance_normalization
+        )
+
+        segmentation = segment_session(
+            data["signal_matrix"][0][ridx],
+            gpu=False,
+            skip_beamformer=False,
+            skip_detrend=False,
+            skip_segmentation=self.skip_segmentation,
+            **{
+                "steering_vectors": self.steering_vectors[ridx],
+                **DEFAULT_SEGMENT_ARGS,
+            },
+        )
+
+        data.update(
+            data_from_precomputed(
+                v5ds=self,
+                precomputed_data=segmentation,
+                segmentation=[segmentation],
+                snapshot_idxs=[0],
+            )
+        )
+        if not self.skip_segmentation:
+            data["mean_phase_segmentation"] = torch.tensor(
+                mean_phase_from_simple_segmentation([segmentation])
+            ).unsqueeze(0)
+
+            if self.empirical_data is not None:
+                empirical_dist = get_empirical_dist(self, ridx)
+                #  ~ 1, snapshots, ntheta(empirical_dist.shape[0])
+                data["empirical"] = empirical_dist[
+                    to_bin(data["mean_phase_segmentation"][0], empirical_dist.shape[0])
+                ].unsqueeze(0)
+                mask = data["mean_phase_segmentation"].isnan()
+                data["empirical"][mask] = 1.0 / empirical_dist.shape[0]
+
+        data["y_rad_binned"] = (
+            to_bin(data["y_rad"], self.target_ntheta).unsqueeze(0).to(torch.long)
+        )
+        data["craft_y_rad_binned"] = (
+            to_bin(data["craft_y_rad"], self.target_ntheta).unsqueeze(0).to(torch.long)
+        )
+
+        # convert to target dtype on CPU!
+        for key in data:
+            if isinstance(data[key], torch.Tensor) and data[key].dtype in (
+                torch.float16,
+                torch.float32,
+                torch.float64,
+            ):
+                data[key] = data[key].to(self.target_dtype)
+        return data
+
+
 class v5spfdataset(Dataset):
     def __init__(
         self,
@@ -485,6 +810,8 @@ class v5spfdataset(Dataset):
         )
         self.yaml_config = load_config(self.yaml_fn)
 
+        self.v4 = self.yaml_config["data-version"] == 4
+
         # Get system metadata
         if vehicle_type != "":
             self.vehicle_type = vehicle_type
@@ -556,6 +883,7 @@ class v5spfdataset(Dataset):
         self.receiver_data = [
             self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
         ]
+        self.v4_to_v5()
 
         # Get dimensions from the data
         self.n_snapshots, self.n_antennas_per_receiver = self.z.receivers.r0.gains.shape
@@ -618,7 +946,7 @@ class v5spfdataset(Dataset):
         self.refresh()
 
         # Validate receiver configurations
-        if not self.temp_file:
+        if not self.temp_file and not self.v4:
             assert (
                 self.cached_keys[0]["rx_theta_in_pis"].median()
                 == self.yaml_config["receivers"][0]["theta-in-pis"]
@@ -854,6 +1182,22 @@ class v5spfdataset(Dataset):
             return self.n_sessions
         return self.n_sessions * self.n_receivers
 
+    def v4_to_v5(self):
+        if not self.v4:
+            return
+        # v4 to v5 upgrade
+        for ridx in range(self.n_receivers):
+            self.receiver_data[ridx] = ZarrWrapper(
+                self.receiver_data[ridx]
+            )  # wrap readonly so we can modify on the fly
+            filler = self.receiver_data[ridx]["system_timestamp"][:] * 0
+            self.receiver_data[ridx]["rx_heading_in_pis"] = (
+                self.receiver_data[ridx]["heading"][:] / 360
+            ) / 2
+            for key in v5rx_f64_keys:
+                if key not in self.receiver_data[ridx]:
+                    self.receiver_data[ridx][key] = filler
+
     def reinit(self):
         if self.z is None:
             # worker_info = torch.utils.data.get_worker_info()
@@ -862,6 +1206,8 @@ class v5spfdataset(Dataset):
             self.receiver_data = [
                 self.z.receivers[f"r{ridx}"] for ridx in range(self.n_receivers)
             ]
+            self.v4_to_v5()
+
         if not self.temp_file and self.precomputed_zarr is None:
             self.get_segmentation(
                 version=self.segmentation_version,
@@ -977,9 +1323,11 @@ class v5spfdataset(Dataset):
             data_from_precomputed(
                 v5ds=self,
                 precomputed_data=self.precomputed_zarr[f"r{receiver_idx}"],
-                segmentation=self.segmentation["segmentation_by_receiver"][
-                    f"r{receiver_idx}"
-                ],
+                segmentation=(
+                    self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"]
+                    if not "simple_segmentations" in self.skip_fields
+                    else {}
+                ),
                 snapshot_idxs=snapshot_idxs,
             )
         )

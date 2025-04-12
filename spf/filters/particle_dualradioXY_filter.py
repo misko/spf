@@ -4,6 +4,7 @@ import scipy
 import torch
 from matplotlib import pyplot as plt
 
+from spf.dataset.spf_dataset import get_empirical_dist
 from spf.filters.filters import ParticleFilter, add_noise, theta_phi_to_p_vec
 from spf.rf import torch_pi_norm_pi
 
@@ -57,7 +58,7 @@ class PFXYDualRadio(ParticleFilter):
 
     @cache
     def cached_empirical_dist(self, rx_idx):
-        return self.ds.get_empirical_dist(rx_idx).T
+        return get_empirical_dist(self.ds, rx_idx).T
 
     def fix_particles(self):
         self.particles[:, 0] = torch_pi_norm_pi(self.particles[:, 0])

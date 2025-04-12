@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 # V5 data format
 from spf.dataset.spf_dataset import v5spfdataset
+from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.rf import speed_of_light, torch_get_avg_phase_notrim, torch_pi_norm_pi
 from spf.scripts.create_empirical_p_dist import (
@@ -56,7 +57,9 @@ phi = delta_distance * 2pi / lambda = sin(theta)*d*2pi/lambda
 theta = arcsin(lambda * phi / (d*2pi))
 """
 
-fake_yaml = """
+
+def fake_yaml(version):
+    return f"""
 # The ip of the emitter
 # When the emitter is brought online it is verified
 # by a receiver that it actually is broadcasting
@@ -109,9 +112,13 @@ routine: null
 skip_phase_calibration: true
   
 
-data-version: 5
+data-version: {version}
 seconds-per-sample: 5.0
 """
+
+
+fake_yaml_v5 = fake_yaml(5)
+fake_yaml_v4 = fake_yaml(4)
 
 
 def create_empirical_dist_for_datasets(datasets, precompute_cache, nthetas):
@@ -185,15 +192,26 @@ def create_fake_dataset(
 
     _lambda = speed_of_light / rx_config.lo
 
-    m = v5rx_new_dataset(
-        filename=f"{filename}.zarr",
-        timesteps=yaml_config["n-records-per-receiver"],
-        buffer_size=rx_config.buffer_size,
-        n_receivers=len(yaml_config["receivers"]),
-        chunk_size=512,
-        compressor=None,
-        config=yaml_config,
-    )
+    if yaml_config["data-version"] == 5:
+        m = v5rx_new_dataset(
+            filename=f"{filename}.zarr",
+            timesteps=yaml_config["n-records-per-receiver"],
+            buffer_size=rx_config.buffer_size,
+            n_receivers=len(yaml_config["receivers"]),
+            chunk_size=512,
+            compressor=None,
+            config=yaml_config,
+        )
+    else:
+        m = v4rx_new_dataset(
+            filename=f"{filename}.zarr",
+            timesteps=yaml_config["n-records-per-receiver"],
+            buffer_size=rx_config.buffer_size,
+            n_receivers=len(yaml_config["receivers"]),
+            chunk_size=512,
+            compressor=None,
+            config=yaml_config,
+        )
 
     thetas = torch_pi_norm_pi(
         torch.linspace(0, 2 * torch.pi * orbits, yaml_config["n-records-per-receiver"])
@@ -249,10 +267,18 @@ def create_fake_dataset(
                     ]
 
             data = {
+                # v5 specific
                 "rx_pos_x_mm": 0,
                 "rx_pos_y_mm": 0,
                 "tx_pos_x_mm": torch.sin(thetas[record_idx]) * radius,
                 "tx_pos_y_mm": torch.cos(thetas[record_idx]) * radius,
+                "rx_heading_in_pis": 0,
+                # v4 specific
+                "gps_timestamp": 0,
+                "gps_lat": 0,
+                "gps_long": 0,
+                "heading": 0,
+                # common
                 "system_timestamp": 1.0 + record_idx * 5.0,
                 "rx_theta_in_pis": yaml_config["receivers"][receiver_idx][
                     "theta-in-pis"
@@ -263,24 +289,17 @@ def create_fake_dataset(
                 "avg_phase_diff": torch_get_avg_phase_notrim(signal_matrix),  # , 0.0),
                 "rssis": [0, 0],
                 "gains": [0, 0],
-                "rx_heading_in_pis": 0,
             }
 
             z = m[f"receivers/r{receiver_idx}"]
             z.signal_matrix[record_idx] = signal_matrix.numpy()
-            for k in v5rx_f64_keys + v5rx_2xf64_keys:
-                z[k][record_idx] = data[k]
-            # nthetas = 64 + 1
 
-            # steering_vectors = precompute_steering_vectors(
-            #     receiver_positions=rx_config.rx_pos,
-            #     carrier_frequency=rx_config.lo,
-            #     spacing=nthetas,
-            # )
-            # beam_sds = beamformer_given_steering_nomean(
-            #     steering_vectors=steering_vectors,
-            #     signal_matrix=signal_matrix,
-            # )
+            if yaml_config["data-version"] == 5:
+                for k in v5rx_f64_keys + v5rx_2xf64_keys:
+                    z[k][record_idx] = data[k]
+            else:
+                for k in v4rx_f64_keys + v4rx_2xf64_keys:
+                    z[k][record_idx] = data[k]
 
 
 def compare_and_copy_n(prefix, src, dst, n):
@@ -401,7 +420,7 @@ if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
     create_fake_dataset(
-        fake_yaml,
+        fake_yaml_v5,
         args.filename,
         orbits=args.orbits,
         n=args.n,
