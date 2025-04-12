@@ -69,6 +69,29 @@ def segment_single_session(
     return segment_session(**args)
 
 
+def mean_phase_from_simple_segmentation(segmentation):
+    mean_phases = []
+    for result in segmentation:
+        means = []
+        weights = []
+        for x in result["simple_segmentation"]:
+            if x["type"] == "signal":
+                means.append(x["mean"])
+                weights.append(
+                    (x["end_idx"] - x["start_idx"])
+                    * x["abs_signal_median"]
+                    / (x["stddev"] + 1e-6)  # weight by signal strength and region
+                )
+        if len(means) == 0:
+            mean_phases.append(torch.nan)  # No signal detected
+        else:
+            means = np.array(means)
+            weights = np.array(weights)
+            # Calculate weighted circular mean of phase differences
+            mean_phases.append(mean_phase_mean(angles=means, weights=weights))
+    return np.hstack(mean_phases)
+
+
 # MultiProcess segmentation and pre-processing
 # This contains the heart of pre-processing
 # The input here is a zarr file containing the raw radio signal
@@ -212,16 +235,16 @@ def mp_segment_zarr(
     # Determine shapes for output arrays based on first result
     all_windows_stats_shape = (n_sessions,) + results_by_receiver["r0"][0][
         "all_windows_stats"
-    ].shape
+    ].shape[1:]
     windowed_beamformer_shape = (n_sessions,) + results_by_receiver["r0"][0][
         "windowed_beamformer"
-    ].shape
+    ].shape[1:]
     weighted_beamformer_shape = (n_sessions,) + results_by_receiver["r0"][0][
         "windowed_beamformer"
-    ].shape[1:]
+    ].shape[2:]
     downsampled_segmentation_mask_shape = (n_sessions,) + results_by_receiver["r0"][0][
         "downsampled_segmentation_mask"
-    ].shape
+    ].shape[1:]
 
     # Create new zarr dataset if one doesn't exist
     if precomputed_zarr is None:
@@ -242,28 +265,28 @@ def mp_segment_zarr(
         precomputed_zarr[f"r{r_idx}/all_windows_stats"][
             already_computed:precompute_to_idx
         ] = np.vstack(
-            [x["all_windows_stats"][None] for x in results_by_receiver[f"r{r_idx}"]]
+            [x["all_windows_stats"] for x in results_by_receiver[f"r{r_idx}"]]
         )
 
         # Store windowed_beamformer: beamforming output for each window and direction
         precomputed_zarr[f"r{r_idx}/windowed_beamformer"][
             already_computed:precompute_to_idx
         ] = np.vstack(
-            [x["windowed_beamformer"][None] for x in results_by_receiver[f"r{r_idx}"]]
+            [x["windowed_beamformer"] for x in results_by_receiver[f"r{r_idx}"]]
         )
 
         # Store weighted_beamformer: session-level beamforming weighted by signal quality
         precomputed_zarr[f"r{r_idx}/weighted_beamformer"][
             already_computed:precompute_to_idx
         ] = np.vstack(
-            [x["weighted_beamformer"][None] for x in results_by_receiver[f"r{r_idx}"]]
+            [x["weighted_beamformer"] for x in results_by_receiver[f"r{r_idx}"]]
         )
 
         # Store weighted_windows_stats: statistics weighted by signal quality
         precomputed_zarr[f"r{r_idx}/weighted_windows_stats"][
             already_computed:precompute_to_idx
         ] = np.vstack(
-            [x["weighted_stats"][None] for x in results_by_receiver[f"r{r_idx}"]]
+            [x["weighted_windows_stats"] for x in results_by_receiver[f"r{r_idx}"]]
         )
 
         # Store downsampled_segmentation_mask: binary mask of signal vs noise windows
@@ -271,7 +294,7 @@ def mp_segment_zarr(
             already_computed:precompute_to_idx
         ] = np.vstack(
             [
-                x["downsampled_segmentation_mask"][None]
+                x["downsampled_segmentation_mask"]
                 for x in results_by_receiver[f"r{r_idx}"]
             ]
         )
@@ -280,31 +303,11 @@ def mp_segment_zarr(
         # - window length (longer segments are more reliable)
         # - signal strength (stronger signals have better SNR)
         # - inverse stddev (less variance means more reliable phase)
-        mean_phases = []
-        for result in results_by_receiver[f"r{r_idx}"]:
-            means = []
-            weights = []
-            for x in result["simple_segmentation"]:
-                if x["type"] == "signal":
-                    means.append(x["mean"])
-                    weights.append(
-                        (x["end_idx"] - x["start_idx"])
-                        * x["abs_signal_median"]
-                        / (x["stddev"] + 1e-6)  # weight by signal strength and region
-                    )
-            if len(means) == 0:
-                mean_phases.append(torch.nan)  # No signal detected
-            else:
-                means = np.array(means)
-                weights = np.array(weights)
-                # Calculate weighted circular mean of phase differences
-                mean_phases.append(mean_phase_mean(angles=means, weights=weights))
-        mean_phase = np.hstack(mean_phases)
 
         # Store the mean phase for each session
-        precomputed_zarr[f"r{r_idx}/mean_phase"][
-            already_computed:precompute_to_idx
-        ] = mean_phase
+        precomputed_zarr[f"r{r_idx}/mean_phase"][already_computed:precompute_to_idx] = (
+            mean_phase_from_simple_segmentation(results_by_receiver[f"r{r_idx}"])
+        )
 
     # Build the final segmentation dictionary by combining:
     # 1. Previously computed sessions (if any)
@@ -369,6 +372,7 @@ def segment_session(
     gpu=True,
     skip_beamformer=False,
     skip_detrend=False,
+    skip_segmentation=False,
     **kwrgs,
 ):
     """
@@ -404,29 +408,7 @@ def segment_session(
     if not skip_detrend:
         v = detrend_np(v)
 
-    # Simple segmentation identifies regions of the signal that likely contain useful data
-    # The simple_segment function:
-    # 1. Calculates phase difference between the two antenna elements
-    # 2. Divides the signal into windows (typically 2048 samples) with configurable stride
-    # 3. For each window, calculates trimmed circular mean and standard deviation of phase
-    #    and median of signal amplitude
-    # 4. Identifies windows as "signal" vs "noise" based on phase stability and amplitude
-    # 5. Combines adjacent windows with similar phase characteristics
-    # 6. Returns a list of segment information and signal statistics
-    segmentation_results = simple_segment(v, **kwrgs)
-
-    # Transpose the window statistics for easier processing
-    # all_windows_stats shape is (3, N_windows) where:
-    # - Row 0: Trimmed circular mean of phase difference
-    # - Row 1: Trimmed standard deviation of phase difference
-    # - Row 2: Median absolute signal amplitude
-    segmentation_results["all_windows_stats"] = (
-        segmentation_results["all_windows_stats"].astype(np.float16).T
-    )
-
-    # Get dimensions for further processing
-    _, windows = segmentation_results["all_windows_stats"].shape
-    nthetas = kwrgs["steering_vectors"].shape[0]  # Number of angle bins for beamforming
+    segmentation_results = {}
 
     # Perform beamforming if not skipped
     # Beamforming is the process of combining signals from multiple antennas
@@ -504,6 +486,7 @@ def segment_session(
     # 3. Calculate the beamformer power output for each potential angle
     # 4. The angle with maximum power indicates the likely signal direction
 
+    nthetas = kwrgs["steering_vectors"].shape[0]  # Number of angle bins for beamforming
     if not skip_beamformer:
         if gpu:
             # GPU version of beamforming (much faster for large arrays)
@@ -533,6 +516,40 @@ def segment_session(
                 .T
             )
 
+        # Convert to float16 to save memory
+        segmentation_results["windowed_beamformer"] = segmentation_results[
+            "windowed_beamformer"
+        ].astype(np.float16)
+
+    else:
+        # If skipping beamforming, create empty placeholders
+        windowed_beamformer = np.zeros(
+            (v.shape[1] // kwrgs["window_size"], nthetas), dtype=np.float16
+        )
+        windowed_beamformer.fill(np.nan)
+        segmentation_results["windowed_beamformer"] = windowed_beamformer
+
+    if not skip_segmentation:
+        # Simple segmentation identifies regions of the signal that likely contain useful data
+        # The simple_segment function:
+        # 1. Calculates phase difference between the two antenna elements
+        # 2. Divides the signal into windows (typically 2048 samples) with configurable stride
+        # 3. For each window, calculates trimmed circular mean and standard deviation of phase
+        #    and median of signal amplitude
+        # 4. Identifies windows as "signal" vs "noise" based on phase stability and amplitude
+        # 5. Combines adjacent windows with similar phase characteristics
+        # 6. Returns a list of segment information and signal statistics
+        segmentation_results.update(simple_segment(v, **kwrgs))
+
+        # Transpose the window statistics for easier processing
+        # all_windows_stats shape is (3, N_windows) where:
+        # - Row 0: Trimmed circular mean of phase difference
+        # - Row 1: Trimmed standard deviation of phase difference
+        # - Row 2: Median absolute signal amplitude
+        segmentation_results["all_windows_stats"] = (
+            segmentation_results["all_windows_stats"].astype(np.float16).T
+        )
+
         # Calculate a weighted beamformer output for the entire session
         # by combining window-level beamformer outputs, using the segmentation mask
         # as weights (so only signal windows contribute)
@@ -542,48 +559,44 @@ def segment_session(
         ).sum(axis=0) / (
             segmentation_results["downsampled_segmentation_mask"].sum() + 0.001
         )
-
-        # Convert to float16 to save memory
-        segmentation_results["windowed_beamformer"] = segmentation_results[
-            "windowed_beamformer"
-        ].astype(np.float16)
-
         # Store the session-level weighted beamformer
         segmentation_results["weighted_beamformer"] = weighted_beamformer
-    else:
-        # If skipping beamforming, create empty placeholders
-        windowed_beamformer = np.zeros((windows, nthetas), dtype=np.float16)
-        windowed_beamformer.fill(np.nan)
-        segmentation_results["windowed_beamformer"] = windowed_beamformer
+        # Calculate session-level statistics from the identified signal windows
+        if segmentation_results["downsampled_segmentation_mask"].sum() > 0:
+            # Calculate trimmed mean of phase differences from signal windows only
+            # Trimming removes extreme values to make the mean more robust
+            mean_phase = trim_mean(
+                reduce_theta_to_positive_y(
+                    segmentation_results["all_windows_stats"][0]
+                )[segmentation_results["downsampled_segmentation_mask"]].astype(
+                    np.float32
+                ),
+                0.1,  # Trim 10% from both ends
+            )
 
-    # Calculate session-level statistics from the identified signal windows
-    if segmentation_results["downsampled_segmentation_mask"].sum() > 0:
-        # Calculate trimmed mean of phase differences from signal windows only
-        # Trimming removes extreme values to make the mean more robust
-        mean_phase = trim_mean(
-            reduce_theta_to_positive_y(segmentation_results["all_windows_stats"][0])[
-                segmentation_results["downsampled_segmentation_mask"]
-            ].astype(np.float32),
-            0.1,  # Trim 10% from both ends
-        )
+            # Calculate trimmed mean of standard deviation and signal amplitude
+            stddev_and_abs_signal = trim_mean(
+                segmentation_results["all_windows_stats"][1:][
+                    :, segmentation_results["downsampled_segmentation_mask"]
+                ].astype(np.float32),
+                0.1,
+                axis=1,
+            )
 
-        # Calculate trimmed mean of standard deviation and signal amplitude
-        stddev_and_abs_signal = trim_mean(
-            segmentation_results["all_windows_stats"][1:][
-                :, segmentation_results["downsampled_segmentation_mask"]
-            ].astype(np.float32),
-            0.1,
-            axis=1,
-        )
+            # Store the session-level statistics
+            segmentation_results["weighted_windows_stats"] = np.array(
+                [mean_phase, stddev_and_abs_signal[0], stddev_and_abs_signal[1]],
+                dtype=np.float32,
+            )
+        else:
+            # If no signal windows were identified, use placeholder values
+            segmentation_results["weighted_windows_stats"] = np.array([-1, -1, -1])
 
-        # Store the session-level statistics
-        segmentation_results["weighted_stats"] = np.array(
-            [mean_phase, stddev_and_abs_signal[0], stddev_and_abs_signal[1]],
-            dtype=np.float32,
-        )
-    else:
-        # If no signal windows were identified, use placeholder values
-        segmentation_results["weighted_stats"] = np.array([-1, -1, -1])
+    # add a singleton in front of each of these
+    segmentation_results = {
+        k: v[None] if isinstance(v, np.ndarray) else v
+        for k, v in segmentation_results.items()
+    }
 
     return segmentation_results
 

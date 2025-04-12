@@ -222,6 +222,18 @@ def v5_segmentation_mask(session):
     return seg_mask[:, None]
 
 
+@cache
+def get_empirical_dist(
+    v5ds,
+    receiver_idx,
+):
+    rx_spacing_str = rx_spacing_to_str(v5ds.rx_wavelength_spacing)
+    empirical_radio_key = f"r{receiver_idx}" if v5ds.empirical_individual_radio else "r"
+    return v5ds.empirical_data[f"{v5ds.sdr_device_type}_{rx_spacing_str}"][
+        empirical_radio_key
+    ]["sym" if v5ds.empirical_symmetry else "nosym"]
+
+
 def get_session_idxs(
     session_idx: int,
     tiled_sessions: bool,
@@ -254,6 +266,56 @@ def get_session_idxs(
         return np.arange(
             snapshot_start_idx, snapshot_end_idx, snapshots_adjacent_stride
         )
+
+
+def data_from_precomputed(v5ds, precomputed_data, segmentation, snapshot_idxs):
+    data = {}
+    if "windowed_beamformer" not in v5ds.skip_fields:
+        data["windowed_beamformer"] = torch.as_tensor(
+            precomputed_data["windowed_beamformer"][snapshot_idxs]
+        ).unsqueeze(0)
+        # TODO this is hacky and not right
+        if data["windowed_beamformer"].shape[2] > v5ds.windows_per_snapshot:
+            data["windowed_beamformer"] = subsample_tensor(
+                data["windowed_beamformer"], 2, v5ds.windows_per_snapshot
+            )
+
+    if "weighted_beamformer" not in v5ds.skip_fields:
+        data["weighted_beamformer"] = torch.as_tensor(
+            precomputed_data["weighted_beamformer"][snapshot_idxs]
+        ).unsqueeze(0)
+
+    # sessions x 3 x n_windows
+    if "all_windows_stats" not in v5ds.skip_fields:
+        data["all_windows_stats"] = torch.as_tensor(
+            precomputed_data["all_windows_stats"][snapshot_idxs]
+        ).unsqueeze(0)
+        # TODO this is hacky and not right
+        if data["all_windows_stats"].shape[3] > v5ds.windows_per_snapshot:
+            data["all_windows_stats"] = subsample_tensor(
+                data["all_windows_stats"], 3, v5ds.windows_per_snapshot
+            )
+
+    if "weighted_windows_stats" not in v5ds.skip_fields:
+        data["weighted_windows_stats"] = torch.as_tensor(
+            precomputed_data["weighted_windows_stats"][snapshot_idxs]
+        ).unsqueeze(0)
+
+    if "downsampled_segmentation_mask" not in v5ds.skip_fields:
+        data["downsampled_segmentation_mask"] = (
+            torch.as_tensor(
+                precomputed_data["downsampled_segmentation_mask"][snapshot_idxs]
+            )
+            .unsqueeze(1)
+            .unsqueeze(0)
+        )
+
+    if "simple_segmentations" not in v5ds.skip_fields:
+        data["simple_segmentations"] = [
+            segmentation[snapshot_idx]["simple_segmentation"]
+            for snapshot_idx in snapshot_idxs
+        ]
+    return data
 
 
 @contextmanager
@@ -809,65 +871,6 @@ class v5spfdataset(Dataset):
             #     self.results_fn().replace(".pkl", ".yarr"), mode="r"
             # )
 
-    def populate_from_precomputed(self, data, receiver_idx, snapshot_idxs):
-        if "windowed_beamformer" not in self.skip_fields:
-            data["windowed_beamformer"] = torch.as_tensor(
-                self.precomputed_zarr[f"r{receiver_idx}/windowed_beamformer"][
-                    snapshot_idxs
-                ]
-            ).unsqueeze(0)
-            # TODO this is hacky and not right
-            if data["windowed_beamformer"].shape[2] > self.windows_per_snapshot:
-                data["windowed_beamformer"] = subsample_tensor(
-                    data["windowed_beamformer"], 2, self.windows_per_snapshot
-                )
-
-        if "weighted_beamformer" not in self.skip_fields:
-            data["weighted_beamformer"] = torch.as_tensor(
-                self.precomputed_zarr[f"r{receiver_idx}/weighted_beamformer"][
-                    snapshot_idxs
-                ]
-            ).unsqueeze(0)
-
-        # sessions x 3 x n_windows
-        if "all_windows_stats" not in self.skip_fields:
-            data["all_windows_stats"] = torch.as_tensor(
-                self.precomputed_zarr[f"r{receiver_idx}/all_windows_stats"][
-                    snapshot_idxs
-                ]
-            ).unsqueeze(0)
-            # TODO this is hacky and not right
-            if data["all_windows_stats"].shape[3] > self.windows_per_snapshot:
-                data["all_windows_stats"] = subsample_tensor(
-                    data["all_windows_stats"], 3, self.windows_per_snapshot
-                )
-
-        if "weighted_windows_stats" not in self.skip_fields:
-            data["weighted_windows_stats"] = torch.as_tensor(
-                self.precomputed_zarr[f"r{receiver_idx}/weighted_windows_stats"][
-                    snapshot_idxs
-                ]
-            ).unsqueeze(0)
-
-        if "downsampled_segmentation_mask" not in self.skip_fields:
-            data["downsampled_segmentation_mask"] = (
-                torch.as_tensor(
-                    self.precomputed_zarr[f"r{receiver_idx}"][
-                        "downsampled_segmentation_mask"
-                    ][snapshot_idxs]
-                )
-                .unsqueeze(1)
-                .unsqueeze(0)
-            )
-
-        if "simple_segmentations" not in self.skip_fields:
-            data["simple_segmentations"] = [
-                self.segmentation["segmentation_by_receiver"][f"r{receiver_idx}"][
-                    snapshot_idx
-                ]["simple_segmentation"]
-                for snapshot_idx in snapshot_idxs
-            ]
-
     def get_spacing_identifier(self):
         rx_lo = self.cached_keys[0]["rx_lo"].median().item()
         return f"sp{self.rx_spacing:0.3f}.rxlo{rx_lo:0.4e}"
@@ -897,19 +900,6 @@ class v5spfdataset(Dataset):
             snapshots_per_session=self.snapshots_per_session,
             random_adjacent_stride=self.random_adjacent_stride,
         )
-
-    @cache
-    def get_empirical_dist(
-        self,
-        receiver_idx,
-    ):
-        rx_spacing_str = rx_spacing_to_str(self.rx_wavelength_spacing)
-        empirical_radio_key = (
-            f"r{receiver_idx}" if self.empirical_individual_radio else "r"
-        )
-        return self.empirical_data[f"{self.sdr_device_type}_{rx_spacing_str}"][
-            empirical_radio_key
-        ]["sym" if self.empirical_symmetry else "nosym"]
 
     def render_session(self, receiver_idx, session_idx, double_flip=False):
         self.reinit()
@@ -983,7 +973,16 @@ class v5spfdataset(Dataset):
                 segment_if_not_exist=True,
             )
 
-        self.populate_from_precomputed(data, receiver_idx, snapshot_idxs)
+        data.update(
+            data_from_precomputed(
+                v5ds=self,
+                precomputed_data=self.precomputed_zarr[f"r{receiver_idx}"],
+                segmentation=self.segmentation["segmentation_by_receiver"][
+                    f"r{receiver_idx}"
+                ],
+                snapshot_idxs=snapshot_idxs,
+            )
+        )
         # port this over in on the fly TODO
 
         data["mean_phase_segmentation"] = self.mean_phase[f"r{receiver_idx}"][
@@ -1021,7 +1020,7 @@ class v5spfdataset(Dataset):
         #     gc.collect()
         # self.close()
         if self.empirical_data is not None:
-            empirical_dist = self.get_empirical_dist(receiver_idx)
+            empirical_dist = get_empirical_dist(self, receiver_idx)
             #  ~ 1, snapshots, ntheta(empirical_dist.shape[0])
             data["empirical"] = empirical_dist[
                 to_bin(data["mean_phase_segmentation"][0], empirical_dist.shape[0])
