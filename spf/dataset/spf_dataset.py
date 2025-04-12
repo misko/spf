@@ -752,6 +752,7 @@ class v5spfdataset(Dataset):
         windows_per_snapshot: int = 256,  # Maximum number of windows per snapshot to use
         skip_detrend: bool = False,
         vehicle_type: str = "",
+        v4: bool = False,
     ):
         logging.debug(f"loading... {prefix}")
         # Store configuration parameters
@@ -810,7 +811,7 @@ class v5spfdataset(Dataset):
         )
         self.yaml_config = load_config(self.yaml_fn)
 
-        self.v4 = self.yaml_config["data-version"] == 4
+        self.v4 = v4  # self.yaml_config["data-version"] == 4
 
         # Get system metadata
         if vehicle_type != "":

@@ -6,6 +6,7 @@ import pytest
 from spf.dataset.fake_dataset import (
     create_empirical_dist_for_datasets,
     create_fake_dataset,
+    fake_yaml_v4,
     fake_yaml_v5,
 )
 from spf.dataset.spf_dataset import v5spfdataset
