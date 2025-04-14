@@ -29,8 +29,7 @@ docker run --rm -it -p 14590-14595:14590-14595 ardupilot_spf /ardupilot/Tools/au
 def adrupilot_simulator():
     client = docker.from_env()
     container = client.containers.run(
-        # "csmisko/ardupilotspf:latest",
-        "ghcr.io/misko/ardupilotspf:v0.2",
+        "csmisko/ardupilotspf:latest",
         f"/ardupilot/Tools/autotest/sim_vehicle.py  -l 37.76509485,-122.40940127,0,0 \
             -v rover -f rover-skid --out tcpin:0.0.0.0:14590  --out tcpin:0.0.0.0:14591 -S {simulator_speedup}",
         stdin_open=True,

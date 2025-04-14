@@ -22,7 +22,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     bash-completion \
     git && apt-get install --reinstall -y ca-certificates && update-ca-certificates
 
-RUN git clone https://github.com/ArduPilot/ardupilot.git . && /ardupilot/Tools/gittools/submodule-sync.sh 
+RUN git clone https://github.com/ArduPilot/ardupilot.git . 
+RUN git checkout Rover-4.5.7
+RUN /ardupilot/Tools/gittools/submodule-sync.sh 
 
 #COPY Tools/environment_install/install-prereqs-ubuntu.sh /ardupilot/Tools/environment_install/
 #COPY Tools/completion /ardupilot/Tools/completion/
