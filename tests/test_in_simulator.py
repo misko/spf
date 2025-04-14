@@ -29,7 +29,8 @@ docker run --rm -it -p 14590-14595:14590-14595 ardupilot_spf /ardupilot/Tools/au
 def adrupilot_simulator():
     client = docker.from_env()
     container = client.containers.run(
-        "csmisko/ardupilotspf:latest",
+        # "csmisko/ardupilotspf:latest",
+        "ghcr.io/misko/ardupilotspf:v0.2",
         f"/ardupilot/Tools/autotest/sim_vehicle.py  -l 37.76509485,-122.40940127,0,0 \
             -v rover -f rover-skid --out tcpin:0.0.0.0:14590  --out tcpin:0.0.0.0:14591 -S {simulator_speedup}",
         stdin_open=True,
@@ -180,7 +181,6 @@ def diff_params(file_name):
 
 def test_load_and_diff_params(adrupilot_simulator):
     with tempfile.TemporaryDirectory() as tmpdirname:
-        tmpdirname = "./"
         param_file_nameA = tmpdirname + "/this_droneA.params"
         generate_parameters_file(5, param_file_nameA)
         param_file_nameB = tmpdirname + "/this_droneB.params"
