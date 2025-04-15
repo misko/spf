@@ -113,6 +113,7 @@ def perfect_circle_n50_0p01_v4():
             paired=True,
             skip_fields=set(["signal_matrix"]),
             segment_if_not_exist=True,
+            v4=True,
         )
         yield tmpdirname, fn
 

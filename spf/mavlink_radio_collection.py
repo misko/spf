@@ -25,7 +25,50 @@ from spf.utils import (
     load_config,
 )
 
-if __name__ == "__main__":
+
+def yaml_defaults(yaml_config, device_mapping_fn):
+    # open device mapping and figure out URIs
+    with open(device_mapping_fn, "r") as device_mapping:
+        port_to_uri = {}
+        for line in device_mapping:
+            mapping = line.strip().split()
+            if len(mapping) == 2:
+                port_to_uri[int(mapping[0])] = f"pluto://usb:1.{mapping[1]}.5"
+            elif len(mapping) == 3:
+                port_to_uri[int(mapping[0])] = (
+                    f"pluto://usb:{mapping[1]}.{mapping[2]}.5"
+                )
+            else:
+                raise ValueError("port mapping invalid")
+
+    for receiver in yaml_config["receivers"] + [yaml_config["emitter"]]:
+        if "receiver-port" in receiver:
+            receiver["receiver-uri"] = port_to_uri[receiver["receiver-port"]]
+    if "emitter-port" in yaml_config["emitter"]:
+        yaml_config["emitter"]["emitter-uri"] = port_to_uri[
+            yaml_config["emitter"]["emitter-port"]
+        ]
+
+    if args.records_per_receiver is not None:
+        yaml_config["n-records-per-receiver"] = args.records_per_receiver
+
+    # add in our current config
+    if args.routine is not None:
+        yaml_config["routine"] = args.routine
+
+    if args.tx_gain is not None:
+        assert yaml_config["emitter"]["type"] == "sdr"
+        yaml_config["emitter"]["tx-gain"] = args.tx_gain
+
+    if args.drone_uri is not None:
+        yaml_config["drone-uri"] = args.drone_uri
+
+    if args.inference:
+        yaml_config["inference"] = True
+    return yaml_config
+
+
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c",
@@ -89,53 +132,25 @@ if __name__ == "__main__":
         default=True,
     )
 
+    parser.add_argument(
+        "--inference", action=argparse.BooleanOptionalAction, default=False
+    )
+    parser.add_argument(
+        "--write-to-disk", action=argparse.BooleanOptionalAction, default=True
+    )
+
     parser.add_argument("--fake-drone", action=argparse.BooleanOptionalAction)
     parser.add_argument("--exit", action=argparse.BooleanOptionalAction)
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+if __name__ == "__main__":
+
+    args = parse_args()
     run_started_at = datetime.now().timestamp()  #
+
     # read YAML
-    # with open(args.yaml_config, "r") as stream:
-    yaml_config = load_config(args.yaml_config)  # yaml.safe_load(stream)
-
-    # open device mapping and figure out URIs
-    with open(args.device_mapping, "r") as device_mapping:
-        port_to_uri = {}
-        for line in device_mapping:
-            mapping = line.strip().split()
-            if len(mapping) == 2:
-                port_to_uri[int(mapping[0])] = f"pluto://usb:1.{mapping[1]}.5"
-            elif len(mapping) == 3:
-                port_to_uri[int(mapping[0])] = (
-                    f"pluto://usb:{mapping[1]}.{mapping[2]}.5"
-                )
-            else:
-                raise ValueError("port mapping invalid")
-
-    for receiver in yaml_config["receivers"] + [yaml_config["emitter"]]:
-        if "receiver-port" in receiver:
-            receiver["receiver-uri"] = port_to_uri[receiver["receiver-port"]]
-    if "emitter-port" in yaml_config["emitter"]:
-        yaml_config["emitter"]["emitter-uri"] = port_to_uri[
-            yaml_config["emitter"]["emitter-port"]
-        ]
-
-    if args.records_per_receiver is not None:
-        yaml_config["n-records-per-receiver"] = args.records_per_receiver
-
-    # add in our current config
-    if args.routine is not None:
-        yaml_config["routine"] = args.routine
-
-    if args.tx_gain is not None:
-        assert yaml_config["emitter"]["type"] == "sdr"
-        yaml_config["emitter"]["tx-gain"] = args.tx_gain
-
-    if args.drone_uri is not None:
-        yaml_config["drone-uri"] = args.drone_uri
-    # setup filename
-    # tmpdir = tempfile.TemporaryDirectory()
-    # temp_dir_name = tmpdir.name
+    yaml_config = yaml_defaults(load_config(args.yaml_config), args.device_mapping)
 
     temp_filenames, final_filenames = filenames_from_time_in_seconds(
         run_started_at,
@@ -186,7 +201,6 @@ if __name__ == "__main__":
             distance_finder=distance_finder,
         )
         drone.start()
-
     else:
         drone = Drone(
             None,
@@ -212,9 +226,12 @@ if __name__ == "__main__":
         drone_get_planner(yaml_config["routine"], boundary=boundaries[boundary_name])
     )
 
+    if args.inference:
+        pass
+
     if yaml_config["data-version"] == 4:
         data_collector = DroneDataCollectorRaw(
-            data_filename=temp_filenames["data"],
+            data_filename=temp_filenames["data"] if args.write_to_disk else None,
             yaml_config=yaml_config,
             position_controller=drone,
         )

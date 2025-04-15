@@ -2,15 +2,14 @@
 # Experiment 1 : wall drones , receiver center is x=135.27 cm, y=264.77cm, dist between is 6cm
 ###
 
-import bisect
 import logging
 import multiprocessing
 import os
 import pickle
+import time
 from contextlib import contextmanager
 from enum import Enum
 from functools import cache
-from multiprocessing import Pool, cpu_count
 from typing import Dict, List
 
 import numpy as np
@@ -437,6 +436,12 @@ segmentation_based_keys = [
     "mean_phase_segmentation",
 ]
 
+v5_raw_keys = v5rx_f64_keys + v5rx_2xf64_keys + ["signal_matrix"]
+
+
+def data_single_radio_to_raw(d):
+    return {k: d[k] for k in v5_raw_keys}
+
 
 class v5inferencedataset(Dataset):
     def __init__(
@@ -585,16 +590,19 @@ class v5inferencedataset(Dataset):
             self.empirical_data = None
 
     # ASSUMING EVERYTHING WILL BE REQUESTED IN SEQUENCE!!
-    def __getitem__(self, idx):
-        # return [
-        #     self.render_session(receiver_idx, idx)
-        #     for receiver_idx in range(self.n_receivers)
-        # ]
-        return None
+    def __getitem__(self, idx, timeout=10.0):
+        start_time = time.time()
+        with self.condition:
+            while idx not in self.store or self.store[idx]["count"] != 2:
+                self.condition.wait(0.01)
+                if (time.time() - start_time) > timeout:
+                    return None
+            return self.store[idx]["data"]
 
     def write_to_idx(self, idx, ridx, raw):
         if idx < self.min_idx:
             return  # we dont need this sample
+
         rendered_data = self.render_session(idx, ridx, raw)
 
         self.lock.acquire()
@@ -661,10 +669,10 @@ class v5inferencedataset(Dataset):
         )
 
         segmentation = segment_session(
-            data["signal_matrix"][0][ridx],
-            gpu=False,
+            data["signal_matrix"][0][0].numpy(),
+            gpu=self.gpu,
             skip_beamformer=False,
-            skip_detrend=False,
+            skip_detrend=self.skip_detrend,
             skip_segmentation=self.skip_segmentation,
             **{
                 "steering_vectors": self.steering_vectors[ridx],
@@ -1084,8 +1092,6 @@ class v5spfdataset(Dataset):
                     if key in self.exclude_keys_from_cache:
                         continue
                     # assert key != "signal_matrix"  # its complex shouldnt get converted!
-                    # print(key, self.receiver_data[receiver_idx][key][:].dtype)
-                    # print(key, self.exclude_keys_from_cache)
                     if old_n == 0:
                         if key in self.receiver_data[receiver_idx]:
                             self.cached_keys[receiver_idx][key] = torch.as_tensor(
@@ -1093,20 +1099,19 @@ class v5spfdataset(Dataset):
                                     np.float32
                                 )  # TODO save as float32?
                             )
-                        else:
-                            if key in ("rx_heading_in_pis",):
-                                self.cached_keys[receiver_idx][key] = (
-                                    torch.as_tensor(
-                                        self.receiver_data[receiver_idx][
-                                            "system_timestamp"
-                                        ][:].astype(
-                                            np.float32
-                                        )  # TODO save as float32?
-                                    )
-                                    * 0
+                        elif key in ("rx_heading_in_pis",):
+                            self.cached_keys[receiver_idx][key] = (
+                                torch.as_tensor(
+                                    self.receiver_data[receiver_idx][
+                                        "system_timestamp"
+                                    ][:].astype(
+                                        np.float32
+                                    )  # TODO save as float32?
                                 )
-                            else:
-                                raise ValueError(f"Missing key {key}")
+                                * 0
+                            )
+                        else:
+                            raise ValueError(f"Missing key {key}")
 
                     else:
                         self.cached_keys[receiver_idx][key][old_n:new_n] = (
@@ -1364,10 +1369,6 @@ class v5spfdataset(Dataset):
             data["rx_pos_xy"] = -data["rx_pos_xy"]
             data["tx_pos_xy"] = -data["tx_pos_xy"]
 
-        # if torch.rand(1).item() < self.snapshots_per_session * 0.00000005:
-        #     print("COLLECT")
-        #     gc.collect()
-        # self.close()
         if self.empirical_data is not None:
             empirical_dist = get_empirical_dist(self, receiver_idx)
             #  ~ 1, snapshots, ntheta(empirical_dist.shape[0])

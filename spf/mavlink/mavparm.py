@@ -178,5 +178,6 @@ class MAVParmDict(dict):
             if not fnmatch.fnmatch(str(k).upper(), wildcard.upper()):
                 continue
             elif k not in self or abs(self[k] - other[k]) > self.mindelta:
+                print("diff found", k, self[k])
                 diffs += 1
         return diffs

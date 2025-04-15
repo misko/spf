@@ -1137,6 +1137,7 @@ def mavlink_controller_run(args):
                 logging.error(f"File {args.diff_params} does not exist!")
                 sys.exit(1)
             diffs = drone.params.diff(args.diff_params)
+            breakpoint()
             logging.info(f"Detected {diffs} differences")
             sys.exit(diffs)
         if args.save_params is not None:

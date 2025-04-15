@@ -5,9 +5,10 @@ import struct
 import sys
 import threading
 import time
+import traceback
 from concurrent import futures
 from typing import Any, Dict, Optional
-import traceback
+
 import numpy as np
 from attr import dataclass
 from tqdm import tqdm
@@ -417,7 +418,7 @@ class DataCollector:
         raise NotImplementedError
 
     def run_inner_collector_thread(self):
-        futures=[]
+        futures = []
         with ThreadPoolExecutorWithQueueSizeLimit(
             max_workers=6, maxsize=12
         ) as executor:
@@ -426,16 +427,26 @@ class DataCollector:
                     data = read_thread.read_q.get()
                     if data is None:
                         return
-                    futures.append(executor.submit(
-                        self.write_to_record_matrix,
-                        read_thread_idx,
-                        record_idx=record_index,
-                        data=data,
-                    ))
-                    while len(futures)>4:
-                        future_exception=futures.pop(0).exception()
+                    futures.append(
+                        executor.submit(
+                            self.write_to_record_matrix,
+                            read_thread_idx,
+                            record_idx=record_index,
+                            data=data,
+                        )
+                    )
+                    while len(futures) > 4:
+                        future_exception = futures.pop(0).exception()
                         if future_exception:
-                            logging.error( "".join(traceback.format_exception(type(future_exception), future_exception, future_exception.__traceback__)))
+                            logging.error(
+                                "".join(
+                                    traceback.format_exception(
+                                        type(future_exception),
+                                        future_exception,
+                                        future_exception.__traceback__,
+                                    )
+                                )
+                            )
         return
 
     def run_collector_thread(self):
@@ -471,24 +482,25 @@ class DroneDataCollectorRaw(DataCollector):
         )
 
     def setup_record_matrix(self):
-        # make sure all receivers are sharing a common buffer size
-        buffer_size = None
-        for receiver in self.yaml_config["receivers"]:
-            assert "buffer-size" in receiver
-            if buffer_size is None:
-                buffer_size = receiver["buffer-size"]
-            else:
-                assert buffer_size == receiver["buffer-size"]
-        # record matrix
-        self.zarr = v4rx_new_dataset(
-            filename=self.data_filename,
-            timesteps=self.yaml_config["n-records-per-receiver"],
-            buffer_size=buffer_size,
-            n_receivers=len(self.yaml_config["receivers"]),
-            chunk_size=512,
-            compressor=None,
-            config=self.yaml_config,
-        )
+        if self.data_filename is not None:
+            # make sure all receivers are sharing a common buffer size
+            buffer_size = None
+            for receiver in self.yaml_config["receivers"]:
+                assert "buffer-size" in receiver
+                if buffer_size is None:
+                    buffer_size = receiver["buffer-size"]
+                else:
+                    assert buffer_size == receiver["buffer-size"]
+            # record matrix
+            self.zarr = v4rx_new_dataset(
+                filename=self.data_filename,
+                timesteps=self.yaml_config["n-records-per-receiver"],
+                buffer_size=buffer_size,
+                n_receivers=len(self.yaml_config["receivers"]),
+                chunk_size=512,
+                compressor=None,
+                config=self.yaml_config,
+            )
 
     def write_to_record_matrix(self, thread_idx, record_idx, data):
         current_pos_heading_and_time = (
@@ -499,10 +511,11 @@ class DroneDataCollectorRaw(DataCollector):
         data.gps_lat = current_pos_heading_and_time["gps"][1]
         data.gps_timestamp = current_pos_heading_and_time["gps_time"]
 
-        z = self.zarr[f"receivers/r{thread_idx}"]
-        z.signal_matrix[record_idx] = data.signal_matrix
-        for k in v4rx_f64_keys + v4rx_2xf64_keys:
-            z[k][record_idx] = getattr(data, k)  # getattr(data, k)
+        if self.data_filename is not None:
+            z = self.zarr[f"receivers/r{thread_idx}"]
+            z.signal_matrix[record_idx] = data.signal_matrix
+            for k in v4rx_f64_keys + v4rx_2xf64_keys:
+                z[k][record_idx] = getattr(data, k)  # getattr(data, k)
 
     def close(self):
         self.zarr.store.close()
