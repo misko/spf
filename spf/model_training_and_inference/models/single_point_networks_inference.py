@@ -5,6 +5,7 @@ import os
 import numpy as np
 import torch
 
+from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
 from spf.s3_utils import (
     b2_file_as_local,
     b2_file_to_local_with_cache,
@@ -17,6 +18,7 @@ from spf.scripts.train_single_point import (
     load_dataloaders,
     load_model,
 )
+from spf.scripts.train_utils import global_config_to_keys_used
 from spf.utils import SEGMENTATION_VERSION, get_md5_of_file
 
 
@@ -37,6 +39,75 @@ def load_model_and_config_from_config_fn_and_checkpoint(
         force_load=True,
     )
     return m, config
+
+
+def single_example_inference(model, global_config, datasets_config, optim_config):
+
+    ds = v5spfdataset(
+        datasets_config["train_paths"][0],
+        nthetas=global_config["nthetas"],
+        ignore_qc=True,
+        precompute_cache=datasets_config["precompute_cache"],
+        empirical_data_fn=datasets_config["empirical_data_fn"],
+        paired=True,
+        skip_fields=set(["signal_matrix"]),
+    )
+
+    keys_to_get = global_config_to_keys_used(global_config=global_config)
+    outputs = []
+    with torch.no_grad():
+        for idx in range(len(ds)):
+            single_example = v5_collate_keys_fast(keys_to_get, [ds[idx]]).to(
+                optim_config["device"]
+            )
+            outputs.append(model(single_example))
+    results = {"single": torch.vstack([output["single"] for output in outputs])}
+
+    sessions_times_radios, snapshots, ntheta = results["single"].shape
+    sessions = sessions_times_radios // 2
+    radios = 2
+    results["single"] = results["single"].reshape(sessions, radios, snapshots, ntheta)
+
+    if "paired" in outputs[0]:
+        results["paired"] = torch.vstack([output["paired"] for output in outputs])
+        results["paired"] = results["paired"].reshape(
+            sessions, radios, snapshots, ntheta
+        )
+    return results
+
+
+def dataloader_inference(
+    model, global_config, datasets_config, optim_config, model_config
+):
+
+    _, val_dataloader, _ = load_dataloaders(
+        datasets_config=datasets_config,
+        optim_config=optim_config,
+        global_config=global_config,
+        model_config=model_config,
+        step=0,
+        epoch=0,
+    )
+
+    model.eval()
+    outputs = []
+    with torch.no_grad():
+        for _, val_batch_data in enumerate(tqdm(val_dataloader, leave=False)):
+            val_batch_data = val_batch_data.to(optim_config["device"])
+            outputs.append(model(val_batch_data))
+    results = {"single": torch.vstack([output["single"] for output in outputs])}
+
+    sessions_times_radios, snapshots, ntheta = results["single"].shape
+    sessions = sessions_times_radios // 2
+    radios = 2
+    results["single"] = results["single"].reshape(sessions, radios, snapshots, ntheta)
+
+    if "paired" in outputs[0]:
+        results["paired"] = torch.vstack([output["paired"] for output in outputs])
+        results["paired"] = results["paired"].reshape(
+            sessions, radios, snapshots, ntheta
+        )
+    return results
 
 
 def convert_datasets_config_to_inference(

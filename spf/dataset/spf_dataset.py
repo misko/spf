@@ -589,6 +589,19 @@ class v5inferencedataset(Dataset):
             self.empirical_data_fn = None
             self.empirical_data = None
 
+    def __iter__(self):
+        self.serving_idx = 0
+        return self
+
+    def __next__(self):
+        sample = None
+        while sample is None:
+            sample = self[self.serving_idx]
+            if sample is None:
+                logging.warning("v5inf iterator waiting long on next sample")
+        self.serving_idx += 1
+        return sample
+
     # ASSUMING EVERYTHING WILL BE REQUESTED IN SEQUENCE!!
     def __getitem__(self, idx, timeout=10.0):
         start_time = time.time()

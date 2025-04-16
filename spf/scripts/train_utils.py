@@ -32,6 +32,7 @@ def load_defaults(config):
     get_key_or_set_default(config, "optim/save_on", "")
     get_key_or_set_default(config, "optim/scheduler", "step")
     get_key_or_set_default(config, "global/signal_matrix_input", False)
+    get_key_or_set_default(config, "global/empirical_input", False)
     get_key_or_set_default(config, "global/windowed_beamformer_input", False)
     get_key_or_set_default(config, "global/sdr_device_type_input", False)
     get_key_or_set_default(config, "datasets/train_on_val", False)
@@ -74,7 +75,6 @@ def global_config_to_keys_used(global_config):
         "craft_y_rad",
         "y_phi",
         "system_timestamp",
-        "empirical",
         "y_rad_binned",
         "craft_y_rad_binned",
         "weighted_windows_stats",
@@ -86,6 +86,8 @@ def global_config_to_keys_used(global_config):
     if global_config is not None:
         if global_config["signal_matrix_input"]:
             keys_to_get += ["abs_signal_and_phase_diff"]
+        if global_config["empirical_input"]:
+            keys_to_get += ["empirical"]
         if global_config["windowed_beamformer_input"]:
             keys_to_get += ["windowed_beamformer"]
         if global_config["beamformer_input"]:

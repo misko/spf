@@ -316,7 +316,8 @@ def load_dataloaders(
             batch_size=batch_size,
         )
         keys_to_get = global_config_to_keys_used(global_config=global_config)
-
+        if "empirical" not in keys_to_get:
+            keys_to_get.append("empirical")
         return {
             # "batch_size": args.batch,
             "num_workers": num_workers,
