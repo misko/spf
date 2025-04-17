@@ -1,24 +1,22 @@
-import hashlib
 import logging
 import os
 
 import numpy as np
 import torch
+from tqdm import tqdm
 
-from spf.dataset.spf_dataset import v5_collate_keys_fast, v5spfdataset
-from spf.s3_utils import (
-    b2_file_as_local,
-    b2_file_to_local_with_cache,
-    spf_exists,
-    spf_open,
+from spf.dataset.spf_dataset import (
+    global_config_to_keys_used,
+    v5_collate_keys_fast,
+    v5spfdataset,
 )
+from spf.s3_utils import b2_file_to_local_with_cache, spf_exists
 from spf.scripts.train_single_point import (
     load_checkpoint,
     load_config_from_fn,
     load_dataloaders,
     load_model,
 )
-from spf.scripts.train_utils import global_config_to_keys_used
 from spf.utils import SEGMENTATION_VERSION, get_md5_of_file
 
 
@@ -39,6 +37,20 @@ def load_model_and_config_from_config_fn_and_checkpoint(
         force_load=True,
     )
     return m, config
+
+
+def single_example_realtime_inference(model, global_config, optim_config, realtime_ds):
+    keys_to_get = global_config_to_keys_used(global_config=global_config)
+    outputs = []
+    with torch.no_grad():
+        for sample in realtime_ds:
+            # get a sample from realtime
+            single_example = v5_collate_keys_fast(keys_to_get, [sample]).to(
+                optim_config["device"]
+            )
+            yield model(single_example)
+            outputs.append(model(single_example))
+    return None
 
 
 def single_example_inference(model, global_config, datasets_config, optim_config):

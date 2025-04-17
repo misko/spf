@@ -1,12 +1,18 @@
+import pickle
 from typing import List
 
 import torch
 
+from spf.dataset.fake_dataset import create_fake_dataset, fake_yaml_v4
 from spf.dataset.spf_dataset import (
     data_single_radio_to_raw,
     training_only_keys,
     v5inferencedataset,
     v5spfdataset,
+)
+from spf.model_training_and_inference.models.single_point_networks_inference import (
+    load_model_and_config_from_config_fn_and_checkpoint,
+    single_example_realtime_inference,
 )
 
 
@@ -62,3 +68,65 @@ def test_preprocessing_equal(perfect_circle_n50_0p01_v4):
         d = ds[idx]
         for ridx in range(2):
             compare_two_entries(d[ridx], v5inf[idx][ridx])
+
+
+def test_v5inference_with_nn(
+    perfect_circle_n50_0p01_v4, paired_net_checkpoint_using_single_checkpoint
+):
+    tmpdirname, zarr_fn = perfect_circle_n50_0p01_v4
+
+    ds = v5spfdataset(  # make sure everything gets segmented here
+        zarr_fn,
+        nthetas=65,
+        ignore_qc=True,
+        precompute_cache=tmpdirname,
+        paired=True,
+        segment_if_not_exist=True,
+        v4=True,
+    )
+
+    v5inf = v5inferencedataset(
+        yaml_fn=zarr_fn.replace(".zarr", "") + ".yaml",
+        nthetas=65,
+        gpu=False,
+        n_parallel=8,
+        paired=True,
+        model_config_fn="",
+        skip_fields=[],
+        vehicle_type="wallarray",
+        skip_segmentation=False,
+        skip_detrend=False,
+    )
+
+    n = 3
+
+    for idx in range(n):
+        d = ds[idx]
+        for ridx in range(2):
+            print(idx, ridx)
+            v5inf.write_to_idx(idx, ridx, data_single_radio_to_raw(d[ridx]))
+
+    # get paired checkpoint results
+    paired_checkpoints_dir = paired_net_checkpoint_using_single_checkpoint
+
+    paired_config_fn = f"{paired_checkpoints_dir}/config.yml"
+    paired_checkpoint_fn = f"{paired_checkpoints_dir}/best.pth"
+
+    # load model and model config
+    model, config = load_model_and_config_from_config_fn_and_checkpoint(
+        config_fn=paired_config_fn, checkpoint_fn=paired_checkpoint_fn
+    )
+    config["optim"]["device"] = "cpu"
+    model.to(config["optim"]["device"])
+
+    import time
+
+    st = time.time()
+    idx = 0
+    for x in single_example_realtime_inference(
+        model, config["global"], config["optim"], realtime_ds=v5inf
+    ):
+        if idx == 2:
+            break
+        idx += 1
+    print(time.time() - st)

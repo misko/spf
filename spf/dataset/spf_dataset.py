@@ -633,7 +633,7 @@ class v5inferencedataset(Dataset):
 
         data["rx_wavelength_spacing"] = torch.tensor(self.rx_wavelength_spacing)
 
-        data["gains"] = data["gains"][:, None]
+        data["gains"] = data["gains"]  # [:, None]
         data["receiver_idx"] = torch.tensor([[ridx]], dtype=torch.int)
 
         data["ground_truth_theta"] = torch.tensor([torch.inf])  # unknown
