@@ -318,10 +318,11 @@ class ParticleFilter(SPFFilter):
         if progress_bar:
             monitor = tqdm.tqdm
 
+        if steps is None:
+            steps = len(self.ds)
+
         trajectory = []
-        for idx in monitor(
-            list(range(len(self.ds) if steps == None else min(steps, len(self.ds))))
-        ):
+        for idx in monitor(list(range(len(self.ds) if steps is None else steps))):
             self.predict(
                 dt=1.0,
                 noise_std=noise_std,

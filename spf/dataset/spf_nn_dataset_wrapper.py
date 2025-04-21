@@ -1,4 +1,4 @@
-from functools import cache
+from functools import lru_cache
 
 import torch
 from torch.utils.data import Dataset
@@ -83,7 +83,7 @@ class v5spfdataset_nn_wrapper(Dataset):
             sample[ridx]["paired"] = paired_nn_inference_rotated
         return sample
 
-    @cache
+    @lru_cache
     def get_inference_for_idx(self, idx):
         if not self.ds.realtime:
             return [
@@ -92,7 +92,7 @@ class v5spfdataset_nn_wrapper(Dataset):
             ]
         return self.get_and_annotate_entry_at_idx(idx)
 
-    @cache
+    @lru_cache
     def get_and_annotate_entry_at_idx(self, idx):
         sample = self.ds[idx]
         if not self.ds.realtime:
@@ -122,7 +122,7 @@ class v5spfdataset_nn_wrapper(Dataset):
         self.serving_idx += 1
         return sample
 
-    @cache
+    @lru_cache
     def __getitem__(self, idx):
         return self.get_and_annotate_entry_at_idx(idx)
 

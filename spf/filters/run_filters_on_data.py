@@ -421,6 +421,7 @@ def run_PF_single_theta_dual_radio_NN(
     theta_dot_err=0.001,
     N=128,
     absolute=False,
+    steps=None,
 ):
     config_fn = f"{os.path.dirname(checkpoint_fn)}/config.yml"
     start_time = time.time()
@@ -440,6 +441,7 @@ def run_PF_single_theta_dual_radio_NN(
         std=torch.tensor([[20, 0.1]]),  # 20 should be random enough to loop around
         noise_std=torch.tensor([[theta_err, theta_dot_err]]),
         return_particles=False,
+        steps=steps,
     )
     metrics = pf.metrics(trajectory=traj_paired)
     metrics["runtime"] = time.time() - start_time

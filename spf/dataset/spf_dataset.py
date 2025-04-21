@@ -472,6 +472,7 @@ class v5inferencedataset(Dataset):
         vehicle_type: str = "",
         max_in_memory: int = 10,
         realtime: bool = True,
+        v4: bool = False,
     ):
         # Store configuration parameters
         self.yaml_fn = yaml_fn
@@ -486,6 +487,8 @@ class v5inferencedataset(Dataset):
         self.condition = multiprocessing.Condition()
         self.lock = multiprocessing.Lock()
         self.store = {}
+
+        self.v4 = v4
 
         # Segmentation parameters control how raw signal is processed into windows
         # and how phase difference is computed between antenna elements
@@ -592,6 +595,7 @@ class v5inferencedataset(Dataset):
         else:
             self.empirical_data_fn = None
             self.empirical_data = None
+        self.serving_idx = -1
 
     def __len__(self):
         return self.serving_idx

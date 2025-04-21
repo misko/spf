@@ -16,6 +16,7 @@ except:
 import math
 
 import torch
+from numba import jit
 from scipy.stats import trim_mean
 
 # numba = False
@@ -846,6 +847,7 @@ def thetas_from_nthetas(nthetas):
     return np.linspace(-np.pi, np.pi, nthetas)
 
 
+@jit(nopython=True)
 def beamformer_given_steering_nomean_cp(
     steering_vectors,  # shape: [n_thetas, n_antennas]
     signal_matrix,  # shape: [n_antennas, n_samples]
