@@ -1,6 +1,8 @@
 import collections
 import collections.abc
+import logging
 import pathlib
+import sys
 import tempfile
 
 import pytest
@@ -17,6 +19,12 @@ from spf.scripts.train_single_point import (
     get_parser_filter,
     load_config_from_fn,
     train_single_point,
+)
+
+logging.basicConfig(
+    level=logging.WARNING,
+    stream=sys.stdout,  # send logs to stdout
+    format="%(levelname)s: %(message)s",
 )
 
 
@@ -40,6 +48,15 @@ def noise1_n128_obits2():
         v5spfdataset(  # make sure everything gets segmented here
             fn,
             nthetas=nthetas,
+            ignore_qc=True,
+            precompute_cache=tmpdirname,
+            paired=True,
+            skip_fields=set(["signal_matrix"]),
+            segment_if_not_exist=True,
+        )
+        v5spfdataset(  # make sure everything gets segmented here
+            fn,
+            nthetas=7,
             ignore_qc=True,
             precompute_cache=tmpdirname,
             paired=True,

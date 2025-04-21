@@ -129,6 +129,7 @@ def convert_datasets_config_to_inference(
     segmentation_version,
     batch_size=1,
     workers=1,
+    v4=False,
 ):
     datasets_config = datasets_config.copy()
     datasets_config.update(
@@ -144,6 +145,7 @@ def convert_datasets_config_to_inference(
             "random_snapshot_size": False,
             "snapshots_stride": 1,
             "train_paths": [ds_fn],
+            # "val_paths": [ds_fn],
             "train_on_val": True,
             "workers": workers,
             "segmentation_version": segmentation_version,
@@ -151,6 +153,7 @@ def convert_datasets_config_to_inference(
     )
     if precompute_cache is not None:
         datasets_config.update({"precompute_cache": precompute_cache})
+    datasets_config.update({"v4": v4})
     return datasets_config
 
 
@@ -167,7 +170,7 @@ def get_inference_on_ds_noexceptions(
     segmentation_version=None,
 ):
     try:
-        get_inference_on_ds(
+        get_nn_inference_on_ds_and_cache(
             ds_fn,
             config_fn,
             checkpoint_fn,
@@ -183,7 +186,7 @@ def get_inference_on_ds_noexceptions(
         logging.error(f"Failed to process {ds_fn} with {str(e)}")
 
 
-def get_inference_on_ds(
+def get_nn_inference_on_ds_and_cache(
     ds_fn,
     config_fn,
     checkpoint_fn,
@@ -194,6 +197,7 @@ def get_inference_on_ds(
     precompute_cache=None,
     crash_if_not_cached=True,
     segmentation_version=None,
+    v4=False,
 ):
     if segmentation_version is None:
         logging.warning(
@@ -203,7 +207,7 @@ def get_inference_on_ds(
     if inference_cache is None:
         assert not crash_if_not_cached
         logging.debug("Inference cache: Skipping cache because not specified")
-        return run_inference_on_ds(
+        return run_nn_inference_on_ds(
             ds_fn=ds_fn,
             config_fn=config_fn,
             checkpoint_fn=checkpoint_fn,
@@ -212,6 +216,7 @@ def get_inference_on_ds(
             workers=workers,
             precompute_cache=precompute_cache,
             segmentation_version=segmentation_version,
+            v4=v4,
         )
     config_checksum = get_md5_of_file(config_fn)
     checkpoint_checksum = get_md5_of_file(checkpoint_fn)
@@ -229,7 +234,7 @@ def get_inference_on_ds(
     assert not crash_if_not_cached, inference_cache_fn
     os.makedirs(os.path.dirname(inference_cache_fn), exist_ok=True)
     logging.debug("Inference cache: Computing results for cache")
-    results = run_inference_on_ds(
+    results = run_nn_inference_on_ds(
         ds_fn=ds_fn,
         config_fn=config_fn,
         checkpoint_fn=checkpoint_fn,
@@ -238,6 +243,7 @@ def get_inference_on_ds(
         workers=workers,
         precompute_cache=precompute_cache,
         segmentation_version=segmentation_version,
+        v4=v4,
     )
     results = {key: value.numpy() for key, value in results.items()}
     np.savez_compressed(inference_cache_fn + ".tmp", **results)
@@ -245,7 +251,7 @@ def get_inference_on_ds(
     return results
 
 
-def run_inference_on_ds(
+def run_nn_inference_on_ds(
     ds_fn,
     config_fn,
     checkpoint_fn,
@@ -254,6 +260,7 @@ def run_inference_on_ds(
     workers,
     precompute_cache,
     segmentation_version,
+    v4=False,
 ):
     # load model and model config
     model, config = load_model_and_config_from_config_fn_and_checkpoint(
@@ -269,6 +276,7 @@ def run_inference_on_ds(
         workers=workers,
         precompute_cache=precompute_cache,
         segmentation_version=segmentation_version,
+        v4=v4,
     )
     try:
         _, val_dataloader, _ = load_dataloaders(
@@ -281,7 +289,7 @@ def run_inference_on_ds(
             no_tqdm=True,
         )
     except Exception as e:
-        logging.error(f"Failed to load file {ds_fn}")
+        logging.error(f"Failed to load file {ds_fn} {e}")
         raise e
     model.eval()
     outputs = []

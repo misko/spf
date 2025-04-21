@@ -5,7 +5,7 @@ import torch
 from spf.model_training_and_inference.models.single_point_networks_inference import (
     convert_datasets_config_to_inference,
     dataloader_inference,
-    get_inference_on_ds,
+    get_nn_inference_on_ds_and_cache,
     load_model_and_config_from_config_fn_and_checkpoint,
     single_example_inference,
 )
@@ -100,7 +100,7 @@ def test_inference_single_checkpoint_against_ds_inference(
         model, config["global"], datasets_config, optim_config
     )
 
-    results = get_inference_on_ds(
+    results = get_nn_inference_on_ds_and_cache(
         ds_fn,
         config_fn,
         checkpoint_fn,

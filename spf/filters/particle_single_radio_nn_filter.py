@@ -10,7 +10,7 @@ from spf.filters.filters import (
 )
 from spf.model_training_and_inference.models.single_point_networks_inference import (
     convert_datasets_config_to_inference,
-    get_inference_on_ds,
+    get_nn_inference_on_ds_and_cache,
     load_model_and_config_from_config_fn_and_checkpoint,
 )
 from spf.scripts.train_single_point import (
@@ -41,7 +41,7 @@ class PFSingleThetaSingleRadioNN(ParticleFilter):
         if not self.ds.temp_file:
             # cache model results
             self.cached_model_inference = torch.as_tensor(
-                get_inference_on_ds(
+                get_nn_inference_on_ds_and_cache(
                     ds_fn=ds.zarr_fn,
                     config_fn=config_fn,
                     checkpoint_fn=checkpoint_fn,

@@ -421,6 +421,7 @@ training_only_keys = [
     "ground_truth_theta",
     "ground_truth_phi",
     "craft_ground_truth_theta",
+    "absolute_theta",
     "y_rad",
     "y_phi",
     "craft_y_rad",
@@ -429,7 +430,7 @@ training_only_keys = [
 
 segmentation_based_keys = [
     "weighted_beamformer",
-    "all_windows_stats",
+    # "all_windows_stats",
     "weighted_windows_stats",
     "downsampled_segmentation_mask",
     "simple_segmentations",
@@ -439,8 +440,8 @@ segmentation_based_keys = [
 v5_raw_keys = v5rx_f64_keys + v5rx_2xf64_keys + ["signal_matrix"]
 
 
-def data_single_radio_to_raw(d):
-    return {k: d[k] for k in v5_raw_keys}
+def data_single_radio_to_raw(d, ds):
+    return {k: d[k] for k in list(set(v5_raw_keys) - set(ds.skip_fields))}
 
 
 class v5inferencedataset(Dataset):
@@ -470,12 +471,15 @@ class v5inferencedataset(Dataset):
         skip_segmentation: bool = True,
         vehicle_type: str = "",
         max_in_memory: int = 10,
+        realtime: bool = True,
     ):
         # Store configuration parameters
         self.yaml_fn = yaml_fn
         self.n_parallel = n_parallel
         self.nthetas = nthetas  # Number of angles to discretize space for beamforming
         self.target_ntheta = self.nthetas if target_ntheta is None else target_ntheta
+
+        self.realtime = realtime
 
         self.max_in_memory = max_in_memory
         self.min_idx = 0
@@ -589,6 +593,9 @@ class v5inferencedataset(Dataset):
             self.empirical_data_fn = None
             self.empirical_data = None
 
+    def __len__(self):
+        return self.serving_idx
+
     def __iter__(self):
         self.serving_idx = 0
         return self
@@ -606,9 +613,11 @@ class v5inferencedataset(Dataset):
     def __getitem__(self, idx, timeout=10.0):
         start_time = time.time()
         with self.condition:
+            print("waitinf to get get", idx, time.time() - start_time)
             while idx not in self.store or self.store[idx]["count"] != 2:
                 self.condition.wait(0.01)
                 if (time.time() - start_time) > timeout:
+                    print("ret waitinf to get get", idx, time.time() - start_time)
                     return None
             return self.store[idx]["data"]
 
@@ -637,6 +646,7 @@ class v5inferencedataset(Dataset):
         data["receiver_idx"] = torch.tensor([[ridx]], dtype=torch.int)
 
         data["ground_truth_theta"] = torch.tensor([torch.inf])  # unknown
+        data["absolute_theta"] = torch.tensor([torch.inf])
         data["y_rad"] = data["ground_truth_theta"]  # torch.inf
 
         data["ground_truth_phi"] = torch.tensor([torch.inf])  # unkown
@@ -774,6 +784,7 @@ class v5spfdataset(Dataset):
         skip_detrend: bool = False,
         vehicle_type: str = "",
         v4: bool = False,
+        realtime: bool = False,
     ):
         logging.debug(f"loading... {prefix}")
         # Store configuration parameters
@@ -785,6 +796,8 @@ class v5spfdataset(Dataset):
         self.target_ntheta = self.nthetas if target_ntheta is None else target_ntheta
         self.valid_entries = None
         self.temp_file = temp_file
+
+        self.realtime = realtime
 
         # Segmentation parameters control how raw signal is processed into windows
         # and how phase difference is computed between antenna elements
@@ -1286,6 +1299,7 @@ class v5spfdataset(Dataset):
         data["ground_truth_theta"] = self.ground_truth_thetas[receiver_idx][
             snapshot_idxs
         ]
+        data["absolute_theta"] = self.absolute_thetas[receiver_idx][snapshot_idxs]
         data["ground_truth_phi"] = self.ground_truth_phis[receiver_idx][snapshot_idxs]
         data["craft_ground_truth_theta"] = self.craft_ground_truth_thetas[snapshot_idxs]
         data["vehicle_type"] = torch.tensor(

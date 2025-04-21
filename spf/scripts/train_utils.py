@@ -43,6 +43,7 @@ def load_defaults(config):
     )
     get_key_or_set_default(config, "datasets/random_adjacent_stride", False)
     get_key_or_set_default(config, "datasets/val_subsample_fraction", 1.0)
+    get_key_or_set_default(config, "datasets/v4", False)
     get_key_or_set_default(config, "optim/scheduler_step", 1)
     get_key_or_set_default(config, "model/load_single", False)
     get_key_or_set_default(config, "model/load_paired", False)
@@ -77,7 +78,7 @@ def global_config_to_keys_used(global_config):
         "system_timestamp",
         "y_rad_binned",
         "craft_y_rad_binned",
-        "weighted_windows_stats",
+        # "weighted_windows_stats",
         "rx_pos_xy",
         "tx_pos_xy",
         "rx_theta_in_pis",
@@ -99,4 +100,6 @@ def global_config_to_keys_used(global_config):
             keys_to_get += ["vehicle_type"]
         if global_config["sdr_device_type_input"]:
             keys_to_get += ["sdr_device_type"]
+        if global_config["phase_input"]:
+            keys_to_get += ["weighted_windows_stats"]
     return keys_to_get

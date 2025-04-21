@@ -194,6 +194,7 @@ def load_dataloaders(
                 readahead=False,
                 skip_fields=skip_fields,
                 segment_if_not_exist=False,
+                v4=datasets_config["v4"],
             )
         except Exception as e:
             logging.error(f"Val: Failed to load {prefix} with error {str(e)}")
@@ -239,6 +240,7 @@ def load_dataloaders(
                 #
                 flip=datasets_config["flip"],
                 double_flip=datasets_config["double_flip"],
+                v4=datasets_config["v4"],
             )
         except Exception as e:
             logging.error(f"Train: Failed to load {prefix} with error {e}")

@@ -5,8 +5,8 @@ from multiprocessing import Pool
 import tqdm
 
 from spf.model_training_and_inference.models.single_point_networks_inference import (
-    get_inference_on_ds,
     get_inference_on_ds_noexceptions,
+    get_nn_inference_on_ds_and_cache,
 )
 
 if __name__ == "__main__":
@@ -57,7 +57,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_fn = partial(
-        get_inference_on_ds_noexceptions if not args.debug else get_inference_on_ds,
+        (
+            get_inference_on_ds_noexceptions
+            if not args.debug
+            else get_nn_inference_on_ds_and_cache
+        ),
         config_fn=args.config_fn,
         checkpoint_fn=args.checkpoint_fn,
         device=args.device,

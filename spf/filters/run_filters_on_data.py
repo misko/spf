@@ -14,6 +14,7 @@ import tqdm
 import yaml
 
 from spf.dataset.spf_dataset import v5spfdataset_manager
+from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
 from spf.filters.ekf_dualradio_filter import SPFPairedKalmanFilter
 from spf.filters.ekf_dualradioXY_filter import SPFPairedXYKalmanFilter
 from spf.filters.ekf_single_radio_filter import SPFKalmanFilter
@@ -415,7 +416,7 @@ def run_PF_single_theta_dual_radio(
 def run_PF_single_theta_dual_radio_NN(
     ds,
     checkpoint_fn,
-    inference_cache,
+    inference_cache=None,
     theta_err=0.1,
     theta_dot_err=0.001,
     N=128,
@@ -423,13 +424,16 @@ def run_PF_single_theta_dual_radio_NN(
 ):
     config_fn = f"{os.path.dirname(checkpoint_fn)}/config.yml"
     start_time = time.time()
-    pf = PFSingleThetaDualRadioNN(
-        ds=ds,
-        checkpoint_fn=checkpoint_fn,
-        config_fn=config_fn,
-        inference_cache=inference_cache,
+
+    nn_ds = v5spfdataset_nn_wrapper(
+        ds,
+        config_fn,
+        checkpoint_fn,
+        inference_cache,
+        device="cpu",
         absolute=absolute,
     )
+    pf = PFSingleThetaDualRadioNN(nn_ds=nn_ds)
     traj_paired = pf.trajectory(
         mean=torch.tensor([[0, 0]]),
         N=N,
