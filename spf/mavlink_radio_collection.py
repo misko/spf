@@ -131,6 +131,11 @@ def parse_args():
         action=argparse.BooleanOptionalAction,
         default=True,
     )
+    parser.add_argument(
+        "--ignore-mode",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
 
     parser.add_argument(
         "--inference", action=argparse.BooleanOptionalAction, default=False
@@ -199,6 +204,7 @@ if __name__ == "__main__":
         drone = Drone(
             connection,
             distance_finder=distance_finder,
+            ignore_mode=args.ignore_mode
         )
         drone.start()
     else:
@@ -206,6 +212,7 @@ if __name__ == "__main__":
             None,
             distance_finder=distance_finder,
             fake=True,
+            ignore_mode=args.ignore_mode
         )
 
     while not args.fake_drone and not drone.drone_ready:
@@ -213,6 +220,7 @@ if __name__ == "__main__":
             f"Drone startup wait for drone ready: gps:{str(drone.gps)} , ekf:{str(drone.ekf_healthy)}"
         )
         time.sleep(10)
+
 
     boundary_name = yaml_config.get("boundary", "franklin_safe")
     if boundary_name == "auto":

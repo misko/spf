@@ -123,6 +123,7 @@ class MAVParmDict(dict):
                 numeric_value = int(value[2:], 16)
             else:
                 numeric_value = float(value)
+            print("WRITTING",line,numeric_value)
 
             if mav is not None:
                 if check:
@@ -178,6 +179,6 @@ class MAVParmDict(dict):
             if not fnmatch.fnmatch(str(k).upper(), wildcard.upper()):
                 continue
             elif k not in self or abs(self[k] - other[k]) > self.mindelta:
-                print("diff found", k, self[k])
+                print("diff found", k, self[k] if k in self else None, other[k])
                 diffs += 1
         return diffs

@@ -239,6 +239,7 @@ class Drone:
         tolerance_in_m=5,
         distance_finder=None,
         fake=False,
+        ignore_mode=False
     ):
         self.connection = connection
         self.param_count = 0
@@ -246,6 +247,7 @@ class Drone:
         self.gps_time = 0
         self.time_since_boot = 0
         self.distance_finder = distance_finder
+        self.ignore_mode=ignore_mode
         if self.distance_finder is not None:
             self.distance_finder.run_in_new_thread()
 
@@ -486,43 +488,51 @@ class Drone:
             )
             time.sleep(10)
 
-        while self.mav_mode != "ROVER_MODE_MANUAL":
-            time.sleep(10)
-            logging.info("waiting for rover to move into manual mode...")
-            self.buzzer(tones["wait"])
+        if self.ignore_mode:
+            time.sleep(2)
+            while self.planner_should_move:
+                self.planner_in_control = True
+                time.sleep(1)
 
-        while self.mav_mode != "ROVER_MODE_GUIDED":
-            time.sleep(10)
-            logging.info("waiting for rover to move into guided mode...")
-            self.buzzer(tones["ready"])
+        else:
+            while self.mav_mode != "ROVER_MODE_MANUAL":
+                time.sleep(10)
+                logging.info("waiting for rover to move into manual mode...")
+                self.buzzer(tones["wait"])
 
-        if not self.armed:
-            self.arm()
-            time.sleep(0.1)
-        logging.info("Planner starting to issue move commands...")
+            while self.mav_mode != "ROVER_MODE_GUIDED":
+                time.sleep(10)
+                logging.info("waiting for rover to move into guided mode...")
+                self.buzzer(tones["ready"])
 
-        self.move_to_point(home)
-        time.sleep(2)
+            if not self.armed:
+                self.arm()
+                time.sleep(0.1)
+            logging.info("Planner starting to issue move commands...")
 
-        # drone is now ready
-        # point is long, lat
-        yp = self.planner.yield_points()
-        point = None
-        logging.info(f"About to enter planned main loop {self.planner}")
-        # breakpoint()
-        while self.planner_should_move:
-            next_point = next(yp)
-            # logging.info(f"In planner main loop {next_point} {point}")
-            if (
-                point is not None
-                and np.isclose(next_point, point, atol=1e-10, rtol=1e-10).all()
-            ):
-                time.sleep(0.2)
-            else:
-                point = next_point
-                self.move_to_point(point)
-            self.planner_in_control = True
-            # time.sleep(2)
+            self.move_to_point(home)
+            time.sleep(2)
+
+            # drone is now ready
+            # point is long, lat
+            yp = self.planner.yield_points()
+            point = None
+            logging.info(f"About to enter planned main loop {self.planner}")
+            # breakpoint()
+            while self.planner_should_move:
+                next_point = next(yp)
+                # logging.info(f"In planner main loop {next_point} {point}")
+                if (
+                    point is not None
+                    and np.isclose(next_point, point, atol=1e-10, rtol=1e-10).all()
+                ):
+                    time.sleep(0.2)
+                else:
+                    point = next_point
+                    self.move_to_point(point)
+                self.planner_in_control = True
+                # time.sleep(2)
+                
         self.planner_in_control = False
 
     def get_cmd(self, cmd):
@@ -1153,23 +1163,26 @@ def mavlink_controller_run(args):
         sys.exit(0)
 
     if args.mode is not None:
-        target_mode = args.mode.upper()
-        if target_mode not in switchable_modes:
-            logging.error("Not a valid switchable mode")
-            sys.exit(1)
-        result_mode = switchable_modes[target_mode]
-        return_code = 1
-        for _ in range(3):  # 3 retries
-            drone.set_mode(target_mode)
-            time.sleep(2)
-            if drone.mav_mode == result_mode:
-                return_code = 0
-                break
-
+        return_code=set_drone_mode(drone,args.mode)
         sys.exit(return_code)
 
     while True:
         time.sleep(200)
+
+def set_drone_mode(drone,mode):
+    target_mode = mode.upper()
+    if target_mode not in switchable_modes:
+        logging.error("Not a valid switchable mode")
+        sys.exit(1)
+    result_mode = switchable_modes[target_mode]
+    return_code = 1
+    for _ in range(3):  # 3 retries
+        drone.set_mode(target_mode)
+        time.sleep(2)
+        if drone.mav_mode == result_mode:
+            return_code = 0
+            break
+    return return_code
 
 
 if __name__ == "__main__":
