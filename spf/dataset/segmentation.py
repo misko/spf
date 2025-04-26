@@ -592,7 +592,7 @@ def segment_session(
             # If no signal windows were identified, use placeholder values
             segmentation_results["weighted_windows_stats"] = np.array([-1, -1, -1])
     else:
-        segmentation_results['all_windows_stats']=get_all_windows_stats(v,**kwrgs)[1]
+        segmentation_results['all_windows_stats']=get_all_windows_stats(v=v,window_size=kwrgs['window_size'],stride=kwrgs['stride'],trim=kwrgs['trim'])[1]
 
         # Transpose the window statistics for easier processing
         # all_windows_stats shape is (3, N_windows) where:
@@ -616,11 +616,6 @@ def get_all_windows_stats(
     window_size,
     stride,
     trim,
-    mean_diff_threshold,
-    max_stddev_threshold,
-    drop_less_than_size,
-    min_abs_signal,
-    steering_vectors=None,  # not used but passed in
 ):
     # Verify the signal matrix has the expected shape (2 antennas)
     assert v.ndim == 2 and v.shape[0] == 2
@@ -643,11 +638,9 @@ def simple_segment(
     window_size,
     stride,
     trim,
-    mean_diff_threshold,
     max_stddev_threshold,
     drop_less_than_size,
     min_abs_signal,
-    steering_vectors=None,  # not used but passed in
 ):
     """
     Segment a radio signal into regions containing valid signal vs. noise.

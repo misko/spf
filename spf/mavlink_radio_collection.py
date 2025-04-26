@@ -280,6 +280,7 @@ if __name__ == "__main__":
             vehicle_type="rover",
             skip_segmentation=True,
             skip_detrend=False,
+            max_store_size=2
         )
         nn_ds = v5spfdataset_nn_wrapper(
             v5inf,

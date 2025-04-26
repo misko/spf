@@ -515,11 +515,8 @@ class DroneDataCollectorRaw(DataCollector):
         data.gps_timestamp = current_pos_heading_and_time["gps_time"]
 
         if self.realtime_v5inf is not None:
-            print("WRITTING!!")
             data_dict=asdict(data)
             data_dict['signal_matrix']=data_dict['signal_matrix'].reshape(1,1,*data_dict['signal_matrix'].shape)
-            print("KEYS IN DICT",data_dict.keys())
-            print("SIG",data_dict['signal_matrix'].shape)
             self.realtime_v5inf.write_to_idx(record_idx, thread_idx, data_dict)
         if self.data_filename is not None:
             z = self.zarr[f"receivers/r{thread_idx}"]

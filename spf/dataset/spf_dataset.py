@@ -1,7 +1,4 @@
-###
-# Experiment 1 : wall drones , receiver center is x=135.27 cm, y=264.77cm, dist between is 6cm
-###
-
+import threading
 import logging
 import multiprocessing
 import os
@@ -10,8 +7,8 @@ import time
 from contextlib import contextmanager
 from enum import Enum
 from functools import cache
-from multiprocessing import Queue
 from typing import Dict, List
+import queue
 
 import numpy as np
 import torch
@@ -473,6 +470,7 @@ class v5inferencedataset(Dataset):
         max_in_memory: int = 10,
         realtime: bool = True,
         v4: bool = False,
+        max_store_size=None,
     ):
         # Store configuration parameters
         self.yaml_fn = yaml_fn
@@ -480,6 +478,7 @@ class v5inferencedataset(Dataset):
         self.target_ntheta = self.nthetas if target_ntheta is None else target_ntheta
 
         self.realtime = realtime
+        self.max_store_size=max_store_size
 
         self.max_in_memory = max_in_memory
         self.min_idx = 0
@@ -597,6 +596,34 @@ class v5inferencedataset(Dataset):
             self.empirical_data_fn = None
             self.empirical_data = None
         self.serving_idx = -1
+
+        #setup the reader thread
+        self.stop_event = threading.Event()
+        self.reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
+        self.reader_thread.start()
+
+    def _reader_loop(self):
+        while not self.stop_event.is_set():
+            try:
+                idx, ridx, rendered_data = self.incoming_queue.get(timeout=0.1)
+                with self.lock:
+                    if idx not in self.store:
+                        self.store[idx] = {
+                            "count": 0,
+                            "data": [None, None],
+                        }
+                    self.store[idx]["data"][ridx] = rendered_data
+                    self.store[idx]["count"] += 1
+                    print("LENGTH OF STORE IS",len(self.store))
+                    if self.max_store_size is not None and len(self.store)>self.max_store_size:
+                        for idx in sorted(self.store.keys())[:-self.max_store_size]:
+                            self.store.pop(idx)
+                            print("POPPING",idx)
+
+            except queue.Empty:
+                pass  # No new item, just keep looping
+            except Exception as e:
+                logging.exception("Error in v5inferencedataset queue reader thread")
 
     def __len__(self):
         return self.serving_idx
