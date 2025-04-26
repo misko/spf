@@ -57,7 +57,7 @@ dry-run: False
 
 data-version: 4
 
-seconds-per-sample: 0.5
+seconds-per-sample: 0.1
 
 
 collector:

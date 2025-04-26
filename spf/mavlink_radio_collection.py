@@ -10,6 +10,8 @@ import yaml
 from pymavlink import mavutil
 
 from spf.data_collector import DroneDataCollectorRaw
+from spf.dataset.spf_dataset import v5inferencedataset,training_only_keys
+from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
 from spf.gps.boundaries import boundaries  # crissy_boundary_convex
 from spf.gps.boundaries import find_closest_boundary
@@ -18,6 +20,7 @@ from spf.mavlink.mavlink_controller import (
     drone_get_planner,
     get_ardupilot_serial,
 )
+from spf.scripts.train_utils import load_config_from_fn
 from spf.utils import (
     DataVersionNotImplemented,
     filenames_from_time_in_seconds,
@@ -127,12 +130,34 @@ def parse_args():
         default=None,
     )
     parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--checkpoint-config",
+        type=str,
+        default=None,
+    )
+
+    parser.add_argument(
+        "--nthetas",
+        type=int,
+        help="nthetas",
+        default=None,
+    )
+    parser.add_argument(
         "--ultrasonic",
         action=argparse.BooleanOptionalAction,
         default=True,
     )
     parser.add_argument(
         "--ignore-mode",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--realtime",
         action=argparse.BooleanOptionalAction,
         default=False,
     )
@@ -237,8 +262,42 @@ if __name__ == "__main__":
     if args.inference:
         pass
 
+
+    if args.checkpoint:
+        # load model config and use that theta
+        config = load_config_from_fn(args.checkpoint_config)
+        assert args.nthetas is None, "nthetas cannot be set when loading checkpoint"
+        args.nthetas = config['global']['nthetas']
+    elif args.nthetas is None:
+        logging.warning("Setting nthetas to 65 as default")
+        args.nthetas=65
+
+    if args.realtime:
+        v5inf = v5inferencedataset(
+            yaml_fn=temp_filenames["yaml"],
+            nthetas=args.nthetas,
+            gpu=False,
+            paired=True,
+            model_config_fn="",
+            skip_fields=["signal_matrix"] + training_only_keys,
+            vehicle_type="rover",
+            skip_segmentation=True,
+            skip_detrend=False,
+        )
+        nn_ds = v5spfdataset_nn_wrapper(
+            v5inf,
+            args.checkpoint_config,
+            args.checkpoint,
+            inference_cache=None,
+            device="cpu",
+            v4=False,
+            absolute=True,
+        )
+
+
     if yaml_config["data-version"] == 4:
         data_collector = DroneDataCollectorRaw(
+            realtime_v5inf=v5inf if args.realtime else None,
             data_filename=temp_filenames["data"] if args.write_to_disk else None,
             yaml_config=yaml_config,
             position_controller=drone,

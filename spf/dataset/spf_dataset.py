@@ -455,7 +455,6 @@ class v5inferencedataset(Dataset):
         skip_fields: List[
             str
         ] = [],  # Data fields to exclude during loading to save memory
-        n_parallel: int = 20,  # Number of parallel processes for segmentation
         empirical_data_fn: (
             str | None
         ) = None,  # Path to empirical distribution data file for phase-to-angle mapping
@@ -476,7 +475,6 @@ class v5inferencedataset(Dataset):
     ):
         # Store configuration parameters
         self.yaml_fn = yaml_fn
-        self.n_parallel = n_parallel
         self.nthetas = nthetas  # Number of angles to discretize space for beamforming
         self.target_ntheta = self.nthetas if target_ntheta is None else target_ntheta
 
@@ -629,7 +627,7 @@ class v5inferencedataset(Dataset):
         if idx < self.min_idx:
             return  # we dont need this sample
 
-        rendered_data = self.render_session(idx, ridx, raw)
+        rendered_data = self.render_session(ridx, raw)
 
         self.lock.acquire()
         if idx not in self.store:
@@ -641,7 +639,7 @@ class v5inferencedataset(Dataset):
         with self.condition:
             self.condition.notify_all()
 
-    def render_session(self, idx, ridx, data):
+    def render_session(self, ridx, data):
         snapshot_idxs = [0]  # which snapshots to get
 
         data["rx_wavelength_spacing"] = torch.tensor(self.rx_wavelength_spacing)
@@ -666,6 +664,7 @@ class v5inferencedataset(Dataset):
 
         if "signal_matrix" not in self.skip_fields:
             # WARNGING this does not respect flipping!
+            # signal matrix ~ 1,1,2,524288
             abs_signal = data["signal_matrix"].abs().to(torch.float32)
             assert data["signal_matrix"].shape[0] == 1
             pd = torch_get_phase_diff(data["signal_matrix"][0]).to(torch.float32)
@@ -673,19 +672,21 @@ class v5inferencedataset(Dataset):
                 [abs_signal, pd[None, :, None]], dim=2
             )
 
-        data["rx_pos_mm"] = torch.vstack(
-            [
-                data["rx_pos_x_mm"],
-                data["rx_pos_y_mm"],
-            ]
-        ).T
+        # data["rx_pos_mm"] = torch.vstack(
+        #     [
+        #         data["rx_pos_x_mm"], # size = [1]
+        #         data["rx_pos_y_mm"], # size = [1]
+        #     ]
+        # ).T # torch.Size([1, 2])
 
-        data["tx_pos_mm"] = torch.vstack(
-            [
-                data["tx_pos_x_mm"],
-                data["tx_pos_y_mm"],
-            ]
-        ).T
+        # data["tx_pos_mm"] = torch.vstack(
+        #     [
+        #         data["tx_pos_x_mm"], # size = [1]
+        #         data["tx_pos_y_mm"], # size = [1]
+        #     ]
+        # ).T # torch.Size([1, 2])
+
+        data["rx_pos_mm"]=data["tx_pos_mm"]=torch.ones(1,2)*torch.nan
 
         data["rx_pos_xy"] = (
             data["rx_pos_mm"][snapshot_idxs].unsqueeze(0) / self.distance_normalization
@@ -695,8 +696,13 @@ class v5inferencedataset(Dataset):
             data["tx_pos_mm"][snapshot_idxs].unsqueeze(0) / self.distance_normalization
         )
 
+
+        signal_matrix=data["signal_matrix"][0][0]
+        if isinstance(signal_matrix,torch.Tensor):
+            signal_matrix=signal_matrix.numpy()
+            
         segmentation = segment_session(
-            data["signal_matrix"][0][0].numpy(),
+            signal_matrix,
             gpu=self.gpu,
             skip_beamformer=False,
             skip_detrend=self.skip_detrend,
