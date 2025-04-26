@@ -591,6 +591,17 @@ def segment_session(
         else:
             # If no signal windows were identified, use placeholder values
             segmentation_results["weighted_windows_stats"] = np.array([-1, -1, -1])
+    else:
+        segmentation_results['all_windows_stats']=get_all_windows_stats(v,**kwrgs)[1]
+
+        # Transpose the window statistics for easier processing
+        # all_windows_stats shape is (3, N_windows) where:
+        # - Row 0: Trimmed circular mean of phase difference
+        # - Row 1: Trimmed standard deviation of phase difference
+        # - Row 2: Median absolute signal amplitude
+        segmentation_results["all_windows_stats"] = (
+            segmentation_results["all_windows_stats"].astype(np.float16).T
+        )
 
     # add a singleton in front of each of these
     segmentation_results = {
@@ -600,6 +611,32 @@ def segment_session(
 
     return segmentation_results
 
+def get_all_windows_stats(
+    v,
+    window_size,
+    stride,
+    trim,
+    mean_diff_threshold,
+    max_stddev_threshold,
+    drop_less_than_size,
+    min_abs_signal,
+    steering_vectors=None,  # not used but passed in
+):
+    # Verify the signal matrix has the expected shape (2 antennas)
+    assert v.ndim == 2 and v.shape[0] == 2
+
+    # Calculate phase differences between the two antenna elements
+    # This gives us the phase shift that can be used to determine angle of arrival
+    pd = get_phase_diff(v).astype(np.float32)
+
+    # Calculate statistics for each window:
+    # - Trimmed circular mean of phase differences
+    # - Trimmed standard deviation of phase differences
+    # - Median absolute signal amplitude
+    step_idxs, step_stats = windowed_trimmed_circular_mean_and_stddev(
+        v, pd, window_size=window_size, stride=stride, trim=trim
+    )
+    return step_idxs, step_stats
 
 def simple_segment(
     v,
@@ -658,9 +695,10 @@ def simple_segment(
     # - Trimmed circular mean of phase differences
     # - Trimmed standard deviation of phase differences
     # - Median absolute signal amplitude
-    window_idxs_and_stats = windowed_trimmed_circular_mean_and_stddev(
-        v, pd, window_size=window_size, stride=stride, trim=trim
-    )
+    # window_idxs_and_stats = windowed_trimmed_circular_mean_and_stddev(
+    #     v, pd, window_size=window_size, stride=stride, trim=trim
+    # )
+    window_idxs_and_stats = get_all_windows_stats(v=v,window_size=window_size,stride=stride,trim=trim)
     # window_idxs_and_stats has two components:
     # [0] = list of window indices (start_idx, end_idx)
     # [1] = array of statistics (trimmed_mean, trimmed_stddev, abs_signal_median)

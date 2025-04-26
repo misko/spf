@@ -10,7 +10,9 @@ from concurrent import futures
 from typing import Any, Dict, Optional
 
 import numpy as np
-from attr import dataclass
+#from attr import dataclass
+from dataclasses import dataclass, asdict
+
 from tqdm import tqdm
 
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
@@ -216,7 +218,7 @@ class ThreadedRX:
         tries = 0
         while tries < max_retries:
             try:
-                signal_matrix = self.pplus.sdr.rx()
+                signal_matrix = self.pplus.sdr.rx() # complex128 for pluto, eventhough its 12bit TODO
                 rssis = self.pplus.rssis()
                 gains = self.pplus.gains()
                 return {"signal_matrix": signal_matrix, "rssis": rssis, "gains": gains}
@@ -420,7 +422,7 @@ class DataCollector:
     def run_inner_collector_thread(self):
         futures = []
         with ThreadPoolExecutorWithQueueSizeLimit(
-            max_workers=6, maxsize=12
+            max_workers=1, maxsize=1
         ) as executor:
             for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
                 for read_thread_idx, read_thread in enumerate(self.read_threads):
@@ -474,12 +476,13 @@ class DataCollector:
 
 # V4 data format
 class DroneDataCollectorRaw(DataCollector):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, realtime_v5inf, *args, **kwargs):
         super(DroneDataCollectorRaw, self).__init__(
             *args,
             thread_class=ThreadedRXRawV4,
             **kwargs,
         )
+        self.realtime_v5inf=realtime_v5inf
 
     def setup_record_matrix(self):
         if self.data_filename is not None:
@@ -511,11 +514,19 @@ class DroneDataCollectorRaw(DataCollector):
         data.gps_lat = current_pos_heading_and_time["gps"][1]
         data.gps_timestamp = current_pos_heading_and_time["gps_time"]
 
+        if self.realtime_v5inf is not None:
+            print("WRITTING!!")
+            data_dict=asdict(data)
+            data_dict['signal_matrix']=data_dict['signal_matrix'].reshape(1,1,*data_dict['signal_matrix'].shape)
+            print("KEYS IN DICT",data_dict.keys())
+            print("SIG",data_dict['signal_matrix'].shape)
+            self.realtime_v5inf.write_to_idx(record_idx, thread_idx, data_dict)
         if self.data_filename is not None:
             z = self.zarr[f"receivers/r{thread_idx}"]
             z.signal_matrix[record_idx] = data.signal_matrix
             for k in v4rx_f64_keys + v4rx_2xf64_keys:
                 z[k][record_idx] = getattr(data, k)  # getattr(data, k)
+
 
     def close(self):
         self.zarr.store.close()
