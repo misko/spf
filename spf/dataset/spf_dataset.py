@@ -10,6 +10,7 @@ import time
 from contextlib import contextmanager
 from enum import Enum
 from functools import cache
+from multiprocessing import Queue
 from typing import Dict, List
 
 import numpy as np
@@ -488,6 +489,8 @@ class v5inferencedataset(Dataset):
         self.lock = multiprocessing.Lock()
         self.store = {}
 
+        self.incoming_queue = multiprocessing.Queue()
+
         self.v4 = v4
 
         # Segmentation parameters control how raw signal is processed into windows
@@ -616,30 +619,38 @@ class v5inferencedataset(Dataset):
     # ASSUMING EVERYTHING WILL BE REQUESTED IN SEQUENCE!!
     def __getitem__(self, idx, timeout=10.0):
         start_time = time.time()
-        with self.condition:
-            print("waitinf to get get", idx, time.time() - start_time)
-            while idx not in self.store or self.store[idx]["count"] != 2:
-                self.condition.wait(0.01)
-                if (time.time() - start_time) > timeout:
-                    print("ret waitinf to get get", idx, time.time() - start_time)
-                    return None
-            return self.store[idx]["data"]
+        # with self.condition:
+        print("waitinf to get get", idx, time.time() - start_time)
+        while idx not in self.store or self.store[idx]["count"] != 2:
+            # self.condition.wait(0.01)
+            self.check_for_new_data()
+            time.sleep(0.02)
+            if (time.time() - start_time) > timeout:
+                print("ret waitinf to get get", idx, time.time() - start_time)
+                return None
+        return self.store[idx]["data"]
+
+    def check_for_new_data(self):
+        with self.lock:
+            while not self.incoming_queue.empty():
+                # shouldnt wait since we checked above
+                idx, ridx, rendered_data = self.incoming_queue.get_nowait()
+                if idx not in self.store:
+                    self.store[idx] = {
+                        "count": 0,
+                        "data": [None, None],
+                    }  # entry not ready
+                self.store[idx]["data"][ridx] = rendered_data
+                self.store[idx]["count"] += 1
 
     def write_to_idx(self, idx, ridx, raw):
-        if idx < self.min_idx:
-            return  # we dont need this sample
-
+        # this is the heavy lifting of processing, do it on this process
         rendered_data = self.render_session(idx, ridx, raw)
 
-        self.lock.acquire()
-        if idx not in self.store:
-            self.store[idx] = {"count": 0, "data": [None, None]}  # entry not ready
-        self.store[idx]["data"][ridx] = rendered_data
-        self.store[idx]["count"] += 1
-        self.lock.release()
+        self.incoming_queue.put((idx, ridx, rendered_data))
 
-        with self.condition:
-            self.condition.notify_all()
+        # with self.condition:
+        #    self.condition.notify_all()
 
     def render_session(self, idx, ridx, data):
         snapshot_idxs = [0]  # which snapshots to get
@@ -694,7 +705,7 @@ class v5inferencedataset(Dataset):
         data["tx_pos_xy"] = (
             data["tx_pos_mm"][snapshot_idxs].unsqueeze(0) / self.distance_normalization
         )
-
+        breakpoint()
         segmentation = segment_session(
             data["signal_matrix"][0][0].numpy(),
             gpu=self.gpu,
