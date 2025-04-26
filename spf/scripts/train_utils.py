@@ -45,6 +45,7 @@ def load_defaults(config):
     get_key_or_set_default(config, "datasets/val_subsample_fraction", 1.0)
     get_key_or_set_default(config, "datasets/v4", False)
     get_key_or_set_default(config, "optim/scheduler_step", 1)
+    get_key_or_set_default(config, "optim/compile", False)
     get_key_or_set_default(config, "model/load_single", False)
     get_key_or_set_default(config, "model/load_paired", False)
 

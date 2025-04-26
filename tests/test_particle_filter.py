@@ -253,7 +253,6 @@ def test_single_theta_dual_radioNN_nnwrapper(
             yaml_fn=ds.zarr_fn.replace(".zarr", "") + ".yaml",
             nthetas=65,
             gpu=False,
-            n_parallel=8,
             paired=True,
             model_config_fn="",
             skip_fields=["signal_matrix"] + training_only_keys,

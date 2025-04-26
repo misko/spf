@@ -1120,6 +1120,10 @@ def train_single_point(args):
     logging.info("MODEL:")
     logging.info(m)
 
+    if config["optim"]["compile"]:
+        logging.info("COMPILE MODEL")
+        m = torch.compile(m)
+
     model_checksum("load_model:", m)
     optimizer, scheduler = load_optimizer(config["optim"], m.parameters())
 
@@ -1290,7 +1294,10 @@ def train_single_point(args):
 
             optimizer.zero_grad()
             with torch.autocast(torch_device_str, enabled=config["optim"]["amp"]):
-                output = m(batch_data)
+                if config["optim"]["compile"]:
+                    output = m(dict(batch_data))
+                else:
+                    output = m(batch_data)
 
                 loss_d, fig = compute_loss(
                     output,
