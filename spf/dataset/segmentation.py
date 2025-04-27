@@ -35,7 +35,7 @@ DEFAULT_SEGMENT_ARGS = {
     "window_size": 2048,
     "stride": 2048,
     "trim": 20.0,
-    "mean_diff_threshold": 0.2,
+    # "mean_diff_threshold": 0.2,
     "max_stddev_threshold": 0.5,
     "drop_less_than_size": 3000,
     "min_abs_signal": 40,
@@ -539,7 +539,17 @@ def segment_session(
         # 4. Identifies windows as "signal" vs "noise" based on phase stability and amplitude
         # 5. Combines adjacent windows with similar phase characteristics
         # 6. Returns a list of segment information and signal statistics
-        segmentation_results.update(simple_segment(v, **kwrgs))
+        segmentation_results.update(
+            simple_segment(
+                v=v,
+                window_size=kwrgs["window_size"],
+                stride=kwrgs["stride"],
+                trim=kwrgs["trim"],
+                max_stddev_threshold=kwrgs["max_stddev_threshold"],
+                drop_less_than_size=kwrgs["drop_less_than_size"],
+                min_abs_signal=kwrgs["min_abs_signal"],
+            )
+        )
 
         # Transpose the window statistics for easier processing
         # all_windows_stats shape is (3, N_windows) where:
@@ -592,7 +602,12 @@ def segment_session(
             # If no signal windows were identified, use placeholder values
             segmentation_results["weighted_windows_stats"] = np.array([-1, -1, -1])
     else:
-        segmentation_results['all_windows_stats']=get_all_windows_stats(v=v,window_size=kwrgs['window_size'],stride=kwrgs['stride'],trim=kwrgs['trim'])[1]
+        segmentation_results["all_windows_stats"] = get_all_windows_stats(
+            v=v,
+            window_size=kwrgs["window_size"],
+            stride=kwrgs["stride"],
+            trim=kwrgs["trim"],
+        )[1]
 
         # Transpose the window statistics for easier processing
         # all_windows_stats shape is (3, N_windows) where:
@@ -610,6 +625,7 @@ def segment_session(
     }
 
     return segmentation_results
+
 
 def get_all_windows_stats(
     v,
@@ -632,6 +648,7 @@ def get_all_windows_stats(
         v, pd, window_size=window_size, stride=stride, trim=trim
     )
     return step_idxs, step_stats
+
 
 def simple_segment(
     v,
@@ -691,7 +708,9 @@ def simple_segment(
     # window_idxs_and_stats = windowed_trimmed_circular_mean_and_stddev(
     #     v, pd, window_size=window_size, stride=stride, trim=trim
     # )
-    window_idxs_and_stats = get_all_windows_stats(v=v,window_size=window_size,stride=stride,trim=trim)
+    window_idxs_and_stats = get_all_windows_stats(
+        v=v, window_size=window_size, stride=stride, trim=trim
+    )
     # window_idxs_and_stats has two components:
     # [0] = list of window indices (start_idx, end_idx)
     # [1] = array of statistics (trimmed_mean, trimmed_stddev, abs_signal_median)

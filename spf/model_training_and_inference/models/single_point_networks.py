@@ -12,12 +12,12 @@ from spf.rf import rotate_dist, torch_pi_norm
 TEMP = 10
 
 
-@torch.jit.script
+# @torch.jit.script
 def cdf(mean: torch.Tensor, sigma: torch.Tensor, value: float):
     return 0.5 * (1 + torch.erf((value - mean) * sigma.reciprocal() / sqrt(2)))
 
 
-@torch.jit.script
+# @torch.jit.script
 def normal_correction_for_bounded_range(
     mean: torch.Tensor, sigma: torch.Tensor, max_y: float
 ):
@@ -468,10 +468,16 @@ class PrepareInput(nn.Module):
         )
 
     def prepare_input(self, batch, additional_inputs=[]):
-        dropout_mask = (
-            torch.rand((8, *batch["y_rad"].shape), device=batch["y_rad"].device)
-            < self.input_dropout
-        )
+        if self.training:
+            # dropout_mask = (
+            #     torch.rand((8, *batch["y_rad"].shape), device=batch["y_rad"].device)
+            #     < self.input_dropout
+            # )
+            shape = batch["y_rad"].shape
+            rand_shape = torch.Size((8, shape[0], shape[1]))
+            dropout_mask = torch.rand(rand_shape, device=batch["y_rad"].device).to(
+                torch.bool
+            )
         # 1 , 65
         # if mask out 65, then scale up 1 by 65?
         # [ batch, samples, dim of input ]
@@ -976,6 +982,7 @@ class SinglePointWithBeamformer(nn.Module):
             additional_inputs.append(
                 self.signal_matrix_net(input_with_spacing.select(1, 0))[:, None]
             )
+        # print(batch["all_windows_stats"].abs().mean())
         return_dict["single"] = torch.nn.functional.normalize(
             self.single_point_with_beamformer_ffnn(
                 self.prepare_input.prepare_input(batch, additional_inputs),

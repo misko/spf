@@ -55,7 +55,7 @@ def pi_norm_halfpi(x):
     return ((x + np.pi / 2) % (2 * np.pi / 2)) - np.pi / 2
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_circular_diff_to_mean(angles: torch.Tensor, means: torch.Tensor):
     assert means.ndim == 1
     a = torch.abs(means[:, None] - angles) % (2 * torch.pi)
@@ -68,12 +68,12 @@ def torch_circular_diff_to_mean(angles: torch.Tensor, means: torch.Tensor):
 #     return ((x + max_angle) % (2 * max_angle)) - max_angle
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_pi_norm_pi(x):
     return ((x + torch.pi) % (2 * torch.pi)) - torch.pi
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_pi_norm(x: torch.Tensor, max_angle: float = torch.pi):
     return ((x + max_angle) % (2 * max_angle)) - max_angle
 
@@ -102,7 +102,7 @@ def circular_stddev(v, u, trim=50.0):
 
 
 # returns circular_stddev and trimmed cricular stddev
-@torch.jit.script
+# @torch.jit.script
 def torch_circular_stddev(v: torch.Tensor, u: torch.Tensor, trim: float):  # =50.0):
     diff_from_mean = torch_circular_diff_to_mean(angles=v, means=u.reshape(-1))
 
@@ -126,7 +126,7 @@ def torch_circular_stddev(v: torch.Tensor, u: torch.Tensor, trim: float):  # =50
     return stddev, trimmed_stddev
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_reduce_theta_to_positive_y(ground_truth_thetas):
     reduced_thetas = ground_truth_thetas.clone()
     # |theta|>np.pi/2 means its on the y<0
@@ -236,7 +236,7 @@ def circular_mean_single(angles, trim, weights=None):
     return pi_norm(cm), pi_norm(_cm)
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_circular_mean_notrim(angles: torch.Tensor):
     assert angles.ndim == 2
     _sin_angles = torch.sin(angles)
@@ -247,7 +247,7 @@ def torch_circular_mean_notrim(angles: torch.Tensor):
     return r, r
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_circular_mean_noweight(angles: torch.Tensor, trim: float):
     assert angles.ndim == 2
     _sin_angles = torch.sin(angles)
@@ -315,7 +315,7 @@ def torch_circular_mean(angles: torch.Tensor, trim: float, weights=None):
     return torch_pi_norm_pi(cm), torch_pi_norm_pi(_cm)
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_get_stats_for_signal(v: torch.Tensor, pd: torch.Tensor, trim: float):
     trimmed_cm = torch_circular_mean_noweight(pd.reshape(1, -1), trim=trim)[1][
         0
@@ -335,7 +335,7 @@ def get_stats_for_signal(v, pd, trim):
     return trimmed_cm, trimmed_stddev, abs_signal_median
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_windowed_trimmed_circular_mean_and_stddev(
     v: torch.Tensor, pd: torch.Tensor, window_size: int, stride: int, trim: float
 ):
@@ -415,7 +415,7 @@ def get_phase_diff(signal_matrix):
     return pi_norm(np.angle(signal_matrix[0]) - np.angle(signal_matrix[1]))
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_get_phase_diff(signal_matrix: torch.Tensor):
     return torch_pi_norm_pi(signal_matrix[:, 0].angle() - signal_matrix[:, 1].angle())
 
@@ -427,7 +427,7 @@ def get_avg_phase(signal_matrix, trim=0.0):
     ).reshape(-1)
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_get_avg_phase_notrim(signal_matrix: torch.Tensor):
     return torch.hstack(
         torch_circular_mean_notrim(

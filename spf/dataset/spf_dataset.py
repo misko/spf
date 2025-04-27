@@ -1,14 +1,14 @@
-import threading
 import logging
 import multiprocessing
 import os
 import pickle
+import queue
+import threading
 import time
 from contextlib import contextmanager
 from enum import Enum
 from functools import cache
 from typing import Dict, List
-import queue
 
 import numpy as np
 import torch
@@ -118,6 +118,9 @@ def v5_collate_keys_fast(keys: List[str], batch: List[List[Dict[str, torch.Tenso
         )
         if key == "windowed_beamformer" or key == "all_windows_stats":
             d[key] = d[key].to(torch.float32)
+    # d["dropout_mask_rand_values"] = torch.rand(
+    #     (*d["y_rad"].shape,8), device=d["y_rad"].device
+    # )
     # d["random_rotations"] = torch_pi_norm(
     #     torch.rand(d["y_rad"].shape[0], 1) * 2 * torch.pi
     # )
@@ -478,7 +481,7 @@ class v5inferencedataset(Dataset):
         self.target_ntheta = self.nthetas if target_ntheta is None else target_ntheta
 
         self.realtime = realtime
-        self.max_store_size=max_store_size
+        self.max_store_size = max_store_size
 
         self.max_in_memory = max_in_memory
         self.min_idx = 0
@@ -597,7 +600,7 @@ class v5inferencedataset(Dataset):
             self.empirical_data = None
         self.serving_idx = -1
 
-        #setup the reader thread
+        # setup the reader thread
         self.stop_event = threading.Event()
         self.reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self.reader_thread.start()
@@ -614,16 +617,25 @@ class v5inferencedataset(Dataset):
                         }
                     self.store[idx]["data"][ridx] = rendered_data
                     self.store[idx]["count"] += 1
-                    print("LENGTH OF STORE IS",len(self.store))
-                    if self.max_store_size is not None and len(self.store)>self.max_store_size:
-                        for idx in sorted(self.store.keys())[:-self.max_store_size]:
+                    print("LENGTH OF STORE IS", len(self.store))
+                    if (
+                        self.max_store_size is not None
+                        and len(self.store) > self.max_store_size
+                    ):
+                        for idx in sorted(self.store.keys())[: -self.max_store_size]:
                             self.store.pop(idx)
-                            print("POPPING",idx)
+                            print("POPPING", idx)
 
             except queue.Empty:
                 pass  # No new item, just keep looping
+            except (OSError, EOFError):
+                # Queue closed because process exiting. Exit silently.
+                break
             except Exception as e:
-                logging.exception("Error in v5inferencedataset queue reader thread")
+                if not self.stop_event.is_set():
+                    logging.exception("Error in v5inferencedataset queue reader thread")
+                # If stop_event is set, don't log, just exit.
+                break
 
     def __len__(self):
         return self.serving_idx
@@ -724,7 +736,7 @@ class v5inferencedataset(Dataset):
         #     ]
         # ).T # torch.Size([1, 2])
 
-        data["rx_pos_mm"] = data["tx_pos_mm"] = torch.ones(1, 2) * torch.nan
+        data["rx_pos_mm"] = data["tx_pos_mm"] = torch.zeros(1, 2)  # * torch.nan
 
         data["rx_pos_xy"] = (
             data["rx_pos_mm"][snapshot_idxs].unsqueeze(0) / self.distance_normalization
@@ -788,6 +800,15 @@ class v5inferencedataset(Dataset):
             ):
                 data[key] = data[key].to(self.target_dtype)
         return data
+
+    def close(self):
+        if hasattr(self, "stop_event"):
+            self.stop_event.set()
+        if hasattr(self, "reader_thread") and self.reader_thread.is_alive():
+            self.reader_thread.join(timeout=1.0)  # avoid blocking forever
+
+    def __del__(self):
+        self.close()
 
 
 class v5spfdataset(Dataset):

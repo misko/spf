@@ -54,6 +54,7 @@ def single_example_realtime_inference(model, global_config, optim_config, realti
 
 
 def single_example_inference(model, global_config, datasets_config, optim_config):
+    model.eval()
 
     ds = v5spfdataset(
         datasets_config["train_paths"][0],
