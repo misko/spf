@@ -1115,6 +1115,9 @@ def train_single_point(args):
         raise ValueError
     config["optim"]["dtype"] = dtype
 
+    # use tensor cores?
+    torch.set_float32_matmul_precision("high")
+
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
 
     logging.info("MODEL:")
