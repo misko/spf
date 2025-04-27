@@ -1464,7 +1464,7 @@ class v5spfdataset(Dataset):
             data["rx_pos_xy"] = -data["rx_pos_xy"]
             data["tx_pos_xy"] = -data["tx_pos_xy"]
 
-        if self.empirical_data is not None:
+        if "empirical" not in self.skip_fields and self.empirical_data is not None:
             empirical_dist = get_empirical_dist(self, receiver_idx)
             #  ~ 1, snapshots, ntheta(empirical_dist.shape[0])
             data["empirical"] = empirical_dist[

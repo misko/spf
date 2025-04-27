@@ -123,6 +123,9 @@ def load_dataloaders(
         skip_fields |= set(["signal_matrix"])
     if not global_config["windowed_beamformer_input"]:
         skip_fields |= set(["windowed_beamformer"])
+    if not global_config['empirical_input']:
+        skip_fields |= set(["empirical"])
+
     # import glob
     # glob.glob('./[0-9].*')
 
