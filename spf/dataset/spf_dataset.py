@@ -718,7 +718,6 @@ class v5inferencedataset(Dataset):
             abs_signal = data["signal_matrix"].abs().to(torch.float32)
             assert data["signal_matrix"].shape[0] == 1
             pd = torch_get_phase_diff(data["signal_matrix"][0]).to(torch.float32)
-            data["signal_matrix"] = torch.cat([abs_signal, pd[None, :, None]], dim=2)
             data["abs_signal_and_phase_diff"] = torch.concatenate(
                 [abs_signal, pd[None, :, None]], dim=2
             )
