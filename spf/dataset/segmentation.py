@@ -24,6 +24,7 @@ from spf.rf import (
     pi_norm,
     reduce_theta_to_positive_y,
     windowed_trimmed_circular_mean_and_stddev,
+    windowed_trimmed_circular_mean_and_stddev_fast,
 )
 from spf.scripts.zarr_utils import (
     new_yarr_dataset,
@@ -375,6 +376,7 @@ def segment_session(
     skip_beamformer=False,
     skip_detrend=False,
     skip_segmentation=False,
+    fast_beamformer=False,
     **kwrgs,
 ):
     """
@@ -507,9 +509,13 @@ def segment_session(
                 .T
             )
         else:
+            
+            beamformer_fn=beamformer_given_steering_nomean
+            if fast_beamformer:
+                beamformer_fn=beamformer_given_steering_nomean_fast
             # CPU version of beamforming (same algorithm but slower)
             segmentation_results["windowed_beamformer"] = (
-                beamformer_given_steering_nomean_fast(
+                beamformer_fn(
                     steering_vectors=kwrgs["steering_vectors"],
                     signal_matrix=v.astype(np.complex64),
                 )
@@ -646,7 +652,7 @@ def get_all_windows_stats(
     # - Trimmed circular mean of phase differences
     # - Trimmed standard deviation of phase differences
     # - Median absolute signal amplitude
-    step_idxs, step_stats = windowed_trimmed_circular_mean_and_stddev(
+    step_idxs, step_stats = windowed_trimmed_circular_mean_and_stddev_fast(
         v, pd, window_size=window_size, stride=stride, trim=trim
     )
     return step_idxs, step_stats

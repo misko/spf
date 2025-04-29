@@ -7,8 +7,14 @@ from spf.rf import (
     UCADetector,
     ULADetector,
     beamformer,
+    beamformer_given_steering_nomean,
+    beamformer_given_steering_nomean_fast,
     c,
+    circular_diff_to_mean_single,
+    circular_diff_to_mean_single_fast,
     circular_mean,
+    fast_median_abs,
+    fast_percentile,
     rotation_matrix,
     torch_circular_mean,
 )
@@ -225,3 +231,106 @@ def test_circular_mean():
         assert torch.isclose(
             _m.double(), torch.from_numpy(gt_mean[:, 0]), atol=1e-1
         ).all()
+
+
+def test_beamformer_functions():
+    np.random.seed(42)  # for reproducibility
+
+    # Generate random inputs
+    n_thetas = 65
+    n_antennas = 2
+    n_samples = 1000
+    n_iter=10
+
+    for _ in range(n_iter):
+        steering_vectors = np.random.randn(n_thetas, n_antennas) + 1j * np.random.randn(n_thetas, n_antennas)
+        steering_vectors = steering_vectors.astype(np.complex64)
+
+        signal_matrix = np.random.randn(n_antennas, n_samples) + 1j * np.random.randn(n_antennas, n_samples)
+        signal_matrix = signal_matrix.astype(np.complex64)
+
+        # Run both versions
+        slow_output = beamformer_given_steering_nomean(steering_vectors, signal_matrix)
+        fast_output = beamformer_given_steering_nomean_fast(steering_vectors, signal_matrix)
+
+        assert np.isclose(slow_output,fast_output,rtol=1e-4).all()
+
+
+
+def test_fast_percentile():
+    np.random.seed(42)
+    
+    # Test cases
+    arrays = [
+        np.array([1, 2, 3, 4, 5]),
+        np.array([10, 20, 30]),
+        np.random.randn(100),
+        np.random.uniform(-10, 10, size=1000),
+        np.array([])  # Empty array case
+    ]
+
+    percentiles = [0.0, 25.0, 50.0, 75.0, 100.0]
+
+    for arr_idx, arr in enumerate(arrays):
+        arr_float32 = arr.astype(np.float32)
+
+        print(f"Testing array #{arr_idx}, size {arr_float32.size}")
+        for p in percentiles:
+            fast_val = fast_percentile(arr_float32, p)
+            numpy_val = np.percentile(arr_float32, p, interpolation='nearest')  # match "nearest" behavior
+
+            diff = abs(fast_val - numpy_val)
+            print(f"  Percentile {p:.1f}% -> fast: {fast_val:.5f}, numpy: {numpy_val:.5f}, diff: {diff:.2e}")
+
+            # Allow small floating point rounding errors
+            if arr_float32.size > 0:
+                assert diff < 1e-3, f"Mismatch at array {arr_idx}, percentile {p}"
+            else:
+                assert fast_val == 0.0, "Empty array should return 0.0"
+
+
+# --- Test function ---
+def test_circular_diff_to_mean_single():
+    np.random.seed(42)
+
+    means = [0.0, np.pi/2, np.pi, 3*np.pi/2, 2*np.pi]
+    for mean in means:
+        print(f"Testing with mean = {mean:.4f}")
+
+        angles = np.random.uniform(0, 2*np.pi, size=1000).astype(np.float32)
+
+        output_orig = circular_diff_to_mean_single(angles, mean)
+        output_opt = circular_diff_to_mean_single_fast(angles, mean)
+
+        max_abs_error = np.max(np.abs(output_orig - output_opt))
+        print(f"  Max abs error: {max_abs_error:.2e}")
+
+        # Allow only tiny floating point differences
+        assert max_abs_error < 1e-6, f"Mismatch! Max error: {max_abs_error}"
+
+def test_fast_median_abs():
+    np.random.seed(42)
+
+    arrays = [
+        np.array([], dtype=np.float32),                          # Empty
+        np.array([3.0], dtype=np.float32),                       # Single element
+        np.array([-2.0, 5.0], dtype=np.float32),                 # Two elements
+        np.random.uniform(-10, 10, size=5).astype(np.float32),   # Odd size
+        np.random.uniform(-10, 10, size=6).astype(np.float32),   # Even size
+        np.random.randn(1000).astype(np.float32),                # Large array
+    ]
+
+    for idx, arr in enumerate(arrays):
+        computed = fast_median_abs(arr)
+
+        if arr.size == 0:
+            # Special case for empty array
+            print(f"Array #{idx}: Empty array, Computed={computed:.6f}")
+            assert computed == 0.0, f"Empty array should return 0.0, got {computed}"
+        else:
+            expected = np.median(np.abs(arr))
+            diff = abs(expected - computed)
+            print(f"Array #{idx}: Expected={expected:.6f}, Computed={computed:.6f}, Diff={diff:.2e}")
+            assert diff < 1e-6, f"Mismatch in array #{idx}! Diff={diff}"
+
+    print("✅ All tests passed for fast_median_abs!")

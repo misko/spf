@@ -77,11 +77,58 @@ def torch_pi_norm_pi(x):
 def torch_pi_norm(x: torch.Tensor, max_angle: float = torch.pi):
     return ((x + max_angle) % (2 * max_angle)) - max_angle
 
+@njit
+def fast_percentile(x, percentile):
+    n = x.shape[0]
+    if n == 0:
+        return 0.0
+    k = int(np.ceil((percentile / 100.0) * n)) - 1
+    k = max(0, min(k, n - 1))
+    partitioned = np.partition(x, k)
+    return partitioned[k]
+
+@njit
+def circular_stddev_fast(v, mean, trim=50.0):
+    n = v.shape[0]
+    if n <= 1:
+        return 0.0, 0.0
+
+    # Compute distance from mean
+    diffs = circular_diff_to_mean_single_fast(v, mean)
+
+    # Precompute sums
+    total_sum_sq = 0.0
+    for i in range(n):
+        total_sum_sq += diffs[i] * diffs[i]
+
+    stddev = np.sqrt(total_sum_sq / (n - 1))
+
+    # Early exit if no trimming needed
+    if trim == 0.0:
+        return stddev, stddev
+
+    # Find threshold for trimming
+    threshold = fast_percentile_1d(diffs, 100.0 - trim)
+
+    trimmed_sum_sq = 0.0
+    trimmed_count = 0
+
+    for i in range(n):
+        if diffs[i] <= threshold:
+            trimmed_sum_sq += diffs[i] * diffs[i]
+            trimmed_count += 1
+
+    if trimmed_count <= 1:
+        trimmed_stddev = 0.0
+    else:
+        trimmed_stddev = np.sqrt(trimmed_sum_sq / (trimmed_count - 1))
+
+    return stddev, trimmed_stddev
 
 # returns circular_stddev and trimmed cricular stddev
 @njit
 def circular_stddev(v, u, trim=50.0):
-    diff_from_mean = circular_diff_to_mean_single(angles=v, mean=u)
+    diff_from_mean = circular_diff_to_mean_single_fast(angles=v, mean=u)
 
     diff_from_mean_squared = diff_from_mean**2
 
@@ -179,6 +226,19 @@ def circular_diff_to_mean_single(angles, mean: float):
     return b
 
 
+@njit
+def circular_diff_to_mean_single_fast(angles, mean: float):
+    n = angles.shape[0]
+    out = np.empty(n, dtype=np.float32)
+    two_pi = 2.0 * np.pi
+
+    for i in range(n):
+        diff = np.abs(mean - angles[i]) % two_pi
+        out[i] = diff if diff < (two_pi - diff) else (two_pi - diff)
+
+    return out
+
+
 # @njit
 def circular_diff_to_mean(angles, means):
     assert means.ndim == 1
@@ -213,6 +273,61 @@ def circular_mean(angles, trim, weights=None):
 
     return pi_norm(cm), pi_norm(_cm)
 
+@njit
+def circular_mean_single_fast(angles, trim, weights=None):
+    n = angles.shape[0]
+    two_pi = 2.0 * np.pi
+
+    # Early exit for empty
+    if n == 0:
+        return 0.0, 0.0
+
+    # Precompute sin and cos
+    _sin_angles = np.sin(angles)
+    _cos_angles = np.cos(angles)
+
+    if weights is not None:
+        _sin_angles = _sin_angles * weights
+        _cos_angles = _cos_angles * weights
+
+    # Compute untrimmed circular mean
+    sum_sin = _sin_angles.sum()
+    sum_cos = _cos_angles.sum()
+    cm = np.arctan2(sum_sin, sum_cos) % two_pi
+
+    if trim == 0.0:
+        return pi_norm(cm), pi_norm(cm)
+
+    # Compute deviations
+    dists = circular_diff_to_mean_single_fast(angles, cm)
+
+    # Fast percentile instead of full sort
+    threshold = fast_percentile_1d(dists, 100.0 - trim)
+
+    # Compute trimmed sin and cos sums
+    trimmed_sum_sin = 0.0
+    trimmed_sum_cos = 0.0
+
+    for i in range(n):
+        if dists[i] <= threshold:
+            trimmed_sum_sin += _sin_angles[i]
+            trimmed_sum_cos += _cos_angles[i]
+
+    trimmed_cm = np.arctan2(trimmed_sum_sin, trimmed_sum_cos) % two_pi
+
+    return pi_norm(cm), pi_norm(trimmed_cm)
+
+# Helper functions you need:
+
+@njit
+def fast_percentile_1d(x, percentile):
+    n = x.shape[0]
+    if n == 0:
+        return 0.0
+    k = int(np.ceil((percentile / 100.0) * n)) - 1
+    k = max(0, min(k, n-1))
+    partitioned = np.partition(x, k)
+    return partitioned[k]
 
 @njit
 def circular_mean_single(angles, trim, weights=None):
@@ -228,7 +343,7 @@ def circular_mean_single(angles, trim, weights=None):
         r = pi_norm(cm)
         return r, r
 
-    dists = circular_diff_to_mean_single(angles=angles, mean=cm)
+    dists = circular_diff_to_mean_single_fast(angles=angles, mean=cm)
 
     mask = dists <= np.percentile(dists, 100.0 - trim)
     _cm = np.arctan2(_sin_angles[mask].sum(), _cos_angles[mask].sum()) % (2 * np.pi)
@@ -326,12 +441,29 @@ def torch_get_stats_for_signal(v: torch.Tensor, pd: torch.Tensor, trim: float):
     )
     return torch.hstack((trimmed_cm, trimmed_stddev, abs_signal_median))
 
+@njit
+def fast_median_abs(x):
+    n = x.shape[0]
+    if n == 0:
+        return 0.0
+    abs_x = np.empty(n, dtype=np.float32)
+    for i in range(n):
+        abs_x[i] = abs(x[i])
+
+    mid = n // 2
+    partitioned = np.partition(abs_x, mid)
+
+    if n % 2 == 1:
+        return partitioned[mid]
+    else:
+        return 0.5 * (np.partition(abs_x, mid-1)[mid-1] + partitioned[mid])
+
 
 @njit
 def get_stats_for_signal(v, pd, trim):
-    trimmed_cm = circular_mean_single(pd, trim=trim)[1]  # get the value for trimmed
-    trimmed_stddev = circular_stddev(pd, trimmed_cm, trim=trim)[1]
-    abs_signal_median = np.median(np.abs(v)) if v.size > 0 else 0
+    trimmed_cm = circular_mean_single_fast(pd, trim=trim)[1]  # get the value for trimmed
+    trimmed_stddev = circular_stddev_fast(pd, trimmed_cm, trim=trim)[1]
+    abs_signal_median = fast_median_abs(v.flatten()) if v.size > 0 else 0.0
     return trimmed_cm, trimmed_stddev, abs_signal_median
 
 
@@ -362,6 +494,45 @@ def torch_windowed_trimmed_circular_mean_and_stddev(
         )  # trimmed_cm, trimmed_stddev, abs_signal_median
     return step_idxs, step_stats
 
+
+@njit
+def windowed_trimmed_circular_mean_and_stddev_fast(v, pd, window_size, stride, trim=50.0):
+    n_samples = pd.shape[0]
+    assert (n_samples - window_size) % stride == 0
+    n_steps = 1 + (n_samples - window_size) // stride
+
+    step_stats = np.zeros((n_steps, 3), dtype=np.float32)
+
+    for step in prange(n_steps):
+        start_idx = step * stride
+        end_idx = start_idx + window_size
+
+        # Instead of slicing arrays, pass start/end indices
+        step_stats[step] = get_stats_for_signal_window(
+            v, pd, start_idx, end_idx, trim
+        )
+
+    # After loop: create step_idxs
+    step_idxs = np.empty((n_steps, 2), dtype=np.int32)
+    for step in range(n_steps):
+        start_idx = step * stride
+        end_idx = start_idx + window_size
+        step_idxs[step, 0] = start_idx
+        step_idxs[step, 1] = end_idx
+
+    return step_idxs, step_stats
+
+# Modified get_stats_for_signal
+@njit
+def get_stats_for_signal_window(v, pd, start_idx, end_idx, trim):
+    _pd = pd[start_idx:end_idx]
+    _v = v[:, start_idx:end_idx]
+
+    trimmed_cm = circular_mean_single_fast(_pd, trim=trim)[1]
+    trimmed_stddev = circular_stddev_fast(_pd, trimmed_cm, trim=trim)[1]
+    abs_signal_median = fast_median_abs(_v.flatten()) if _v.size > 0 else 0.0
+
+    return np.array([trimmed_cm, trimmed_stddev, abs_signal_median], dtype=np.float32)
 
 @njit
 def windowed_trimmed_circular_mean_and_stddev(v, pd, window_size, stride, trim=50.0):
@@ -846,15 +1017,26 @@ def precompute_steering_vectors(
 def thetas_from_nthetas(nthetas):
     return np.linspace(-np.pi, np.pi, nthetas)
     
-@njit(parallel=True)
-def beamformer_given_steering_nomean_fast(
-    steering_vectors,  # [n_thetas, n_antennas] (complex64 or complex128)
-    signal_matrix,     # [n_antennas, n_samples] (complex64 or complex128)
-):
-    n_thetas, n_antennas = steering_vectors.shape
+def beamformer_given_steering_nomean_fast(steering_vectors, signal_matrix):
+    if steering_vectors.dtype == np.complex64:
+        out_dtype = np.float32
+    elif steering_vectors.dtype == np.complex128:
+        out_dtype = np.float64
+    else:
+        raise ValueError("Unsupported dtype: must be complex64 or complex128")
+
+    n_thetas, _ = steering_vectors.shape
     _, n_samples = signal_matrix.shape
 
-    output = np.empty((n_thetas, n_samples), dtype=np.float32)
+    output = np.empty((n_thetas, n_samples), dtype=out_dtype)
+
+    beamformer_given_steering_nomean_fast_core(steering_vectors, signal_matrix, output)
+    return output
+
+@njit(parallel=True)
+def beamformer_given_steering_nomean_fast_core(steering_vectors, signal_matrix, output):
+    n_thetas, n_antennas = steering_vectors.shape
+    _, n_samples = signal_matrix.shape
 
     for theta_idx in prange(n_thetas):
         for sample_idx in range(n_samples):
@@ -863,14 +1045,12 @@ def beamformer_given_steering_nomean_fast(
             for ant_idx in range(n_antennas):
                 sv = steering_vectors[theta_idx, ant_idx]
                 sig = signal_matrix[ant_idx, sample_idx]
-                # complex multiply conjugate(steering) * signal
-                real_sum += (sv.real * sig.real + sv.imag * sig.imag)
-                imag_sum += (sv.real * sig.imag - sv.imag * sig.real)
-            # Compute magnitude (sqrt(real^2 + imag^2))
-            power = (real_sum**2 + imag_sum**2)**0.5
-            output[theta_idx, sample_idx] = power
+                # Normal complex multiply (NO conjugate)
+                real_sum += (sv.real * sig.real - sv.imag * sig.imag)
+                imag_sum += (sv.real * sig.imag + sv.imag * sig.real)
+            output[theta_idx, sample_idx] = (real_sum**2 + imag_sum**2)**0.5
 
-    return output
+
 
 @jit(nopython=True)
 def beamformer_given_steering_nomean_cp(
