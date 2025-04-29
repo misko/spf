@@ -66,6 +66,7 @@ class v5spfdataset_nn_wrapper(Dataset):
                 )
             )
             self.model.eval()
+            # self.model = torch.jit.script(self.model)
             self.keys_to_get = global_config_to_keys_used(
                 global_config=self.model_config["global"]
             )

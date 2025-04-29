@@ -475,9 +475,10 @@ class PrepareInput(nn.Module):
             # )
             shape = batch["y_rad"].shape
             rand_shape = torch.Size((8, shape[0], shape[1]))
-            dropout_mask = torch.rand(rand_shape, device=batch["y_rad"].device).to(
-                torch.bool
-            )
+            dropout_mask = (
+                torch.rand(rand_shape, device=batch["y_rad"].device)
+                < self.input_dropout
+            ).to(torch.bool)
         # 1 , 65
         # if mask out 65, then scale up 1 by 65?
         # [ batch, samples, dim of input ]
@@ -824,7 +825,7 @@ class AllWindowsStatsNet(nn.Module):
                 output_channels=outputs,
             )
         if conv_type == "transformer":
-            TransformerTimeModel(
+            self.conv_net = TransformerTimeModel(
                 d_model=hidden_channels,
                 nhead=4,
                 num_layers=n_layers,
