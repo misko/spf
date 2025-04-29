@@ -13,6 +13,7 @@ from spf.rf import (
     circular_diff_to_mean_single,
     circular_diff_to_mean_single_fast,
     circular_mean,
+    circular_mean_simple_fast,
     fast_median_abs,
     fast_percentile,
     rotation_matrix,
@@ -334,3 +335,27 @@ def test_fast_median_abs():
             assert diff < 1e-6, f"Mismatch in array #{idx}! Diff={diff}"
 
     print("✅ All tests passed for fast_median_abs!")
+
+
+# === Test function ===
+def test_circular_mean():
+    np.random.seed(42)
+
+    test_cases = [
+        np.random.uniform(0, 2*np.pi, size=(1, 5)).astype(np.float32),     # small 1×5
+        np.random.uniform(0, 2*np.pi, size=(10, 64)).astype(np.float32),   # medium 10×64
+        np.random.uniform(0, 2*np.pi, size=(100, 128)).astype(np.float32), # larger 100×128
+    ]
+
+    for idx, angles in enumerate(test_cases):
+        cm_orig, _ = circular_mean(angles, trim=0.0)  # Your original slow
+        cm_opt, _ = circular_mean_simple_fast(angles) # Your new fast
+
+        # Correct circular difference!
+        diff = np.abs((cm_orig - cm_opt + np.pi) % (2*np.pi) - np.pi)
+        max_diff = np.max(diff)
+        print(f"Test case {idx}: max circular diff = {max_diff:.2e}")
+
+        assert max_diff < 1e-6, f"Mismatch in test case {idx}! Max circular diff = {max_diff}"
+
+    print("✅ All tests passed for optimized circular_mean!")

@@ -25,6 +25,7 @@ from spf.rf import (
     reduce_theta_to_positive_y,
     windowed_trimmed_circular_mean_and_stddev,
     windowed_trimmed_circular_mean_and_stddev_fast,
+    windowed_trimmed_circular_mean_and_stddev_fast2,
 )
 from spf.scripts.zarr_utils import (
     new_yarr_dataset,
@@ -655,6 +656,10 @@ def get_all_windows_stats(
     step_idxs, step_stats = windowed_trimmed_circular_mean_and_stddev_fast(
         v, pd, window_size=window_size, stride=stride, trim=trim
     )
+    # step_idxs2, step_stats2 = windowed_trimmed_circular_mean_and_stddev_fast2(
+    #     v, pd, window_size=window_size, stride=stride, trim=trim
+    # )
+    #breakpoint()
     return step_idxs, step_stats
 
 

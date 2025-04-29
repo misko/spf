@@ -246,6 +246,22 @@ def circular_diff_to_mean(angles, means):
     b = 2 * np.pi - a
     return np.min(np.vstack([a[None], b[None]]), axis=0)
 
+@njit
+def circular_mean_simple_fast(angles):
+    n_rows, n_cols = angles.shape
+    result = np.empty(n_rows, dtype=np.float32)
+
+    for i in range(n_rows):
+        sx = 0.0
+        sy = 0.0
+        for j in range(n_cols):
+            angle = angles[i, j]
+            sx += np.cos(angle)
+            sy += np.sin(angle)
+        mean_angle = np.arctan2(sy, sx)
+        result[i] = pi_norm(mean_angle)
+    
+    return result, result
 
 # TODO remove
 def circular_mean(angles, trim, weights=None):
@@ -493,7 +509,131 @@ def torch_windowed_trimmed_circular_mean_and_stddev(
             _v, _pd, trim
         )  # trimmed_cm, trimmed_stddev, abs_signal_median
     return step_idxs, step_stats
+@njit
+def fast_abs_median(x):
+    n = x.shape[0]
+    if n == 0:
+        return 0.0
 
+    abs_x = np.empty(n, dtype=np.float32)
+    for i in range(n):
+        abs_x[i] = abs(x[i])
+
+    mid = n // 2
+    partitioned = np.partition(abs_x, mid)
+
+    if n % 2 == 1:
+        return partitioned[mid]
+    else:
+        # For even n, average the two middle values
+        return 0.5 * (np.partition(abs_x, mid - 1)[mid - 1] + partitioned[mid])
+    
+@njit
+def circular_diff_to_mean_single_scalar(angle, mean):
+    two_pi = 2.0 * np.pi
+    diff = (mean - angle) % two_pi
+    if diff > np.pi:
+        diff -= two_pi
+    return abs(diff)
+
+#@njit(parallel=True)
+def windowed_trimmed_circular_mean_and_stddev_fast2(v, pd, window_size, stride, trim):
+    n_samples = pd.shape[0]
+    # No windows if input too short or invalid stride
+    if n_samples < window_size or stride <= 0:
+        return np.empty(0, np.int64), np.empty((0, 4), np.float64)
+    n_windows = (n_samples - window_size) // stride + 1
+
+    # Prepare output arrays
+    step_idxs = np.empty(n_windows, np.int64)
+    step_stats = np.empty((n_windows, 4), np.float64)
+
+    for j in prange(n_windows):
+        start = j * stride
+        end = start + window_size
+
+        # Compute initial circular mean of pd in this window
+        sx = 0.0
+        sy = 0.0
+        for k in range(start, end):
+            angle = pd[k]
+            sx += math.cos(angle)
+            sy += math.sin(angle)
+        mean_angle = math.atan2(sy, sx)
+
+        # Compute absolute circular differences to the initial mean
+        absdiffs = np.empty(window_size, np.float64)
+        idx = 0
+        for k in range(start, end):
+            diff = circular_diff_to_mean_single_scalar(pd[k], mean_angle)
+            absdiffs[idx] = diff if diff >= 0 else -diff
+            idx += 1
+
+        # Determine trimming threshold based on 'trim' parameter
+        if trim > 0:
+            if trim < 1:
+                # trim is a fraction (proportion to trim each tail)
+                keep_frac = 1.0 - 2.0 * trim
+            else:
+                # trim is an absolute count of elements to trim on each side
+                keep_frac = float(max(0, (window_size - 2 * int(trim)))) / window_size
+            if keep_frac <= 0:
+                threshold = 0.0
+            elif keep_frac >= 1:
+                threshold = np.max(absdiffs)
+            else:
+                threshold = fast_percentile_1d(absdiffs, keep_frac * 100.0)
+        else:
+            # No trimming
+            threshold = np.inf
+
+        # Compute trimmed circular mean (include only values within threshold)
+        sx2 = 0.0
+        sy2 = 0.0
+        count2 = 0
+        for k in range(start, end):
+            diff = circular_diff_to_mean_single_fast(pd[k], mean_angle)
+            diff = diff if diff >= 0 else -diff
+            if diff <= threshold:
+                angle = pd[k]
+                sx2 += math.cos(angle)
+                sy2 += math.sin(angle)
+                count2 += 1
+        circ_mean = math.atan2(sy2, sx2) if count2 > 0 else mean_angle
+
+        # Compute circular standard deviation of the trimmed values
+        if count2 > 0:
+            sum_sq = 0.0
+            for k in range(start, end):
+                diff2 = circular_diff_to_mean_single_fast(pd[k], circ_mean)
+                diff2 = diff2 if diff2 >= 0 else -diff2
+                if diff2 <= threshold:
+                    sum_sq += diff2 * diff2
+            circ_std = math.sqrt(sum_sq / count2)
+        else:
+            circ_std = 0.0
+
+        # Compute median of absolute values for each of the two signal channels
+        abs_vals0 = np.empty(window_size, np.float64)
+        abs_vals1 = np.empty(window_size, np.float64)
+        idx = 0
+        for k in range(start, end):
+            val0 = v[0, k]
+            val1 = v[1, k]
+            abs_vals0[idx] = val0 if val0 >= 0 else -val0
+            abs_vals1[idx] = val1 if val1 >= 0 else -val1
+            idx += 1
+        med0 = fast_abs_median(abs_vals0)
+        med1 = fast_abs_median(abs_vals1)
+
+        # Store results
+        step_idxs[j] = start + window_size // 2
+        step_stats[j, 0] = circ_mean
+        step_stats[j, 1] = circ_std
+        step_stats[j, 2] = med0
+        step_stats[j, 3] = med1
+
+    return step_idxs, step_stats
 
 @njit
 def windowed_trimmed_circular_mean_and_stddev_fast(v, pd, window_size, stride, trim=50.0):
@@ -597,6 +737,27 @@ def get_avg_phase(signal_matrix, trim=0.0):
         circular_mean(get_phase_diff(signal_matrix=signal_matrix)[None], trim=trim)
     ).reshape(-1)
 
+
+#@njit
+def get_avg_phase_fast(signal_matrix):
+    return np.array(
+        circular_mean_simple_fast(get_phase_diff(signal_matrix=signal_matrix)[None])
+    ).reshape(-1)
+
+@njit
+def get_avg_phase_fast2(signal_matrix):
+    pd = get_phase_diff(signal_matrix)
+
+    sx = 0.0
+    sy = 0.0
+    for i in range(pd.shape[0]):
+        angle = pd[i]
+        sx += np.cos(angle)
+        sy += np.sin(angle)
+
+    mean_angle = pi_norm(np.arctan2(sy, sx))
+
+    return np.array([mean_angle, mean_angle], dtype=np.float32)
 
 # @torch.jit.script
 def torch_get_avg_phase_notrim(signal_matrix: torch.Tensor):
