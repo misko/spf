@@ -117,7 +117,7 @@ def perfect_circle_dataset_n33():
 def perfect_circle_n50_0p01():
     n = 50
     with tempfile.TemporaryDirectory() as tmpdirname:
-        fn = tmpdirname + f"/perfect_circle_n{n}_noise0p0"
+        fn = tmpdirname + f"/perfect_circle_n{n}_noise0p01"
         create_fake_dataset(filename=fn, yaml_config_str=fake_yaml_v5, n=50, noise=0.01)
         v5spfdataset(  # make sure everything gets segmented here
             fn,
@@ -135,7 +135,7 @@ def perfect_circle_n50_0p01():
 def perfect_circle_n50_0p01_v4():
     n = 50
     with tempfile.TemporaryDirectory() as tmpdirname:
-        fn = tmpdirname + f"/perfect_circle_n{n}_noise0p0"
+        fn = tmpdirname + f"/perfect_circle_n{n}_noise0p01v4"
         create_fake_dataset(filename=fn, yaml_config_str=fake_yaml_v4, n=50, noise=0.01)
         v5spfdataset(  # make sure everything gets segmented here
             fn,

@@ -3,12 +3,12 @@ import functools
 
 import numpy as np
 import torch
-from numba import njit
+from numba import njit, prange
 from scipy.signal import find_peaks
 
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store_cm
 from spf.sdrpluto.detrend import detrend_np, merge_dynamic_windows_np
-from numba import njit, prange
+
 try:
     import cupy as cp
 except:
@@ -1177,7 +1177,8 @@ def precompute_steering_vectors(
 
 def thetas_from_nthetas(nthetas):
     return np.linspace(-np.pi, np.pi, nthetas)
-    
+
+
 def beamformer_given_steering_nomean_fast(steering_vectors, signal_matrix):
     if steering_vectors.dtype == np.complex64:
         out_dtype = np.float32
@@ -1207,10 +1208,9 @@ def beamformer_given_steering_nomean_fast_core(steering_vectors, signal_matrix, 
                 sv = steering_vectors[theta_idx, ant_idx]
                 sig = signal_matrix[ant_idx, sample_idx]
                 # Normal complex multiply (NO conjugate)
-                real_sum += (sv.real * sig.real - sv.imag * sig.imag)
-                imag_sum += (sv.real * sig.imag + sv.imag * sig.real)
-            output[theta_idx, sample_idx] = (real_sum**2 + imag_sum**2)**0.5
-
+                real_sum += sv.real * sig.real - sv.imag * sig.imag
+                imag_sum += sv.real * sig.imag + sv.imag * sig.real
+            output[theta_idx, sample_idx] = (real_sum**2 + imag_sum**2) ** 0.5
 
 
 @jit(nopython=True)
