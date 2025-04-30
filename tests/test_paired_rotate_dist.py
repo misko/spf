@@ -47,6 +47,6 @@ def test_paired_rotate_dist(perfect_circle_n50_0p01):
         (gt * rs[0].T * rs[1].T)
         .sum(axis=1)
         .mean()
-        .isclose((rs[0] * rs[1]).max(), atol=1e-4)
+        .isclose((rs[0] * rs[1]).max(), rtol=1e-4)
         .all()
     )
