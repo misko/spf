@@ -3,12 +3,12 @@ import functools
 
 import numpy as np
 import torch
-from numba import njit
+from numba import njit, prange
 from scipy.signal import find_peaks
 
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store_cm
 from spf.sdrpluto.detrend import detrend_np, merge_dynamic_windows_np
-from numba import njit, prange
+
 try:
     import cupy as cp
 except:
@@ -845,16 +845,29 @@ def precompute_steering_vectors(
 
 def thetas_from_nthetas(nthetas):
     return np.linspace(-np.pi, np.pi, nthetas)
-    
-@njit(parallel=True)
-def beamformer_given_steering_nomean_fast(
-    steering_vectors,  # [n_thetas, n_antennas] (complex64 or complex128)
-    signal_matrix,     # [n_antennas, n_samples] (complex64 or complex128)
-):
-    n_thetas, n_antennas = steering_vectors.shape
+
+
+def beamformer_given_steering_nomean_fast(steering_vectors, signal_matrix):
+    if steering_vectors.dtype == np.complex64:
+        out_dtype = np.float32
+    elif steering_vectors.dtype == np.complex128:
+        out_dtype = np.float64
+    else:
+        raise ValueError("Unsupported dtype: must be complex64 or complex128")
+
+    n_thetas, _ = steering_vectors.shape
     _, n_samples = signal_matrix.shape
 
-    output = np.empty((n_thetas, n_samples), dtype=np.float32)
+    output = np.empty((n_thetas, n_samples), dtype=out_dtype)
+
+    beamformer_given_steering_nomean_fast_core(steering_vectors, signal_matrix, output)
+    return output
+
+
+@njit(parallel=True)
+def beamformer_given_steering_nomean_fast_core(steering_vectors, signal_matrix, output):
+    n_thetas, n_antennas = steering_vectors.shape
+    _, n_samples = signal_matrix.shape
 
     for theta_idx in prange(n_thetas):
         for sample_idx in range(n_samples):
@@ -863,14 +876,11 @@ def beamformer_given_steering_nomean_fast(
             for ant_idx in range(n_antennas):
                 sv = steering_vectors[theta_idx, ant_idx]
                 sig = signal_matrix[ant_idx, sample_idx]
-                # complex multiply conjugate(steering) * signal
-                real_sum += (sv.real * sig.real + sv.imag * sig.imag)
-                imag_sum += (sv.real * sig.imag - sv.imag * sig.real)
-            # Compute magnitude (sqrt(real^2 + imag^2))
-            power = (real_sum**2 + imag_sum**2)**0.5
-            output[theta_idx, sample_idx] = power
+                # Normal complex multiply (NO conjugate)
+                real_sum += sv.real * sig.real - sv.imag * sig.imag
+                imag_sum += sv.real * sig.imag + sv.imag * sig.real
+            output[theta_idx, sample_idx] = (real_sum**2 + imag_sum**2) ** 0.5
 
-    return output
 
 @jit(nopython=True)
 def beamformer_given_steering_nomean_cp(
