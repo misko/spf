@@ -3,6 +3,7 @@
 import numpy as np
 import torch
 
+from numba import njit
 # mostly chatgpt
 
 
@@ -507,7 +508,7 @@ def detrend_1d_np(
 
     return x_detrended, slopes_arr, intercepts_arr
 
-
+#@njit
 def merge_dynamic_windows_np(
     x: np.ndarray,
 ):
@@ -526,10 +527,10 @@ def merge_dynamic_windows_np(
     x_detrended : np.ndarray
         1D complex array, same shape as x, with the specified detrending applied to real/imag parts.
     """
-    if x.ndim != 1:
-        raise ValueError("x must be 1D.")
-    if not np.iscomplexobj(x):
-        raise ValueError("x must be a complex NumPy array.")
+    # if x.ndim != 1:
+    #     raise ValueError("x must be 1D.")
+    # if not np.iscomplexobj(x):
+    #     raise ValueError("x must be a complex NumPy array.")
 
     # Real and imaginary parts
     real_part = x.real
@@ -557,8 +558,6 @@ def detrend_np(v):
 def detrend_1d_np_fastwindow(
     x: np.ndarray,
     window_size: int = 1024,
-    pad_mode: str = "constant",
-    pad_value: float = 0.0,
 ):
     """
     Detrend a 1D array by subtracting a linear trend in each fixed-size window.
@@ -569,42 +568,24 @@ def detrend_1d_np_fastwindow(
         Input 1D array.
     window_size : int
         Size of each segment/window.
-    pad_mode : str
-        How to pad if len(x) not divisible by window_size: 'constant', 'reflect', or 'replicate'.
-    pad_value : float
-        Value for constant padding.
 
     Returns
     -------
     x_detrended : np.ndarray
         Detrended output array, same length as input.
     """
-    x = np.asarray(x, dtype=float)
+    x = np.asarray(x, dtype=np.float32)
     N = x.size
 
     # Pad if necessary
-    remainder = N % window_size
-    if remainder > 0:
-        pad_len = window_size - remainder
-        if pad_mode == "constant":
-            pad = np.full(pad_len, pad_value)
-        elif pad_mode == "reflect":
-            pad = x[-pad_len:][::-1]
-        elif pad_mode == "replicate":
-            pad = np.repeat(x[-1], pad_len)
-        else:
-            raise ValueError(f"Unsupported pad_mode: {pad_mode}")
-        x_padded = np.concatenate([x, pad])
-    else:
-        x_padded = x
-        pad_len = 0
+    assert N % window_size ==0 
 
     # Reshape into windows
-    x_win = x_padded.reshape(-1, window_size)
+    x_win = x.reshape(-1, window_size)
     nw = x_win.shape[0]
 
     # Create time index (same for all windows)
-    t = np.linspace(0, 1, window_size)
+    t = np.linspace(0, 1, window_size, dtype=np.float32)
     t = t[None, :]  # shape (1, window_size)
 
     # Compute means
@@ -629,7 +610,77 @@ def detrend_1d_np_fastwindow(
 
     # Flatten and trim
     x_detrended = x_detrended.reshape(-1)
-    if pad_len > 0:
-        x_detrended = x_detrended[:-pad_len]
+    return x_detrended
+
+@njit
+def detrend_1d_np_fastwindow2(x: np.ndarray, window_size: int = 1024):
+    """
+    Detrend a 1D array by subtracting a linear trend in each fixed-size window.
+    """
+    N = x.size
+
+    assert N % window_size == 0
+
+    nwindows = N // window_size
+
+    # Precompute constants
+    inv_ws = 1.0 / window_size
+
+    # Create t exactly matching np.linspace(0, 1, window_size)
+    t = np.empty(window_size, dtype=np.float32)
+    if window_size == 1:
+        t[0] = 0.0  # edge case
+    else:
+        step = 1.0 / (window_size - 1)
+        for i in range(window_size):
+            t[i] = i * step
+
+    # Compute mean of t
+    t_mean = 0.0
+    for i in range(window_size):
+        t_mean += t[i]
+    t_mean *= inv_ws
+
+    # Centered t
+    t_centered = np.empty(window_size, dtype=np.float32)
+    for i in range(window_size):
+        t_centered[i] = t[i] - t_mean
+
+    # Precompute denom (sum of t_centered**2)
+    denom = 0.0
+    for i in range(window_size):
+        denom += t_centered[i] * t_centered[i]
+
+    # Output array
+    x_detrended = np.empty_like(x)
+
+    for w in range(nwindows):
+        start = w * window_size
+        end = start + window_size
+
+        # Compute mean of x in window
+        x_sum = 0.0
+        for i in range(start, end):
+            x_sum += x[i]
+        x_mean = x_sum * inv_ws
+
+        # Compute centered x
+        x_centered = np.empty(window_size, dtype=np.float32)
+        for i in range(window_size):
+            x_centered[i] = x[start + i] - x_mean
+
+        # Compute slope
+        num = 0.0
+        for i in range(window_size):
+            num += t_centered[i] * x_centered[i]
+        slope = num / denom
+
+        # Intercept
+        intercept = x_mean - slope * t_mean
+
+        # Subtract trend
+        for i in range(window_size):
+            trend = slope * t[i] + intercept
+            x_detrended[start + i] = x[start + i] - trend
 
     return x_detrended

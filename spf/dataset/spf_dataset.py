@@ -691,7 +691,6 @@ class v5inferencedataset(Dataset):
 
     def render_session(self, ridx, data):
         snapshot_idxs = [0]  # which snapshots to get
-
         data["rx_wavelength_spacing"] = torch.tensor(self.rx_wavelength_spacing)
 
         data["gains"] = data["gains"]  # [:, None]

@@ -8,7 +8,7 @@ from scipy.signal import find_peaks
 
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store_cm
 from spf.sdrpluto.detrend import detrend_np, merge_dynamic_windows_np
-
+from numba import njit, prange
 try:
     import cupy as cp
 except:
@@ -845,7 +845,32 @@ def precompute_steering_vectors(
 
 def thetas_from_nthetas(nthetas):
     return np.linspace(-np.pi, np.pi, nthetas)
+    
+@njit(parallel=True)
+def beamformer_given_steering_nomean_fast(
+    steering_vectors,  # [n_thetas, n_antennas] (complex64 or complex128)
+    signal_matrix,     # [n_antennas, n_samples] (complex64 or complex128)
+):
+    n_thetas, n_antennas = steering_vectors.shape
+    _, n_samples = signal_matrix.shape
 
+    output = np.empty((n_thetas, n_samples), dtype=np.float32)
+
+    for theta_idx in prange(n_thetas):
+        for sample_idx in range(n_samples):
+            real_sum = 0.0
+            imag_sum = 0.0
+            for ant_idx in range(n_antennas):
+                sv = steering_vectors[theta_idx, ant_idx]
+                sig = signal_matrix[ant_idx, sample_idx]
+                # complex multiply conjugate(steering) * signal
+                real_sum += (sv.real * sig.real + sv.imag * sig.imag)
+                imag_sum += (sv.real * sig.imag - sv.imag * sig.real)
+            # Compute magnitude (sqrt(real^2 + imag^2))
+            power = (real_sum**2 + imag_sum**2)**0.5
+            output[theta_idx, sample_idx] = power
+
+    return output
 
 @jit(nopython=True)
 def beamformer_given_steering_nomean_cp(

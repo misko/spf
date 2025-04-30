@@ -8,7 +8,8 @@ import time
 import traceback
 from concurrent import futures
 from typing import Any, Dict, Optional
-
+import concurrent.futures
+import threading
 import numpy as np
 #from attr import dataclass
 from dataclasses import dataclass, asdict
@@ -35,6 +36,33 @@ class ThreadPoolExecutorWithQueueSizeLimit(futures.ThreadPoolExecutor):
     def __init__(self, maxsize=50, *args, **kwargs):
         super(ThreadPoolExecutorWithQueueSizeLimit, self).__init__(*args, **kwargs)
         self._work_queue = queue.Queue(maxsize=maxsize)
+
+
+class ProcessPoolExecutorWithQueueSizeLimit:
+    def __init__(self, max_workers=None, maxsize=0):
+        self._executor = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers)
+        if maxsize > 0:
+            self._semaphore = threading.BoundedSemaphore(maxsize)
+        else:
+            self._semaphore = None
+
+    def submit(self, fn, *args, **kwargs):
+        if self._semaphore:
+            self._semaphore.acquire()
+        future = self._executor.submit(fn, *args, **kwargs)
+        if self._semaphore:
+            future.add_done_callback(lambda f: self._semaphore.release())
+        return future
+
+    def shutdown(self, wait=True):
+        self._executor.shutdown(wait=wait)
+
+        # Add context manager methods:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.shutdown()
 
 
 @dataclass
@@ -218,7 +246,7 @@ class ThreadedRX:
         tries = 0
         while tries < max_retries:
             try:
-                signal_matrix = self.pplus.sdr.rx() # complex128 for pluto, eventhough its 12bit TODO
+                signal_matrix = self.pplus.sdr.rx() # complex128 for pluto, even though its 12bit TODO
                 rssis = self.pplus.rssis()
                 gains = self.pplus.gains()
                 return {"signal_matrix": signal_matrix, "rssis": rssis, "gains": gains}
@@ -422,7 +450,7 @@ class DataCollector:
     def run_inner_collector_thread(self):
         futures = []
         with ThreadPoolExecutorWithQueueSizeLimit(
-            max_workers=1, maxsize=1
+            max_workers=2, maxsize=1
         ) as executor:
             for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
                 for read_thread_idx, read_thread in enumerate(self.read_threads):
@@ -516,7 +544,9 @@ class DroneDataCollectorRaw(DataCollector):
 
         if self.realtime_v5inf is not None:
             data_dict=asdict(data)
-            data_dict['signal_matrix']=data_dict['signal_matrix'].reshape(1,1,*data_dict['signal_matrix'].shape)
+            print(data_dict['signal_matrix'].dtype,"XXA")
+            data_dict['signal_matrix']=data_dict['signal_matrix'].reshape(1,1,*data_dict['signal_matrix'].shape).astype(np.complex64)
+            print(data_dict['signal_matrix'].dtype,"XXA")
             self.realtime_v5inf.write_to_idx(record_idx, thread_idx, data_dict)
         if self.data_filename is not None:
             z = self.zarr[f"receivers/r{thread_idx}"]

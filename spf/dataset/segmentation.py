@@ -2,6 +2,7 @@ import os
 import pickle
 from multiprocessing import Pool, cpu_count
 
+from numba import njit
 from spf.utils import SEGMENTATION_VERSION
 
 try:
@@ -15,6 +16,7 @@ from scipy.stats import trim_mean
 
 from spf.rf import (
     beamformer_given_steering_nomean,
+    beamformer_given_steering_nomean_fast,
     beamformer_given_steering_nomean_cp,
     get_phase_diff,
     get_stats_for_signal,
@@ -507,7 +509,7 @@ def segment_session(
         else:
             # CPU version of beamforming (same algorithm but slower)
             segmentation_results["windowed_beamformer"] = (
-                beamformer_given_steering_nomean(
+                beamformer_given_steering_nomean_fast(
                     steering_vectors=kwrgs["steering_vectors"],
                     signal_matrix=v.astype(np.complex64),
                 )
@@ -626,7 +628,7 @@ def segment_session(
 
     return segmentation_results
 
-
+@njit
 def get_all_windows_stats(
     v,
     window_size,
