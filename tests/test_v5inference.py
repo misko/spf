@@ -47,7 +47,7 @@ def test_preprocessing_equal(perfect_circle_n50_0p01_v4):
         v4=True,
     )
 
-    v5inf = v5inferencedataset(
+    with v5inferencedataset(
         yaml_fn=zarr_fn.replace(".zarr", "") + ".yaml",
         nthetas=65,
         gpu=False,
@@ -57,17 +57,17 @@ def test_preprocessing_equal(perfect_circle_n50_0p01_v4):
         vehicle_type="wallarray",
         skip_segmentation=False,
         skip_detrend=False,
-    )
+    ) as v5inf:
 
-    for idx in range(20):
-        d = ds[idx]
-        for ridx in range(2):
-            v5inf.write_to_idx(idx, ridx, data_single_radio_to_raw(d[ridx], ds))
+        for idx in range(20):
+            d = ds[idx]
+            for ridx in range(2):
+                v5inf.write_to_idx(idx, ridx, data_single_radio_to_raw(d[ridx], ds))
 
-    for idx in range(20):
-        d = ds[idx]
-        for ridx in range(2):
-            compare_two_entries(d[ridx], v5inf[idx][ridx])
+        for idx in range(20):
+            d = ds[idx]
+            for ridx in range(2):
+                compare_two_entries(d[ridx], v5inf[idx][ridx])
 
 
 def test_v5inference_with_nn_wrapper(
@@ -145,7 +145,7 @@ def test_v5inference_with_nn(
         v4=True,
     )
 
-    v5inf = v5inferencedataset(
+    with v5inferencedataset(
         yaml_fn=zarr_fn.replace(".zarr", "") + ".yaml",
         nthetas=65,
         gpu=False,
@@ -155,35 +155,35 @@ def test_v5inference_with_nn(
         vehicle_type="wallarray",
         skip_segmentation=False,
         skip_detrend=False,
-    )
+    ) as v5inf:
 
-    n = len(ds)
+        n = len(ds)
 
-    for idx in range(n):
-        d = ds[idx]
-        for ridx in range(2):
-            v5inf.write_to_idx(idx, ridx, d[ridx])
+        for idx in range(n):
+            d = ds[idx]
+            for ridx in range(2):
+                v5inf.write_to_idx(idx, ridx, d[ridx])
 
-    # get paired checkpoint results
-    paired_checkpoints_dir = paired_net_checkpoint_using_single_checkpoint
+        # get paired checkpoint results
+        paired_checkpoints_dir = paired_net_checkpoint_using_single_checkpoint
 
-    paired_config_fn = f"{paired_checkpoints_dir}/config.yml"
-    paired_checkpoint_fn = f"{paired_checkpoints_dir}/best.pth"
+        paired_config_fn = f"{paired_checkpoints_dir}/config.yml"
+        paired_checkpoint_fn = f"{paired_checkpoints_dir}/best.pth"
 
-    # load model and model config
-    model, config = load_model_and_config_from_config_fn_and_checkpoint(
-        config_fn=paired_config_fn, checkpoint_fn=paired_checkpoint_fn
-    )
-    config["optim"]["device"] = "cpu"
-    model.to(config["optim"]["device"])
+        # load model and model config
+        model, config = load_model_and_config_from_config_fn_and_checkpoint(
+            config_fn=paired_config_fn, checkpoint_fn=paired_checkpoint_fn
+        )
+        config["optim"]["device"] = "cpu"
+        model.to(config["optim"]["device"])
 
-    st = time.time()
+        st = time.time()
 
-    idx = 0
-    for x in single_example_realtime_inference(
-        model, config["global"], config["optim"], realtime_ds=v5inf
-    ):
-        idx += 1
-        if idx >= len(ds):
-            break
-    print(time.time() - st)
+        idx = 0
+        for x in single_example_realtime_inference(
+            model, config["global"], config["optim"], realtime_ds=v5inf
+        ):
+            idx += 1
+            if idx >= len(ds):
+                break
+        print(time.time() - st)

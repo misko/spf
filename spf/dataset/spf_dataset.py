@@ -602,13 +602,18 @@ class v5inferencedataset(Dataset):
 
         # setup the reader thread
         self.stop_event = threading.Event()
-        self.reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
+        self.reader_thread = threading.Thread(
+            target=self._reader_loop
+        )  # , daemon=True)
         self.reader_thread.start()
 
     def _reader_loop(self):
         while not self.stop_event.is_set():
             try:
                 idx, ridx, rendered_data = self.incoming_queue.get(timeout=0.1)
+                if self.stop_event.is_set():
+                    print("RET")
+                    return
                 with self.lock:
                     if idx not in self.store:
                         self.store[idx] = {
@@ -617,14 +622,14 @@ class v5inferencedataset(Dataset):
                         }
                     self.store[idx]["data"][ridx] = rendered_data
                     self.store[idx]["count"] += 1
-                    print("LENGTH OF STORE IS", len(self.store))
+                    # print("LENGTH OF STORE IS", len(self.store))
                     if (
                         self.max_store_size is not None
                         and len(self.store) > self.max_store_size
                     ):
                         for idx in sorted(self.store.keys())[: -self.max_store_size]:
                             self.store.pop(idx)
-                            print("POPPING", idx)
+                            # print("POPPING", idx)
 
             except queue.Empty:
                 pass  # No new item, just keep looping
@@ -636,6 +641,7 @@ class v5inferencedataset(Dataset):
                     logging.exception("Error in v5inferencedataset queue reader thread")
                 # If stop_event is set, don't log, just exit.
                 break
+        print("RET2")
 
     def __len__(self):
         return self.serving_idx
@@ -800,12 +806,16 @@ class v5inferencedataset(Dataset):
         return data
 
     def close(self):
-        if hasattr(self, "stop_event"):
-            self.stop_event.set()
-        if hasattr(self, "reader_thread") and self.reader_thread.is_alive():
-            self.reader_thread.join(timeout=1.0)  # avoid blocking forever
+        print("CLOSE2")
+        self.stop_event.set()
+        print("CLOSE3")
+        self.reader_thread.join(timeout=1.0)  # avoid blocking forever
 
-    def __del__(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        print("CLOSE")
         self.close()
 
 

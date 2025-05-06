@@ -10,7 +10,7 @@ import yaml
 from pymavlink import mavutil
 
 from spf.data_collector import DroneDataCollectorRaw
-from spf.dataset.spf_dataset import v5inferencedataset,training_only_keys
+from spf.dataset.spf_dataset import training_only_keys, v5inferencedataset
 from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
 from spf.gps.boundaries import boundaries  # crissy_boundary_convex
@@ -259,15 +259,14 @@ if __name__ == "__main__":
     if args.inference:
         pass
 
-
     if args.checkpoint:
         # load model config and use that theta
         config = load_config_from_fn(args.checkpoint_config)
         assert args.nthetas is None, "nthetas cannot be set when loading checkpoint"
-        args.nthetas = config['global']['nthetas']
+        args.nthetas = config["global"]["nthetas"]
     elif args.nthetas is None:
         logging.warning("Setting nthetas to 65 as default")
-        args.nthetas=65
+        args.nthetas = 65
 
     if args.realtime:
         v5inf = v5inferencedataset(
@@ -280,7 +279,7 @@ if __name__ == "__main__":
             vehicle_type="rover",
             skip_segmentation=True,
             skip_detrend=False,
-            max_store_size=2
+            max_store_size=2,
         )
         nn_ds = v5spfdataset_nn_wrapper(
             v5inf,
@@ -291,7 +290,6 @@ if __name__ == "__main__":
             v4=False,
             absolute=True,
         )
-
 
     if yaml_config["data-version"] == 4:
         data_collector = DroneDataCollectorRaw(
@@ -335,6 +333,8 @@ if __name__ == "__main__":
         time.sleep(5)
 
     data_collector.done()
+
+    v5inf.close()  # make sure to close this outside of context manager!
 
     drone.planner_should_move = False
     # we finished lets move files out to final positions

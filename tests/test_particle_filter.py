@@ -249,7 +249,7 @@ def test_single_theta_dual_radioNN_nnwrapper(
         segment_if_not_exist=True,
     ) as ds:
 
-        v5inf = v5inferencedataset(
+        with v5inferencedataset(
             yaml_fn=ds.zarr_fn.replace(".zarr", "") + ".yaml",
             nthetas=65,
             gpu=False,
@@ -259,34 +259,36 @@ def test_single_theta_dual_radioNN_nnwrapper(
             vehicle_type="wallarray",
             skip_segmentation=False,
             skip_detrend=False,
-        )
+        ) as v5inf:
 
-        n_steps = len(ds) // 4
+            n_steps = len(ds) // 4
 
-        for idx in range(n_steps):
-            d = ds[idx]
-            print("serving", idx)
-            for ridx in range(2):
-                v5inf.write_to_idx(idx, ridx, d[ridx])
-        nn_ds = v5spfdataset_nn_wrapper(
-            v5inf,
-            paired_config_fn,
-            paired_checkpoint_fn,
-            inference_cache=None,
-            device="cpu",
-            v4=False,
-            absolute=True,
-        )
-        pf = PFSingleThetaDualRadioNN(nn_ds=nn_ds)
+            for idx in range(n_steps):
+                d = ds[idx]
+                print("serving", idx)
+                for ridx in range(2):
+                    v5inf.write_to_idx(idx, ridx, d[ridx])
+            nn_ds = v5spfdataset_nn_wrapper(
+                v5inf,
+                paired_config_fn,
+                paired_checkpoint_fn,
+                inference_cache=None,
+                device="cpu",
+                v4=False,
+                absolute=True,
+            )
+            pf = PFSingleThetaDualRadioNN(nn_ds=nn_ds)
 
-        theta_err = 0.075
-        theta_dot_err = 0.002
-        N = 512
-        _ = pf.trajectory(
-            mean=torch.tensor([[0, 0]]),
-            N=N,
-            std=torch.tensor([[20, 0.1]]),  # 20 should be random enough to loop around
-            noise_std=torch.tensor([[theta_err, theta_dot_err]]),
-            return_particles=False,
-            steps=n_steps,
-        )
+            theta_err = 0.075
+            theta_dot_err = 0.002
+            N = 512
+            _ = pf.trajectory(
+                mean=torch.tensor([[0, 0]]),
+                N=N,
+                std=torch.tensor(
+                    [[20, 0.1]]
+                ),  # 20 should be random enough to loop around
+                noise_std=torch.tensor([[theta_err, theta_dot_err]]),
+                return_particles=False,
+                steps=n_steps,
+            )
