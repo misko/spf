@@ -94,7 +94,7 @@ class v5spfdataset_nn_wrapper(Dataset):
             sample[ridx]["paired"] = paired_nn_inference_rotated
         return sample
 
-    @lru_cache
+    @lru_cache(4)
     def get_inference_for_idx(self, idx):
         if not self.ds.realtime:
             return [
@@ -103,7 +103,7 @@ class v5spfdataset_nn_wrapper(Dataset):
             ]
         return self.get_and_annotate_entry_at_idx(idx)
 
-    @lru_cache
+    @lru_cache(4)
     def get_and_annotate_entry_at_idx(self, idx):
         sample = self.ds[idx]
         if not self.ds.realtime:
@@ -135,7 +135,7 @@ class v5spfdataset_nn_wrapper(Dataset):
         self.serving_idx += 1
         return sample
 
-    @lru_cache
+    @lru_cache(4)
     def __getitem__(self, idx):
         return self.get_and_annotate_entry_at_idx(idx)
 
