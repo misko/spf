@@ -77,12 +77,13 @@ def torch_pi_norm_pi(x):
 def torch_pi_norm(x: torch.Tensor, max_angle: float = torch.pi):
     return ((x + max_angle) % (2 * max_angle)) - max_angle
 
-@njit
+#@njit
 def fast_percentile(x, percentile):
     n = x.shape[0]
     if n == 0:
         return 0.0
-    k = int(np.ceil((percentile / 100.0) * n)) - 1
+    rank = (percentile / 100.0) * (n - 1)
+    k = int(np.floor(rank))  # equivalent to method='lower'
     k = max(0, min(k, n - 1))
     partitioned = np.partition(x, k)
     return partitioned[k]
