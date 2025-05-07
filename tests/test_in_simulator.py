@@ -104,7 +104,7 @@ def buzzer(tone):
     )
 
 
-def set_mode(mode, port=14591):
+def set_mode(mode, port=14591, sleep_time=0):
     print("SET MODE", f"{mavlink_controller_base_command(port)} --mode {mode}")
     subprocess.check_output(
         f"{mavlink_controller_base_command(port)} --mode {mode}",
@@ -112,6 +112,8 @@ def set_mode(mode, port=14591):
         shell=True,
         env=get_env(),
     )
+    if sleep_time:
+        time.sleep(sleep_time)
 
 
 def test_gps_time(adrupilot_simulator):
@@ -201,18 +203,13 @@ def test_buzzer(adrupilot_simulator):
     buzzer("ready")
 
 
-def test_mode(adrupilot_simulator):
-    set_mode("manual")
-    set_mode("guided")
-
-
 def mavlink_radio_collection_base_command():
     return f"python3 {mavlink_radio_collection.__file__} -c {root_dir}/tests/rover_config.yaml -m \
           {root_dir}/tests/device_mapping"
 
 
 def test_manual_mode_stationary(adrupilot_simulator):
-    set_mode("manual")
+    set_mode("manual", sleep_time=10)
     with tempfile.TemporaryDirectory() as tmpdirname:
         output = subprocess.check_output(
             f"{mavlink_radio_collection_base_command()}  -r circle --temp {tmpdirname} -s 30",
@@ -229,7 +226,7 @@ def test_manual_mode_stationary(adrupilot_simulator):
 
 
 def test_guided_mode_moving_and_recording(adrupilot_simulator):
-    set_mode("manual")
+    set_mode("manual", sleep_time=10)
     with tempfile.TemporaryDirectory() as tmpdirname:
         cmd = (
             f"{mavlink_radio_collection_base_command()}  -r circle --temp {tmpdirname}"

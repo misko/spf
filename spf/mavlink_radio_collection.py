@@ -334,7 +334,8 @@ if __name__ == "__main__":
 
     data_collector.done()
 
-    v5inf.close()  # make sure to close this outside of context manager!
+    if args.realtime:
+        v5inf.close()  # make sure to close this outside of context manager!
 
     drone.planner_should_move = False
     # we finished lets move files out to final positions
