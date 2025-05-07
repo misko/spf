@@ -77,7 +77,8 @@ def torch_pi_norm_pi(x):
 def torch_pi_norm(x: torch.Tensor, max_angle: float = torch.pi):
     return ((x + max_angle) % (2 * max_angle)) - max_angle
 
-#@njit
+
+# @njit
 def fast_percentile(x, percentile):
     n = x.shape[0]
     if n == 0:
@@ -87,6 +88,7 @@ def fast_percentile(x, percentile):
     k = max(0, min(k, n - 1))
     partitioned = np.partition(x, k)
     return partitioned[k]
+
 
 @njit
 def circular_stddev_fast(v, mean, trim=50.0):
@@ -125,6 +127,7 @@ def circular_stddev_fast(v, mean, trim=50.0):
         trimmed_stddev = np.sqrt(trimmed_sum_sq / (trimmed_count - 1))
 
     return stddev, trimmed_stddev
+
 
 # returns circular_stddev and trimmed cricular stddev
 @njit
@@ -247,6 +250,7 @@ def circular_diff_to_mean(angles, means):
     b = 2 * np.pi - a
     return np.min(np.vstack([a[None], b[None]]), axis=0)
 
+
 @njit
 def circular_mean_simple_fast(angles):
     n_rows, n_cols = angles.shape
@@ -261,8 +265,9 @@ def circular_mean_simple_fast(angles):
             sy += np.sin(angle)
         mean_angle = np.arctan2(sy, sx)
         result[i] = pi_norm(mean_angle)
-    
+
     return result, result
+
 
 # TODO remove
 def circular_mean(angles, trim, weights=None):
@@ -289,6 +294,7 @@ def circular_mean(angles, trim, weights=None):
         ) % (2 * np.pi)
 
     return pi_norm(cm), pi_norm(_cm)
+
 
 @njit
 def circular_mean_single_fast(angles, trim, weights=None):
@@ -334,7 +340,9 @@ def circular_mean_single_fast(angles, trim, weights=None):
 
     return pi_norm(cm), pi_norm(trimmed_cm)
 
+
 # Helper functions you need:
+
 
 @njit
 def fast_percentile_1d(x, percentile):
@@ -342,9 +350,10 @@ def fast_percentile_1d(x, percentile):
     if n == 0:
         return 0.0
     k = int(np.ceil((percentile / 100.0) * n)) - 1
-    k = max(0, min(k, n-1))
+    k = max(0, min(k, n - 1))
     partitioned = np.partition(x, k)
     return partitioned[k]
+
 
 @njit
 def circular_mean_single(angles, trim, weights=None):
@@ -458,6 +467,7 @@ def torch_get_stats_for_signal(v: torch.Tensor, pd: torch.Tensor, trim: float):
     )
     return torch.hstack((trimmed_cm, trimmed_stddev, abs_signal_median))
 
+
 @njit
 def fast_median_abs(x):
     n = x.shape[0]
@@ -473,12 +483,14 @@ def fast_median_abs(x):
     if n % 2 == 1:
         return partitioned[mid]
     else:
-        return 0.5 * (np.partition(abs_x, mid-1)[mid-1] + partitioned[mid])
+        return 0.5 * (np.partition(abs_x, mid - 1)[mid - 1] + partitioned[mid])
 
 
 @njit
 def get_stats_for_signal(v, pd, trim):
-    trimmed_cm = circular_mean_single_fast(pd, trim=trim)[1]  # get the value for trimmed
+    trimmed_cm = circular_mean_single_fast(pd, trim=trim)[
+        1
+    ]  # get the value for trimmed
     trimmed_stddev = circular_stddev_fast(pd, trimmed_cm, trim=trim)[1]
     abs_signal_median = fast_median_abs(v.flatten()) if v.size > 0 else 0.0
     return trimmed_cm, trimmed_stddev, abs_signal_median
@@ -510,6 +522,8 @@ def torch_windowed_trimmed_circular_mean_and_stddev(
             _v, _pd, trim
         )  # trimmed_cm, trimmed_stddev, abs_signal_median
     return step_idxs, step_stats
+
+
 @njit
 def fast_abs_median(x):
     n = x.shape[0]
@@ -528,7 +542,8 @@ def fast_abs_median(x):
     else:
         # For even n, average the two middle values
         return 0.5 * (np.partition(abs_x, mid - 1)[mid - 1] + partitioned[mid])
-    
+
+
 @njit
 def circular_diff_to_mean_single_scalar(angle, mean):
     two_pi = 2.0 * np.pi
@@ -537,7 +552,8 @@ def circular_diff_to_mean_single_scalar(angle, mean):
         diff -= two_pi
     return abs(diff)
 
-#@njit(parallel=True)
+
+# @njit(parallel=True)
 def windowed_trimmed_circular_mean_and_stddev_fast2(v, pd, window_size, stride, trim):
     n_samples = pd.shape[0]
     # No windows if input too short or invalid stride
@@ -636,8 +652,11 @@ def windowed_trimmed_circular_mean_and_stddev_fast2(v, pd, window_size, stride, 
 
     return step_idxs, step_stats
 
+
 @njit
-def windowed_trimmed_circular_mean_and_stddev_fast(v, pd, window_size, stride, trim=50.0):
+def windowed_trimmed_circular_mean_and_stddev_fast(
+    v, pd, window_size, stride, trim=50.0
+):
     n_samples = pd.shape[0]
     assert (n_samples - window_size) % stride == 0
     n_steps = 1 + (n_samples - window_size) // stride
@@ -649,9 +668,7 @@ def windowed_trimmed_circular_mean_and_stddev_fast(v, pd, window_size, stride, t
         end_idx = start_idx + window_size
 
         # Instead of slicing arrays, pass start/end indices
-        step_stats[step] = get_stats_for_signal_window(
-            v, pd, start_idx, end_idx, trim
-        )
+        step_stats[step] = get_stats_for_signal_window(v, pd, start_idx, end_idx, trim)
 
     # After loop: create step_idxs
     step_idxs = np.empty((n_steps, 2), dtype=np.int32)
@@ -662,6 +679,7 @@ def windowed_trimmed_circular_mean_and_stddev_fast(v, pd, window_size, stride, t
         step_idxs[step, 1] = end_idx
 
     return step_idxs, step_stats
+
 
 # Modified get_stats_for_signal
 @njit
@@ -674,6 +692,7 @@ def get_stats_for_signal_window(v, pd, start_idx, end_idx, trim):
     abs_signal_median = fast_median_abs(_v.flatten()) if _v.size > 0 else 0.0
 
     return np.array([trimmed_cm, trimmed_stddev, abs_signal_median], dtype=np.float32)
+
 
 @njit
 def windowed_trimmed_circular_mean_and_stddev(v, pd, window_size, stride, trim=50.0):
@@ -739,11 +758,12 @@ def get_avg_phase(signal_matrix, trim=0.0):
     ).reshape(-1)
 
 
-#@njit
+# @njit
 def get_avg_phase_fast(signal_matrix):
     return np.array(
         circular_mean_simple_fast(get_phase_diff(signal_matrix=signal_matrix)[None])
     ).reshape(-1)
+
 
 @njit
 def get_avg_phase_fast2(signal_matrix):
@@ -759,6 +779,7 @@ def get_avg_phase_fast2(signal_matrix):
     mean_angle = pi_norm(np.arctan2(sy, sx))
 
     return np.array([mean_angle, mean_angle], dtype=np.float32)
+
 
 # @torch.jit.script
 def torch_get_avg_phase_notrim(signal_matrix: torch.Tensor):
@@ -1196,6 +1217,7 @@ def beamformer_given_steering_nomean_fast(steering_vectors, signal_matrix):
     beamformer_given_steering_nomean_fast_core(steering_vectors, signal_matrix, output)
     return output
 
+
 @njit(parallel=True)
 def beamformer_given_steering_nomean_fast_core(steering_vectors, signal_matrix, output):
     n_thetas, n_antennas = steering_vectors.shape
@@ -1214,7 +1236,7 @@ def beamformer_given_steering_nomean_fast_core(steering_vectors, signal_matrix, 
             output[theta_idx, sample_idx] = (real_sum**2 + imag_sum**2) ** 0.5
 
 
-@jit(nopython=True)
+# @jit(nopython=True) # doesnt work for cupy!
 def beamformer_given_steering_nomean_cp(
     steering_vectors,  # shape: [n_thetas, n_antennas]
     signal_matrix,  # shape: [n_antennas, n_samples]
