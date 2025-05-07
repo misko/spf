@@ -19,7 +19,7 @@ from tqdm import tqdm
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.dataset.wall_array_v2_idxs import v2_column_names
-from spf.rf import beamformer_given_steering, get_avg_phase, precompute_steering_vectors
+from spf.rf import beamformer_given_steering, get_avg_phase, get_avg_phase_fast, get_avg_phase_fast2,  precompute_steering_vectors
 from spf.scripts.zarr_utils import zarr_shrink
 from spf.sdrpluto.sdr_controller import (
     EmitterConfig,
@@ -266,7 +266,7 @@ class ThreadedRX:
         if sdr_rx is None:
             raise ValueError("SDR RX is None, aborting.")
         # process the data
-        signal_matrix = np.vstack(sdr_rx["signal_matrix"])
+        signal_matrix = np.vstack(sdr_rx["signal_matrix"],dtype=np.complex64)
         current_time = time.time() - self.time_offset  # timestamp
 
         return data_to_snapshot(
@@ -285,10 +285,10 @@ class ThreadedRXRaw(ThreadedRX):
         sdr_rx = self.get_rx()
 
         # process the data
-        signal_matrix = np.vstack(sdr_rx["signal_matrix"])
+        signal_matrix = np.vstack(sdr_rx["signal_matrix"]).astype(np.complex64)
         current_time = time.time() - self.time_offset  # timestamp after sample arrives
 
-        avg_phase_diff = get_avg_phase(signal_matrix)
+        avg_phase_diff =get_avg_phase_fast2(signal_matrix)
         assert self.pplus.rx_config.rx_spacing > 0.001
         return self.snapshot_class(
             signal_matrix=signal_matrix,
@@ -541,12 +541,9 @@ class DroneDataCollectorRaw(DataCollector):
         data.gps_long = current_pos_heading_and_time["gps"][0]
         data.gps_lat = current_pos_heading_and_time["gps"][1]
         data.gps_timestamp = current_pos_heading_and_time["gps_time"]
-
         if self.realtime_v5inf is not None:
             data_dict=asdict(data)
-            print(data_dict['signal_matrix'].dtype,"XXA")
             data_dict['signal_matrix']=data_dict['signal_matrix'].reshape(1,1,*data_dict['signal_matrix'].shape).astype(np.complex64)
-            print(data_dict['signal_matrix'].dtype,"XXA")
             self.realtime_v5inf.write_to_idx(record_idx, thread_idx, data_dict)
         if self.data_filename is not None:
             z = self.zarr[f"receivers/r{thread_idx}"]
@@ -556,10 +553,11 @@ class DroneDataCollectorRaw(DataCollector):
 
 
     def close(self):
-        self.zarr.store.close()
-        self.zarr = None
-        logging.info(f"Trying to shrink... {self.data_filename}")
-        zarr_shrink(self.data_filename)
+        if self.data_filename is not None:
+            self.zarr.store.close()
+            self.zarr = None
+            logging.info(f"Trying to shrink... {self.data_filename}")
+            zarr_shrink(self.data_filename)
 
 
 # V5 data format

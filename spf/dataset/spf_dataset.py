@@ -760,6 +760,7 @@ class v5inferencedataset(Dataset):
             skip_beamformer=False,
             skip_detrend=self.skip_detrend,
             skip_segmentation=self.skip_segmentation,
+            fast_beamformer=True,
             **{
                 "steering_vectors": self.steering_vectors[ridx],
                 **DEFAULT_SEGMENT_ARGS,

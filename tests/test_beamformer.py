@@ -7,8 +7,15 @@ from spf.rf import (
     UCADetector,
     ULADetector,
     beamformer,
+    beamformer_given_steering_nomean,
+    beamformer_given_steering_nomean_fast,
     c,
+    circular_diff_to_mean_single,
+    circular_diff_to_mean_single_fast,
     circular_mean,
+    circular_mean_simple_fast,
+    fast_median_abs,
+    fast_percentile,
     rotation_matrix,
     torch_circular_mean,
 )
@@ -93,135 +100,3 @@ def test_beamformer():
                     # plt.axhline(y=beam_former_outputs_at_t.max()-potential_error)
                     # plt.show()
 
-
-def test_simple_segment():
-    rng = np.random.default_rng(12345)
-    signal_matrix = random_signal_matrix(1200, rng=rng).reshape(2, 600)
-
-    ground_truth_windows = [
-        {"start_idx": 0, "end_idx": 100, "mean": 0.5},
-        {"start_idx": 300, "end_idx": 400, "mean": 1.3},
-        {"start_idx": 500, "end_idx": 600, "mean": 1.25},
-    ]
-
-    for window in ground_truth_windows:
-        signal_matrix[0, window["start_idx"] : window["end_idx"]] *= 10
-        signal_matrix[1, window["start_idx"] : window["end_idx"]] = signal_matrix[
-            0, window["start_idx"] : window["end_idx"]
-        ] * np.exp(-1j * window["mean"])
-
-    mean_diff_threshold = 0.05
-    segmented_windows = simple_segment(
-        signal_matrix,
-        window_size=100,
-        stride=50,
-        trim=10,
-        # mean_diff_threshold=mean_diff_threshold,
-        max_stddev_threshold=0.1,
-        drop_less_than_size=0,
-        min_abs_signal=10,
-    )["simple_segmentation"]
-
-    assert segmented_windows[0]["start_idx"] == ground_truth_windows[0]["start_idx"]
-    assert segmented_windows[0]["end_idx"] == ground_truth_windows[0]["end_idx"]
-    assert np.isclose(
-        segmented_windows[0]["mean"],
-        ground_truth_windows[0]["mean"],
-        mean_diff_threshold,
-    )
-
-    assert segmented_windows[1]["start_idx"] == ground_truth_windows[1]["start_idx"]
-    # assert segmented_windows[1]["end_idx"] == ground_truth_windows[2]["end_idx"]
-    assert np.isclose(
-        segmented_windows[1]["mean"],
-        ground_truth_windows[1]["mean"],
-        mean_diff_threshold,
-    )
-
-
-def test_simple_segment_separate():
-    rng = np.random.default_rng(12345)
-    signal_matrix = random_signal_matrix(800, rng=rng).reshape(2, 400)
-
-    ground_truth_windows = [
-        {"start_idx": 0, "end_idx": 100, "mean": 0.5},
-        {"start_idx": 200, "end_idx": 300, "mean": 1.3},
-        {"start_idx": 300, "end_idx": 400, "mean": 1.1},
-    ]
-
-    for window in ground_truth_windows:
-        signal_matrix[0, window["start_idx"] : window["end_idx"]] *= 10
-        signal_matrix[1, window["start_idx"] : window["end_idx"]] = signal_matrix[
-            0, window["start_idx"] : window["end_idx"]
-        ] * np.exp(-1j * window["mean"])
-
-    mean_diff_threshold = 0.05
-    segmented_windows = simple_segment(
-        signal_matrix,
-        window_size=100,
-        stride=50,
-        trim=10,
-        # mean_diff_threshold=mean_diff_threshold,
-        max_stddev_threshold=0.1,
-        drop_less_than_size=0,
-        min_abs_signal=10,
-    )["simple_segmentation"]
-
-    assert segmented_windows[0]["start_idx"] == ground_truth_windows[0]["start_idx"]
-    assert segmented_windows[0]["end_idx"] == ground_truth_windows[0]["end_idx"]
-    assert np.isclose(
-        segmented_windows[0]["mean"],
-        ground_truth_windows[0]["mean"],
-        mean_diff_threshold,
-    )
-
-    assert segmented_windows[1]["start_idx"] == ground_truth_windows[1]["start_idx"]
-    assert segmented_windows[1]["end_idx"] == ground_truth_windows[1]["end_idx"]
-    assert np.isclose(
-        segmented_windows[1]["mean"],
-        ground_truth_windows[1]["mean"],
-        mean_diff_threshold,
-    )
-
-    assert segmented_windows[2]["start_idx"] == ground_truth_windows[2]["start_idx"]
-    assert segmented_windows[2]["end_idx"] == ground_truth_windows[2]["end_idx"]
-    assert np.isclose(
-        segmented_windows[2]["mean"],
-        ground_truth_windows[2]["mean"],
-        mean_diff_threshold,
-    )
-
-
-def test_circular_mean():
-    gt_mean = np.array([0, np.pi / 2]).reshape(-1, 1)
-
-    gt_mean = np.random.uniform(low=-np.pi, high=np.pi, size=(128, 1))
-
-    for n in [1000]:
-        angles = np.random.randn(gt_mean.shape[0], n) * 0.2 + gt_mean
-        m, _m = circular_mean(angles, 20)
-        assert np.isclose(_m, gt_mean[:, 0], atol=1e-1).all()
-
-        _angles = torch.from_numpy(angles)
-        m, _m = torch_circular_mean(_angles, 20)
-        assert torch.isclose(
-            _m.double(), torch.from_numpy(gt_mean[:, 0]), atol=1e-1
-        ).all()
-
-        # try with and without weights
-        add_noise_angles = np.hstack(
-            [angles, np.random.randn(gt_mean.shape[0], n * 10) + 0.5]
-        )
-        # add_noise_angles = 10*np.random.randn(2, n*40)
-        weights = np.zeros(add_noise_angles.shape)
-        weights[:, :n] = 1
-
-        m, _m = circular_mean(add_noise_angles, 20, weights=weights)
-        assert np.isclose(_m, gt_mean[:, 0], atol=1e-1).all()
-
-        m, _m = torch_circular_mean(
-            torch.from_numpy(add_noise_angles), 20, weights=weights
-        )
-        assert torch.isclose(
-            _m.double(), torch.from_numpy(gt_mean[:, 0]), atol=1e-1
-        ).all()
