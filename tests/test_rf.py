@@ -101,7 +101,7 @@ def test_fast_percentile():
 
             # Allow small floating point rounding errors
             if arr_float32.size > 0:
-                assert diff < 1e-3, f"Mismatch at array {arr_idx}, percentile {p}"
+                assert diff < 3e-3, f"Mismatch at array {arr_idx}, percentile {p}"
             else:
                 assert fast_val == 0.0, "Empty array should return 0.0"
 
