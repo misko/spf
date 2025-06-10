@@ -475,6 +475,7 @@ class v5inferencedataset(Dataset):
         v4: bool = False,
         max_store_size=None,
     ):
+        self.min_idx_stored=-1
         # Store configuration parameters
         self.yaml_fn = yaml_fn
         self.nthetas = nthetas  # Number of angles to discretize space for beamforming
@@ -622,14 +623,14 @@ class v5inferencedataset(Dataset):
                         }
                     self.store[idx]["data"][ridx] = rendered_data
                     self.store[idx]["count"] += 1
-                    # print("LENGTH OF STORE IS", len(self.store))
+                    
                     if (
                         self.max_store_size is not None
                         and len(self.store) > self.max_store_size
                     ):
                         for idx in sorted(self.store.keys())[: -self.max_store_size]:
                             self.store.pop(idx)
-                            # print("POPPING", idx)
+                    self.min_idx_stored=min(self.store.keys())
 
             except queue.Empty:
                 pass  # No new item, just keep looping
@@ -660,43 +661,36 @@ class v5inferencedataset(Dataset):
         return sample
 
     # ASSUMING EVERYTHING WILL BE REQUESTED IN SEQUENCE!!
-    def __getitem__(self, idx, timeout=10.0):
+    def __getitem__(self, idx, timeout=30.0):
+        if self.min_idx_stored>idx:
+            raise ValueError(f"idx {idx} is smaller than min_idx_stored {self.min_idx_stored}")
         start_time = time.time()
         # with self.condition:
         print("waitinf to get get", idx, time.time() - start_time)
         while idx not in self.store or self.store[idx]["count"] != 2:
             # self.condition.wait(0.01)
-            self.check_for_new_data()
+            #self.check_for_new_data()
             time.sleep(0.02)
             if (time.time() - start_time) > timeout:
                 print("ret waitinf to get get", idx, time.time() - start_time)
                 return None
-        return self.store[idx]["data"]
-
-    def check_for_new_data(self):
         with self.lock:
-            while not self.incoming_queue.empty():
-                # shouldnt wait since we checked above
-                idx, ridx, rendered_data = self.incoming_queue.get_nowait()
-                if idx not in self.store:
-                    self.store[idx] = {
-                        "count": 0,
-                        "data": [None, None],
-                    }  # entry not ready
-                self.store[idx]["data"][ridx] = rendered_data
-                self.store[idx]["count"] += 1
+            return self.store[idx]["data"]
 
     def write_to_idx(self, idx, ridx, raw):
         # this is the heavy lifting of processing, do it on this process
         rendered_data = self.render_session(ridx, raw)
-
         self.incoming_queue.put((idx, ridx, rendered_data))
 
-        # with self.condition:
-        #    self.condition.notify_all()
 
     def render_session(self, ridx, data):
         snapshot_idxs = [0]  # which snapshots to get
+        for attr,v in data.items():
+            if isinstance(v, np.ndarray):
+                data[attr]=torch.from_numpy(v)
+        for attr in ['system_timestamp','rx_theta_in_pis','rx_heading_in_pis','rx_spacing','rx_lo','rx_bandwidth']:
+            data[attr]=torch.tensor(data[attr],dtype=torch.float).reshape(1)
+        data['gains']=data['gains'].reshape(1,1,2)
         data["rx_wavelength_spacing"] = torch.tensor(self.rx_wavelength_spacing)
 
         data["gains"] = data["gains"]  # [:, None]
@@ -716,6 +710,7 @@ class v5inferencedataset(Dataset):
             [encode_vehicle_type(self.vehicle_type)]
         ).reshape(1)
         data["sdr_device_type"] = torch.tensor([self.sdr_device_type.value]).reshape(1)
+        
 
         if "signal_matrix" not in self.skip_fields:
             # WARNGING this does not respect flipping!

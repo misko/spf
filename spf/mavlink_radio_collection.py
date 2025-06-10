@@ -279,7 +279,7 @@ if __name__ == "__main__":
             vehicle_type="rover",
             skip_segmentation=True,
             skip_detrend=False,
-            max_store_size=2,
+            max_store_size=3, # needs to process fast enough otherwise delayed
         )
         nn_ds = v5spfdataset_nn_wrapper(
             v5inf,
@@ -329,6 +329,9 @@ if __name__ == "__main__":
 
     data_collector.start()
     while data_collector.is_collecting():
+        # if args.realtime:
+        #     for x in nn_ds: # x[1]['paired'].shape  / torch.Size([1, 65])
+        #         pass
         check_exit()
         time.sleep(5)
 

@@ -36,7 +36,7 @@ class v5spfdataset_nn_wrapper(Dataset):
 
         if v4 is None:
             v4 = self.ds.v4
-
+        
         if not ds.realtime:
             self.cached_model_inference = {
                 k: torch.as_tensor(v)
