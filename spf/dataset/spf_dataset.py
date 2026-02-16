@@ -1062,11 +1062,11 @@ class v5spfdataset(Dataset):
             assert (
                 self.cached_keys[0]["rx_theta_in_pis"].median()
                 == self.yaml_config["receivers"][0]["theta-in-pis"]
-            )
+            ), "%f %f" % (self.cached_keys[0]["rx_theta_in_pis"].median(),self.yaml_config["receivers"][0]["theta-in-pis"])
             assert (
                 self.cached_keys[1]["rx_theta_in_pis"].median()
                 == self.yaml_config["receivers"][1]["theta-in-pis"]
-            )
+            ),  "%f %f" % (self.cached_keys[1]["rx_theta_in_pis"].median(), self.yaml_config["receivers"][1]["theta-in-pis"])
 
         # Create expanded receiver indices for batching
         self.receiver_idxs_expanded = {}

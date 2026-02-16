@@ -38,6 +38,7 @@ class PFSingleThetaDualRadioNN(ParticleFilter):
         self.generator.manual_seed(0)
 
     def observation(self, idx):
+        breakpoint()
         return self.ds.get_inference_for_idx(idx)[0]["paired"][0]
 
     def fix_particles(self):

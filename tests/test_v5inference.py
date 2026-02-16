@@ -62,6 +62,7 @@ def test_preprocessing_equal(perfect_circle_n50_0p01_v4):
         for idx in range(20):
             d = ds[idx]
             for ridx in range(2):
+                # breakpoint()
                 v5inf.write_to_idx(idx, ridx, data_single_radio_to_raw(d[ridx], ds))
 
         for idx in range(20):

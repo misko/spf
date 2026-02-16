@@ -385,7 +385,6 @@ def load_optimizer(optim_config, params):
             optimizer,
             step_size=optim_config["scheduler_step"],
             gamma=0.5,
-            verbose=True,
         )
     elif optim_config["scheduler"] == "cosine":
         # scheduler1 = ConstantLR(optimizer, factor=0.1, total_iters=2)

@@ -68,13 +68,13 @@ class v5spfdataset_nn_wrapper(Dataset):
             # self.model = torch.quantization.quantize_dynamic(
             #     self.model, {torch.nn.Linear}, dtype=torch.qint8
             # )
-            #self.model.fuse_model()
+            # self.model.fuse_model()
             torch.set_num_threads(4)
             # torch.backends.quantized.engine = 'qnnpack'
             # self.model.qconfig = torch.quantization.get_default_qconfig('qnnpack')
             # self.model = torch.quantization.prepare(self.model)
             # self.model = torch.quantization.convert(self.model)
-            #self.model=torch.compile(self.model,mode="reduce-overhead", fullgraph=True)
+            # self.model=torch.compile(self.model,mode="reduce-overhead", fullgraph=True)
             self.model.eval()
             # self.model = torch.jit.script(self.model)
             self.keys_to_get = global_config_to_keys_used(
@@ -83,6 +83,7 @@ class v5spfdataset_nn_wrapper(Dataset):
 
     def to_absolute_north(self, sample):
         for ridx in range(2):
+            breakpoint()
             ntheta = sample[ridx]["paired"].shape[-1]
             paired_nn_inference = sample[ridx]["paired"].reshape(-1, ntheta)
             paired_nn_inference_rotated = rotate_dist(
@@ -116,12 +117,13 @@ class v5spfdataset_nn_wrapper(Dataset):
             single_example = v5_collate_keys_fast(self.keys_to_get, [sample]).to(
                 self.model_config["optim"]["device"]
             )
-            #with torch.autocast(device_type='cpu', dtype=torch.float16):
+            # with torch.autocast(device_type='cpu', dtype=torch.float16):
             with torch.no_grad():
                 nn_inference = self.model(single_example)
-                #nn_inference={'single':[None,None]}
+                # nn_inference={'single':[None,None]}
             for ridx in range(2):
                 sample[ridx].update({k: v[ridx] for k, v in nn_inference.items()})
+            breakpoint()
             if self.absolute:
                 sample = self.to_absolute_north(sample)
             return sample

@@ -6,38 +6,51 @@ precompute_caches:
   3.5: "b2://projectspf/md2/cache/precompute_cache_3p5_chunk1"
 
 runs:
-- run_PF_single_theta_single_radio_NN:
-    checkpoint_fn_and_segmentation_version:
-      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4/best.pth"
-      #  segmentation_version: 3.4
-      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized/best.pth"
-      #  segmentation_version: 3.4
-      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized_big2/best.pth"
-      #  segmentation_version: 3.4
-      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
-      #  segmentation_version: 3.4
-      - checkpoint_fn: "b2://projectspf/md2/cache/inference_models/paired_checkpoints_windowedbeamformer_nosig_3p5_randx_wd0p02_gains_vehicle_0p2dropout_noroverbounce/best.pth"
-        segmentation_version: 3.5
-    inference_cache: ["b2://projectspf/md2/cache/inference"]
-    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 ,  128*128  ]
-    theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15, 0.2]
-    theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
-- run_PF_single_theta_dual_radio_NN:
-    checkpoint_fn_and_segmentation_version:
-      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4/best.pth"
-      #  segmentation_version: 3.4
-      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized/best.pth"
-      #  segmentation_version: 3.4
-      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized_big2/best.pth"
-      #  segmentation_version: 3.4
-      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
-      #  segmentation_version: 3.4
-      - checkpoint_fn: "b2://projectspf/md2/cache/inference_models/paired_checkpoints_windowedbeamformer_nosig_3p5_randx_wd0p02_gains_vehicle_0p2dropout_noroverbounce/best.pth"
-        segmentation_version: 3.5
-    inference_cache: ["b2://projectspf/md2/cache/inference"]
-    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 , 128*128,128*256 ]
-    theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15,0.2]
-    theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05,0.075,0.09,0.1,0.12, 0.15, 0.2]
+- run_EKF_single_theta_dual_radio:
+    phi_std: [20,18,16, 14,12,10.0,8, 5.0, 2.5,1.0]
+    p: [10.0, 5.0, 2.5, 1.0, 0.5, 0.1]
+    noise_std: [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.0005,0.0002,0.000001, 0.00002,0.00005,0.000002,0.000005]
+    dynamic_R: [0.0]
+    segmentation_version: [ 3.5]
+- run_EKF_single_theta_dual_radio:
+    phi_std: [0.0]
+    p: [10.0, 5.0, 2.5, 1.0, 0.5, 0.1]
+    noise_std: [0.1, 0.01, 0.001, 0.0001,0.00001, 0.0005, 0.0002,0.000001, 0.00002,0.00005,0.000002,0.000005]
+    dynamic_R: [1.0,0.1]
+    segmentation_version: [ 3.5]
+#g- run_PF_single_theta_single_radio_NN:
+#g    checkpoint_fn_and_segmentation_version:
+#g      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4/best.pth"
+#g      #  segmentation_version: 3.4
+#g      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized/best.pth"
+#g      #  segmentation_version: 3.4
+#g      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized_big2/best.pth"
+#g      #  segmentation_version: 3.4
+#g      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
+#g      #  segmentation_version: 3.4
+#g      - checkpoint_fn: "b2://projectspf/md2/cache/inference_models/checkpoints/march16/paired_wd0p02_gains_vehicle_0p2dropout_noroverbounceREAL_lowdrop_x2/best.pth"
+#g        segmentation_version: 3.5
+#g    inference_cache: ["b2://projectspf/md2/cache/inference"]
+#g    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 ,  128*128  ]
+#g    theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15, 0.2]
+#g    theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.1, 0.2]
+#g- run_PF_single_theta_dual_radio_NN:
+#g    checkpoint_fn_and_segmentation_version:
+#g      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4/best.pth"
+#g      #  segmentation_version: 3.4
+#g      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized/best.pth"
+#g      #  segmentation_version: 3.4
+#g      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_windowedbeamformer_nophase_nobeam_noemp_normalized_big2/best.pth"
+#g      #  segmentation_version: 3.4
+#g      #- checkpoint_fn: "/home/mouse9911/gits/spf/dec3_checkpoints/paired_checkpoints_inputdo0p3_sigma0p05_rerun_3p4_windows_fix_rerun/best.pth"
+#g      #  segmentation_version: 3.4
+#g      - checkpoint_fn: "b2://projectspf/md2/cache/inference_models/checkpoints/march16/paired_wd0p02_gains_vehicle_0p2dropout_noroverbounceREAL_lowdrop_x2/best.pth"
+#g        segmentation_version: 3.5
+#g    inference_cache: ["b2://projectspf/md2/cache/inference"]
+#g    N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64 , 128*128,128*256 ]
+#g    theta_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.15,0.2]
+#g    theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05,0.075,0.09,0.1,0.12, 0.15, 0.2]
+#g    absolute: [ True, False]
 
   #run_PF_xy_dual_radio:
   #  N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32]
