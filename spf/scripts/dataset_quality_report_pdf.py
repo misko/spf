@@ -12,6 +12,7 @@ Run:  python spf/scripts/dataset_quality_report_pdf.py \
         --out data_quality_reports/scan_2026_07_12/quality_report.pdf
 """
 import argparse
+import os
 import csv
 import re
 from collections import Counter, defaultdict
@@ -144,6 +145,7 @@ def sec_title(rep, rows):
            "5   Deep dive — wall effective-spacing (gain) systematic",
            "5b  Per-band g vs spacing — coupling-model fits (2 pp)",
            "6   Deep dive — NaN / no-signal snapshots",
+           "6b  Deep dive — IF placement (tone-at-DC) + recommendations (2 pp)",
            "7   Deep dive — the bad-capture months",
            "8   Deep dive — rover heading bias & mount anomalies",
            "9   Deep dive — stale positions (#42)",
@@ -559,6 +561,133 @@ def sec_dive_gain_model(rep, rows):
                  fontsize=8.5)
     ax.legend(fontsize=7.5)
     ax.tick_params(labelsize=8)
+
+
+
+def sec_dive_if(rep, rows, if_csv):
+    import pandas as pd
+    if not os.path.exists(if_csv):
+        return
+    d = pd.read_csv(if_csv)
+    d["absif"] = d.r0_if_frac.abs()
+    d["q"] = d[["r0_circstd_corr", "r1_circstd_corr"]].mean(axis=1)
+
+    rep.new_page()
+    y = rep.h1("6b  Deep dive — IF placement: the tone-at-DC failure mode")
+    y = rep.para(y, "WHAT IF MEANS HERE. The receiver mixes the antenna signal with its "
+                 "local oscillator (LO); the beacon then appears in the complex baseband at "
+                 "the INTERMEDIATE FREQUENCY IF = f_carrier - f_LO. IF is where the tone "
+                 "sits relative to 0 Hz (DC) in the captured IQ. DC is the worst place in "
+                 "the spectrum to park a signal: it hosts the ADC/mixer DC offset, LO "
+                 "leakage, 1/f noise — and, critically, the AD9361's RF-DC and baseband-DC "
+                 "(BBDC) tracking loops, whose job is to NULL whatever sits at DC. A beacon "
+                 "within the loop bandwidth gets slowly attenuated and phase-rotated, "
+                 "independently in each receiver — which is exactly the slow drift that "
+                 "destroyed the sub-GHz gain fits (section 5b): rho(r0,r1)~0, per-dataset g "
+                 "scatter 0.2-0.5.")
+    y = rep.para(y, "WHY SUB-GHZ LANDED ON DC. The beacons are crystal-locked near the "
+                 "tuned frequency; measured LO-vs-carrier offsets are ~30 ppm (median "
+                 "|IF_r0 - IF_r1| across receivers: 0.0015-0.01 of fs, consistent with "
+                 "crystal spread). 30 ppm of 915 MHz is ~27 kHz — INSIDE the DC notch — so "
+                 "tuning LO = carrier parks the tone on DC by default at sub-GHz. At "
+                 "5.8 GHz the same ppm error is ~170 kHz, which usually clears the notch by "
+                 "luck. 10% of 2.412 GHz captures also sit at |IF| < 0.0002·fs (sampled "
+                 "p10), contributing to that band's noisy tail.")
+    y = rep.para(y, f"MEASUREMENT. One snapshot of raw IQ per dataset, FFT peak = measured "
+                 f"IF (n={len(d)} stratified wall datasets, 40/band; "
+                 "data_quality_reports/if_analysis/sample_if.py).")
+
+    # fig C1: |IF| vs quality scatter
+    ax = rep.ax([0.09, 0.34, 0.52, 0.26])
+    cols = {"2.412": ACC, "2.46x": "#f0ad4e", "5.8": "#c0392b", "subGHz": "#8e44ad"}
+    for b, gdf in d.groupby("band"):
+        ax.scatter(np.maximum(gdf.absif, 1e-4), gdf.q, s=14, alpha=0.7,
+                   color=cols.get(b, "k"), label=b)
+    ax.set_xscale("log")
+    ax.axvspan(1e-4, 0.002, color="k", alpha=0.08)
+    ax.text(3.2e-4, 0.15, "DC notch\nregion", fontsize=7.5, ha="center")
+    ax.set_xlabel("measured |IF| (fraction of fs, log)", fontsize=8.5)
+    ax.set_ylabel("corrected circstd (mean r0/r1)", fontsize=8.5)
+    ax.set_title("Fig. C1 — phase quality vs measured tone offset from DC", fontsize=9)
+    ax.legend(fontsize=7.5)
+    ax.tick_params(labelsize=8)
+    # fig C2: binned medians
+    ax2 = rep.ax([0.68, 0.34, 0.27, 0.26])
+    bins = [0, 0.002, 0.01, 0.03, 0.5]
+    labs = ["<0.2%", "0.2-1%", "1-3%", ">3%"]
+    med = [float(d.q[(d.absif > b0) & (d.absif <= b1)].median()) for b0, b1 in zip(bins[:-1], bins[1:])]
+    n = [int(((d.absif > b0) & (d.absif <= b1)).sum()) for b0, b1 in zip(bins[:-1], bins[1:])]
+    ax2.bar(range(4), med, color=[ "#c0392b", ACC, ACC, ACC])
+    for i, (m, k) in enumerate(zip(med, n)):
+        ax2.text(i, m + 0.02, f"n={k}", ha="center", fontsize=7)
+    ax2.set_xticks(range(4), labs, fontsize=7.5)
+    ax2.set_xlabel("|IF| as % of fs", fontsize=8.5)
+    ax2.set_ylabel("median corrected circstd", fontsize=8.5)
+    ax2.set_title("Fig. C2 — the cliff is the DC notch,\nnot IF magnitude", fontsize=9)
+    ax2.tick_params(labelsize=8)
+    # fig C3: per-band IF distribution
+    ax3 = rep.ax([0.09, 0.075, 0.86, 0.18])
+    for i, (b, gdf) in enumerate(d.groupby("band")):
+        xs = np.maximum(gdf.absif.values, 1e-4)
+        ax3.scatter(xs, np.full(len(xs), i) + np.random.default_rng(0).uniform(-0.15, 0.15, len(xs)),
+                    s=10, alpha=0.6, color=cols.get(b, "k"))
+    ax3.set_xscale("log")
+    ax3.axvspan(1e-4, 0.002, color="k", alpha=0.08)
+    ax3.set_yticks(range(d.band.nunique()), sorted(d.band.unique()), fontsize=8)
+    ax3.set_xlabel("measured |IF| (fraction of fs, log)", fontsize=8.5)
+    ax3.set_title("Fig. C3 — where each band's tone actually sits: sub-GHz (and part of 2.412) in/around the notch", fontsize=9)
+    ax3.tick_params(labelsize=8)
+
+    rep.new_page()
+    y = rep.h1("6b (cont.)  IF vs captured signal — recommendations")
+    rows_t = []
+    for b, gdf in d.groupby("band"):
+        rows_t.append((b, len(gdf), gdf.absif.median(), gdf.absif.quantile(0.1),
+                       gdf.r0_dc_frac.median(), gdf.r0_tone_frac.median(), gdf.q.median()))
+    y = rep.para(y, "PER-BAND SUMMARY (sampled): " + "  |  ".join(
+        f"{b}: |IF|med={m:.4f}·fs, p10={p:.4f}, DC-power={dc:.2f}, tone-purity={tp:.2f}, "
+        f"circstd={q:.2f} (n={k})" for b, k, m, p, dc, tp, q in rows_t) + ".")
+    y = rep.para(y, "READING IT. (1) 2.46x sits at |IF|~0.0024·fs (~38 kHz) — barely past "
+                 "the notch — and is HEALTHY (circstd 0.43, pure tone): the boundary is "
+                 "sharp and sits near 0.002·fs (~30 kHz at 16 MS/s), i.e. the BBDC loop / "
+                 "DC-offset region, not a gradual SNR effect. (2) Within 5.8 GHz, quality "
+                 "is FLAT vs IF (0.41-0.44) once past the notch — IF placement beyond the "
+                 "notch does not matter in the sampled range (<0.1·fs). (3) IMPORTANT LIMIT OF THE CLAIM: sub-GHz samples where BOTH receivers "
+                 "clear the notch still show circstd~1.0 — the DC collision cleanly explains "
+                 "the g-fit irreproducibility (independent per-receiver drift aliasing, "
+                 "section 5b) but NOT the band's whole quality problem; the degraded "
+                 "Oct-24-Jan-25 era and the wider near-DC 1/f skirt also contribute, and a "
+                 "single-snapshot IF measurement misses tone wander through the notch. "
+                 "(3b) Sub-GHz sits "
+                 "inside the notch (median 0.0028, quartile 0.0004) with up to 100% of "
+                 "window power in the DC region — circstd median 1.07 = uninformative. "
+                 "(4) Tone purity separates emitters: sub-GHz/2.46x are pure CW "
+                 "(tone-purity=1.0); 2.412 (live Wi-Fi channel) and 5.8 (wideband analog "
+                 "video) spread power (0.12-0.15) — for those, per-subcarrier or wider-band "
+                 "processing is the eventual win, but DC avoidance still applies.")
+    y = rep.para(y, "RECOMMENDATIONS — IF POLICY FOR FUTURE CAPTURES. "
+                 "(R1) Never tune LO = carrier. Configure an explicit offset: "
+                 "LO = f_carrier − f_IF with f_IF chosen so the tone can NEVER wander into "
+                 "the notch: f_IF ≥ 10× worst-case crystal error (±30 ppm of carrier: "
+                 "±30 kHz at 915 MHz, ±175 kHz at 5.8 GHz) AND ≥ 0.01·fs "
+                 "(160 kHz at 16 MS/s, 300 kHz at 30 MS/s). "
+                 "(R2) Keep f_IF ≤ min(rf_bandwidth, fs)/2 − guard so the tone stays inside "
+                 "the analog passband; a good universal choice here is f_IF = fs/16 "
+                 "(1-2 MHz), echoing the lab-log observation that larger IF 'seems to "
+                 "help' and 'maybe proportional'. "
+                 "(R3) Run a small controlled sub-GHz A/B first: a few sessions with "
+                 "f_IF per R1 vs LO=carrier, same rig, same week. If quality recovers to "
+                 "2.46x levels (both are pure CW), commission the full re-capture; if not, "
+                 "the residual sub-GHz problem is era/hardware and needs the bench. "
+                 "(R4) If a small IF is ever unavoidable, disable BBDC tracking for that "
+                 "session (bb_dc_offset_tracking_en=0) and accept a static DC spur instead "
+                 "of a moving notch. "
+                 "(R5) Scanner v3: record measured IF per dataset (one FFT per capture, "
+                 "~free) and gate |IF| < 0.002·fs as QUAR:tone_at_dc — it is a stronger, "
+                 "physical predictor of the drift/quality failure than any downstream "
+                 "statistic. "
+                 "(R6) Firmware/config hygiene: log the configured f_IF alongside rx_lo in "
+                 "the capture yaml so nominal-vs-measured IF drift becomes auditable.")
 
 
 def sec_dive_badmonths(rep, rows):
@@ -1073,6 +1202,7 @@ def main():
     sec_dive_gain(rep, rows)
     sec_dive_gain_model(rep, rows)
     sec_dive_nan(rep, rows)
+    sec_dive_if(rep, rows, os.path.join(os.path.dirname(args.csv), "if_sample.csv"))
     sec_dive_badmonths(rep, rows)
     sec_dive_rover(rep, rows)
     sec_dive_frozen(rep, rows)

@@ -47,6 +47,12 @@ The g scatter at 868/915 MHz is enormous (per-config IQR 0.2–0.5, receiver agr
   0hz?" (Jan 2025); all sub-GHz data is from the Oct-2024–Jan-2025 degraded era.
 - Within an on-snapshot, "signal" and "noise" windows are identical (same rms/spectrum):
   the carrier never stops, so the phase-stability window selection is arbitrary there.
+- **Scope limit (IF sample, n=160):** sub-GHz datasets where BOTH receivers clear the
+  notch still show circstd ≈ 1.0 — the DC collision explains the g-fit
+  IRREPRODUCIBILITY (independent per-receiver drift aliasing), but the band's overall
+  phase quality also reflects the degraded Oct-24–Jan-25 era and the wider near-DC 1/f
+  skirt. Run a small controlled IF A/B capture before commissioning a full sub-GHz
+  re-capture (report §6b, R3).
 - **Do (future capture):** set IF a few hundred kHz off zero (`--fi`), or disable BBDC
   tracking for sub-GHz sessions. **Don't:** use historical sub-GHz per-dataset g, or
   build a sidecar from sub-GHz medians (they remain bias-suspect; report §5b draws that
