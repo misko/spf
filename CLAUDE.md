@@ -13,6 +13,10 @@
   in `docs/future_experiments.md`.
 - Deeper background lives in `claude_docs/` (architecture docs, `KNOWN_ISSUES.md`,
   `03_datasets/data_quality_plan.md`, `04_training_inference/val_expansion_plan.md`).
+- **RAW DATA IS IMMUTABLE.** Never write to the recorded datasets (original zarrs under
+  /mnt/md*/2d_wallarray_v2_data, /mnt/md2/rovers, nosig_data copies, precompute caches).
+  All post-processing / recovery / correction outputs go to NEW locations (e.g.
+  /mnt/md2/cache/<new_name>/ or sidecar files) — always open sources read-only.
 - Artifacts are append-only: never edit existing split files or configs; new experiments
   get new manifests/configs with provenance-carrying names.
 - The historical validation set is frozen forever; new val views are named
