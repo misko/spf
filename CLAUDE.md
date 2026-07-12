@@ -6,6 +6,11 @@
   sub-GHz g is untrustworthy, the frozen-val-set contract). Do not re-derive or contradict
   these without new evidence; when new evidence changes a conclusion, update
   `docs/learnings.md` in the same change.
+- **Planned work lives in `docs/future_experiments.md`** — the queue of designed
+  experiments (capture matrices, bench validations, training runs, scanner upgrades)
+  with decision rules. Before proposing a new experiment, check whether it's already
+  designed there; when one runs, record the outcome in `docs/learnings.md` and mark it
+  in `docs/future_experiments.md`.
 - Deeper background lives in `claude_docs/` (architecture docs, `KNOWN_ISSUES.md`,
   `03_datasets/data_quality_plan.md`, `04_training_inference/val_expansion_plan.md`).
 - Artifacts are append-only: never edit existing split files or configs; new experiments
