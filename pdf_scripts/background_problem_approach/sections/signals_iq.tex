@@ -8,6 +8,7 @@ it with complex numbers, what I/Q means, and precise working definitions of
 the terms (narrowband, broadband, window, coherent) used everywhere else.
 
 \subsection{What the antenna actually measures}
+\label{sec:antenna}
 
 An antenna is a wire; the only thing it can give the receiver is a
 \emph{real} voltage that wiggles in time, $v(t)$. For a 2.412\,GHz emitter
@@ -54,24 +55,84 @@ numbers.
 \subsection{I/Q: how the hardware extracts the arrow}
 \label{sec:iq-demod}
 
-The receiver cannot see $A$ and $\psi$ directly; it recovers them by
-\textbf{mixing}: multiplying $v(t)$ by its own \textbf{local oscillator (LO)}
---- a clean internal tone at (nearly) the carrier frequency --- in two copies,
-$90^\circ$ apart:
-\begin{align*}
-\text{I branch: } \; v(t)\cdot 2\cos(2\pi f t)
-   &= A\cos\psi \;+\; \underbrace{A\cos(4\pi f t + \psi)}_{\text{at }2f}
-   \;\xrightarrow{\text{low-pass}}\; I = A\cos\psi ,\\
-\text{Q branch: } \; v(t)\cdot \big(-2\sin(2\pi f t)\big)
-   &= A\sin\psi \;+\; (\text{term at }2f)
-   \;\xrightarrow{\text{low-pass}}\; Q = A\sin\psi .
-\end{align*}
-(The product-to-sum identity creates a slow term and a double-frequency term;
-the low-pass filter keeps the slow one.) The pair is exactly the arrow's
-Cartesian coordinates:
+\paragraph{The cast.}
+Recall from Section~\ref{sec:antenna} what $v(t)$ is: the \emph{real} voltage
+on the antenna wire,
 \[
-x = I + jQ = A e^{j\psi}.
+v(t) = A\cos(2\pi f t + \psi),
 \]
+where $f$ is the carrier ($\sim$2.4 billion wiggles per second), $A$ is how
+strong the wave currently is, and $\psi$ is its timing shift relative to a
+perfect clock at frequency $f$. ($A$ and $\psi$ do change with time, but a
+million times slower than the carrier --- over the few nanoseconds this
+derivation cares about they are constants.) The receiver wants $A$ and $\psi$
+but can only measure $v(t)$, in which they are tangled up inside the cosine.
+Three hardware pieces untangle them:
+\begin{itemize}
+  \item the \textbf{local oscillator (LO)}: the radio's own clean internal
+        tone at the carrier frequency --- it can generate $\cos(2\pi f t)$ and
+        (by delaying a quarter cycle) $\sin(2\pi f t)$;
+  \item a \textbf{mixer}: a circuit that literally multiplies two voltages;
+  \item a \textbf{low-pass filter}: a circuit that averages away anything
+        wiggling faster than some cutoff, keeping only slow variations.
+\end{itemize}
+
+\paragraph{The one identity that does all the work.}
+Multiplying two cosines produces the sum and difference of their angles ---
+the product-to-sum identity from trigonometry:
+\[
+2\cos(a)\cos(b) = \cos(a-b) + \cos(a+b),
+\qquad
+2\cos(a)\sin(b) = \sin(a+b) - \sin(a-b).
+\]
+The trick of the whole receiver: choose $b$ = the LO's angle $2\pi f t$, and
+$a$ = the signal's angle $2\pi f t + \psi$. Then the \emph{difference}
+$a - b = \psi$ --- the fast carrier subtracts out, leaving exactly the
+quantity we want --- while the \emph{sum} $a + b = 4\pi f t + \psi$ wiggles at
+twice the carrier and can be filtered away.
+
+\paragraph{I branch, line by line.}
+Multiply the antenna voltage by twice the LO cosine and apply the first
+identity with $a = 2\pi f t + \psi$, $b = 2\pi f t$:
+\begin{align*}
+v(t)\cdot 2\cos(2\pi f t)
+  &= 2A\cos(2\pi f t + \psi)\cos(2\pi f t)\\
+  &= A\cos(\underbrace{\psi}_{a-b})
+     \;+\; \underbrace{A\cos(4\pi f t + \psi)}_{a+b:\ \text{wiggles at }2f}
+  \;\xrightarrow{\text{low-pass}}\; I = A\cos\psi .
+\end{align*}
+The second term oscillates at $2f \approx 4.8$\,GHz --- averaging over even a
+few carrier cycles kills it; the first term is constant (on carrier
+timescales) and sails through the filter.
+
+\paragraph{Q branch, line by line.}
+Same signal, multiplied by the quarter-cycle-shifted copy of the LO, using
+the second identity:
+\begin{align*}
+v(t)\cdot \big(-2\sin(2\pi f t)\big)
+  &= -2A\cos(2\pi f t + \psi)\sin(2\pi f t)\\
+  &= A\sin(\underbrace{\psi}_{a-b})
+     \;-\; \underbrace{A\sin(4\pi f t + \psi)}_{\text{at }2f}
+  \;\xrightarrow{\text{low-pass}}\; Q = A\sin\psi .
+\end{align*}
+(The minus sign on the LO copy is chosen so the surviving term comes out as
+$+A\sin\psi$.)
+
+\paragraph{Why two branches are necessary.}
+One branch alone gives $I = A\cos\psi$ --- a single number that hopelessly
+mixes strength and timing: $I = 0.5$ could be a strong signal at
+$\psi = 60^\circ$ or a weak one at $\psi = 0^\circ$, and $\psi$ and $-\psi$
+are indistinguishable. The arrow lives in a plane; you need its shadow along
+\emph{two} perpendicular directions to pin it down. $I$ and $Q$ are exactly
+those two shadows, and together they reconstruct it uniquely:
+\[
+x = I + jQ = A\cos\psi + jA\sin\psi = A e^{j\psi},
+\qquad
+A = \sqrt{I^2 + Q^2}, \quad \psi = \operatorname{atan2}(Q, I).
+\]
+Worked example: $A = 1$, $\psi = 60^\circ$ gives $I = 0.5$, $Q = 0.866$ ---
+the point $(0.5, 0.866)$, an arrow of length 1 at $60^\circ$.
+
 \textbf{I} is the \emph{in-phase} component (relative to the LO cosine),
 \textbf{Q} the \emph{quadrature} (90$^\circ$-shifted) component. The SDR
 digitizes both at the \textbf{sample rate} $f_s$ (up to 30\,MHz here),
@@ -79,6 +140,19 @@ producing the complex \textbf{baseband} stream $x[n]$ used everywhere in this
 document. ``Baseband'' means the carrier has been divided out: a pure
 unmodulated carrier at exactly the LO frequency becomes a \emph{constant}
 arrow.
+
+\paragraph{When the LO is not exactly the carrier.}
+Everything above assumed the LO frequency equals $f$. In reality the radio is
+tuned to $f_{\mathrm{LO}} = f - f_{\mathrm{IF}}$ (deliberately, plus crystal
+error), and redoing the derivation with $b = 2\pi f_{\mathrm{LO}} t$ gives
+$a - b = 2\pi f_{\mathrm{IF}} t + \psi$: the surviving slow term is not a
+constant but a slow rotation at the \emph{intermediate frequency}
+$f_{\mathrm{IF}} = f - f_{\mathrm{LO}}$. The arrow spins at $f_{\mathrm{IF}}$
+turns per second. This is why IF placement matters so much for data quality
+(the dataset-quality report's tone-at-DC analysis): $f_{\mathrm{IF}} \approx 0$
+parks the spinning arrow on top of the receiver's DC machinery, while a
+healthy offset keeps it clear --- and since both antennas share one LO, the
+spin is common to both channels and cancels in the phase difference.
 
 Two hardware facts matter enormously for SPF:
 \begin{itemize}
