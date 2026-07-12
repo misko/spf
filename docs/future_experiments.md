@@ -18,6 +18,12 @@ record the outcome in `learnings.md` and mark it here.
   `bb_dc_offset_tracking_en` on voltage0/voltage1 and log the setting into the capture
   yaml (report §6b R6). Also set `--fi` explicitly per R1 (f_IF ≥ max(10× crystal ppm
   error, 0.01·fs); fs/16 default).
+- **Expected outcome (prediction to test):** BBDC-off adds NO noise — it trades the
+  loop's time-varying notch for a quasi-static DC spur. With IF=fs/16 the spur's bias on
+  the phase product is ~(offset/signal)^2 ≈ 0.3% (~0.003 rad) — invisible; offsets step
+  at AGC gain changes (discrete, not drift) and are removable in post from recorded IQ
+  (unlike the loop's unlogged correction). At IF=0 with BBDC off, expect a STATIC bias
+  (absorbed by the φ₀ fit) instead of drift — better than tracking-on but not clean.
 - **Decision rule:** run the quality scanner on the four cells. If {IF=fs/16} recovers
   corrected circstd to ≈0.4–0.5 (2.46x-like) regardless of BBDC → IF placement is
   sufficient, commission full sub-GHz re-capture with R1. If only {IF=0, BBDC off}
