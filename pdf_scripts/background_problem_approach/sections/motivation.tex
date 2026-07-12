@@ -1,0 +1,53 @@
+\section{Motivation}
+\label{sec:motivation}
+
+Finding \emph{where a radio transmission is coming from} is a classical problem
+with modern urgency: locating a lost drone by its video downlink, finding an
+interference source that is degrading a shared band, tracking wildlife tags,
+or navigating toward a beacon when GPS is unavailable. Commercial
+direction-finding gear solves this with large, calibrated, many-element
+antenna arrays and correspondingly large price tags.
+
+SPF starts from the opposite end of the cost spectrum and asks:
+
+\begin{quote}
+\emph{How much localization capability can be extracted from the cheapest
+possible sensor --- a single pair of antennas attached to a \$100--\$200
+software-defined radio --- if we are willing to move the sensor, collect a lot
+of real data, and learn the sensor's imperfections instead of engineering them
+away?}
+\end{quote}
+
+Three observations make this question worth asking.
+
+\paragraph{1. Two antennas are the minimal interferometer.}
+A two-element array measures exactly one number per snapshot --- the phase
+difference between its channels --- and that number is a (nonlinear,
+ambiguous, noisy) function of the emitter bearing
+(Section~\ref{sec:math}). Everything the platform will ever know about
+direction must be squeezed out of this one degree of freedom, plus motion,
+plus time. It is the sharpest possible test bed for ``sensing with learned
+models'': the physics is simple enough to write down exactly, yet the
+real-world measurement deviates from that physics in ways that are hard to
+calibrate by hand (mount rotations, effective antenna spacing, gain-dependent
+phase inversions, automatic gain control, multipath).
+
+\paragraph{2. Motion converts ambiguity into information.}
+A stationary two-element array cannot distinguish front from back, and for
+wide antenna spacing cannot even pin down a unique bearing
+(Section~\ref{sec:ambiguity}). But a \emph{moving} receiver-- or a pair of
+receivers --- sweeps its ambiguity structure through space; a filter that
+accumulates measurements over a trajectory can collapse the ambiguity. This
+trades hardware complexity for algorithmic complexity, which is exactly the
+trade a learned system should win.
+
+\paragraph{3. Real data beats simulated calibration.}
+Early experiments made it clear that the dominant error sources are not
+thermal noise but \emph{systematics}: antennas mounted a few millimetres from
+their nominal positions, arrays labeled with the wrong spacing, compass biases
+that drift between calibration sessions, receiver gain control interacting
+with the RF front end. These are properties of each physical rig on each
+particular day. SPF therefore treats large-scale, ground-truth-annotated data
+collection --- and the auditing of that data
+(Section~\ref{sec:audit-approach}) --- as a first-class part of the project,
+on equal footing with model architecture.

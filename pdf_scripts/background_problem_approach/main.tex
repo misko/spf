@@ -1,0 +1,43 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue]{hyperref}
+
+\newcommand{\dlam}{\tfrac{d}{\lambda}}
+\newcommand{\pinorm}{\operatorname{pi\_norm}}
+
+\title{SPF: Background, Problem Space, and Approach\\
+\large RF emitter localization with two-element software-defined radio arrays}
+\author{Project SPF}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+SPF localizes radio-frequency emitters using pairs of cheap two-antenna
+software-defined radios (SDRs) mounted on mobile rovers and on a mechanically
+positioned wall array. This document motivates the project, maps the problem
+space, and describes the approach: large-scale real-world data collection, a
+careful physical model of what a two-element array can and cannot measure, and
+learned models plus filtering that recover bearing (and, with multiple
+receivers, position) despite ambiguity and hardware imperfection. A dedicated
+section walks step by step through the core mathematics: how the phase
+difference between two antennas encodes the angle of arrival, where the
+ambiguities come from, and how the same forward model powers both the neural
+networks' inputs and the dataset-quality audit.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+\input{sections/motivation}
+\input{sections/problem_space}
+\input{sections/math_phase_to_angle}
+\input{sections/approach}
+
+\end{document}

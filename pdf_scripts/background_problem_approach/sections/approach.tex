@@ -1,0 +1,78 @@
+\section{Approach}
+\label{sec:approach}
+
+The approach has four legs, each matched to a failure mode of the naive
+inversion of Section~\ref{sec:ambiguity}.
+
+\subsection{Physics-shaped inputs, learned mapping}
+
+Rather than feeding raw IQ or a scalar $\hat\varphi$, each snapshot is
+summarized by the \textbf{windowed beamformer}: the 65-bin angular likelihood
+of Section~\ref{sec:estimation}, computed over many short windows, plus side
+information the physics says matters --- spacing in wavelengths, carrier
+frequency, receiver gains, device type, platform type. The network's job is
+then \emph{not} to rediscover interferometry but to learn the residual map:
+how a particular rig's beamformer statistics, under AGC and real noise,
+relate to bearing. Ambiguity is preserved end to end: models output
+distributions over the 65 bins, not point estimates, and training respects
+the mirror symmetry of the sensor.
+
+\subsection{Two-stage training: single radio, then paired}
+
+\textbf{Stage 1 (single)} trains a per-radio network mapping one radio's
+beamformer statistics to a bearing distribution. \textbf{Stage 2 (paired)}
+loads the frozen stage-1 network (\texttt{detach: true}) for each of the two
+radios on a platform and trains a fusion head that combines them --- two
+differently-oriented arrays disagree on their alias/mirror structure, so the
+pair resolves much of what a single array cannot. Freezing stage 1 keeps the
+paired model's improvements attributable to fusion rather than to re-tuned
+front ends (and a trainer fix now re-freezes correctly across checkpoint
+resumes).
+
+\subsection{Filtering over trajectories}
+
+Bearing distributions per snapshot feed particle / Kalman-style filters that
+integrate over receiver motion, collapsing mirror and grating ambiguities
+with motion parallax (Section~\ref{sec:motivation}). The filter's measurement
+model is the same forward model as everywhere else; its empirical noise
+distributions are estimated from held-out data.
+
+\subsection{Dataset auditing as part of the method}
+\label{sec:audit-approach}
+
+Because systematics dominate (Section~\ref{sec:systematics}), the corpus
+itself is audited with the same physics:
+
+\begin{enumerate}
+  \item For every dataset, predict $\varphi$ from ground truth via the
+        forward model; fit the three systematic parameters
+        $(c, g, \Delta\theta)$; record corrected residual circular spread,
+        NaN fraction, frozen-position tails, timestamp monotonicity, and
+        coverage.
+  \item Gate into \textsc{ok} / \textsc{flag} / \textsc{quarantine} /
+        \textsc{error} with platform-specific thresholds (wall arrays have
+        sub-millimetre truth, rovers carry intrinsic label noise --- the same
+        residual means different things).
+  \item Treat findings by damage type: label-corrupt data is dropped;
+        input-degraded data is A/B tested (it may still teach robustness);
+        feature-mislabeled data is correctable via sidecars.
+  \item Freeze the historical validation set forever; express quality strata
+        as \emph{named subsets} of it (\texttt{val\_subset\_groups}), so every
+        model past and future is comparable on identical data while new
+        metrics accumulate additively.
+  \item Run controlled training experiments (identical steps and schedule)
+        on hygiene-filtered training lists to measure --- not assume --- the
+        value of dropping suspect data.
+\end{enumerate}
+
+The audit's key design choice mirrors the modeling philosophy: use the exact
+physical forward model to define ``surprise'', fit only low-dimensional,
+interpretable corrections, and let residual statistics --- not intuition ---
+decide what data is trustworthy.
+
+\subsection{Status and provenance}
+
+All artifacts referenced here are reproducible: the audit PDF from
+\texttt{pdf\_scripts/dataset/} (pinned metrics + one command), split
+manifests from \texttt{make\_v2\_splits.py} (sha256 manifest committed), and
+experiment configs are append-only copies with provenance-carrying names.

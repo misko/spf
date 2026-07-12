@@ -1,0 +1,81 @@
+\section{Problem space}
+\label{sec:problem}
+
+\subsection{Task statement}
+
+Given streams of IQ samples from the two RX channels of one or more
+two-antenna SDR receivers, each annotated with the receiver's pose (position,
+heading) and, at training time, the emitter's ground-truth position, estimate:
+
+\begin{enumerate}
+  \item \textbf{Bearing} $\theta$ of the emitter relative to each receiver
+        (the \emph{single-radio} problem);
+  \item \textbf{Fused bearing / position} using two radios on one platform or
+        multiple platforms over time (the \emph{paired} and \emph{filtering}
+        problems).
+\end{enumerate}
+
+\subsection{Hardware platforms}
+
+\paragraph{Wall array (controlled environment).}
+A GRBL-driven 2-axis gantry moves an emitter across a wall while fixed
+two-antenna receivers (PlutoSDR class, and later BladeRF~2 on a desk rig)
+record. Ground truth is sub-millimetre from the stepper positions. This
+platform isolates the RF chain: with essentially perfect geometry, any
+residual between predicted and measured phase is a property of radios,
+antennas, mounts, and environment --- which is what makes it the reference
+platform for the data audit.
+
+\paragraph{Rovers (field environment).}
+Skid-steer rovers carry receivers (and one carries the emitter) around a
+field; poses come from GPS and compass, so ground-truth bearing error of a few
+degrees is intrinsic (3\,m GPS error at 15\,m range is
+$\approx 0.2$\,rad). Multiple rovers record simultaneously and their captures
+are merged into paired datasets (TX rover $\times$ RX rover).
+
+\paragraph{Radios and signals.}
+AD9361-family 2$\times$RX SDRs (PlutoPlus, BladeRF~2) sampling up to
+30\,MHz. Emitters are continuous-wave-like beacons (ESP32 ``tone blaster'' on
+2.4\,GHz Wi-Fi channels; analog video transmitters at 5.7--5.9\,GHz; sub-GHz
+LoRa-class modules at 868/915\,MHz). Configured antenna spacings range from
+$d/\lambda \approx 0.21$ to $1.55$ across the fleet --- deliberately including
+spacings well past the unambiguous limit of $d/\lambda = 1/2$
+(Section~\ref{sec:ambiguity}).
+
+\subsection{What makes it hard}
+
+\begin{description}
+  \item[Ambiguity by construction.] Front--back mirror symmetry always;
+    grating-lobe aliasing whenever $d/\lambda > 1/2$. The sensor
+    \emph{by design} does not determine a unique bearing per snapshot.
+  \item[Systematic hardware error.] Mount rotations and mislabeled spacings
+    (both have occurred and were later fixed by ``data surgery''), effective
+    spacing differing from configured spacing (antenna coupling, connector
+    geometry), per-channel LO phase offsets.
+  \item[Gain control interactions.] The AD9361 runs fast-attack AGC; gain
+    changes of 17--39\,dB occur within datasets, and gain-index changes can
+    invert channel polarity at the LNA-bypass boundary --- a $\pi$ phase jump
+    in the measurement of interest.
+  \item[Intermittent, contested spectrum.] Duty-cycled emitters (burst
+    beacons, $\sim$1--3\% airtime in the extreme), other transmitters in-band
+    (Wi-Fi, other 5.8\,GHz video links), and sessions with recorded
+    interference incidents.
+  \item[Label noise on moving platforms.] GPS + compass ground truth is
+    itself noisy and era-dependent (compass calibration events shift the bias).
+  \item[Scale and drift of the corpus.] Thousands of capture sessions
+    collected over $\sim$1.5 years, across hardware revisions, firmware
+    versions, frequency bands, and collection sites. Quality is strongly
+    era-dependent; some months are systematically bad. Training and evaluating
+    on this corpus requires an explicit quality model of the corpus itself.
+\end{description}
+
+\subsection{Why not classical array processing alone?}
+
+MUSIC/ESPRIT-style methods assume a calibrated steering model and more
+elements than sources. With two elements, one source, uncalibrated mounts, and
+gain-dependent polarity, the classical estimate collapses to
+$\hat\theta = \arcsin(-\hat\varphi\,\lambda/2\pi d)$ applied to a noisy,
+aliased $\hat\varphi$ --- brittle exactly where our data lives. The physics
+still matters (it defines the feature space and the audit's forward model),
+but the mapping from measured phase statistics to bearing posterior is
+learned, and ambiguity resolution is deferred to fusion and filtering.
