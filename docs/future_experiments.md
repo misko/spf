@@ -80,7 +80,12 @@ optional science. Only constraint window: |IF| >= max(10x crystal wander, ~0.01*
 2. **`QUAR:tone_at_dc` gate:** measure IF per dataset (one FFT of one snapshot, ~free)
    and quarantine |IF| < 0.002·fs. Stronger, physical predictor of drift failure than
    any downstream statistic. (report §6b R5)
-3. **Beamformer-based metrics:** offset-corrected GT-bin percentile (alignment) +
+3. **Phase-first status rule:** NaN becomes a pure duty DESCRIPTOR (never a quarantine
+   cause); QUARANTINE gates on valid-part phase quality (wall: mean circstd_corr > 0.85
+   or n_valid < 100; rover: > 1.1). Validated on v2 data: flips only ~6 wrongly-NaN-
+   condemned datasets to keep and ~175 low-NaN phase-junk (mostly Jan-25 sub-GHz) to
+   quarantine; outcome-equivalent to v2 for 98% of the fleet but causally correct. (L8)
+4. **Beamformer-based metrics:** offset-corrected GT-bin percentile (alignment) +
    entropy (informativeness) from the cached `weighted_beamformer` — scores datasets on
    the representation the NN actually consumes; works where scalar g fits fail. Must fit
    the per-dataset offset (bin shift) first, else offset confounds informativeness. (L3)
