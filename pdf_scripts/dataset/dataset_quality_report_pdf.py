@@ -142,6 +142,7 @@ def sec_title(rep, rows):
            "3   Wall-array breakdown (by device × spacing group)",
            "4   Rover breakdown (by era)",
            "5   Deep dive — wall effective-spacing (gain) systematic",
+           "5b  Per-band g vs spacing — coupling-model fits (2 pp)",
            "6   Deep dive — NaN / no-signal snapshots",
            "7   Deep dive — the bad-capture months",
            "8   Deep dive — rover heading bias & mount anomalies",
@@ -358,6 +359,177 @@ def sec_dive_gain(rep, rows):
     ax3.set_xlabel("fitted gain g (receiver 0)", fontsize=8.5)
     ax3.set_title("Fig. A3 — g distributions per config group: tight, group-specific, far from 1 for sub-floor configs", fontsize=8.5)
     ax3.tick_params(labelsize=8)
+
+
+def _coupling_model_g(d, lam, A, psi0):
+    """Phase-swing gain of a coupled 2-element array: V0=1+Ce^{jp}, V1=e^{jp}+C,
+    C(d)=A e^{j(psi0-kd)}/(kd). Returns d(arg V1V0*)/dp at broadside."""
+    k = 2 * np.pi / lam
+    Cc = A * np.exp(1j * (psi0 - k * np.asarray(d))) / (k * np.asarray(d))
+    eps = 1e-4
+    v0 = 1 + Cc * np.exp(1j * eps)
+    v1 = np.exp(1j * eps) + Cc
+    return np.angle(v1 * np.conj(v0)) / eps
+
+
+def sec_dive_gain_model(rep, rows):
+    from scipy.optimize import least_squares
+
+    wall = [r for r in rows if r.get("platform") == "wall"]
+    bands = [
+        ("2.412 GHz", 2.410e9, 2.414e9),
+        ("2.464-2.467 GHz", 2.462e9, 2.469e9),
+        ("5.77-5.84 GHz", 5.70e9, 5.90e9),
+        ("868 + 915 MHz", 0.85e9, 0.93e9),
+    ]
+
+    rep.new_page()
+    y = rep.h1("5b  Per-band g vs configured spacing — coupling-model fits")
+    y = rep.para(y, "Every wall dataset as a dot (mean of r0/r1 fitted g; bound-hitting fits "
+                 "excluded), per band. Overlaid: g=1 (config correct), the naive pin "
+                 "g=(λ/2)/d (effective spacing stuck at half-wavelength), and a 2-parameter "
+                 "MUTUAL-COUPLING model. Model: each channel hears its own antenna plus a "
+                 "coupled copy of its neighbour, V0=1+Ce^{jφ}, V1=e^{jφ}+C, with "
+                 "C(d)=A·e^{j(ψ0−kd)}/(kd) — the leading far-term of the classical mutual "
+                 "impedance between parallel elements (C≈Z21/(Z11+ZL)). Measured phase is "
+                 "arg(V1V0*); its swing vs the ideal gives closed-form "
+                 "g=(1−|C|²)/(1+2ReC+|C|²). One (A, ψ0) pair fitted per band on config "
+                 "medians, weighted by dataset count.")
+
+    rects = [[0.09, 0.42, 0.38, 0.23], [0.58, 0.42, 0.38, 0.23],
+             [0.09, 0.09, 0.38, 0.23], [0.58, 0.09, 0.38, 0.23]]
+    fit_results = []
+    rng = np.random.default_rng(0)
+    for (name, flo, fhi), rect in zip(bands, rects):
+        ax = rep.ax(rect)
+        pts_d, pts_g = [], []
+        for r in wall:
+            lo, ws = g(r, "rx_lo"), g(r, "wavelength_spacing")
+            if not (np.isfinite(lo) and flo <= lo <= fhi and np.isfinite(ws)):
+                continue
+            gs = [g(r, k) for k in ("r0_g", "r1_g")]
+            gs = [x for x in gs if np.isfinite(x) and 0.72 < x < 2.98]
+            if gs:
+                pts_d.append(ws * C / lo)
+                pts_g.append(float(np.mean(gs)))
+        pts_d, pts_g = np.array(pts_d), np.array(pts_g)
+        if len(pts_d) < 10:
+            continue
+        lam = C / ((flo + fhi) / 2)
+        jit = 1 + rng.normal(0, 0.012, len(pts_d))
+        ax.scatter(pts_d * jit * 100, pts_g, s=5, alpha=0.22, color=ACC, edgecolors="none")
+        cfgs = sorted(set(np.round(pts_d, 4)))
+        med_d = np.array(cfgs)
+        med_g = np.array([np.median(pts_g[np.round(pts_d, 4) == c]) for c in cfgs])
+        med_n = np.array([int((np.round(pts_d, 4) == c).sum()) for c in cfgs])
+        ax.scatter(med_d * 100, med_g, s=55, marker="s", facecolor="none",
+                   edgecolor="k", linewidth=1.2, zorder=5, label="config median")
+        dd = np.linspace(med_d.min() * 0.7, max(med_d.max() * 1.25, lam / 2 * 1.05), 250)
+        ax.plot(dd * 100, np.ones_like(dd), color="#999", lw=0.8, ls=":")
+        ax.plot(dd * 100, (lam / 2) / dd, color="#2e8b57", lw=1.1, ls="--",
+                label="g=(λ/2)/d")
+        if len(med_d) >= 2:
+            def resid(p):
+                return (_coupling_model_g(med_d, lam, p[0], p[1]) - med_g) * np.sqrt(med_n)
+            best = None
+            for p0 in np.linspace(-np.pi, np.pi, 13):
+                for A0 in (0.2, 0.5, 1.0, 2.0):
+                    try:
+                        rr = least_squares(resid, [A0, p0],
+                                           bounds=([0, -2 * np.pi], [10, 2 * np.pi]))
+                    except ValueError:
+                        continue
+                    if best is None or rr.cost < best.cost:
+                        best = rr
+            A, psi0 = best.x
+            psi0 = (psi0 + np.pi) % (2 * np.pi) - np.pi
+            rmse = float(np.sqrt(np.average(
+                (_coupling_model_g(med_d, lam, A, psi0) - med_g) ** 2, weights=med_n)))
+            ax.plot(dd * 100, _coupling_model_g(dd, lam, A, psi0), color="#c0392b",
+                    lw=1.6, label=f"coupling A={A:.2f} ψ0={psi0:+.2f}")
+            fit_results.append((name, A, psi0, rmse, int(med_n.sum()), len(med_d)))
+        ax.axvline(lam / 2 * 100, color="#2e8b57", lw=0.7, alpha=0.5)
+        ax.set_title(f"{name}  (λ={lam*100:.1f} cm)", fontsize=8.5)
+        ax.set_xlabel("configured spacing (cm)", fontsize=8)
+        ax.set_ylabel("fitted g", fontsize=8)
+        ax.set_ylim(0.6, max(2.6, med_g.max() + 0.4))
+        ax.legend(fontsize=6.2, loc="upper right")
+        ax.tick_params(labelsize=7.5)
+
+    # ---- second page: is the fit reasonable? ----
+    rep.new_page()
+    y = rep.h1("5b (cont.)  Is the coupling fit reasonable?")
+    y = rep.para(y, "FIT QUALITY (weighted rmse on config medians, 2 params/band): " +
+                 ";  ".join(f"{n}: A={A:.2f}, ψ0={p:+.2f}, rmse={e:.3f} over {k} configs"
+                            for n, A, p, e, _, k in fit_results) + ".")
+    y = rep.para(y, "WHY IT IS REASONABLE. (1) The functional form is not an ad-hoc curve: "
+                 "C≈Z21/(Z11+ZL) with Z21 decaying as 1/(kd) and phase −kd is the leading "
+                 "far-term of the textbook mutual impedance between parallel elements. "
+                 "(2) Fitted coupling amplitudes are physical: A=0.2-0.5 keeps |C|<0.5 at "
+                 "every measured spacing — coupling weaker than the direct path, as it must "
+                 "be. (3) Cross-band consistency: A stays the same order of magnitude across "
+                 "a 6.4× frequency range, and the distortion is largest exactly where kd is "
+                 "smallest — the defining signature of coupling. (4) It predicts structure "
+                 "the naive λ/2-pin cannot: the ±8% oscillation of g around 1 at 2.4 GHz "
+                 "for 6-8 cm configs (Re C changes sign with kd); the moderate sub-λ/2 "
+                 "expansion at 868/915 MHz (g=1.2-1.6 where pinning would demand 2.3-4); and "
+                 "the near-λ/2 floors at 2.4/5.8 GHz. (5) g is a rig property (independent "
+                 "receivers agree, corr 0.64), and coupling is a rig-level EM mechanism — "
+                 "the right explanation class. (6) No overfitting: 2 parameters describe up "
+                 "to 9 config medians per band.")
+    y = rep.para(y, "WHY TO STAY CAUTIOUS. (1) The model computes the broadside phase-swing "
+                 "slope; the scanner fits a full sine over the sweep — for the strongest "
+                 "coupling (2.5 cm at 2.4 GHz) these differ, so read A and ψ0 as effective, "
+                 "not literal. (2) A and ψ0 are lumped constants absorbing antenna type, "
+                 "load impedance, mounts and ground plane; each band uses different physical "
+                 "antennas, so per-band parameters cannot be checked against geometry "
+                 "without a bench measurement. (3) Identifiability is thin where configs are "
+                 "few: 5.8 GHz has effectively two informative spacings and 868 MHz only "
+                 "one, so ψ0 there is weakly constrained. (4) Competing mechanisms — phase-"
+                 "center displacement on the shared mount, near-field scattering off the "
+                 "plate — produce similar g(d) shapes at small kd; this fit cannot exclude "
+                 "them. (5) The 2.412 GHz rmse (0.12) is dominated by under-predicting the "
+                 "6-8 cm wiggle: real Z21 has 1/(kd)² and 1/(kd)³ near-field terms we "
+                 "dropped. (6) Observational data: config groups correlate with collection "
+                 "eras, though within-config stability across eras argues against a "
+                 "temporal artifact.")
+    y = rep.para(y, "VERDICT & USE. Treat the coupling fit as a physically-motivated "
+                 "2-parameter summary and interpolator — good enough to generate an "
+                 "effective-spacing sidecar g(d, band) for correcting rx_spacing_input, and "
+                 "good enough to predict g for a NEW spacing config before collecting it. "
+                 "Do not treat it as validated first-principles EM: the decisive test is a "
+                 "bench VNA S21-vs-distance sweep on the actual mounts (one afternoon), or "
+                 "a controlled spacing sweep at fixed era. If either matches the fitted "
+                 "C(d), the sidecar can be trusted fleet-wide, including for spacings never "
+                 "collected.")
+    # universal d/lambda panel at bottom
+    ax = rep.ax([0.09, 0.075, 0.83, 0.24])
+    xs, ys, cs = [], [], []
+    for r in wall:
+        lo, ws = g(r, "rx_lo"), g(r, "wavelength_spacing")
+        if not (np.isfinite(lo) and lo > 1e8 and np.isfinite(ws)):
+            continue
+        gs = [g(r, k) for k in ("r0_g", "r1_g")]
+        gs = [x for x in gs if np.isfinite(x) and 0.72 < x < 2.98]
+        if gs:
+            xs.append(ws)
+            ys.append(float(np.mean(gs)))
+            cs.append(np.log10(lo))
+    sc = ax.scatter(xs, ys, s=6, alpha=0.3, c=cs, cmap="viridis", edgecolors="none")
+    cb = plt.colorbar(sc, ax=ax, pad=0.01)
+    cb.set_label("log10 carrier (Hz)", fontsize=7.5)
+    cb.ax.tick_params(labelsize=7)
+    dl = np.linspace(0.05, 1.7, 200)
+    ax.plot(dl, np.ones_like(dl), color="#999", lw=0.8, ls=":")
+    ax.plot(dl, 0.5 / dl, color="#2e8b57", lw=1.1, ls="--", label="g=0.5/(d/λ)")
+    ax.axvline(0.5, color="#2e8b57", lw=0.7, alpha=0.5)
+    ax.set_xlabel("configured spacing d/λ", fontsize=8.5)
+    ax.set_ylabel("fitted g", fontsize=8.5)
+    ax.set_ylim(0.5, 3.0)
+    ax.set_title("Fig. B4 — all wall datasets, universal axis: distortion is a function of d/λ, onset below ≈0.5",
+                 fontsize=8.5)
+    ax.legend(fontsize=7.5)
+    ax.tick_params(labelsize=8)
 
 
 def sec_dive_badmonths(rep, rows):
@@ -870,6 +1042,7 @@ def main():
     sec_wall_breakdown(rep, rows)
     sec_rover_breakdown(rep, rows)
     sec_dive_gain(rep, rows)
+    sec_dive_gain_model(rep, rows)
     sec_dive_nan(rep, rows)
     sec_dive_badmonths(rep, rows)
     sec_dive_rover(rep, rows)
