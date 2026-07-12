@@ -1,0 +1,141 @@
+\section{Signals background: how we get complex numbers out of an antenna}
+\label{sec:iq}
+
+The math section ahead manipulates ``complex baseband samples'' as if that
+were the obvious thing a radio produces. It is not obvious. This section
+motivates it from scratch: what the antenna really measures, why we describe
+it with complex numbers, what I/Q means, and precise working definitions of
+the terms (narrowband, broadband, window, coherent) used everywhere else.
+
+\subsection{What the antenna actually measures}
+
+An antenna is a wire; the only thing it can give the receiver is a
+\emph{real} voltage that wiggles in time, $v(t)$. For a 2.412\,GHz emitter
+that voltage oscillates 2.4 \emph{billion} times per second. Almost none of
+those wiggles are interesting individually --- the information (and, for us,
+the geometry) rides on how the wiggle's \emph{strength} and \emph{timing}
+drift over microseconds, millions of times slower than the wiggle itself.
+
+Any such signal can be written as
+\[
+v(t) \;=\; A(t)\,\cos\!\big(2\pi f t + \psi(t)\big),
+\]
+where $f$ is the \textbf{carrier frequency} (the fast wiggle),
+$A(t) \ge 0$ is the \textbf{amplitude} or \textbf{envelope} (how strong the
+wiggle currently is), and $\psi(t)$ is the \textbf{phase} (how the wiggle is
+currently shifted relative to a perfect clock at frequency $f$). $A$ and
+$\psi$ change slowly compared to the carrier; they are ``the signal''. The
+pair $(A, \psi)$ is what we actually want, sampled in time.
+
+\subsection{Why complex numbers: one arrow instead of two numbers}
+
+A pair (strength, angle) is naturally a single \emph{arrow} in the plane ---
+a complex number:
+\[
+x(t) \;=\; A(t)\, e^{j\psi(t)}
+\qquad\text{(length $=$ amplitude, direction $=$ phase).}
+\]
+This is not just notation. The two operations radio processing does
+constantly become trivial arithmetic on arrows:
+\begin{itemize}
+  \item \textbf{Delaying} a narrowband signal by $\tau$ rotates its arrow by
+        a fixed angle: $x(t-\tau) \approx x(t)\,e^{-j2\pi f \tau}$
+        (the envelope barely moves, the carrier phase shifts). Delay ---
+        which is geometry --- becomes multiplication.
+  \item \textbf{Comparing} two channels becomes one multiplication:
+        $x_1 x_0^{*}$ has length $A_1 A_0$ and angle $\psi_1 - \psi_0$. The
+        entire two-antenna measurement of Section~\ref{sec:math} is this one
+        product.
+\end{itemize}
+With real cosines both operations are trigonometric-identity soup; with
+arrows they are one-liners. That is the whole reason radios use complex
+numbers.
+
+\subsection{I/Q: how the hardware extracts the arrow}
+\label{sec:iq-demod}
+
+The receiver cannot see $A$ and $\psi$ directly; it recovers them by
+\textbf{mixing}: multiplying $v(t)$ by its own \textbf{local oscillator (LO)}
+--- a clean internal tone at (nearly) the carrier frequency --- in two copies,
+$90^\circ$ apart:
+\begin{align*}
+\text{I branch: } \; v(t)\cdot 2\cos(2\pi f t)
+   &= A\cos\psi \;+\; \underbrace{A\cos(4\pi f t + \psi)}_{\text{at }2f}
+   \;\xrightarrow{\text{low-pass}}\; I = A\cos\psi ,\\
+\text{Q branch: } \; v(t)\cdot \big(-2\sin(2\pi f t)\big)
+   &= A\sin\psi \;+\; (\text{term at }2f)
+   \;\xrightarrow{\text{low-pass}}\; Q = A\sin\psi .
+\end{align*}
+(The product-to-sum identity creates a slow term and a double-frequency term;
+the low-pass filter keeps the slow one.) The pair is exactly the arrow's
+Cartesian coordinates:
+\[
+x = I + jQ = A e^{j\psi}.
+\]
+\textbf{I} is the \emph{in-phase} component (relative to the LO cosine),
+\textbf{Q} the \emph{quadrature} (90$^\circ$-shifted) component. The SDR
+digitizes both at the \textbf{sample rate} $f_s$ (up to 30\,MHz here),
+producing the complex \textbf{baseband} stream $x[n]$ used everywhere in this
+document. ``Baseband'' means the carrier has been divided out: a pure
+unmodulated carrier at exactly the LO frequency becomes a \emph{constant}
+arrow.
+
+Two hardware facts matter enormously for SPF:
+\begin{itemize}
+  \item \textbf{Both RX channels of the AD9361 share one LO.} The arbitrary
+        LO phase appears identically in $\psi_0$ and $\psi_1$ and cancels in
+        $x_1 x_0^{*}$. This is why the \emph{inter-channel phase difference}
+        is physically meaningful and stable, even across signal bursts, while
+        the \emph{absolute} phase of either channel alone is meaningless.
+  \item \textbf{The LO is never exactly the emitter's carrier.} A small
+        frequency offset makes the arrow rotate slowly (``spin''); it is
+        common to both channels and cancels in the difference, but it is why
+        single-channel phase drifts and must be detrended in some analyses.
+\end{itemize}
+
+\subsection{Term definitions used throughout}
+\label{sec:terms}
+
+\begin{description}
+  \item[Carrier / baseband.] The carrier is the fast oscillation at $f$;
+        baseband is the slow complex signal $x(t)$ left after the carrier is
+        mixed out.
+  \item[Bandwidth $B$.] How fast the arrow moves: the width of the frequency
+        band occupied by $A(t)e^{j\psi(t)}$. A pure tone has $B \to 0$; a
+        20\,MHz Wi-Fi packet has $B = 20$\,MHz.
+  \item[Narrowband (for our purposes).] Two conditions, both comfortably true
+        in SPF: (i) $B \ll f$ (the signal is a thin slice around the
+        carrier), and (ii) --- the one that matters for arrays ---
+        $B\,\tau \ll 1$, where $\tau \le d/c$ is the inter-antenna delay: the
+        envelope does not change in the $\sim$0.2\,ns it takes the wave to
+        cross the array, so both antennas see \emph{the same} $A$ and $\psi$
+        and differ only by the geometric rotation $e^{-j2\pi f\tau}$. Even
+        Wi-Fi ($B\tau \approx 4\times10^{-3}$) passes easily.
+  \item[Broadband / wideband.] $B\tau$ not small, or $B/f$ large: different
+        frequency components inside the signal have different wavelengths,
+        hence \emph{different} inter-antenna phase shifts --- a single
+        $\varphi$ no longer summarizes the geometry and processing must split
+        the band (e.g.\ per-subcarrier). SPF's beacons do not operate here,
+        but strong wideband interferers do.
+  \item[Window.] A contiguous run of $N$ samples treated as one measurement
+        unit; SPF computes phase/beamformer statistics per window, many
+        windows per snapshot.
+  \item[Snapshot / session.] A snapshot is one capture buffer with one
+        ground-truth pose; a session (dataset) is the full recorded
+        trajectory of snapshots.
+  \item[Coherent vs.\ incoherent combining.] Coherent: add the complex
+        arrows, \emph{then} take magnitude/angle --- signals aligned in phase
+        reinforce ($N$ arrows of unit length aligned give length $N$; random
+        phases give $\sim\sqrt{N}$), so SNR grows with window length.
+        Incoherent: add magnitudes or powers, discarding phase --- robust
+        when phase is unstable, but no phase gain. The coherent sum
+        $\sum x_1 x_0^{*}$ of Section~\ref{sec:estimation} is the coherent
+        combine of the \emph{difference} arrows.
+  \item[SNR.] Signal-to-noise power ratio within the processed band; window
+        statistics turn per-sample SNR into per-window estimate quality.
+\end{description}
+
+With this vocabulary, the math section can be read literally: every
+``complex baseband sample'' is an I/Q arrow, every phase difference is an
+angle between two arrows sharing one clock, and every ``narrowband''
+invocation is the statement $B\tau \ll 1$ justified above.

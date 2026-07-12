@@ -7,27 +7,74 @@ particle filter's measurement model, and the dataset audit's forward model ---
 is a consequence of one small piece of geometry, so it pays to derive it once,
 carefully, with signs and conventions pinned down.
 
-\subsection{Setup and conventions}
+\subsection{Setup, conventions, and notation}
 \label{sec:setup}
 
-Two receive antennas $A_0$ and $A_1$ are separated by a baseline of length
-$d$ (metres). Place the midpoint of the baseline at the origin, with the
-baseline along the $x$-axis:
+Every symbol used repeatedly in this document is defined here, in bold at
+first use, and collected in Table~\ref{tab:notation}.
+
+Two receive \textbf{antennas} $\bm{A_0}$ \textbf{and} $\bm{A_1}$ are separated
+by a \textbf{baseline of length} $\bm{d}$ (metres, the ``antenna spacing'').
+Place the midpoint of the baseline at the origin, with the baseline along the
+$x$-axis:
 \[
 A_0 = \left(+\tfrac{d}{2},\, 0\right), \qquad
 A_1 = \left(-\tfrac{d}{2},\, 0\right).
 \]
 The \emph{boresight} (broadside) direction is the $+y$-axis, perpendicular to
-the baseline. An emitter lies at range $R$ in direction $\theta$, where
-$\theta$ is measured \emph{from boresight}, positive toward $+x$ (toward
-$A_0$):
+the baseline. The \textbf{emitter position} $\bm{E}$ lies at \textbf{range}
+$\bm{R}$ (distance from the array centre to the emitter, metres) in
+\textbf{bearing} $\bm{\theta}$, where $\theta$ is measured \emph{from
+boresight}, positive toward $+x$ (toward $A_0$):
 \[
 E = (R\sin\theta,\; R\cos\theta).
 \]
-The emitter transmits a narrowband signal at carrier frequency $f$ with
-wavelength $\lambda = c/f$ ($c$ the speed of light). At 2.412\,GHz,
-$\lambda = 12.4$\,cm; at 5.766\,GHz, $\lambda = 5.2$\,cm; at 915\,MHz,
-$\lambda = 32.8$\,cm.
+The emitter transmits a narrowband signal at \textbf{carrier frequency}
+$\bm{f}$ (Hz) with \textbf{wavelength} $\bm{\lambda} = c/f$, where $\bm{c}$
+is the \textbf{speed of light} ($3\times10^8$\,m/s; $c$ is used \emph{only}
+for the speed of light in this document --- the audit's constant phase offset,
+sometimes called $c$ in code output, is written $\varphi_0$ here). At
+2.412\,GHz, $\lambda = 12.4$\,cm; at 5.766\,GHz, $\lambda = 5.2$\,cm; at
+915\,MHz, $\lambda = 32.8$\,cm. The single most important derived quantity is
+the \textbf{spacing in wavelengths} $\bm{d/\lambda}$ (dimensionless): all
+ambiguity and sensitivity properties of the array depend on $d$ and $\lambda$
+only through this ratio.
+
+\begin{table}[ht]
+\centering
+\caption{Notation used throughout. Symbols are defined in bold where they
+first appear in the text.}
+\label{tab:notation}
+\begin{tabular}{lll}
+\toprule
+Symbol & Meaning & Units \\
+\midrule
+$A_0, A_1$ & the two receive antennas (channel 0 / channel 1) & --- \\
+$d$ & baseline length (antenna spacing) & m \\
+$E$ & emitter position & m \\
+$R$ & range: distance from array centre to emitter & m \\
+$\theta$ & emitter bearing, measured from boresight & rad \\
+$\theta_{\mathrm{mount}}$ & orientation of the array on its platform & rad \\
+$f$ & carrier frequency & Hz \\
+$c$ & speed of light (only this; never a fit parameter) & m/s \\
+$\lambda = c/f$ & carrier wavelength & m \\
+$d/\lambda$ & spacing in wavelengths (drives ambiguity/sensitivity) & --- \\
+$\hat u$ & unit vector from array toward emitter & --- \\
+$\Delta$ & path-length difference between the two channels & m \\
+$\tau = \Delta/c$ & arrival-time difference & s \\
+$x_0[n], x_1[n]$ & complex (IQ) baseband samples of the two channels & --- \\
+$\varphi$ & true inter-channel phase difference & rad \\
+$\hat\varphi$ & estimated phase difference, wrapped to $(-\pi,\pi]$ & rad \\
+$\pinorm(\cdot)$ & wrap an angle into $(-\pi, \pi]$ & --- \\
+$\varphi_0$ & systematic phase offset (audit fit; \texttt{offset\_c} in code) & rad \\
+$g$ & effective$/$configured spacing ratio (audit fit) & --- \\
+$\Delta\theta$ & angular offset: mount rotation / compass bias (audit fit) & rad \\
+$\bar R$ & circular resultant length (\emph{not} the range $R$) & --- \\
+$\sigma_{\mathrm{circ}}$ & circular standard deviation $\sqrt{-2\ln\bar R}$ & rad \\
+$\sigma_\varphi, \sigma_\theta$ & phase-noise and bearing-noise scales & rad \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \begin{figure}[ht]
 \centering
@@ -59,22 +106,98 @@ red path $\Delta = d\sin\theta$.}
 \subsection{Step 1: the far-field assumption}
 \label{sec:farfield}
 
-Exactly, the two path lengths are $\lVert E - A_0\rVert$ and
-$\lVert E - A_1\rVert$. Expanding $\lVert E - A_{0,1}\rVert$ in powers of
-$d/R$:
+\paragraph{The idea in plain words.}
+Drop a stone in a pond. Near the splash, the ripples are obviously circles.
+Now stand far away and look at the small patch of water in front of you: the
+piece of ripple passing you looks like a \emph{straight line}, because you are
+seeing a tiny arc of an enormous circle. Radio waves spreading out from an
+emitter do the same thing in 3D: near the emitter the wavefronts (surfaces of
+equal phase --- think ``crests'') are spheres, but by the time they reach a
+receiver that is far away compared to the size of that receiver, the little
+piece of sphere crossing the two antennas is as good as flat. ``Working in the
+far field'' just means: \emph{pretend the crests are flat sheets travelling in
+a straight line from the emitter}. The question this subsection answers is:
+how much error does that pretence introduce for \emph{our} geometry --- and
+the answer will be ``about a thousandth of what we care about''.
+
+\paragraph{The exact picture.}
+Each antenna measures phase according to its own exact distance from the
+emitter: $\lVert E - A_0\rVert$ for antenna $A_0$ and $\lVert E - A_1\rVert$
+for $A_1$. What the array actually senses (Step~3) is the \emph{difference}
+of these two distances. So the honest question is: how different is the exact
+distance difference from the flat-wave answer $d\sin\theta$ that we are about
+to derive in Step~2?
+
+\paragraph{Doing the algebra once, slowly.}
+Take antenna $A_0$ at $(+d/2, 0)$ and the emitter at
+$E = (R\sin\theta, R\cos\theta)$. Pythagoras gives the exact distance:
+\[
+\lVert E - A_0\rVert
+ = \sqrt{\big(R\sin\theta - \tfrac{d}{2}\big)^2 + \big(R\cos\theta\big)^2}
+ = \sqrt{R^2 - R\,d\sin\theta + \tfrac{d^2}{4}}\,,
+\]
+where the second equality is just multiplying out and using
+$\sin^2\theta + \cos^2\theta = 1$. Factor $R^2$ out of the square root:
+\[
+\lVert E - A_0\rVert
+ = R\,\sqrt{1 \;\underbrace{-\; \frac{d\sin\theta}{R}
+   \;+\; \frac{d^2}{4R^2}}_{\text{small, because } d \ll R}}\,.
+\]
+Now use the one approximation tool this whole derivation needs, the
+square-root shortcut for small $x$:
+\[
+\sqrt{1 + x} \;\approx\; 1 + \frac{x}{2} - \frac{x^2}{8}
+\qquad (\text{try } x = 0.01: \sqrt{1.01} = 1.00499, \text{ and }
+1 + 0.005 - 0.0000125 = 1.00499).
+\]
+Applying it with $x = -\,d\sin\theta/R + d^2/(4R^2)$ and keeping terms up to
+$d^2$ (everything smaller is truly negligible) gives, for both antennas at
+once (upper signs for $A_0$, lower for $A_1$):
 \[
 \lVert E - A_{0,1}\rVert
-  = R \mp \tfrac{d}{2}\sin\theta
-    + \frac{d^2\cos^2\theta}{8R} + O\!\left(\frac{d^3}{R^2}\right).
+  \;=\; R \;\mp\; \tfrac{d}{2}\sin\theta
+    \;+\; \frac{d^2\cos^2\theta}{8R} \;+\; O\!\left(\frac{d^3}{R^2}\right).
 \]
-The first-order term is the plane-wave (far-field) result; the quadratic term
-is the near-field (wavefront curvature) correction. Its phase contribution is
-$2\pi/\lambda \cdot d^2/(8R)$ at worst. Plugging in wall-array numbers
-($d = 5$\,cm, $R = 0.9$\,m, $\lambda = 12.4$\,cm): the correction is
-$\approx 0.018$\,rad --- negligible against measured phase noise, and it was
-explicitly ruled out as a residual source in the audit. From here on we work
-in the far field: incoming wavefronts are planes perpendicular to the arrival
-direction.
+Read the three terms left to right:
+\begin{itemize}
+  \item $R$: the overall distance. Identical for both antennas, so it cancels
+        completely when we subtract --- it carries no direction information.
+  \item $\mp \tfrac{d}{2}\sin\theta$: opposite sign for the two antennas.
+        Subtracting gives exactly $\Delta = d\sin\theta$ --- \emph{this is the
+        flat-wave (far-field) answer of Step~2}, recovered from exact algebra.
+  \item $d^2\cos^2\theta/(8R)$: the first correction --- the \emph{curvature}
+        of the wavefront. Crucially it has the \emph{same} sign for both
+        antennas, so it \emph{almost} cancels in the difference; what survives
+        in the difference is bounded by $d^2/(8R)$.
+\end{itemize}
+
+\paragraph{Now plug in our numbers.}
+Wall array, worst case: spacing $d = 5$\,cm, range $R = 0.9$\,m, wavelength
+$\lambda = 12.4$\,cm (2.4\,GHz). The leftover curvature term is at most
+\[
+\frac{d^2}{8R} = \frac{(0.05\,\mathrm{m})^2}{8 \times 0.9\,\mathrm{m}}
+ = \frac{0.0025}{7.2}\,\mathrm{m} \approx 0.35\,\mathrm{mm}.
+\]
+A third of a millimetre of path error. To turn a path error into a phase
+error, divide by the wavelength (how many crests fit in it) and multiply by
+$2\pi$ (radians per crest):
+\[
+\text{phase error} \;\le\; \frac{2\pi}{\lambda}\cdot\frac{d^2}{8R}
+ = \frac{2\pi \times 0.00035}{0.124} \approx 0.018\ \text{rad}
+ \approx 1^\circ.
+\]
+Measured phase noise on \emph{good} wall-array datasets is
+$\sigma_\varphi \approx 0.5$\,rad ($\approx 29^\circ$) per window
+(Section~\ref{sec:circstats}) --- roughly $25\times$ larger. The audit also
+checked this empirically: near-field curvature was explicitly ruled out as a
+contributor to the residuals. And the wall array is the \emph{hardest} case;
+rovers operate at $R \sim 10$--$20$\,m, where the correction shrinks by
+another order of magnitude.
+
+\paragraph{Conclusion.}
+From here on we work in the far field: incoming wavefronts are treated as
+planes perpendicular to the arrival direction, and the error committed is
+$\sim 1^\circ$ of phase against a $\sim 30^\circ$ noise floor.
 
 \subsection{Step 2: path-length difference}
 \label{sec:pathdiff}
@@ -160,13 +283,24 @@ angle modulo $2\pi$. Even the ideal half-wavelength array is only
 \subsection{Step 4: estimating $\varphi$ from IQ samples}
 \label{sec:estimation}
 
-With sampled complex baseband $x_0[n], x_1[n]$, form the per-sample product
-$z[n] = x_1[n]\, x_0^{*}[n]$. Its phase is $\varphi$ plus noise; its magnitude
-is the product of channel amplitudes. The maximum-likelihood-style estimate
-over a window $W$ is the phase of the \emph{coherent sum}:
+With sampled complex baseband $x_0[n], x_1[n]$ (Section~\ref{sec:iq}), form
+the per-sample product
+\[
+z[n] \;=\; x_1[n]\, x_0^{*}[n],
+\qquad
+|z[n]| = A_1[n] A_0[n], \quad \arg z[n] = \varphi + \text{noise}.
+\]
+Each sample is a little arrow whose direction is (a noisy copy of) the
+quantity we want. The maximum-likelihood-style estimate over a window $W$ is
+the direction of the \emph{coherent sum} --- lay all the arrows tip-to-tail
+and read off the direction of the total:
 \[
 \hat\varphi \;=\; \arg \sum_{n \in W} x_1[n]\, x_0^{*}[n].
 \]
+(``Maximum-likelihood-style'': for a single coherent source in independent
+complex Gaussian noise of constant level, this \emph{is} the ML estimator of
+$\varphi$; under real conditions --- AGC, interferers, bursts --- it is the
+sensible default rather than exactly optimal.)
 Three properties matter in practice:
 \begin{enumerate}
   \item \textbf{It is a circular mean.} Averaging $z[n]$ in the complex plane
@@ -185,16 +319,74 @@ Three properties matter in practice:
         summarizes with circular statistics.
 \end{enumerate}
 
-The same window statistic generalizes to the \textbf{beamformer}: for each
-candidate angle $\theta_k$ on a grid (SPF uses 65 bins), the steering weight
-$e^{+j2\pi \dlam \sin\theta_k}$ is applied and the coherently combined power
-recorded. For two elements this is mathematically just
-$\big|1 + e^{j(\varphi + 2\pi\dlam\sin\theta_k)}\big|^2$ --- a raised cosine
-in $\sin\theta_k$ peaked wherever $\varphi$ is explained --- so the
-beamformer output is an \emph{ambiguity-faithful likelihood over angle}, not
-a decision. That is exactly why it is the right network input: it encodes
-what the physics knows, including every alias peak, and lets the model (and
-the filter) do the disambiguation.
+\paragraph{One number per window --- so where did the ambiguity go?}
+$\hat\varphi$ is a single scalar, and it is tempting to think a scalar cannot
+represent an ambiguous measurement. It can: the ambiguity was never \emph{in}
+the measurement, it is in the \emph{inversion}. One value of $\hat\varphi$,
+together with $\dlam$, implies the \emph{entire} alias set of
+Section~\ref{sec:ambiguity} --- the mirror image and every grating candidate
+$\theta_k$. Nothing is lost per window under the ideal single-source model:
+$(\hat\varphi,\ \text{channel powers})$ is a sufficient summary of the
+window, and anyone downstream can expand it into the full multi-peak
+likelihood at will.
+
+\paragraph{The beamformer: the same information, pre-expanded onto an angle
+grid.}
+For each candidate angle $\theta_k$ on a grid (SPF uses 65 bins), the
+\textbf{beamformer} applies the steering weight
+$e^{+j2\pi \dlam \sin\theta_k}$ and records the coherently combined power.
+For two elements this reduces, per window, to
+\[
+B(\theta_k) \;=\; P_0 + P_1
+   + 2\,\Big|\textstyle\sum_W z[n]\Big|\,
+     \cos\!\big(\hat\varphi + 2\pi\dlam\sin\theta_k\big),
+\]
+with $P_0, P_1$ the window's channel powers --- a raised cosine in
+$\sin\theta_k$, peaked at \emph{every} angle that would explain
+$\hat\varphi$ and dipped at every angle that would not. Note what this
+formula says: the two-element beamformer is a \emph{deterministic function
+of} $(\hat\varphi, |\sum z|, P_0, P_1)$. Per window, the beamformer and the
+coherent-sum statistics carry \textbf{identical information}.
+
+\paragraph{So can we skip the beamformer?}
+Per window, mathematically, yes. Across windows and across the fleet,
+practically, no --- the beamformer earns its place at \emph{aggregation}
+time, for four reasons:
+\begin{enumerate}
+  \item \textbf{Averaging phases across windows is wrong; averaging
+        likelihoods is right.} If half the windows say $\hat\varphi = +2.8$
+        and half say $-2.8$ (a wrapped, bimodal situation --- or two
+        interleaved sources, or burst/junk windows mixed together), the
+        circular mean of the phases is a confident value near $\pm\pi$ that
+        neither population supports being averaged into. Averaging the
+        \emph{beamformer curves} instead keeps both hypotheses alive as two
+        peaks of moderate height. A stack of per-window scalars pushed
+        through a mean destroys multimodality; a stack of per-window
+        likelihood curves preserves it. (SPF feeds the network the windowed
+        stack itself, letting a learned pooling do even better than a plain
+        average.)
+  \item \textbf{A shared angle grid unifies the fleet.} The meaning of
+        $\hat\varphi = 1.0$\,rad depends entirely on $\dlam$, which varies
+        from 0.21 to 1.55 across SPF configurations. On the 65-bin $\theta$
+        grid, ``a peak at $\theta = 20^\circ$'' means the same thing on every
+        radio, every band, every spacing. The network does not have to learn
+        the $\arcsin$-and-alias expansion separately for every configuration
+        --- the beamformer bakes the physics in.
+  \item \textbf{Amplitude and SNR ride along naturally.} Peak height and
+        curve contrast encode $|\sum z|$ and the channel powers --- how much
+        this window should be trusted --- in the same object, instead of as
+        side channels to be recombined.
+  \item \textbf{Graceful degradation.} An empty or junk window produces a
+        nearly flat beamformer curve (``no opinion''), which averages
+        harmlessly; the same window's $\hat\varphi$ is a uniformly random
+        number indistinguishable from a real measurement.
+\end{enumerate}
+The audit, by contrast, \emph{does} use the scalar path: it has ground truth,
+works one dataset at a time, and wants residual distributions
+($\delta\varphi$ statistics), for which the per-window $\hat\varphi$ is
+exactly the right object. Scalar-per-window and beamformer-per-window are the
+same physics in two containers; SPF uses whichever container matches the
+consumer.
 
 \subsection{Step 5: inverting phase to angle --- and the two ambiguities}
 \label{sec:ambiguity}
@@ -286,16 +478,16 @@ Real rigs deviate from the boxed model in low-dimensional, physically
 interpretable ways. The audit fits, per dataset and per channel pair, using
 ground-truth bearing $\theta_{\mathrm{gt}}$:
 \[
-\varphi \;\approx\; c \;+\; g \cdot
+\varphi \;\approx\; \varphi_0 \;+\; g \cdot
    \Big(-2\pi\,\dlam\Big)\,
    \sin\!\big(\theta_{\mathrm{gt}} - \Delta\theta\big),
 \]
 with exactly three parameters:
 \begin{description}
-  \item[$c$ (phase offset):] a constant inter-channel phase --- LO
-        distribution, cable-length mismatch, front-end group delay. Harmless
-        to a learned model (it is per-rig constant) but fatal to naive
-        inversion.
+  \item[$\varphi_0$ (phase offset; \texttt{offset\_c} in the audit output):]
+        a constant inter-channel phase --- LO distribution, cable-length
+        mismatch, front-end group delay. Harmless to a learned model (it is
+        per-rig constant) but fatal to naive inversion.
   \item[$g$ (gain of the sine, equivalently effective$/$configured spacing):]
         $g \ne 1$ means the array behaves as if its spacing were
         $g\,d$. Causes: mislabeled physical spacing (documented and later
@@ -350,7 +542,7 @@ in the audit.
 \;\xrightarrow{\;\tau = \Delta/c\;}
 \varphi = -2\pi\dlam\sin\theta
 \;\xrightarrow{\;\text{rig}\;}
-c + g(\cdot)\;\text{at}\;\theta - \Delta\theta
+\varphi_0 + g(\cdot)\;\text{at}\;\theta - \Delta\theta
 \;\xrightarrow{\;\text{noise}\;}
 \hat\varphi
 \]

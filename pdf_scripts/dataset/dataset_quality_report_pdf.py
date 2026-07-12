@@ -80,6 +80,16 @@ class Rep:
 
 
 # ---------------- data ----------------
+
+def _trunc(s, n):
+    """Truncate at the last ';' boundary before n and mark with an ellipsis."""
+    if len(s) <= n:
+        return s
+    cut = s[: n - 1]
+    if ";" in cut:
+        cut = cut[: cut.rindex(";") + 1]
+    return cut + "\u2026"
+
 def load(csv_fn):
     rows = list(csv.DictReader(open(csv_fn)))
     for r in rows:
@@ -566,7 +576,7 @@ def sec_dive_errors(rep, rows):
     y -= 0.018
     errs = [r for r in rows if r["status"] == "ERROR"]
     for r in errs:
-        rep.fig.text(L, y, f"{r['dataset'][:52]:52s}  {(r.get('reasons') or '')[:58]}",
+        rep.fig.text(L, y, f"{r['dataset'][:52]:52s}  {_trunc((r.get('reasons') or ''), 58)}",
                      fontsize=6.6, va="top", family="DejaVu Sans Mono")
         y -= 0.0122
 
@@ -835,7 +845,7 @@ def sec_appendix(rep, rows):
             gg = (f"{g(r,'r0_g'):.2f}/{g(r,'r1_g'):.2f}"
                   if np.isfinite(g(r, "r0_g")) else "-")
             dt = f"{g(r,'r0_dtheta'):+.2f}" if np.isfinite(g(r, "r0_dtheta")) else "-"
-            reasons = (r.get("reasons") or "").replace("FLAG:", "F:").replace("QUAR:", "Q:")[:38]
+            reasons = _trunc((r.get("reasons") or "").replace("FLAG:", "F:").replace("QUAR:", "Q:"), 38)
             line = (f"{r['dataset'][:40]:40s} {(r.get('platform') or '?')[:5]:5s} {st:6s} "
                     f"{nan_s:7s} {rc:9s} {gg:9s} {dt:5s} {reasons}")
             rep.fig.text(L, y, line, fontsize=6.4, family="DejaVu Sans Mono", va="top")

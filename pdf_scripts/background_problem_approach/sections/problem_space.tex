@@ -79,3 +79,42 @@ aliased $\hat\varphi$ --- brittle exactly where our data lives. The physics
 still matters (it defines the feature space and the audit's forward model),
 but the mapping from measured phase statistics to bearing posterior is
 learned, and ambiguity resolution is deferred to fusion and filtering.
+
+\paragraph{Does any of this survive burst-mode digital signals?}
+Yes --- the geometry does not care whether the emitter transmits continuously,
+and the phase measurement is \emph{per sample}, not per second. Four facts
+make short-lived packets (Wi-Fi, telemetry beacons) workable, and two things
+genuinely change:
+
+\begin{itemize}
+  \item \textbf{A single packet is thousands of measurements.} The
+        inter-channel product $x_1[n]x_0^*[n]$
+        (Section~\ref{sec:estimation}) yields one phase sample per IQ sample.
+        A 100\,$\mu$s packet at 30\,MHz sampling is $\sim$3{,}000 complex
+        samples --- ample for a tight per-burst $\hat\varphi$.
+  \item \textbf{Modulation cancels.} Both antennas receive the \emph{same}
+        transmitted waveform $s(t)$; in $x_1 x_0^{*}$ the modulation
+        contributes $|s|^2$ and drops out of the phase, leaving the geometric
+        term --- valid whenever the inter-antenna delay
+        $\tau \lesssim 0.2$\,ns is far below a symbol time
+        ($B\tau \approx 4\times10^{-3}$ even for 20\,MHz Wi-Fi). A modulated
+        burst is as good as CW \emph{within} the burst.
+  \item \textbf{No coherence needed between bursts.} Both RX channels share
+        one LO, so the phase \emph{difference} is stable even if absolute
+        phase drifts arbitrarily between packets; each burst contributes an
+        independent bearing measurement to the filter.
+  \item \textbf{Carrier knowledge per burst suffices.} Frequency-agile
+        emitters change $\lambda$, hence the $\varphi$-scale, per hop --- the
+        estimator needs the hop frequency (from the capture configuration or
+        a per-burst frequency estimate), not continuity.
+\end{itemize}
+
+What does change: (i) \textbf{segmentation becomes part of the measurement}
+--- windows without signal contain uniform-phase junk and must be detected
+and gated, which is why duty-cycle and empty-window statistics are
+first-class quantities in the dataset audit; and (ii) \textbf{AGC transients
+concentrate at burst onsets} --- fast-attack gain slews exactly when the
+packet starts, distorting amplitudes (and potentially polarity) for the first
+microseconds. Both effects hit fixed-form classical estimators harder than
+they hit an approach built on gated window distributions, which can simply
+down-weight or skip the corrupted windows.
