@@ -28,7 +28,7 @@ def load_model_and_config_from_config_fn_and_checkpoint(
     if device is not None:
         config["optim"]["device"] = device
     m = load_model(config["model"], config["global"]).to(config["optim"]["device"])
-    m, _, _, _, _ = load_checkpoint(
+    m, *_ = load_checkpoint(
         checkpoint_fn=config["optim"]["checkpoint"],
         config=config,
         model=m,

@@ -279,6 +279,28 @@ def load_dataloaders(
     alternate_val_ds = {}
     for key, ds_list in alternate_val_ds_lists.items():
         alternate_val_ds[key] = torch.utils.data.ConcatDataset(ds_list)
+
+    # config-controlled named val groups; each MUST be a subset of the current
+    # val set (pure regrouping, no new data) — see
+    # claude_docs/04_training_inference/val_expansion_plan.md
+    def _norm_ds_name(p):
+        return os.path.basename(str(p)).replace(".zarr", "")
+
+    for group_name, manifest_fn in datasets_config.get("val_subset_groups", {}).items():
+        with open(manifest_fn) as _f:
+            members = {_norm_ds_name(line.strip()) for line in _f if line.strip()}
+        group_list = [
+            ds for ds in val_datasets if _norm_ds_name(ds.prefix) in members
+        ]
+        assert group_name not in alternate_val_ds, (
+            f"val_subset_group name collision: {group_name}"
+        )
+        assert len(group_list) == len(members), (
+            f"val_subset_group '{group_name}': {len(members) - len(group_list)} "
+            f"manifest entries are NOT part of the current val set "
+            f"(groups must be subsets of val_paths)"
+        )
+        alternate_val_ds[group_name] = torch.utils.data.ConcatDataset(group_list)
     # if we train_on_val just take everything
     if not datasets_config["train_on_val"]:
         val_idxs = list(range(len(val_ds)))
@@ -423,6 +445,7 @@ def save_model(
     config,
     running_config,
     checkpoint_fn=None,
+    best_val_loss=None,
 ):
     model_checksum("save: ", model)
     if checkpoint_fn is None:
@@ -436,6 +459,9 @@ def save_model(
             "step": step,
             "config": config,
             "scheduler_state_dict": scheduler.state_dict(),
+            # persist the best-val watermark so a resumed run cannot clobber
+            # best.pth with a worse checkpoint (KNOWN_ISSUES #53)
+            "best_val_loss": best_val_loss,
         },
         f"{prefix}/{checkpoint_fn}",
     )
@@ -476,7 +502,7 @@ def load_checkpoint(
             for param in model.single_radio_net.parameters():
                 param.requires_grad = False
             # model.single_radio_net = FrozenModule(model_being_loaded)
-            return (model, optimizer, scheduler, 0, 0)  # epoch  # step
+            return (model, optimizer, scheduler, 0, 0, None)  # epoch, step, best
         elif config["model"]["load_paired"]:
             # check if we loading a paired network
             logging.info("Loading paired_radio net only")
@@ -484,7 +510,7 @@ def load_checkpoint(
             for param in model.multi_radio_net.parameters():
                 param.requires_grad = False
             # breakpoint()
-            return (model, optimizer, scheduler, 0, 0)  # epoch  # step
+            return (model, optimizer, scheduler, 0, 0, None)  # epoch, step, best
 
     # else
     logging.debug("loading_checkpoint: checkpoint state dict")
@@ -501,12 +527,27 @@ def load_checkpoint(
     if scheduler is not None:
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
+    # Re-apply the backbone freeze that load_single/load_paired originally
+    # established: a full (resume/force) load runs on a freshly-built model whose
+    # params all default to requires_grad=True, silently unfreezing the frozen
+    # sub-net on any stage-2 resume (KNOWN_ISSUES #54).
+    if config["model"].get("load_single", False):
+        logging.info("Re-freezing single_radio_net after full checkpoint load")
+        for param in model.single_radio_net.parameters():
+            param.requires_grad = False
+    elif config["model"].get("load_paired", False):
+        logging.info("Re-freezing multi_radio_net after full checkpoint load")
+        for param in model.multi_radio_net.parameters():
+            param.requires_grad = False
+
     return (
         model,
         optimizer,
         scheduler,
         checkpoint["epoch"],
         checkpoint["step"],
+        # older checkpoints predate this key -> None (previous behavior)
+        checkpoint.get("best_val_loss", None),
     )
 
 
@@ -1138,18 +1179,24 @@ def train_single_point(args):
     start_epoch = 0
 
     just_loaded_checkpoint = False
+    best_val_loss_from_checkpoint = None
     if args.resume_from is not None:
-        m, optimizer, scheduler, start_epoch, step = load_checkpoint(
-            checkpoint_fn=args.resume_from,
-            config=config,
-            model=m,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            force_load=True,
+        m, optimizer, scheduler, start_epoch, step, best_val_loss_from_checkpoint = (
+            load_checkpoint(
+                checkpoint_fn=args.resume_from,
+                config=config,
+                model=m,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                force_load=True,
+            )
         )
         just_loaded_checkpoint = True
     elif "checkpoint" in config["optim"]:
-        m, optimizer, scheduler, _start_epoch, _step = load_checkpoint(
+        # NOTE: deliberately discard the loaded checkpoint's best_val_loss here:
+        # this is the stage-2 "warm start from stage-1" path, and stage-1's best
+        # was measured on a different metric (val/single_loss).
+        m, optimizer, scheduler, _start_epoch, _step, _best_val_loss = load_checkpoint(
             checkpoint_fn=config["optim"]["checkpoint"],
             config=config,
             model=m,
@@ -1188,7 +1235,9 @@ def train_single_point(args):
     else:
         raise ValueError(f"Not a valid scatter fn, {config['datasets']['scatter']}")
 
-    best_val_loss_so_far = None
+    # restore the best-val watermark on resume so the first post-resume val
+    # cannot clobber best.pth with a worse checkpoint (KNOWN_ISSUES #53)
+    best_val_loss_so_far = best_val_loss_from_checkpoint
 
     last_val_plot = 0
     for epoch in range(start_epoch, config["optim"]["epochs"]):
@@ -1289,6 +1338,7 @@ def train_single_point(args):
                                 scheduler=scheduler,
                                 running_config=running_config,
                                 checkpoint_fn="best.pth",
+                                best_val_loss=best_val_loss_so_far,
                             )
                 if args.val_and_exit:
                     return
@@ -1353,6 +1403,7 @@ def train_single_point(args):
                     config=config,
                     scheduler=scheduler,
                     running_config=running_config,
+                    best_val_loss=best_val_loss_so_far,
                 )
 
             if "steps" in config["optim"] and step >= config["optim"]["steps"]:
