@@ -133,6 +133,8 @@ def sec_title(rep, rows):
     f.text(0.5, 0.625, f"OK {cnt.get('OK',0)}   ·   FLAG {cnt.get('FLAG',0)}   ·   "
            f"QUARANTINE {cnt.get('QUARANTINE',0)}   ·   ERROR {cnt.get('ERROR',0)}",
            ha="center", fontsize=12, color=INK)
+    f.text(0.5, 0.575, "report rev 2 (2026-07-12): + §5b coupling-model fits, §6b IF placement, "
+           "roadmap/actions refresh", ha="center", fontsize=8.5, color=MUT)
     f.text(0.5, 0.53, "Scanner: spf/scripts/dataset_quality_scan.py  (read-only)\n"
            "Method & plan: claude_docs/03_datasets/data_quality_plan.md\n"
            "Raw output: data_quality_reports/scan_2026_07_12/metrics.csv",
@@ -1103,13 +1105,21 @@ def sec_roadmap(rep):
         "interferer, independently = noise); (d) second-peak persistence in the cached windowed beamformer.",
         "15. Calibration sidecar emission: per-(dataset × receiver) fitted (c, g, Δθ) with the plan's guards — "
         "time-split stability, rig-consistency, bounded priors, minimum-improvement threshold.",
+        "16. Per-config-family gain gate: flag |g − median_g(config)| > 0.15 instead of |g−1| > 0.25 — silences the "
+        "known coupling floor (§5b), catches true per-capture anomalies (the 43↔47 mm class).",
+        "17. tone_at_dc gate: measure IF per dataset (one FFT of one snapshot, ~free) and QUARANTINE |IF| < 0.002·fs "
+        "(§6b) — a physical, upstream predictor of the drift failure.",
+        "18. Beamformer-based metrics from the cached weighted_beamformer: offset-corrected GT-bin percentile "
+        "(alignment) + entropy (informativeness) — scores datasets on the representation the NN consumes; works "
+        "where scalar g fits fail (sub-GHz). Offset must be fitted first or it confounds informativeness.",
     ]:
         y = rep.para(y, t, size=8.9, gap=0.003)
     y -= 0.006
     rep.para(y, "Evidence for the interference detectors is already in this scan: the "
              "2025-04-05 rover session (7 datasets, structure 0.98-1.45, 55-65% outliers) is a "
              "discrete interference/multipath incident, and the 915 MHz band shows 2.3× the "
-             "structured residual of the other bands fleet-wide.", size=8.9)
+             "structured residual of the other bands fleet-wide. Full experiment queue with "
+             "designs and decision rules: docs/future_experiments.md.", size=8.9)
 
 
 def sec_actions(rep):
@@ -1128,12 +1138,21 @@ def sec_actions(rep):
          "Emit per-(dataset × receiver) fitted (c, g, Δθ) with the plan's guards (time-split "
          "stability, rig consistency, bounded priors, minimum improvement). Feed empirical tables "
          "and filters first; A/B a retrain with corrected spacing/labels after."),
-        ("4. Scanner v2",
-         "Widen grids (wall g → 3.0, rover Δθ → ±0.9), two-tier NaN gate (5-20% FLAG / >20% "
-         "QUARANTINE), ts gate at >1%, add common/differential Δθ decomposition for wall too."),
+        ("4. Scanner v3 (v2 shipped — this report)",
+         "Per-config-family g gate, tone_at_dc quarantine, beamformer alignment/entropy metrics "
+         "(roadmap items 16-18); all computable from existing caches, no new capture needed."),
         ("5. Collection-time gates",
          "Run Tier-1 metrics inside data_collector at capture time so a Nov-2024-style bad era or a "
          "frozen planner is caught in the field within minutes, not months later."),
+        ("6. IF policy + the 2×2 capture matrix (one afternoon)",
+         "Adopt §6b R1/R2 (explicit f_IF, fs/16 default; never LO = carrier). Run E-IF1: "
+         "{IF=0, IF=fs/16} × {BBDC tracking on, off} at 915 MHz on the wall rig — decides whether IF "
+         "placement alone rescues sub-GHz or the BBDC knob is also needed. Prereq: a one-line "
+         "bb-dc-tracking receiver key in PPlus.setup_rx_config. Design: docs/future_experiments.md."),
+        ("7. Training-data ladder (RUNNING)",
+         "Stage-1 base/r1/r2 × 250k steps launched 2026-07-12 with val_subset_groups "
+         "(val_clean/degraded/band915); successive halving on val_clean/single_loss. Baselines from "
+         "the jun26 checkpoint: 0.09735 / 0.1014 / 0.10902 / 0.11003."),
     ]:
         rep.fig.text(L, y, t, fontsize=10.5, fontweight="bold", va="top")
         y -= 0.019
