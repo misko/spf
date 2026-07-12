@@ -4,6 +4,24 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## L7 — IF policy: off-center fs/16, all tracking on; the BBDC question is moot (2026-07-12)
+
+- **Off-center IF is completely free for the measurement:** both RX channels share one
+  LO, so the IF rotation e^{j2π·f_IF·t} cancels exactly in x₁·x₀* — measured phase
+  difference, amplitude stats, and segmentation are identical at any IF. Moving
+  off-center only removes pathologies (tracking notch, offsets, LO leakage, 1/f skirt,
+  and the quadrature image, which lands ON the tone at IF=0). Never 0-center.
+- **Window:** |IF| ≥ max(10× crystal wander, ~0.01·fs) and ≤ passband/2 − signal
+  bandwidth. f_IF = fs/16 satisfies this at every SPF band/rate; wideband signals
+  (20 MHz Wi-Fi at 30 MS/s) are the only case needing thought.
+- **BBDC-off adds no noise** — it trades the loop's unlogged time-varying correction for
+  a quasi-static, recorded, post-removable DC spur. Bias on the phase product
+  ~(offset/signal)² (~0.003 rad for a near-rails signal and −30 dBFS spur). Caveats:
+  spur is gain-dependent (largest at high AGC gain = weak signal, the rover regime);
+  amplitude-bit cost is log2(2048/(2048−|c|)) — negligible below ~20% FS; a big spur
+  also steals AGC headroom. With the fs/16 policy none of this is exercised.
+- Full Q&A: report §6b "IF policy" page; experiment: E-IF1 (demoted to diagnostic).
+
 ## L6 — gain-change phase inversion was FIXED in code in Jan 2024 (found 2026-07-12)
 
 Commit 9d00b7b (2024-01-26, "Fix phase inversion Rx1; Fix gain phase inversion") applies

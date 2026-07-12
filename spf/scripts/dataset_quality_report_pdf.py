@@ -147,7 +147,7 @@ def sec_title(rep, rows):
            "5   Deep dive — wall effective-spacing (gain) systematic",
            "5b  Per-band g vs spacing — coupling-model fits (2 pp)",
            "6   Deep dive — NaN / no-signal snapshots",
-           "6b  Deep dive — IF placement (tone-at-DC) + recommendations (2 pp)",
+           "6b  Deep dive — IF placement, recommendations, IF policy (3 pp)",
            "7   Deep dive — the bad-capture months",
            "8   Deep dive — rover heading bias & mount anomalies",
            "9   Deep dive — stale positions (#42)",
@@ -692,6 +692,51 @@ def sec_dive_if(rep, rows, if_csv):
                  "statistic. "
                  "(R6) Firmware/config hygiene: log the configured f_IF alongside rx_lo in "
                  "the capture yaml so nominal-vs-measured IF drift becomes auditable.")
+
+    rep.new_page()
+    y = rep.h1("6b (cont.)  IF policy — off-center is free")
+    y = rep.para(y, "Q1 — CAN A BETTER IF MAKE THE WHOLE DC/BBDC QUESTION MOOT? Yes. With "
+                 "f_IF = fs/16 the tone sits ~30× outside the DC-tracking loop bandwidth, "
+                 "so every loop (BBDC, RF-DC, quadrature) can stay ON at its default: the "
+                 "loops then only keep the DC region clean and never touch the signal. No "
+                 "new config knob, no headroom cost, no bits lost. Production policy "
+                 "adopted: f_IF = fs/16, all tracking on; the 2×2 BBDC matrix (E-IF1) is "
+                 "demoted from policy question to diagnostic (docs/future_experiments.md).")
+    y = rep.para(y, "Q2 — SHOULD IF BE 0-CENTERED OR OFF-CENTER? Never 0-centered. DC "
+                 "hosts everything bad in a direct-conversion receiver at once: the "
+                 "tracking notch, ADC/mixer offsets, LO-leakage spur, the 1/f noise skirt "
+                 "— and the quadrature image (IQ imbalance mirrors the tone to −IF, which "
+                 "at IF=0 lands exactly ON the tone). Off-center is COMPLETELY FREE for "
+                 "the measurement: both RX channels share one LO, so the IF rotation "
+                 "e^{j2π·f_IF·t} is identical in both channels and cancels exactly in "
+                 "x1·x0* — the measured phase difference is the same at any IF. Amplitude "
+                 "statistics and segmentation are equally indifferent. The only window "
+                 "constraint: |IF| ≥ max(10× crystal wander, ~0.01·fs) at the bottom, "
+                 "≤ passband/2 − signal bandwidth at the top (wideband signals like 20 MHz "
+                 "Wi-Fi at 30 MS/s need care; CW beacons do not).")
+    y = rep.para(y, "Q3 — IF BBDC TRACKING WERE DISABLED, WOULD IT ADD NOISE? No. The BB "
+                 "DC offset is a quasi-static complex CONSTANT, not noise; the loop "
+                 "removes an offset, and disabling it simply leaves that offset in the "
+                 "data as a static DC spur. The noise floor away from DC (thermal, 1/f, "
+                 "quantization) is identical either way. With proper IF the spur is "
+                 "spectrally separated and its bias on the window phase product is "
+                 "~(offset/signal)²: for the near-rails 915 beacon and a −30 dBFS spur, "
+                 "≈0.3% ≈ 0.003 rad — two orders below the noise floor. And a static "
+                 "spur is RECORDED — trivially removable from raw IQ in post — whereas "
+                 "the loop's time-varying correction is unlogged and irrecoverable, which "
+                 "is exactly what made historical sub-GHz data unrescuable.")
+    y = rep.para(y, "Q4 — AMPLITUDE BITS AND SPUR MAGNITUDE. Direct headroom cost of an "
+                 "offset |c| on the 12-bit ADC (±2048) is log2(2048/(2048−|c|)): 0.07 bits "
+                 "at 5% FS, 0.3 bits at 20% FS — negligible until the spur is a large "
+                 "fraction of full scale. The sneaky path is the AGC: it regulates TOTAL "
+                 "power including the spur, so a large spur makes it back off gain and "
+                 "shrink the signal's share of the range. And the spur is GAIN-DEPENDENT "
+                 "(LO self-mixing is amplified with the signal): largest at high AGC gain "
+                 "= weakest signal — precisely the rover regime, where the near-rails "
+                 "0.3% estimate does NOT transfer. That offset-vs-gain curve is unknown "
+                 "for our boards; E-IF1's manual-gain sweep measures it. Conclusion: with "
+                 "the fs/16 policy none of this is exercised — tracking stays on and the "
+                 "spur question never arises in production.")
 
 
 def sec_dive_badmonths(rep, rows):
