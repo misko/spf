@@ -39,10 +39,13 @@ The g scatter at 868/915 MHz is enormous (per-config IQR 0.2–0.5, receiver agr
   σ_φ = 1.2. Not coverage (all bands fill 12/12 angle bins). Not segmentation quality.
 - **Root cause: the beacon was received at ~0 Hz IF.** Raw IQ shows a continuous strong
   carrier (rms ~1200, near rails) with 74% of power within 0.2%·fs of DC on r0; r1 has
-  the same tone at −0.0034·fs (independent LO offsets). The AD9361 RF-DC/BBDC tracking
-  loops slowly null/rotate a near-DC tone — independently per receiver — producing the
-  slow drift (2× drift span, corrected circstd ≈ 1.0) that aliases into the fitted
-  amplitude. Small geometric swing (±0.9–1.4 rad at d/λ = 0.12–0.23) makes the aliasing
+  the same tone at −0.0034·fs. Crystals are independent per BOARD; within a board the
+  RX LO is shared — both antennas show identical tone offsets (verified +47.9/+47.9 kHz
+  on r0, −38.8/−38.1 on r1) — so crystal error is common-mode and cancels in the phase
+  difference. The damage path is PER CHANNEL: each RX chain has its own DC offsets and
+  correction state (gain-indexed RF-DC words + BBDC tracking loop), so a near-DC tone is
+  perturbed differently per channel, producing the slow differential drift (2× drift
+  span, corrected circstd ≈ 1.0) that aliases into the fitted amplitude. Small geometric swing (±0.9–1.4 rad at d/λ = 0.12–0.23) makes the aliasing
   ~3× worse than at 2.4 GHz. Matches the lab-log note "the issue might be that the IF is
   0hz?" (Jan 2025); all sub-GHz data is from the Oct-2024–Jan-2025 degraded era.
 - Within an on-snapshot, "signal" and "noise" windows are identical (same rms/spectrum):
