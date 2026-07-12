@@ -402,17 +402,21 @@ def sec_dive_gain_model(rep, rows):
     rng = np.random.default_rng(0)
     for (name, flo, fhi), rect in zip(bands, rects):
         ax = rep.ax(rect)
-        pts_d, pts_g = [], []
+        pts_d, pts_g, ag0, ag1 = [], [], [], []
         for r in wall:
             lo, ws = g(r, "rx_lo"), g(r, "wavelength_spacing")
             if not (np.isfinite(lo) and flo <= lo <= fhi and np.isfinite(ws)):
                 continue
             gs = [g(r, k) for k in ("r0_g", "r1_g")]
             gs = [x for x in gs if np.isfinite(x) and 0.72 < x < 2.98]
+            if len(gs) == 2:
+                ag0.append(gs[0])
+                ag1.append(gs[1])
             if gs:
                 pts_d.append(ws * C / lo)
                 pts_g.append(float(np.mean(gs)))
         pts_d, pts_g = np.array(pts_d), np.array(pts_g)
+        rx_corr = float(np.corrcoef(ag0, ag1)[0, 1]) if len(ag0) > 10 else np.nan
         if len(pts_d) < 10:
             continue
         lam = C / ((flo + fhi) / 2)
@@ -445,11 +449,17 @@ def sec_dive_gain_model(rep, rows):
             psi0 = (psi0 + np.pi) % (2 * np.pi) - np.pi
             rmse = float(np.sqrt(np.average(
                 (_coupling_model_g(med_d, lam, A, psi0) - med_g) ** 2, weights=med_n)))
-            ax.plot(dd * 100, _coupling_model_g(dd, lam, A, psi0), color="#c0392b",
-                    lw=1.6, label=f"coupling A={A:.2f} ψ0={psi0:+.2f}")
-            fit_results.append((name, A, psi0, rmse, int(med_n.sum()), len(med_d)))
+            trusted = np.isfinite(rx_corr) and rx_corr > 0.5
+            if trusted:
+                ax.plot(dd * 100, _coupling_model_g(dd, lam, A, psi0), color="#c0392b",
+                        lw=1.6, label=f"coupling A={A:.2f} ψ0={psi0:+.2f}")
+            else:
+                ax.plot(dd * 100, _coupling_model_g(dd, lam, A, psi0), color="#999",
+                        lw=1.2, ls="--", label="coupling fit — NOT trusted here")
+            fit_results.append((name, A, psi0, rmse, int(med_n.sum()), len(med_d), rx_corr))
         ax.axvline(lam / 2 * 100, color="#2e8b57", lw=0.7, alpha=0.5)
-        ax.set_title(f"{name}  (λ={lam*100:.1f} cm)", fontsize=8.5)
+        ax.set_title(f"{name}  (λ={lam*100:.1f} cm)   rx0/rx1 g-agreement ρ={rx_corr:+.2f}",
+                     fontsize=8)
         ax.set_xlabel("configured spacing (cm)", fontsize=8)
         ax.set_ylabel("fitted g", fontsize=8)
         ax.set_ylim(0.6, max(2.6, med_g.max() + 0.4))
@@ -459,9 +469,26 @@ def sec_dive_gain_model(rep, rows):
     # ---- second page: is the fit reasonable? ----
     rep.new_page()
     y = rep.h1("5b (cont.)  Is the coupling fit reasonable?")
-    y = rep.para(y, "FIT QUALITY (weighted rmse on config medians, 2 params/band): " +
-                 ";  ".join(f"{n}: A={A:.2f}, ψ0={p:+.2f}, rmse={e:.3f} over {k} configs"
-                            for n, A, p, e, _, k in fit_results) + ".")
+    y = rep.para(y, "FIT QUALITY (weighted rmse on config medians, 2 params/band; ρ = "
+                 "agreement of the two independent receivers on per-dataset g): " +
+                 ";  ".join(f"{n}: A={A:.2f}, ψ0={p:+.2f}, rmse={e:.3f}, ρ={c:+.2f}"
+                            for n, A, p, e, _, k, c in fit_results) + ".")
+    y = rep.para(y, "WHERE THE FIT IS NOT TRUSTWORTHY — 868/915 MHz. Per-dataset g is not a "
+                 "reproducible measurement in this band: the two independent receivers of the "
+                 "same rig agree at ρ=+0.97 (2.412 GHz), +0.91 (2.464), +0.85 (5.8) — but "
+                 "ρ≈ 0.0 at sub-GHz (median |g_r0−g_r1| = 0.58). Monte-Carlo shows plain "
+                 "Gaussian phase noise cannot do this (unbiased, sd≤0.1); the culprit is "
+                 "STRUCTURED SLOW DRIFT: sub-GHz residuals carry 2× the drift span (0.36 vs "
+                 "0.19 rad) at junk-level corrected circstd (1.0), and simulated slow drift "
+                 "aliases into the fitted amplitude with sd≈0.47 when the geometric swing is "
+                 "only ±0.9-1.4 rad (d/λ=0.12-0.23) — matching the observed per-receiver "
+                 "scatter — while the same drift at d/λ=0.4 gives sd 0.28. Each receiver "
+                 "pair drifts independently, hence zero correlation. All sub-GHz data also "
+                 "comes from the Oct-2024–Jan-2025 degraded-hardware era (RX1 DC-offset / "
+                 "IF≈0 issues, weak signal). Config medians (n=51-156, SE≈0.05) still sit "
+                 "significantly above 1, so some expansion is probably real, but they may be "
+                 "drift-biased — the sub-GHz curve is drawn dashed-grey and excluded from any "
+                 "sidecar until re-measured in a healthy era.")
     y = rep.para(y, "WHY IT IS REASONABLE. (1) The functional form is not an ad-hoc curve: "
                  "C≈Z21/(Z11+ZL) with Z21 decaying as 1/(kd) and phase −kd is the leading "
                  "far-term of the textbook mutual impedance between parallel elements. "
@@ -493,6 +520,8 @@ def sec_dive_gain_model(rep, rows):
                  "dropped. (6) Observational data: config groups correlate with collection "
                  "eras, though within-config stability across eras argues against a "
                  "temporal artifact.")
+    rep.new_page()
+    y = rep.h1("5b (cont.)  Verdict and the universal view")
     y = rep.para(y, "VERDICT & USE. Treat the coupling fit as a physically-motivated "
                  "2-parameter summary and interpolator — good enough to generate an "
                  "effective-spacing sidecar g(d, band) for correcting rx_spacing_input, and "
