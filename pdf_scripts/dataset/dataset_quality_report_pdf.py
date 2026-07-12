@@ -74,8 +74,13 @@ class Rep:
         return self.fig.add_axes(rect)
 
     def close(self):
-        self.new_page()  # flush footer of last real page
-        plt.close(self.fig)
+        # flush the last real page's footer without creating a phantom page
+        if self.fig is not None:
+            self.fig.text(0.5, 0.022, f"SPF dataset quality report · page {self.pageno}",
+                          ha="center", fontsize=7.5, color=MUT)
+            self.pdf.savefig(self.fig)
+            plt.close(self.fig)
+            self.fig = None
         self.pdf.close()
 
 
