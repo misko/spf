@@ -167,6 +167,23 @@ Two hardware facts matter enormously for SPF:
         single-channel phase drifts and must be detrended in some analyses.
 \end{itemize}
 
+\paragraph{Remark: I/Q as value and derivative (phase space).}
+There is a physicist's way to see all of this at once. At any instant, the
+waveform's \emph{value} is $v = A\cos\theta$ and its \emph{scaled
+derivative} is $-v'/(2\pi f) = A\sin\theta$ (differentiating a cosine
+yields the sine; the carrier dominates the slope). So (value, derivative) are
+the same two numbers as (I, Q), just measured in the lab frame at the total
+angle $\theta = 2\pi f t + \psi$; the LO's rotating frame subtracts the
+known carrier ramp and freezes the arrow at $\psi$. Deeper still: a sinusoid
+is a harmonic oscillator, whose state space is exactly two-dimensional ---
+(position, velocity), $(A, \psi)$, and $(I, Q)$ are three coordinates for the
+same state, which is why two branches are necessary and sufficient (and why
+$I$ and $Q$ are called \emph{quadratures}, the oscillator's $x$ and $p$).
+The hardware mixes rather than differentiates for practical reasons only: a
+differentiator at 2.4\,GHz would need sub-cycle timing, amplifies noise
+$\propto$ frequency, and reads one instant --- while mixer + low-pass
+measures the same two numbers averaged over thousands of carrier cycles.
+
 \subsection{Term definitions used throughout}
 \label{sec:terms}
 
