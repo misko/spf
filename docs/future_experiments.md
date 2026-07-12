@@ -24,6 +24,16 @@ record the outcome in `learnings.md` and mark it here.
   at AGC gain changes (discrete, not drift) and are removable in post from recorded IQ
   (unlike the loop's unlogged correction). At IF=0 with BBDC off, expect a STATIC bias
   (absorbed by the φ₀ fit) instead of drift — better than tracking-on but not clean.
+  RISK TO QUANTIFY: the residual spur grows with RX gain (LO self-mixing is amplified
+  with the signal), so it is largest exactly when the signal is weakest; at max gain it
+  could come within 10-20 dB of a weak signal, where it both biases the phase product
+  and steals AGC headroom (AGC regulates total power incl. spur → signal share of the
+  12-bit range shrinks). Amplitude-bit cost is negligible below ~20% FS offset
+  (log2(2048/(2048−|c|)) ≈ 0.07 bits at 5% FS).
+- **Add to the protocol:** a manual-gain sweep (min→max gain index) with BBDC on/off,
+  recording DC spur magnitude (dBFS) per gain — converts the unknown offset-vs-gain
+  curve into data; decides whether BBDC-off is safe for weak-signal (rover) captures or
+  only for strong-signal wall sessions.
 - **Decision rule:** run the quality scanner on the four cells. If {IF=fs/16} recovers
   corrected circstd to ≈0.4–0.5 (2.46x-like) regardless of BBDC → IF placement is
   sufficient, commission full sub-GHz re-capture with R1. If only {IF=0, BBDC off}
