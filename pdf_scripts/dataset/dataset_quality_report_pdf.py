@@ -587,17 +587,17 @@ def sec_dive_if(rep, rows, if_csv):
                  "independently in each receiver — which is exactly the slow drift that "
                  "destroyed the sub-GHz gain fits (section 5b): rho(r0,r1)~0, per-dataset g "
                  "scatter 0.2-0.5.")
-    y = rep.para(y, "WHY SUB-GHZ LANDED ON DC. The beacons are crystal-locked near the "
-                 "tuned frequency; measured LO-vs-carrier offsets are ~30 ppm (median "
-                 "|IF_r0 - IF_r1| across receivers: 0.0015-0.01 of fs, consistent with "
-                 "crystal spread). 30 ppm of 915 MHz is ~27 kHz — INSIDE the DC notch — so "
-                 "tuning LO = carrier parks the tone on DC by default at sub-GHz. At "
-                 "5.8 GHz the same ppm error is ~170 kHz, which usually clears the notch by "
-                 "luck. 10% of 2.412 GHz captures also sit at |IF| < 0.0002·fs (sampled "
-                 "p10), contributing to that band's noisy tail.")
-    y = rep.para(y, f"MEASUREMENT. One snapshot of raw IQ per dataset, FFT peak = measured "
-                 f"IF (n={len(d)} stratified wall datasets, 40/band; "
-                 "data_quality_reports/if_analysis/sample_if.py).")
+    y = rep.para(y, "WHY SUB-GHZ LANDED ON DC — the IF existed but was UNDER-MARGINED. "
+                 "All configs set f-intermediate = 100 kHz (verified in recorded config "
+                 "blobs). But crystal wander scales with carrier (ppm × f_c; Pluto XO "
+                 "correction is an uncalibrated 40.000000 MHz), and at 915 MHz it is "
+                 "50-140 kHz — the size of the offset itself: nominal +100 kHz measured as "
+                 "+48 kHz (r0) and -39 kHz (r1) — through DC. At 2.412 GHz ~10% of "
+                 "board/emitter combos cancelled to ~0 (that band's noisy tail); at "
+                 "5.8 GHz the 2.4×-larger wander threw the tone far from DC and saved the "
+                 "band. Lesson: f_IF must dominate wander (≥10×), i.e. scale with carrier. "
+                 f"[Measurement: FFT peak of one raw snapshot per dataset, n={len(d)}, "
+                 "40/band; data_quality_reports/if_analysis/sample_if.py]")
 
     # fig C1: |IF| vs quality scatter
     ax = rep.ax([0.09, 0.34, 0.52, 0.26])
@@ -668,11 +668,13 @@ def sec_dive_if(rep, rows, if_csv):
                  "video) spread power (0.12-0.15) — for those, per-subcarrier or wider-band "
                  "processing is the eventual win, but DC avoidance still applies.")
     y = rep.para(y, "RECOMMENDATIONS — IF POLICY FOR FUTURE CAPTURES. "
-                 "(R1) Never tune LO = carrier. Configure an explicit offset: "
-                 "LO = f_carrier − f_IF with f_IF chosen so the tone can NEVER wander into "
-                 "the notch: f_IF ≥ 10× worst-case crystal error (±30 ppm of carrier: "
-                 "±30 kHz at 915 MHz, ±175 kHz at 5.8 GHz) AND ≥ 0.01·fs "
-                 "(160 kHz at 16 MS/s, 300 kHz at 30 MS/s). "
+                 "(R1) The historical f_IF = 100 kHz is under-margined, not absent. Set "
+                 "f_IF ≥ 10× worst-case crystal wander (measured wander: 50-140 kHz at "
+                 "915 MHz, up to ~600 kHz at 5.8 GHz) AND ≥ 0.01·fs — i.e. f_IF must "
+                 "scale with the carrier. "
+                 "(R1b) Calibrate each Pluto's xo_correction (currently a factory-default "
+                 "40.000000 MHz on the probed units) — a one-time per-board trim shrinks "
+                 "the wander itself by an order of magnitude. "
                  "(R2) Keep f_IF ≤ min(rf_bandwidth, fs)/2 − guard so the tone stays inside "
                  "the analog passband; a good universal choice here is f_IF = fs/16 "
                  "(1-2 MHz), echoing the lab-log observation that larger IF 'seems to "

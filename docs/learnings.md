@@ -44,7 +44,7 @@ parameter g = effective/configured antenna spacing (the amplitude of
   0.15) instead of |g−1| > 0.25 — silences the known floor, catches true per-capture
   anomalies (like the rover 43↔47 mm mislabel that data surgery fixed).
 
-## L4 — sub-GHz (868/915) per-dataset g is unusable; root cause is IF ≈ 0 (2026-07-12)
+## L4 — sub-GHz (868/915) per-dataset g is unusable; root cause: IF margin < crystal wander (2026-07-12)
 
 The g scatter at 868/915 MHz is enormous (per-config IQR 0.2–0.5, receiver agreement
 ρ ≈ 0.0, median |g_r0 − g_r1| = 0.58). Investigation chain
@@ -52,7 +52,15 @@ The g scatter at 868/915 MHz is enormous (per-config IQR 0.2–0.5, receiver agr
 
 - Not Gaussian noise: Monte-Carlo of the scanner's fit is unbiased with sd ≤ 0.1 even at
   σ_φ = 1.2. Not coverage (all bands fill 12/12 angle bins). Not segmentation quality.
-- **Root cause: the beacon was received at ~0 Hz IF.** Raw IQ shows a continuous strong
+- **Configured IF was 100 kHz, not zero** (`f-intermediate: 100000` in every capture
+  config, all bands) — but crystal wander scales with carrier (ppm × f_c; Pluto
+  `xo_correction` is an uncalibrated 40.000000 MHz) and at 915 MHz reaches 50–140 kHz,
+  the size of the offset itself: nominal +100 kHz measured as +48 kHz (r0) and −39 kHz
+  (r1) — the tone wandered THROUGH DC. At 2.412 GHz ~10% of combos cancelled to ~0; at
+  5.8 GHz the 2.4×-larger wander threw the tone clear and saved the band. Rule: f_IF
+  must dominate wander (≥10×), i.e. scale with carrier; also calibrate xo_correction
+  per board (one-time trim, shrinks wander ~10×).
+- **The failure at ~0 Hz effective IF:** Raw IQ shows a continuous strong
   carrier (rms ~1200, near rails) with 74% of power within 0.2%·fs of DC on r0; r1 has
   the same tone at −0.0034·fs. Crystals are independent per BOARD; within a board the
   RX LO is shared — both antennas show identical tone offsets (verified +47.9/+47.9 kHz
