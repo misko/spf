@@ -310,8 +310,8 @@ Three properties matter in practice:
   \item \textbf{It is amplitude-weighted.} Strong samples dominate the sum.
         Usually good (they have better SNR), but under fast-attack AGC the
         amplitude is a moving target --- gain steps within a window distort
-        the weighting, and gain-index changes can flip channel polarity
-        (a $\pi$ error on the affected samples).
+        the weighting (gain-index polarity flips were mitigated in SPF's rigs
+        in Jan~2024 via the AD9361 polarity-invert controls).
   \item \textbf{Windowing trades variance for time resolution.} SPF computes
         $\hat\varphi$ (and a full beamformer, below) over many short windows
         per capture snapshot rather than one long one, retaining the
@@ -529,8 +529,8 @@ phase distribution gives $\bar R \to 0$ and a finite-$N$ floor of
 $\sigma_{\mathrm{circ}} \approx 2.1$ at $N = 50$ rising to $\approx 3.0$ at
 $N = 5000$; and mixtures are nonlinear --- 30\% uniform junk contaminating an
 otherwise clean channel already pushes $\sigma_{\mathrm{circ}}$ to
-$\approx 0.9$. Heavy tails from AGC gain steps and LNA-bypass polarity flips
-($\pi$ jumps) inflate it further. These anchors calibrate every quality gate
+$\approx 0.9$. Heavy tails from AGC gain steps (and, on rigs predating the
+Jan-2024 polarity-bit fixes, LNA-bypass flips) inflate it further. These anchors calibrate every quality gate
 in the audit.
 
 \subsection{Summary of the chain}

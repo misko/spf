@@ -4,6 +4,21 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## L6 — gain-change phase inversion was FIXED in code in Jan 2024 (found 2026-07-12)
+
+Commit 9d00b7b (2024-01-26, "Fix phase inversion Rx1; Fix gain phase inversion") applies
+two mitigations on every Pluto capture (`sdr_controller.py:709-721`, also
+`test_throughput.py`; explored in `notebooks/iio_sdr_interface_tests.ipynb`):
+1. `adi,rx1-rx2-phase-inversion-enable = 1` — compensates the ADI-documented RX2-inverted-
+   relative-to-RX1 behavior.
+2. reg 0x22 |= (1<<6) = INVERT_BYPASSED_LNA_POLARITY — keeps polarity consistent when AGC
+   crosses the LNA-bypass gain boundary (the "phase flips on gain change" failure).
+All wall v2/v3 fleet data (May 2024+) was captured with both active — so do NOT cite
+LNA-bypass polarity flips as a live mechanism for heavy-tail outliers in fleet data;
+residual heavy tails (e.g. 28% outlier fraction at 2.412 GHz small-spacing) are so far
+unattributed (AGC amplitude transients, interference, multipath remain candidates).
+DC-offset tracking (L4) was NOT part of this fix and remains unaddressed in code.
+
 ## L5 — `F:gain` flags one physical fact, not 1,268 problems (2026-07-12)
 
 `F:r{0,1}_gain=X` in the quality scan is **not receiver/AGC gain**. It is the fitted

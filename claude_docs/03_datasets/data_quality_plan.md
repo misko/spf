@@ -282,8 +282,10 @@ root-causes several scanner populations. Page refs are approximate (log has no p
 - **Phase inversion on gain change (Jan 24–25 2024, "Investigating random noise in wall array
   v2 estimates").** AD9361 rx1/rx2 polarity inversion, "ALSO INVERTS AT LNA BYPASS!",
   `INVERT_BYPASSED_LNA_POLARITY`, `rx1rx2_phase_inversion_en` — documented device behavior
-  where gain-index changes flip RX polarity (π phase jump). With fast_attack AGC this is a
-  direct mechanism for heavy-tail phase outliers within otherwise-good captures.
+  where gain-index changes flip RX polarity (π phase jump). NOTE (2026-07-12): commit
+  9d00b7b (Jan 26 2024) mitigates this in production — rx1-rx2-phase-inversion-enable +
+  INVERT_BYPASSED_LNA_POLARITY are set on every Pluto capture (sdr_controller.py:709-721),
+  predating the fleet; heavy tails in fleet data need another explanation (learnings L6).
 
 **Corrections to earlier analysis**
 - **AGC is `fast_attack`, not slow_attack** — all `v5_configs` use `rx-gain-mode: fast_attack`;
