@@ -56,6 +56,12 @@ The g scatter at 868/915 MHz is enormous (per-config IQR 0.2–0.5, receiver agr
   phase quality also reflects the degraded Oct-24–Jan-25 era and the wider near-DC 1/f
   skirt. Run a small controlled IF A/B capture before commissioning a full sub-GHz
   re-capture (report §6b, R3).
+- **Config state of record:** no capture parameter for DC tracking exists —
+  `bb_dc_offset_tracking_en` / `rf_dc_offset_tracking_en` appear nowhere in
+  `sdr_controller.py` or any capture yaml, so every historical Pluto dataset ran with the
+  driver default (ENABLED; confirmed by the Feb-2025 live iio_attr dump in the lab log).
+  There is no enabled-vs-disabled data to compare. The natural insertion point for a knob
+  is `PPlus.setup_rx_config` (it already sets debug attrs / raw registers there).
 - **Do (future capture):** set IF a few hundred kHz off zero (`--fi`), or disable BBDC
   tracking for sub-GHz sessions. **Don't:** use historical sub-GHz per-dataset g, or
   build a sidecar from sub-GHz medians (they remain bias-suspect; report §5b draws that
