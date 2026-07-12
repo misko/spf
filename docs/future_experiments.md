@@ -6,6 +6,16 @@ record the outcome in `learnings.md` and mark it here.
 
 ## E-IF1 — 2×2 IF / BBDC-tracking capture matrix  (highest value per hour)
 
+**POLICY ANSWER (decided 2026-07-12, no experiment needed):** production captures use
+off-center IF = fs/16 with ALL tracking loops ON (defaults). Never 0-centered — DC hosts
+the tracking notch, offsets, LO leakage, 1/f, and the quadrature image (which lands ON
+the tone at IF=0). Off-center is free for the measurement: the shared-LO IF rotation
+cancels exactly in x1·x0*, so phase/amplitude/segmentation are unaffected. With proper
+IF, the BBDC question is MOOT for policy; the matrix below is now DIAGNOSTIC — {IF=0}
+cells causally confirm the historical sub-GHz mechanism, BBDC-off cells + gain sweep are
+optional science. Only constraint window: |IF| >= max(10x crystal wander, ~0.01*fs) and
+<= passband/2 − signal bandwidth (watch wideband signals like 20 MHz Wi-Fi at 30 MS/s).
+
 - **Motivation:** learnings L4/L6 — the tone-at-DC failure is observational; no data
   exists with BBDC tracking disabled (no config knob has ever existed), and the sub-GHz
   scope-limit means we can't prove IF placement alone rescues the band.
