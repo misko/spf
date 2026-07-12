@@ -4,6 +4,26 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## L8 — "bad months" = the sub-GHz campaign; NaN spike = transmit sparsity, not decay (2026-07-12)
+
+The Oct/Nov-2024 "bad months" were a band confound, and the NaN ratio has a different
+cause than the phase quality:
+- Oct 2024: the SAME rig concurrently produced 96 normal 2.4 GHz datasets (quar 1,
+  NaN 0.00, circstd 0.62) and 85/85 quarantined sub-GHz ones. Nov 2024 is 100% sub-GHz.
+- Window probe: Oct/Nov sub-GHz duty = 16–19%, Jan 2025 = 58% (emitter switched from
+  bursty LoRa-style packets to near-continuous tone ~Dec; lab log "tone blaster").
+  NaN tracks duty (0.26–0.34 → 0.02): **smaller/fewer packets do drive up NaN** — a
+  benign experiment property, exactly as hypothesized.
+- But corrected circstd ≈ 1.0–1.1 in ALL sub-GHz months including low-NaN January: the
+  phase-quality failure is band-driven (IF-at-DC, L4; deep coupling) and month-invariant.
+- Oct/Nov "noise" windows carry amplitude 40–110 (vs 1.9 in Jan): fast-attack AGC pumps
+  gain up between sparse bursts.
+- Feb 2025 is NOT a bad month in scan v2 (8/272 quarantined); its lab-log debugging era
+  surfaces as the 5 unreadable ERROR files instead.
+- **Do:** treat NaN as a duty descriptor, not damage (rovers already handled this way);
+  judge sub-GHz by phase metrics. **Don't:** attribute quality to calendar time without
+  splitting by band/config first — era and band were confounded in this corpus.
+
 ## L7 — IF policy: off-center fs/16, all tracking on; the BBDC question is moot (2026-07-12)
 
 - **Off-center IF is completely free for the measurement:** both RX channels share one

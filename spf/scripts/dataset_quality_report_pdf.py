@@ -743,23 +743,27 @@ def sec_dive_badmonths(rep, rows):
     wall = [r for r in rows if r.get("platform") == "wall"]
     rep.new_page()
     y = rep.h1("7  Deep dive — the bad-capture months")
+    y = rep.para(y, "REFRAMED (2026-07-12). The 'bad months' are really the SUB-GHZ "
+                 "CAMPAIGN months, not a temporal collapse: in Oct 2024 the same rig "
+                 "concurrently produced 96 normal 2.4 GHz datasets (1 quarantined, NaN 0.00, "
+                 "circstd 0.62) alongside 85/85 quarantined sub-GHz ones; Nov 2024 is 100% "
+                 "sub-GHz. The NaN spike and the phase problem have SEPARATE causes: duty "
+                 "cycle was 16-19% in Oct/Nov vs 58% in Jan (emitter switched from bursty "
+                 "LoRa-style packets to a near-continuous tone ~Dec), so NaN (0.26-0.34 → "
+                 "0.02) tracks TRANSMIT SPARSITY — benign. Corrected circstd stays ~1.0-1.1 "
+                 "in ALL sub-GHz months including low-NaN January: quality is band-driven "
+                 "(IF-at-DC drift §6b + deep coupling), month-invariant.")
     qq = [r for r in wall if "nan" in (r.get("reasons") or "")]
     nq20 = sum(1 for r in qq if "nan>20" in r.get("reasons", ""))
-    y = rep.para(y, f"THE FINDING. {len(qq)} wall datasets exceed 5% NaN mean_phase ({nq20} "
-                 f"quarantined at >20%, {len(qq)-nq20} flagged at 5-20% under the v2 two-tier "
-                 "gate; what NaN means: section 6). They are NOT randomly spread: they cluster "
-                 "hard by collection month — Nov 2024: 100% of the month's datasets, Oct 2024: "
-                 "~47%, Feb 2025: ~35%, against 0/855 for Jun-Sep 2024. Crucially the VALID "
-                 "part of these datasets is also degraded (median corrected circular stddev "
-                 "≈0.96 rad vs fleet ≈0.57, fig. B2) — a capture-quality era, not merely a "
-                 "bursty emitter.")
-    y = rep.para(y, "INTERPRETATION: a genuine capture-quality era — something about the rig, "
-                 "emitter, or RF environment degraded in Oct-Nov 2024 (partially recovered "
-                 "Dec, relapsed Feb 2025). This is not a segmentation-threshold artifact and not "
-                 "related to the spacing mislabeling. RECOMMENDATION: quarantine stands for the "
-                 ">20% NaN group; the 142 datasets at 5-20% NaN are borderline — decide after "
-                 "checking whether their valid-part circstd is clean; investigate what changed "
-                 "at the rig in those months (emitter power? antenna cable? gain settings?).")
+    y = rep.para(y, f"THE NUMBERS. {len(qq)} wall datasets carry a NaN flag ({nq20} at "
+                 f">20% = quarantined, {len(qq)-nq20} borderline 5-20%). By band: Nov 2024 "
+                 "100% = the all-sub-GHz month; Oct 47% = its sub-GHz half; Feb 2025's 35% "
+                 "is 97/100 benign 5-20% tier (10 quarantines in the month — Feb is NOT a "
+                 "bad month in v2; its lab-log debugging era surfaces as the 5 unreadable "
+                 "ERROR files). The elevated valid-part circstd (fig. B2) belongs to the "
+                 "sub-GHz population, not the calendar. RECOMMENDATION: >20% quarantine "
+                 "stands — those members are sub-GHz with band-corrupted phase (§6b); the "
+                 "5-20% tier is duty, keep FLAG-only.")
     q = [r for r in wall if "nan" in (r.get("reasons") or "")]
     ax1 = rep.ax([0.09, 0.36, 0.38, 0.22])
     months_all = sorted({month_of(r) for r in wall if month_of(r)})
@@ -780,7 +784,7 @@ def sec_dive_badmonths(rep, rows):
     ax2.hist([x for x in cs_q if np.isfinite(x)], bins=np.arange(0, 1.6, 0.06), alpha=0.6, label="NaN-quarantined", color="#c0392b")
     ax2.set_xlabel("corrected circular stddev (rad), valid part, r0", fontsize=8.5)
     ax2.legend(fontsize=8)
-    ax2.set_title("Fig. B2 — even their VALID snapshots\nare noisier: a capture-era problem", fontsize=8.5)
+    ax2.set_title("Fig. B2 — their VALID snapshots are noisier —\ndriven by the sub-GHz band, not the era", fontsize=8.5)
     ax2.tick_params(labelsize=8)
     ax3 = rep.ax([0.09, 0.105, 0.85, 0.19])
     months = sorted({month_of(r) for r in wall if month_of(r)})
@@ -789,8 +793,8 @@ def sec_dive_badmonths(rep, rows):
     frac = [100 * qm.get(m, 0) / tot[m] for m in months]
     ax3.bar(np.arange(len(months)), frac, color="#c0392b", alpha=0.85)
     ax3.set_xticks(np.arange(len(months)), months, rotation=45, fontsize=7.5)
-    ax3.set_ylabel("% of month quarantined", fontsize=8.5)
-    ax3.set_title("Fig. B3 — NaN-quarantine rate by month: Nov 2024 = 100%, Jun-Sep 2024 = 0%", fontsize=8.5)
+    ax3.set_ylabel("% of month NaN-flagged (any tier)", fontsize=8.5)
+    ax3.set_title("Fig. B3 — NaN-flag rate by month (any tier): Nov 2024 = 100% (all sub-GHz), Jun-Sep 2024 = 0%", fontsize=8.5)
     ax3.tick_params(labelsize=8)
 
 
