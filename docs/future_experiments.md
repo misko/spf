@@ -77,7 +77,15 @@ optional science. Only constraint window: |IF| >= max(10x crystal wander, ~0.01*
     NEVER become a training or validation input — the spline is estimated from
     residuals against the GT model, so subtracting it injects label information
     (bounded by spline smoothness, but nonzero).
-  - **REC2b (GT-free, training-eligible):** estimate the trend from the RAW measured
+  - **REC2b — TESTED 2026-07-12: FAILED, structurally.** 48 datasets (12 random / 12
+    circle / 24 bounce), gapped-window GT-free trend (W=15, guard=3; leakage check
+    passed — correction has no θ argument). The trend absorbed 36-54% of the geometry
+    in EVERY routine and all post-correction g collapsed to the 0.5 grid floor.
+    Root cause: the GRBL gantry moves continuously — θ(t) is as smooth as the nuisance
+    at snapshot timescales, so there is NO label-free timescale contrast on this
+    corpus; the separating information IS the label structure. GT-free recovery is
+    closed. (data_quality_reports/rec2/rec2b_prototype.py + rec2b_eval.csv)
+  - **REC2b original design (for reference):** estimate the trend from the RAW measured
     phase alone — robust sliding circular trend over ~15 snapshots. On jump
     trajectories (rx_random_circle) the window-mean of g·k·sinθ is ≈ constant (folds
     into φ₀), so the trend captures δ(t) without seeing labels; geometry is preserved.
@@ -90,9 +98,9 @@ optional science. Only constraint window: |IF| >= max(10x crystal wander, ~0.01*
      refusal (wide CI) on bounce. CPU, hours.
   2. REC2a on ~30 real random/circle datasets. Gate: ρ(g_r0,g_r1) ≥ 0.6. Fail ⇒ band
      unrecoverable, close L9.
-  3. REC2b (GT-free) same datasets, GT only for scoring + label-permutation leakage
-     audit of the pipeline.
-  4. Materialize sidecar /mnt/md2/cache/subghz_rec2b_v1/ (provenance: variant, params,
+  3. ~~REC2b~~ CLOSED (failed structurally, see above). Steps 4-5 are void for
+     training; REC2a (metrology-only) is all that remains.
+  4. (metrology only) Materialize sidecar /mnt/md2/cache/subghz_rec2b_v1/ (provenance: variant, params,
      source hashes; raw untouched); scanner re-scores corrected phase.
   5. Training A/B (one 250k ladder slot): r2+recovered vs r2 on val_clean/single_loss.
      Only GPU step; runs after the current Stage-1 ladder.

@@ -36,7 +36,12 @@ sliding-trend joint fit degenerates (rewards over-subtraction). A properly regul
 joint estimator (parametric spline least-squares with cross-validated knot spacing,
 gapped/leave-window-out trend) on jump-trajectory datasets (rx_random_circle: sin θ
 jumps, nuisance smooth → separable) is the one remaining credible route — designed as
-E-REC2, not yet proven.
+E-REC2. **REC2b (GT-free) was then tested and FAILED structurally** (48 datasets,
+all routines): the gantry moves continuously, so geometry is as smooth as the nuisance
+at snapshot timescales — a label-blind trend absorbed 36-54% of the geometry and every
+fit collapsed to the amplitude floor. There is no label-free timescale contrast on this
+corpus; **sub-GHz recovery for training purposes is closed**. Only REC2a (GT-using,
+metrology-only, audit outputs) remains viable.
 Re-collection does NOT need the wall array: a bench rig (two Plutos + emitter on a
 measured arc/turntable) with fs/16 IF suffices for the E-IF1 diagnostic and for a
 sub-GHz calibration set; rovers with GPS truth are the field alternative.
