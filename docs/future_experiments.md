@@ -19,7 +19,13 @@ optional science. Only constraint window: |IF| >= max(10x crystal wander, ~0.01*
 - **Motivation:** learnings L4/L6 — the tone-at-DC failure is observational; no data
   exists with BBDC tracking disabled (no config knob has ever existed), and the sub-GHz
   scope-limit means we can't prove IF placement alone rescues the band.
-- **Design:** wall array, one afternoon, same rig/emitter/era. Four capture sessions at
+- **AMENDED 2026-07-12: the wall array no longer exists.** Run the matrix on a bench
+  rig instead — two Plutos + emitter on a measured arc/turntable (tape-measure geometry
+  is sufficient for circstd/ρ comparisons; no GRBL needed). Same cells, same decision
+  rule. Post-processing recovery of historical sub-GHz was tested and is a dead end for
+  per-dataset phase (learnings L9: detrend partial, DC-excision null, gain-conditioning
+  null).
+- **Design (original, for reference):** wall array, one afternoon, same rig/emitter/era. Four capture sessions at
   915 MHz (and optionally a 2.412 GHz control pair):
   {IF = 0, IF = fs/16} × {BBDC tracking on, off}. Few hundred snapshots each.
 - **Prerequisite (small code change):** add a `bb-dc-tracking: true|false` receiver key,

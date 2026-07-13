@@ -4,6 +4,30 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## L9 — sub-GHz post-processing recovery: mostly NOT recoverable for phase (2026-07-12)
+
+The wall array no longer exists, so historical sub-GHz data can only be salvaged by
+post-processing. All three candidate levers were tested empirically (read-only, 32/12/32
+datasets across Oct/Nov/Dec/Jan; scripts in /tmp session logs, results recorded here):
+1. **Slow-drift detrend** (sliding circular mean of the residual across snapshots):
+   PARTIAL — receiver agreement ρ −0.46 → +0.26, |Δg| 0.64 → 0.53, circstd 1.03 → 0.91.
+   The only lever that moved anything.
+2. **DC-excision** (recompute per-snapshot phase from raw-IQ cross-spectrum with
+   |f| < 0.002·fs removed): NULL — ρ ≈ 0 before and after; the corruption rides ON the
+   tone, not beside it (loop bandwidths evidently exceed the tone offset).
+3. **Gain-conditioned offsets** (per recorded AGC gain-state circular offsets, fine and
+   3 dB bins): NULL — recorded per-snapshot gain doesn't index the corruption. Caveat:
+   fast-attack gain moves within buffers and is undersampled (~1 Hz), so this doesn't
+   fully exonerate gain events — it exonerates the recorded gain as a correction key.
+Ceiling: circstd ~0.9 / ρ ~0.3 vs the 2.4 GHz benchmark (0.5 / 0.97) — per-dataset
+phase/g stays unusable. What remains usable: per-config MEDIANS after detrend (for the
+coupling curve), amplitude/RSSI tasks, duty statistics, and — since GT position labels
+are intact — the band is INPUT-DEGRADED, not label-corrupt: keeping it in training is an
+A/B question (exactly what the running base/r1(keeps it)/r2(drops it) ladder measures).
+Re-collection does NOT need the wall array: a bench rig (two Plutos + emitter on a
+measured arc/turntable) with fs/16 IF suffices for the E-IF1 diagnostic and for a
+sub-GHz calibration set; rovers with GPS truth are the field alternative.
+
 ## L8 — "bad months" = the sub-GHz campaign; NaN spike = transmit sparsity, not decay (2026-07-12)
 
 The Oct/Nov-2024 "bad months" were a band confound, and the NaN ratio has a different
