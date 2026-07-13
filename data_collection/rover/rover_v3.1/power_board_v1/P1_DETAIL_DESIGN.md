@@ -203,3 +203,14 @@ GATE for P1 close: schematic v2 regenerated, zero black boxes, ERC clean (needs
 - ✅ RILIM/CILIM recomputed for CSD18543Q3A (301/243 Ω, above).
 - Remaining [QS]: Quickstart loss/thermal cross-check + comp Bode → do at P4 entry
   alongside ERC (needs KiCad / TI tool run).
+
+## ERRATA (2026-07-13, adversarial review)
+- Cut-state drain: ~25 uA (the ~10 uA figure omitted the 680k/100k VIN divider's
+  16 uA). Still <1.5%/yr on a 3 Ah pack.
+- "TPS7A1650" strings above should read TPS7A1633 (3.3 V fixed); net is MCU_3V3.
+- "F5/F7/F8" citations refer to checklist-A finding classes, not
+  PRODUCTION_REVIEW.md's numbered findings (that doc is a v1 snapshot).
+- §1 note: LM74800 SW-pin ladder disconnect in shutdown does NOT latch off:
+  EN/UVLO is what gates HGATE; MCU FE_EN release re-enables (bench-verify at P7).
+- §2 updates: RILIM now 348/261 Ω (worst-case IRDSON/RDS); RFB2 rail A 3.65 k
+  (5.18 V); rail A pi-filter deleted; see REVIEW_FINDINGS.md.
