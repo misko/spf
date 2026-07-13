@@ -476,7 +476,11 @@ def load_checkpoint(
     checkpoint_fn, config, model, optimizer, scheduler, force_load=False
 ):
     logging.info(f"Loading checkpoint {checkpoint_fn}")
-    checkpoint = torch.load(checkpoint_fn, map_location=torch.device("cpu"))
+    # checkpoints are trusted local artifacts and contain config dicts beyond
+    # bare tensors; torch>=2.6 defaults weights_only=True which rejects them
+    checkpoint = torch.load(
+        checkpoint_fn, map_location=torch.device("cpu"), weights_only=False
+    )
 
     # config_being_loaded = checkpoint["config"]
 

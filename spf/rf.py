@@ -15,7 +15,6 @@ except:
     pass
 import math
 
-import torch
 from numba import jit
 from scipy.stats import trim_mean
 

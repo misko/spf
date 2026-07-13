@@ -15,8 +15,6 @@ os.environ["AWS_RESPONSE_CHECKSUM_VALIDATION"] = "when_required"
 import io
 import os
 
-import boto3
-from botocore.config import Config
 
 
 class B2ReadIO:
