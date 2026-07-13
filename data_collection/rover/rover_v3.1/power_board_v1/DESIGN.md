@@ -54,7 +54,7 @@ Reverse polarity (FET), 15 A input fuse, per-USB-port current limit (TPS2553),
 TVS on VIN (SMBJ33A) and each 5 V rail, ESD arrays on USB.
 
 ## Connectors / pinout
-XT60 in; XT30 + USB-C pigtail (rail A); 2x USB-A + 4-pin screw aux (rail B);
+XT60 in; USB-C receptacle w/ 10k Rp + specified 0.5ft 240W cable (Silkland B0CQ4SX256), XT30 fallback pads (rail A); 2x USB-A + 4-pin screw aux (rail B);
 6-pin Pi header: 3V3ref, SDA, SCL, LOW_BATT, PGOOD, GND; 2-pin panel switch;
 2-pin AUX_CTL (motor contactor gate); jumpers: chemistry select, LPD bypass.
 

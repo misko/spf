@@ -32,6 +32,7 @@ is not production-ready until the gates below are green — no exceptions.
 | D1 | SMBJ33A | TVS 33 V standoff | littelfuse.com |
 | D2,D3 | USBLC6-2SC6 | USB ESD array | st.com |
 | R20 | 2 mΩ 3 W shunt | Kelvin, e.g. WSLP2726 | vishay.com |
+| CBL1 | Silkland 240W 0.5ft C-to-C | SPECIFIED Pi cable (ASIN B0CQ4SX256); validate >=4.9 V @ Pi @ 5 A in bring-up | amazon B0CQ4SX256 |
 | L1,L3 | 4.7 µH shielded ≥10 A Isat | e.g. XAL7070-472 | coilcraft.com |
 | FETs for bucks | per LM25145 Quickstart output | 40 V logic-level pair | — |
 

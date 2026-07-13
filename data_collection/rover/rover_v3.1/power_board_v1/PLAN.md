@@ -6,7 +6,7 @@ Each phase has a deliverable and a hard gate; nothing advances past a red gate.
 
 ## P0 — freeze requirements (0.5 d) [decisions]
 Battery range: **DECIDED 3S-only** (fixed LPD divider, SMBJ16A TVS, 9-13V buck design point), motor-path scope
-(AUX_CTL contactor confirmed off-board), connector standard (XT60 in; Pi via XT30->USB-C pigtail w/ 10k CC pullups + usb_max_current_enable=1, GPIO-feed pads as fallback; JST-GH signals — awaiting confirm),
+(AUX_CTL contactor confirmed off-board), connectors: **DECIDED** — XT60 in; Pi via on-board USB-C receptacle (TH shell, 10k Rp, strain-relief anchor) + SPECIFIED CABLE Silkland 0.5ft 240W C-to-C (ASIN B0CQ4SX256; bring-up validates >=4.9V at Pi under 5A) + XT30 fallback pads; JST-GH signal headers,
 assembler (JLCPCB assy assumed). GATE: DESIGN.md rev-locked.
 
 ## P1 — electrical detail design (1-2 d) [me + TI Quickstart]

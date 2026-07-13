@@ -63,6 +63,8 @@ defsym("HDR6", 5.08, 17.78, [(str(i), f"P{i}", "L", i - 1) for i in range(1, 7)]
 defsym("USB_A", 7.62, 12.7,
        [("1", "VBUS", "L", 0), ("2", "D-", "L", 1), ("3", "D+", "L", 2), ("4", "GND", "L", 3)], ref="J")
 defsym("HDR4", 5.08, 12.7, [(str(i), f"P{i}", "R", i - 1) for i in range(1, 5)], ref="J")
+defsym("USBC_PWR", 7.62, 12.7,
+       [("1", "VBUS", "L", 0), ("2", "CC1", "L", 1), ("3", "CC2", "L", 2), ("4", "GND", "L", 3)], ref="J")
 defsym("FUSE", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="F")
 defsym("RES", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="R")
 defsym("CAP", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="C")
@@ -163,7 +165,11 @@ place("CAP", "C11", "4x100u out", 225, 70, {"1": "5VA_PRE", "2": "GND"})
 place("RES", "R12", "FB hi 51k1", 255, 45, {"1": "5VA_PRE", "2": "FB_A"})
 place("RES", "R13", "FB lo 10k", 255, 60, {"1": "FB_A", "2": "GND"})
 place("IND", "L2", "pi-filter 1u", 255, 25, {"1": "5VA_PRE", "2": "5V_A"})
-place("SCREW2", "J3", "PI5 5.1V (USB-C pigtail)", 285, 35, {"1": "5V_A", "2": "GND"})
+place("USBC_PWR", "J3", "USB-C PWR OUT (TH shell)", 285, 35,
+      {"1": "5V_A", "2": "CC1_A", "3": "CC2_A", "4": "GND"})
+place("RES", "R23", "10k Rp (3A adv)", 285, 55, {"1": "5V_A", "2": "CC1_A"})
+place("RES", "R24", "10k Rp (3A adv)", 285, 67, {"1": "5V_A", "2": "CC2_A"})
+place("SCREW2", "J12", "XT30 fallback pads", 285, 80, {"1": "5V_A", "2": "GND"})
 
 # --- section 5: buck B (radios + aux) ---
 text("5. BUCK B  5.1V/5A (radios+aux)", 170, 95)
