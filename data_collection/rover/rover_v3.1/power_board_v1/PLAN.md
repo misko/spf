@@ -22,8 +22,12 @@ GATE: DESIGN.md rev-locked. ✅
 - ✅ Gate-drive trade study → **LM74800-Q1** front-end (P1_DETAIL_DESIGN.md §1)
 - ✅ MCU pin map (§3, all 18 signals) + supervisor firmware (firmware/) with
   host-tested pure state machine (10 scenarios, `make test` green)
-GATE: schematic v2 ✅, zero black boxes ✅, ERC — **pending KiCad install**
-(`sudo apt install kicad`); deferred to P4 entry if not installed sooner.
+GATE: schematic v2 ✅, zero black boxes ✅, connectivity ✅ — KiCad 7.0.11 installed
+2026-07-13 (generator now emits 7.0 dialect); kicad-cli netlist export resolves
+73 nets with zero unexpected single-node nets; schematic PDF exported + PNG
+visual pass done (fixed ref/value text collisions + ATtiny symbol width).
+NOTE: CLI ERC needs KiCad 8 (`ppa:kicad/kicad-8.0-releases`) — run ERC in the
+eeschema GUI or after upgrade; netlist audit covers connectivity meanwhile.
 
 ## P2 — BOM lockdown (0.5 d) [me: web-verified] — **DONE 2026-07-13**
 BOM.md: every line MPN + LCSC C# + package + stock + alternate; ~$43-45/board

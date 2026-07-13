@@ -14,7 +14,7 @@ Capture style: every symbol pin carries a global net label (no drawn wires), so
 the netlist is complete and the layout is trivially editable in eeschema. All
 symbols are embedded (no external libraries needed). Run:
     python generate_schematic.py
-then open power_board_v1.kicad_pro in KiCad 8+.
+then open power_board_v1.kicad_pro in KiCad 7+ (emitted in 7.0 dialect).
 """
 
 import uuid
@@ -33,7 +33,7 @@ def u():
 # pins: (number, name, side 'L'|'R', slot_index_from_top)
 def lib_symbol(name, w, h, pins, ref="U"):
     x0, y0 = -w / 2, -h / 2
-    out = [f'    (symbol "pwr:{name}" (exclude_from_sim no) (in_bom yes) (on_board yes)']
+    out = [f'    (symbol "pwr:{name}" (in_bom yes) (on_board yes)']
     out.append(f'      (property "Reference" "{ref}" (at 0 {h/2+1.27:.2f} 0) (effects (font (size 1.27 1.27))))')
     out.append(f'      (property "Value" "{name}" (at 0 {-h/2-1.27:.2f} 0) (effects (font (size 1.27 1.27))))')
     out.append(f'      (symbol "{name}_0_1"')
@@ -64,7 +64,7 @@ PINMAPS = {}
 def defsym(name, w, h, pins, ref="U"):
     s, pm = lib_symbol(name, w, h, pins, ref)
     SYMBOLS[name] = s
-    PINMAPS[name] = (pm, w)
+    PINMAPS[name] = (pm, w, h)
 
 
 defsym("XT60", 5.08, 7.62, [("1", "+", "R", 0), ("2", "-", "R", 1)], ref="J")
@@ -105,7 +105,7 @@ defsym("INA226", 12.7, 17.78,
        [("1", "VS", "L", 0), ("2", "GND", "L", 5), ("3", "IN+", "L", 2), ("4", "IN-", "L", 3),
         ("5", "SDA", "R", 0), ("6", "SCL", "R", 1), ("7", "ALERT", "R", 3)], ref="U")
 # ATtiny816 SOIC/VQFN-20: 18 signals + VCC/GND (P1_DETAIL_DESIGN.md section 3)
-defsym("ATTINY816", 20.32, 50.8,
+defsym("ATTINY816", 40.64, 50.8,
        [("1", "VCC", "L", 0), ("2", "GND", "L", 18),
         ("3", "PA0/UPDI", "L", 2), ("4", "PA4/VIN_SENSE", "L", 4), ("5", "PA6/V5A_SENSE", "L", 6),
         ("6", "PA7/NTC", "L", 8), ("7", "PA5/FAULT_USB", "L", 10), ("8", "PB2/SW_SENSE", "L", 12),
@@ -123,12 +123,14 @@ LABELS = []
 
 def place(sym, ref, value, x, y, nets):
     """nets: {pin_number: net_name or None}"""
-    pm, w = PINMAPS[sym]
+    pm, w, h = PINMAPS[sym]
+    # ref above / value below, clear of the body (was fixed +-14: collided on small parts)
+    ry, vy = y - h / 2 - 1.6, y + h / 2 + 1.6
     BODY.append(
         f'  (symbol (lib_id "pwr:{sym}") (at {x:.2f} {y:.2f} 0) (unit 1)'
-        f' (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "{u()}")\n'
-        f'    (property "Reference" "{ref}" (at {x:.2f} {y-14:.2f} 0) (effects (font (size 1.27 1.27))))\n'
-        f'    (property "Value" "{value}" (at {x:.2f} {y+14:.2f} 0) (effects (font (size 1.27 1.27))))\n'
+        f' (in_bom yes) (on_board yes) (dnp no) (uuid "{u()}")\n'
+        f'    (property "Reference" "{ref}" (at {x:.2f} {ry:.2f} 0) (effects (font (size 1.27 1.27))))\n'
+        f'    (property "Value" "{value}" (at {x:.2f} {vy:.2f} 0) (effects (font (size 1.27 1.27))))\n'
         + "\n".join(f'    (pin "{n}" (uuid "{u()}"))' for n in pm)
         + f'\n    (instances (project "{PROJECT}" (path "/{ROOT_UUID}" (reference "{ref}") (unit 1))))\n  )'
     )
@@ -142,12 +144,12 @@ def place(sym, ref, value, x, y, nets):
             lx, ang, just = x + _ / 2 + 2.54, 0, "left"
         LABELS.append(
             f'  (global_label "{net}" (shape passive) (at {lx:.2f} {y - py:.2f} {ang})'
-            f' (fields_autoplaced yes) (effects (font (size 1.27 1.27)) (justify {just})) (uuid "{u()}"))'
+            f' (fields_autoplaced) (effects (font (size 1.27 1.27)) (justify {just})) (uuid "{u()}"))'
         )
 
 
 def text(s, x, y, size=2.0):
-    BODY.append(f'  (text "{s}" (exclude_from_sim no) (at {x:.2f} {y:.2f} 0)'
+    BODY.append(f'  (text "{s}" (at {x:.2f} {y:.2f} 0)'
                 f' (effects (font (size {size} {size}) bold) (justify left)) (uuid "{u()}"))')
 
 
@@ -194,7 +196,7 @@ place("TVS", "D1", "SMBJ16A", 60, 55, {"1": "VBATT_F", "2": "GND"})
 place("SHUNT", "R20", "2m 3W shunt", 90, 40, {"1": "VBATT_F", "2": "VBATT_S"})
 
 # --- section 2: front-end — LM74800 ideal diode + load switch (P1 trade study) ---
-text("2. FRONT-END: LM74800-Q1 + SQJQ140E b2b (rev-pol + on/off + OV; 2.87uA off)", 20, 72)
+text("2. FRONT-END: LM74800-Q1 + 2x CSD18543Q3A b2b (rev-pol + on/off + OV; 2.87uA off)", 20, 72)
 place("LM74800", "U4", "LM74800-Q1", 60, 105,
       {"1": "DG_FE", "2": "VBATT_S", "3": "VBATT_S", "4": "FE_LAD", "5": "FE_OV",
        "6": "FE_EN", "7": "GND", "8": "HG_FE", "9": "VSW", "10": "FE_MID",
@@ -225,16 +227,16 @@ place("RES", "R11", "100k vsense-lo", 30, 200, {"1": "VSENSE", "2": "GND"})
 place("CAP", "C4", "100n vsense hold", 30, 210, {"1": "VSENSE", "2": "GND"})
 place("RES", "R25", "30k v5a-hi", 30, 222, {"1": "5V_A", "2": "V5A_SENSE"})
 place("RES", "R26", "10k v5a-lo", 30, 232, {"1": "V5A_SENSE", "2": "GND"})
-place("RES", "R27", "10k NTC-top (3V3_SW)", 120, 150, {"1": "3V3_SW", "2": "NTC"})
-place("RES", "R28", "10k NTC 3380K", 120, 160, {"1": "NTC", "2": "GND"})
-place("RES", "R29", "1k LED", 120, 172, {"1": "LED_STAT", "2": "LED_K"})
-place("LED", "D4", "green status", 120, 182, {"1": "LED_K", "2": "GND"})
-place("RES", "R30", "10k FAULT pu", 120, 194, {"1": "MCU_3V3", "2": "FAULT_USB"})
+place("RES", "R27", "10k NTC-top (3V3_SW)", 135, 162, {"1": "3V3_SW", "2": "NTC"})
+place("RES", "R28", "10k NTC 3380K", 135, 173, {"1": "NTC", "2": "GND"})
+place("RES", "R29", "1k LED", 135, 184, {"1": "LED_STAT", "2": "LED_K"})
+place("LED", "D4", "green status", 135, 195, {"1": "LED_K", "2": "GND"})
+place("RES", "R30", "10k FAULT pu", 135, 206, {"1": "MCU_3V3", "2": "FAULT_USB"})
 # telemetry on the SWITCHED side (INA226 IQ ~330uA would dominate cut-state drain)
-place("LDO", "U9", "AP2112K-3.3 (switched)", 120, 210, {"1": "5V_B", "2": "GND", "3": "3V3_SW"})
-place("INA226", "U5", "INA226 (addr 0x40)", 155, 190,
+place("LDO", "U9", "AP2112K-3.3 (switched)", 135, 222, {"1": "5V_B", "2": "GND", "3": "3V3_SW"})
+place("INA226", "U5", "INA226 (addr 0x40)", 175, 190,
       {"1": "3V3_SW", "2": "GND", "3": "VBATT_F", "4": "VBATT_S", "5": "SDA", "6": "SCL", "7": None})
-place("SCREW2", "J8", "AUX_CTL out (JST-GH)", 155, 215, {"1": "AUX_CTL", "2": "GND"})
+place("SCREW2", "J8", "AUX_CTL out (JST-GH)", 175, 215, {"1": "AUX_CTL", "2": "GND"})
 
 # --- section 4: buck A (Pi rail, 6A) ---
 text("4. BUCK A  5.1V/6A (Pi 5)  [values: P1_DETAIL_DESIGN.md sec 2]", 230, 20)
@@ -286,7 +288,7 @@ place("HDR3", "J11", "UPDI prog (UPDI/3V3/GND)", 40, 297,
 
 # ------------------------------------------------------------------ emit
 sch = []
-sch.append('(kicad_sch (version 20231120) (generator "spf_generate_schematic") (generator_version "8.0")')
+sch.append('(kicad_sch (version 20230121) (generator spf_generate_schematic)')
 sch.append(f'  (uuid "{ROOT_UUID}")')
 sch.append('  (paper "A2")')
 sch.append('  (title_block (title "SPF rover power board v1") (date "2026-07-13") (rev "v2")')
