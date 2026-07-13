@@ -1,20 +1,21 @@
-"""Generate power_board_v1.kicad_sch (KiCad 8) from the DESIGN.md architecture.
+"""Generate power_board_v1.kicad_sch (KiCad 7 dialect) from the DESIGN.md architecture.
+
+v3 (P3): all symbol pin numbers are PHYSICAL PACKAGE PADS, verified against
+manufacturer datasheets (SNVSAI4 LM5145 RGY; DS40001913A ATtiny816 VQFN;
+SBOS547 INA226 DGS; SLVS841 TPS2553 DBV; SBVS171F TPS7A16 DGN; AP2112 DS39724
+SOT-25; SLPS432 CSD18543Q3A SON; SNOSD95C LM74800 DRR). The netlist can now
+drive pcbnew directly once footprints are assigned (FOOTPRINTS.md).
 
 v2 (P1 detail design, see ../P1_DETAIL_DESIGN.md):
-  - front-end = LM74800-Q1 ideal-diode + load-switch controller driving the
-    CSD18543Q3A back-to-back pair (SQJQ140E unobtainable at LCSC) (replaces the v0 reverse-PFET + discrete gate
-    machinery; closes review finding F5)
-  - both LM25145 buck stages fully expanded: RT/SS/ILIM/comp/FETs from the
-    datasheet math (no black boxes) — values marked [QS] pending Quickstart check
-  - MCU rail corrected to 3.3 V (Pi I2C is not 5 V tolerant); INA226 moved to the
-    switched 3V3_SW rail (cut-state battery drain ~25 uA total)
-  - full ATtiny816 pin map (18 signals) per P1_DETAIL_DESIGN.md section 3
+  - front-end = LM74800-Q1 + CSD18543Q3A back-to-back pair (SQJQ140E unobtainable)
+  - both LM5145 buck stages fully expanded (LM25145 out of stock; eq-identical)
+  - MCU rail 3.3 V; INA226 on switched 3V3_SW; full ATtiny816 pin map
 
 Capture style: every symbol pin carries a global net label (no drawn wires), so
 the netlist is complete and the layout is trivially editable in eeschema. All
 symbols are embedded (no external libraries needed). Run:
     python generate_schematic.py
-then open power_board_v1.kicad_pro in KiCad 7+ (emitted in 7.0 dialect).
+then open power_board_v1.kicad_pro in KiCad 7+.
 """
 
 import uuid
@@ -83,37 +84,54 @@ defsym("IND", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="L")
 defsym("TVS", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="D")
 defsym("LED", 7.62, 5.08, [("1", "A", "L", 0), ("2", "K", "R", 0)], ref="D")
 defsym("SHUNT", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="R")
-defsym("NFET", 7.62, 10.16, [("1", "G", "L", 1), ("2", "D", "R", 0), ("3", "S", "R", 2)], ref="Q")
-defsym("LDO", 10.16, 10.16, [("1", "IN", "L", 0), ("2", "GND", "L", 2), ("3", "OUT", "R", 0)], ref="U")
-# LM74800-Q1 WSON-12 (SNOSD95C table 6-1)
+# CSD18543Q3A SON 3.3x3.3 (SLPS432): 1-3 = S, 4 = G, 5-8 = D (thermal pad = D)
+defsym("NFET_SON", 10.16, 17.78,
+       [("4", "G", "L", 2), ("2", "S", "L", 4), ("3", "S", "L", 5),
+        ("5", "D", "R", 0), ("6", "D", "R", 1), ("7", "D", "R", 2), ("8", "D", "R", 3),
+        ("1", "S", "R", 5)], ref="Q")
+# TPS7A16 DGN (SBVS171F): 1 OUT, 2 FB/DNC(float!), 3 PG, 4 GND, 5 EN, 6 NC, 7 DELAY, 8 IN, pad 9
+defsym("TPS7A16", 12.7, 17.78,
+       [("8", "IN", "L", 0), ("5", "EN", "L", 2), ("4", "GND", "L", 4), ("9", "PAD", "L", 5),
+        ("1", "OUT", "R", 0), ("3", "PG", "R", 2), ("7", "DELAY", "R", 3),
+        ("2", "FB/DNC", "R", 4), ("6", "NC", "R", 5)], ref="U")
+# AP2112 SOT-25 (DS39724): 1 VIN, 2 GND, 3 EN, 4 NC, 5 VOUT
+defsym("AP2112", 10.16, 12.7,
+       [("1", "VIN", "L", 0), ("3", "EN", "L", 1), ("2", "GND", "L", 3),
+        ("5", "VOUT", "R", 0), ("4", "NC", "R", 2)], ref="U")
+# LM74800-Q1 WSON-12 (SNOSD95C table 6-1) — already physical
 defsym("LM74800", 17.78, 33.02,
        [("1", "DGATE", "L", 0), ("2", "A", "L", 2), ("3", "VSNS", "L", 4), ("4", "SW", "L", 6),
         ("5", "OV", "L", 8), ("6", "EN_UVLO", "L", 10), ("7", "GND", "L", 11),
         ("8", "HGATE", "R", 0), ("9", "OUT", "R", 2), ("10", "VS", "R", 4),
         ("11", "CAP", "R", 6), ("12", "C", "R", 8)], ref="U")
-# LM25145 (logical pinout; VQFN-20 physical mapping at P3 footprint stage)
+# LM5145 VQFN-20 RGY (SNVSAI4 fig 6-1): physical pads; EP = pad 21 -> GND
 defsym("LM5145", 17.78, 40.64,
-       [("1", "VIN", "L", 0), ("2", "EN", "L", 2), ("3", "RT", "L", 4), ("4", "SS", "L", 6),
-        ("5", "ILIM", "L", 8), ("6", "SYNCIN", "L", 10), ("7", "AGND", "L", 12), ("8", "PGND", "L", 14),
-        ("9", "VCC", "R", 0), ("10", "BST", "R", 2), ("11", "HO", "R", 4), ("12", "SW", "R", 6),
-        ("13", "LO", "R", 8), ("14", "FB", "R", 10), ("15", "COMP", "R", 12), ("16", "PGOOD", "R", 14)],
+       [("20", "VIN", "L", 0), ("1", "EN", "L", 2), ("2", "RT", "L", 4), ("3", "SS", "L", 6),
+        ("11", "ILIM", "L", 8), ("8", "SYNCIN", "L", 10), ("6", "AGND", "L", 12),
+        ("12", "PGND", "L", 13), ("21", "EP", "L", 14),
+        ("14", "VCC", "R", 0), ("17", "BST", "R", 2), ("18", "HO", "R", 4), ("19", "SW", "R", 6),
+        ("13", "LO", "R", 8), ("5", "FB", "R", 10), ("4", "COMP", "R", 12), ("10", "PGOOD", "R", 14),
+        ("7", "SYNCOUT", "R", 1), ("9", "NC", "R", 3), ("15", "NC", "R", 5), ("16", "NC", "R", 7)],
        ref="U")
+# TPS2553 DBV (SLVS841): 1 IN, 2 GND, 3 EN, 4 FAULT, 5 ILIM, 6 OUT
 defsym("TPS2553", 12.7, 15.24,
-       [("1", "IN", "L", 0), ("2", "EN", "L", 2), ("3", "GND", "L", 4),
-        ("4", "OUT", "R", 0), ("5", "FAULT", "R", 2), ("6", "ILIM", "R", 4)], ref="U")
-defsym("INA226", 12.7, 17.78,
-       [("1", "VS", "L", 0), ("2", "GND", "L", 5), ("3", "IN+", "L", 2), ("4", "IN-", "L", 3),
-        ("5", "SDA", "R", 0), ("6", "SCL", "R", 1), ("7", "ALERT", "R", 3)], ref="U")
-# ATtiny816 SOIC/VQFN-20: 18 signals + VCC/GND (P1_DETAIL_DESIGN.md section 3)
+       [("1", "IN", "L", 0), ("3", "EN", "L", 2), ("2", "GND", "L", 4),
+        ("6", "OUT", "R", 0), ("4", "FAULT", "R", 2), ("5", "ILIM", "R", 4)], ref="U")
+# INA226 VSSOP-10 (SBOS547): 1 A1, 2 A0, 3 ALERT, 4 SDA, 5 SCL, 6 VS, 7 GND, 8 VBUS, 9 IN-, 10 IN+
+defsym("INA226", 15.24, 27.94,
+       [("6", "VS", "L", 0), ("10", "IN+", "L", 2), ("9", "IN-", "L", 3), ("8", "VBUS", "L", 4),
+        ("1", "A1", "L", 6), ("2", "A0", "L", 7), ("7", "GND", "L", 9),
+        ("4", "SDA", "R", 0), ("5", "SCL", "R", 1), ("3", "ALERT", "R", 3)], ref="U")
+# ATtiny816 VQFN-20 3x3 (DS40001913A table 5-1, VQFN column — differs from SOIC!)
 defsym("ATTINY816", 40.64, 50.8,
-       [("1", "VCC", "L", 0), ("2", "GND", "L", 18),
-        ("3", "PA0/UPDI", "L", 2), ("4", "PA4/VIN_SENSE", "L", 4), ("5", "PA6/V5A_SENSE", "L", 6),
-        ("6", "PA7/NTC", "L", 8), ("7", "PA5/FAULT_USB", "L", 10), ("8", "PB2/SW_SENSE", "L", 12),
-        ("9", "PC3/SHDN_ACK", "L", 14), ("10", "PC0/PGOOD_A", "L", 16),
-        ("11", "PB4/FE_EN", "R", 0), ("12", "PB5/BUCKA_EN", "R", 2), ("13", "PC2/LOW_BATT", "R", 4),
-        ("14", "PB3/AUX_CTL", "R", 6), ("15", "PB1/SDA", "R", 8), ("16", "PB0/SCL", "R", 10),
-        ("17", "PA1/USB_EN1", "R", 12), ("18", "PA2/USB_EN2", "R", 14), ("19", "PA3/LED", "R", 16),
-        ("20", "PC1/PGOOD_B", "R", 18)],
+       [("4", "VDD", "L", 0), ("3", "GND", "L", 18),
+        ("19", "PA0/UPDI", "L", 2), ("5", "PA4/VIN_SENSE", "L", 4), ("7", "PA6/V5A_SENSE", "L", 6),
+        ("8", "PA7/NTC", "L", 8), ("6", "PA5/FAULT_USB", "L", 10), ("12", "PB2/SW_SENSE", "L", 12),
+        ("18", "PC3/SHDN_ACK", "L", 14), ("15", "PC0/PGOOD_A", "L", 16),
+        ("10", "PB4/FE_EN", "R", 0), ("9", "PB5/BUCKA_EN", "R", 2), ("17", "PC2/LOW_BATT", "R", 4),
+        ("11", "PB3/AUX_CTL", "R", 6), ("13", "PB1/SDA", "R", 8), ("14", "PB0/SCL", "R", 10),
+        ("20", "PA1/USB_EN1", "R", 12), ("1", "PA2/USB_EN2", "R", 14), ("2", "PA3/LED", "R", 16),
+        ("16", "PC1/PGOOD_B", "R", 18)],
        ref="U")
 
 # ------------------------------------------------------------------ instances
@@ -124,7 +142,7 @@ LABELS = []
 def place(sym, ref, value, x, y, nets):
     """nets: {pin_number: net_name or None}"""
     pm, w, h = PINMAPS[sym]
-    # ref above / value below, clear of the body (was fixed +-14: collided on small parts)
+    # ref above / value below, clear of the body (fixed +-14 collided on small parts)
     ry, vy = y - h / 2 - 1.6, y + h / 2 + 1.6
     BODY.append(
         f'  (symbol (lib_id "pwr:{sym}") (at {x:.2f} {y:.2f} 0) (unit 1)'
@@ -153,32 +171,38 @@ def text(s, x, y, size=2.0):
                 f' (effects (font (size {size} {size}) bold) (justify left)) (uuid "{u()}"))')
 
 
+def fet(ref, value, x, y, g, d, s):
+    """CSD18543Q3A: all 8 physical pins netted (1-3 S, 4 G, 5-8 D)."""
+    place("NFET_SON", ref, value, x, y,
+          {"4": g, "5": d, "6": d, "7": d, "8": d, "1": s, "2": s, "3": s})
+
+
 def buck_stage(suffix, uref, x0, y0, rilim, cilim, en_net, vout_pre):
-    """Fully-expanded LM25145 stage (values: P1_DETAIL_DESIGN.md section 2)."""
+    """Fully-expanded LM5145 stage (values: P1_DETAIL_DESIGN.md section 2)."""
     S = suffix
     place("LM5145", uref, f"LM5145 5.1V rail {S}", x0, y0,
-          {"1": "VSW", "2": en_net, "3": f"RT_{S}", "4": f"SS_{S}", "5": f"ILIM_{S}",
-           "6": "GND", "7": "GND", "8": "GND", "9": f"VCC_{S}", "10": f"BST_{S}",
-           "11": f"HO_{S}", "12": f"SW_{S}", "13": f"LO_{S}", "14": f"FB_{S}",
-           "15": f"COMP_{S}", "16": f"PGOOD_{S}"})
-    # frequency / soft-start / bias
+          {"20": "VSW", "1": en_net, "2": f"RT_{S}", "3": f"SS_{S}", "11": f"ILIM_{S}",
+           "8": "GND", "6": "GND", "12": "GND", "21": "GND",
+           "14": f"VCC_{S}", "17": f"BST_{S}", "18": f"HO_{S}", "19": f"SW_{S}",
+           "13": f"LO_{S}", "5": f"FB_{S}", "4": f"COMP_{S}", "10": f"PGOOD_{S}",
+           "7": None, "9": None, "15": None, "16": None})
+    # frequency / soft-start / bias (10 mm pitch keeps ref/value text clear)
     place("RES", f"R{S}1", "16k5 RT (606kHz)", x0 - 45, y0 - 15, {"1": f"RT_{S}", "2": "GND"})
     place("CAP", f"C{S}1", "47n SS (4ms)", x0 - 45, y0 - 5, {"1": f"SS_{S}", "2": "GND"})
     place("CAP", f"C{S}2", "2u2 VCC", x0 - 45, y0 + 5, {"1": f"VCC_{S}", "2": "GND"})
     place("CAP", f"C{S}3", "100n BST", x0 - 45, y0 + 15, {"1": f"BST_{S}", "2": f"SW_{S}"})
-    # OCP (RDS-on valley sensing) [QS]
+    # OCP (RDS-on valley sensing, CSD18543Q3A 8.5 mOhm)
     place("RES", f"R{S}2", rilim, x0 - 45, y0 + 25, {"1": f"ILIM_{S}", "2": f"SW_{S}"})
     place("CAP", f"C{S}4", cilim, x0 - 45, y0 + 35, {"1": f"ILIM_{S}", "2": "GND"})
-    # power FETs (40V NexFET class, MPN at P2)
-    place("NFET", f"Q{S}1", "CSD18543Q3A HS", x0 + 35, y0 - 15,
-          {"1": f"HO_{S}", "2": "VSW", "3": f"SW_{S}"})
-    place("NFET", f"Q{S}2", "CSD18543Q3A LS", x0 + 35, y0, {"1": f"LO_{S}", "2": f"SW_{S}", "3": "GND"})
+    # power FETs (physical 8-pin SON)
+    fet(f"Q{S}1", "CSD18543Q3A HS", x0 + 35, y0 - 20, f"HO_{S}", "VSW", f"SW_{S}")
+    fet(f"Q{S}2", "CSD18543Q3A LS", x0 + 35, y0 + 4, f"LO_{S}", f"SW_{S}", "GND")
     # LC
-    place("IND", f"L{S}1", "MWSA1005S-3R3 16A", x0 + 35, y0 + 12, {"1": f"SW_{S}", "2": vout_pre})
+    place("IND", f"L{S}1", "MWSA1005S-3R3 16A", x0 + 35, y0 + 22, {"1": f"SW_{S}", "2": vout_pre})
     place("CAP", f"C{S}5", "3x10u 50V in", x0 - 20, y0 + 28, {"1": "VSW", "2": "GND"})
-    place("CAP", f"C{S}6", "4x47u 10V out", x0 + 35, y0 + 24, {"1": vout_pre, "2": "GND"})
-    place("CAP", f"C{S}7", "220u poly 25mR", x0 + 35, y0 + 34, {"1": vout_pre, "2": "GND"})
-    # feedback + type-III compensation [QS]
+    place("CAP", f"C{S}6", "4x47u 10V out", x0 + 35, y0 + 32, {"1": vout_pre, "2": "GND"})
+    place("CAP", f"C{S}7", "220u poly 25mR", x0 + 35, y0 + 42, {"1": vout_pre, "2": "GND"})
+    # feedback + type-III compensation
     place("RES", f"R{S}3", "20k RFB1", x0 + 65, y0 - 15, {"1": vout_pre, "2": f"FB_{S}"})
     place("RES", f"R{S}4", "3k74 RFB2", x0 + 65, y0 - 5, {"1": f"FB_{S}", "2": "GND"})
     place("RES", f"R{S}5", "13k RC1", x0 + 65, y0 + 5, {"1": f"COMP_{S}", "2": f"CX_{S}"})
@@ -201,11 +225,11 @@ place("LM74800", "U4", "LM74800-Q1", 60, 105,
       {"1": "DG_FE", "2": "VBATT_S", "3": "VBATT_S", "4": "FE_LAD", "5": "FE_OV",
        "6": "FE_EN", "7": "GND", "8": "HG_FE", "9": "VSW", "10": "FE_MID",
        "11": "FE_CAP", "12": "FE_MID"})
-place("NFET", "Q2", "CSD18543Q3A diode", 105, 90, {"1": "DG_FE", "2": "FE_MID", "3": "VBATT_S"})
-place("NFET", "Q3", "CSD18543Q3A switch", 105, 105, {"1": "HG_FE", "2": "FE_MID", "3": "VSW"})
-place("CAP", "C1", "100n CAP-VS", 105, 120, {"1": "FE_CAP", "2": "FE_MID"})
-place("CAP", "C2", "100n VS-GND", 105, 130, {"1": "FE_MID", "2": "GND"})
-place("CAP", "C3", "47n HGATE dv/dt (10ms)", 135, 90, {"1": "HG_FE", "2": "VSW"})
+fet("Q2", "CSD18543Q3A diode", 105, 92, "DG_FE", "FE_MID", "VBATT_S")
+fet("Q3", "CSD18543Q3A switch", 105, 116, "HG_FE", "FE_MID", "VSW")
+place("CAP", "C1", "100n CAP-VS", 105, 132, {"1": "FE_CAP", "2": "FE_MID"})
+place("CAP", "C2", "100n VS-GND", 105, 142, {"1": "FE_MID", "2": "GND"})
+place("CAP", "C3", "47n HGATE dv/dt (10ms)", 140, 92, {"1": "HG_FE", "2": "VSW"})
 # EN/OV ladder from SW pin: EN falls 1.132V @ 10.16V (analog LPD fallback),
 # EN rises 1.231V @ 11.05V, OV trips @ 14.9V (charger fault) — MCU overrides via FE_EN
 place("RES", "R1", "887k ladder-top", 20, 105, {"1": "FE_LAD", "2": "FE_EN"})
@@ -214,76 +238,80 @@ place("RES", "R3", "82k5 ladder-bot", 20, 129, {"1": "FE_OV", "2": "GND"})
 place("SCREW2", "J2", "PANEL_SW", 20, 90, {"1": "SW_SENSE", "2": "GND"})
 
 # --- section 3: supervisor (MCU, always-on 3V3) + telemetry (switched) ---
-text("3. SUPERVISOR (always-on ~25uA) + TELEMETRY (switched)", 20, 150)
-place("LDO", "U6", "TPS7A16 3V3 60V LDO", 30, 170, {"1": "VBATT_F", "2": "GND", "3": "MCU_3V3"})
-place("ATTINY816", "U3", "ATtiny816", 80, 190,
-      {"1": "MCU_3V3", "2": "GND", "3": "UPDI", "4": "VSENSE", "5": "V5A_SENSE",
-       "6": "NTC", "7": "FAULT_USB", "8": "SW_SENSE", "9": "SHDN_ACK", "10": "PGOOD_A",
-       "11": "FE_EN", "12": "EN_A", "13": "LOW_BATT", "14": "AUX_CTL", "15": "SDA",
-       "16": "SCL", "17": "EN_USB1", "18": "EN_USB2", "19": "LED_STAT", "20": "PGOOD_B"})
+text("3. SUPERVISOR (always-on ~25uA) + TELEMETRY (switched)", 20, 158)
+place("TPS7A16", "U6", "TPS7A1633 3V3 60V LDO", 30, 178,
+      {"8": "VBATT_F", "5": "VBATT_F", "4": "GND", "9": "GND", "1": "MCU_3V3",
+       "3": None, "7": None, "2": None, "6": None})
+place("ATTINY816", "U3", "ATtiny816 (VQFN)", 88, 195,
+      {"4": "MCU_3V3", "3": "GND", "19": "UPDI", "5": "VSENSE", "7": "V5A_SENSE",
+       "8": "NTC", "6": "FAULT_USB", "12": "SW_SENSE", "18": "SHDN_ACK", "15": "PGOOD_A",
+       "10": "FE_EN", "9": "EN_A", "17": "LOW_BATT", "11": "AUX_CTL", "13": "SDA",
+       "14": "SCL", "20": "EN_USB1", "1": "EN_USB2", "2": "LED_STAT", "16": "PGOOD_B"})
 # VIN sense: high-Z divider (16uA) + hold cap for the accumulating ADC
-place("RES", "R10", "680k vsense-hi", 30, 190, {"1": "VBATT_S", "2": "VSENSE"})
-place("RES", "R11", "100k vsense-lo", 30, 200, {"1": "VSENSE", "2": "GND"})
-place("CAP", "C4", "100n vsense hold", 30, 210, {"1": "VSENSE", "2": "GND"})
-place("RES", "R25", "30k v5a-hi", 30, 222, {"1": "5V_A", "2": "V5A_SENSE"})
-place("RES", "R26", "10k v5a-lo", 30, 232, {"1": "V5A_SENSE", "2": "GND"})
+place("RES", "R10", "680k vsense-hi", 30, 195, {"1": "VBATT_S", "2": "VSENSE"})
+place("RES", "R11", "100k vsense-lo", 30, 205, {"1": "VSENSE", "2": "GND"})
+place("CAP", "C4", "100n vsense hold", 30, 215, {"1": "VSENSE", "2": "GND"})
+place("RES", "R25", "30k v5a-hi", 30, 227, {"1": "5V_A", "2": "V5A_SENSE"})
+place("RES", "R26", "10k v5a-lo", 30, 237, {"1": "V5A_SENSE", "2": "GND"})
 place("RES", "R27", "10k NTC-top (3V3_SW)", 135, 162, {"1": "3V3_SW", "2": "NTC"})
 place("RES", "R28", "10k NTC 3380K", 135, 173, {"1": "NTC", "2": "GND"})
 place("RES", "R29", "1k LED", 135, 184, {"1": "LED_STAT", "2": "LED_K"})
 place("LED", "D4", "green status", 135, 195, {"1": "LED_K", "2": "GND"})
 place("RES", "R30", "10k FAULT pu", 135, 206, {"1": "MCU_3V3", "2": "FAULT_USB"})
 # telemetry on the SWITCHED side (INA226 IQ ~330uA would dominate cut-state drain)
-place("LDO", "U9", "AP2112K-3.3 (switched)", 135, 222, {"1": "5V_B", "2": "GND", "3": "3V3_SW"})
-place("INA226", "U5", "INA226 (addr 0x40)", 175, 190,
-      {"1": "3V3_SW", "2": "GND", "3": "VBATT_F", "4": "VBATT_S", "5": "SDA", "6": "SCL", "7": None})
-place("SCREW2", "J8", "AUX_CTL out (JST-GH)", 175, 215, {"1": "AUX_CTL", "2": "GND"})
+place("AP2112", "U9", "AP2112K-3.3 (switched)", 135, 222,
+      {"1": "5V_B", "3": "5V_B", "2": "GND", "5": "3V3_SW", "4": None})
+place("INA226", "U5", "INA226 (addr 0x40)", 178, 190,
+      {"6": "3V3_SW", "10": "VBATT_F", "9": "VBATT_S", "8": "VBATT_S",
+       "1": "GND", "2": "GND", "7": "GND", "4": "SDA", "5": "SCL", "3": None})
+place("SCREW2", "J8", "AUX_CTL out (JST-GH)", 178, 215, {"1": "AUX_CTL", "2": "GND"})
 
 # --- section 4: buck A (Pi rail, 6A) ---
 text("4. BUCK A  5.1V/6A (Pi 5)  [values: P1_DETAIL_DESIGN.md sec 2]", 230, 20)
 place("RES", "R4", "100k EN-A hi (8.5V on)", 200, 30, {"1": "VSW", "2": "EN_A"})
 place("RES", "R5", "16k5 EN-A lo (7.5V off)", 200, 42, {"1": "EN_A", "2": "GND"})
-buck_stage("A", "U1", 280, 45, "301R RILIM (7A valley)", "18p CILIM", "EN_A", "5VA_PRE")
-place("IND", "L2", "pi-filter 1u", 380, 25, {"1": "5VA_PRE", "2": "5V_A"})
-place("CAP", "CA11", "2x22u pi-out", 380, 37, {"1": "5V_A", "2": "GND"})
-place("USBC_PWR", "J3", "USB-C PWR OUT (TH shell)", 415, 35,
+buck_stage("A", "U1", 280, 50, "301R RILIM (7A valley)", "18p CILIM", "EN_A", "5VA_PRE")
+place("IND", "L2", "pi-filter 1u", 385, 25, {"1": "5VA_PRE", "2": "5V_A"})
+place("CAP", "CA11", "2x22u pi-out", 385, 37, {"1": "5V_A", "2": "GND"})
+place("USBC_PWR", "J3", "USB-C PWR OUT (TH shell)", 420, 35,
       {"1": "5V_A", "2": "CC1_A", "3": "CC2_A", "4": "GND"})
-place("RES", "R23", "10k Rp (3A adv)", 415, 55, {"1": "5V_A", "2": "CC1_A"})
-place("RES", "R24", "10k Rp (3A adv)", 415, 67, {"1": "5V_A", "2": "CC2_A"})
-place("SCREW2", "J12", "XT30 fallback pads", 415, 80, {"1": "5V_A", "2": "GND"})
+place("RES", "R23", "10k Rp (3A adv)", 420, 55, {"1": "5V_A", "2": "CC1_A"})
+place("RES", "R24", "10k Rp (3A adv)", 420, 67, {"1": "5V_A", "2": "CC2_A"})
+place("SCREW2", "J12", "XT30 fallback pads", 420, 80, {"1": "5V_A", "2": "GND"})
 
 # --- section 5: buck B (radios + aux, 5A; EN sequenced from PGOOD_A) ---
 text("5. BUCK B  5.1V/5A (radios+aux) — EN = PGOOD_A (Pi rail first)", 230, 115)
-buck_stage("B", "U2", 280, 145, "243R RILIM (5.7A valley)", "22p CILIM", "PGOOD_A", "5VB_PRE")
-place("IND", "L4", "pi-filter 1u", 380, 125, {"1": "5VB_PRE", "2": "5V_B"})
-place("CAP", "CB11", "2x22u pi-out", 380, 137, {"1": "5V_B", "2": "GND"})
+buck_stage("B", "U2", 280, 150, "243R RILIM (5.7A valley)", "22p CILIM", "PGOOD_A", "5VB_PRE")
+place("IND", "L4", "pi-filter 1u", 385, 125, {"1": "5VB_PRE", "2": "5V_B"})
+place("CAP", "CB11", "2x22u pi-out", 385, 137, {"1": "5V_B", "2": "GND"})
 
 # --- section 6: USB power-switched ports + passthrough ---
-text("6. RADIO USB (power inject + data passthrough)", 230, 215)
-place("TPS2553", "U7", "TPS2553 1.7A", 260, 240,
-      {"1": "5V_B", "2": "EN_USB1", "3": "GND", "4": "VBUS1", "5": "FAULT_USB", "6": "ILIM1"})
-place("USB_A", "J4", "USB_A radio1", 295, 240, {"1": "VBUS1", "2": "D1_N", "3": "D1_P", "4": "GND"})
-place("HDR4", "J9", "from Pi USB1", 325, 240, {"1": None, "2": "D1_N", "3": "D1_P", "4": "GND"})
-place("TPS2553", "U8", "TPS2553 1.7A", 260, 270,
-      {"1": "5V_B", "2": "EN_USB2", "3": "GND", "4": "VBUS2", "5": "FAULT_USB", "6": "ILIM2"})
-place("USB_A", "J5", "USB_A radio2", 295, 270, {"1": "VBUS2", "2": "D2_N", "3": "D2_P", "4": "GND"})
-place("HDR4", "J10", "from Pi USB2", 325, 270, {"1": None, "2": "D2_N", "3": "D2_P", "4": "GND"})
-place("SCREW2", "J6", "AUX 5V 2A", 355, 255, {"1": "5V_B", "2": "GND"})
+text("6. RADIO USB (power inject + data passthrough)", 230, 218)
+place("TPS2553", "U7", "TPS2553 1.7A", 260, 242,
+      {"1": "5V_B", "3": "EN_USB1", "2": "GND", "6": "VBUS1", "4": "FAULT_USB", "5": "ILIM1"})
+place("USB_A", "J4", "USB_A radio1", 295, 242, {"1": "VBUS1", "2": "D1_N", "3": "D1_P", "4": "GND"})
+place("HDR4", "J9", "from Pi USB1", 325, 242, {"1": None, "2": "D1_N", "3": "D1_P", "4": "GND"})
+place("TPS2553", "U8", "TPS2553 1.7A", 260, 272,
+      {"1": "5V_B", "3": "EN_USB2", "2": "GND", "6": "VBUS2", "4": "FAULT_USB", "5": "ILIM2"})
+place("USB_A", "J5", "USB_A radio2", 295, 272, {"1": "VBUS2", "2": "D2_N", "3": "D2_P", "4": "GND"})
+place("HDR4", "J10", "from Pi USB2", 325, 272, {"1": None, "2": "D2_N", "3": "D2_P", "4": "GND"})
+place("SCREW2", "J6", "AUX 5V 2A", 355, 257, {"1": "5V_B", "2": "GND"})
 
-place("RES", "R16", "20k RILIM1 (1.2A)", 230, 240, {"1": "ILIM1", "2": "GND"})
-place("RES", "R17", "20k RILIM2 (1.2A)", 230, 270, {"1": "ILIM2", "2": "GND"})
-place("TVS", "D2", "USBLC6-2 esd", 310, 255, {"1": "D1_P", "2": "GND"})
-place("TVS", "D3", "USBLC6-2 esd", 310, 285, {"1": "D2_P", "2": "GND"})
+place("RES", "R16", "20k RILIM1 (1.2A)", 230, 242, {"1": "ILIM1", "2": "GND"})
+place("RES", "R17", "20k RILIM2 (1.2A)", 230, 272, {"1": "ILIM2", "2": "GND"})
+place("TVS", "D2", "USBLC6-2 esd", 310, 257, {"1": "D1_P", "2": "GND"})
+place("TVS", "D3", "USBLC6-2 esd", 310, 287, {"1": "D2_P", "2": "GND"})
 
 # --- section 7: Pi harness + programming ---
-text("7. PI HARNESS (JST-GH) + UPDI", 20, 250)
-place("HDR8", "J7", "PI GPIO harness", 40, 275,
+text("7. PI HARNESS (JST-GH) + UPDI", 20, 255)
+place("HDR8", "J7", "PI GPIO harness", 40, 280,
       {"1": "SDA", "2": "SCL", "3": "LOW_BATT", "4": "SHDN_ACK",
        "5": "PGOOD_A", "6": "PGOOD_B", "7": "GND", "8": "GND"})
-place("RES", "R18", "4k7 I2C pu", 75, 265, {"1": "MCU_3V3", "2": "SDA"})
-place("RES", "R19", "4k7 I2C pu", 75, 277, {"1": "MCU_3V3", "2": "SCL"})
-place("RES", "R21", "10k PGOOD_A pu", 110, 265, {"1": "MCU_3V3", "2": "PGOOD_A"})
-place("RES", "R22", "10k PGOOD_B pu", 110, 277, {"1": "MCU_3V3", "2": "PGOOD_B"})
-place("HDR3", "J11", "UPDI prog (UPDI/3V3/GND)", 40, 297,
+place("RES", "R18", "4k7 I2C pu", 75, 270, {"1": "MCU_3V3", "2": "SDA"})
+place("RES", "R19", "4k7 I2C pu", 75, 282, {"1": "MCU_3V3", "2": "SCL"})
+place("RES", "R21", "10k PGOOD_A pu", 110, 270, {"1": "MCU_3V3", "2": "PGOOD_A"})
+place("RES", "R22", "10k PGOOD_B pu", 110, 282, {"1": "MCU_3V3", "2": "PGOOD_B"})
+place("HDR3", "J11", "UPDI prog (UPDI/3V3/GND)", 40, 300,
       {"1": "UPDI", "2": "MCU_3V3", "3": "GND"})
 
 # ------------------------------------------------------------------ emit
@@ -291,8 +319,8 @@ sch = []
 sch.append('(kicad_sch (version 20230121) (generator spf_generate_schematic)')
 sch.append(f'  (uuid "{ROOT_UUID}")')
 sch.append('  (paper "A2")')
-sch.append('  (title_block (title "SPF rover power board v1") (date "2026-07-13") (rev "v2")')
-sch.append('    (comment 1 "P1 detail design: LM74800 front-end, expanded LM25145 stages; see P1_DETAIL_DESIGN.md"))')
+sch.append('  (title_block (title "SPF rover power board v1") (date "2026-07-13") (rev "v3")')
+sch.append('    (comment 1 "v3: physical package pads throughout (datasheet-verified); see FOOTPRINTS.md + P1_DETAIL_DESIGN.md"))')
 sch.append("  (lib_symbols")
 sch.extend(SYMBOLS.values())
 sch.append("  )")
@@ -310,5 +338,5 @@ assert content.count("(") == content.count(")"), (
     '  "meta": { "filename": "power_board_v1.kicad_pro", "version": 1 },\n'
     '  "schematic": { "legacy_lib_dir": "", "legacy_lib_list": [] }\n}\n'
 )
-print("wrote power_board_v1.kicad_sch (+.kicad_pro) v2;",
+print("wrote power_board_v1.kicad_sch (+.kicad_pro) v3;",
       f"{len(BODY)} items, {len(LABELS)} net labels, parens balanced")
