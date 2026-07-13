@@ -1,5 +1,9 @@
 # Rover power board v1 — design spec
 
+**REV-LOCKED 2026-07-13** — all four P0 decisions closed (3S-only; motor path
+off-board; USB-C receptacle + Silkland cable + XT30 fallback; JLCPCB assembly).
+Changes past this point go through PLAN.md phase gates.
+
 One PCB replacing: main power switch + low-power-disconnect brick + loose 10-32V->5V
 USB bucks. Adds what the Apr-2025 switch failures, the 0.1V-hysteresis LPD, and the
 "no battery telemetry" ArduPilot review finding all asked for.
@@ -22,7 +26,8 @@ mechanical switching; DPDT relay footprint provided as alt-populate) ->
      EN from Pi GPIO => software power-cycle of a hung Pluto) + aux screw terminal
   -> AUX_CTL output: gate signal for an external motor-path FET contactor so the
      Cytron/motor 30 A path shares the same on/off + LPD decision (motors stay OFF
-     this board — keeps it 2-layer simple)
+     this board — keeps it 2-layer simple).
+     **P0 DECISION (2026-07-13): motor path confirmed OFF-BOARD.**
 
 ## Low-power disconnect (fixes both field complaints)
 - Defaults (3S, jumper-selectable divider): CUT 10.2 V, RECONNECT 11.7 V
@@ -39,8 +44,10 @@ mechanical switching; DPDT relay footprint provided as alt-populate) ->
 
 ## Regulators
 - 2x wide-VIN sync buck, 42-60 V rated: LM5146-Q1/LM25145 controller class
-  (or TPSM/LMZ power modules for the simplest assembly), fsw ~2.1 MHz +
-  spread-spectrum, shielded inductors, LC pi post-filter per rail
+  (or TPSM/LMZ power modules for the simplest assembly), fsw 600 kHz
+  (LM25145 max is 1 MHz — the earlier 2.1 MHz spec was invalid; 600 kHz keeps
+  fsw well above GPS/telemetry IF products and inductors small),
+  shielded inductors, LC pi post-filter per rail
   (<10 mVpp at radio ports); 5.1 V setpoints (cable-drop compensation)
 - Efficiency target >=90 % @ 12 V in / 46 W out (~5 W dissipation, copper-pour
   cooling, no fan dependence)
@@ -51,7 +58,7 @@ I2C status; analog-only fallback circuit stays on the board un-populated.
 
 ## Protections
 Reverse polarity (FET), 15 A input fuse, per-USB-port current limit (TPS2553),
-TVS on VIN (SMBJ33A) and each 5 V rail, ESD arrays on USB.
+TVS on VIN (SMBJ16A — 3S-only decision) and each 5 V rail, ESD arrays on USB.
 
 ## Connectors / pinout
 XT60 in; USB-C receptacle w/ 10k Rp + specified 0.5ft 240W cable (Silkland B0CQ4SX256), XT30 fallback pads (rail A); 2x USB-A + 4-pin screw aux (rail B);

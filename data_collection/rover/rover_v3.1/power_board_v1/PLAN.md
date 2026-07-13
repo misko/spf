@@ -4,10 +4,16 @@ Each phase has a deliverable and a hard gate; nothing advances past a red gate.
 "Me" = doable in Claude sessions here; "KiCad" = needs KiCad (install locally with
 `sudo apt install kicad` to unlock in-session ERC/DRC/render iteration); "Vendor" = fab.
 
-## P0 — freeze requirements (0.5 d) [decisions]
-Battery range: **DECIDED 3S-only** (fixed LPD divider, SMBJ16A TVS, 9-13V buck design point), motor-path scope
-(AUX_CTL contactor confirmed off-board), connectors: **DECIDED** — XT60 in; Pi via on-board USB-C receptacle (TH shell, 10k Rp, strain-relief anchor) + SPECIFIED CABLE Silkland 0.5ft 240W C-to-C (ASIN B0CQ4SX256; bring-up validates >=4.9V at Pi under 5A) + XT30 fallback pads; JST-GH signal headers,
-assembler (JLCPCB assy assumed). GATE: DESIGN.md rev-locked.
+## P0 — freeze requirements (0.5 d) [decisions] — **CLOSED 2026-07-13**
+1. Battery range: **DECIDED 3S-only** (fixed LPD divider, SMBJ16A TVS, 9-13V buck design point).
+2. Motor-path scope: **DECIDED off-board** — board stays 2-layer/~10A; AUX_CTL gates an
+   external motor-path FET contactor so motors share on/off + LPD decisions.
+3. Connectors: **DECIDED** — XT60 in; Pi via on-board USB-C receptacle (TH shell, 10k Rp,
+   strain-relief anchor) + SPECIFIED CABLE Silkland 0.5ft 240W C-to-C (ASIN B0CQ4SX256;
+   bring-up validates >=4.9V at Pi under 5A) + XT30 fallback pads; JST-GH signal headers.
+4. Assembler: **DECIDED JLCPCB assembly** for qty-5 prototypes (drives P2 part selection:
+   basic lib preferred, extended OK, hand-rework possible).
+GATE: DESIGN.md rev-locked. ✅
 
 ## P1 — electrical detail design (1-2 d) [me + TI Quickstart]
 - Run TI Quickstart/WEBENCH for both bucks @ 10-32V→5.1V, 6A & 5A, 600 kHz →
