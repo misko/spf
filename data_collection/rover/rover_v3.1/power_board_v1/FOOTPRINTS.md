@@ -1,9 +1,25 @@
-# P3 — footprints & mechanical (prep; KiCad transcription pending install)
+# P3 — footprints & mechanical
 
-Land-pattern source of truth: the part datasheet's recommended pattern, cross-checked
-against the KiCad 8 standard library name given below. Anything marked CUSTOM gets
-drawn from the datasheet drawing. Verify every footprint against the LCSC part's
-actual datasheet (clone parts sometimes differ from the genuine drawing!).
+**STATUS 2026-07-13: assignments DONE.** Every symbol carries a Footprint property
+(96/96, netlist-verified); two custom footprints authored in
+`kicad/power_board_v1.pretty/` from the TI mechanical drawings and validated via
+the pcbnew API (21 + 13 pads load cleanly):
+- `VQFN-20_3.5x4.5_P0.5_LM5145RGY` — SNVSAI4B p.65 land pattern (0.25×0.6 pads,
+  0.5 pitch, EP 1.7×2.7)
+- `WSON-12_3x3_P0.5_LM74800DRR` — SNOSD95C DRR0012E (0.62×0.25 pads, **0.5 pitch**
+  — the 0.45 previously noted here was wrong; EP 1.3×2.5 = RTN, must stay
+  unconnected, which the schematic enforces by having no pad-13 pin)
+
+Land-pattern source of truth: the part datasheet's recommended pattern. Verify
+stdlib picks against the LCSC part's actual datasheet at the P4 review (clone
+parts sometimes differ from the genuine drawing!). Open verifications:
+- ATtiny816 VQFN EP size vs stdlib QFN-20 EP1.65x1.65 (Microchip drawing)
+- TPS7A16 DGN EP (1.57×1.89) vs stdlib MSOP-8 EP1.68x1.88 variant
+- cjiang FXL0630 land vs stdlib L_Chilisin_BMRx00060630
+- USB-A C2345 drawing vs USB_A_CNCTech_1001-011-01101
+- **F1**: BOM part (Keystone 3557-10) vs assigned placeholder footprint
+  (Littelfuse FLR_178.6165) — reconcile: either source the Littelfuse holder or
+  author the Keystone footprint from its drawing
 
 ## Footprint map
 | Refs | Part (BOM.md) | KiCad lib footprint / source | Watch-outs |

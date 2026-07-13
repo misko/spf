@@ -36,9 +36,13 @@ LM25145→LM5145RGYR, SQJQ140E→2×CSD18543Q3A, ATtiny816 SOIC→UQFN; RILIM 30
 GATE: no line without MPN + footprint + availability ✅ (order-time re-check list
 in BOM.md §G).
 
-## P3 — footprints & mechanical (0.5-1 d) [KiCad]
-Land patterns per datasheet (VQFN-20 wettable flanks!), board outline + mounting
-from rover chassis, connector orientation vs harness. GATE: footprint checklist.
+## P3 — footprints & mechanical (0.5-1 d) [KiCad] — **schematic side DONE 2026-07-13**
+✅ All 96 components carry footprint fields (netlist-verified); 2 custom footprints
+authored from TI drawings + pcbnew-validated; USB-C symbol uses real GCT pad names;
+physical pads throughout (schematic v3). FOOTPRINTS.md lists the 5 open
+datasheet-vs-stdlib verifications for the P4 review.
+REMAINING: board outline + mounting holes in pcbnew (**measure rover chassis mount
+pattern first!**), connector orientation vs harness. GATE: footprint checklist.
 
 ## P4 — layout (2-3 d) [KiCad; checklist B in PRODUCTION_REVIEW.md]
 Order: power loops → Kelvin/INA analog → USB pairs → logic. 2-layer 2 oz; decide

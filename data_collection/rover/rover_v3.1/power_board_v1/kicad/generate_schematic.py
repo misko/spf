@@ -72,11 +72,17 @@ defsym("XT60", 5.08, 7.62, [("1", "+", "R", 0), ("2", "-", "R", 1)], ref="J")
 defsym("SCREW2", 5.08, 7.62, [("1", "1", "L", 0), ("2", "2", "L", 1)], ref="J")
 defsym("HDR3", 5.08, 10.16, [(str(i), f"P{i}", "L", i - 1) for i in range(1, 4)], ref="J")
 defsym("HDR8", 5.08, 22.86, [(str(i), f"P{i}", "L", i - 1) for i in range(1, 9)], ref="J")
-defsym("USB_A", 7.62, 12.7,
-       [("1", "VBUS", "L", 0), ("2", "D-", "L", 1), ("3", "D+", "L", 2), ("4", "GND", "L", 3)], ref="J")
+defsym("USB_A", 7.62, 15.24,
+       [("1", "VBUS", "L", 0), ("2", "D-", "L", 1), ("3", "D+", "L", 2), ("4", "GND", "L", 3),
+        ("5", "SHIELD", "L", 4)], ref="J")
 defsym("HDR4", 5.08, 12.7, [(str(i), f"P{i}", "R", i - 1) for i in range(1, 5)], ref="J")
-defsym("USBC_PWR", 7.62, 12.7,
-       [("1", "VBUS", "L", 0), ("2", "CC1", "L", 1), ("3", "CC2", "L", 2), ("4", "GND", "L", 3)], ref="J")
+# pad names = GCT USB4105 footprint pads (16P power-only receptacle, source role)
+defsym("USBC_PWR", 15.24, 33.02,
+       [("A4", "VBUS", "L", 0), ("A9", "VBUS", "L", 1), ("B4", "VBUS", "L", 2), ("B9", "VBUS", "L", 3),
+        ("A5", "CC1", "L", 5), ("B5", "CC2", "L", 6),
+        ("A1", "GND", "L", 8), ("A12", "GND", "L", 9), ("B1", "GND", "L", 10), ("B12", "GND", "L", 11),
+        ("A6", "D+", "R", 0), ("A7", "D-", "R", 1), ("B6", "D+", "R", 2), ("B7", "D-", "R", 3),
+        ("A8", "SBU1", "R", 5), ("B8", "SBU2", "R", 6), ("S1", "SHIELD", "R", 9)], ref="J")
 defsym("FUSE", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="F")
 defsym("RES", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="R")
 defsym("CAP", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="C")
@@ -134,6 +140,50 @@ defsym("ATTINY816", 40.64, 50.8,
         ("16", "PC1/PGOOD_B", "R", 18)],
        ref="U")
 
+# ------------------------------------------------------------------ footprints
+# default by symbol type; per-ref overrides below (P3, see ../FOOTPRINTS.md + BOM.md)
+SYM_FP = {
+    "RES": "Resistor_SMD:R_0402_1005Metric",
+    "CAP": "Capacitor_SMD:C_0402_1005Metric",
+    "TVS": "Diode_SMD:D_SMB",
+    "LED": "LED_SMD:LED_0805_2012Metric",
+    "SHUNT": "Resistor_SMD:R_2512_6332Metric",
+    "FUSE": "Fuse:FuseHolder_Blade_ATO_Littelfuse_FLR_178.6165",
+    "XT60": "Connector_AMASS:AMASS_XT60PW-M_1x02_P7.20mm_Horizontal",
+    "SCREW2": "TerminalBlock_Phoenix:TerminalBlock_Phoenix_MKDS-1,5-2_1x02_P5.00mm_Horizontal",
+    "HDR3": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+    "HDR4": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+    "HDR8": "Connector_JST:JST_GH_SM08B-GHS-TB_1x08-1MP_P1.25mm_Horizontal",
+    "USB_A": "Connector_USB:USB_A_CNCTech_1001-011-01101_Horizontal",
+    "USBC_PWR": "Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal",
+    "NFET_SON": "Package_SON:VSON-8_3.3x3.3mm_P0.65mm_NexFET",
+    "TPS7A16": "Package_SO:MSOP-8-1EP_3x3mm_P0.65mm_EP1.68x1.88mm",
+    "AP2112": "Package_TO_SOT_SMD:SOT-23-5",
+    "LM74800": "power_board_v1:WSON-12_3x3_P0.5_LM74800DRR",
+    "LM5145": "power_board_v1:VQFN-20_3.5x4.5_P0.5_LM5145RGY",
+    "TPS2553": "Package_TO_SOT_SMD:SOT-23-6",
+    "INA226": "Package_SO:VSSOP-10_3x3mm_P0.5mm",
+    "ATTINY816": "Package_DFN_QFN:QFN-20-1EP_3x3mm_P0.4mm_EP1.65x1.65mm",
+}
+REF_FP = {
+    # capacitor size exceptions
+    "CA2": "Capacitor_SMD:C_0603_1608Metric", "CB2": "Capacitor_SMD:C_0603_1608Metric",
+    "CA5": "Capacitor_SMD:C_1210_3225Metric", "CB5": "Capacitor_SMD:C_1210_3225Metric",
+    "CA6": "Capacitor_SMD:C_1210_3225Metric", "CB6": "Capacitor_SMD:C_1210_3225Metric",
+    "CA11": "Capacitor_SMD:C_1206_3216Metric", "CB11": "Capacitor_SMD:C_1206_3216Metric",
+    "CA7": "Capacitor_SMD:CP_Elec_6.3x5.9", "CB7": "Capacitor_SMD:CP_Elec_6.3x5.9",
+    # magnetics
+    "LA1": "Inductor_SMD:L_Sunlord_MWSA1005S", "LB1": "Inductor_SMD:L_Sunlord_MWSA1005S",
+    "L2": "Inductor_SMD:L_Chilisin_BMRx00060630", "L4": "Inductor_SMD:L_Chilisin_BMRx00060630",
+    # USBLC6-2 ESD arrays are SOT-23-6, not SMB
+    "D2": "Package_TO_SOT_SMD:SOT-23-6", "D3": "Package_TO_SOT_SMD:SOT-23-6",
+    # JST-GH per BOM (symbols are generic 2-pin)
+    "J2": "Connector_JST:JST_GH_BM02B-GHS-TBT_1x02-1MP_P1.25mm_Vertical",
+    "J8": "Connector_JST:JST_GH_BM02B-GHS-TBT_1x02-1MP_P1.25mm_Vertical",
+    "J11": "Connector_JST:JST_GH_BM03B-GHS-TBT_1x03-1MP_P1.25mm_Vertical",
+    "J12": "Connector_AMASS:AMASS_XT30PW-M_1x02_P2.50mm_Horizontal",
+}
+
 # ------------------------------------------------------------------ instances
 BODY = []
 LABELS = []
@@ -144,11 +194,13 @@ def place(sym, ref, value, x, y, nets):
     pm, w, h = PINMAPS[sym]
     # ref above / value below, clear of the body (fixed +-14 collided on small parts)
     ry, vy = y - h / 2 - 1.6, y + h / 2 + 1.6
+    fp = REF_FP.get(ref, SYM_FP.get(sym, ""))
     BODY.append(
         f'  (symbol (lib_id "pwr:{sym}") (at {x:.2f} {y:.2f} 0) (unit 1)'
         f' (in_bom yes) (on_board yes) (dnp no) (uuid "{u()}")\n'
         f'    (property "Reference" "{ref}" (at {x:.2f} {ry:.2f} 0) (effects (font (size 1.27 1.27))))\n'
         f'    (property "Value" "{value}" (at {x:.2f} {vy:.2f} 0) (effects (font (size 1.27 1.27))))\n'
+        f'    (property "Footprint" "{fp}" (at {x:.2f} {y:.2f} 0) (effects (font (size 1.27 1.27)) hide))\n'
         + "\n".join(f'    (pin "{n}" (uuid "{u()}"))' for n in pm)
         + f'\n    (instances (project "{PROJECT}" (path "/{ROOT_UUID}" (reference "{ref}") (unit 1))))\n  )'
     )
@@ -273,11 +325,14 @@ place("RES", "R5", "16k5 EN-A lo (7.5V off)", 200, 42, {"1": "EN_A", "2": "GND"}
 buck_stage("A", "U1", 280, 50, "301R RILIM (7A valley)", "18p CILIM", "EN_A", "5VA_PRE")
 place("IND", "L2", "pi-filter 1u", 385, 25, {"1": "5VA_PRE", "2": "5V_A"})
 place("CAP", "CA11", "2x22u pi-out", 385, 37, {"1": "5V_A", "2": "GND"})
-place("USBC_PWR", "J3", "USB-C PWR OUT (TH shell)", 420, 35,
-      {"1": "5V_A", "2": "CC1_A", "3": "CC2_A", "4": "GND"})
-place("RES", "R23", "10k Rp (3A adv)", 420, 55, {"1": "5V_A", "2": "CC1_A"})
-place("RES", "R24", "10k Rp (3A adv)", 420, 67, {"1": "5V_A", "2": "CC2_A"})
-place("SCREW2", "J12", "XT30 fallback pads", 420, 80, {"1": "5V_A", "2": "GND"})
+place("USBC_PWR", "J3", "USB4105-GF-A (TH shell)", 425, 42,
+      {"A4": "5V_A", "A9": "5V_A", "B4": "5V_A", "B9": "5V_A",
+       "A5": "CC1_A", "B5": "CC2_A",
+       "A1": "GND", "A12": "GND", "B1": "GND", "B12": "GND", "S1": "GND",
+       "A6": None, "A7": None, "B6": None, "B7": None, "A8": None, "B8": None})
+place("RES", "R23", "10k Rp (3A adv)", 420, 70, {"1": "5V_A", "2": "CC1_A"})
+place("RES", "R24", "10k Rp (3A adv)", 420, 81, {"1": "5V_A", "2": "CC2_A"})
+place("SCREW2", "J12", "XT30 fallback pads", 420, 95, {"1": "5V_A", "2": "GND"})
 
 # --- section 5: buck B (radios + aux, 5A; EN sequenced from PGOOD_A) ---
 text("5. BUCK B  5.1V/5A (radios+aux) — EN = PGOOD_A (Pi rail first)", 230, 115)
@@ -289,11 +344,13 @@ place("CAP", "CB11", "2x22u pi-out", 385, 137, {"1": "5V_B", "2": "GND"})
 text("6. RADIO USB (power inject + data passthrough)", 230, 218)
 place("TPS2553", "U7", "TPS2553 1.7A", 260, 242,
       {"1": "5V_B", "3": "EN_USB1", "2": "GND", "6": "VBUS1", "4": "FAULT_USB", "5": "ILIM1"})
-place("USB_A", "J4", "USB_A radio1", 295, 242, {"1": "VBUS1", "2": "D1_N", "3": "D1_P", "4": "GND"})
+place("USB_A", "J4", "USB_A radio1", 295, 242,
+      {"1": "VBUS1", "2": "D1_N", "3": "D1_P", "4": "GND", "5": "GND"})
 place("HDR4", "J9", "from Pi USB1", 325, 242, {"1": None, "2": "D1_N", "3": "D1_P", "4": "GND"})
 place("TPS2553", "U8", "TPS2553 1.7A", 260, 272,
       {"1": "5V_B", "3": "EN_USB2", "2": "GND", "6": "VBUS2", "4": "FAULT_USB", "5": "ILIM2"})
-place("USB_A", "J5", "USB_A radio2", 295, 272, {"1": "VBUS2", "2": "D2_N", "3": "D2_P", "4": "GND"})
+place("USB_A", "J5", "USB_A radio2", 295, 272,
+      {"1": "VBUS2", "2": "D2_N", "3": "D2_P", "4": "GND", "5": "GND"})
 place("HDR4", "J10", "from Pi USB2", 325, 272, {"1": None, "2": "D2_N", "3": "D2_P", "4": "GND"})
 place("SCREW2", "J6", "AUX 5V 2A", 355, 257, {"1": "5V_B", "2": "GND"})
 

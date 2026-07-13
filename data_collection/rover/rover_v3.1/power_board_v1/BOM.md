@@ -109,3 +109,7 @@ assembled @ qty 5** (scales to ~$28 @ qty 25). Within the ≤$50 informal budget
 - [ ] Confirm USB4105-GF-A shell tabs vs footprint (strain-relief requirement)
 - [ ] Shunt "-4" Kelvin land pattern vs LCSC 2-pin drawing (datasheet check at P3)
 - [ ] Polymer cap: prefer 10 V 220 µF if JLC tool offers one in stock
+- [ ] F1 footprint/part reconciliation: BOM says Keystone 3557-10 but the assigned
+      footprint is the Littelfuse FLR_178.6165 stdlib placeholder — pick ONE
+      (source Littelfuse holder, or author Keystone footprint from its drawing)
+- [ ] L2/L4: verify cjiang FXL0630 land vs the assigned Chilisin 0630 footprint
