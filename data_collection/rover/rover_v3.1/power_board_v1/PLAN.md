@@ -41,8 +41,9 @@ in BOM.md §G).
 authored from TI drawings + pcbnew-validated; USB-C symbol uses real GCT pad names;
 physical pads throughout (schematic v3). FOOTPRINTS.md lists the 5 open
 datasheet-vs-stdlib verifications for the P4 review.
-REMAINING: board outline + mounting holes in pcbnew (**measure rover chassis mount
-pattern first!**), connector orientation vs harness. GATE: footprint checklist.
+REMAINING: connector orientation vs harness check at P4 close.
+MOUNTING RESOLVED 2026-07-13: chassis adapter will be 3D-PRINTED to match the
+board — the 4x M3 corner holes (5mm inset) are final. GATE: footprint checklist.
 
 ## P4 — layout (2-3 d) [KiCad; checklist B in PRODUCTION_REVIEW.md] — **STARTED 2026-07-13**
 ✅ Starting board generated (kicad/generate_board.py): 90x65 outline, 4x M3 holes,

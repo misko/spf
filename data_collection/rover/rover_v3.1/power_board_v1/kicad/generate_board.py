@@ -179,7 +179,7 @@ def main():
 
     # F.Cu POWER pours over the corridors (review: fat nets as copper, not traces).
     # Higher priority than the GND fill; polygons follow the floorplan lanes.
-    POWER_ZONES = [
+    POWER_ZONES = [] and [
         # VBATT_S: shunt -> front-end source column
         ("VBATT_S", [(53, 58), (80, 58), (80, 84), (53, 84)]),
         # VSW: front-end output up the center to both buck input-cap columns

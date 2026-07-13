@@ -71,10 +71,10 @@ DSN.write_text(s)
 print("DSN classes injected")
 
 # run freerouting headless
-cmd = ["xvfb-run", "-a", FR, "-de", str(DSN), "-do", str(SES), "-mp", "50", "-da"]
+cmd = ["xvfb-run", "-a", FR, "-de", str(DSN), "-do", str(SES), "-mp", "100", "-da"]
 if SES.exists():
     SES.unlink()
-r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+r = subprocess.run(cmd, capture_output=True, text=True, timeout=2700)
 print("freerouting rc:", r.returncode)
 if not SES.exists():
     sys.exit("no SES produced")

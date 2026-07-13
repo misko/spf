@@ -48,7 +48,7 @@ BOM quantity modeling, and placement.
 - LM5145 custom footprint intra-pad clearance 0.175mm vs 0.2 netclass: TI's own
   pattern; add DRC exclusion (JLC can fab it)
 - lib_footprint_issues DRC noise: set FPID nicknames in board gen
-- Mounting holes still at placeholder corners — MEASURE ROVER CHASSIS first
+- Mounting holes FINAL at corners (5mm inset) — chassis adapter is 3D-printed to fit (2026-07-13)
 - USB-C VBUS hard-wired hot (no CC gating): fine for captive Pi cable; Rp=10k
   is a hard 3A ceiling — `usb_max_current_enable=1` must ship in the rover image
 - Polymer 6.3V at 81% derating: swap to 10V part if JLC stocks one
