@@ -1,0 +1,4 @@
+test_lpd_core
+*.elf
+*.hex
+*.o
