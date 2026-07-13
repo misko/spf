@@ -28,42 +28,45 @@ X0, Y0, W, H = 50.0, 50.0, 90.0, 65.0
 
 # explicit anchors for the parts whose position drives the power loops
 ANCHOR = {
-    # input + front-end (left edge)
-    "J1": (56, 60, 180), "F1": (56, 72, 0), "D1": (62, 79, 0), "R20": (66, 56, 0),
-    "Q2": (62, 88, 0), "Q3": (62, 98, 0), "U4": (56, 108, 0),
-    "C1": (66, 104, 0), "C2": (66, 108, 0), "C3": (66, 112, 0),
-    "R1": (52, 92, 0), "R2": (52, 96, 0), "R3": (52, 100, 0), "J2": (52, 84, 0),
-    # buck A (top center): VSW in from left, 5VA out right
-    "U1": (88, 62, 0), "QA1": (97, 56, 0), "QA2": (97, 66, 0), "LA1": (106, 60, 0),
-    "CA5": (80, 56, 0),  # input caps hug the FET pair
-    "CA6": (112, 66, 0), "CA7": (112, 72, 90),
-    # buck B (bottom center)
-    "U2": (88, 94, 0), "QB1": (97, 88, 0), "QB2": (97, 98, 0), "LB1": (106, 92, 0),
-    "CB5": (80, 88, 0), "CB6": (112, 98, 0), "CB7": (112, 104, 90),
-    # outputs (right edge)
-    "L2": (118, 56, 0), "CA11": (124, 60, 0), "J3": (134, 58, 90),
-    "R23": (128, 64, 0), "R24": (128, 68, 0), "J12": (134, 70, 90),
-    "L4": (118, 88, 0), "CB11": (124, 92, 0),
-    "U7": (118, 98, 0), "U8": (118, 106, 0), "J4": (134, 96, 90), "J5": (134, 106, 90),
-    "J6": (124, 112, 0), "J9": (128, 100, 0), "J10": (128, 108, 0),
-    # supervisor strip (bottom left) — INA226 within Kelvin reach of R20? R20 is at
-    # the input; keep U5 near the shunt instead:
-    "U5": (72, 56, 0),
-    "U3": (64, 66, 0), "U6": (72, 66, 0), "U9": (72, 74, 0),
-    "J7": (56, 113, 0), "J11": (66, 113, 0), "J8": (74, 113, 0),
-    "D4": (52, 113, 0),
+    # input chain, top-left: XT60 (overhangs left edge) -> fuse (vertical) ->
+    # shunt + INA Kelvin pair
+    "J1": (54, 54, 180), "F1": (66, 68, 90), "R20": (75, 53, 0), "U5": (75, 58, 0),
+    "D1": (76, 64, 0), "J2": (77, 70, 0),
+    # front-end b2b + LM74800 (left, mid)
+    "Q2": (68, 84, 0), "Q3": (68, 96, 0), "U4": (58, 92, 0),
+    "C1": (76, 82, 0), "C2": (76, 86, 0), "C3": (76, 90, 0),
+    # supervisor (left, lower); U9/D4 are resolver-movable
+    "U3": (64, 104, 0), "U6": (56, 84, 0),
+    "J7": (60, 113, 0), "J11": (73, 113, 0), "J8": (81, 113, 0),
+    # buck A (top center) — hot loop: CA5 at FET drains, SW node tight to LA1
+    "U1": (86, 60, 0), "QA1": (98, 54, 0), "QA2": (98, 66, 0), "LA1": (108, 58, 0),
+    "CA5": (92, 53, 90), "CA6": (108, 66, 0), "CA7": (108, 73, 90),
+    # buck B (bottom center), mirror
+    "U2": (86, 92, 0), "QB1": (98, 86, 0), "QB2": (98, 98, 0), "LB1": (108, 90, 0),
+    "CB5": (92, 85, 90), "CB6": (118, 97, 0),
+    # rail A output (top right)
+    "L2": (121, 54, 0), "CA11": (129, 53, 0), "J3": (136, 62, 90),
+    "R23": (122, 65, 0), "R24": (122, 69, 0),
+    # right edge, top->bottom: J3 / XT30 fallback / USB-A x2 (ports overhang)
+    "J12": (137, 74, 90),
+    "J4": (136, 92, 0), "J5": (136, 108, 0),
+    # rail B output + radio USB switches
+    "L4": (118, 80, 0), "CB11": (119, 92, 0),
+    "U7": (102, 103, 0), "U8": (102, 109, 0),
+    "CB7": (108, 101, 90),
+    "J9": (114, 102, 90), "J10": (114, 108, 90), "J6": (90, 114, 0),
 }
 
 # zone grids for everything else: (x_start, y_start, cols, dx, dy)
 ZONE_OF = {
-    # buck A small passives
-    "A": (76, 70, 5, 5.0, 4.0),
+    # buck A small passives (below U1, above grid-free lane)
+    "A": (76, 74, 5, 5.0, 4.0),
     # buck B small passives
-    "B": (76, 102, 5, 5.0, 4.0),
-    # supervisor passives
-    "S": (52, 104, 6, 4.0, 4.0),
-    # usb/aux passives
-    "U": (114, 78, 5, 5.0, 4.0),
+    "B": (76, 103, 5, 5.0, 4.0),
+    # supervisor + front-end ladder passives (left, bottom block)
+    "S": (52, 100, 6, 4.0, 4.0),
+    # usb/aux passives (between CA7 and the right-edge connectors)
+    "U": (84, 64, 2, 6.0, 4.0),
 }
 GRID_REFS = {
     "A": ["RA1", "RA2", "RA3", "RA4", "RA5", "RA6", "CA1", "CA2", "CA3", "CA4",
@@ -71,7 +74,7 @@ GRID_REFS = {
     "B": ["RB1", "RB2", "RB3", "RB4", "RB5", "RB6", "CB1", "CB2", "CB3", "CB4",
           "CB8", "CB9", "CB10"],
     "S": ["R10", "R11", "C4", "R25", "R26", "R27", "R28", "R29", "R30",
-          "R18", "R19", "R21", "R22"],
+          "R18", "R19", "R21", "R22", "R1", "R2", "R3", "D4", "U9"],
     "U": ["R16", "R17", "D2", "D3"],
 }
 
@@ -166,11 +169,103 @@ def main():
         board.Add(fp)
         placed += 1
 
+    # design rules (JLC 2-layer 2oz capable: 0.2 clearance, 0.2 min track)
+    ds = board.GetDesignSettings()
+    ds.m_MinClearance = pcbnew.FromMM(0.2)
+    ds.m_TrackMinWidth = pcbnew.FromMM(0.2)
+    ds.m_ViasMinSize = pcbnew.FromMM(0.6)
+    ds.m_MinThroughDrill = pcbnew.FromMM(0.3)
+
+    # GND pours, both layers (2-layer: B.Cu = reference plane, F.Cu = stitched fill)
+    gnd = netmap.get("GND")
+    for layer in (pcbnew.B_Cu, pcbnew.F_Cu):
+        z = pcbnew.ZONE(board)
+        z.SetLayer(layer)
+        z.SetNet(gnd)
+        z.SetLocalClearance(pcbnew.FromMM(0.25))
+        z.SetMinThickness(pcbnew.FromMM(0.25))
+        z.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)
+        z.SetThermalReliefGap(pcbnew.FromMM(0.3))
+        z.SetThermalReliefSpokeWidth(pcbnew.FromMM(0.4))
+        out = z.Outline()
+        out.NewOutline()
+        for x, y in [(X0 + 0.5, Y0 + 0.5), (X0 + W - 0.5, Y0 + 0.5),
+                     (X0 + W - 0.5, Y0 + H - 0.5), (X0 + 0.5, Y0 + H - 0.5)]:
+            out.Append(pcbnew.FromMM(x), pcbnew.FromMM(y))
+        board.Add(z)
+
     board.Save(str(OUT))
-    print(f"wrote {OUT.name}: {placed} footprints, {len(nets)} nets")
+    print(f"wrote {OUT.name}: {placed} footprints, {len(nets)} nets, "
+          f"{len(board.Zones())} GND zones (unfilled)")
+
+    # reload from disk (attaches a project — ZONE_FILLER/DRC segfault without one)
+    board = pcbnew.LoadBoard(str(OUT))
+    filler = pcbnew.ZONE_FILLER(board)
+    filler.Fill(board.Zones())
+    board.Save(str(OUT))
+    print("zones filled")
     unconnected = [k for k in missing_pads if not k[1].startswith("MP")]
     print(f"pads without nets (NC/shield/EP-float expected): {len(missing_pads)}",
           sorted(set(r for r, _ in unconnected)))
+
+    # greedy overlap resolver: anchors (power loops/connectors) stay fixed; the
+    # movable part of each colliding pair is nudged apart until bboxes clear
+    fixed = set(ANCHOR) | {"H1", "H2", "H3", "H4"}
+    fps = {f.GetReference(): f for f in board.GetFootprints()}
+
+    def bb(f):
+        return f.GetBoundingBox(False, False)
+
+    for _ in range(200):
+        moved = False
+        refs = sorted(fps)
+        for i in range(len(refs)):
+            for j in range(i + 1, len(refs)):
+                a, b = fps[refs[i]], fps[refs[j]]
+                ba, bbx = bb(a), bb(b)
+                if not ba.Intersects(bbx):
+                    continue
+                mv = b if refs[j] not in fixed else (a if refs[i] not in fixed else None)
+                if mv is None:
+                    continue
+                other = a if mv is b else b
+                bm, bo = bb(mv), bb(other)
+                # push along the axis of least separation, plus margin
+                dx = (bo.GetRight() - bm.GetLeft() + pcbnew.FromMM(0.4)
+                      if bm.GetCenter().x >= bo.GetCenter().x
+                      else -(bm.GetRight() - bo.GetLeft() + pcbnew.FromMM(0.4)))
+                dy = (bo.GetBottom() - bm.GetTop() + pcbnew.FromMM(0.4)
+                      if bm.GetCenter().y >= bo.GetCenter().y
+                      else -(bm.GetBottom() - bo.GetTop() + pcbnew.FromMM(0.4)))
+                p = mv.GetPosition()
+                if abs(dx) <= abs(dy):
+                    p.x += dx
+                else:
+                    p.y += dy
+                # clamp inside the board frame
+                p.x = max(pcbnew.FromMM(X0 + 3), min(pcbnew.FromMM(X0 + W - 3), p.x))
+                p.y = max(pcbnew.FromMM(Y0 + 3), min(pcbnew.FromMM(Y0 + H - 3), p.y))
+                mv.SetPosition(p)
+                moved = True
+        if not moved:
+            break
+    board.Save(str(OUT))
+
+    boxes = [(r, bb(f)) for r, f in fps.items() if not r.startswith("H")]
+    overlaps = []
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            if boxes[i][1].Intersects(boxes[j][1]):
+                overlaps.append((boxes[i][0], boxes[j][0]))
+    print(f"bbox overlaps after resolver ({len(overlaps)}):", overlaps[:20])
+
+    # headless DRC (KiCad 7 python API)
+    rpt = str(HERE / "drc_report.txt")
+    pcbnew.WriteDRCReport(board, rpt, pcbnew.EDA_UNITS_MILLIMETRES, False)
+    txt = Path(rpt).read_text()
+    import collections
+    kinds = collections.Counter(re.findall(r"\[(\w+)\]", txt))
+    print("DRC violation kinds:", dict(kinds))
 
 
 if __name__ == "__main__":
