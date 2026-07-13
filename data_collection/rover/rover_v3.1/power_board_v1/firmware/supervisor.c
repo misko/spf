@@ -122,6 +122,13 @@ static uint16_t adc_read_acc16(uint8_t muxpos) {
 }
 
 static void hw_init(void) {
+    /* FIRST action out of reset (review fix): drive FE_EN low so the LM74800
+     * EN divider cannot self-enable the rails during boot (pack plug-in / WDT
+     * reset would otherwise pulse the rails ON for ~100+ ms). C16 (2.2 uF on
+     * FE_EN) covers the few ms before this line executes. */
+    PORTB.OUTCLR = (1 << PB_FE_EN);
+    PORTB.DIRSET = (1 << PB_FE_EN);
+
     /* clock: 20 MHz OSC / 6 */
     CCP = CCP_IOREG_gc;
     CLKCTRL.MCLKCTRLB = CLKCTRL_PDIV_6X_gc | CLKCTRL_PEN_bm;
@@ -173,7 +180,10 @@ static void hw_init(void) {
 
 static void apply_outputs(const lpd_t *s) {
     /* FE_EN: open-drain emulation — output-low drives the LM74800 EN below
-     * V(ENF)=0.67 V (2.87 uA shutdown); input mode releases to the divider. */
+     * V(ENF)=0.67 V (2.87 uA shutdown); input mode releases to the divider.
+     * HARD RULE (review finding): NEVER drive PB4 push-pull HIGH. 3.3 V on the
+     * EN tap back-feeds the OV tap through R2 (2.45 V > 1.231 V OV threshold)
+     * and actively turns the power path OFF. Legal states: OUT-LOW or INPUT. */
     if (s->fe_en)
         PORTB.DIRCLR = (1 << PB_FE_EN);
     else

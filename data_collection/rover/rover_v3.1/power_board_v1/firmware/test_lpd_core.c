@@ -132,6 +132,19 @@ int main(void) {
     run_ms(TICK_MS);
     assert(s.state == LPD_PRECHARGE); /* retry allowed after toggle */
 
-    printf("lpd_core: all 10 scenarios passed\n");
+    /* 11. cold turn-on floor (review fix): a mid-charge pack (10.8 V) must be
+     * switchable ON from OFF; below the floor (10.4 V) it must stay OFF */
+    reset(10400);
+    in.switch_on = true;
+    run_ms(1000);
+    assert(s.state == LPD_OFF);
+    in.vin_mv = 10800; /* above LPD_COLDON_MV = 10650 */
+    run_ms(TICK_MS);
+    assert(s.state == LPD_PRECHARGE);
+    in.pgood_a = in.pgood_b = true;
+    run_ms(TICK_MS);
+    assert(s.state == LPD_ON);
+
+    printf("lpd_core: all 11 scenarios passed\n");
     return 0;
 }

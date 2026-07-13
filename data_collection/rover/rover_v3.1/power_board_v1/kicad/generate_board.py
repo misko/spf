@@ -28,54 +28,55 @@ X0, Y0, W, H = 50.0, 50.0, 90.0, 65.0
 
 # explicit anchors for the parts whose position drives the power loops
 ANCHOR = {
-    # input chain, top-left: XT60 (overhangs left edge) -> fuse (vertical) ->
-    # shunt + INA Kelvin pair
-    "J1": (62, 64, 180), "F1": (71, 68, 90), "R20": (80, 53, 0), "U5": (79, 58, 0),
-    "J2": (81, 70, 0), "D1": (80, 64, 0),
-    # front-end b2b + LM74800 (left, mid)
-    "Q2": (68, 84, 0), "Q3": (68, 96, 0), "U4": (58, 92, 0),
-    "C1": (76, 82, 0), "C2": (76, 86, 0), "C3": (76, 90, 0),
-    # supervisor (left, lower); U9/D4 are resolver-movable
-    "U3": (64, 104, 0), "U6": (56, 84, 0), "U9": (52, 91, 0),
-    "J7": (60, 112, 0), "J11": (73, 111.5, 0), "J8": (81, 111.5, 0),
-    # buck A (top center) — hot loop: CA5 at FET drains, SW node tight to LA1
-    "U1": (86, 60, 0), "QA1": (98, 54, 0), "QA2": (98, 66, 0), "LA1": (108, 58, 0),
-    "CA5": (92, 53, 90), "CA6": (108, 66, 0), "CA7": (108, 73, 90),
-    # buck B (bottom center), mirror
-    "U2": (86, 92, 0), "QB1": (98, 86, 0), "QB2": (98, 98, 0), "LB1": (108, 90, 0),
-    "CB5": (92, 85, 90), "CB6": (118, 97, 0),
-    # rail A output (top right)
-    "L2": (121, 54, 0), "CA11": (128, 53, 0), "J3": (136, 60, 90),
-    "R23": (122, 65, 0), "R24": (122, 69, 0),
-    # right edge, top->bottom: J3 / XT30 fallback / USB-A x2 (ports overhang)
-    "J12": (137, 77, 270),
-    "J4": (136, 92, 0), "J5": (136, 108, 0),
-    # rail B output + radio USB switches
-    "L4": (118, 80, 0), "CB11": (119, 92, 0),
-    "U7": (102, 103, 0), "U8": (102, 109, 0),
-    "CB7": (108, 101, 90),
-    "J9": (114, 102, 90), "J10": (114, 108, 90), "J6": (90, 112, 0),
+    # input, top-left: J1 mate faces WEST off-edge (rot 270 = pads vertical,
+    # verified pads on-board); battery then flows monotonically west->east
+    "J1": (57, 68, 90), "F1": (64, 68, 90), "R20": (74, 62, 0), "U5": (74, 69, 0),
+    "J2": (52, 109, 0), "D4": (52, 53, 0),
+    # front-end at mid-left (review: no more bottom-left hairpin)
+    "Q2": (62, 82, 0), "Q3": (62, 92, 0), "U4": (54, 90, 0),
+    "C1": (70, 80, 0), "C2": (70, 84, 0), "C3": (70, 88, 0), "C16": (70, 92, 0),
+    "CE1": (92, 74, 0),
+    # supervisor
+    "U3": (64, 101, 0), "U6": (78, 80, 0), "D5": (84, 64, 0), "U9": (78, 86, 0),
+    "J7": (68, 113, 0), "J11": (80, 112, 0), "J8": (88, 112, 0),
+    # buck A: Cin column between controller and FET stack; QA1 drain faces west
+    "U1": (82, 59, 0), "QA1": (96, 55, 180), "QA2": (96, 63, 0), "LA1": (106, 59, 0),
+    "CA51": (90, 53, 90), "CA52": (90, 58, 90), "CA53": (90, 63, 90),
+    "CA61": (116, 53, 0), "CA62": (116, 58, 0), "CA63": (116, 63, 0), "CA64": (116, 68, 0),
+    "CA7": (122, 72, 90),
+    # buck B mirror
+    "U2": (82, 92, 0), "QB1": (96, 87, 180), "QB2": (96, 95, 0), "LB1": (106, 92, 0),
+    "CB51": (90, 85, 90), "CB52": (90, 90, 90), "CB53": (90, 95, 90),
+    
+    # rail A output: USB-C moved to TOP edge (rot 0 mate faces north; frees the
+    # right edge and clears mounting hole H2)
+    "J3": (127, 52, 0), "CA111": (121, 59, 0), "CA112": (121, 63, 0),
+    # XT30 fallback mates EAST; pegs now on-board (review blocker fix)
+    "J12": (128, 72, 270),
+    "J4": (136, 85, 0), "J5": (136, 100, 0),
+    # rail B output + USB switches; ESD arrays + RILIM moved next to their ports
+    "L4": (112, 80, 0), "CB111": (119, 79, 0), "CB112": (119, 83, 0),
+    "U7": (105, 84, 0), "U8": (120, 110, 0), "R16": (101, 82, 0),
+    "CB61": (118, 86, 0), "CB62": (118, 91, 0), "CB63": (118, 96, 0), "CB64": (118, 101, 0),
+    "CB7": (104, 102.3, 90),
+    "J9": (113, 104, 0), "J10": (86, 101, 90), "J6": (99, 113, 0), "F2": (90, 106, 0),
 }
 
 # zone grids for everything else: (x_start, y_start, cols, dx, dy)
 ZONE_OF = {
-    # buck A small passives (below U1, above grid-free lane)
-    "A": (76, 74, 5, 5.0, 4.0),
-    # buck B small passives
-    "B": (76, 103, 7, 4.0, 4.0),
-    # supervisor + front-end ladder passives (left, bottom block)
-    "S": (52, 97, 7, 4.0, 4.0),
-    # usb/aux passives (between CA7 and the right-edge connectors)
-    "U": (84, 64, 2, 6.0, 4.0),
+    "A": (76, 72, 5, 5.0, 4.0),
+    "B": (76, 98, 5, 5.0, 4.0),
+    "S": (52, 97, 6, 4.0, 4.0),
+    "U": (98, 64, 4, 5.0, 4.0),
 }
 GRID_REFS = {
     "A": ["RA1", "RA2", "RA3", "RA4", "RA5", "RA6", "CA1", "CA2", "CA3", "CA4",
           "CA8", "CA9", "CA10", "R4", "R5"],
     "B": ["RB1", "RB2", "RB3", "RB4", "RB5", "RB6", "CB1", "CB2", "CB3", "CB4",
-          "CB8", "CB9", "CB10"],
+          "CB8", "CB9", "CB10", "D2", "D3", "R17"],
     "S": ["R10", "R11", "C4", "R25", "R26", "R27", "R28", "R29", "R30",
-          "R18", "R19", "R21", "R22", "R1", "R2", "R3", "D4"],
-    "U": ["R16", "R17", "D2", "D3"],
+          "R18", "R19", "R22", "R1", "R2", "R3", "C7", "C8", "C17"],
+    "U": ["C5", "C6", "C9", "C10", "C13", "C14", "R21", "R31", "R32", "R33", "R34", "D1", "R23", "R24", "D6", "D7"],
 }
 
 
@@ -194,9 +195,43 @@ def main():
             out.Append(pcbnew.FromMM(x), pcbnew.FromMM(y))
         board.Add(z)
 
+    # power pads connect SOLID to pours (review: thermal-relief spokes starve 5-6A
+    # return paths); thermal vias under buck-controller EPs and beside LS-FET sources
+    POWER_REFS = {"QA1", "QA2", "QB1", "QB2", "Q2", "Q3", "LA1", "LB1", "L4",
+                  "CE1", "CA7", "CB7", "R20", "F1", "J1"}
+    for f in board.GetFootprints():
+        r = f.GetReference()
+        if r in POWER_REFS:
+            for pad in f.Pads():
+                pad.SetZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
+        if r in ("U1", "U2"):
+            for pad in f.Pads():
+                if pad.GetNumber() == "21":
+                    pad.SetZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
+    gndcode = netmap["GND"]
+    via_sites = []
+    for r in ("U1", "U2"):
+        f = board.FindFootprintByReference(r)
+        c = f.GetPosition()
+        for dx, dy in [(-0.6, -0.9), (0.6, -0.9), (-0.6, 0.9), (0.6, 0.9)]:
+            via_sites.append((pcbnew.ToMM(c.x) + dx, pcbnew.ToMM(c.y) + dy))
+    for r in ("QA2", "QB2", "Q2", "Q3"):
+        f = board.FindFootprintByReference(r)
+        c = f.GetPosition()
+        for dy in (-2.2, 0.0, 2.2):
+            via_sites.append((pcbnew.ToMM(c.x) - 3.2, pcbnew.ToMM(c.y) + dy))
+    for vx, vy in via_sites:
+        v = pcbnew.PCB_VIA(board)
+        v.SetPosition(pcbnew.VECTOR2I_MM(vx, vy))
+        v.SetDrill(pcbnew.FromMM(0.3))
+        v.SetWidth(pcbnew.FromMM(0.6))
+        v.SetNet(gndcode)
+        v.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
+        board.Add(v)
+
     board.Save(str(OUT))
     print(f"wrote {OUT.name}: {placed} footprints, {len(nets)} nets, "
-          f"{len(board.Zones())} GND zones (unfilled)")
+          f"{len(board.Zones())} GND zones (unfilled), {len(via_sites)} thermal vias")
 
     # reload from disk (attaches a project — ZONE_FILLER/DRC segfault without one)
     board = pcbnew.LoadBoard(str(OUT))
@@ -231,12 +266,12 @@ def main():
                 other = a if mv is b else b
                 bm, bo = bb(mv), bb(other)
                 # push along the axis of least separation, plus margin
-                dx = (bo.GetRight() - bm.GetLeft() + pcbnew.FromMM(0.4)
+                dx = (bo.GetRight() - bm.GetLeft() + pcbnew.FromMM(0.7)
                       if bm.GetCenter().x >= bo.GetCenter().x
-                      else -(bm.GetRight() - bo.GetLeft() + pcbnew.FromMM(0.4)))
-                dy = (bo.GetBottom() - bm.GetTop() + pcbnew.FromMM(0.4)
+                      else -(bm.GetRight() - bo.GetLeft() + pcbnew.FromMM(0.7)))
+                dy = (bo.GetBottom() - bm.GetTop() + pcbnew.FromMM(0.7)
                       if bm.GetCenter().y >= bo.GetCenter().y
-                      else -(bm.GetBottom() - bo.GetTop() + pcbnew.FromMM(0.4)))
+                      else -(bm.GetBottom() - bo.GetTop() + pcbnew.FromMM(0.7)))
                 p = mv.GetPosition()
                 if abs(dx) <= abs(dy):
                     p.x += dx
@@ -249,6 +284,8 @@ def main():
                 moved = True
         if not moved:
             break
+    # refill zones AFTER moves (review fix: stale fill overlapped nudged pads)
+    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
     board.Save(str(OUT))
 
     boxes = [(r, bb(f)) for r, f in fps.items() if not r.startswith("H")]

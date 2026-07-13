@@ -17,6 +17,10 @@
 #define LPD_CUT_MV 10200u
 #define LPD_RECONNECT_MV 11700u
 #define LPD_WARN_MV 10550u
+/* cold turn-on floor (review fix): OFF used to gate on RECONNECT_MV, which made
+ * a healthy mid-charge pack (10.6-11.7 V) impossible to switch on. Cold-on now
+ * needs only warn+100mV; RECONNECT_MV still governs recovery from CUT. */
+#define LPD_COLDON_MV (LPD_WARN_MV + 100u)
 
 /* timing (ms) */
 #define LPD_QUALIFY_MS 10000ul   /* sag immunity: sustain before acting   */
@@ -87,7 +91,7 @@ static inline bool lpd__qualified(lpd_t *s, bool cond, uint32_t now) {
 static inline void lpd_step(lpd_t *s, const lpd_inputs_t *in, uint32_t now) {
     switch (s->state) {
     case LPD_OFF:
-        if (in->switch_on && in->vin_mv >= LPD_RECONNECT_MV)
+        if (in->switch_on && in->vin_mv >= LPD_COLDON_MV)
             lpd__enter(s, LPD_PRECHARGE, now);
         break;
 
