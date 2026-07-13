@@ -143,7 +143,7 @@ text("note: gate supply via charge pump / LTC7004-class driver in detail design"
 
 # --- section 3: supervisor (MCU) + telemetry ---
 text("3. SUPERVISOR + TELEMETRY", 20, 155)
-place("LDO_5V", "U6", "HT7550 (VBATT->5V mcu)", 35, 175, {"1": "VBATT_F", "2": "GND", "3": "MCU_5V"})
+place("LDO_5V", "U6", "TPS7A1650 60V LDO", 35, 175, {"1": "VBATT_F", "2": "GND", "3": "MCU_5V"})
 place("ATTINY816", "U3", "ATtiny816", 75, 185,
       {"1": "MCU_5V", "2": "GND", "3": "VSENSE", "4": "UPDI", "5": "EN_MAIN", "6": "LOW_BATT",
        "7": "AUX_CTL", "8": "SDA", "9": "SCL", "10": "EN_USB1", "11": "EN_USB2", "12": "SW_SENSE"})
@@ -155,7 +155,7 @@ place("SCREW2", "J8", "AUX_CTL out", 120, 210, {"1": "AUX_CTL", "2": "GND"})
 
 # --- section 4: buck A (Pi rail) ---
 text("4. BUCK A  5.1V/6A (Pi 5)", 170, 20)
-place("BUCK_5V1", "U1", "LM5146-Q1 stage", 190, 45,
+place("BUCK_5V1", "U1", "LM25145 600kHz stage", 190, 45,
       {"1": "VSW", "2": "VSW", "3": "GND", "4": "SW_A", "5": "FB_A", "6": "PGOOD_A"})
 place("IND", "L1", "4u7 shielded", 225, 35, {"1": "SW_A", "2": "5VA_PRE"})
 place("CAP", "C10", "2x47u in", 165, 70, {"1": "VSW", "2": "GND"})
@@ -167,7 +167,7 @@ place("SCREW2", "J3", "PI5 5.1V (USB-C pigtail)", 285, 35, {"1": "5V_A", "2": "G
 
 # --- section 5: buck B (radios + aux) ---
 text("5. BUCK B  5.1V/5A (radios+aux)", 170, 95)
-place("BUCK_5V1", "U2", "LM5146-Q1 stage", 190, 120,
+place("BUCK_5V1", "U2", "LM25145 600kHz stage", 190, 120,
       {"1": "VSW", "2": "VSW", "3": "GND", "4": "SW_B", "5": "FB_B", "6": "PGOOD_B"})
 place("IND", "L3", "4u7 shielded", 225, 110, {"1": "SW_B", "2": "5VB_PRE"})
 place("CAP", "C12", "2x47u in", 165, 145, {"1": "VSW", "2": "GND"})
@@ -179,19 +179,29 @@ place("IND", "L4", "pi-filter 1u", 255, 100, {"1": "5VB_PRE", "2": "5V_B"})
 # --- section 6: USB power-switched ports + passthrough ---
 text("6. RADIO USB (power inject + data passthrough)", 170, 165)
 place("TPS2553", "U7", "TPS2553 1.7A", 190, 190,
-      {"1": "5V_B", "2": "EN_USB1", "3": "GND", "4": "VBUS1", "5": None, "6": None})
+      {"1": "5V_B", "2": "EN_USB1", "3": "GND", "4": "VBUS1", "5": None, "6": "ILIM1"})
 place("USB_A", "J4", "USB_A radio1", 225, 190, {"1": "VBUS1", "2": "D1_N", "3": "D1_P", "4": "GND"})
 place("HDR4", "J9", "from Pi USB1", 255, 190, {"1": None, "2": "D1_N", "3": "D1_P", "4": "GND"})
 place("TPS2553", "U8", "TPS2553 1.7A", 190, 220,
-      {"1": "5V_B", "2": "EN_USB2", "3": "GND", "4": "VBUS2", "5": None, "6": None})
+      {"1": "5V_B", "2": "EN_USB2", "3": "GND", "4": "VBUS2", "5": None, "6": "ILIM2"})
 place("USB_A", "J5", "USB_A radio2", 225, 220, {"1": "VBUS2", "2": "D2_N", "3": "D2_P", "4": "GND"})
 place("HDR4", "J10", "from Pi USB2", 255, 220, {"1": None, "2": "D2_N", "3": "D2_P", "4": "GND"})
 place("SCREW2", "J6", "AUX 5V 2A", 285, 205, {"1": "5V_B", "2": "GND"})
+
+place("RES", "R16", "20k RILIM1 (1.2A)", 160, 190, {"1": "ILIM1", "2": "GND"})
+place("RES", "R17", "20k RILIM2 (1.2A)", 160, 220, {"1": "ILIM2", "2": "GND"})
+place("TVS", "D2", "USBLC6-2 esd", 240, 205, {"1": "D1_P", "2": "GND"})
+place("TVS", "D3", "USBLC6-2 esd", 240, 235, {"1": "D2_P", "2": "GND"})
 
 # --- section 7: Pi harness ---
 text("7. PI HARNESS", 20, 230)
 place("HDR6", "J7", "PI GPIO harness", 40, 250,
       {"1": "SDA", "2": "SCL", "3": "LOW_BATT", "4": "PGOOD_A", "5": "PGOOD_B", "6": "GND"})
+place("RES", "R18", "4k7 I2C pu", 75, 245, {"1": "MCU_5V", "2": "SDA"})
+place("RES", "R19", "4k7 I2C pu", 75, 257, {"1": "MCU_5V", "2": "SCL"})
+place("RES", "R21", "10k PGOOD_A pu", 110, 245, {"1": "MCU_5V", "2": "PGOOD_A"})
+place("RES", "R22", "10k PGOOD_B pu", 110, 257, {"1": "MCU_5V", "2": "PGOOD_B"})
+place("SCREW2", "J11", "UPDI prog", 40, 270, {"1": "UPDI", "2": "GND"})
 
 # ------------------------------------------------------------------ emit
 sch = []
