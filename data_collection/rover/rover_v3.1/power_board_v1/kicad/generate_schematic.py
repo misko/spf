@@ -84,7 +84,7 @@ defsym("INA226", 12.7, 17.78,
 defsym("ATTINY816", 17.78, 25.4,
        [("1", "VCC", "L", 0), ("2", "GND", "L", 8), ("3", "VSENSE", "L", 3), ("4", "UPDI", "L", 5),
         ("5", "EN_MAIN", "R", 0), ("6", "LOW_BATT", "R", 1), ("7", "AUX_CTL", "R", 2),
-        ("8", "SDA", "R", 4), ("9", "SCL", "R", 5), ("10", "EN_USB1", "R", 7), ("11", "EN_USB2", "R", 8)],
+        ("8", "SDA", "R", 4), ("9", "SCL", "R", 5), ("10", "EN_USB1", "R", 7), ("11", "EN_USB2", "R", 8), ("12", "SW_SENSE", "L", 6)],
        ref="U")
 
 # ------------------------------------------------------------------ instances
@@ -125,7 +125,7 @@ def text(s, x, y, size=2.0):
 # --- section 1: input & protection (battery -, chassis = GND) ---
 text("1. INPUT + PROTECTION", 20, 20)
 place("XT60", "J1", "XT60_BATT", 30, 40, {"1": "VBATT_RAW", "2": "GND"})
-place("PFET", "Q1", "SQJ457EP rev-pol", 60, 40, {"1": "GND", "2": "VBATT_RAW", "3": "VBATT_P"})
+place("PFET", "Q1", "SQJ457EP rev-pol", 60, 40, {"1": "GND", "2": "VBATT_P", "3": "VBATT_RAW"})
 place("FUSE", "F1", "15A ATO", 90, 40, {"1": "VBATT_P", "2": "VBATT_F"})
 place("TVS", "D1", "SMBJ33A", 90, 55, {"1": "VBATT_F", "2": "GND"})
 place("SHUNT", "R20", "2m 3W shunt", 120, 40, {"1": "VBATT_F", "2": "VBATT_S"})
@@ -138,7 +138,7 @@ place("RES", "R1", "100k gate pd", 60, 120, {"1": "GATE_MAIN", "2": "SW_MID"})
 place("CAP", "C1", "100n soft-start", 90, 120, {"1": "GATE_MAIN", "2": "SW_MID"})
 place("RES", "R2", "1M chg-pump fb", 120, 120, {"1": "GATE_DRV", "2": "GATE_MAIN"})
 place("NFET", "Q4", "2N7002 en-drv", 120, 100, {"1": "EN_MAIN", "2": "GATE_DRV", "3": "GND"})
-place("SCREW2", "J2", "PANEL_SW", 30, 100, {"1": "SW_PANEL", "2": "GND"})
+place("SCREW2", "J2", "PANEL_SW", 30, 100, {"1": "SW_SENSE", "2": "GND"})
 text("note: gate supply via charge pump / LTC7004-class driver in detail design", 20, 135, 1.4)
 
 # --- section 3: supervisor (MCU) + telemetry ---
@@ -146,7 +146,7 @@ text("3. SUPERVISOR + TELEMETRY", 20, 155)
 place("LDO_5V", "U6", "HT7550 (VBATT->5V mcu)", 35, 175, {"1": "VBATT_F", "2": "GND", "3": "MCU_5V"})
 place("ATTINY816", "U3", "ATtiny816", 75, 185,
       {"1": "MCU_5V", "2": "GND", "3": "VSENSE", "4": "UPDI", "5": "EN_MAIN", "6": "LOW_BATT",
-       "7": "AUX_CTL", "8": "SDA", "9": "SCL", "10": "EN_USB1", "11": "EN_USB2"})
+       "7": "AUX_CTL", "8": "SDA", "9": "SCL", "10": "EN_USB1", "11": "EN_USB2", "12": "SW_SENSE"})
 place("RES", "R10", "100k vsense-hi", 35, 200, {"1": "VBATT_S", "2": "VSENSE"})
 place("RES", "R11", "10k vsense-lo", 35, 212, {"1": "VSENSE", "2": "GND"})
 place("INA226", "U5", "INA226", 120, 185,
@@ -179,7 +179,7 @@ place("IND", "L4", "pi-filter 1u", 255, 100, {"1": "5VB_PRE", "2": "5V_B"})
 # --- section 6: USB power-switched ports + passthrough ---
 text("6. RADIO USB (power inject + data passthrough)", 170, 165)
 place("TPS2553", "U7", "TPS2553 1.7A", 190, 190,
-      {"1": "5V_B", "2": "EN_USB1", "3": "GND", "4": "VBUS1", "5": "LOW_BATT", "6": None})
+      {"1": "5V_B", "2": "EN_USB1", "3": "GND", "4": "VBUS1", "5": None, "6": None})
 place("USB_A", "J4", "USB_A radio1", 225, 190, {"1": "VBUS1", "2": "D1_N", "3": "D1_P", "4": "GND"})
 place("HDR4", "J9", "from Pi USB1", 255, 190, {"1": None, "2": "D1_N", "3": "D1_P", "4": "GND"})
 place("TPS2553", "U8", "TPS2553 1.7A", 190, 220,
