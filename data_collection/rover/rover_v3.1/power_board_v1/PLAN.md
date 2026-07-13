@@ -50,7 +50,13 @@ all 96 footprints placed in floorplan zones, every pad net-bound (ratsnest live)
 Board-gen audit caught + fixed 2 schematic bugs: USBLC6 ESD arrays were 2-pin
 symbols (D− line + VBUS pin unprotected/floating → full 6-pin flow-through now);
 ATtiny EP now grounded. Only U4's EP floats (required).
-REMAINING (interactive pcbnew): placement refinement → route power loops →
+ROUTING STATUS 2026-07-13: freerouting pipeline (route_board.py -> import_ses.py,
+audit_board.py gate) delivered 809 track segments + 89 vias + 68 GND stitching
+vias + 3 F.Cu power pours (VSW/VBATT_S/5V_A) + B.Cu ground plane. 136/221
+pad-pair connections routed; 85 remain (power tie-ins in carved-pour regions +
+congested corridors) -> INTERACTIVE pcbnew session (~1-2 h, ratsnest-guided).
+Then: DRC scrub to baseline, re-run audit_board.py (checklist gates 1-4).
+FORMER REMAINING (interactive pcbnew): placement refinement → route power loops →
 Kelvin/INA pair → USB pairs → logic → GND pour + AGND islands → thermal reliefs.
 Order: power loops → Kelvin/INA analog → USB pairs → logic. 2-layer 2 oz; decide
 4-layer fallback at mid-review. GATE: DRC clean + checklist B + fresh-eyes review
