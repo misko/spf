@@ -71,9 +71,21 @@ optional science. Only constraint window: |IF| >= max(10x crystal wander, ~0.01*
 - **Decision metric:** receiver agreement ρ(g_r0, g_r1) on ≥30 random/circle datasets.
   Success = ρ ≥ 0.6 (2.4 GHz benchmark 0.97; pre-recovery ≈ 0). Secondary: corrected
   circstd of the CV-held-out residual (not the fit residual).
+- **TWO VARIANTS — leakage rule is hard:**
+  - **REC2a (metrological, GT-using):** the joint fit above. Output may ONLY feed the
+    audit (g medians, coupling curve, per-rig systematics). GT-corrected phase must
+    NEVER become a training or validation input — the spline is estimated from
+    residuals against the GT model, so subtracting it injects label information
+    (bounded by spline smoothness, but nonzero).
+  - **REC2b (GT-free, training-eligible):** estimate the trend from the RAW measured
+    phase alone — robust sliding circular trend over ~15 snapshots. On jump
+    trajectories (rx_random_circle) the window-mean of g·k·sinθ is ≈ constant (folds
+    into φ₀), so the trend captures δ(t) without seeing labels; geometry is preserved.
+    Same identifiability condition as REC2a; invalid for smooth (bounce) trajectories.
+    GT is used only to EVALUATE (ρ improvement), never to construct.
 - **If it works:** emit corrected mean_phase as a NEW sidecar cache (never touch raw or
   existing caches) + recompute sub-GHz g medians for the coupling curve; sub-GHz stays
-  input-degraded for training either way until proven.
+  input-degraded for training either way until REC2b specifically is validated.
 
 ## E-HW1 — bench VNA S21-vs-distance sweep of the antenna mounts
 
