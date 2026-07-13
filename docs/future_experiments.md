@@ -56,6 +56,25 @@ optional science. Only constraint window: |IF| >= max(10x crystal wander, ~0.01*
   improves → tracking loop confirmed as the mechanism; both knobs become policy. If
   nothing improves → residual sub-GHz problem is era/hardware; go to bench (E-HW1).
 
+## E-REC2 — regularized joint recovery of sub-GHz phase (algorithm task, no capture)
+
+- **Motivation:** L9 upgraded — corruption is buffer-to-buffer, smooth (autocorr 0.7-0.99
+  @lag1, τ~10-100 snapshots), while within-buffer phase is near-perfect. Separable from
+  geometry wherever the trajectory out-jumps the nuisance (rx_random_circle; ~7+9
+  random/circle sub-GHz datasets sampled).
+- **Design:** fit jointly per receiver: phase = g·k·sin(θ_gt−Δθ) + φ₀ + spline_t(knots
+  every ~10-15 snapshots), by circular least squares. Crucial details learned the hard
+  way: (a) NOT two-step (initial g gets locked in); (b) NOT self-referencing sliding
+  means (objective degenerates — rewards over-subtraction; observed g pinned at grid
+  bounds with artifact circstd 0.08); use leave-window-out/gapped trend or parametric
+  spline with cross-validated knot count.
+- **Decision metric:** receiver agreement ρ(g_r0, g_r1) on ≥30 random/circle datasets.
+  Success = ρ ≥ 0.6 (2.4 GHz benchmark 0.97; pre-recovery ≈ 0). Secondary: corrected
+  circstd of the CV-held-out residual (not the fit residual).
+- **If it works:** emit corrected mean_phase as a NEW sidecar cache (never touch raw or
+  existing caches) + recompute sub-GHz g medians for the coupling curve; sub-GHz stays
+  input-degraded for training either way until proven.
+
 ## E-HW1 — bench VNA S21-vs-distance sweep of the antenna mounts
 
 - **Motivation:** learnings L5 — the mutual-coupling model for g(d) fits 2.4/5.8 GHz

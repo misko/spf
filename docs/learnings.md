@@ -24,6 +24,19 @@ phase/g stays unusable. What remains usable: per-config MEDIANS after detrend (f
 coupling curve), amplitude/RSSI tasks, duty statistics, and — since GT position labels
 are intact — the band is INPUT-DEGRADED, not label-corrupt: keeping it in training is an
 A/B question (exactly what the running base/r1(keeps it)/r2(drops it) ladder measures).
+**Cross-receiver raw-sample fusion (tested):** coherent 4-channel processing is
+INFEASIBLE — the two boards' LO relative phase wanders 2.6 rad within one 8 ms buffer
+(measured; independent crystal phase noise), vs 0.007-0.12 rad intra-pair. But that
+probe found the KEY structural fact: **within-buffer intra-pair phase is nearly perfect
+(r1: 0.007 rad, r0: 0.12 rad); the corruption is buffer-to-buffer**, smooth-ish
+(residual autocorr 0.70-0.99 at lag 1, decorrelating over ~10-100 snapshots). The
+information survives capture; recovery = separating a smooth per-receiver process from
+geometry. Naive two-step detrend locks in the initial (corrupted) g; a self-referencing
+sliding-trend joint fit degenerates (rewards over-subtraction). A properly regularized
+joint estimator (parametric spline least-squares with cross-validated knot spacing,
+gapped/leave-window-out trend) on jump-trajectory datasets (rx_random_circle: sin θ
+jumps, nuisance smooth → separable) is the one remaining credible route — designed as
+E-REC2, not yet proven.
 Re-collection does NOT need the wall array: a bench rig (two Plutos + emitter on a
 measured arc/turntable) with fs/16 IF suffices for the E-IF1 diagnostic and for a
 sub-GHz calibration set; rovers with GPS truth are the field alternative.
