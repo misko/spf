@@ -41,16 +41,16 @@ def load_model_and_config_from_config_fn_and_checkpoint(
 
 def single_example_realtime_inference(model, global_config, optim_config, realtime_ds):
     keys_to_get = global_config_to_keys_used(global_config=global_config)
-    outputs = []
+    model.eval()
     with torch.no_grad():
         for sample in realtime_ds:
             # get a sample from realtime
             single_example = v5_collate_keys_fast(keys_to_get, [sample]).to(
                 optim_config["device"]
             )
+            # exactly one forward per sample; no accumulation (this loop can be
+            # unbounded in realtime use)
             yield model(single_example)
-            outputs.append(model(single_example))
-    return None
 
 
 def single_example_inference(model, global_config, datasets_config, optim_config):

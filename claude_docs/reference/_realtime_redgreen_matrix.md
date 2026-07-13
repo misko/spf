@@ -76,3 +76,19 @@ rotation+circular-stats  5. TS1 golden  6. rest.
   a diagnostic.
 - NO ROW IS A FIX. Fixes are a separate change set, sequenced by the fix-order tiers
   above; the matrix only guarantees each fix has a witness.
+
+## Execution log (2026-07-13)
+- FIXED + green witness: RT1, RT2, RT4, RT11, RT12, PF1, PF2, PF3, PF4 (+bonus:
+  torch>=2.6 weights_only checkpoint load; 2nd shadowed dup test via F811; 4 dup imports)
+- GUARDS landed green: G1 (golden windows-stats + regen policy), G2 (#53 watermark +
+  6-tuple), G3 (old-format compat), G5 (paired-heads-identical)
+- PERF suite landed (tests/test_redgreen_perf.py): P2 single-forward counter (green),
+  P3 queue-payload cap (strict-xfail = RT5 red), P1/P4 wall-clock ceilings ~10x above
+  baselines. Baselines: forward 0.33ms, window-stats 53.7ms, beamformer 23.7ms/snapshot
+  (=> Pi5 feature budget is real: ~77ms desktop ~= capture cadence on Pi).
+- NN-PF suite 3/3 PASSED — first successful run of realtime wrapper + absolute + PF ever.
+- CI: flake8 gate += F811.
+- STILL ARMED (red): RT7 generic-bins xfail, P3/RT5 payload xfail.
+- REMAINING (not yet tests): RT3 lifecycle, RT6 startup key check, RT7 shared-rotation
+  impl, RT8 len semantics, RT13, RT14, PF6, PF7, PF8, G4, G6/G7 diagnostics, G8, G9
+  fixture, TS1, TS4.

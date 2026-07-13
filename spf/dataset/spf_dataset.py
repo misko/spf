@@ -453,9 +453,9 @@ class v5inferencedataset(Dataset):
         model_config_fn: str = "",
         paired: bool = False,  # If True, return paired samples from all receivers at once
         gpu: bool = False,  # Use GPU for segmentation computation if available
-        skip_fields: List[
-            str
-        ] = [],  # Data fields to exclude during loading to save memory
+        skip_fields: (
+            List[str] | None
+        ) = None,  # Data fields to exclude during loading to save memory
         empirical_data_fn: (
             str | None
         ) = None,  # Path to empirical distribution data file for phase-to-angle mapping
@@ -500,7 +500,9 @@ class v5inferencedataset(Dataset):
         self.windows_per_snapshot = windows_per_snapshot
 
         self.distance_normalization = distance_normalization
-        self.skip_fields = skip_fields
+        if skip_fields is None:
+            skip_fields = []
+        self.skip_fields = list(skip_fields)
         self.skip_segmentation = skip_segmentation
         if self.skip_segmentation:
             self.skip_fields += segmentation_based_keys
@@ -832,9 +834,9 @@ class v5spfdataset(Dataset):
         readahead: bool = False,  # Enable read-ahead for zarr storage I/O optimization
         temp_file: bool = False,  # Whether dataset is using temporary files (for in-progress recordings)
         temp_file_suffix: str = ".tmp",  # Suffix for temporary files
-        skip_fields: List[
-            str
-        ] = [],  # Data fields to exclude during loading to save memory
+        skip_fields: (
+            List[str] | None
+        ) = None,  # Data fields to exclude during loading to save memory
         n_parallel: int = 20,  # Number of parallel processes for segmentation
         empirical_data_fn: (
             str | None
@@ -884,7 +886,9 @@ class v5spfdataset(Dataset):
         self.distance_normalization = distance_normalization
         self.flip = flip
         self.double_flip = double_flip
-        self.skip_fields = skip_fields
+        if skip_fields is None:
+            skip_fields = []
+        self.skip_fields = list(skip_fields)
         self.paired = paired
         self.gpu = gpu  # Whether to use GPU acceleration for beamforming calculations
         self.target_dtype = target_dtype

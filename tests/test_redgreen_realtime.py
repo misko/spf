@@ -182,10 +182,8 @@ def test_pf3_absolute_gt_circular_mean_at_seam():
 
 
 # ------------------------------------------------------------------- xfail reds
-@pytest.mark.xfail(
-    strict=True, reason="RT11: mutable default skip_fields=[] is mutated across instances"
-)
 def test_rt11_no_mutable_default_skip_fields():
+    """RT11 (fixed): default must not be a shared mutable list."""
     from spf.dataset.spf_dataset import v5inferencedataset
 
     default = inspect.signature(v5inferencedataset.__init__).parameters[
