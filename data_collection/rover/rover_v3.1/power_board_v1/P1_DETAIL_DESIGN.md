@@ -33,8 +33,10 @@ reverse protection becomes the DGATE ideal diode):
 | OV pin | 1.231 V threshold ladder | free overvoltage cutoff (set 15.0 V — charger fault) |
 
 Wiring (typical app, SNOSD95C §10.2): BATT+ → Q1A source (pin A), common-drain node
-(pin C), Q2A source → SW_BATT rail (pin OUT). FETs: **SQJQ140E dual 40 V b2b NFET**
-kept from v1 (VGS ±20 V ✓, one package does both positions).
+(pin C), Q2A source → SW_BATT rail (pin OUT). FETs: ~~SQJQ140E dual~~ **P2 update:
+SQJQ140E is unobtainable (5 pcs @ $8.74 at LCSC) → 2× discrete CSD18543Q3A in
+common-drain** (VGS ±20 V ✓; same part as the buck FETs — one feeder for all six
+FETs per board).
 
 - Soft-start: C_HG = 47 nF from HGATE to OUT → dv/dt = 55 µA / 47 nF ≈ 1.2 V/ms →
   ~10 ms ramp to 12 V. Inrush into ~260 µF downstream ≈ 0.3 A. Meets the <5 A
@@ -96,25 +98,25 @@ Choose per rail: **3x 10 µF 50 V X7R 1210 + 2.2 µF + 0.1 µF** at the FET loop
 one shared **100 µF hybrid electrolytic** at the board input (damps the input LC
 against the pack lead inductance; rated ≥2 A rms each, ripple shared).
 
-### Power MOSFETs (40 V NexFET class, VGS(th) < 2.5 V, VGS abs ±20 V)
-- High-side Q1: ~10 nC Qg(7.5 V), ≤10 mΩ — conduction 0.42·36·0.009 ≈ 0.14 W,
-  switching ≈ 0.1 W @ 606 kHz.
-- Low-side Q2: RDS(on) is BOTH the sync rectifier loss AND the OCP sense element
-  (RDS-ON mode). ≤8 mΩ target: conduction 0.58·36·0.008 ≈ 0.17 W.
-- Exact MPNs at P2 against JLC basic/extended stock (CSD18543Q3A-class or paired
-  30 V/40 V SON5x6). [QS] verify losses.
+### Power MOSFETs — P2 LOCKED: CSD18543Q3A (LCSC C840100), HS + LS + front-end
+60 V NexFET, 8.1 mΩ @ VGS 10 V (~8.5 mΩ @ our 7.5 V drive), Qg 11.1 nC, VSONP-8
+3.3×3.3, VGS ±20 V. Losses per rail: HS conduction 0.42·36·0.0085 ≈ 0.13 W +
+switching ≈ 0.1 W; LS conduction 0.58·36·0.0085 ≈ 0.18 W. One MPN covers all six
+FETs/board (4 buck + 2 front-end b2b). Budget alt TDM3436 (C380232) requires a
+VGS abs-max ≥±16 V datasheet check first. [QS] verify losses.
 
 ### OCP — RDS(on) valley sensing [eq 6]
 RILIM = (Ilimit - ΔIL/2)·RDS(on)Q2,hot / 200 µA, with CILIM: R·C ≈ 6 ns.
 RDS(on),hot ≈ 8 mΩ·1.35 ≈ 10.8 mΩ (the ILIM source has +4500 ppm/°C tracking, so use
 25 °C RDS(on) with the datasheet's tracking assumption → use 10 mΩ effective):
 
-| | valley limit target | RILIM | CILIM |
+| | valley limit target | RILIM (P2 final) | CILIM |
 |---|---|---|---|
-| Rail A | 7.8 A avg → 7.0 A valley | 7.0·0.010/200µ = **348 Ω E96** | **18 pF** |
-| Rail B | 6.5 A avg → 5.7 A valley | 5.7·0.010/200µ = **287 Ω E96** | **22 pF** |
+| Rail A | 7.8 A avg → 7.0 A valley | 7.0·0.0085/200µ = **301 Ω E96** | **18 pF** (RC 5.4 ns) |
+| Rail B | 6.5 A avg → 5.7 A valley | 5.7·0.0085/200µ = **243 Ω E96** | **22 pF** (RC 5.3 ns) |
 
-[QS] OCP setpoints move with the actual FET chosen at P2 — recompute then.
+P2 CLOSED: recomputed for CSD18543Q3A 8.5 mΩ (25 °C @ 7.5 V drive; the ILIM
+source's +4500 ppm/°C tracks the FET's tempco per datasheet §8.3.10).
 
 ### Type-III compensation [Table 5, eq 15-16]
 Plant: L = 3.3 µH, Cout_eff ≈ 200 µF (derated ceramics + polymer) →
@@ -193,8 +195,11 @@ avr-gcc); register map in `firmware/README.md`. Contract:
 GATE for P1 close: schematic v2 regenerated, zero black boxes, ERC clean (needs
 `sudo apt install kicad` locally, else ERC deferred to P4 entry).
 
-## 6. Open items rolling to P2
-- MPN lock vs JLC stock: FETs (buck + SQJQ140E availability), 3.3 µH inductors,
-  polymer 220 µF, TPS7A1650 footprint variant, ATtiny816 VQFN vs SOIC.
-- [QS] Quickstart cross-check of §2 (losses, OCP corners, comp Bode).
-- Recompute RILIM/CILIM for the actual FET RDS(on).
+## 6. Open items rolling to P2 — CLOSED 2026-07-13 (see BOM.md)
+- ✅ MPN lock: BOM.md, all lines C#-verified. Substitutions: LM25145→**LM5145RGYR**
+  (C485912; LM25145 stock=7. Verified equation-identical vs SNVSAI4B: RT=10⁴/Fsw,
+  VREF 0.8 V, ISS 10 µA, kFF 15, ILIM 200 µA/6 ns — §2 values unchanged);
+  SQJQ140E→2×CSD18543Q3A; ATtiny816-SNR→-MNR (UQFN).
+- ✅ RILIM/CILIM recomputed for CSD18543Q3A (301/243 Ω, above).
+- Remaining [QS]: Quickstart loss/thermal cross-check + comp Bode → do at P4 entry
+  alongside ERC (needs KiCad / TI tool run).

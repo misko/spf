@@ -2,7 +2,7 @@
 
 v2 (P1 detail design, see ../P1_DETAIL_DESIGN.md):
   - front-end = LM74800-Q1 ideal-diode + load-switch controller driving the
-    SQJQ140E back-to-back pair (replaces the v0 reverse-PFET + discrete gate
+    CSD18543Q3A back-to-back pair (SQJQ140E unobtainable at LCSC) (replaces the v0 reverse-PFET + discrete gate
     machinery; closes review finding F5)
   - both LM25145 buck stages fully expanded: RT/SS/ILIM/comp/FETs from the
     datasheet math (no black boxes) — values marked [QS] pending Quickstart check
@@ -92,7 +92,7 @@ defsym("LM74800", 17.78, 33.02,
         ("8", "HGATE", "R", 0), ("9", "OUT", "R", 2), ("10", "VS", "R", 4),
         ("11", "CAP", "R", 6), ("12", "C", "R", 8)], ref="U")
 # LM25145 (logical pinout; VQFN-20 physical mapping at P3 footprint stage)
-defsym("LM25145", 17.78, 40.64,
+defsym("LM5145", 17.78, 40.64,
        [("1", "VIN", "L", 0), ("2", "EN", "L", 2), ("3", "RT", "L", 4), ("4", "SS", "L", 6),
         ("5", "ILIM", "L", 8), ("6", "SYNCIN", "L", 10), ("7", "AGND", "L", 12), ("8", "PGND", "L", 14),
         ("9", "VCC", "R", 0), ("10", "BST", "R", 2), ("11", "HO", "R", 4), ("12", "SW", "R", 6),
@@ -154,7 +154,7 @@ def text(s, x, y, size=2.0):
 def buck_stage(suffix, uref, x0, y0, rilim, cilim, en_net, vout_pre):
     """Fully-expanded LM25145 stage (values: P1_DETAIL_DESIGN.md section 2)."""
     S = suffix
-    place("LM25145", uref, f"LM25145 5.1V rail {S}", x0, y0,
+    place("LM5145", uref, f"LM5145 5.1V rail {S}", x0, y0,
           {"1": "VSW", "2": en_net, "3": f"RT_{S}", "4": f"SS_{S}", "5": f"ILIM_{S}",
            "6": "GND", "7": "GND", "8": "GND", "9": f"VCC_{S}", "10": f"BST_{S}",
            "11": f"HO_{S}", "12": f"SW_{S}", "13": f"LO_{S}", "14": f"FB_{S}",
@@ -168,11 +168,11 @@ def buck_stage(suffix, uref, x0, y0, rilim, cilim, en_net, vout_pre):
     place("RES", f"R{S}2", rilim, x0 - 45, y0 + 25, {"1": f"ILIM_{S}", "2": f"SW_{S}"})
     place("CAP", f"C{S}4", cilim, x0 - 45, y0 + 35, {"1": f"ILIM_{S}", "2": "GND"})
     # power FETs (40V NexFET class, MPN at P2)
-    place("NFET", f"Q{S}1", "40V <10mR HS", x0 + 35, y0 - 15,
+    place("NFET", f"Q{S}1", "CSD18543Q3A HS", x0 + 35, y0 - 15,
           {"1": f"HO_{S}", "2": "VSW", "3": f"SW_{S}"})
-    place("NFET", f"Q{S}2", "40V <8mR LS", x0 + 35, y0, {"1": f"LO_{S}", "2": f"SW_{S}", "3": "GND"})
+    place("NFET", f"Q{S}2", "CSD18543Q3A LS", x0 + 35, y0, {"1": f"LO_{S}", "2": f"SW_{S}", "3": "GND"})
     # LC
-    place("IND", f"L{S}1", "3u3 10A shielded", x0 + 35, y0 + 12, {"1": f"SW_{S}", "2": vout_pre})
+    place("IND", f"L{S}1", "MWSA1005S-3R3 16A", x0 + 35, y0 + 12, {"1": f"SW_{S}", "2": vout_pre})
     place("CAP", f"C{S}5", "3x10u 50V in", x0 - 20, y0 + 28, {"1": "VSW", "2": "GND"})
     place("CAP", f"C{S}6", "4x47u 10V out", x0 + 35, y0 + 24, {"1": vout_pre, "2": "GND"})
     place("CAP", f"C{S}7", "220u poly 25mR", x0 + 35, y0 + 34, {"1": vout_pre, "2": "GND"})
@@ -199,8 +199,8 @@ place("LM74800", "U4", "LM74800-Q1", 60, 105,
       {"1": "DG_FE", "2": "VBATT_S", "3": "VBATT_S", "4": "FE_LAD", "5": "FE_OV",
        "6": "FE_EN", "7": "GND", "8": "HG_FE", "9": "VSW", "10": "FE_MID",
        "11": "FE_CAP", "12": "FE_MID"})
-place("NFET", "Q2", "SQJQ140E-A diode", 105, 90, {"1": "DG_FE", "2": "FE_MID", "3": "VBATT_S"})
-place("NFET", "Q3", "SQJQ140E-B switch", 105, 105, {"1": "HG_FE", "2": "FE_MID", "3": "VSW"})
+place("NFET", "Q2", "CSD18543Q3A diode", 105, 90, {"1": "DG_FE", "2": "FE_MID", "3": "VBATT_S"})
+place("NFET", "Q3", "CSD18543Q3A switch", 105, 105, {"1": "HG_FE", "2": "FE_MID", "3": "VSW"})
 place("CAP", "C1", "100n CAP-VS", 105, 120, {"1": "FE_CAP", "2": "FE_MID"})
 place("CAP", "C2", "100n VS-GND", 105, 130, {"1": "FE_MID", "2": "GND"})
 place("CAP", "C3", "47n HGATE dv/dt (10ms)", 135, 90, {"1": "HG_FE", "2": "VSW"})
@@ -240,7 +240,7 @@ place("SCREW2", "J8", "AUX_CTL out (JST-GH)", 155, 215, {"1": "AUX_CTL", "2": "G
 text("4. BUCK A  5.1V/6A (Pi 5)  [values: P1_DETAIL_DESIGN.md sec 2]", 230, 20)
 place("RES", "R4", "100k EN-A hi (8.5V on)", 200, 30, {"1": "VSW", "2": "EN_A"})
 place("RES", "R5", "16k5 EN-A lo (7.5V off)", 200, 42, {"1": "EN_A", "2": "GND"})
-buck_stage("A", "U1", 280, 45, "348R RILIM (7A valley)", "18p CILIM", "EN_A", "5VA_PRE")
+buck_stage("A", "U1", 280, 45, "301R RILIM (7A valley)", "18p CILIM", "EN_A", "5VA_PRE")
 place("IND", "L2", "pi-filter 1u", 380, 25, {"1": "5VA_PRE", "2": "5V_A"})
 place("CAP", "CA11", "2x22u pi-out", 380, 37, {"1": "5V_A", "2": "GND"})
 place("USBC_PWR", "J3", "USB-C PWR OUT (TH shell)", 415, 35,
@@ -251,7 +251,7 @@ place("SCREW2", "J12", "XT30 fallback pads", 415, 80, {"1": "5V_A", "2": "GND"})
 
 # --- section 5: buck B (radios + aux, 5A; EN sequenced from PGOOD_A) ---
 text("5. BUCK B  5.1V/5A (radios+aux) — EN = PGOOD_A (Pi rail first)", 230, 115)
-buck_stage("B", "U2", 280, 145, "287R RILIM (5.7A valley)", "22p CILIM", "PGOOD_A", "5VB_PRE")
+buck_stage("B", "U2", 280, 145, "243R RILIM (5.7A valley)", "22p CILIM", "PGOOD_A", "5VB_PRE")
 place("IND", "L4", "pi-filter 1u", 380, 125, {"1": "5VB_PRE", "2": "5V_B"})
 place("CAP", "CB11", "2x22u pi-out", 380, 137, {"1": "5V_B", "2": "GND"})
 

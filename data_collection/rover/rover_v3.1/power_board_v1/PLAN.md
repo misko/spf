@@ -25,9 +25,12 @@ GATE: DESIGN.md rev-locked. ✅
 GATE: schematic v2 ✅, zero black boxes ✅, ERC — **pending KiCad install**
 (`sudo apt install kicad`); deferred to P4 entry if not installed sooner.
 
-## P2 — BOM lockdown (0.5 d) [me: web-verified]
-Every line: MPN, footprint, JLC basic/extended, stock, 1 alternate; cost @ qty 5/25.
-GATE: no line without MPN + footprint + availability.
+## P2 — BOM lockdown (0.5 d) [me: web-verified] — **DONE 2026-07-13**
+BOM.md: every line MPN + LCSC C# + package + stock + alternate; ~$43-45/board
+assembled @ qty 5. Availability-driven substitutions (all design-verified):
+LM25145→LM5145RGYR, SQJQ140E→2×CSD18543Q3A, ATtiny816 SOIC→UQFN; RILIM 301/243 Ω.
+GATE: no line without MPN + footprint + availability ✅ (order-time re-check list
+in BOM.md §G).
 
 ## P3 — footprints & mechanical (0.5-1 d) [KiCad]
 Land patterns per datasheet (VQFN-20 wettable flanks!), board outline + mounting
