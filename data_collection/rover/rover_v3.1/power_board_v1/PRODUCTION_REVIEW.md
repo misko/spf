@@ -82,3 +82,11 @@ is not production-ready until the gates below are green — no exceptions.
 1. ERC clean → 2. WEBENCH/Quickstart-validated buck designs → 3. full layout + DRC
 → 4. design review vs checklist B → 5. prototype run (qty 3-5) → 6. bring-up plan
 executed and logged → 7. field trial on one rover → 8. rev B with findings → release.
+
+## STATUS STAMP (2026-07-13)
+This document is a **v1-architecture snapshot** (pre-P2). Part tables reference
+superseded parts (LM25145→LM5145, SQJQ140E→2x CSD18543Q3A, SMBJ33A→SMBJ16A,
+4u7→3u3 inductors, TPS7A1650→TPS7A1633, MCU_5V→MCU_3V3, reverse-PFET→LM74800).
+Current truth: BOM.md + P1_DETAIL_DESIGN.md + REVIEW_FINDINGS.md. Checklists B-E
+remain valid process gates. Finding numbers cited as "F5/F7/F8" in P1 text refer
+to checklist-A classes, not this file's numbered findings (review finding #6).

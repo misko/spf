@@ -84,3 +84,20 @@ dropped — 3S-only decision).
 kicad/ project skeleton: 2-layer, 2 oz copper, ~80x60 mm; JLC assembly-friendly
 parts (basic lib where possible). Draft schematic sheets: input+switch+LPD,
 buck A, buck B+USB, MCU+telemetry.
+
+## ERRATA (2026-07-13, adversarial review — supersedes conflicting text above)
+- "jumper-selectable divider" and "LPD bypass jumper": REMOVED (3S-only P0
+  decision; no chemistry/bypass jumpers exist in the schematic).
+- Bring-up step 1: sweep 9-13 V (not 10-32 V) — the OV ladder cuts at ~14.9 V.
+- b2b FETs: 2x CSD18543Q3A common-DRAIN (SQJQ140E unobtainable; "common-source"
+  in old review text is wrong).
+- Aux output: 2-pin terminal + 2 A polyfuse (not 4-pin); TVS per 5 V rail now
+  implemented (SMBJ5.0A x2).
+- USB port power-cycling: via supervisor I2C reg 0x10 (MCU pins), NOT Pi GPIO.
+- AUX_CTL semantics: motor contactor = state-gate AND Pi I2C arm (reg 0x11,
+  default OFF) — Pi must arm motors after boot.
+- Rail A: 5.18 V setpoint, sensed at 5V_A (no pi-filter); rail B: 5.08 V with
+  pi-filter, sensed pre-filter.
+- Cold turn-on floor: 10.65 V (WARN+100mV); 11.7 V applies to CUT recovery only.
+- Always-on drain: ~25 uA (VIN divider 16 uA dominates; not the 10 uA quoted in
+  P1 §3).

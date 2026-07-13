@@ -113,3 +113,23 @@ assembled @ qty 5** (scales to ~$28 @ qty 25). Within the ≤$50 informal budget
       footprint is the Littelfuse FLR_178.6165 stdlib placeholder — pick ONE
       (source Littelfuse holder, or author Keystone footprint from its drawing)
 - [ ] L2/L4: verify cjiang FXL0630 land vs the assigned Chilisin 0630 footprint
+
+## H. Review additions 2026-07-13 (schematic v4 — REVIEW_FINDINGS.md)
+| Refs | Part | Package | Note |
+|---|---|---|---|
+| C6, C8, C10, C13, C14, C15, C17 | 100 nF 50 V X7R | 0402 | decoupling (basic lib) |
+| C5, C9 | 1 µF 16 V X7R | 0603 | LDO in/out (basic lib) |
+| C7, C16 | 2.2 µF 16 V X7R | 0603 | MCU rail / FE_EN delay (basic lib) |
+| CE1 | 100 µF 25 V hybrid/polymer, 8×10 SMD | CP_Elec_8x10 | VSW bulk+damping — pick C# in JLC tool |
+| D5 | B5819W Schottky 1A/40V | SOD-123 | LCSC C8598 class — verify at order |
+| D6, D7 | SMBJ5.0A | SMB | 5 V rail TVS — C113996 class, verify |
+| F2 | 2 A polyfuse 1812 | Fuse_1812 | e.g. BSMD1812-200-16V — verify |
+| R31, R32 | 100 kΩ | 0402 | TPS2553 EN pull-ups |
+| R21 | 20.0 kΩ (was 10k) | 0402 | PGOOD_A pull-up to 5V_A |
+| R33 | 20.0 kΩ | 0402 | sequencing divider hi |
+| R34 | 16.5 kΩ | 0402 | sequencing divider lo |
+| RA2 | 348 Ω (was 301) | 0402 | RILIM A worst-case |
+| RB2 | 261 Ω (was 243/287) | 0402 | RILIM B worst-case |
+| RA4 | 3.65 kΩ (was 3.74k) | 0402 | rail A 5.18 V setpoint |
+| — | L2 pi-filter inductor DELETED from rail A (qty for L4 only: 1) | | |
+| CA51-53/CB51-53, CA61-64/CB61-64, CA111/112, CB111/112 | same 10µ/47µ/22µ parts as §B, now explicit per-instance refs | | quantities unchanged from §B intent |
