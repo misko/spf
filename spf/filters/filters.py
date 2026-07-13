@@ -290,6 +290,9 @@ def dual_radio_mse_theta_metrics(trajectory, craft_ground_truth_thetas):
 
 
 class ParticleFilter(SPFFilter):
+    # set True in subclasses whose state dim 0 is a wrapped angle (theta filters);
+    # XY/position filters must leave this False.
+    dim0_is_angular = False
 
     def fix_particles(self):
         return self.particles
@@ -339,11 +342,14 @@ class ParticleFilter(SPFFilter):
                     indexes = torch.as_tensor(systematic_resample(self.weights.numpy()))
                     resample_from_index(self.particles, self.weights, indexes)
 
-            mu, var = estimate(self.particles, self.weights)
+            if self.dim0_is_angular:
+                mu, var = estimate_angular_dim0(self.particles, self.weights)
+            else:
+                mu, var = estimate(self.particles, self.weights)
 
             trajectory.append({"var": var, "mu": mu})
             if return_particles:
-                trajectory[-1]["particles"] = self.particles.copy()
+                trajectory[-1]["particles"] = self.particles.clone()
             if debug:
                 trajectory[-1]["observation"] = self.observation(idx)
         return trajectory
@@ -402,6 +408,29 @@ def estimate(particles: torch.Tensor, weights: torch.Tensor):
     # var = torch.mean((self.particles - mean) ** 2, weights=self.weights, axis=0)
     mean = weighted_mean(particles, weights.reshape(-1, 1))
     var = weighted_mean((particles - mean) ** 2, weights.reshape(-1, 1))
+    return mean, var
+
+
+@torch.jit.script
+def estimate_angular_dim0(particles: torch.Tensor, weights: torch.Tensor):
+    """estimate() for filters whose state dim 0 is a wrapped angle.
+
+    Arithmetic averaging of wrapped angles collapses to ~0 when the particle
+    cloud straddles the +-pi seam; use the circular (phasor) mean instead, and
+    a wrapped second moment for the variance.
+    """
+    mean = weighted_mean(particles, weights.reshape(-1, 1))
+    w = weights.reshape(-1)
+    wsum = w.sum()
+    sin_m = (w * torch.sin(particles[:, 0])).sum() / wsum
+    cos_m = (w * torch.cos(particles[:, 0])).sum() / wsum
+    mean_theta = torch.atan2(sin_m, cos_m)
+    mean = mean.clone()
+    mean[0] = mean_theta
+    var = weighted_mean((particles - mean) ** 2, weights.reshape(-1, 1))
+    dev = torch.remainder(particles[:, 0] - mean_theta + torch.pi, 2 * torch.pi) - torch.pi
+    var = var.clone()
+    var[0] = (w * dev * dev).sum() / wsum
     return mean, var
 
 

@@ -20,6 +20,7 @@ from spf.scripts.train_single_point import (
 
 
 class PFSingleThetaSingleRadioNN(ParticleFilter):
+    dim0_is_angular = True
     """
     particle state is [ theta, dtheta/dt]
     """

@@ -166,65 +166,6 @@ def test_single_theta_dual_radioNN(
         plot_single_theta_dual_radio(ds)
 
 
-@pytest.mark.parametrize("temp_file", [False, True])
-def test_single_theta_dual_radioNN(
-    temp_file, noise1_n128_obits2, paired_net_checkpoint_using_single_checkpoint
-):
-
-    # get paired checkpoint results
-    paired_checkpoints_dir = paired_net_checkpoint_using_single_checkpoint
-
-    paired_config_fn = f"{paired_checkpoints_dir}/config.yml"
-    paired_checkpoint_fn = f"{paired_checkpoints_dir}/best.pth"
-
-    dirname, empirical_pkl_fn, ds_fn = noise1_n128_obits2
-    ds_fn += ".zarr"
-
-    inference_dir = tempfile.TemporaryDirectory()
-    if not temp_file:
-        _ = get_nn_inference_on_ds_and_cache(
-            ds_fn,
-            paired_config_fn,
-            paired_checkpoint_fn,
-            inference_cache=inference_dir.name,
-            device="cpu",
-            batch_size=4,
-            workers=0,
-            precompute_cache=dirname,
-            crash_if_not_cached=False,
-        )
-
-    with v5spfdataset_manager(
-        ds_fn,
-        precompute_cache=dirname,
-        nthetas=65,
-        skip_fields=set(["signal_matrix"]),
-        empirical_data_fn=empirical_pkl_fn,
-        paired=True,
-        ignore_qc=True,
-        gpu=False,
-        temp_file=temp_file,
-        temp_file_suffix="",
-        segment_if_not_exist=not temp_file,
-    ) as ds:
-        args = {
-            "ds": ds,
-            "N": 1024 * 4,
-            "theta_err": 0.1,
-            "theta_dot_err": 0.001,
-            "checkpoint_fn": paired_checkpoint_fn,
-        }
-        if not temp_file:
-            args.update(
-                {
-                    "inference_cache": inference_dir.name,
-                }
-            )
-
-        _ = run_PF_single_theta_dual_radio_NN(**args)
-        plot_single_theta_dual_radio(ds)
-
-
 def test_single_theta_dual_radioNN_nnwrapper(
     noise1_n128_obits2, paired_net_checkpoint_using_single_checkpoint
 ):

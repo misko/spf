@@ -83,7 +83,6 @@ class v5spfdataset_nn_wrapper(Dataset):
 
     def to_absolute_north(self, sample):
         for ridx in range(2):
-            breakpoint()
             ntheta = sample[ridx]["paired"].shape[-1]
             paired_nn_inference = sample[ridx]["paired"].reshape(-1, ntheta)
             paired_nn_inference_rotated = rotate_dist(
@@ -123,7 +122,6 @@ class v5spfdataset_nn_wrapper(Dataset):
                 # nn_inference={'single':[None,None]}
             for ridx in range(2):
                 sample[ridx].update({k: v[ridx] for k, v in nn_inference.items()})
-            breakpoint()
             if self.absolute:
                 sample = self.to_absolute_north(sample)
             return sample

@@ -28,6 +28,7 @@ def cached_model_inference_to_absolute_north(ds, cached_model_inference):
 
 
 class PFSingleThetaDualRadioNN(ParticleFilter):
+    dim0_is_angular = True
     def __init__(
         self,
         nn_ds,
@@ -38,7 +39,6 @@ class PFSingleThetaDualRadioNN(ParticleFilter):
         self.generator.manual_seed(0)
 
     def observation(self, idx):
-        breakpoint()
         return self.ds.get_inference_for_idx(idx)[0]["paired"][0]
 
     def fix_particles(self):
@@ -65,7 +65,12 @@ class PFSingleThetaDualRadioNN(ParticleFilter):
             (
                 self.ds.craft_ground_truth_thetas
                 if not self.absolute
-                else self.ds.absolute_thetas.mean(axis=0)
+                # circular mean across the two radios (arithmetic mean is wrong
+                # when the bearings straddle +-pi)
+                else torch.atan2(
+                    torch.sin(self.ds.absolute_thetas).mean(axis=0),
+                    torch.cos(self.ds.absolute_thetas).mean(axis=0),
+                )
             ),
         )
 

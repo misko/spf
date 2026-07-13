@@ -16,6 +16,7 @@ from spf.rf import reduce_theta_to_positive_y
 
 
 class PFSingleThetaSingleRadio(ParticleFilter):
+    dim0_is_angular = True
     """
     particle state is [ theta, dtheta/dt]
     """

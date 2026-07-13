@@ -1295,9 +1295,11 @@ class v5spfdataset(Dataset):
                 self.receiver_data[ridx]
             )  # wrap readonly so we can modify on the fly
             filler = self.receiver_data[ridx]["system_timestamp"][:] * 0
+            # degrees -> "in pis" (value * pi = radians) is deg/180, i.e. *2 here;
+            # must match v4_tx_rx_to_v5.py:175 which does (heading/360)*2
             self.receiver_data[ridx]["rx_heading_in_pis"] = (
                 self.receiver_data[ridx]["heading"][:] / 360
-            ) / 2
+            ) * 2
             for key in v5rx_f64_keys:
                 if key not in self.receiver_data[ridx]:
                     self.receiver_data[ridx][key] = filler

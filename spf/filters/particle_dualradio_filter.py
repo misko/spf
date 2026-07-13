@@ -28,6 +28,7 @@ def pf_single_theta_dual_radio_update(weights, particles, z, empirical_dist, off
 
 
 class PFSingleThetaDualRadio(ParticleFilter):
+    dim0_is_angular = True
     def __init__(self, ds):
         self.ds = ds
         self.offsets = torch.tensor(

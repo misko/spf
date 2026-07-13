@@ -538,6 +538,10 @@ class DroneDataCollectorRaw(DataCollector):
             self.position_controller.get_position_bearing_and_time()
         )
         data.heading = current_pos_heading_and_time["heading"]
+        # rx_heading_in_pis is a declared dataclass field (asdict() only carries
+        # declared fields, so setting only .heading would silently drop it from
+        # the realtime path); heading is degrees, in_pis = deg/180.
+        data.rx_heading_in_pis = current_pos_heading_and_time["heading"] / 180.0
         data.gps_long = current_pos_heading_and_time["gps"][0]
         data.gps_lat = current_pos_heading_and_time["gps"][1]
         data.gps_timestamp = current_pos_heading_and_time["gps_time"]
