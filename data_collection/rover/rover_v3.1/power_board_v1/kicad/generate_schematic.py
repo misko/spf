@@ -90,6 +90,10 @@ defsym("IND", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="L")
 defsym("TVS", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="D")
 defsym("LED", 7.62, 5.08, [("1", "A", "L", 0), ("2", "K", "R", 0)], ref="D")
 defsym("SHUNT", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="R")
+# USBLC6-2SC6 SOT-23-6 (ST): 1 I/O1, 2 GND, 3 I/O2, 4 I/O2', 5 VBUS, 6 I/O1'
+defsym("USBLC6", 10.16, 17.78,
+       [("1", "I/O1", "L", 0), ("3", "I/O2", "L", 2), ("2", "GND", "L", 5),
+        ("6", "I/O1'", "R", 0), ("4", "I/O2'", "R", 2), ("5", "VBUS", "R", 5)], ref="D")
 # CSD18543Q3A SON 3.3x3.3 (SLPS432): 1-3 = S, 4 = G, 5-8 = D (thermal pad = D)
 defsym("NFET_SON", 10.16, 17.78,
        [("4", "G", "L", 2), ("2", "S", "L", 4), ("3", "S", "L", 5),
@@ -129,8 +133,8 @@ defsym("INA226", 15.24, 27.94,
         ("1", "A1", "L", 6), ("2", "A0", "L", 7), ("7", "GND", "L", 9),
         ("4", "SDA", "R", 0), ("5", "SCL", "R", 1), ("3", "ALERT", "R", 3)], ref="U")
 # ATtiny816 VQFN-20 3x3 (DS40001913A table 5-1, VQFN column — differs from SOIC!)
-defsym("ATTINY816", 40.64, 50.8,
-       [("4", "VDD", "L", 0), ("3", "GND", "L", 18),
+defsym("ATTINY816", 40.64, 53.34,
+       [("4", "VDD", "L", 0), ("3", "GND", "L", 18), ("21", "EP", "L", 19),
         ("19", "PA0/UPDI", "L", 2), ("5", "PA4/VIN_SENSE", "L", 4), ("7", "PA6/V5A_SENSE", "L", 6),
         ("8", "PA7/NTC", "L", 8), ("6", "PA5/FAULT_USB", "L", 10), ("12", "PB2/SW_SENSE", "L", 12),
         ("18", "PC3/SHDN_ACK", "L", 14), ("15", "PC0/PGOOD_A", "L", 16),
@@ -295,7 +299,7 @@ place("TPS7A16", "U6", "TPS7A1633 3V3 60V LDO", 30, 178,
       {"8": "VBATT_F", "5": "VBATT_F", "4": "GND", "9": "GND", "1": "MCU_3V3",
        "3": None, "7": None, "2": None, "6": None})
 place("ATTINY816", "U3", "ATtiny816 (VQFN)", 88, 195,
-      {"4": "MCU_3V3", "3": "GND", "19": "UPDI", "5": "VSENSE", "7": "V5A_SENSE",
+      {"4": "MCU_3V3", "3": "GND", "21": "GND", "19": "UPDI", "5": "VSENSE", "7": "V5A_SENSE",
        "8": "NTC", "6": "FAULT_USB", "12": "SW_SENSE", "18": "SHDN_ACK", "15": "PGOOD_A",
        "10": "FE_EN", "9": "EN_A", "17": "LOW_BATT", "11": "AUX_CTL", "13": "SDA",
        "14": "SCL", "20": "EN_USB1", "1": "EN_USB2", "2": "LED_STAT", "16": "PGOOD_B"})
@@ -356,8 +360,10 @@ place("SCREW2", "J6", "AUX 5V 2A", 355, 257, {"1": "5V_B", "2": "GND"})
 
 place("RES", "R16", "20k RILIM1 (1.2A)", 230, 242, {"1": "ILIM1", "2": "GND"})
 place("RES", "R17", "20k RILIM2 (1.2A)", 230, 272, {"1": "ILIM2", "2": "GND"})
-place("TVS", "D2", "USBLC6-2 esd", 310, 257, {"1": "D1_P", "2": "GND"})
-place("TVS", "D3", "USBLC6-2 esd", 310, 287, {"1": "D2_P", "2": "GND"})
+place("USBLC6", "D2", "USBLC6-2SC6", 310, 258,
+      {"1": "D1_N", "6": "D1_N", "3": "D1_P", "4": "D1_P", "5": "VBUS1", "2": "GND"})
+place("USBLC6", "D3", "USBLC6-2SC6", 310, 288,
+      {"1": "D2_N", "6": "D2_N", "3": "D2_P", "4": "D2_P", "5": "VBUS2", "2": "GND"})
 
 # --- section 7: Pi harness + programming ---
 text("7. PI HARNESS (JST-GH) + UPDI", 20, 255)

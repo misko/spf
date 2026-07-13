@@ -44,7 +44,14 @@ datasheet-vs-stdlib verifications for the P4 review.
 REMAINING: board outline + mounting holes in pcbnew (**measure rover chassis mount
 pattern first!**), connector orientation vs harness. GATE: footprint checklist.
 
-## P4 — layout (2-3 d) [KiCad; checklist B in PRODUCTION_REVIEW.md]
+## P4 — layout (2-3 d) [KiCad; checklist B in PRODUCTION_REVIEW.md] — **STARTED 2026-07-13**
+✅ Starting board generated (kicad/generate_board.py): 90x65 outline, 4x M3 holes,
+all 96 footprints placed in floorplan zones, every pad net-bound (ratsnest live).
+Board-gen audit caught + fixed 2 schematic bugs: USBLC6 ESD arrays were 2-pin
+symbols (D− line + VBUS pin unprotected/floating → full 6-pin flow-through now);
+ATtiny EP now grounded. Only U4's EP floats (required).
+REMAINING (interactive pcbnew): placement refinement → route power loops →
+Kelvin/INA pair → USB pairs → logic → GND pour + AGND islands → thermal reliefs.
 Order: power loops → Kelvin/INA analog → USB pairs → logic. 2-layer 2 oz; decide
 4-layer fallback at mid-review. GATE: DRC clean + checklist B + fresh-eyes review
 of gerber renders (agent-reviewable as images).
