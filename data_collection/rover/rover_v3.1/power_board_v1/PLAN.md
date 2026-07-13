@@ -5,8 +5,8 @@ Each phase has a deliverable and a hard gate; nothing advances past a red gate.
 `sudo apt install kicad` to unlock in-session ERC/DRC/render iteration); "Vendor" = fab.
 
 ## P0 — freeze requirements (0.5 d) [decisions]
-Battery range final (3S only vs 3S-7S — sets LPD divisor + TVS), motor-path scope
-(AUX_CTL contactor confirmed off-board), connector standard (XT60/XT30 + JST-GH?),
+Battery range: **DECIDED 3S-only** (fixed LPD divider, SMBJ16A TVS, 9-13V buck design point), motor-path scope
+(AUX_CTL contactor confirmed off-board), connector standard (XT60 in; Pi via XT30->USB-C pigtail w/ 10k CC pullups + usb_max_current_enable=1, GPIO-feed pads as fallback; JST-GH signals — awaiting confirm),
 assembler (JLCPCB assy assumed). GATE: DESIGN.md rev-locked.
 
 ## P1 — electrical detail design (1-2 d) [me + TI Quickstart]

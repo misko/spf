@@ -5,7 +5,10 @@ USB bucks. Adds what the Apr-2025 switch failures, the 0.1V-hysteresis LPD, and 
 "no battery telemetry" ArduPilot review finding all asked for.
 
 ## Requirements
-- VIN 10-32 V (3S-7S Li-ion; 32 V + load-dump margin => >=42 V rated silicon)
+- **P0 DECISION (2026-07-13): 3S-only.** VIN 9-13 V operating (Li-ion 3S). Simplifies:
+  fixed LPD divider (no chemistry jumper), TVS -> SMBJ16A class, buck compensation
+  optimized for the narrow range. Silicon ratings kept >=42 V anyway (parts already
+  chosen; free margin against transients).
 - 5V outputs: Pi 5 (5.1 V / 6 A rail A) ; 2x PlutoPlus + 2 A aux (5.1 V / 5 A rail B)
 - Power on/off control; low-power disconnect; battery telemetry to the Pi
 - Very low ripple at radio ports; no brownout under Pi transients
