@@ -204,10 +204,13 @@ dormant — "still missing realtime pf"). Remove the breakpoints before enabling
 `spf/filters/particle_dual_radio_nn_filter.py:41` (PFSingleThetaDualRadioNN.observation,
 kills the realtime PF) and `spf/scripts/test.py:13` (module level).
 
-## #56 — rpi5 inference config uses slow_attack while fleet capture used fast_attack
-`data_collection/rpi5_inference/inference_config.yaml` sets `rx-gain-mode: slow_attack`
-for both receivers; all wall v5 capture configs (training data) used `fast_attack`.
-Train/inference AGC-behavior mismatch — gains_input distribution shifts at deployment.
+## #56 — AGC mode split: wall=fast_attack, rover=slow_attack (revised 2026-07-13)
+Wall v5 capture configs use `fast_attack`; rover v3.1 production capture configs
+(12/18, incl. all *_3mhz_* used by drone_run.sh) use `slow_attack` with rx-gain -3.
+So the rpi5 inference config's slow_attack MATCHES rover convention (original concern
+softened) — but training data itself is AGC-heterogeneous across platforms:
+gains_input dynamics differ wall vs rover. Consider platform-conditional analysis
+before comparing gain statistics across platforms.
 
 ## #57 — realtime inference heading always 0 (absolute bearings are craft-relative)
 `data_collector.py:540` sets `data.heading` dynamically; `DataSnapshotV4` has no such
