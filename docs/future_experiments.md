@@ -83,9 +83,22 @@ optional science. Only constraint window: |IF| >= max(10x crystal wander, ~0.01*
     into φ₀), so the trend captures δ(t) without seeing labels; geometry is preserved.
     Same identifiability condition as REC2a; invalid for smooth (bounce) trajectories.
     GT is used only to EVALUATE (ρ improvement), never to construct.
-- **If it works:** emit corrected mean_phase as a NEW sidecar cache (never touch raw or
-  existing caches) + recompute sub-GHz g medians for the coupling curve; sub-GHz stays
-  input-degraded for training either way until REC2b specifically is validated.
+- **STAGED PLAN (each step gates the next):**
+  1. Estimator built right (spline circular-LS, leave-block-out trend, CV knot count),
+     validated on SEMI-SYNTHETIC truth: real θ(t) trajectories + synthetic δ(t) matched
+     to measured autocorr, known g. Gate: unbiased g on jumpy trajectories AND honest
+     refusal (wide CI) on bounce. CPU, hours.
+  2. REC2a on ~30 real random/circle datasets. Gate: ρ(g_r0,g_r1) ≥ 0.6. Fail ⇒ band
+     unrecoverable, close L9.
+  3. REC2b (GT-free) same datasets, GT only for scoring + label-permutation leakage
+     audit of the pipeline.
+  4. Materialize sidecar /mnt/md2/cache/subghz_rec2b_v1/ (provenance: variant, params,
+     source hashes; raw untouched); scanner re-scores corrected phase.
+  5. Training A/B (one 250k ladder slot): r2+recovered vs r2 on val_clean/single_loss.
+     Only GPU step; runs after the current Stage-1 ladder.
+- **If it works:** sub-GHz metrology restored (coupling curve third band) and, if step 5
+  wins, the band re-enters training via the sidecar; otherwise sub-GHz stays
+  input-degraded and only the medians are salvaged.
 
 ## E-HW1 — bench VNA S21-vs-distance sweep of the antenna mounts
 
