@@ -47,3 +47,18 @@ the issue; GREEN = passes after the paired fix. Mark new tests strict-xfail unti
 1. RT2 breakpoints + flake8 T100/F811 gate (unblocks all realtime tests)
 2. RT1 + RT4 heading fixes (+ their unit reds)  3. RT3 lifecycle  4. RT7/PF2/PF3
 rotation+circular-stats  5. TS1 golden  6. rest.
+
+## Round 2 — gaps found by auditing the plan itself (G-rows)
+
+| ID | Gap | Sev | Test |
+|----|-----|-----|------|
+| G1 | precompute cache vs code desync: segmentation/beamformer outputs unpinned; version bump is manual | HIGH | golden vectors: fixed synthetic IQ → all_windows_stats/windowed_beamformer/mean_phase match committed arrays; intentional change requires version bump in same diff |
+| G2 | #53 resume-watermark, #54 re-freeze, val_subset_groups asserts: verified ad hoc this session, never committed as tests | HIGH | permanent regression trio (pass today): worse post-resume val leaves best.pth untouched; detach model stays frozen after resume; train-dataset-in-group manifest raises |
+| G3 | pre-#53 checkpoints (no best_val_loss key) must keep loading | MED | load stripped old-format checkpoint → 6-tuple with None watermark |
+| G4 | Jan-2024 polarity fixes (rx1-rx2-inversion attr, reg 0x22 bit6) unprotected against refactor | MED | mocked iio ctrl: setup_rx_config sets attr="1" and reg write includes 1<<6; AGC mode per config asserted |
+| G5 | model physics invariants untested: mirror symmetry, rx_theta rotation equivariance, paired-heads-identical (PF7's safety assumption) | MED | equivariance unit tests on tiny checkpoint; assert paired[0]==paired[1] |
+| G6 | no soak/latency tests: cache retention + throughput regressions invisible | MED | 500-sample realtime soak: RSS growth < cap; relative per-sample latency budget |
+| G7 | radio timeout/USB-drop mid-run error path untested | MED | fault-injection into ThreadedRX: assert loud failure, no silent half-corrupt zarr |
+| G8 | offline inference disk cache invalidation on checkpoint change untested | MED | swap checkpoint, same ds → cache miss + different outputs (not stale serve) |
+| G9 | all fake fixtures have heading≈0 — absolute-frame bug class invisible to e2e | HIGH (enabler) | fake_dataset variant with heading ramp; use in TS1/TS4 and RT1/RT4 reds |
+| G10 | no ratchet policy: risk of more unasserted smoke tests | POLICY | all reds land strict-xfail in tests/test_redgreen_*.py named by matrix ID; flake8 T100,F811 gate; fix ⇒ CI forces marker removal |
