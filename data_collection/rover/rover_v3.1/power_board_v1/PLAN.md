@@ -15,13 +15,15 @@ Each phase has a deliverable and a hard gate; nothing advances past a red gate.
    basic lib preferred, extended OK, hand-rework possible).
 GATE: DESIGN.md rev-locked. ✅
 
-## P1 — electrical detail design (1-2 d) [me + TI Quickstart]
-- Run TI Quickstart/WEBENCH for both bucks @ 10-32V→5.1V, 6A & 5A, 600 kHz →
-  exact RT/SS/COMP/FET/L/Cin/Cout; transcribe into schematic (kill black boxes)
-- Gate-drive trade study: LTC7004 vs LM74800 vs ideal-diode-ctrl integrated CP
-- MCU pin map vs ATtiny816 alt functions; supervisor FIRMWARE written + reviewed
-  (thresholds, 10 s qualifier, 60 s handshake, I2C regs, USB port-cycle cmds)
-GATE: schematic v2, zero black boxes, ERC clean.
+## P1 — electrical detail design (1-2 d) [me + TI Quickstart] — **substantially DONE 2026-07-13**
+- ✅ Buck detail math from LM25145 datasheet eqs @ 9-13V→5.1V, 6A & 5A, 606 kHz →
+  RT/SS/COMP/FET-class/L/Cin/Cout/RILIM in P1_DETAIL_DESIGN.md §2; transcribed into
+  schematic v2 (103 items — black boxes killed). [QS] Quickstart cross-check at P2.
+- ✅ Gate-drive trade study → **LM74800-Q1** front-end (P1_DETAIL_DESIGN.md §1)
+- ✅ MCU pin map (§3, all 18 signals) + supervisor firmware (firmware/) with
+  host-tested pure state machine (10 scenarios, `make test` green)
+GATE: schematic v2 ✅, zero black boxes ✅, ERC — **pending KiCad install**
+(`sudo apt install kicad`); deferred to P4 entry if not installed sooner.
 
 ## P2 — BOM lockdown (0.5 d) [me: web-verified]
 Every line: MPN, footprint, JLC basic/extended, stock, 1 alternate; cost @ qty 5/25.

@@ -36,7 +36,8 @@
 #define PC_LOW_BATT 2
 #define PC_SHDN_ACK 3
 
-/* VIN divider 68k/10k (ratio 7.8), ADC ref 2.5 V, 10-bit, 16x accumulate.
+/* VIN divider 680k/100k (ratio 7.8, high-Z: 16 uA; 100 nF hold cap on the tap),
+ * ADC ref 2.5 V, 10-bit, 16x accumulate.
  * mv = acc/16 * 2500/1024 * 7.8  ->  mv = acc * 1190 / 1000 (fits u32). */
 #define VIN_MV_FROM_ACC(acc) ((uint16_t)(((uint32_t)(acc) * 1190ul) / 1000ul))
 /* V5A divider 30k/10k (ratio 4): mv = acc/16 * 2500/1024 * 4 = acc * 610 / 1000 */

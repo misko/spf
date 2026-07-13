@@ -37,8 +37,9 @@ Pi-side quick check: `i2cget -y 1 0x36 0x00` (state), `i2cget -y 1 0x36 0x01 w`
 (pack mV).
 
 ## Scaling
-- VIN: 68k/10k divider (÷7.8), 2.5 V internal ref, 10-bit ×16 accumulation →
-  19 mV/LSB pack resolution
+- VIN: 680k/100k divider (÷7.8; high-impedance so the always-on drain stays ~16 µA,
+  with a 100 nF hold cap feeding the ADC), 2.5 V internal ref, 10-bit ×16
+  accumulation → 19 mV/LSB pack resolution
 - Rail A: 30k/10k divider (÷4) → 9.8 mV/LSB
 
 ## Hardware notes

@@ -18,9 +18,11 @@ USB bucks. Adds what the Apr-2025 switch failures, the 0.1V-hysteresis LPD, and 
 - Very low ripple at radio ports; no brownout under Pi transients
 
 ## Architecture
-BATT -> reverse-polarity FET -> fuse 15 A -> back-to-back NFET high-side switch
-(soft-start ~10 ms; gate logic from panel switch at mA — replaces arc-prone
-mechanical switching; DPDT relay footprint provided as alt-populate) ->
+BATT -> fuse 15 A -> 2 mΩ shunt -> **LM74800-Q1 ideal-diode + load-switch
+controller driving SQJQ140E back-to-back NFETs** (P1 trade study: replaces the
+v0 reverse-polarity PFET + discrete gate machinery; reverse protection, on/off,
+~10 ms HGATE soft-start, 15 V overvoltage cutoff and 2.87 µA off-state in one
+block — see P1_DETAIL_DESIGN.md §1) ->
   -> Buck A: 5.1 V / 6 A  -> Pi 5 (XT30 or screw + USB-C pigtail)
   -> Buck B: 5.1 V / 5 A  -> 2x USB-A ports (per-port TPS2553 load switch,
      EN from Pi GPIO => software power-cycle of a hung Pluto) + aux screw terminal
@@ -62,8 +64,10 @@ TVS on VIN (SMBJ16A — 3S-only decision) and each 5 V rail, ESD arrays on USB.
 
 ## Connectors / pinout
 XT60 in; USB-C receptacle w/ 10k Rp + specified 0.5ft 240W cable (Silkland B0CQ4SX256), XT30 fallback pads (rail A); 2x USB-A + 4-pin screw aux (rail B);
-6-pin Pi header: 3V3ref, SDA, SCL, LOW_BATT, PGOOD, GND; 2-pin panel switch;
-2-pin AUX_CTL (motor contactor gate); jumpers: chemistry select, LPD bypass.
+8-pin Pi header (JST-GH): SDA, SCL, LOW_BATT, SHDN_ACK, PGOOD_A, PGOOD_B, 2xGND;
+3-pin UPDI programming header; 2-pin panel switch;
+2-pin AUX_CTL (motor contactor gate); jumper: LPD bypass (chemistry jumper
+dropped — 3S-only decision).
 
 ## Bring-up plan
 1. Bench PSU sweep 10-32 V, no load: rails at 5.10 +-1 %, PGOOD asserted
