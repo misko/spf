@@ -31,17 +31,17 @@ ANCHOR = {
     # input, top-left: J1 mate faces WEST off-edge (rot 270 = pads vertical,
     # verified pads on-board); battery then flows monotonically west->east
     "J1": (57, 72, 90), "F1": (64, 68, 90), "R20": (74, 62, 0), "U5": (74, 69, 0),
-    "J2": (52, 109, 0), "D4": (52, 53, 0),
+    "J2": (54.5, 103, 0), "D4": (52, 95, 0),
     # front-end at mid-left (review: no more bottom-left hairpin)
     "Q2": (62, 82, 0), "Q3": (62, 92, 0), "U4": (54, 90, 0),
     "C1": (70, 80, 0), "C2": (70, 84, 0), "C3": (70, 88, 0), "C16": (70, 92, 0),
-    "CE1": (92, 74, 0),
+    "CE1": (92, 74, 0), "C15": (67, 75, 0),
     # supervisor
     "U3": (64, 101, 0), "U6": (78, 80, 0), "D5": (84, 64, 0), "U9": (78, 86, 0),
-    "J7": (68, 113, 0), "J11": (80, 112, 0), "J8": (88, 112, 0),
+    "J7": (68, 111.5, 0), "J11": (80, 111, 0), "J8": (88, 111, 0),
     # buck A: Cin column between controller and FET stack; QA1 drain faces west
     "U1": (82, 59, 0), "QA1": (96, 55, 180), "QA2": (96, 63, 0), "LA1": (106, 59, 0),
-    "CA51": (90, 53, 90), "CA52": (90, 58, 90), "CA53": (90, 63, 90),
+    "CA51": (90, 54.5, 90), "CA52": (90, 59.5, 90), "CA53": (90, 64.5, 90),
     "CA61": (116, 53, 0), "CA62": (116, 58, 0), "CA63": (116, 63, 0), "CA64": (116, 68, 0),
     "CA7": (122, 72, 90),
     # buck B mirror
@@ -50,7 +50,7 @@ ANCHOR = {
     
     # rail A output: USB-C moved to TOP edge (rot 0 mate faces north; frees the
     # right edge and clears mounting hole H2)
-    "J3": (127, 52, 0), "CA111": (121, 59, 0), "CA112": (121, 63, 0),
+    "J3": (125, 53, 180), "CA111": (121, 61, 0), "CA112": (121, 65, 0),
     # XT30 fallback mates EAST; pegs now on-board (review blocker fix)
     "J12": (128, 72, 270),
     "J4": (136, 85, 0), "J5": (136, 100, 0),
@@ -177,6 +177,31 @@ def main():
     ds.m_ViasMinSize = pcbnew.FromMM(0.6)
     ds.m_MinThroughDrill = pcbnew.FromMM(0.3)
 
+    # F.Cu POWER pours over the corridors (review: fat nets as copper, not traces).
+    # Higher priority than the GND fill; polygons follow the floorplan lanes.
+    POWER_ZONES = [
+        # VBATT_S: shunt -> front-end source column
+        ("VBATT_S", [(53, 58), (80, 58), (80, 84), (53, 84)]),
+        # VSW: front-end output up the center to both buck input-cap columns
+        ("VSW", [(54, 86), (97, 86), (97, 48), (84, 48), (84, 70), (66, 70),
+                 (66, 100), (54, 100)]),
+        # 5V_A: buck A output -> caps -> USB-C
+        ("5V_A", [(108, 48), (133, 48), (133, 66), (108, 66)]),
+    ]
+    for netname, poly in POWER_ZONES:
+        z = pcbnew.ZONE(board)
+        z.SetLayer(pcbnew.F_Cu)
+        z.SetNet(netmap[netname])
+        z.SetAssignedPriority(2) if hasattr(z, "SetAssignedPriority") else z.SetPriority(2)
+        z.SetLocalClearance(pcbnew.FromMM(0.3))
+        z.SetMinThickness(pcbnew.FromMM(0.3))
+        z.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
+        out = z.Outline()
+        out.NewOutline()
+        for x, y in poly:
+            out.Append(pcbnew.FromMM(x), pcbnew.FromMM(y))
+        board.Add(z)
+
     # GND pours, both layers (2-layer: B.Cu = reference plane, F.Cu = stitched fill)
     gnd = netmap.get("GND")
     for layer in (pcbnew.B_Cu, pcbnew.F_Cu):
@@ -282,11 +307,97 @@ def main():
                 p.y = max(pcbnew.FromMM(Y0 + 3), min(pcbnew.FromMM(Y0 + H - 3), p.y))
                 mv.SetPosition(p)
                 moved = True
+        # screw-head keepouts: push movables out of a 3.4mm box around H1-H4
+        for hr in ("H1", "H2", "H3", "H4"):
+            hf = fps.get(hr)
+            if hf is None:
+                continue
+            hc = hf.GetPosition()
+            k = pcbnew.FromMM(3.4)
+            hb = pcbnew.BOX2I(pcbnew.VECTOR2I(hc.x - k, hc.y - k),
+                              pcbnew.VECTOR2I(2 * k, 2 * k))
+            for r2, f2 in fps.items():
+                if r2 in fixed:
+                    continue
+                b2 = bb(f2)
+                if not b2.Intersects(hb):
+                    continue
+                p2 = f2.GetPosition()
+                dxh = hb.GetRight() - b2.GetLeft() + pcbnew.FromMM(0.4) \
+                    if p2.x >= hc.x else -(b2.GetRight() - hb.GetLeft() + pcbnew.FromMM(0.4))
+                dyh = hb.GetBottom() - b2.GetTop() + pcbnew.FromMM(0.4) \
+                    if p2.y >= hc.y else -(b2.GetBottom() - hb.GetTop() + pcbnew.FromMM(0.4))
+                if abs(dxh) <= abs(dyh):
+                    p2.x += dxh
+                else:
+                    p2.y += dyh
+                p2.x = max(pcbnew.FromMM(X0 + 3), min(pcbnew.FromMM(X0 + W - 3), p2.x))
+                p2.y = max(pcbnew.FromMM(Y0 + 3), min(pcbnew.FromMM(Y0 + H - 3), p2.y))
+                f2.SetPosition(p2)
+                moved = True
         if not moved:
             break
     # refill zones AFTER moves (review fix: stale fill overlapped nudged pads)
     pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+
+    # GND stitching: every SMD GND pad gets a via to the B.Cu plane (the F.Cu
+    # power zones carve the top ground fill, so top-only pour paths are gone)
+    allpads = [(pp, pp.GetPosition()) for f in board.GetFootprints() for pp in f.Pads()]
+    gvias = [t.GetPosition() for t in board.GetTracks() if type(t).__name__ == "PCB_VIA"]
+    stitched = 0
+    for f in board.GetFootprints():
+        for pad in f.Pads():
+            if pad.GetNetname() != "GND" or pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
+                continue
+            pp = pad.GetPosition()
+            if any(abs(gv.x - pp.x) < pcbnew.FromMM(2.0) and abs(gv.y - pp.y) < pcbnew.FromMM(2.0)
+                   for gv in gvias):
+                continue
+            for dx, dy in ((1.4, 0), (-1.4, 0), (0, 1.4), (0, -1.4), (1.1, 1.1), (-1.1, -1.1)):
+                cx, cy = pp.x + pcbnew.FromMM(dx), pp.y + pcbnew.FromMM(dy)
+                if not (pcbnew.FromMM(X0 + 1) < cx < pcbnew.FromMM(X0 + W - 1)
+                        and pcbnew.FromMM(Y0 + 1) < cy < pcbnew.FromMM(Y0 + H - 1)):
+                    continue
+                ok_spot = all(
+                    op.GetNetname() == "GND" or
+                    max(abs(op2.x - cx), abs(op2.y - cy)) > pcbnew.FromMM(1.0)
+                    for op, op2 in allpads)
+                if not ok_spot:
+                    continue
+                v = pcbnew.PCB_VIA(board)
+                v.SetPosition(pcbnew.VECTOR2I(int(cx), int(cy)))
+                v.SetDrill(pcbnew.FromMM(0.3))
+                v.SetWidth(pcbnew.FromMM(0.6))
+                v.SetNet(netmap["GND"])
+                v.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
+                board.Add(v)
+                t = pcbnew.PCB_TRACK(board)
+                t.SetStart(pp)
+                t.SetEnd(pcbnew.VECTOR2I(int(cx), int(cy)))
+                t.SetWidth(pcbnew.FromMM(0.35))
+                t.SetLayer(pcbnew.F_Cu)
+                t.SetNet(netmap["GND"])
+                board.Add(t)
+                gvias.append(v.GetPosition())
+                stitched += 1
+                break
+    print(f"GND stitching: {stitched} vias added")
+    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
     board.Save(str(OUT))
+
+    # HARD INVARIANT (J3 lesson): every copper pad fully inside the outline.
+    # Connector bodies may overhang; copper may not.
+    edge_bad = []
+    for r, f in fps.items():
+        for pad in f.Pads():
+            pos, hx, hy = pad.GetPosition(), pad.GetSizeX() // 2, pad.GetSizeY() // 2
+            if (pos.x - hx < pcbnew.FromMM(X0 + 0.3) or pos.x + hx > pcbnew.FromMM(X0 + W - 0.3)
+                    or pos.y - hy < pcbnew.FromMM(Y0 + 0.3) or pos.y + hy > pcbnew.FromMM(Y0 + H - 0.3)):
+                edge_bad.append((r, pad.GetNumber()))
+    if edge_bad:
+        print("PAD-OFF-BOARD VIOLATIONS:", edge_bad)
+        raise SystemExit("pads outside board outline - fix anchors before routing")
+    print("pad-on-board invariant: PASS (all copper inside outline)")
 
     boxes = [(r, bb(f)) for r, f in fps.items() if not r.startswith("H")]
     overlaps = []
