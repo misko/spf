@@ -221,10 +221,16 @@ v5inferencedataset iterator starts at 0; max_store_size=3 evicts → ValueError 
 late/slow consumer; getitem timeout returns None → TypeError in collate; render
 exceptions swallowed by executor (last 4 futures unchecked) → 30s/idx infinite hang.
 
-## #59 — v4→v5 heading conversion divides by 720 instead of 180 (4× small)
-spf_dataset.py:1298-1300. Arithmetic confirmed; IMPACT UNVERIFIED for merged rover
-corpus (separate merge path; audit Δθ evidence suggests rover labels unaffected).
-Verify which data flows through this branch before fixing.
+## #59 — v4→v5 heading conversion divides by 720 instead of 180 (4× small) — RESOLVED as typo, impact scoped
+spf_dataset.py:1298-1300 (`(heading/360)/2`), introduced in a2bc222 "prepare for
+v5inference dataset". The batch merge script does the SAME conversion CORRECTLY:
+v4_tx_rx_to_v5.py:175 `(heading/360)*2` = deg/180 — the loader re-implementation
+flipped *2 into /2. ArduPilot reports hdg in centidegrees (GLOBAL_POSITION_INT);
+mavlink_controller.py:807 already /100 → degrees; nothing justifies /720.
+IMPACT: training corpus SAFE — merged rover v5 files used the correct merge-script
+conversion; wall v4 heading≈0 so /720 of 0 is harmless. The buggy branch executes only
+for datasets loaded directly as v4 — i.e. the realtime/replay path (same hodge-podge
+area as #57/#58). Fix alongside them: change /2 to *2.
 
 ## #60 — realtime pushes ~8MB signal_matrix through mp.Queue per snapshot/radio
 Plus asdict deep-copy + astype copy + 3 stacked lru_cache(4) retention in the wrapper.
