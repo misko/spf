@@ -1,143 +1,99 @@
 ** Drc report for /home/mouse9911/gits/spf/data_collection/rover/rover_v3.1/power_board_v1/kicad/power_board_v1.kicad_pcb **
-** Created on 2026-07-13 13:35:00 **
+** Created on 2026-07-13 13:53:53 **
 
-** Found 333 DRC violations **
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(109.3400 mm, 74.1500 mm): Line on F.Silkscreen
-    @(110.3900 mm, 71.2550 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(118.0000 mm, 83.7000 mm): Reference 'CB61'
-    @(118.2887 mm, 83.9100 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(101.5000 mm, 106.7400 mm): Reference 'J6'
-    @(102.1525 mm, 106.7375 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(101.5000 mm, 106.7400 mm): Reference 'J6'
-    @(101.7588 mm, 106.3438 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(91.0000 mm, 102.8500 mm): Reference 'CB3'
-    @(87.2700 mm, 102.3300 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(91.0000 mm, 102.8500 mm): Reference 'CB3'
-    @(90.0000 mm, 103.3500 mm): Reference 'F2'
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(90.8922 mm, 104.3700 mm): Line on F.Silkscreen
-    @(88.6137 mm, 104.2900 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(88.0000 mm, 108.0000 mm): Reference 'J8'
-    @(88.6137 mm, 107.7100 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(87.7000 mm, 95.0000 mm): Reference 'CB53'
-    @(86.0000 mm, 96.8300 mm): Reference 'RB3'
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(65.1600 mm, 102.6100 mm): Line on F.Silkscreen
-    @(64.0000 mm, 103.1800 mm): Reference 'R18'
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(64.0000 mm, 103.1800 mm): Reference 'R18'
-    @(64.0000 mm, 103.5700 mm): Reference 'C7'
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(91.0000 mm, 78.4500 mm): Reference 'CA3'
-    @(88.8044 mm, 78.2600 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(90.8922 mm, 79.9700 mm): Line on F.Silkscreen
-    @(91.0000 mm, 80.1200 mm): Reference 'R4'
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(90.8464 mm, 68.7600 mm): Line on F.Silkscreen
-    @(92.0000 mm, 68.8000 mm): Reference 'CE1'
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(88.8044 mm, 78.2600 mm): Line on F.Silkscreen
-    @(96.0000 mm, 78.8300 mm): Reference 'R5'
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(98.0000 mm, 66.8400 mm): Reference 'C13'
-    @(96.5794 mm, 66.8900 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(94.2500 mm, 64.7600 mm): Line on F.Silkscreen
-    @(96.7200 mm, 64.9500 mm): Reference 'C5'
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(96.0000 mm, 96.8300 mm): Reference 'RB5'
-    @(94.2500 mm, 96.7600 mm): Line on F.Silkscreen
-[silk_overlap]: Silkscreen overlap
-    Rule: board setup constraints silk; Severity: warning
-    @(84.6700 mm, 102.3300 mm): Line on F.Silkscreen
-    @(84.8200 mm, 102.8500 mm): Reference 'CB2'
+** Found 330 DRC violations **
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
     @(84.8200 mm, 102.8500 mm): Reference 'CB2'
     @(86.0000 mm, 102.3300 mm): Line on F.Silkscreen
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(55.0000 mm, 105.8000 mm): Reference 'H3'
-    @(55.8464 mm, 105.3800 mm): Line on F.Silkscreen
+    @(84.8200 mm, 102.8500 mm): Reference 'CB2'
+    @(84.6700 mm, 102.3300 mm): Line on F.Silkscreen
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(62.8400 mm, 102.6100 mm): Line on F.Silkscreen
-    @(64.0000 mm, 103.1800 mm): Reference 'R18'
+    @(94.2500 mm, 96.7600 mm): Line on F.Silkscreen
+    @(96.0000 mm, 96.8300 mm): Reference 'RB5'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(64.0000 mm, 103.5700 mm): Reference 'C7'
-    @(63.8464 mm, 103.9700 mm): Line on F.Silkscreen
+    @(86.0000 mm, 96.8300 mm): Reference 'RB3'
+    @(87.7000 mm, 95.0000 mm): Reference 'CB53'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(51.8464 mm, 105.3800 mm): Line on F.Silkscreen
-    @(52.0000 mm, 105.0000 mm): Reference 'J2'
+    @(90.0000 mm, 103.3500 mm): Reference 'F2'
+    @(91.0000 mm, 102.8500 mm): Reference 'CB3'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(51.8464 mm, 104.6200 mm): Line on F.Silkscreen
-    @(52.0000 mm, 105.0000 mm): Reference 'J2'
+    @(87.2700 mm, 102.3300 mm): Line on F.Silkscreen
+    @(91.0000 mm, 102.8500 mm): Reference 'CB3'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(76.0000 mm, 70.8300 mm): Reference 'RA1'
-    @(74.0000 mm, 70.6100 mm): Line on F.Silkscreen
+    @(88.0000 mm, 108.0000 mm): Reference 'J8'
+    @(88.6137 mm, 107.7100 mm): Line on F.Silkscreen
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(108.0000 mm, 64.3450 mm): Reference 'C9'
-    @(99.9900 mm, 64.2600 mm): Line on F.Silkscreen
+    @(88.6137 mm, 104.2900 mm): Line on F.Silkscreen
+    @(90.8922 mm, 104.3700 mm): Line on F.Silkscreen
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(111.8664 mm, 68.3800 mm): Line on F.Silkscreen
-    @(113.0000 mm, 69.0000 mm): Reference 'D1'
+    @(98.0000 mm, 66.8400 mm): Reference 'C13'
+    @(96.5794 mm, 66.8900 mm): Line on F.Silkscreen
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(109.3400 mm, 69.8500 mm): Line on F.Silkscreen
-    @(114.0500 mm, 70.4050 mm): Reference 'D7'
+    @(98.7764 mm, 72.3800 mm): Line on F.Silkscreen
+    @(98.9300 mm, 72.5200 mm): Reference 'RA5'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(112.0400 mm, 64.3450 mm): Reference 'C10'
-    @(99.9900 mm, 64.2600 mm): Line on F.Silkscreen
+    @(91.0000 mm, 78.4500 mm): Reference 'CA3'
+    @(88.8044 mm, 78.2600 mm): Line on F.Silkscreen
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(112.0100 mm, 64.2600 mm): Line on F.Silkscreen
-    @(112.0400 mm, 64.3450 mm): Reference 'C10'
+    @(88.8044 mm, 78.2600 mm): Line on F.Silkscreen
+    @(96.0000 mm, 78.8300 mm): Reference 'R5'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
     @(96.2600 mm, 78.2600 mm): Line on F.Silkscreen
     @(96.0000 mm, 78.8300 mm): Reference 'R5'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(98.9300 mm, 72.5200 mm): Reference 'RA5'
-    @(98.7764 mm, 72.3800 mm): Line on F.Silkscreen
+    @(96.7200 mm, 64.9500 mm): Reference 'C5'
+    @(94.2500 mm, 64.7600 mm): Line on F.Silkscreen
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(103.0000 mm, 75.7050 mm): Reference 'R24'
+    @(90.8464 mm, 68.7600 mm): Line on F.Silkscreen
+    @(92.0000 mm, 68.8000 mm): Reference 'CE1'
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(112.0100 mm, 64.2600 mm): Line on F.Silkscreen
+    @(112.0400 mm, 64.3450 mm): Reference 'C10'
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(111.8664 mm, 68.3800 mm): Line on F.Silkscreen
+    @(113.0000 mm, 69.0000 mm): Reference 'D1'
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(114.0500 mm, 70.4050 mm): Reference 'D7'
+    @(109.3400 mm, 69.8500 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(110.3900 mm, 71.2550 mm): Line on F.Silkscreen
+    @(109.3400 mm, 74.1500 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(110.3900 mm, 75.5550 mm): Line on F.Silkscreen
+    @(112.0000 mm, 75.7000 mm): Reference 'L4'
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
     @(101.2450 mm, 75.5550 mm): Line on F.Silkscreen
+    @(103.0000 mm, 75.7050 mm): Reference 'R24'
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(103.0000 mm, 68.7650 mm): Reference 'R33'
+    @(102.8922 mm, 68.3600 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(103.0000 mm, 64.3450 mm): Reference 'C6'
+    @(99.9900 mm, 64.2600 mm): Line on F.Silkscreen
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
     @(108.0000 mm, 68.7650 mm): Reference 'R34'
@@ -145,66 +101,74 @@
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
     @(99.9900 mm, 64.2600 mm): Line on F.Silkscreen
-    @(103.0000 mm, 64.3450 mm): Reference 'C6'
+    @(108.0000 mm, 64.3450 mm): Reference 'C9'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(103.0000 mm, 68.7650 mm): Reference 'R33'
-    @(102.8922 mm, 68.3600 mm): Line on F.Silkscreen
+    @(99.9900 mm, 64.2600 mm): Line on F.Silkscreen
+    @(112.0400 mm, 64.3450 mm): Reference 'C10'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
     @(107.8594 mm, 66.2850 mm): Line on F.Silkscreen
     @(108.0000 mm, 66.8300 mm): Reference 'R21'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(105.0000 mm, 85.5600 mm): Line on F.Silkscreen
+    @(91.0000 mm, 80.1200 mm): Reference 'R4'
+    @(90.8922 mm, 79.9700 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(55.0000 mm, 105.8000 mm): Reference 'H3'
+    @(55.8464 mm, 105.3800 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(76.0000 mm, 70.8300 mm): Reference 'RA1'
+    @(74.0000 mm, 70.6100 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
     @(106.0000 mm, 86.0000 mm): Reference 'LB1'
+    @(105.0000 mm, 85.5600 mm): Line on F.Silkscreen
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
     @(105.0000 mm, 85.5600 mm): Line on F.Silkscreen
     @(106.0000 mm, 86.0000 mm): Reference 'LB1'
 [silk_overlap]: Silkscreen overlap
     Rule: board setup constraints silk; Severity: warning
-    @(112.0000 mm, 75.7000 mm): Reference 'L4'
-    @(110.3900 mm, 75.5550 mm): Line on F.Silkscreen
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(108.0000 mm, 68.7650 mm): Reference 'R34'
+    @(118.2887 mm, 83.9100 mm): Line on F.Silkscreen
+    @(118.0000 mm, 83.7000 mm): Reference 'CB61'
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(101.7588 mm, 106.3438 mm): Line on F.Silkscreen
+    @(101.5000 mm, 106.7400 mm): Reference 'J6'
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(101.5000 mm, 106.7400 mm): Reference 'J6'
+    @(102.1525 mm, 106.7375 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(64.0000 mm, 103.5700 mm): Reference 'C7'
+    @(63.8464 mm, 103.9700 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(64.0000 mm, 103.5700 mm): Reference 'C7'
+    @(64.0000 mm, 103.1800 mm): Reference 'R18'
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(64.0000 mm, 103.1800 mm): Reference 'R18'
+    @(62.8400 mm, 102.6100 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(52.0000 mm, 105.0000 mm): Reference 'J2'
+    @(51.8464 mm, 105.3800 mm): Line on F.Silkscreen
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(51.8464 mm, 104.6200 mm): Line on F.Silkscreen
+    @(52.0000 mm, 105.0000 mm): Reference 'J2'
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; Severity: warning
+    @(64.0000 mm, 103.1800 mm): Reference 'R18'
+    @(65.1600 mm, 102.6100 mm): Line on F.Silkscreen
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
     @(55.0000 mm, 105.8000 mm): Reference 'H3'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(117.6500 mm, 72.0000 mm): Reference 'CA7'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(40.5400 mm, 56.5400 mm): Line on F.Silkscreen
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(54.8500 mm, 60.6500 mm): Arc on F.Silkscreen
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(103.0000 mm, 68.7650 mm): Reference 'R33'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(88.0000 mm, 108.0000 mm): Reference 'J8'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(91.0000 mm, 96.8300 mm): Reference 'RB4'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(92.0000 mm, 68.8000 mm): Reference 'CE1'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(64.0000 mm, 103.1800 mm): Reference 'R18'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(98.9300 mm, 72.5200 mm): Reference 'RA5'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(96.0000 mm, 96.8300 mm): Reference 'RB5'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(64.0000 mm, 103.5700 mm): Reference 'C7'
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
     @(90.0000 mm, 103.3500 mm): Reference 'F2'
@@ -213,22 +177,16 @@
     @(88.6137 mm, 104.2900 mm): Line on F.Silkscreen
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
-    @(109.3400 mm, 74.1500 mm): Line on F.Silkscreen
+    @(64.0000 mm, 103.5700 mm): Reference 'C7'
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
     @(86.0000 mm, 104.8400 mm): Reference 'CB10'
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
-    @(129.1000 mm, 92.0000 mm): Reference 'J5'
+    @(98.0000 mm, 66.8400 mm): Reference 'C13'
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
-    @(108.0000 mm, 66.8300 mm): Reference 'R21'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(98.9300 mm, 76.5100 mm): Reference 'R23'
-[silk_over_copper]: Silkscreen clipped by solder mask
-    Local override; Severity: warning
-    @(118.0000 mm, 83.7000 mm): Reference 'CB61'
+    @(96.0000 mm, 102.4400 mm): Reference 'D3'
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
     @(52.0000 mm, 105.0000 mm): Reference 'J2'
@@ -240,13 +198,19 @@
     @(54.9850 mm, 110.8600 mm): Line on F.Silkscreen
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
-    @(96.0000 mm, 102.4400 mm): Reference 'D3'
+    @(98.9300 mm, 76.5100 mm): Reference 'R23'
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
-    @(98.0000 mm, 66.8400 mm): Reference 'C13'
+    @(64.0000 mm, 103.1800 mm): Reference 'R18'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(109.3400 mm, 74.1500 mm): Line on F.Silkscreen
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
     @(91.0000 mm, 80.1200 mm): Reference 'R4'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(117.6500 mm, 72.0000 mm): Reference 'CA7'
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
     @(114.0500 mm, 70.4050 mm): Reference 'D7'
@@ -256,70 +220,48 @@
 [silk_over_copper]: Silkscreen clipped by solder mask
     Local override; Severity: warning
     @(110.3900 mm, 71.2550 mm): Line on F.Silkscreen
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(97.4400 mm, 62.0275 mm): Pad [<no net>] of QA2 on F.Cu
-    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(97.4400 mm, 62.6700 mm): Pad [<no net>] of QA2 on F.Cu
-    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(97.4400 mm, 63.3300 mm): Pad [<no net>] of QA2 on F.Cu
-    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(97.4400 mm, 63.9725 mm): Pad [<no net>] of QA2 on F.Cu
-    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(91.0000 mm, 96.8300 mm): Reference 'RB4'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(96.0000 mm, 96.8300 mm): Reference 'RB5'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(92.0000 mm, 68.8000 mm): Reference 'CE1'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(103.0000 mm, 68.7650 mm): Reference 'R33'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(118.0000 mm, 83.7000 mm): Reference 'CB61'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(129.1000 mm, 92.0000 mm): Reference 'J5'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(88.0000 mm, 108.0000 mm): Reference 'J8'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(108.0000 mm, 66.8300 mm): Reference 'R21'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(98.9300 mm, 72.5200 mm): Reference 'RA5'
+[silk_over_copper]: Silkscreen clipped by solder mask
+    Local override; Severity: warning
+    @(108.0000 mm, 68.7650 mm): Reference 'R34'
 [solder_mask_bridge]: Front solder mask aperture bridges items with different nets
     Rule: board setup solder mask min width; Severity: error
     @(55.0000 mm, 110.0000 mm): NPTH pad of H3
     @(54.4750 mm, 107.6000 mm): Pad MP [<no net>] of J2 on F.Cu
 [solder_mask_bridge]: Front solder mask aperture bridges items with different nets
     Rule: board setup solder mask min width; Severity: error
-    @(63.4900 mm, 104.3500 mm): Pad 1 [3V3_SW] of R18 on F.Cu
     @(63.2250 mm, 105.0000 mm): Pad 1 [MCU_3V3] of C7 on F.Cu
+    @(63.4900 mm, 104.3500 mm): Pad 1 [3V3_SW] of R18 on F.Cu
 [solder_mask_bridge]: Front solder mask aperture bridges items with different nets
     Rule: board setup solder mask min width; Severity: error
-    @(64.5100 mm, 104.3500 mm): Pad 2 [SDA] of R18 on F.Cu
     @(64.7750 mm, 105.0000 mm): Pad 2 [GND] of C7 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(63.4400 mm, 91.0275 mm): Pad [<no net>] of Q3 on F.Cu
-    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(63.4400 mm, 91.6700 mm): Pad [<no net>] of Q3 on F.Cu
-    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(63.4400 mm, 92.3300 mm): Pad [<no net>] of Q3 on F.Cu
-    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(63.4400 mm, 92.9725 mm): Pad [<no net>] of Q3 on F.Cu
-    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(94.5600 mm, 55.9725 mm): Pad [<no net>] of QA1 on F.Cu
-    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(94.5600 mm, 55.3300 mm): Pad [<no net>] of QA1 on F.Cu
-    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(94.5600 mm, 54.6700 mm): Pad [<no net>] of QA1 on F.Cu
-    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(94.5600 mm, 54.0275 mm): Pad [<no net>] of QA1 on F.Cu
-    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
-[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
-    Rule: board setup solder mask min width; Severity: error
-    @(110.8500 mm, 72.0000 mm): Pad 1 [VBATT_F] of D1 on F.Cu
-    @(111.9000 mm, 73.4050 mm): Pad 1 [5V_B] of D7 on F.Cu
+    @(64.5100 mm, 104.3500 mm): Pad 2 [SDA] of R18 on F.Cu
 [solder_mask_bridge]: Front solder mask aperture bridges items with different nets
     Rule: board setup solder mask min width; Severity: error
     @(97.4400 mm, 94.0275 mm): Pad [<no net>] of QB2 on F.Cu
@@ -338,6 +280,26 @@
     @(96.3850 mm, 95.0000 mm): Pad 5 [SW_B] of QB2 on F.Cu
 [solder_mask_bridge]: Front solder mask aperture bridges items with different nets
     Rule: board setup solder mask min width; Severity: error
+    @(110.8500 mm, 72.0000 mm): Pad 1 [VBATT_F] of D1 on F.Cu
+    @(111.9000 mm, 73.4050 mm): Pad 1 [5V_B] of D7 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(63.4400 mm, 91.0275 mm): Pad [<no net>] of Q3 on F.Cu
+    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(63.4400 mm, 91.6700 mm): Pad [<no net>] of Q3 on F.Cu
+    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(63.4400 mm, 92.3300 mm): Pad [<no net>] of Q3 on F.Cu
+    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(63.4400 mm, 92.9725 mm): Pad [<no net>] of Q3 on F.Cu
+    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
     @(94.5600 mm, 87.9725 mm): Pad [<no net>] of QB1 on F.Cu
     @(95.6150 mm, 87.0000 mm): Pad 5 [VSW] of QB1 on F.Cu
 [solder_mask_bridge]: Front solder mask aperture bridges items with different nets
@@ -352,6 +314,38 @@
     Rule: board setup solder mask min width; Severity: error
     @(94.5600 mm, 86.0275 mm): Pad [<no net>] of QB1 on F.Cu
     @(95.6150 mm, 87.0000 mm): Pad 5 [VSW] of QB1 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(94.5600 mm, 55.9725 mm): Pad [<no net>] of QA1 on F.Cu
+    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(94.5600 mm, 55.3300 mm): Pad [<no net>] of QA1 on F.Cu
+    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(94.5600 mm, 54.6700 mm): Pad [<no net>] of QA1 on F.Cu
+    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(94.5600 mm, 54.0275 mm): Pad [<no net>] of QA1 on F.Cu
+    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(97.4400 mm, 62.0275 mm): Pad [<no net>] of QA2 on F.Cu
+    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(97.4400 mm, 62.6700 mm): Pad [<no net>] of QA2 on F.Cu
+    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(97.4400 mm, 63.3300 mm): Pad [<no net>] of QA2 on F.Cu
+    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
+[solder_mask_bridge]: Front solder mask aperture bridges items with different nets
+    Rule: board setup solder mask min width; Severity: error
+    @(97.4400 mm, 63.9725 mm): Pad [<no net>] of QA2 on F.Cu
+    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
 [solder_mask_bridge]: Front solder mask aperture bridges items with different nets
     Rule: board setup solder mask min width; Severity: error
     @(63.4400 mm, 81.0275 mm): Pad [<no net>] of Q2 on F.Cu
@@ -371,234 +365,276 @@
 [starved_thermal]: Thermal relief connection to zone incomplete (zone min spoke count 2; actual 1)
     Local override; Severity: error
     @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu
+    @(80.6500 mm, 57.7500 mm): Pad 8 [GND] of U1 on F.Cu
+[starved_thermal]: Thermal relief connection to zone incomplete (zone min spoke count 2; actual 1)
+    Local override; Severity: error
+    @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu
     @(80.6500 mm, 90.7500 mm): Pad 8 [GND] of U2 on F.Cu
 [starved_thermal]: Thermal relief connection to zone incomplete (zone min spoke count 2; actual 1)
     Local override; Severity: error
     @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu
     @(55.3900 mm, 91.2500 mm): Pad 7 [GND] of U4 on F.Cu
-[starved_thermal]: Thermal relief connection to zone incomplete (zone min spoke count 2; actual 1)
-    Local override; Severity: error
-    @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu
-    @(80.6500 mm, 57.7500 mm): Pad 8 [GND] of U1 on F.Cu
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(78.0000 mm, 80.0000 mm): Footprint U6
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(105.0000 mm, 84.0000 mm): Footprint U7
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(96.0000 mm, 63.0000 mm): Footprint QA2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(119.0000 mm, 79.0000 mm): Footprint CB111
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(99.0000 mm, 113.0000 mm): Footprint J6
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(108.0000 mm, 69.9350 mm): Footprint R34
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(91.0000 mm, 104.0100 mm): Footprint CB3
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(55.0000 mm, 110.0000 mm): Footprint H3
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(122.0000 mm, 72.0000 mm): Footprint CA7
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(52.0000 mm, 101.0000 mm): Footprint R28
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(81.0000 mm, 106.0000 mm): Footprint CB9
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(127.0000 mm, 52.0000 mm): Footprint J3
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(104.0000 mm, 102.3000 mm): Footprint CB7
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(91.0000 mm, 79.6100 mm): Footprint CA3
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(64.0000 mm, 101.0000 mm): Footprint U3
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(57.0000 mm, 68.0000 mm): Footprint J1
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(116.0000 mm, 68.0000 mm): Footprint CA64
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(97.0600 mm, 102.0000 mm): Footprint CB4
+    @(76.0000 mm, 98.0000 mm): Footprint RB1
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(121.0000 mm, 59.0000 mm): Footprint CA111
+    @(105.0000 mm, 84.0000 mm): Footprint U7
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(84.7850 mm, 72.0000 mm): Footprint RA3
+    @(55.0000 mm, 110.0000 mm): Footprint H3
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(74.0000 mm, 62.0000 mm): Footprint R20
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(96.7200 mm, 66.3800 mm): Footprint C5
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(108.0000 mm, 65.7750 mm): Footprint C9
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(91.0000 mm, 68.3800 mm): Footprint RA4
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(94.2800 mm, 110.5750 mm): Footprint D2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(103.0000 mm, 69.9350 mm): Footprint R33
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(88.0000 mm, 112.0000 mm): Footprint J8
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(76.0000 mm, 76.0000 mm): Footprint RA6
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(91.0000 mm, 98.0000 mm): Footprint RB4
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(90.0000 mm, 95.0000 mm): Footprint CB53
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(60.0000 mm, 105.0000 mm): Footprint R3
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(84.0000 mm, 64.0000 mm): Footprint D5
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(82.0000 mm, 92.0000 mm): Footprint U2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(104.9050 mm, 73.4050 mm): Footprint D6
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(78.0000 mm, 86.0000 mm): Footprint U9
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(98.9100 mm, 76.0000 mm): Footprint CA4
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(119.0000 mm, 83.0000 mm): Footprint CB112
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(70.0000 mm, 84.0000 mm): Footprint C2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(92.0000 mm, 74.0000 mm): Footprint CE1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(70.0000 mm, 92.0000 mm): Footprint C16
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(60.0000 mm, 101.0000 mm): Footprint R30
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(70.0000 mm, 88.0000 mm): Footprint C3
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(56.0000 mm, 101.0000 mm): Footprint R29
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(76.0000 mm, 102.0000 mm): Footprint RB6
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(81.0000 mm, 72.0000 mm): Footprint RA2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(68.0000 mm, 97.0000 mm): Footprint R26
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(64.0000 mm, 104.3500 mm): Footprint R18
+    @(90.0000 mm, 106.0000 mm): Footprint F2
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(113.0000 mm, 104.0000 mm): Footprint J9
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
+    @(116.0000 mm, 63.0000 mm): Footprint CA63
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
     @(96.0000 mm, 80.0000 mm): Footprint R5
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(103.0000 mm, 76.8750 mm): Footprint R24
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(103.0000 mm, 68.0000 mm): Footprint C14
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(73.2200 mm, 80.0000 mm): Footprint CA8
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(62.0000 mm, 92.0000 mm): Footprint Q3
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(52.0000 mm, 44.0000 mm): Footprint C15
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(54.0000 mm, 90.0000 mm): Footprint U4
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(96.0000 mm, 55.0000 mm): Footprint QA1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(84.2350 mm, 76.0000 mm): Footprint CA2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(80.0000 mm, 112.0000 mm): Footprint J11
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(76.0000 mm, 106.0000 mm): Footprint CB8
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(86.0000 mm, 80.0000 mm): Footprint CA10
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(98.9300 mm, 73.6900 mm): Footprint RA5
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(82.0000 mm, 59.0000 mm): Footprint U1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(96.0000 mm, 98.0000 mm): Footprint RB5
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(112.0200 mm, 68.0000 mm): Footprint R31
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(118.0000 mm, 91.0000 mm): Footprint CB62
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(121.0000 mm, 63.0000 mm): Footprint CA112
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(64.0000 mm, 97.0000 mm): Footprint R25
+    @(64.0000 mm, 105.0000 mm): Footprint C7
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(90.0000 mm, 58.0000 mm): Footprint CA52
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(64.0000 mm, 68.0000 mm): Footprint F1
+    @(112.0200 mm, 68.0000 mm): Footprint R31
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(81.0000 mm, 102.0000 mm): Footprint CB1
+    @(86.0000 mm, 106.0000 mm): Footprint CB10
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(108.0000 mm, 65.7750 mm): Footprint C9
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(94.2800 mm, 110.5750 mm): Footprint D2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(98.0000 mm, 68.0000 mm): Footprint C13
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(90.0000 mm, 90.0000 mm): Footprint CB52
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(127.0000 mm, 52.0000 mm): Footprint J3
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(119.0000 mm, 83.0000 mm): Footprint CB112
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(70.0000 mm, 92.0000 mm): Footprint C16
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(70.0000 mm, 80.0000 mm): Footprint C1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(96.0000 mm, 104.8400 mm): Footprint D3
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(135.0000 mm, 110.0000 mm): Footprint H4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(52.0000 mm, 109.0000 mm): Footprint J2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(56.0000 mm, 101.0000 mm): Footprint R29
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(72.0000 mm, 101.0000 mm): Footprint R22
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(90.0000 mm, 85.0000 mm): Footprint CB51
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(90.0000 mm, 53.0000 mm): Footprint CA51
+    @(78.0000 mm, 86.0000 mm): Footprint U9
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(64.0000 mm, 105.0000 mm): Footprint C7
+    @(68.0000 mm, 113.0000 mm): Footprint J7
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(57.0000 mm, 72.0000 mm): Footprint J1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(84.7850 mm, 72.0000 mm): Footprint RA3
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(98.9300 mm, 77.6800 mm): Footprint R23
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(64.0000 mm, 104.3500 mm): Footprint R18
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(81.0000 mm, 106.0000 mm): Footprint CB9
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(118.0000 mm, 91.0000 mm): Footprint CB62
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(98.9300 mm, 72.0000 mm): Footprint R32
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(52.0000 mm, 53.0000 mm): Footprint D4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(82.7800 mm, 80.0000 mm): Footprint CA9
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(96.0000 mm, 95.0000 mm): Footprint QB2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(121.0000 mm, 59.0000 mm): Footprint CA111
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(113.0000 mm, 72.0000 mm): Footprint D1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(64.0000 mm, 97.0000 mm): Footprint R25
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(91.0000 mm, 81.2900 mm): Footprint R4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(116.0000 mm, 53.0000 mm): Footprint CA61
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(56.0000 mm, 105.0000 mm): Footprint R2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(72.0000 mm, 105.0000 mm): Footprint C17
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(103.0000 mm, 76.8750 mm): Footprint R24
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(122.0000 mm, 72.0000 mm): Footprint CA7
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(114.0500 mm, 73.4050 mm): Footprint D7
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(118.0000 mm, 96.0000 mm): Footprint CB63
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(86.0000 mm, 80.0000 mm): Footprint CA10
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(72.0000 mm, 97.0000 mm): Footprint R27
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(104.0000 mm, 102.3000 mm): Footprint CB7
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(60.0000 mm, 101.0000 mm): Footprint R30
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(76.0000 mm, 72.0000 mm): Footprint RA1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(81.0000 mm, 102.0000 mm): Footprint CB1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(62.0000 mm, 92.0000 mm): Footprint Q3
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(82.0000 mm, 59.0000 mm): Footprint U1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(60.0000 mm, 97.0000 mm): Footprint C4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(91.0000 mm, 98.0000 mm): Footprint RB4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(73.2200 mm, 80.0000 mm): Footprint CA8
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(70.0000 mm, 84.0000 mm): Footprint C2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(70.0000 mm, 88.0000 mm): Footprint C3
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(136.0000 mm, 85.0000 mm): Footprint J4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(76.0000 mm, 76.0000 mm): Footprint RA6
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(112.0000 mm, 80.0000 mm): Footprint L4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(91.0000 mm, 79.6100 mm): Footprint CA3
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(64.0000 mm, 68.0000 mm): Footprint F1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(96.0000 mm, 87.0000 mm): Footprint QB1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(55.0000 mm, 55.0000 mm): Footprint H1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(76.0000 mm, 106.0000 mm): Footprint CB8
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(52.0000 mm, 101.0000 mm): Footprint R28
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(96.7200 mm, 66.3800 mm): Footprint C5
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(68.0000 mm, 105.0000 mm): Footprint C8
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(120.0000 mm, 110.0000 mm): Footprint U8
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(96.0000 mm, 55.0000 mm): Footprint QA1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(52.0000 mm, 105.0000 mm): Footprint R1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(52.0000 mm, 97.0000 mm): Footprint R10
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(84.8200 mm, 104.2800 mm): Footprint CB2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(68.0000 mm, 97.0000 mm): Footprint R26
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(96.0000 mm, 63.0000 mm): Footprint QA2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(96.0000 mm, 98.0000 mm): Footprint RB5
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(92.0000 mm, 74.0000 mm): Footprint CE1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(103.0000 mm, 68.0000 mm): Footprint C14
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(121.0000 mm, 63.0000 mm): Footprint CA112
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(118.0000 mm, 101.0000 mm): Footprint CB64
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(81.0000 mm, 98.0000 mm): Footprint RB2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(135.0000 mm, 55.0000 mm): Footprint H2
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(86.0000 mm, 98.0000 mm): Footprint RB3
@@ -607,180 +643,130 @@
     @(86.0000 mm, 101.0000 mm): Footprint J10
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(90.0000 mm, 106.0000 mm): Footprint F2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(113.0000 mm, 72.0000 mm): Footprint D1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(98.9300 mm, 72.0000 mm): Footprint R32
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(74.2200 mm, 108.5800 mm): Footprint R17
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(52.0000 mm, 97.0000 mm): Footprint R10
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(135.0000 mm, 110.0000 mm): Footprint H4
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(76.0000 mm, 98.0000 mm): Footprint RB1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(86.0000 mm, 106.0000 mm): Footprint CB10
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(118.0000 mm, 101.0000 mm): Footprint CB64
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(60.0000 mm, 97.0000 mm): Footprint C4
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(136.0000 mm, 100.0000 mm): Footprint J5
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(118.0000 mm, 96.0000 mm): Footprint CB63
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(108.0000 mm, 68.0000 mm): Footprint R21
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(136.0000 mm, 85.0000 mm): Footprint J4
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(98.9300 mm, 77.6800 mm): Footprint R23
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(84.8200 mm, 104.2800 mm): Footprint CB2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(56.0000 mm, 105.0000 mm): Footprint R2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(116.0000 mm, 63.0000 mm): Footprint CA63
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(72.0000 mm, 97.0000 mm): Footprint R27
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(52.0000 mm, 105.0000 mm): Footprint R1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(81.0000 mm, 98.0000 mm): Footprint RB2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(96.0000 mm, 95.0000 mm): Footprint QB2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(118.0000 mm, 86.0000 mm): Footprint CB61
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(128.0000 mm, 72.0000 mm): Footprint J12
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(55.0000 mm, 55.0000 mm): Footprint H1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(116.0000 mm, 53.0000 mm): Footprint CA61
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(135.0000 mm, 55.0000 mm): Footprint H2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(52.0000 mm, 53.0000 mm): Footprint D4
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(72.0000 mm, 105.0000 mm): Footprint C17
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(106.0000 mm, 92.0000 mm): Footprint LB1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(52.0000 mm, 109.0000 mm): Footprint J2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(96.0000 mm, 104.8400 mm): Footprint D3
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(96.0000 mm, 87.0000 mm): Footprint QB1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(76.0000 mm, 72.0000 mm): Footprint RA1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(68.0000 mm, 101.0000 mm): Footprint R19
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(90.0000 mm, 63.0000 mm): Footprint CA53
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(101.0000 mm, 82.0000 mm): Footprint R16
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(120.0000 mm, 110.0000 mm): Footprint U8
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(90.0000 mm, 90.0000 mm): Footprint CB52
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(72.0000 mm, 101.0000 mm): Footprint R22
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(98.0000 mm, 68.0000 mm): Footprint C13
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(116.0000 mm, 58.0000 mm): Footprint CA62
+    @(62.0000 mm, 82.0000 mm): Footprint Q2
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(112.0400 mm, 65.5050 mm): Footprint C10
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(81.0000 mm, 76.0000 mm): Footprint CA1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(82.7800 mm, 80.0000 mm): Footprint CA9
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(70.0000 mm, 80.0000 mm): Footprint C1
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(62.0000 mm, 82.0000 mm): Footprint Q2
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
-    @(91.0000 mm, 81.2900 mm): Footprint R4
-[lib_footprint_issues]: The current configuration does not include the library ''.
-    Local override; Severity: warning
     @(103.0000 mm, 65.5050 mm): Footprint C6
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(68.0000 mm, 101.0000 mm): Footprint R19
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(99.0000 mm, 113.0000 mm): Footprint J6
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(128.0000 mm, 72.0000 mm): Footprint J12
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(78.0000 mm, 80.0000 mm): Footprint U6
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(90.0000 mm, 63.0000 mm): Footprint CA53
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(74.2200 mm, 108.5800 mm): Footprint R17
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(84.0000 mm, 64.0000 mm): Footprint D5
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(64.0000 mm, 101.0000 mm): Footprint U3
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(104.9050 mm, 73.4050 mm): Footprint D6
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(76.0000 mm, 102.0000 mm): Footprint RB6
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(106.0000 mm, 92.0000 mm): Footprint LB1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(97.0600 mm, 102.0000 mm): Footprint CB4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(80.0000 mm, 112.0000 mm): Footprint J11
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(52.0000 mm, 44.0000 mm): Footprint C15
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(103.0000 mm, 69.9350 mm): Footprint R33
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(98.9100 mm, 76.0000 mm): Footprint CA4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(118.0000 mm, 86.0000 mm): Footprint CB61
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(90.0000 mm, 95.0000 mm): Footprint CB53
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(106.0000 mm, 59.0000 mm): Footprint LA1
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(112.0000 mm, 80.0000 mm): Footprint L4
+    @(136.0000 mm, 100.0000 mm): Footprint J5
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(114.0500 mm, 73.4050 mm): Footprint D7
+    @(88.0000 mm, 112.0000 mm): Footprint J8
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(68.0000 mm, 105.0000 mm): Footprint C8
+    @(119.0000 mm, 79.0000 mm): Footprint CB111
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(91.0000 mm, 104.0100 mm): Footprint CB3
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(56.0000 mm, 97.0000 mm): Footprint R11
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
-    @(68.0000 mm, 113.0000 mm): Footprint J7
+    @(108.0000 mm, 68.0000 mm): Footprint R21
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(82.0000 mm, 92.0000 mm): Footprint U2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(81.0000 mm, 76.0000 mm): Footprint CA1
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(116.0000 mm, 58.0000 mm): Footprint CA62
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(101.0000 mm, 82.0000 mm): Footprint R16
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(54.0000 mm, 90.0000 mm): Footprint U4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(91.0000 mm, 68.3800 mm): Footprint RA4
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(81.0000 mm, 72.0000 mm): Footprint RA2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(84.2350 mm, 76.0000 mm): Footprint CA2
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(98.9300 mm, 73.6900 mm): Footprint RA5
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(108.0000 mm, 69.9350 mm): Footprint R34
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(74.0000 mm, 62.0000 mm): Footprint R20
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(90.0000 mm, 53.0000 mm): Footprint CA51
+[lib_footprint_issues]: The current configuration does not include the library ''.
+    Local override; Severity: warning
+    @(60.0000 mm, 105.0000 mm): Footprint R3
 [lib_footprint_issues]: The current configuration does not include the library ''.
     Local override; Severity: warning
     @(74.0000 mm, 69.0000 mm): Footprint U5
-[silk_edge_clearance]: Silkscreen clipped by board edge
-    Rule: board setup constraints silk; Severity: warning
-    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(96.4400 mm, 107.7390 mm): Line on F.Silkscreen
-[silk_edge_clearance]: Silkscreen clipped by board edge
-    Rule: board setup constraints silk; Severity: warning
-    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(106.5600 mm, 107.7390 mm): Line on F.Silkscreen
 [copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.0550 mm)
     Rule: board setup constraints edge; Severity: error
     @(50.0000 mm, 50.0000 mm): Line on Edge.Cuts
@@ -789,50 +775,6 @@
     Rule: board setup constraints edge; Severity: error
     @(50.0000 mm, 50.0000 mm): Line on Edge.Cuts
     @(131.3200 mm, 48.8950 mm): PTH pad S1 [GND] of J3
-[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.0000 mm)
-    Rule: board setup constraints edge; Severity: error
-    @(50.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(51.0000 mm, 71.1500 mm): PTH pad [<no net>] of J1
-[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.0000 mm)
-    Rule: board setup constraints edge; Severity: error
-    @(50.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(51.0000 mm, 57.6500 mm): PTH pad [<no net>] of J1
-[silk_edge_clearance]: Silkscreen clipped by board edge
-    Rule: board setup constraints silk; Severity: warning
-    @(50.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(40.5400 mm, 72.2600 mm): Line on F.Silkscreen
-[silk_edge_clearance]: Silkscreen clipped by board edge
-    Rule: board setup constraints silk; Severity: warning
-    @(50.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(40.5400 mm, 56.5400 mm): Line on F.Silkscreen
-[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
-    Rule: board setup constraints edge; Severity: error
-    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(87.3750 mm, 113.9500 mm): Pad 1 [AUX_CTL] of J8 on F.Cu
-[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
-    Rule: board setup constraints edge; Severity: error
-    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(88.6250 mm, 113.9500 mm): Pad 2 [GND] of J8 on F.Cu
-[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
-    Rule: board setup constraints edge; Severity: error
-    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(78.7500 mm, 113.9500 mm): Pad 1 [UPDI] of J11 on F.Cu
-[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
-    Rule: board setup constraints edge; Severity: error
-    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(80.0000 mm, 113.9500 mm): Pad 2 [MCU_3V3] of J11 on F.Cu
-[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
-    Rule: board setup constraints edge; Severity: error
-    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
-    @(81.2500 mm, 113.9500 mm): Pad 3 [GND] of J11 on F.Cu
-[silk_edge_clearance]: Silkscreen clipped by board edge
-    Rule: board setup constraints silk; Severity: warning
-    @(140.0000 mm, 50.0000 mm): Line on Edge.Cuts
-    @(141.2100 mm, 64.4400 mm): Line on F.Silkscreen
-[silk_edge_clearance]: Silkscreen clipped by board edge
-    Rule: board setup constraints silk; Severity: warning
-    @(140.0000 mm, 50.0000 mm): Line on Edge.Cuts
-    @(141.2100 mm, 74.5600 mm): Line on F.Silkscreen
 [copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.0000 mm)
     Rule: board setup constraints edge; Severity: error
     @(50.0000 mm, 115.0000 mm): Line on Edge.Cuts
@@ -849,118 +791,142 @@
     Rule: board setup constraints edge; Severity: error
     @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
     @(74.2250 mm, 114.3500 mm): Pad MP [<no net>] of J7 on F.Cu
-[courtyards_overlap]: Courtyards overlap
-    Rule: board setup constraints courtyard; Severity: error
-    @(99.0000 mm, 113.0000 mm): Footprint J6
-    @(94.2800 mm, 110.5750 mm): Footprint D2
-[courtyards_overlap]: Courtyards overlap
-    Rule: board setup constraints courtyard; Severity: error
-    @(91.0000 mm, 104.0100 mm): Footprint CB3
-    @(90.0000 mm, 106.0000 mm): Footprint F2
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.0000 mm)
+    Rule: board setup constraints edge; Severity: error
+    @(50.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(51.0000 mm, 75.1500 mm): PTH pad [<no net>] of J1
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.0000 mm)
+    Rule: board setup constraints edge; Severity: error
+    @(50.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(51.0000 mm, 61.6500 mm): PTH pad [<no net>] of J1
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; Severity: warning
+    @(50.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(40.5400 mm, 76.2600 mm): Line on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; Severity: warning
+    @(50.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(40.5400 mm, 60.5400 mm): Line on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; Severity: warning
+    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(96.4400 mm, 107.7390 mm): Line on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; Severity: warning
+    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(106.5600 mm, 107.7390 mm): Line on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; Severity: warning
+    @(140.0000 mm, 50.0000 mm): Line on Edge.Cuts
+    @(141.2100 mm, 64.4400 mm): Line on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; Severity: warning
+    @(140.0000 mm, 50.0000 mm): Line on Edge.Cuts
+    @(141.2100 mm, 74.5600 mm): Line on F.Silkscreen
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
+    Rule: board setup constraints edge; Severity: error
+    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(78.7500 mm, 113.9500 mm): Pad 1 [UPDI] of J11 on F.Cu
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
+    Rule: board setup constraints edge; Severity: error
+    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(80.0000 mm, 113.9500 mm): Pad 2 [MCU_3V3] of J11 on F.Cu
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
+    Rule: board setup constraints edge; Severity: error
+    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(81.2500 mm, 113.9500 mm): Pad 3 [GND] of J11 on F.Cu
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
+    Rule: board setup constraints edge; Severity: error
+    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(87.3750 mm, 113.9500 mm): Pad 1 [AUX_CTL] of J8 on F.Cu
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.2000 mm)
+    Rule: board setup constraints edge; Severity: error
+    @(140.0000 mm, 115.0000 mm): Line on Edge.Cuts
+    @(88.6250 mm, 113.9500 mm): Pad 2 [GND] of J8 on F.Cu
 [courtyards_overlap]: Courtyards overlap
     Rule: board setup constraints courtyard; Severity: error
     @(55.0000 mm, 110.0000 mm): Footprint H3
     @(52.0000 mm, 109.0000 mm): Footprint J2
 [courtyards_overlap]: Courtyards overlap
     Rule: board setup constraints courtyard; Severity: error
+    @(90.0000 mm, 106.0000 mm): Footprint F2
+    @(91.0000 mm, 104.0100 mm): Footprint CB3
+[courtyards_overlap]: Courtyards overlap
+    Rule: board setup constraints courtyard; Severity: error
+    @(64.0000 mm, 105.0000 mm): Footprint C7
+    @(64.0000 mm, 104.3500 mm): Footprint R18
+[courtyards_overlap]: Courtyards overlap
+    Rule: board setup constraints courtyard; Severity: error
+    @(94.2800 mm, 110.5750 mm): Footprint D2
+    @(99.0000 mm, 113.0000 mm): Footprint J6
+[courtyards_overlap]: Courtyards overlap
+    Rule: board setup constraints courtyard; Severity: error
     @(127.0000 mm, 52.0000 mm): Footprint J3
     @(135.0000 mm, 55.0000 mm): Footprint H2
 [courtyards_overlap]: Courtyards overlap
     Rule: board setup constraints courtyard; Severity: error
-    @(57.0000 mm, 68.0000 mm): Footprint J1
+    @(52.0000 mm, 53.0000 mm): Footprint D4
     @(55.0000 mm, 55.0000 mm): Footprint H1
-[courtyards_overlap]: Courtyards overlap
-    Rule: board setup constraints courtyard; Severity: error
-    @(64.0000 mm, 104.3500 mm): Footprint R18
-    @(64.0000 mm, 105.0000 mm): Footprint C7
 [courtyards_overlap]: Courtyards overlap
     Rule: board setup constraints courtyard; Severity: error
     @(113.0000 mm, 72.0000 mm): Footprint D1
     @(114.0500 mm, 73.4050 mm): Footprint D7
-[courtyards_overlap]: Courtyards overlap
-    Rule: board setup constraints courtyard; Severity: error
-    @(55.0000 mm, 55.0000 mm): Footprint H1
-    @(52.0000 mm, 53.0000 mm): Footprint D4
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(82.6000 mm, 92.9000 mm): Via [GND] on F.Cu - B.Cu
+    @(83.3500 mm, 92.7500 mm): Pad 17 [BST_B] of U2 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
     Rule: netclass 'Default'; Severity: error
     @(81.4000 mm, 91.1000 mm): Via [GND] on F.Cu - B.Cu
     @(80.6500 mm, 91.2500 mm): Pad 7 [unconnected-(U2-SYNCOUT-Pad7)] of U2 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
     Rule: netclass 'Default'; Severity: error
-    @(82.6000 mm, 58.1000 mm): Via [GND] on F.Cu - B.Cu
-    @(83.3500 mm, 58.2500 mm): Pad 14 [VCC_A] of U1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
-    Rule: netclass 'Default'; Severity: error
     @(82.6000 mm, 91.1000 mm): Via [GND] on F.Cu - B.Cu
     @(83.3500 mm, 91.2500 mm): Pad 14 [VCC_B] of U2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(81.4000 mm, 59.9000 mm): Via [GND] on F.Cu - B.Cu
-    @(80.6500 mm, 59.7500 mm): Pad 4 [COMP_A] of U1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(81.4000 mm, 58.1000 mm): Via [GND] on F.Cu - B.Cu
-    @(80.6500 mm, 58.2500 mm): Pad 7 [unconnected-(U1-SYNCOUT-Pad7)] of U1 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
     Rule: netclass 'Default'; Severity: error
     @(81.4000 mm, 92.9000 mm): Via [GND] on F.Cu - B.Cu
     @(80.6500 mm, 92.7500 mm): Pad 4 [COMP_B] of U2 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
     Rule: netclass 'Default'; Severity: error
+    @(81.4000 mm, 58.1000 mm): Via [GND] on F.Cu - B.Cu
+    @(80.6500 mm, 58.2500 mm): Pad 7 [unconnected-(U1-SYNCOUT-Pad7)] of U1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(82.6000 mm, 58.1000 mm): Via [GND] on F.Cu - B.Cu
+    @(83.3500 mm, 58.2500 mm): Pad 14 [VCC_A] of U1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
+    Rule: netclass 'Default'; Severity: error
     @(82.6000 mm, 59.9000 mm): Via [GND] on F.Cu - B.Cu
     @(83.3500 mm, 59.7500 mm): Pad 17 [BST_A] of U1 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1574 mm)
     Rule: netclass 'Default'; Severity: error
-    @(82.6000 mm, 92.9000 mm): Via [GND] on F.Cu - B.Cu
-    @(83.3500 mm, 92.7500 mm): Pad 17 [BST_B] of U2 on F.Cu
-[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
-    Local override; Severity: error
-    @(97.4400 mm, 62.0275 mm): Pad [<no net>] of QA2 on F.Cu
-    @(97.4400 mm, 62.6700 mm): Pad [<no net>] of QA2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(97.4400 mm, 62.0275 mm): Pad [<no net>] of QA2 on F.Cu
-    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
-[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1600 mm)
-    Local override; Severity: error
-    @(97.4400 mm, 62.6700 mm): Pad [<no net>] of QA2 on F.Cu
-    @(97.4400 mm, 63.3300 mm): Pad [<no net>] of QA2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(97.4400 mm, 62.6700 mm): Pad [<no net>] of QA2 on F.Cu
-    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
-[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
-    Local override; Severity: error
-    @(97.4400 mm, 63.3300 mm): Pad [<no net>] of QA2 on F.Cu
-    @(97.4400 mm, 63.9725 mm): Pad [<no net>] of QA2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(97.4400 mm, 63.3300 mm): Pad [<no net>] of QA2 on F.Cu
-    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(97.4400 mm, 63.9725 mm): Pad [<no net>] of QA2 on F.Cu
-    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1400 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(94.5600 mm, 63.3300 mm): Pad 3 [GND] of QA2 on F.Cu
-    @(94.5600 mm, 63.9700 mm): Pad 4 [LO_A] of QA2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0330 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(91.4800 mm, 104.0100 mm): Pad 2 [SW_B] of CB3 on F.Cu
-    @(92.1375 mm, 106.0000 mm): Pad 2 [AUX_5V] of F2 on F.Cu
+    @(81.4000 mm, 59.9000 mm): Via [GND] on F.Cu - B.Cu
+    @(80.6500 mm, 59.7500 mm): Pad 4 [COMP_A] of U1 on F.Cu
 [hole_clearance]: Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.0000 mm)
     Rule: board setup constraints hole; Severity: error
     @(55.0000 mm, 110.0000 mm): NPTH pad of H3
     @(54.4750 mm, 107.6000 mm): Pad MP [<no net>] of J2 on F.Cu
-[hole_clearance]: Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)
-    Rule: board setup constraints hole; Severity: error
-    @(124.1100 mm, 49.3950 mm): NPTH pad of J3
-    @(123.8000 mm, 48.3200 mm): Pad A1 [GND] of J3 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0330 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(92.1375 mm, 106.0000 mm): Pad 2 [AUX_5V] of F2 on F.Cu
+    @(91.4800 mm, 104.0100 mm): Pad 2 [SW_B] of CB3 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(63.2250 mm, 105.0000 mm): Pad 1 [MCU_3V3] of C7 on F.Cu
+    @(63.4900 mm, 104.3500 mm): Pad 1 [3V3_SW] of R18 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(64.7750 mm, 105.0000 mm): Pad 2 [GND] of C7 on F.Cu
+    @(64.5100 mm, 104.3500 mm): Pad 2 [SDA] of R18 on F.Cu
 [hole_clearance]: Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)
     Rule: board setup constraints hole; Severity: error
     @(124.1100 mm, 49.3950 mm): NPTH pad of J3
     @(123.8000 mm, 48.3200 mm): Pad B12 [GND] of J3 on F.Cu
+[hole_clearance]: Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)
+    Rule: board setup constraints hole; Severity: error
+    @(124.1100 mm, 49.3950 mm): NPTH pad of J3
+    @(123.8000 mm, 48.3200 mm): Pad A1 [GND] of J3 on F.Cu
 [hole_clearance]: Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)
     Rule: board setup constraints hole; Severity: error
     @(129.8900 mm, 49.3950 mm): NPTH pad of J3
@@ -969,114 +935,6 @@
     Rule: board setup constraints hole; Severity: error
     @(129.8900 mm, 49.3950 mm): NPTH pad of J3
     @(130.2000 mm, 48.3200 mm): Pad B1 [GND] of J3 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(81.2500 mm, 93.8500 mm): Pad 1 [PGOOD_A] of U2 on F.Cu
-    @(80.6500 mm, 93.7500 mm): Pad 2 [RT_B] of U2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(80.6500 mm, 90.2500 mm): Pad 9 [unconnected-(U2-NC-Pad9)] of U2 on F.Cu
-    @(81.2500 mm, 90.1500 mm): Pad 10 [PGOOD_B] of U2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(82.7500 mm, 90.1500 mm): Pad 11 [ILIM_B] of U2 on F.Cu
-    @(83.3500 mm, 90.2500 mm): Pad 12 [GND] of U2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(83.3500 mm, 93.7500 mm): Pad 19 [SW_B] of U2 on F.Cu
-    @(82.7500 mm, 93.8500 mm): Pad 20 [VSW] of U2 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(63.4900 mm, 104.3500 mm): Pad 1 [3V3_SW] of R18 on F.Cu
-    @(63.2250 mm, 105.0000 mm): Pad 1 [MCU_3V3] of C7 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(64.5100 mm, 104.3500 mm): Pad 2 [SDA] of R18 on F.Cu
-    @(64.7750 mm, 105.0000 mm): Pad 2 [GND] of C7 on F.Cu
-[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
-    Local override; Severity: error
-    @(63.4400 mm, 91.0275 mm): Pad [<no net>] of Q3 on F.Cu
-    @(63.4400 mm, 91.6700 mm): Pad [<no net>] of Q3 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(63.4400 mm, 91.0275 mm): Pad [<no net>] of Q3 on F.Cu
-    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
-[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1600 mm)
-    Local override; Severity: error
-    @(63.4400 mm, 91.6700 mm): Pad [<no net>] of Q3 on F.Cu
-    @(63.4400 mm, 92.3300 mm): Pad [<no net>] of Q3 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(63.4400 mm, 91.6700 mm): Pad [<no net>] of Q3 on F.Cu
-    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
-[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
-    Local override; Severity: error
-    @(63.4400 mm, 92.3300 mm): Pad [<no net>] of Q3 on F.Cu
-    @(63.4400 mm, 92.9725 mm): Pad [<no net>] of Q3 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(63.4400 mm, 92.3300 mm): Pad [<no net>] of Q3 on F.Cu
-    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(63.4400 mm, 92.9725 mm): Pad [<no net>] of Q3 on F.Cu
-    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1400 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(60.5600 mm, 92.3300 mm): Pad 3 [VSW] of Q3 on F.Cu
-    @(60.5600 mm, 92.9700 mm): Pad 4 [HG_FE] of Q3 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(94.5600 mm, 55.9725 mm): Pad [<no net>] of QA1 on F.Cu
-    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
-[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
-    Local override; Severity: error
-    @(94.5600 mm, 55.9725 mm): Pad [<no net>] of QA1 on F.Cu
-    @(94.5600 mm, 55.3300 mm): Pad [<no net>] of QA1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(94.5600 mm, 55.3300 mm): Pad [<no net>] of QA1 on F.Cu
-    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
-[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1600 mm)
-    Local override; Severity: error
-    @(94.5600 mm, 55.3300 mm): Pad [<no net>] of QA1 on F.Cu
-    @(94.5600 mm, 54.6700 mm): Pad [<no net>] of QA1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(94.5600 mm, 54.6700 mm): Pad [<no net>] of QA1 on F.Cu
-    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
-[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
-    Local override; Severity: error
-    @(94.5600 mm, 54.6700 mm): Pad [<no net>] of QA1 on F.Cu
-    @(94.5600 mm, 54.0275 mm): Pad [<no net>] of QA1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(94.5600 mm, 54.0275 mm): Pad [<no net>] of QA1 on F.Cu
-    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1400 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(97.4400 mm, 54.6700 mm): Pad 3 [SW_A] of QA1 on F.Cu
-    @(97.4400 mm, 54.0300 mm): Pad 4 [HO_A] of QA1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(81.2500 mm, 60.8500 mm): Pad 1 [EN_A] of U1 on F.Cu
-    @(80.6500 mm, 60.7500 mm): Pad 2 [RT_A] of U1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(80.6500 mm, 57.2500 mm): Pad 9 [unconnected-(U1-NC-Pad9)] of U1 on F.Cu
-    @(81.2500 mm, 57.1500 mm): Pad 10 [PGOODA_RAW] of U1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(82.7500 mm, 57.1500 mm): Pad 11 [ILIM_A] of U1 on F.Cu
-    @(83.3500 mm, 57.2500 mm): Pad 12 [GND] of U1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(83.3500 mm, 60.7500 mm): Pad 19 [SW_A] of U1 on F.Cu
-    @(82.7500 mm, 60.8500 mm): Pad 20 [VSW] of U1 on F.Cu
-[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
-    Rule: netclass 'Default'; Severity: error
-    @(110.8500 mm, 72.0000 mm): Pad 1 [VBATT_F] of D1 on F.Cu
-    @(111.9000 mm, 73.4050 mm): Pad 1 [5V_B] of D7 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
     Rule: netclass 'Default'; Severity: error
     @(97.4400 mm, 94.0275 mm): Pad [<no net>] of QB2 on F.Cu
@@ -1109,14 +967,66 @@
     Rule: netclass 'Default'; Severity: error
     @(94.5600 mm, 95.3300 mm): Pad 3 [GND] of QB2 on F.Cu
     @(94.5600 mm, 95.9700 mm): Pad 4 [LO_B] of QB2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(110.8500 mm, 72.0000 mm): Pad 1 [VBATT_F] of D1 on F.Cu
+    @(111.9000 mm, 73.4050 mm): Pad 1 [5V_B] of D7 on F.Cu
 [clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
     Local override; Severity: error
-    @(94.5600 mm, 87.9725 mm): Pad [<no net>] of QB1 on F.Cu
-    @(94.5600 mm, 87.3300 mm): Pad [<no net>] of QB1 on F.Cu
+    @(63.4400 mm, 91.0275 mm): Pad [<no net>] of Q3 on F.Cu
+    @(63.4400 mm, 91.6700 mm): Pad [<no net>] of Q3 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(63.4400 mm, 91.0275 mm): Pad [<no net>] of Q3 on F.Cu
+    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
+[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1600 mm)
+    Local override; Severity: error
+    @(63.4400 mm, 91.6700 mm): Pad [<no net>] of Q3 on F.Cu
+    @(63.4400 mm, 92.3300 mm): Pad [<no net>] of Q3 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(63.4400 mm, 91.6700 mm): Pad [<no net>] of Q3 on F.Cu
+    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
+[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
+    Local override; Severity: error
+    @(63.4400 mm, 92.3300 mm): Pad [<no net>] of Q3 on F.Cu
+    @(63.4400 mm, 92.9725 mm): Pad [<no net>] of Q3 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(63.4400 mm, 92.3300 mm): Pad [<no net>] of Q3 on F.Cu
+    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(63.4400 mm, 92.9725 mm): Pad [<no net>] of Q3 on F.Cu
+    @(62.3850 mm, 92.0000 mm): Pad 5 [FE_MID] of Q3 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1400 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(60.5600 mm, 92.3300 mm): Pad 3 [VSW] of Q3 on F.Cu
+    @(60.5600 mm, 92.9700 mm): Pad 4 [HG_FE] of Q3 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(81.2500 mm, 60.8500 mm): Pad 1 [EN_A] of U1 on F.Cu
+    @(80.6500 mm, 60.7500 mm): Pad 2 [RT_A] of U1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(80.6500 mm, 57.2500 mm): Pad 9 [unconnected-(U1-NC-Pad9)] of U1 on F.Cu
+    @(81.2500 mm, 57.1500 mm): Pad 10 [PGOODA_RAW] of U1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(82.7500 mm, 57.1500 mm): Pad 11 [ILIM_A] of U1 on F.Cu
+    @(83.3500 mm, 57.2500 mm): Pad 12 [GND] of U1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(83.3500 mm, 60.7500 mm): Pad 19 [SW_A] of U1 on F.Cu
+    @(82.7500 mm, 60.8500 mm): Pad 20 [VSW] of U1 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
     Rule: netclass 'Default'; Severity: error
     @(94.5600 mm, 87.9725 mm): Pad [<no net>] of QB1 on F.Cu
     @(95.6150 mm, 87.0000 mm): Pad 5 [VSW] of QB1 on F.Cu
+[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
+    Local override; Severity: error
+    @(94.5600 mm, 87.9725 mm): Pad [<no net>] of QB1 on F.Cu
+    @(94.5600 mm, 87.3300 mm): Pad [<no net>] of QB1 on F.Cu
 [clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1600 mm)
     Local override; Severity: error
     @(94.5600 mm, 87.3300 mm): Pad [<no net>] of QB1 on F.Cu
@@ -1141,17 +1051,77 @@
     Rule: netclass 'Default'; Severity: error
     @(97.4400 mm, 86.6700 mm): Pad 3 [SW_B] of QB1 on F.Cu
     @(97.4400 mm, 86.0300 mm): Pad 4 [HO_B] of QB1 on F.Cu
+[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
+    Local override; Severity: error
+    @(94.5600 mm, 55.9725 mm): Pad [<no net>] of QA1 on F.Cu
+    @(94.5600 mm, 55.3300 mm): Pad [<no net>] of QA1 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
     Rule: netclass 'Default'; Severity: error
-    @(63.4400 mm, 81.0275 mm): Pad [<no net>] of Q2 on F.Cu
-    @(62.3850 mm, 82.0000 mm): Pad 5 [FE_MID] of Q2 on F.Cu
+    @(94.5600 mm, 55.9725 mm): Pad [<no net>] of QA1 on F.Cu
+    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
+[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1600 mm)
+    Local override; Severity: error
+    @(94.5600 mm, 55.3300 mm): Pad [<no net>] of QA1 on F.Cu
+    @(94.5600 mm, 54.6700 mm): Pad [<no net>] of QA1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(94.5600 mm, 55.3300 mm): Pad [<no net>] of QA1 on F.Cu
+    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
+[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
+    Local override; Severity: error
+    @(94.5600 mm, 54.6700 mm): Pad [<no net>] of QA1 on F.Cu
+    @(94.5600 mm, 54.0275 mm): Pad [<no net>] of QA1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(94.5600 mm, 54.6700 mm): Pad [<no net>] of QA1 on F.Cu
+    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(94.5600 mm, 54.0275 mm): Pad [<no net>] of QA1 on F.Cu
+    @(95.6150 mm, 55.0000 mm): Pad 5 [VSW] of QA1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1400 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(97.4400 mm, 54.6700 mm): Pad 3 [SW_A] of QA1 on F.Cu
+    @(97.4400 mm, 54.0300 mm): Pad 4 [HO_A] of QA1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(97.4400 mm, 62.0275 mm): Pad [<no net>] of QA2 on F.Cu
+    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
+[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
+    Local override; Severity: error
+    @(97.4400 mm, 62.0275 mm): Pad [<no net>] of QA2 on F.Cu
+    @(97.4400 mm, 62.6700 mm): Pad [<no net>] of QA2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(97.4400 mm, 62.6700 mm): Pad [<no net>] of QA2 on F.Cu
+    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
+[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1600 mm)
+    Local override; Severity: error
+    @(97.4400 mm, 62.6700 mm): Pad [<no net>] of QA2 on F.Cu
+    @(97.4400 mm, 63.3300 mm): Pad [<no net>] of QA2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(97.4400 mm, 63.3300 mm): Pad [<no net>] of QA2 on F.Cu
+    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
+[clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
+    Local override; Severity: error
+    @(97.4400 mm, 63.3300 mm): Pad [<no net>] of QA2 on F.Cu
+    @(97.4400 mm, 63.9725 mm): Pad [<no net>] of QA2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(97.4400 mm, 63.9725 mm): Pad [<no net>] of QA2 on F.Cu
+    @(96.3850 mm, 63.0000 mm): Pad 5 [SW_A] of QA2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1400 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(94.5600 mm, 63.3300 mm): Pad 3 [GND] of QA2 on F.Cu
+    @(94.5600 mm, 63.9700 mm): Pad 4 [LO_A] of QA2 on F.Cu
 [clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
     Local override; Severity: error
     @(63.4400 mm, 81.0275 mm): Pad [<no net>] of Q2 on F.Cu
     @(63.4400 mm, 81.6700 mm): Pad [<no net>] of Q2 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
     Rule: netclass 'Default'; Severity: error
-    @(63.4400 mm, 81.6700 mm): Pad [<no net>] of Q2 on F.Cu
+    @(63.4400 mm, 81.0275 mm): Pad [<no net>] of Q2 on F.Cu
     @(62.3850 mm, 82.0000 mm): Pad 5 [FE_MID] of Q2 on F.Cu
 [clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1600 mm)
     Local override; Severity: error
@@ -1159,12 +1129,16 @@
     @(63.4400 mm, 82.3300 mm): Pad [<no net>] of Q2 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
     Rule: netclass 'Default'; Severity: error
-    @(63.4400 mm, 82.3300 mm): Pad [<no net>] of Q2 on F.Cu
+    @(63.4400 mm, 81.6700 mm): Pad [<no net>] of Q2 on F.Cu
     @(62.3850 mm, 82.0000 mm): Pad 5 [FE_MID] of Q2 on F.Cu
 [clearance]: Clearance violation (board minimum clearance 0.2000 mm; actual 0.1425 mm)
     Local override; Severity: error
     @(63.4400 mm, 82.3300 mm): Pad [<no net>] of Q2 on F.Cu
     @(63.4400 mm, 82.9725 mm): Pad [<no net>] of Q2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(63.4400 mm, 82.3300 mm): Pad [<no net>] of Q2 on F.Cu
+    @(62.3850 mm, 82.0000 mm): Pad 5 [FE_MID] of Q2 on F.Cu
 [clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.0000 mm)
     Rule: netclass 'Default'; Severity: error
     @(63.4400 mm, 82.9725 mm): Pad [<no net>] of Q2 on F.Cu
@@ -1173,6 +1147,22 @@
     Rule: netclass 'Default'; Severity: error
     @(60.5600 mm, 82.3300 mm): Pad 3 [VBATT_S] of Q2 on F.Cu
     @(60.5600 mm, 82.9700 mm): Pad 4 [DG_FE] of Q2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(81.2500 mm, 93.8500 mm): Pad 1 [PGOOD_A] of U2 on F.Cu
+    @(80.6500 mm, 93.7500 mm): Pad 2 [RT_B] of U2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(80.6500 mm, 90.2500 mm): Pad 9 [unconnected-(U2-NC-Pad9)] of U2 on F.Cu
+    @(81.2500 mm, 90.1500 mm): Pad 10 [PGOOD_B] of U2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(82.7500 mm, 90.1500 mm): Pad 11 [ILIM_B] of U2 on F.Cu
+    @(83.3500 mm, 90.2500 mm): Pad 12 [GND] of U2 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1750 mm)
+    Rule: netclass 'Default'; Severity: error
+    @(83.3500 mm, 93.7500 mm): Pad 19 [SW_B] of U2 on F.Cu
+    @(82.7500 mm, 93.8500 mm): Pad 20 [VSW] of U2 on F.Cu
 
 ** Found 221 unconnected pads **
 [unconnected_items]: Missing connection between items
@@ -1617,8 +1607,8 @@
     @(131.3200 mm, 48.8950 mm): PTH pad S1 [GND] of J3
 [unconnected_items]: Missing connection between items
     Local override; Severity: error
-    @(52.4800 mm, 44.0000 mm): Pad 2 [GND] of C15 on F.Cu
     @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu
+    @(52.4800 mm, 44.0000 mm): Pad 2 [GND] of C15 on F.Cu
 [unconnected_items]: Missing connection between items
     Local override; Severity: error
     @(55.3900 mm, 90.7500 mm): Pad 8 [HG_FE] of U4 on F.Cu
@@ -1909,20 +1899,20 @@
     @(80.1500 mm, 79.0250 mm): Pad 8 [VBATT_FD] of U6 on F.Cu
 [unconnected_items]: Missing connection between items
     Local override; Severity: error
-    @(66.5000 mm, 64.5000 mm): PTH pad 1 [VBATT_RAW] of F1
-    @(64.0000 mm, 64.5000 mm): PTH pad 1 [VBATT_RAW] of F1
-[unconnected_items]: Missing connection between items
-    Local override; Severity: error
     @(64.0000 mm, 68.0000 mm): PTH pad 1 [VBATT_RAW] of F1
     @(66.5000 mm, 68.0000 mm): PTH pad 1 [VBATT_RAW] of F1
 [unconnected_items]: Missing connection between items
     Local override; Severity: error
+    @(66.5000 mm, 64.5000 mm): PTH pad 1 [VBATT_RAW] of F1
+    @(64.0000 mm, 64.5000 mm): PTH pad 1 [VBATT_RAW] of F1
+[unconnected_items]: Missing connection between items
+    Local override; Severity: error
     @(64.0000 mm, 64.5000 mm): PTH pad 1 [VBATT_RAW] of F1
     @(64.0000 mm, 68.0000 mm): PTH pad 1 [VBATT_RAW] of F1
 [unconnected_items]: Missing connection between items
     Local override; Severity: error
-    @(57.0000 mm, 68.0000 mm): PTH pad 1 [VBATT_RAW] of J1
     @(64.0000 mm, 68.0000 mm): PTH pad 1 [VBATT_RAW] of F1
+    @(57.0000 mm, 72.0000 mm): PTH pad 1 [VBATT_RAW] of J1
 [unconnected_items]: Missing connection between items
     Local override; Severity: error
     @(76.2000 mm, 69.0000 mm): Pad 8 [VBATT_S] of U5 on F.Cu
