@@ -193,16 +193,39 @@ whether anything reaches them — and several genuinely-broken functions are sim
 misbehavior × reachability; the per-issue reports in `reference/_p0_investigations/` and the
 `VERIFY_*_new.md` files carry the evidence.
 
-## #55 — live breakpoint() calls in realtime NN inference path
+## #55 — live breakpoint() calls in realtime NN inference path (FOUR sites)
 `spf/dataset/spf_nn_dataset_wrapper.py` has two `breakpoint()` calls left in
 (`to_absolute_north` and the realtime branch of `get_and_annotate_entry_at_idx`,
 absolute=True path). `mavlink_radio_collection.py --realtime` constructs exactly this
 configuration (absolute=True, realtime ds), so the first consumed sample would drop the
 field process into pdb. Currently unreachable only because the consumption loop in
 mavlink_radio_collection.py:332-335 is COMMENTED OUT (realtime inference wired but
-dormant — "still missing realtime pf"). Remove the breakpoints before enabling.
+dormant — "still missing realtime pf"). Remove the breakpoints before enabling. UPDATE: review found two more —
+`spf/filters/particle_dual_radio_nn_filter.py:41` (PFSingleThetaDualRadioNN.observation,
+kills the realtime PF) and `spf/scripts/test.py:13` (module level).
 
 ## #56 — rpi5 inference config uses slow_attack while fleet capture used fast_attack
 `data_collection/rpi5_inference/inference_config.yaml` sets `rx-gain-mode: slow_attack`
 for both receivers; all wall v5 capture configs (training data) used `fast_attack`.
 Train/inference AGC-behavior mismatch — gains_input distribution shifts at deployment.
+
+## #57 — realtime inference heading always 0 (absolute bearings are craft-relative)
+`data_collector.py:540` sets `data.heading` dynamically; `DataSnapshotV4` has no such
+field so `asdict()` drops it → `rx_heading_in_pis=0.0` in every realtime sample. Disk
+path unaffected (getattr). With absolute=True the output is silently craft-relative.
+Fix: set `data.rx_heading_in_pis = heading/180` before asdict. See
+claude_docs/reference/_realtime_inference_review.md.
+
+## #58 — realtime consumer lifecycle: guaranteed crash-or-hang
+v5inferencedataset iterator starts at 0; max_store_size=3 evicts → ValueError for any
+late/slow consumer; getitem timeout returns None → TypeError in collate; render
+exceptions swallowed by executor (last 4 futures unchecked) → 30s/idx infinite hang.
+
+## #59 — v4→v5 heading conversion divides by 720 instead of 180 (4× small)
+spf_dataset.py:1298-1300. Arithmetic confirmed; IMPACT UNVERIFIED for merged rover
+corpus (separate merge path; audit Δθ evidence suggests rover labels unaffected).
+Verify which data flows through this branch before fixing.
+
+## #60 — realtime pushes ~8MB signal_matrix through mp.Queue per snapshot/radio
+Plus asdict deep-copy + astype copy + 3 stacked lru_cache(4) retention in the wrapper.
+Probable Pi5 throughput blocker at 0.1s/sample.
