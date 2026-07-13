@@ -62,3 +62,17 @@ rotation+circular-stats  5. TS1 golden  6. rest.
 | G8 | offline inference disk cache invalidation on checkpoint change untested | MED | swap checkpoint, same ds → cache miss + different outputs (not stale serve) |
 | G9 | all fake fixtures have heading≈0 — absolute-frame bug class invisible to e2e | HIGH (enabler) | fake_dataset variant with heading ramp; use in TS1/TS4 and RT1/RT4 reds |
 | G10 | no ratchet policy: risk of more unasserted smoke tests | POLICY | all reds land strict-xfail in tests/test_redgreen_*.py named by matrix ID; flake8 T100,F811 gate; fix ⇒ CI forces marker removal |
+
+## Color-at-birth classification (implementation guidance)
+- TRUE RED (strict-xfail until fixed): RT1-RT13, PF1-PF8, TS1, TS4. Paired with bugs;
+  fixing flips them; CI forces marker removal (G10 ratchet).
+- GREEN-AT-BIRTH GUARDS (land as normal passing tests, no xfail): G1 (golden vectors
+  define baseline from current outputs), G2 (#53/#54/subset-assert permanence), G3, G4,
+  G5, G8; likely also TS2, TS3. Purpose: pin invariants that hold TODAY.
+- INFRASTRUCTURE (not tests): G9 nonzero-heading fixture (enabler for RT1/RT4/TS
+  integration reds), G10 policy.
+- UNKNOWN COLOR until written (expect red): G6 soak (RT9/RT12 retention is real),
+  G7 radio-dropout path (RT3-family exception swallowing). Their first run is itself
+  a diagnostic.
+- NO ROW IS A FIX. Fixes are a separate change set, sequenced by the fix-order tiers
+  above; the matrix only guarantees each fix has a witness.
