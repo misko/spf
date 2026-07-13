@@ -119,6 +119,17 @@ optional science. Only constraint window: |IF| >= max(10x crystal wander, ~0.01*
   effective-spacing sidecar can be trusted fleet-wide including for spacings never
   collected; if not, the sidecar stays a per-config lookup table (still valid).
 
+## E-HW2 — rover power board v1 (PCB)
+
+Design spec + block diagram: data_collection/rover/rover_v3.1/power_board_v1/.
+Replaces the failure-prone mechanical switch (solid-state high-side w/ soft-start —
+root-causes the Apr-2025 switch deaths), the 0.1V-hysteresis LPD (10.2/11.7 V + 10 s
+qualifier + 60 s Pi shutdown handshake), and the loose bucks (2 rails: Pi 5.1V/6A,
+radios+aux 5.1V/5A, <10 mVpp at radio ports). Adds INA226 battery telemetry over I2C
+(closes the no-BATT_*-monitor gap) and per-radio USB load switches for software
+power-cycling hung Plutos. Next: KiCad schematic capture per DESIGN.md; bring-up plan
+included in the doc.
+
 ## E-TR1 — effective-spacing sidecar training experiment
 
 - **Motivation:** learnings L5 — `rx_spacing_input` is nominal, wrong by up to 2.1× for
