@@ -26,7 +26,7 @@ SCREW_HEAD_R_MM = 3.2  # M3 pan head + margin
 
 # Declared mating directions for edge connectors: the connector BODY must
 # overhang (or touch) this edge, and all copper must be inboard.
-MATE = {"J1": "W", "J3": "N", "J12": "E", "J4": "E", "J5": "E", "J7": "S"}
+MATE = {"J1": "W", "J3": "N", "J12": "N", "J4": "E", "J5": "E", "J13": "E", "J7": "S"}
 # Pads intentionally un-netted (LM74800 RTN must float; NC pins)
 FLOAT_OK = {("U4", "13")}
 
