@@ -36,3 +36,7 @@ test_data.txt
 **/*.csv
 **/*output*
 wandb
+
+# fab order artifacts are versioned (exception to the dataset-CSV ignore)
+!**/fab/bom_jlc.csv
+!**/fab/cpl_jlc.csv
