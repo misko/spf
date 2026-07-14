@@ -58,7 +58,7 @@ Board qty assumption: 5 prototypes (JLCPCB assembly, P0 decision 4).
 |---|---|---|---|---|---|---|
 | U1, U2 | **LM5145RGYR** | C485912 | VQFN-20 RGY | 400 | 2.18 | **substitution verified against LM5145 datasheet (SNVSAI4B)**: LM25145RGYR (C2876740) has only 7 pcs at LCSC. LM5145 (75 V) is equation-identical — RT=10⁴/Fsw, VREF 0.8 V, ISS 10 µA, kFF 15, ILIM 200 µA + 6 ns, same L/Cout eqs — so ALL computed values in P1_DETAIL_DESIGN.md §2 carry over unchanged |
 | U4 | LM74800QDRRRQ1 | C3215600 | WSON-12 DRR | 1,935 | 1.58 | exact part; alt LM74801 (C2873366, 48 pcs) |
-| U3 | **ATTINY816-MNR** | C2052778 | UQFN-20 3×3 | 3,023 | 0.70 | SOIC (-SNR, C2054204) is zero-stock; UQFN is cheaper anyway |
+| U3 | **ATTINY816-SSNR** | C2054204 | SOIC-20W 1.27 mm | **VERIFY STOCK** | ~1.0 | **package changed back to SOIC 2026-07-14**: the UQFN's 0.4 mm pitch made its last 4-5 nets unroutable at any legal geometry (escape saturation); SOIC-20 routes fully. Same ports → firmware unchanged. C2054204 was zero-stock when UQFN was chosen — AT ORDER TIME verify LCSC stock; if still dry, substitute **ATTINY1616-SNR** (SOIC-20, pin-identical superset, more flash/RAM, firmware runs unmodified) or any tinyAVR 1-series x16 SOIC-20 |
 | U5 | INA226AIDGSR | C49851 | VSSOP-10 | 11,139 | 0.69 | exact part |
 | U6 | TPS7A1633DGNR | C181239 | MSOP-8 PwrPAD | 1,842 | 1.43 | exact part (60 V, 5 µA IQ); alt TPS7B6933 (C108471) only 40 V — keep TPS7A16 |
 | U7, U8 | TPS2553DBVR | C55266 | SOT-23-6 | 39,155 | 0.32 | AUTO-RETRY version ✓ (do NOT sub C111738 = latching -1) |

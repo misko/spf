@@ -66,3 +66,20 @@ load-bearing — deviations reintroduce failures we already debugged:
 Residual ~14 airlines (U3 escapes + U4/U1 pin joins) are the expected manual
 push-and-shove hour; autorouters cannot close them (verified: more layers,
 bare-board, smaller vias, spread grids all plateau the same).
+
+## Amendment (v4.3): KRT parser bug scope + micro-routing toolkit
+- KRT mis-routes THROUGH existing copper whenever its input is a
+  pcbnew-saved board containing tracks — filled zones AND pcbnew-dialect
+  tracks both trigger it. Corollary: KRT may only ever route (a) track-free
+  pcbnew boards or (b) its own output files. To repair nets on a routed
+  board, run `--nets` / `--rip-existing-nets` on the KRT-dialect chain file
+  (pb_*.kicad_pcb from the previous KRT pass), then re-import EVERYTHING
+  into the pcbnew base in one shot.
+- Last-mile gaps that KRT leaves are closed with the verified micro-tools
+  (exact `GetEffectiveShape().Collide` checks): direct/L/Z joiner,
+  blocker-listing, rip-single-blocker, and the verified A* (emit only after
+  every emitted segment re-passes exact collision). NEVER add copper
+  without the exact-collide green check — circular pad approximations and
+  exemption zones both produced real crossings that only DRC caught.
+- Ring-search placement must also check for copper under the new location
+  (pads-on-tracks), not just footprint bboxes and hole keepouts.

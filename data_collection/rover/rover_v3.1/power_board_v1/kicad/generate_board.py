@@ -257,7 +257,9 @@ def main():
             via_sites.append((pcbnew.ToMM(c.x) - 3.2, pcbnew.ToMM(c.y) + dy))
     # in-pad thermal vias (kicad-happy TV-001): controller/MCU/LDO EPs -> In1 GND
     inpad = []
-    for r, extra in (("U1", 1), ("U2", 1), ("U3", 4), ("U6", 2)):
+    # U3 dropped 2026-07-14: SOIC-20 has no EP; in-pad vias would land in a
+    # signal pin (biggest-pad heuristic) and short it. GND is pin 20 now.
+    for r, extra in (("U1", 1), ("U2", 1), ("U6", 2)):
         f = board.FindFootprintByReference(r)
         big = max(f.Pads(), key=lambda p: p.GetSizeX() * p.GetSizeY())
         cx, cy = pcbnew.ToMM(big.GetPosition().x), pcbnew.ToMM(big.GetPosition().y)

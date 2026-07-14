@@ -1,11 +1,10 @@
 {
- "clearance_margin": 231,
+ "clearance_margin": 225,
  "clearance_real": 0,
  "copper_edge_clearance": 5,
  "courtyards_overlap": 3,
- "hole_clearance_margin": 20,
+ "hole_clearance_margin": 19,
  "hole_clearance_real": 0,
- "silk_overlap": 20,
- "solder_mask_bridge": 24,
- "unconnected_items": 14
+ "silk_overlap": 3,
+ "solder_mask_bridge": 24
 }

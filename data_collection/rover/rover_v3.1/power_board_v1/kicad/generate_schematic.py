@@ -138,16 +138,20 @@ defsym("INA226", 15.24, 27.94,
        [("6", "VS", "L", 0), ("10", "IN+", "L", 2), ("9", "IN-", "L", 3), ("8", "VBUS", "L", 4),
         ("1", "A1", "L", 6), ("2", "A0", "L", 7), ("7", "GND", "L", 9),
         ("4", "SDA", "R", 0), ("5", "SCL", "R", 1), ("3", "ALERT", "R", 3)], ref="U")
-# ATtiny816 VQFN-20 3x3 (DS40001913A table 5-1, VQFN column — differs from SOIC!)
+# ATtiny816 SOIC-20 (DS40001913A table 5-1, SOIC column). Package changed from
+# VQFN-20 0.4mm 2026-07-14: QFN escape saturation made the last 4-5 airlines
+# unroutable at any legal geometry; 1.27mm pitch removes the problem. Same
+# ports, so firmware is unchanged. Mapping: QFN k -> SOIC k-3 (k=4..20),
+# QFN 1/2/3 -> SOIC 18/19/20, QFN EP(21) dropped (no EP on SOIC).
 defsym("ATTINY816", 40.64, 53.34,
-       [("4", "VDD", "L", 0), ("3", "GND", "L", 18), ("21", "EP", "L", 19),
-        ("19", "PA0/UPDI", "L", 2), ("5", "PA4/VIN_SENSE", "L", 4), ("7", "PA6/V5A_SENSE", "L", 6),
-        ("8", "PA7/NTC", "L", 8), ("6", "PA5/FAULT_USB", "L", 10), ("12", "PB2/SW_SENSE", "L", 12),
-        ("18", "PC3/SHDN_ACK", "L", 14), ("15", "PC0/PGOOD_A", "L", 16),
-        ("10", "PB4/FE_EN", "R", 0), ("9", "PB5/BUCKA_EN", "R", 2), ("17", "PC2/LOW_BATT", "R", 4),
-        ("11", "PB3/AUX_CTL", "R", 6), ("13", "PB1/SDA", "R", 8), ("14", "PB0/SCL", "R", 10),
-        ("20", "PA1/USB_EN1", "R", 12), ("1", "PA2/USB_EN2", "R", 14), ("2", "PA3/LED", "R", 16),
-        ("16", "PC1/PGOOD_B", "R", 18)],
+       [("1", "VDD", "L", 0), ("20", "GND", "L", 18),
+        ("16", "PA0/UPDI", "L", 2), ("2", "PA4/VIN_SENSE", "L", 4), ("4", "PA6/V5A_SENSE", "L", 6),
+        ("5", "PA7/NTC", "L", 8), ("3", "PA5/FAULT_USB", "L", 10), ("9", "PB2/SW_SENSE", "L", 12),
+        ("15", "PC3/SHDN_ACK", "L", 14), ("12", "PC0/PGOOD_A", "L", 16),
+        ("7", "PB4/FE_EN", "R", 0), ("6", "PB5/BUCKA_EN", "R", 2), ("14", "PC2/LOW_BATT", "R", 4),
+        ("8", "PB3/AUX_CTL", "R", 6), ("10", "PB1/SDA", "R", 8), ("11", "PB0/SCL", "R", 10),
+        ("17", "PA1/USB_EN1", "R", 12), ("18", "PA2/USB_EN2", "R", 14), ("19", "PA3/LED", "R", 16),
+        ("13", "PC1/PGOOD_B", "R", 18)],
        ref="U")
 
 # ------------------------------------------------------------------ footprints
@@ -174,7 +178,7 @@ SYM_FP = {
     "TPS2553": "Package_TO_SOT_SMD:SOT-23-6",
     "TPS2557": "Package_SON:VSON-8-1EP_3x3mm_P0.65mm_EP1.65x2.4mm",
     "INA226": "Package_SO:VSSOP-10_3x3mm_P0.5mm",
-    "ATTINY816": "Package_DFN_QFN:QFN-20-1EP_3x3mm_P0.4mm_EP1.65x1.65mm",
+    "ATTINY816": "Package_SO:SOIC-20W_7.5x12.8mm_P1.27mm",
 }
 REF_FP = {
     # capacitor size exceptions
@@ -329,11 +333,11 @@ place("CAP", "C5", "1u LDO in", 48, 168, {"1": "VBATT_FD", "2": "GND"})
 place("CAP", "C6", "100n LDO in", 48, 174, {"1": "VBATT_FD", "2": "GND"})
 place("CAP", "C7", "2u2 LDO out", 48, 180, {"1": "MCU_3V3", "2": "GND"})
 place("CAP", "C8", "100n MCU vdd", 48, 186, {"1": "MCU_3V3", "2": "GND"})
-place("ATTINY816", "U3", "ATtiny816 (VQFN)", 88, 195,
-      {"4": "MCU_3V3", "3": "GND", "21": "GND", "19": "UPDI", "5": "VSENSE", "7": "V5A_SENSE",
-       "8": "NTC", "6": "FAULT_USB", "12": "SW_SENSE", "18": "SHDN_ACK", "15": "PGOOD_A",
-       "10": "FE_EN", "9": "EN_A", "17": "LOW_BATT", "11": "AUX_CTL", "13": "SDA",
-       "14": "SCL", "20": "EN_USB1", "1": "EN_USB2", "2": "LED_STAT", "16": "PGOOD_B"})
+place("ATTINY816", "U3", "ATtiny816 (SOIC-20)", 88, 195,
+      {"1": "MCU_3V3", "20": "GND", "16": "UPDI", "2": "VSENSE", "4": "V5A_SENSE",
+       "5": "NTC", "3": "FAULT_USB", "9": "SW_SENSE", "15": "SHDN_ACK", "12": "PGOOD_A",
+       "7": "FE_EN", "6": "EN_A", "14": "LOW_BATT", "8": "AUX_CTL", "10": "SDA",
+       "11": "SCL", "17": "EN_USB1", "18": "EN_USB2", "19": "LED_STAT", "13": "PGOOD_B"})
 # VIN sense: high-Z divider (16uA) + hold cap for the accumulating ADC
 place("RES", "R10", "680k vsense-hi", 30, 195, {"1": "VBATT_S", "2": "VSENSE"})
 place("RES", "R11", "100k vsense-lo", 30, 205, {"1": "VSENSE", "2": "GND"})
