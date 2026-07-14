@@ -197,7 +197,8 @@ REF_FP = {
     "J2": "Connector_JST:JST_GH_BM02B-GHS-TBT_1x02-1MP_P1.25mm_Vertical",
     "J8": "Connector_JST:JST_GH_BM02B-GHS-TBT_1x02-1MP_P1.25mm_Vertical",
     "J11": "Connector_JST:JST_GH_BM03B-GHS-TBT_1x03-1MP_P1.25mm_Vertical",
-    "J12": "Connector_AMASS:AMASS_XT30PW-M_1x02_P2.50mm_Horizontal",
+    # inboard DNP pigtail header per BOM §I (was XT30PW-M pre-3-port redesign)
+    "J12": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
 }
 
 # ------------------------------------------------------------------ instances
@@ -379,7 +380,7 @@ place("USBC_PWR", "J3", "USB4105-GF-A (TH shell)", 425, 42,
        "A6": None, "A7": None, "B6": None, "B7": None, "A8": None, "B8": None})
 place("RES", "R23", "10k Rp (3A adv)", 420, 70, {"1": "5V_A", "2": "CC1_A"})
 place("RES", "R24", "10k Rp (3A adv)", 420, 81, {"1": "5V_A", "2": "CC2_A"})
-place("SCREW2", "J12", "XT30 fallback pads", 420, 95, {"1": "5V_A", "2": "GND"})
+place("SCREW2", "J12", "5V_A pigtail hdr DNP", 420, 95, {"1": "5V_A", "2": "GND"})
 
 # --- section 5: buck B (radios + aux, 5A; EN sequenced from PGOOD_A) ---
 # pi-filter KEPT on rail B (SDR ripple >> 37mV DCR drop); sense stays at 5VB_PRE

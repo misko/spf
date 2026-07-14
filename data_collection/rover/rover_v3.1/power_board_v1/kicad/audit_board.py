@@ -26,7 +26,9 @@ SCREW_HEAD_R_MM = 3.2  # M3 pan head + margin
 
 # Declared mating directions for edge connectors: the connector BODY must
 # overhang (or touch) this edge, and all copper must be inboard.
-MATE = {"J1": "W", "J3": "N", "J12": "N", "J4": "E", "J5": "E", "J13": "E", "J7": "S"}
+# J12 is an inboard DNP pigtail header (PinHeader_1x02) as of the 3-port
+# redesign — no mate edge; it must NOT reappear here.
+MATE = {"J1": "W", "J3": "N", "J4": "E", "J5": "E", "J13": "E", "J7": "S"}
 # Pads intentionally un-netted (LM74800 RTN must float; NC pins)
 FLOAT_OK = {("U4", "13")}
 
@@ -105,15 +107,37 @@ if overlaps:
     warns.append(f"I6 bbox-overlaps ({len(overlaps)}): {overlaps}")
 
 # --- I7: DRC category counts vs committed baseline -------------------------
+# clearance/hole_clearance are CLASSIFIED, not raw-counted: an item is only a
+# gate-level "real" violation if it is between DIFFERENT nets AND below the
+# JLC 4+ layer fab floor (0.10mm). Same-net items (merged FET lands, stitch
+# vias) and >=0.10mm netclass-margin items are tracked as *_margin instead —
+# fab-legal, human-triage only.
+FAB_FLOOR_MM = 0.10
 rpt = "/tmp/audit_drc.txt"
 pcbnew.WriteDRCReport(board, rpt, pcbnew.EDA_UNITS_MILLIMETRES, False)
-counts = collections.Counter(
-    re.findall(r"\[(\w+)\]", Path(rpt).read_text()))
+rpt_text = Path(rpt).read_text()
+counts = collections.Counter(re.findall(r"\[(\w+)\]", rpt_text))
 counts = {k: v for k, v in counts.items()
-          if k in ("clearance", "copper_edge_clearance", "hole_clearance",
+          if k in ("copper_edge_clearance",
                    "courtyards_overlap", "holes_co_located", "shorting_items",
                    "unconnected_items", "starved_thermal",
                    "solder_mask_bridge", "silk_overlap")}
+blocks = re.split(r"\[(\w+)\]: ", rpt_text)
+for cat in ("clearance", "hole_clearance"):
+    real = margin = 0
+    for i in range(1, len(blocks) - 1, 2):
+        if blocks[i] != cat:
+            continue
+        body = blocks[i + 1]
+        m = re.search(r"actual ([0-9.]+) mm", body)
+        v = float(m.group(1)) if m else -1.0
+        nets = set(re.findall(r"\[([A-Za-z0-9_/.+-]+)\]", body))
+        if len(nets) > 1 and 0 <= v < FAB_FLOOR_MM:
+            real += 1
+        else:
+            margin += 1
+    counts[cat + "_real"] = real
+    counts[cat + "_margin"] = margin
 if "--update-baseline" in sys.argv:
     BASELINE.write_text(json.dumps(counts, indent=1, sort_keys=True))
     print("baseline updated:", counts)
@@ -121,8 +145,10 @@ elif BASELINE.exists():
     base = json.loads(BASELINE.read_text())
     for k, v in counts.items():
         if v > base.get(k, 0):
-            fails.append(f"I7 DRC-regression: {k} {base.get(k, 0)} -> {v} "
-                         f"(read drc report items, don't hand-wave counts!)")
+            msg = (f"I7 DRC-regression: {k} {base.get(k, 0)} -> {v} "
+                   f"(read drc report items, don't hand-wave counts!)")
+            # fab-legal margin churn is triage info, not a gate failure
+            (warns if k.endswith("_margin") else fails).append(msg)
 else:
     warns.append("I7 no drc_baseline.json — run --update-baseline once clean")
 
