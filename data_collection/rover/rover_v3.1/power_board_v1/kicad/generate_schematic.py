@@ -376,8 +376,8 @@ place("SCREW2", "J12", "XT30 fallback pads", 420, 95, {"1": "5V_A", "2": "GND"})
 
 # --- section 5: buck B (radios + aux, 5A; EN sequenced from PGOOD_A) ---
 # pi-filter KEPT on rail B (SDR ripple >> 37mV DCR drop); sense stays at 5VB_PRE
-text("5. BUCK B  5.08V/5A (radios+aux) — EN = PGOOD_A (Pi rail first)", 230, 115)
-buck_stage("B", "U2", 280, 150, "261R RILIM (wc-min 4.8A)", "22p CILIM", "PGOOD_A", "5VB_PRE",
+text("5. BUCK B  5.08V/6A (3xUSB-A+aux) — EN = PGOOD_A (Pi rail first)", 230, 115)
+buck_stage("B", "U2", 280, 150, "348R RILIM (wc-min 6.3A)", "18p CILIM", "PGOOD_A", "5VB_PRE",
            "3k74 RFB2 (5.08V)")
 place("IND", "L4", "pi-filter 1u", 385, 125, {"1": "5VB_PRE", "2": "5V_B"})
 place("CAP", "CB111", "22u pi-out", 385, 132, {"1": "5V_B", "2": "GND"})
@@ -400,8 +400,8 @@ place("HDR4", "J10", "from Pi USB2", 325, 272, {"1": None, "2": "D2_N", "3": "D2
 place("FUSE", "F2", "2A polyfuse", 345, 250, {"1": "5V_B", "2": "AUX_5V"})
 place("SCREW2", "J6", "AUX 5V 2A", 355, 257, {"1": "AUX_5V", "2": "GND"})
 
-place("RES", "R16", "20k RILIM1 (1.2A)", 230, 242, {"1": "ILIM1", "2": "GND"})
-place("RES", "R17", "20k RILIM2 (1.2A)", 230, 272, {"1": "ILIM2", "2": "GND"})
+place("RES", "R16", "15k RILIM1 (1.7A max)", 230, 242, {"1": "ILIM1", "2": "GND"})
+place("RES", "R17", "15k RILIM2 (1.7A max)", 230, 272, {"1": "ILIM2", "2": "GND"})
 # EN defaults ON without the MCU (fallback variant); local IN caps per SLVS841F
 place("RES", "R31", "100k EN1 pu (5V_B)", 230, 252, {"1": "5V_B", "2": "EN_USB1"})
 place("RES", "R32", "100k EN2 pu (5V_B)", 230, 282, {"1": "5V_B", "2": "EN_USB2"})
@@ -411,6 +411,14 @@ place("USBLC6", "D2", "USBLC6-2SC6", 310, 258,
       {"1": "D1_N", "6": "D1_N", "3": "D1_P", "4": "D1_P", "5": "VBUS1", "2": "GND"})
 place("USBLC6", "D3", "USBLC6-2SC6", 310, 288,
       {"1": "D2_N", "6": "D2_N", "3": "D2_P", "4": "D2_P", "5": "VBUS2", "2": "GND"})
+
+# third USB-A port (general purpose, 3A): polyfuse + ESD, no soft-switch
+place("FUSE", "F3", "3A polyfuse", 345, 298, {"1": "5V_B", "2": "VBUS3"})
+place("USB_A", "J13", "USB_A port3 (3A)", 295, 302,
+      {"1": "VBUS3", "2": "D3_N", "3": "D3_P", "4": "GND", "5": "GND"})
+place("HDR4", "J14", "from Pi USB3", 325, 302, {"1": None, "2": "D3_N", "3": "D3_P", "4": "GND"})
+place("USBLC6", "D8", "USBLC6-2SC6", 310, 318,
+      {"1": "D3_N", "6": "D3_N", "3": "D3_P", "4": "D3_P", "5": "VBUS3", "2": "GND"})
 
 # --- section 7: Pi harness + programming ---
 text("7. PI HARNESS (JST-GH) + UPDI", 20, 255)

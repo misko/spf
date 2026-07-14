@@ -133,3 +133,19 @@ assembled @ qty 5** (scales to ~$28 @ qty 25). Within the ≤$50 informal budget
 | RA4 | 3.65 kΩ (was 3.74k) | 0402 | rail A 5.18 V setpoint |
 | — | L2 pi-filter inductor DELETED from rail A (qty for L4 only: 1) | | |
 | CA51-53/CB51-53, CA61-64/CB61-64, CA111/112, CB111/112 | same 10µ/47µ/22µ parts as §B, now explicit per-instance refs | | quantities unchanged from §B intent |
+
+## I. USB requirement change 2026-07-13 (3x USB-A + USB-C)
+| Refs | Part | Note |
+|---|---|---|
+| J13 | USB-A TH r/a (same C2345) | third port, general-purpose |
+| J14 | 2.54 4-pin header | Pi USB3 passthrough |
+| F3 | 3 A-hold polyfuse 1812 | port-3 protection (no soft-switch) |
+| D8 | USBLC6-2SC6 (C7519) | port-3 ESD |
+| RB2 | now 348 Ω (rail B 5A→6A, wc-min 6.3 A) | CB4 now 18 pF |
+| R16/R17 | 15 kΩ (TPS2553 max ≈1.7 A per radio port) | see constraint note |
+CONSTRAINTS (flagged, decide before fab): (1) TPS2553 tops out at 1.7 A — true
+3 A per-port WITH soft-cycling needs a TPS2595/TPS25945-class eFuse swap
+(pinout verify pending); radio ports at 1.7 A exceed Pluto draw (~1 A) but not
+the 3 A spec. (2) USB-C: rail delivers 6 A but non-PD USB-C can only ADVERTISE
+3 A (10k Rp) — Pi 5 works at 5 A with usb_max_current_enable=1; true 5 A
+advertisement requires adding a PD source controller (TPS25730-class) in rev B.
