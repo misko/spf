@@ -31,7 +31,7 @@ ANCHOR = {
     # input, top-left: J1 mate faces WEST off-edge (rot 270 = pads vertical,
     # verified pads on-board); battery then flows monotonically west->east
     "J1": (57, 72, 90), "F1": (64, 68, 90), "R20": (74, 62, 0), "U5": (74, 69, 0),
-    "J2": (54.5, 103, 0), "D4": (52, 95, 0),
+    "J2": (54.5, 103, 0), "D4": (52.8, 95, 0), "D1": (76, 64, 0), "D7": (76, 68, 0),
     # front-end at mid-left (review: no more bottom-left hairpin)
     "Q2": (62, 82, 0), "Q3": (62, 92, 0), "U4": (54, 90, 0),
     "C1": (70, 80, 0), "C2": (70, 84, 0), "C3": (70, 88, 0), "C16": (70, 92, 0),
@@ -76,7 +76,7 @@ GRID_REFS = {
           "CB8", "CB9", "CB10", "D2", "D3", "R17"],
     "S": ["R10", "R11", "C4", "R25", "R26", "R27", "R28", "R29", "R30",
           "R18", "R19", "R22", "R1", "R2", "R3", "C7", "C8", "C17"],
-    "U": ["C5", "C6", "C9", "C10", "C13", "C14", "R21", "R31", "R32", "R33", "R34", "D1", "R23", "R24", "D6", "D7"],
+    "U": ["C5", "C6", "C9", "C10", "C13", "C14", "R21", "R31", "R32", "R33", "R34", "R23", "R24", "D6"],
 }
 
 
@@ -247,6 +247,31 @@ def main():
         c = f.GetPosition()
         for dy in (-2.2, 0.0, 2.2):
             via_sites.append((pcbnew.ToMM(c.x) - 3.2, pcbnew.ToMM(c.y) + dy))
+    # in-pad thermal vias (kicad-happy TV-001): controller/MCU/LDO EPs -> In1 GND
+    inpad = []
+    for r, extra in (("U1", 1), ("U2", 1), ("U3", 4), ("U6", 2)):
+        f = board.FindFootprintByReference(r)
+        big = max(f.Pads(), key=lambda p: p.GetSizeX() * p.GetSizeY())
+        cx, cy = pcbnew.ToMM(big.GetPosition().x), pcbnew.ToMM(big.GetPosition().y)
+        offs = [(0, 0), (0.5, 0.5), (-0.5, -0.5), (0.5, -0.5), (-0.5, 0.5)][:extra]
+        for dx, dy in offs:
+            inpad.append((cx + dx, cy + dy, big.GetNetname()))
+    # HS-FET drain pads (VSW) -> In2 VSW pour
+    for r in ("QA1", "QB1"):
+        f = board.FindFootprintByReference(r)
+        big = max(f.Pads(), key=lambda p: p.GetSizeX() * p.GetSizeY())
+        cx, cy = pcbnew.ToMM(big.GetPosition().x), pcbnew.ToMM(big.GetPosition().y)
+        for dy in (-0.8, 0.0, 0.8):
+            inpad.append((cx, cy + dy, big.GetNetname()))
+    for vx, vy, vnet in inpad:
+        v = pcbnew.PCB_VIA(board)
+        v.SetPosition(pcbnew.VECTOR2I_MM(vx, vy))
+        v.SetDrill(pcbnew.FromMM(0.3))
+        v.SetWidth(pcbnew.FromMM(0.6))
+        v.SetNet(netmap[vnet])
+        v.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
+        board.Add(v)
+    print(f"in-pad thermal vias: {len(inpad)}")
     for vx, vy in via_sites:
         v = pcbnew.PCB_VIA(board)
         v.SetPosition(pcbnew.VECTOR2I_MM(vx, vy))
