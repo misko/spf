@@ -123,6 +123,12 @@ defsym("LM5145", 17.78, 40.64,
         ("13", "LO", "R", 8), ("5", "FB", "R", 10), ("4", "COMP", "R", 12), ("10", "PGOOD", "R", 14),
         ("7", "SYNCOUT", "R", 1), ("9", "NC", "R", 3), ("15", "NC", "R", 5), ("16", "NC", "R", 7)],
        ref="U")
+# TPS2557 DRB VSON-8 (SLVS931B): 1 GND, 2-3 IN, 4 EN(hi), 5 ILIM, 6-7 OUT, 8 FAULT, 9 PAD->GND
+defsym("TPS2557", 12.7, 22.86,
+       [("2", "IN", "L", 0), ("3", "IN", "L", 1), ("4", "EN", "L", 3),
+        ("1", "GND", "L", 6), ("9", "PAD", "L", 7),
+        ("6", "OUT", "R", 0), ("7", "OUT", "R", 1), ("8", "FAULT", "R", 3),
+        ("5", "ILIM", "R", 5)], ref="U")
 # TPS2553 DBV (SLVS841): 1 IN, 2 GND, 3 EN, 4 FAULT, 5 ILIM, 6 OUT
 defsym("TPS2553", 12.7, 15.24,
        [("1", "IN", "L", 0), ("3", "EN", "L", 2), ("2", "GND", "L", 4),
@@ -166,6 +172,7 @@ SYM_FP = {
     "LM74800": "power_board_v1:WSON-12_3x3_P0.5_LM74800DRR",
     "LM5145": "power_board_v1:VQFN-20_3.5x4.5_P0.5_LM5145RGY",
     "TPS2553": "Package_TO_SOT_SMD:SOT-23-6",
+    "TPS2557": "Package_SON:VSON-8-1EP_3x3mm_P0.65mm_EP1.65x2.4mm",
     "INA226": "Package_SO:VSSOP-10_3x3mm_P0.5mm",
     "ATTINY816": "Package_DFN_QFN:QFN-20-1EP_3x3mm_P0.4mm_EP1.65x1.65mm",
 }
@@ -386,13 +393,15 @@ place("TVS", "D7", "SMBJ5.0A", 385, 146, {"1": "5V_B", "2": "GND"})
 
 # --- section 6: USB power-switched ports + passthrough ---
 text("6. RADIO USB (power inject + data passthrough)", 230, 218)
-place("TPS2553", "U7", "TPS2553 1.7A", 260, 242,
-      {"1": "5V_B", "3": "EN_USB1", "2": "GND", "6": "VBUS1", "4": "FAULT_USB", "5": "ILIM1"})
+place("TPS2557", "U7", "TPS2557 ~3A", 260, 242,
+      {"2": "5V_B", "3": "5V_B", "4": "EN_USB1", "1": "GND", "9": "GND",
+       "6": "VBUS1", "7": "VBUS1", "8": "FAULT_USB", "5": "ILIM1"})
 place("USB_A", "J4", "USB_A radio1", 295, 242,
       {"1": "VBUS1", "2": "D1_N", "3": "D1_P", "4": "GND", "5": "GND"})
 place("HDR4", "J9", "from Pi USB1", 325, 242, {"1": None, "2": "D1_N", "3": "D1_P", "4": "GND"})
-place("TPS2553", "U8", "TPS2553 1.7A", 260, 272,
-      {"1": "5V_B", "3": "EN_USB2", "2": "GND", "6": "VBUS2", "4": "FAULT_USB", "5": "ILIM2"})
+place("TPS2557", "U8", "TPS2557 ~3A", 260, 272,
+      {"2": "5V_B", "3": "5V_B", "4": "EN_USB2", "1": "GND", "9": "GND",
+       "6": "VBUS2", "7": "VBUS2", "8": "FAULT_USB", "5": "ILIM2"})
 place("USB_A", "J5", "USB_A radio2", 295, 272,
       {"1": "VBUS2", "2": "D2_N", "3": "D2_P", "4": "GND", "5": "GND"})
 place("HDR4", "J10", "from Pi USB2", 325, 272, {"1": None, "2": "D2_N", "3": "D2_P", "4": "GND"})
@@ -400,8 +409,8 @@ place("HDR4", "J10", "from Pi USB2", 325, 272, {"1": None, "2": "D2_N", "3": "D2
 place("FUSE", "F2", "2A polyfuse", 345, 250, {"1": "5V_B", "2": "AUX_5V"})
 place("SCREW2", "J6", "AUX 5V 2A", 355, 257, {"1": "AUX_5V", "2": "GND"})
 
-place("RES", "R16", "15k RILIM1 (1.7A max)", 230, 242, {"1": "ILIM1", "2": "GND"})
-place("RES", "R17", "15k RILIM2 (1.7A max)", 230, 272, {"1": "ILIM2", "2": "GND"})
+place("RES", "R16", "20k RILIM1 (~3A)", 230, 242, {"1": "ILIM1", "2": "GND"})
+place("RES", "R17", "20k RILIM2 (~3A)", 230, 272, {"1": "ILIM2", "2": "GND"})
 # EN defaults ON without the MCU (fallback variant); local IN caps per SLVS841F
 place("RES", "R31", "100k EN1 pu (5V_B)", 230, 252, {"1": "5V_B", "2": "EN_USB1"})
 place("RES", "R32", "100k EN2 pu (5V_B)", 230, 282, {"1": "5V_B", "2": "EN_USB2"})
@@ -413,7 +422,11 @@ place("USBLC6", "D3", "USBLC6-2SC6", 310, 288,
       {"1": "D2_N", "6": "D2_N", "3": "D2_P", "4": "D2_P", "5": "VBUS2", "2": "GND"})
 
 # third USB-A port (general purpose, 3A): polyfuse + ESD, no soft-switch
-place("FUSE", "F3", "3A polyfuse", 345, 298, {"1": "5V_B", "2": "VBUS3"})
+place("TPS2557", "U10", "TPS2557 ~3A (always on)", 345, 300,
+      {"2": "5V_B", "3": "5V_B", "4": "EN_USB3", "1": "GND", "9": "GND",
+       "6": "VBUS3", "7": "VBUS3", "8": "FAULT_USB", "5": "ILIM3"})
+place("RES", "R35", "100k EN3 pu", 345, 316, {"1": "5V_B", "2": "EN_USB3"})
+place("RES", "R36", "20k RILIM3 (~3A)", 345, 322, {"1": "ILIM3", "2": "GND"})
 place("USB_A", "J13", "USB_A port3 (3A)", 295, 302,
       {"1": "VBUS3", "2": "D3_N", "3": "D3_P", "4": "GND", "5": "GND"})
 place("HDR4", "J14", "from Pi USB3", 325, 302, {"1": None, "2": "D3_N", "3": "D3_P", "4": "GND"})
