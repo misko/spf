@@ -140,10 +140,15 @@ def main():
         seg.SetWidth(pcbnew.FromMM(0.15))
         board.Add(seg)
 
-    # M3 mounting holes, 5 mm in from corners
+    # M3 mounting holes. Left pair 5 mm in from corners; right pair moved
+    # off the corners (2026-07): the USB-A shells (J13/J5) covered the
+    # corner holes — no screw access. H2 sits on the right edge between
+    # J13 and J4 (supports the USB stack; M3 button/pan head only, no
+    # washer — 2.9 mm body clearance); H4 inboard of J5 on the bottom
+    # edge. CHASSIS NOTE: mounting pattern is now an asymmetric quad.
     for i, (hx, hy) in enumerate(
-        [(X0 + 5, Y0 + 5), (X0 + W - 5, Y0 + 5), (X0 + 5, Y0 + H - 5),
-         (X0 + W - 5, Y0 + H - 5)], 1
+        [(X0 + 5, Y0 + 5), (146.5, 74.75), (X0 + 5, Y0 + H - 5),
+         (131.5, Y0 + H - 5)], 1
     ):
         mh = pcbnew.FootprintLoad(f"{STD}/MountingHole.pretty", "MountingHole_3.2mm_M3")
         mh.SetReference(f"H{i}")
