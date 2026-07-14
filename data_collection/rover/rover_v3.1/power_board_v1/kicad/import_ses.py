@@ -13,7 +13,8 @@ board = pcbnew.LoadBoard(str(PCB))
 
 ses = SES.read_text()
 
-LAY = {"F.Cu": pcbnew.F_Cu, "B.Cu": pcbnew.B_Cu}
+LAY = {"F.Cu": pcbnew.F_Cu, "B.Cu": pcbnew.B_Cu,
+       "In1.Cu": pcbnew.In1_Cu, "In2.Cu": pcbnew.In2_Cu}
 mm = lambda v: float(v) / 10000.0
 
 added_t = added_v = 0

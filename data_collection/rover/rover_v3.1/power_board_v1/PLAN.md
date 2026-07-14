@@ -51,7 +51,17 @@ all 96 footprints placed in floorplan zones, every pad net-bound (ratsnest live)
 Board-gen audit caught + fixed 2 schematic bugs: USBLC6 ESD arrays were 2-pin
 symbols (D− line + VBUS pin unprotected/floating → full 6-pin flow-through now);
 ATtiny EP now grounded. Only U4's EP floats (required).
-ROUTING STATUS 2026-07-13: freerouting pipeline (route_board.py -> import_ses.py,
+ROUTING STATUS 2026-07-13 (FINAL headless state): board is 4-LAYER (mid-review
+fallback exercised: In1 = solid GND plane, In2 = power pours VSW/VBATT_S/5V_A/5V_B).
+Custom Python maze router (manhattan_route.py: exact-rect clearances, A* +
+two-layer 3D maze, micro-joins) + 93 plane-stitch vias: 362 segments + 327 vias
+placed; ~110 pad-pair connections REMAIN for interactive pcbnew (~1-1.5 h,
+ratsnest-guided; dense clusters where scripted via placement has no legal sites).
+freerouting exhausted: no version both reads KiCad-7 4-layer DSN and writes SES
+(1.x parser crash / 2.1 empty exporter / 2.2.x reader regression) — documented.
+CRITICAL-NET POLISH LIST for the human pass regardless: buck SW nodes + hot
+loops, USB D+/- pairs, R20-INA226 Kelvin, FET gate drives.
+OLD-: freerouting pipeline (route_board.py -> import_ses.py,
 audit_board.py gate) delivered 809 track segments + 89 vias + 68 GND stitching
 vias + 3 F.Cu power pours (VSW/VBATT_S/5V_A) + B.Cu ground plane. 136/221
 pad-pair connections routed; 85 remain (power tie-ins in carved-pour regions +

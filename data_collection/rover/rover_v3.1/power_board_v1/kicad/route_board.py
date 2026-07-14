@@ -37,6 +37,10 @@ def strip_nets(text, nets):
     return text
 
 
+via_m = re.search(r'\(padstack "?(Via\[[^\]]+\])_600:300_um"?', s)
+VIA = via_m.group(1) if via_m else "Via[0-1]"
+copper_layers = re.findall(r'\(layer (\S+)\n', s) or ["F.Cu", "B.Cu"]
+
 # remove power nets from the default class listing (quoted or bare tokens)
 head, tail = s[:m.start()], s[m.start():]
 endidx = tail.index("(circuit")
@@ -55,20 +59,42 @@ power_classes = (
 )
 # larger via definition for power classes
 s = head + netblock + rest
-s = s.replace("(padstack Via[0-1]_600:300_um",
-              '(padstack Via[0-1]_800:400_um\n'
-              '      (shape (circle F.Cu 800 0 0))\n'
-              '      (shape (circle B.Cu 800 0 0))\n'
-              '      (attach off)\n'
-              '    )\n'
-              '    (padstack Via[0-1]_600:300_um', 1)
-s = s.replace('(via "Via[0-1]_600:300_um")',
-              '(via "Via[0-1]_600:300_um" "Via[0-1]_800:400_um")', 1)
+shapes = "".join(f'      (shape (circle {L} 800 0 0))\n' for L in copper_layers)
+old_ps = f'(padstack "{VIA}_600:300_um"' if f'(padstack "{VIA}' in s else f"(padstack {VIA}_600:300_um"
+new_name = f'"{VIA}_800:400_um"' if '"' in old_ps else f"{VIA}_800:400_um"
+s = s.replace(old_ps,
+              f'(padstack {new_name}\n{shapes}      (attach off)\n    )\n    ' + old_ps, 1)
+s = s.replace(f'(via "{VIA}_600:300_um")',
+              f'(via "{VIA}_600:300_um" "{VIA}_800:400_um")', 1)
 # insert power classes right before the default class
 i = s.index("(class kicad_default")
 s = s[:i] + power_classes + s[i:]
+# strip custom padstacks: every freerouting version NPEs on KiCad-7 4-layer
+# Cust[T] pads (USB-A shields — PTH into the GND plane, no routing needed)
+def _strip_block(text, opener):
+    out, i = [], 0
+    while True:
+        j = text.find(opener, i)
+        if j < 0:
+            out.append(text[i:])
+            break
+        out.append(text[i:j])
+        depth, k = 0, j
+        while k < len(text):
+            if text[k] == "(":
+                depth += 1
+            elif text[k] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            k += 1
+        i = k + 1
+    return "".join(out)
+
+
+s = _strip_block(_strip_block(s, "(padstack Cust"), '(padstack "Cust')
 DSN.write_text(s)
-print("DSN classes injected")
+print("DSN classes injected + custom padstacks stripped")
 
 # run freerouting headless
 cmd = ["xvfb-run", "-a", FR, "-de", str(DSN), "-do", str(SES), "-mp", "100", "-da"]
@@ -76,6 +102,7 @@ if SES.exists():
     SES.unlink()
 r = subprocess.run(cmd, capture_output=True, text=True, timeout=2700)
 print("freerouting rc:", r.returncode)
+Path("/tmp/fr_out.log").write_text((r.stdout or "") + (r.stderr or ""))
 if not SES.exists():
     sys.exit("no SES produced")
 

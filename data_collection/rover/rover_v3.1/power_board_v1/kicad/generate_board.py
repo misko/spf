@@ -110,6 +110,7 @@ def load_fp(fpid):
 def main():
     comps, pad_net, nets = parse_netlist(NETLIST)
     board = pcbnew.BOARD()
+    board.SetCopperLayerCount(4)  # mid-review fallback per PLAN.md: 2-layer routing plateaued
 
     netmap = {}
     for n in sorted(nets):
@@ -179,7 +180,7 @@ def main():
 
     # F.Cu POWER pours over the corridors (review: fat nets as copper, not traces).
     # Higher priority than the GND fill; polygons follow the floorplan lanes.
-    POWER_ZONES = [] and [
+    POWER_ZONES = [
         # VBATT_S: shunt -> front-end source column
         ("VBATT_S", [(53, 58), (80, 58), (80, 84), (53, 84)]),
         # VSW: front-end output up the center to both buck input-cap columns
@@ -188,9 +189,10 @@ def main():
         # 5V_A: buck A output -> caps -> USB-C
         ("5V_A", [(108, 48), (133, 48), (133, 66), (108, 66)]),
     ]
+    POWER_ZONES.append(("5V_B", [(100, 76), (138, 76), (138, 114), (100, 114)]))
     for netname, poly in POWER_ZONES:
         z = pcbnew.ZONE(board)
-        z.SetLayer(pcbnew.F_Cu)
+        z.SetLayer(pcbnew.In2_Cu)
         z.SetNet(netmap[netname])
         z.SetAssignedPriority(2) if hasattr(z, "SetAssignedPriority") else z.SetPriority(2)
         z.SetLocalClearance(pcbnew.FromMM(0.3))
@@ -204,7 +206,7 @@ def main():
 
     # GND pours, both layers (2-layer: B.Cu = reference plane, F.Cu = stitched fill)
     gnd = netmap.get("GND")
-    for layer in (pcbnew.B_Cu, pcbnew.F_Cu):
+    for layer in (pcbnew.In1_Cu, pcbnew.B_Cu, pcbnew.F_Cu):
         z = pcbnew.ZONE(board)
         z.SetLayer(layer)
         z.SetNet(gnd)
@@ -340,14 +342,16 @@ def main():
     # refill zones AFTER moves (review fix: stale fill overlapped nudged pads)
     pcbnew.ZONE_FILLER(board).Fill(board.Zones())
 
-    # GND stitching: every SMD GND pad gets a via to the B.Cu plane (the F.Cu
-    # power zones carve the top ground fill, so top-only pour paths are gone)
+    # Plane stitching (4-layer): GND pads via down to In1; power-net pads via
+    # down to their In2 distribution pours. Through-vias reach all layers.
     allpads = [(pp, pp.GetPosition()) for f in board.GetFootprints() for pp in f.Pads()]
     gvias = [t.GetPosition() for t in board.GetTracks() if type(t).__name__ == "PCB_VIA"]
     stitched = 0
     for f in board.GetFootprints():
         for pad in f.Pads():
-            if pad.GetNetname() != "GND" or pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
+            if pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
+                continue
+            if pad.GetNetname() not in ("GND", "VSW", "VBATT_S", "5V_A", "5V_B"):
                 continue
             pp = pad.GetPosition()
             if any(abs(gv.x - pp.x) < pcbnew.FromMM(2.0) and abs(gv.y - pp.y) < pcbnew.FromMM(2.0)
@@ -359,8 +363,10 @@ def main():
                         and pcbnew.FromMM(Y0 + 1) < cy < pcbnew.FromMM(Y0 + H - 1)):
                     continue
                 ok_spot = all(
-                    op.GetNetname() == "GND" or
-                    max(abs(op2.x - cx), abs(op2.y - cy)) > pcbnew.FromMM(1.0)
+                    (op.GetNetname() == pad.GetNetname()
+                     and op.GetAttribute() == pcbnew.PAD_ATTRIB_SMD) or
+                    max(abs(op2.x - cx), abs(op2.y - cy)) > pcbnew.FromMM(
+                        2.0 if op.GetAttribute() != pcbnew.PAD_ATTRIB_SMD else 1.2)
                     for op, op2 in allpads)
                 if not ok_spot:
                     continue
@@ -368,15 +374,15 @@ def main():
                 v.SetPosition(pcbnew.VECTOR2I(int(cx), int(cy)))
                 v.SetDrill(pcbnew.FromMM(0.3))
                 v.SetWidth(pcbnew.FromMM(0.6))
-                v.SetNet(netmap["GND"])
+                v.SetNet(netmap[pad.GetNetname()])
                 v.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
                 board.Add(v)
                 t = pcbnew.PCB_TRACK(board)
                 t.SetStart(pp)
                 t.SetEnd(pcbnew.VECTOR2I(int(cx), int(cy)))
-                t.SetWidth(pcbnew.FromMM(0.35))
+                t.SetWidth(pcbnew.FromMM(0.6))
                 t.SetLayer(pcbnew.F_Cu)
-                t.SetNet(netmap["GND"])
+                t.SetNet(netmap[pad.GetNetname()])
                 board.Add(t)
                 gvias.append(v.GetPosition())
                 stitched += 1

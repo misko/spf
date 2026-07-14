@@ -1,10 +1,11 @@
 {
- "clearance": 164,
- "copper_edge_clearance": 50,
+ "clearance": 73,
+ "copper_edge_clearance": 2,
  "courtyards_overlap": 8,
  "hole_clearance": 5,
+ "holes_co_located": 10,
  "silk_overlap": 47,
- "solder_mask_bridge": 63,
- "starved_thermal": 7,
- "unconnected_items": 85
+ "solder_mask_bridge": 31,
+ "starved_thermal": 10,
+ "unconnected_items": 110
 }
