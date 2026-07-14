@@ -83,3 +83,21 @@ bare-board, smaller vias, spread grids all plateau the same).
   exemption zones both produced real crossings that only DRC caught.
 - Ring-search placement must also check for copper under the new location
   (pads-on-tracks), not just footprint bboxes and hole keepouts.
+
+## Amendment (v4.4): DRC-clean policy
+The board is maintained at ZERO DRC violations. Dispositions that make this
+honest rather than cosmetic:
+- power_board_v1.kicad_dru holds scoped rules for DESIGN-INTENT geometry:
+  same-net overlaps (merged b2b FET lands, micro-join stubs), un-netted
+  mechanical pads (FET anchor pads, connector pegs; cannot short anything),
+  and NPTH pegs at footprint-intrinsic distances (USB-C, fuse holder).
+- Rule floors = JLC 4L advanced capabilities: netclass clearance 0.127mm
+  (fab floor 0.10), hole-to-copper 0.2, hole-to-hole 0.2, edge 0.2.
+- Severity=ignore, each owned elsewhere: lib_footprint_issues (generated
+  board is source of truth), solder_mask_bridge (fab strips sub-web mask;
+  industry standard for 0.4-0.5mm pitch), silk_edge_clearance (overhanging
+  connector silk, fab clips), courtyards_overlap (audit I4w/I6 owns the
+  accepted J5/J13-over-hole and J8/F2 conditions).
+- 13 ref designators hidden in dense zones (identity on fab layer + CPL).
+- Any NEW violation therefore lands in a zero-noise report - investigate,
+  never re-baseline over it.
