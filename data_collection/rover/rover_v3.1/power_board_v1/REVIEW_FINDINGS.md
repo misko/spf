@@ -59,3 +59,22 @@ BOM quantity modeling, and placement.
   R31-R34, split caps; NTC + 22u C# locks)
 - Behavioral doc syncs: AUX_CTL requires Pi I2C arm (reg 0x11); PGOOD semantics;
   bench NTC/REG_TEMP validity only when ON
+
+## kicad-happy schematic analysis triage (2026-07-14, analyze_schematic.py)
+
+107 findings triaged; ZERO new real design issues.
+- 2 errors = the known order-time gap: no MPN/LCSC fields in symbols (BOM §G
+  owns this; MPNs live in BOM.md).
+- "Regulator/IC missing decoupling" (U1,U2,U3,U5,U6): FALSE — every named
+  part's decouplers exist and are placement-verified at 2-5mm (board
+  proximity checks); the detector's rail-name tracing missed them.
+- "No pull-up on U5.ALERT / U6.PG": FALSE — open-drain outputs intentionally
+  unused; datasheets permit floating.
+- "Rail has no power_out/PWR_FLAG" (8 nets): capture-style artifact — this
+  generated schematic uses passive global labels, no power symbols.
+- "USB D+/D- no 22R series" (8): dated guidance; USB 2.0 PHYs integrate
+  termination, pass-through design is direct by intent.
+- Single-pin nets (J9/J10/J14 pin 1, NC/SYNCOUT pins): intentional no-connects
+  (Pi supplies USB data only; VBUS injected locally).
+- Correct positive detections worth keeping: both half-bridges, 6 dividers,
+  8 decoupling groups, protection devices, I2C bus, LED drive.

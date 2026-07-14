@@ -217,6 +217,7 @@ LABELS = []
 PIN_NET = {}    # (ref, pin) -> net
 PIN_POS = {}    # (ref, pin) -> (x, y) endpoint at the symbol body edge
 LINKS = []
+LINKED = set()  # normalized pairs, for auto-link dedupe
 SECTIONS = []   # [title, x0, y0, x1, y1]
 
 
@@ -257,6 +258,7 @@ def link(refA, pinA, refB, pinB):
     else:                                              # outward lane on A's side
         lane = ax + LANE if sa == "R" else ax - LANE
         pts = [(ax, ay), (lane, ay), (lane, by), (bx, by)]
+    LINKED.add(frozenset((a, b)))
     xy = " ".join(f"(xy {px:.2f} {py:.2f})" for px, py in pts)
     LINKS.append(
         f'  (polyline (pts {xy}) (stroke (width 0.2) (type dash)'
@@ -560,6 +562,51 @@ link("R35", "2", "U10", "4")        # EN3
 # S7: I2C pull-ups to the harness
 link("R18", "2", "J7", "1")         # SDA
 link("R19", "2", "J7", "2")         # SCL
+
+
+
+def auto_links():
+    """Derive structure links from the netlist itself (validated by the same
+    same-net assertion as hand links; kicad-happy's subcircuit detection
+    confirmed these classes cover its dividers/decoupling/RC findings):
+    a) every 2-pin point-to-point net gets a link (series junctions, gate
+       drives, port feeds) - by construction unambiguous;
+    b) every rail bypass part (2-pin passive, one pin GND) links to the
+       NEAREST same-net pin, visualizing which IC each decoupler serves."""
+    import math
+    bynet = {}
+    for (ref, pin), net in PIN_NET.items():
+        bynet.setdefault(net, []).append((ref, pin))
+    n_auto = 0
+    for net, pins in bynet.items():
+        if net == "GND":
+            continue
+        refs = {r for r, _ in pins}
+        if len(pins) == 2 and len(refs) == 2:
+            (rA, pA), (rB, pB) = pins
+            if frozenset(((rA, pA), (rB, pB))) not in LINKED:
+                link(rA, pA, rB, pB); n_auto += 1
+    for (ref, pin), net in list(PIN_NET.items()):
+        if net == "GND" or ref[0] not in "RCLDF":
+            continue
+        mates = {PIN_NET.get((ref, o)) for o in ("1", "2")} - {None}
+        if "GND" not in mates or len(bynet.get(net, [])) <= 2:
+            continue
+        x0, y0, _ = PIN_POS[(ref, pin)]
+        best = None
+        for (r2, p2) in bynet[net]:
+            if r2 == ref:
+                continue
+            x1, y1, _s = PIN_POS[(r2, p2)]
+            d = math.hypot(x1 - x0, y1 - y0)
+            if best is None or d < best[0]:
+                best = (d, r2, p2)
+        if best and best[0] < 60 and frozenset(((ref, pin), (best[1], best[2]))) not in LINKED:
+            link(ref, pin, best[1], best[2]); n_auto += 1
+    print(f"auto-links: {n_auto} derived ({len(LINKED)} total links)")
+
+
+auto_links()
 
 # ------------------------------------------------------------------ emit
 sch = []
