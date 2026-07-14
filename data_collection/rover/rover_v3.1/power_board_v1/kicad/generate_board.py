@@ -376,6 +376,8 @@ def main():
         for pad in f.Pads():
             if pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
                 continue
+            if __import__("os").environ.get("NO_STITCH") == "1":
+                continue  # KRT routes GND/power itself; stitch forest conflicts
             if pad.GetNetname() not in ("GND", "VSW", "VBATT_S", "5V_A", "5V_B"):
                 continue
             pp = pad.GetPosition()
