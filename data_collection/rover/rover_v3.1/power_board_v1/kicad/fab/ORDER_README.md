@@ -34,3 +34,10 @@
 U3 is ATtiny1616-SN (816-compatible superset): build with -mmcu=attiny1616.
 
 Full decision audit: analysis/jlc_lcsc_decisions_2026-07-14.md (repo).
+
+## Mounting pattern (v4.6 — changed!)
+Asymmetric quad, M3 NPTH 3.2mm: H1 (55,55), H3 (55,110), H2 (146.5,74.75),
+H4 (131.5,110) in board coords (outline x 50-150, y 50-115; i.e. from the
+top-left corner: (5,5), (5,60), (96.5,24.75), (81.5,60)).
+H2 takes a button/pan-head M3 ONLY (2.9mm to connector bodies — no washer).
+Chassis/standoff plate must match this pattern.
