@@ -213,3 +213,12 @@ freezes silently (no crash) when / hits ENOSPC mid-checkpoint — the runner dis
 guard (<10G refuse) and WANDB_DIR on /mnt/md1 are load-bearing, and any
 "trainer alive but log frozen" watchdog alert should be read first as a
 disk-full or clean-exit signature, not a GPU hang.
+
+**Full-val-set caveat (same 250k evals):** r2's win exists ONLY on val_clean.
+On val_degraded it is +16.9% vs base (0.13058 vs 0.11169), on val_band915
++18.5% (0.13365 vs 0.11277), and on full historical val +4.6% (0.10363 vs
+0.09912) — the signature of lost robustness to conditions it never trains on
+(and it cycles its smaller train set 5 epochs vs base's 3 in the same steps).
+r1 is uniformly ~+1% everywhere, catastrophic nowhere. If deployment includes
+degraded-like RF or the 915MHz band, do NOT promote r2 on val_clean alone —
+judge the 500k gate on the full four-set table.
