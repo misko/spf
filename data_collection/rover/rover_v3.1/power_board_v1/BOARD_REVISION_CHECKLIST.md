@@ -45,3 +45,24 @@ Rules of engagement:
 - Open items (accepted warns, known grazes) listed explicitly with owners.
 
 Checklist owner: whoever touches the board files in that revision.
+
+## Canonical routing pipeline (v4.2, 2026-07: KiCadRoutingTools)
+KRT lives at ~/gits/KiCadRoutingTools (do NOT rely on /tmp clones). Order is
+load-bearing — deviations reintroduce failures we already debugged:
+1. Start from a TRACK-FREE, UNFILLED board (KRT mis-parses filled zones and
+   will route straight through existing copper — 400+ crossings observed).
+2. Mounting-hole keepout squares on User.2; route with `--keepout`.
+3. `bga_fanout.py` U1/U2 (VQFN) BEFORE any routing — fanout on a routed board
+   finds its escape lanes already taken. U3 (0.4mm QFN) cannot be fanned out
+   or routed between pads at ANY legal geometry; its escape count is a hard
+   cap, so its nets go in the hardest-first set.
+4. Hardest-first: thin pass (0.15/0.13, 0.45/0.2 vias, fab-tier advanced) for
+   the escape-bound nets, THEN the standard pass (0.2/0.3, 0.6/0.3, power
+   nets 1.2mm), THEN thin reconciliation of leftovers.
+5. Import into the pcbnew base (textual segment/via import), fill zones,
+   DRC, audit_board.py. Judge clearance by CLASS (different-net <0.10mm =
+   real; everything else = margin/triage), not raw counts.
+6. `export_fab.py` regenerates gerbers/drill/BOM/CPL (DNP excluded).
+Residual ~14 airlines (U3 escapes + U4/U1 pin joins) are the expected manual
+push-and-shove hour; autorouters cannot close them (verified: more layers,
+bare-board, smaller vias, spread grids all plateau the same).
