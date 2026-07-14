@@ -210,9 +210,63 @@ BODY = []
 LABELS = []
 
 
+# --- structure aids (v4): pin endpoint registry, dashed link lines, section
+# boxes. Links are GRAPHIC polylines (never wires): connectivity stays 100%
+# on the global labels, and link() asserts both endpoints already share a
+# net, so a wrong link is a build error instead of a netlist change.
+PIN_NET = {}    # (ref, pin) -> net
+PIN_POS = {}    # (ref, pin) -> (x, y) endpoint at the symbol body edge
+LINKS = []
+SECTIONS = []   # [title, x0, y0, x1, y1]
+
+
+def section(title, x, y):
+    SECTIONS.append([title, x, y - 2, x + 1.9 * len(title), y + 1])
+    BODY.append(f'  (text "{title}" (at {x:.2f} {y:.2f} 0)'
+                f' (effects (font (size 2.0 2.0) bold) (justify left)) (uuid "{u()}"))')
+
+
+def _grow_section(x0, y0, x1, y1):
+    if not SECTIONS:
+        return
+    s = SECTIONS[-1]
+    s[1], s[2] = min(s[1], x0), min(s[2], y0)
+    s[3], s[4] = max(s[3], x1), max(s[4], y1)
+
+
+def link(refA, pinA, refB, pinB):
+    """Dashed guide line between two same-net pins (validated).
+
+    Side-aware routing so lines never cut through symbol bodies: vertical
+    legs run in an outward lane past each pin's exit side (fresh-eyes review
+    found body-crossing L-routes unreadable)."""
+    a, b = (refA, pinA), (refB, pinB)
+    assert a in PIN_NET and b in PIN_NET, f"link: unknown pin {a} / {b}"
+    assert PIN_NET[a] == PIN_NET[b], \
+        f"link {a}<->{b}: nets differ ({PIN_NET[a]} vs {PIN_NET[b]})"
+    (ax, ay, sa), (bx, by, sb) = PIN_POS[a], PIN_POS[b]
+    LANE = 8.5  # beyond the 2.54 label anchor; dashes under text are OK
+    if abs(ay - by) < 0.05 and (sa == "R") == (ax < bx):
+        pts = [(ax, ay), (bx, by)]                     # facing, level: straight
+    elif sa == "R" and sb == "L" and ax < bx - 1:
+        mid = (ax + bx) / 2                            # facing gap: H-V-H
+        pts = [(ax, ay), (mid, ay), (mid, by), (bx, by)]
+    elif sa == "L" and sb == "R" and bx < ax - 1:
+        mid = (ax + bx) / 2
+        pts = [(ax, ay), (mid, ay), (mid, by), (bx, by)]
+    else:                                              # outward lane on A's side
+        lane = ax + LANE if sa == "R" else ax - LANE
+        pts = [(ax, ay), (lane, ay), (lane, by), (bx, by)]
+    xy = " ".join(f"(xy {px:.2f} {py:.2f})" for px, py in pts)
+    LINKS.append(
+        f'  (polyline (pts {xy}) (stroke (width 0.2) (type dash)'
+        f' (color 30 90 170 0.85)) (uuid "{u()}"))')
+
+
 def place(sym, ref, value, x, y, nets):
     """nets: {pin_number: net_name or None}"""
     pm, w, h = PINMAPS[sym]
+    _grow_section(x - w / 2 - 14, y - h / 2 - 3.2, x + w / 2 + 14, y + h / 2 + 3.2)
     # ref above / value below, clear of the body (fixed +-14 collided on small parts)
     ry, vy = y - h / 2 - 1.6, y + h / 2 + 1.6
     fp = REF_FP.get(ref, SYM_FP.get(sym, ""))
@@ -233,6 +287,8 @@ def place(sym, ref, value, x, y, nets):
             lx, ang, just = x - _ / 2 - 2.54, 180, "right"
         else:
             lx, ang, just = x + _ / 2 + 2.54, 0, "left"
+        PIN_NET[(ref, pin_num)] = net
+        PIN_POS[(ref, pin_num)] = (x - _ / 2 if side == "L" else x + _ / 2, y - py, side)
         LABELS.append(
             f'  (global_label "{net}" (shape passive) (at {lx:.2f} {y - py:.2f} {ang})'
             f' (fields_autoplaced) (effects (font (size 1.27 1.27)) (justify {just})) (uuid "{u()}"))'
@@ -275,10 +331,10 @@ def buck_stage(suffix, uref, x0, y0, rilim, cilim, en_net, vout, rfb2, pgood_net
     # LC — every physical capacitor is its own instance (review BLOCKER fix)
     place("IND", f"L{S}1", "MWSA1005S-3R3 16A", x0 + 35, y0 + 22, {"1": f"SW_{S}", "2": vout})
     for i in range(3):
-        place("CAP", f"C{S}5{i+1}", "10u 50V X7R", x0 - 20, y0 + 24 + 6 * i, {"1": "VSW", "2": "GND"})
+        place("CAP", f"C{S}5{i+1}", "10u 50V X7R", x0 - 20, y0 + 24 + 10 * i, {"1": "VSW", "2": "GND"})
     for i in range(4):
-        place("CAP", f"C{S}6{i+1}", "47u 10V X7R", x0 + 35, y0 + 30 + 6 * i, {"1": vout, "2": "GND"})
-    place("CAP", f"C{S}7", "220u poly 25mR", x0 + 35, y0 + 56, {"1": vout, "2": "GND"})
+        place("CAP", f"C{S}6{i+1}", "47u 10V X7R", x0 + 35, y0 + 30 + 10 * i, {"1": vout, "2": "GND"})
+    place("CAP", f"C{S}7", "220u poly 25mR", x0 + 35, y0 + 72, {"1": vout, "2": "GND"})
     # feedback + type-III compensation (sense point = the rail the load sees)
     place("RES", f"R{S}3", "20k RFB1", x0 + 65, y0 - 15, {"1": vout, "2": f"FB_{S}"})
     place("RES", f"R{S}4", rfb2, x0 + 65, y0 - 5, {"1": f"FB_{S}", "2": "GND"})
@@ -290,7 +346,7 @@ def buck_stage(suffix, uref, x0, y0, rilim, cilim, en_net, vout, rfb2, pgood_net
 
 
 # --- section 1: input & protection (battery -, chassis = GND) ---
-text("1. INPUT + PROTECTION (3S: 9-13V)", 20, 20)
+section("1. INPUT + PROTECTION (3S: 9-13V)", 20, 20)
 place("XT60", "J1", "XT60_BATT", 30, 40, {"1": "VBATT_RAW", "2": "GND"})
 place("FUSE", "F1", "15A ATO", 60, 40, {"1": "VBATT_RAW", "2": "VBATT_F"})
 place("TVS", "D1", "SMBJ16A", 60, 55, {"1": "VBATT_F", "2": "GND"})
@@ -300,15 +356,15 @@ place("CAP", "C15", "100n at U4.A", 90, 55, {"1": "VBATT_S", "2": "GND"})
 place("CAP", "CE1", "100u hybrid 25V", 120, 40, {"1": "VSW", "2": "GND"})
 
 # --- section 2: front-end — LM74800 ideal diode + load switch (P1 trade study) ---
-text("2. FRONT-END: LM74800-Q1 + 2x CSD18543Q3A b2b (rev-pol + on/off + OV; 2.87uA off)", 20, 72)
+section("2. FRONT-END: LM74800-Q1 + 2x CSD18543Q3A b2b (rev-pol + on/off + OV; 2.87uA off)", 20, 72)
 place("LM74800", "U4", "LM74800-Q1", 60, 105,
       {"1": "DG_FE", "2": "VBATT_S", "3": "VBATT_S", "4": "FE_LAD", "5": "FE_OV",
        "6": "FE_EN", "7": "GND", "8": "HG_FE", "9": "VSW", "10": "FE_MID",
        "11": "FE_CAP", "12": "FE_MID"})
 fet("Q2", "CSD18543Q3A diode", 105, 92, "DG_FE", "FE_MID", "VBATT_S")
 fet("Q3", "CSD18543Q3A switch", 105, 116, "HG_FE", "FE_MID", "VSW")
-place("CAP", "C1", "100n CAP-VS", 105, 132, {"1": "FE_CAP", "2": "FE_MID"})
-place("CAP", "C2", "100n VS-GND", 105, 142, {"1": "FE_MID", "2": "GND"})
+place("CAP", "C1", "100n CAP-VS", 105, 135, {"1": "FE_CAP", "2": "FE_MID"})
+place("CAP", "C2", "100n VS-GND", 105, 145, {"1": "FE_MID", "2": "GND"})
 place("CAP", "C3", "47n HGATE dv/dt (10ms)", 140, 92, {"1": "HG_FE", "2": "VSW"})
 # EN/OV ladder from SW pin: EN falls 1.132V @ 10.16V (analog LPD fallback),
 # EN rises 1.231V @ 11.05V, OV trips @ 14.9V (charger fault) — MCU overrides via FE_EN
@@ -318,21 +374,21 @@ place("RES", "R3", "82k5 ladder-bot", 20, 129, {"1": "FE_OV", "2": "GND"})
 # boot-glitch fix: delays divider self-enable ~450ms so the MCU takes control
 # first (rails no longer pulse ON at pack plug-in / MCU reset)
 place("CAP", "C16", "2u2 EN delay", 20, 141, {"1": "FE_EN", "2": "GND"})
-place("SCREW2", "J2", "PANEL_SW", 20, 90, {"1": "SW_SENSE", "2": "GND"})
-place("CAP", "C17", "100n sw debounce", 33, 90, {"1": "SW_SENSE", "2": "GND"})
+place("SCREW2", "J2", "PANEL_SW", 36, 90, {"1": "SW_SENSE", "2": "GND"})
+place("CAP", "C17", "100n sw debounce", 52, 90, {"1": "SW_SENSE", "2": "GND"})
 
 # --- section 3: supervisor (MCU, always-on 3V3) + telemetry (switched) ---
-text("3. SUPERVISOR (always-on ~25uA) + TELEMETRY (switched)", 20, 158)
+section("3. SUPERVISOR (always-on ~25uA) + TELEMETRY (switched)", 20, 158)
 # D5 protects the always-on LDO from reverse-battery (TPS7A16 IN abs max -0.3V;
 # the SMBJ16A conducts ~-1V until the fuse clears)
-place("TVS", "D5", "B5819W schottky", 30, 166, {"1": "VBATT_F", "2": "VBATT_FD"})
-place("TPS7A16", "U6", "TPS7A1633 3V3 60V LDO", 30, 178,
+place("TVS", "D5", "B5819W schottky", 30, 163, {"1": "VBATT_F", "2": "VBATT_FD"})
+place("TPS7A16", "U6", "TPS7A1633 3V3 60V LDO", 30, 183,
       {"8": "VBATT_FD", "5": "VBATT_FD", "4": "GND", "9": "GND", "1": "MCU_3V3",
        "3": None, "7": None, "2": None, "6": None})
 place("CAP", "C5", "1u LDO in", 48, 168, {"1": "VBATT_FD", "2": "GND"})
 place("CAP", "C6", "100n LDO in", 48, 174, {"1": "VBATT_FD", "2": "GND"})
-place("CAP", "C7", "2u2 LDO out", 48, 180, {"1": "MCU_3V3", "2": "GND"})
-place("CAP", "C8", "100n MCU vdd", 48, 186, {"1": "MCU_3V3", "2": "GND"})
+place("CAP", "C7", "2u2 LDO out", 52, 178, {"1": "MCU_3V3", "2": "GND"})
+place("CAP", "C8", "100n MCU vdd", 52, 188, {"1": "MCU_3V3", "2": "GND"})
 place("ATTINY816", "U3", "ATtiny816 (SOIC-20)", 88, 195,
       {"1": "MCU_3V3", "20": "GND", "16": "UPDI", "2": "VSENSE", "4": "V5A_SENSE",
        "5": "NTC", "3": "FAULT_USB", "9": "SW_SENSE", "15": "SHDN_ACK", "12": "PGOOD_A",
@@ -363,7 +419,7 @@ place("SCREW2", "J8", "AUX_CTL out (JST-GH)", 178, 215, {"1": "AUX_CTL", "2": "G
 # Review fixes: pi-filter DELETED on rail A (sense point was upstream of it and
 # the Pi 4.75V budget didn't close); setpoint raised to 5.18V (RFB2 3k65) to
 # cover cable drop; RILIM 348R = worst-case-min 6.3A valley
-text("4. BUCK A  5.18V/6A (Pi 5)  [values: P1_DETAIL_DESIGN.md sec 2]", 230, 20)
+section("4. BUCK A  5.18V/6A (Pi 5)  [values: P1_DETAIL_DESIGN.md sec 2]", 230, 20)
 place("RES", "R4", "100k EN-A hi (8.5V on)", 200, 30, {"1": "VSW", "2": "EN_A"})
 place("RES", "R5", "16k5 EN-A lo (7.5V off)", 200, 42, {"1": "EN_A", "2": "GND"})
 buck_stage("A", "U1", 280, 50, "348R RILIM (wc-min 6.3A)", "18p CILIM", "EN_A", "5V_A",
@@ -375,8 +431,8 @@ place("RES", "R21", "20k PGOOD_A pu (5V_A)", 200, 54, {"1": "5V_A", "2": "PGOODA
 place("RES", "R33", "20k seq div hi", 200, 66, {"1": "PGOODA_RAW", "2": "PGOOD_A"})
 place("RES", "R34", "16k5 seq div lo", 200, 78, {"1": "PGOOD_A", "2": "GND"})
 place("CAP", "CA111", "22u local", 385, 25, {"1": "5V_A", "2": "GND"})
-place("CAP", "CA112", "22u local", 385, 32, {"1": "5V_A", "2": "GND"})
-place("TVS", "D6", "SMBJ5.0A", 385, 39, {"1": "5V_A", "2": "GND"})
+place("CAP", "CA112", "22u local", 385, 35, {"1": "5V_A", "2": "GND"})
+place("TVS", "D6", "SMBJ5.0A", 385, 45, {"1": "5V_A", "2": "GND"})
 place("USBC_PWR", "J3", "USB4105-GF-A (TH shell)", 425, 42,
       {"A4": "5V_A", "A9": "5V_A", "B4": "5V_A", "B9": "5V_A",
        "A5": "CC1_A", "B5": "CC2_A",
@@ -388,16 +444,16 @@ place("SCREW2", "J12", "5V_A pigtail hdr DNP", 420, 95, {"1": "5V_A", "2": "GND"
 
 # --- section 5: buck B (radios + aux, 5A; EN sequenced from PGOOD_A) ---
 # pi-filter KEPT on rail B (SDR ripple >> 37mV DCR drop); sense stays at 5VB_PRE
-text("5. BUCK B  5.08V/6A (3xUSB-A+aux) — EN = PGOOD_A (Pi rail first)", 230, 115)
+section("5. BUCK B  5.08V/6A (3xUSB-A+aux) — EN = PGOOD_A (Pi rail first)", 230, 115)
 buck_stage("B", "U2", 280, 150, "348R RILIM (wc-min 6.3A)", "18p CILIM", "PGOOD_A", "5VB_PRE",
            "3k74 RFB2 (5.08V)")
 place("IND", "L4", "pi-filter 1u", 385, 125, {"1": "5VB_PRE", "2": "5V_B"})
 place("CAP", "CB111", "22u pi-out", 385, 132, {"1": "5V_B", "2": "GND"})
-place("CAP", "CB112", "22u pi-out", 385, 139, {"1": "5V_B", "2": "GND"})
-place("TVS", "D7", "SMBJ5.0A", 385, 146, {"1": "5V_B", "2": "GND"})
+place("CAP", "CB112", "22u pi-out", 385, 142, {"1": "5V_B", "2": "GND"})
+place("TVS", "D7", "SMBJ5.0A", 385, 152, {"1": "5V_B", "2": "GND"})
 
 # --- section 6: USB power-switched ports + passthrough ---
-text("6. RADIO USB (power inject + data passthrough)", 230, 218)
+section("6. RADIO USB (power inject + data passthrough)", 230, 218)
 place("TPS2557", "U7", "TPS2557 ~3A", 260, 242,
       {"2": "5V_B", "3": "5V_B", "4": "EN_USB1", "1": "GND", "9": "GND",
        "6": "VBUS1", "7": "VBUS1", "8": "FAULT_USB", "5": "ILIM1"})
@@ -439,7 +495,7 @@ place("USBLC6", "D8", "USBLC6-2SC6", 310, 318,
       {"1": "D3_N", "6": "D3_N", "3": "D3_P", "4": "D3_P", "5": "VBUS3", "2": "GND"})
 
 # --- section 7: Pi harness + programming ---
-text("7. PI HARNESS (JST-GH) + UPDI", 20, 255)
+section("7. PI HARNESS (JST-GH) + UPDI", 20, 255)
 place("HDR8", "J7", "PI GPIO harness", 40, 280,
       {"1": "SDA", "2": "SCL", "3": "LOW_BATT", "4": "SHDN_ACK",
        "5": "PGOOD_A", "6": "PGOOD_B", "7": "GND", "8": "GND"})
@@ -452,18 +508,80 @@ place("RES", "R22", "10k PGOOD_B pu (3V3_SW)", 110, 282, {"1": "3V3_SW", "2": "P
 place("HDR3", "J11", "UPDI prog (UPDI/3V3/GND)", 40, 300,
       {"1": "UPDI", "2": "MCU_3V3", "3": "GND"})
 
+
+# ------------------------------------------------------------------ structure links
+# Dashed guide lines for the topology-carrying chains (validated: both ends
+# must already share a net). Connectivity itself stays on the global labels.
+# S1: battery input chain
+link("J1", "1", "F1", "1")          # VBATT_RAW
+link("F1", "2", "D1", "1")          # VBATT_F -> TVS
+link("F1", "2", "R20", "1")         # VBATT_F -> shunt
+link("R20", "2", "C15", "1")        # VBATT_S
+# S2: front-end b2b pair + EN/OV ladder
+link("R20", "2", "U4", "2")         # VBATT_S into LM74800 A pin
+link("U4", "1", "Q2", "4")          # DGATE -> diode-FET gate
+link("U4", "8", "Q3", "4")          # HGATE -> switch-FET gate
+link("Q2", "5", "Q3", "5")          # common drain FE_MID
+link("Q2", "1", "U4", "3")          # VBATT_S source sense
+link("U4", "11", "C1", "1")         # CAP pin -> C1
+link("U4", "4", "R1", "1")          # SW pin -> ladder top
+link("R1", "2", "R2", "1")          # FE_EN junction
+link("R2", "2", "R3", "1")          # FE_OV junction
+link("R1", "2", "C16", "1")         # EN delay cap on the junction
+# S3: supervisor sense chains
+link("D5", "2", "U6", "8")          # VBATT_FD into LDO
+link("R10", "2", "R11", "1")        # VSENSE divider midpoint
+link("R11", "1", "C4", "1")         # VSENSE hold cap
+link("R25", "2", "R26", "1")        # V5A_SENSE divider
+link("R27", "2", "R28", "1")        # NTC divider
+link("R29", "2", "D4", "1")         # LED_K
+# S4/S5: buck power trains, gate drives, FB and comp networks
+for S in ("A", "B"):
+    U = "U1" if S == "A" else "U2"
+    link(U, "18", f"Q{S}1", "4")    # HO -> HS gate
+    link(U, "13", f"Q{S}2", "4")    # LO -> LS gate
+    link(f"Q{S}1", "1", f"Q{S}2", "5")   # SW node HS source <-> LS drain
+    link(f"Q{S}1", "1", f"L{S}1", "1")   # SW node -> inductor
+    link(f"L{S}1", "2", f"C{S}61", "1")  # VOUT -> first output cap
+    link(f"L{S}1", "2", f"R{S}3", "1")   # VOUT -> FB divider top
+    link(f"R{S}3", "2", f"R{S}4", "1")   # FB midpoint
+    link(f"R{S}4", "1", U, "5")          # FB -> controller
+    link(U, "4", f"R{S}5", "1")          # COMP -> RC1
+    link(f"R{S}5", "2", f"C{S}8", "1")   # CX junction
+    link(f"C{S}3", "2", f"R{S}2", "2")   # BST/ILIM on SW
+# S6: USB port chains (5V_B -> switch -> VBUS -> jack; ILIM)
+for U, J, R, ILIM in (("U7", "J4", "R16", "5"), ("U8", "J5", "R17", "5"),
+                      ("U10", "J13", "R36", "5")):
+    link(U, "7", J, "1")            # OUT -> VBUS -> jack
+    link(U, ILIM, R, "1")           # ILIM resistor
+link("R31", "2", "U7", "4")         # EN1 pull-up junction
+link("R32", "2", "U8", "4")         # EN2
+link("R35", "2", "U10", "4")        # EN3
+# S7: I2C pull-ups to the harness
+link("R18", "2", "J7", "1")         # SDA
+link("R19", "2", "J7", "2")         # SCL
+
 # ------------------------------------------------------------------ emit
 sch = []
 sch.append('(kicad_sch (version 20230121) (generator spf_generate_schematic)')
 sch.append(f'  (uuid "{ROOT_UUID}")')
 sch.append('  (paper "A2")')
-sch.append('  (title_block (title "SPF rover power board v1") (date "2026-07-13") (rev "v4")')
-sch.append('    (comment 1 "v4: adversarial-review fixes (decoupling, split bulk caps, 3V3_SW pulls, PGOOD seq divider, rail-A sense point, RILIM wc, aux polyfuse, 5V TVS)"))')
+sch.append('  (title_block (title "SPF rover power board v1") (date "2026-07-14") (rev "v5")')
+sch.append('    (comment 2 "v5: section boxes + structure links; U3 SOIC-20; J12 header") (comment 1 "v4: adversarial-review fixes; see REVIEW_FINDINGS.md"))')
 sch.append("  (lib_symbols")
 sch.extend(SYMBOLS.values())
 sch.append("  )")
 sch.extend(LABELS)
 sch.extend(BODY)
+sch.extend(LINKS)
+for title, x0, y0, x1, y1 in SECTIONS:
+    # pad the box clear of the title (top) and labels; clamp inside the A2
+    # frame (fresh-eyes review: borders struck titles / spilled into margin)
+    x0, y0 = max(x0 - 2, 12.0), max(y0 - 4.5, 12.0)
+    x1, y1 = x1 + 2, y1 + 2.5
+    sch.append(f'  (rectangle (start {x0:.2f} {y0:.2f}) (end {x1:.2f} {y1:.2f})'
+               f" (stroke (width 0.35) (type solid) (color 120 120 130 0.7))"
+               f' (fill (type none)) (uuid "{u()}"))')
 sch.append(f'  (sheet_instances (path "/" (page "1")))')
 sch.append(")")
 content = "\n".join(sch)
@@ -471,7 +589,10 @@ assert content.count("(") == content.count(")"), (
     content.count("("), content.count(")"))
 (HERE / "power_board_v1.kicad_sch").write_text(content)
 
-(HERE / "power_board_v1.kicad_pro").write_text(
+# NEVER overwrite an existing project file - it carries the DRC rule floors,
+# netclasses and severity policy (v4.4 DRC-clean state).
+if not (HERE / "power_board_v1.kicad_pro").exists():
+    (HERE / "power_board_v1.kicad_pro").write_text(
     '{\n  "board": { "design_settings": {} },\n'
     '  "meta": { "filename": "power_board_v1.kicad_pro", "version": 1 },\n'
     '  "schematic": { "legacy_lib_dir": "", "legacy_lib_list": [] }\n}\n'
