@@ -392,7 +392,7 @@ place("CAP", "C5", "1u LDO in", 48, 168, {"1": "VBATT_FD", "2": "GND"})
 place("CAP", "C6", "100n LDO in", 48, 174, {"1": "VBATT_FD", "2": "GND"})
 place("CAP", "C7", "2u2 LDO out", 52, 178, {"1": "MCU_3V3", "2": "GND"})
 place("CAP", "C8", "100n MCU vdd", 52, 188, {"1": "MCU_3V3", "2": "GND"})
-place("ATTINY816", "U3", "ATtiny816 (SOIC-20)", 88, 195,
+place("ATTINY816", "U3", "ATtiny1616-SN (816-compat)", 88, 195,
       {"1": "MCU_3V3", "20": "GND", "16": "UPDI", "2": "VSENSE", "4": "V5A_SENSE",
        "5": "NTC", "3": "FAULT_USB", "9": "SW_SENSE", "15": "SHDN_ACK", "12": "PGOOD_A",
        "7": "FE_EN", "6": "EN_A", "14": "LOW_BATT", "8": "AUX_CTL", "10": "SDA",

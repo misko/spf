@@ -8201,7 +8201,7 @@
 				)
 			)
 		)
-		(property "Value" "ATtiny816-SSN (SOIC-20)"
+		(property "Value" "ATtiny1616-SN (816-compat)"
 			(at 0 7.35 0)
 			(layer "F.Fab")
 			(uuid "1211617e-0c8a-4e33-a69c-01becb86d91e")
