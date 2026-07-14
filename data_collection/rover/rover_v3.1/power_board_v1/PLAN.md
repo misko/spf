@@ -93,3 +93,18 @@ Rev B from findings; release = tagged fab package (gerbers+BOM+CPL+firmware+docs
 Critical path: P1 → P4 → P6 lead time. Engineering ~5-7 working days; calendar ~3-4
 weeks dominated by fab. Parallel tracks: firmware (P1), BOM (P2), Pi-side software
 (P6) never block the board.
+
+## ROUTING UPDATE (2026-07-13 late): KiCadRoutingTools adopted
+drandyhaas/KiCadRoutingTools (Rust A* + rip-up, 7-second runs, CLI, operates on
+.kicad_pcb directly) beats everything tried today. Proven tonight: from-scratch
+route connected 44 single-pad nets + 127/155 multipoint pads in seconds
+(kicad/power_board_v1_krt_experiment.kicad_pcb = best hybrid: 46 unconnected,
+263 sub-0.1mm clearances to triage; import shim = kicad/import_krt.py, KRT
+writes KiCad-9 dialect).
+NEXT SESSION RECIPE (clean pass, ~10 min): 1) generator variant WITHOUT blanket
+GND stitching (KRT routes GND itself — the stitch-via forest caused most
+clearance conflicts); 2) route: python3 /tmp/krt/route.py fresh.kicad_pcb
+--fab-tier standard (0.10 floor is JLC-legal for 4-layer) --power-nets ...;
+3) import_krt.py; 4) audit + kicad-happy analyze_pcb + DRC\@0.10 gates.
+DeepPCB job pending at app.deeppcb.ai/boards/QgidR4n75h2S (0 credits — likely
+stalled; cancel or fund). KRT repo should be cloned permanently (currently /tmp).

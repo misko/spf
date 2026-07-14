@@ -31,7 +31,7 @@ ANCHOR = {
     # input, top-left: J1 mate faces WEST off-edge (rot 270 = pads vertical,
     # verified pads on-board); battery then flows monotonically west->east
     "J1": (57, 72, 90), "F1": (64, 68, 90), "R20": (74, 62, 0), "U5": (74, 69, 0),
-    "J2": (54.5, 103, 0), "D4": (52.8, 95, 0), "D1": (76, 64, 0), "D7": (76, 68, 0),
+    "J2": (54.5, 103, 0), "D4": (52.8, 95, 0), "D1": (104, 76, 0), "D7": (104, 80, 0),
     # front-end at mid-left (review: no more bottom-left hairpin)
     "Q2": (62, 82, 0), "Q3": (62, 92, 0), "U4": (54, 90, 0),
     "C1": (70, 80, 0), "C2": (70, 84, 0), "C3": (70, 88, 0), "C16": (70, 92, 0),
