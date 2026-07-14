@@ -24,7 +24,7 @@ STD = "/usr/share/kicad/footprints"
 PROJ = str(HERE / "power_board_v1.pretty")
 
 # board frame
-X0, Y0, W, H = 50.0, 50.0, 90.0, 65.0
+X0, Y0, W, H = 50.0, 50.0, 100.0, 65.0  # widened +10mm for 3rd USB-A
 
 # explicit anchors for the parts whose position drives the power loops
 ANCHOR = {
@@ -53,14 +53,14 @@ ANCHOR = {
     "J3": (125, 53, 180), "CA111": (121, 61, 0), "CA112": (121, 65, 0),
     # XT30 fallback mates EAST; pegs now on-board (review blocker fix)
     "J12": (108, 52.5, 180),
-    "J4": (136, 85, 0), "J5": (136, 100, 0),
+    "J4": (146, 85, 0), "J5": (146, 105, 0),
     # rail B output + USB switches; ESD arrays + RILIM moved next to their ports
     "L4": (112, 80, 0), "CB111": (119, 79, 0), "CB112": (119, 83, 0),
     "U7": (105, 84, 0), "U8": (120, 110, 0), "R16": (101, 82, 0),
     "CB61": (118, 86, 0), "CB62": (118, 91, 0), "CB63": (118, 96, 0), "CB64": (118, 101, 0),
     "CB7": (104, 102.3, 90),
     "J9": (113, 104, 0), "J10": (86, 101, 90), "J6": (99, 113, 0), "F2": (90, 106, 0),
-    "J13": (136, 58, 0), "U10": (127, 62, 0), "J14": (121, 66, 90), "D8": (127, 55, 0), "R35": (121, 56, 0), "R36": (121, 70, 0),
+    "J13": (146, 58, 0), "J14": (138, 70, 90),
 }
 
 # zone grids for everything else: (x_start, y_start, cols, dx, dy)
@@ -69,7 +69,7 @@ ZONE_OF = {
     "B": (76, 98, 5, 5.0, 4.0),
     "S": (52, 97, 6, 4.0, 4.0),
     "U": (98, 62, 3, 5.0, 4.5),
-    "V": (114, 66, 3, 5.5, 5.0),
+    "V": (116, 64, 4, 6.0, 5.5),
 }
 GRID_REFS = {
     "A": ["RA1", "RA2", "RA3", "RA4", "RA5", "RA6", "CA1", "CA2", "CA3", "CA4",
@@ -193,10 +193,10 @@ def main():
         ("VSW", [(54, 86), (97, 86), (97, 48), (84, 48), (84, 70), (66, 70),
                  (66, 100), (54, 100)]),
         # 5V_A: buck A output -> caps -> USB-C
-        ("5V_A", [(108, 48), (133, 48), (133, 66), (108, 66)]),
+        ("5V_A", [(108, 48), (143, 48), (143, 66), (108, 66)]),
     ]
     if __import__("os").environ.get("NO_ZONES") != "1":
-        POWER_ZONES.append(("5V_B", [(100, 76), (138, 76), (138, 114), (100, 114)]))
+        POWER_ZONES.append(("5V_B", [(100, 76), (148, 76), (148, 114), (100, 114)]))
     for netname, poly in POWER_ZONES:
         z = pcbnew.ZONE(board)
         z.SetLayer(pcbnew.In2_Cu)

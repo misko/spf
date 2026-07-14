@@ -23,7 +23,7 @@ PWR_W = 1.2         # power width
 PWR_NETS = {"VSW", "VBATT_RAW", "VBATT_F", "VBATT_S", "FE_MID", "5V_A", "5V_B",
             "5VB_PRE", "AUX_5V", "VBUS1", "VBUS2", "VBATT_FD", "SW_A", "SW_B"}
 VIA_W, VIA_DRILL = 0.6, 0.3
-X0, Y0, W, H = 50.0, 50.0, 90.0, 65.0
+X0, Y0, W, H = 50.0, 50.0, 100.0, 65.0
 
 board = pcbnew.LoadBoard(str(PCB))
 mm = pcbnew.ToMM

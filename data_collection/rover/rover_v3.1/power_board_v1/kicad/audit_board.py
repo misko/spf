@@ -20,7 +20,7 @@ PCB = HERE / "power_board_v1.kicad_pcb"
 BASELINE = HERE / "drc_baseline.json"
 
 # board frame (must match generate_board.py)
-X0, Y0, W, H = 50.0, 50.0, 90.0, 65.0
+X0, Y0, W, H = 50.0, 50.0, 100.0, 65.0
 EDGE_MARGIN_MM = 0.3
 SCREW_HEAD_R_MM = 3.2  # M3 pan head + margin
 
