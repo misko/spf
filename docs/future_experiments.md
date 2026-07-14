@@ -172,9 +172,16 @@ included in the doc.
   IQ LSBs via custom firmware — the pgreenland v0.38 timestamp fork proves the build/
   flash path works in-house. 80/20 alternative: manual gain per capture session.
 
-## E-DATA1 — staged data-quality training ladder  (RUNNING as of 2026-07-12)
+## E-DATA1 — staged data-quality training ladder  (stage 2 RUNNING as of 2026-07-14)
 
 Stage 1: base / r1(label-clean, 1630) / r2(no-degraded, 1217) × 250k steps, sequential;
 kill >3% behind on `val_clean/single_loss` at 250k, >1.5% at 500k; resume survivors
 +250k per stage to 1M. Baselines (jun26 checkpoint): val 0.09735 / val_clean 0.1014 /
 val_degraded 0.10902 / val_915 0.11003. Runner: `checkpoints/jul12_2026/stage1_runner.sh`.
+
+**Stage 1 RESULT (2026-07-14, 250k, val_clean/single_loss on frozen set, 1991
+batches):** base 0.10211 / r1 0.10330 (+1.2%) / r2 0.10125 (−0.8%). No kill
+(all under 3%); r2 (no-degraded) best, r1 (label-clean) slightly behind base.
+All three resumed to 500k via `checkpoints/jul12_2026/stage2_runner.sh`;
+decision point at 500k uses the tighter 1.5% rule (r1 is the kill candidate
+if its gap holds). See docs/learnings.md E-DATA1 entry.

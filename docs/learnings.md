@@ -198,3 +198,18 @@ hard-asserted at load). Decision metric for quality experiments is
 `val_degraded` is reported but never optimized toward. Eval-only runs MUST pass a scratch
 `--output` (val-and-exit executes the save-best path). Bit-compat baseline for the jun26
 single checkpoint: val/single_loss = 0.09735 via --val-and-exit.
+
+## E-DATA1 stage 1 (2026-07-14): dropping degraded captures helps; label-clean subset does not
+
+At 250k steps on identical schedules (frozen val set, 1991 batches,
+`val_clean/single_loss`): base(full train) 0.10211, r1(label-clean 1630 files)
+0.10330 (+1.2%), r2(no-degraded 1217 files) 0.10125 (−0.8%). Read: the
+degraded-flagged captures are mildly toxic (removing them wins despite 25% less
+data), while the label-clean filter cuts data that was actually useful — its
+smaller train set hurts more than its cleaner labels help at this scale. Not yet
+decision-grade: gaps are ~1%, and the ladder's 500k checkpoint (tighter 1.5%
+kill) is the real test. Ops note recorded the hard way, twice: the trainer
+freezes silently (no crash) when / hits ENOSPC mid-checkpoint — the runner disk
+guard (<10G refuse) and WANDB_DIR on /mnt/md1 are load-bearing, and any
+"trainer alive but log frozen" watchdog alert should be read first as a
+disk-full or clean-exit signature, not a GPU hang.
