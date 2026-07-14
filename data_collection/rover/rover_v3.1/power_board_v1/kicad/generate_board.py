@@ -180,7 +180,10 @@ def main():
 
     # F.Cu POWER pours over the corridors (review: fat nets as copper, not traces).
     # Higher priority than the GND fill; polygons follow the floorplan lanes.
-    POWER_ZONES = [
+    if __import__("os").environ.get("NO_ZONES") == "1":
+        POWER_ZONES = []
+    else:
+        POWER_ZONES = [
         # VBATT_S: shunt -> front-end source column
         ("VBATT_S", [(53, 58), (80, 58), (80, 84), (53, 84)]),
         # VSW: front-end output up the center to both buck input-cap columns
@@ -189,7 +192,8 @@ def main():
         # 5V_A: buck A output -> caps -> USB-C
         ("5V_A", [(108, 48), (133, 48), (133, 66), (108, 66)]),
     ]
-    POWER_ZONES.append(("5V_B", [(100, 76), (138, 76), (138, 114), (100, 114)]))
+    if __import__("os").environ.get("NO_ZONES") != "1":
+        POWER_ZONES.append(("5V_B", [(100, 76), (138, 76), (138, 114), (100, 114)]))
     for netname, poly in POWER_ZONES:
         z = pcbnew.ZONE(board)
         z.SetLayer(pcbnew.In2_Cu)
@@ -206,7 +210,8 @@ def main():
 
     # GND pours, both layers (2-layer: B.Cu = reference plane, F.Cu = stitched fill)
     gnd = netmap.get("GND")
-    for layer in (pcbnew.In1_Cu, pcbnew.B_Cu, pcbnew.F_Cu):
+    for layer in ([] if __import__("os").environ.get("NO_ZONES") == "1"
+                  else (pcbnew.In1_Cu, pcbnew.B_Cu, pcbnew.F_Cu)):
         z = pcbnew.ZONE(board)
         z.SetLayer(layer)
         z.SetNet(gnd)
