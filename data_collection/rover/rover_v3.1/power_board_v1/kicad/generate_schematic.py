@@ -197,6 +197,7 @@ REF_FP = {
     "L2": "Inductor_SMD:L_Chilisin_BMRx00060630", "L4": "Inductor_SMD:L_Chilisin_BMRx00060630",
     # USBLC6-2 ESD arrays are SOT-23-6, not SMB
     "D2": "Package_TO_SOT_SMD:SOT-23-6", "D3": "Package_TO_SOT_SMD:SOT-23-6",
+    "D8": "Package_TO_SOT_SMD:SOT-23-6",
     # JST-GH per BOM (symbols are generic 2-pin)
     "J2": "Connector_JST:JST_GH_BM02B-GHS-TBT_1x02-1MP_P1.25mm_Vertical",
     "J8": "Connector_JST:JST_GH_BM02B-GHS-TBT_1x02-1MP_P1.25mm_Vertical",

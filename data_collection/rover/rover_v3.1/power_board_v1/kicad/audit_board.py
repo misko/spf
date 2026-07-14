@@ -114,7 +114,17 @@ if overlaps:
 # fab-legal, human-triage only.
 FAB_FLOOR_MM = 0.10
 rpt = "/tmp/audit_drc.txt"
-pcbnew.WriteDRCReport(board, rpt, pcbnew.EDA_UNITS_MILLIMETRES, False)
+if hasattr(pcbnew, "EDA_UNITS_MILLIMETRES"):
+    # KiCad 7/8: in-process report works headless
+    pcbnew.WriteDRCReport(board, rpt, pcbnew.EDA_UNITS_MILLIMETRES, False)
+else:
+    # KiCad >= 9: WriteDRCReport segfaults without the GUI Pgm() instance;
+    # kicad-cli emits the same [type]-tagged report format
+    import subprocess
+    subprocess.run(
+        ["kicad-cli", "pcb", "drc", "--severity-all", "--refill-zones",
+         "--format", "report", "-o", rpt, str(PCB)],
+        check=True, capture_output=True)
 rpt_text = Path(rpt).read_text()
 counts = collections.Counter(re.findall(r"\[(\w+)\]", rpt_text))
 counts = {k: v for k, v in counts.items()

@@ -222,3 +222,24 @@ On val_degraded it is +16.9% vs base (0.13058 vs 0.11169), on val_band915
 r1 is uniformly ~+1% everywhere, catastrophic nowhere. If deployment includes
 degraded-like RF or the 915MHz band, do NOT promote r2 on val_clean alone —
 judge the 500k gate on the full four-set table.
+
+## Power board (2026-07-14): KiCad 10 upgrade audit found D8 (USB3 ESD) missing from the board
+
+KiCad 10.0.4's new `kicad-cli pcb drc --schematic-parity` caught a component
+that was in the schematic, netlist, and BOM-intent but never on the board:
+D8, the USBLC6 ESD array for USB port 3 (J13) — port 3's data lines ran
+J14→J13 unprotected while ports 1/2 had D2/D3. Root cause: the 3rd-port
+change (c0e1eb9) added D8's `place()` call but not its entry in
+generate_schematic.py's per-ref footprint map (`REF_FP`), so the netlist
+carried D8 with an empty footprint and generate_board.py's
+`SKIP: no footprint` console print dropped it silently. Every gate passed
+because DRC/audit/routing-completeness check only board-internal
+consistency, and kicad-happy reviews the schematic side (where D8 looked
+fine). Fixes shipped: missing footprint is now a hard error in
+generate_board.py, `--schematic-parity` is in the gate list, and D8 was
+retrofitted onto the routed board (verified copper, DRC 0/0, audit PASS,
+v4.5). Standing rule: any tool "skip" on generated artifacts must be a
+build failure — a printed warning on a generation console is invisible by
+the next session. Parity noise classes on this board (stable, not bugs):
+134 lib-prefix footprint_symbol_mismatch, 18 merged-drain-pad MOSFET
+net_conflicts (Q2/Q3/QA*/QB*), 4 mounting-hole extra_footprint.

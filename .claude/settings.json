@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kicad-cli sch export *)",
+      "Bash(kicad-cli pcb export *)",
+      "Bash(kicad-cli pcb drc *)",
+      "Bash(kicad-cli sch erc *)",
+      "Bash(kicad-cli version)",
+      "Bash(pdftoppm *)",
+      "Bash(pdfinfo *)",
+      "Bash(rsvg-convert *)",
+      "Bash(nvidia-smi)",
+      "Bash(nvidia-smi --query-gpu=*)",
+      "Bash(nvidia-smi --query-compute-apps=*)"
+    ]
+  }
+}

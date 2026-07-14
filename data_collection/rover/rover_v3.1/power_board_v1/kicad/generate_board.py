@@ -84,20 +84,26 @@ GRID_REFS = {
 
 
 def parse_netlist(path):
+    # whitespace-tolerant: KiCad 7 wrote one-line s-exprs, KiCad 10 pretty-
+    # prints tokens on separate lines — same-line regexes match NOTHING there
     s = path.read_text()
     comps = {}
-    for m in re.finditer(r'\(comp \(ref "([^"]+)"\)(.*?)(?=\(comp \(ref|\(libparts)', s, re.S):
+    for m in re.finditer(r'\(comp\s+\(ref\s+"([^"]+)"\)(.*?)(?=\(comp\s+\(ref|\(libparts)', s, re.S):
         ref, body = m.group(1), m.group(2)
-        fp = re.search(r'\(footprint "([^"]*)"\)', body)
-        val = re.search(r'\(value "([^"]*)"\)', body)
+        fp = re.search(r'\(footprint\s+"([^"]*)"\)', body)
+        val = re.search(r'\(value\s+"([^"]*)"\)', body)
         comps[ref] = (fp.group(1) if fp else "", val.group(1) if val else "")
+    if not comps:
+        raise RuntimeError(f"parsed 0 components from {path} — netlist format changed?")
     pad_net = {}
     nets = set()
-    for m in re.finditer(r'\(net \(code "\d+"\) \(name "([^"]+)"\)(.*?)(?=\(net \(code|\Z)', s, re.S):
+    for m in re.finditer(r'\(net\s+\(code\s+"\d+"\)\s+\(name\s+"([^"]+)"\)(.*?)(?=\(net\s+\(code|\Z)', s, re.S):
         name, body = m.group(1), m.group(2)
         nets.add(name)
-        for r, p in re.findall(r'\(node \(ref "([^"]+)"\) \(pin "([^"]+)"\)', body):
+        for r, p in re.findall(r'\(node\s+\(ref\s+"([^"]+)"\)\s+\(pin\s+"([^"]+)"\)', body):
             pad_net[(r, p)] = name
+    if not nets:
+        raise RuntimeError(f"parsed 0 nets from {path} — netlist format changed?")
     return comps, pad_net, nets
 
 
@@ -154,8 +160,11 @@ def main():
     placed, missing_pads = 0, []
     for ref, (fpid, val) in sorted(comps.items()):
         if not fpid:
-            print(f"SKIP {ref}: no footprint")
-            continue
+            # a netlist part with no footprint means a REF_FP/SYM_FP gap in
+            # generate_schematic.py — silently skipping this shipped a board
+            # without D8 (USB port 3 ESD); it must never be a warning again
+            raise RuntimeError(f"{ref} has no footprint in the netlist — "
+                               f"fix generate_schematic.py footprint maps")
         fp = load_fp(fpid)
         fp.SetReference(ref)
         fp.SetValue(val)
