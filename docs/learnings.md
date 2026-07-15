@@ -294,3 +294,24 @@ STANDING RULE: before fab, walk every net that carries >1A (buck SW nodes,
 inductor outputs, pre-filter rails, battery input, VBUS feeds) and check
 minimum copper cross-section along the whole path — assign netclass
 widths OR pour patches. No tool does this for you.
+
+## Power board (2026-07-14, v4.10): netclass ampacity framework — the guardrail
+## that should have existed from day one
+
+"Are nets being used correctly?" — they weren't: one Default netclass, zero
+assignments, so nothing distinguished a 6A trunk from a sense tap. Now:
+current-tiered netclasses (SWITCH_NODE / PWR_RAIL / VBUS / USB_DATA) with
+.kicad_dru minimum-width rules per class — undersized power copper is a
+hard DRC violation forever. Design decisions encoded: trunk current rides
+pours/planes (floors are backstops); PWR_RAIL floor 0.25 permits mA sense
+taps; SWITCH_NODE taps (gate-drive returns at 0.15) are exempted via NAMED
+RULE AREAS (SW_TAP_A/B) so the exemption is visible on the board, not
+tribal knowledge. Cleanup this surfaced: HO_A gate trace rerouted around
+the SW_A pour (it was slicing the pour in half); SW_B pour islands bridged
+with 2x1.0mm B.Cu hops + via pairs under HO_B; 6 tracks at 249800nm
+(0.2um below floor, prints as "0.25" — KRT import artifact) bumped to
+250000. Empirics: KiCad dru width rules compare EXACT nanometers; zone
+fills can silently split into islands over a crossing trace (the
+unconnected-items check catches island-to-island, read it); A* at >=0.35mm
+cannot thread corridors built for 0.15 — reroute the blocker, not the
+victim (and when the blocker is unmovable, bridge under it on B.Cu).

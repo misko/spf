@@ -30,3 +30,29 @@
 (rule "npth pegs at footprint-intrinsic distances"
   (condition "A.Type == 'Pad' && A.NetName == ''")
   (constraint hole_clearance (min 0.1mm)))
+
+# --- ampacity floors (2026-07-14): current-tiered minimum widths.
+# DRC has no ampacity concept — these rules make undersized power copper a
+# hard violation. Trunk current rides pours/planes; PWR_RAIL floor is low
+# because those nets carry legitimate 0.3mm mA-level sense taps.
+(rule width_switch_node
+  (condition "A.NetClass == 'SWITCH_NODE'")
+  (constraint track_width (min 0.3mm)))
+(rule width_vbus
+  (condition "A.NetClass == 'VBUS'")
+  (constraint track_width (min 0.3mm)))
+(rule width_pwr_rail
+  (condition "A.NetClass == 'PWR_RAIL'")
+  (constraint track_width (min 0.25mm)))
+(rule width_usb_data
+  (condition "A.NetClass == 'USB_DATA'")
+  (constraint track_width (min 0.2mm)))
+# tap corridors: controller SW-pin/BST/ILIM sense returns (gate-drive pulses,
+# not trunk current) — original 0.15 routing restored and exempted here.
+# Later rules win in KiCad dru precedence.
+(rule width_sw_tap
+  (condition "A.NetClass == 'SWITCH_NODE' && A.intersectsArea('SW_TAP_A')")
+  (constraint track_width (min 0.15mm)))
+(rule width_sw_tap_b
+  (condition "A.NetClass == 'SWITCH_NODE' && A.intersectsArea('SW_TAP_B')")
+  (constraint track_width (min 0.15mm)))
