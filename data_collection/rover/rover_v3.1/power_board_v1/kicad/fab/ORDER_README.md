@@ -41,3 +41,22 @@ H4 (131.5,110) in board coords (outline x 50-150, y 50-115; i.e. from the
 top-left corner: (5,5), (5,60), (96.5,24.75), (81.5,60)).
 H2 takes a button/pan-head M3 ONLY (2.9mm to connector bodies — no washer).
 Chassis/standoff plate must match this pattern.
+
+## Operating mode decision (2026-07-14): power-only, no firmware initially
+- U3 (ATtiny1616) IS populated but ships unprogrammed — all pins tri-state,
+  board runs on hardware defaults. Firmware flash via J11 (SerialUPDI +
+  pymcuprog, MCU=attiny1616) any time later; that adds smart low-battery
+  cutoff, panel switch, graceful Pi shutdown, telemetry.
+- USB ports are POWER-ONLY in this deployment: leave J9/J10/J14 headers
+  unconnected (they're populated for future data passthrough — cheap).
+- Hardware-default behavior without firmware:
+  * board is ON whenever battery >= ~11.05V (front-end ladder UVLO;
+    OV cutoff 14.9V) — J2 panel switch is INERT (it's an MCU input).
+    Put a physical switch in the battery + lead if needed.
+  * crude hardware UV cutoff only — do NOT leave a pack connected
+    unattended for long periods; the smart 10.2V/11.7V timed cutoff
+    needs firmware.
+  * all 3 USB-A ports always on (1.7A/1.7A/3A hardware limits),
+    USB-C advertises 5V/3A to the Pi, aux J6 polyfused 2A.
+  * no graceful Pi shutdown: power drops at UVLO — shut the Pi down
+    manually before killing power when possible.
