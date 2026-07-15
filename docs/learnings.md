@@ -277,3 +277,20 @@ cross-check the footprint's own polarity silk against pad nets. THE RULE,
 final form: for EVERY polarized 2-pad part — diodes, LEDs, electrolytics,
 AND connectors — verify pad 1's net against the footprint's own polarity
 marker. Symbol pin names are vibes; footprint pads are physical.
+
+## Power board (2026-07-14): 6A switch nodes were routed at 0.15mm — current
+## capacity is invisible to every gate
+
+A user question ("is the copper to LA1 good for the current?") exposed that
+BOTH buck switch nodes (SW_A/SW_B: FET half-bridge -> inductor, ~6A) were
+routed entirely in 0.15mm thin-pass tracks — instant trace burnout at
+load. The KRT thin reconciliation pass routed them and nothing objected:
+DRC checks clearance not ampacity, the audit checks placement, netclasses
+were never width-assigned per net. Also found: 5VB_PRE (buck B output ->
+pi filter, 6A) had no plane and only 1.2mm necks. Fix (v4.9): F.Cu pour
+patches (priority 3 over the GND pour) SW_A 83mm2 / SW_B 57mm2 / 5V_A
+126mm2 / 5VB_PRE 171mm2 / 5V_B lily at L4 + plane-stitch vias; DRC 0/0.
+STANDING RULE: before fab, walk every net that carries >1A (buck SW nodes,
+inductor outputs, pre-filter rails, battery input, VBUS feeds) and check
+minimum copper cross-section along the whole path — assign netclass
+widths OR pour patches. No tool does this for you.
