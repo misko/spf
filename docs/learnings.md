@@ -243,3 +243,19 @@ build failure — a printed warning on a generation console is invisible by
 the next session. Parity noise classes on this board (stable, not bugs):
 134 lib-prefix footprint_symbol_mismatch, 18 merged-drain-pad MOSFET
 net_conflicts (Q2/Q3/QA*/QB*), 4 mounting-hole extra_footprint.
+
+## Power board (2026-07-14): D5/D4 polarity reversed — symbol-pin vs footprint-pad convention
+
+The JLC order review caught a bug class invisible to EVERY electrical check
+(DRC, audit, parity, netlist — all self-consistent): KiCad diode/LED
+footprints put the CATHODE on pad 1 (verified programmatically: the
+asymmetric silk/fab marker graphics cluster at pad 1 on D_SMB, D_SOD-123,
+LED_0805). Our generator's generic 2-pin symbols let the author wire pin 1
+to either net; D5 (reverse-battery schottky) got pin1=VBATT_F → cathode on
+the battery side → the always-on 3.3V supervisor rail could NEVER power
+(dead MCU on every board), and D4's LED was reversed (never lights). The
+TVS diodes and electrolytics happened to be wired pad1-correct. Fix: pin1
+carries the cathode net in the generator, parts rotated 180 on the routed
+board with pad nets rebound (copper untouched), v4.7. Standing rule: for
+every 2-pad polarized part, EXPLICITLY verify pad1's net is the cathode/+
+per the footprint's marker — connectivity checks can never catch this.

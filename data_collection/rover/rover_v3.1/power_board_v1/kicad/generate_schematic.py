@@ -88,7 +88,7 @@ defsym("RES", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="R")
 defsym("CAP", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="C")
 defsym("IND", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="L")
 defsym("TVS", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="D")
-defsym("LED", 7.62, 5.08, [("1", "A", "L", 0), ("2", "K", "R", 0)], ref="D")
+defsym("LED", 7.62, 5.08, [("1", "K", "L", 0), ("2", "A", "R", 0)], ref="D")
 defsym("SHUNT", 7.62, 5.08, [("1", "1", "L", 0), ("2", "2", "R", 0)], ref="R")
 # USBLC6-2SC6 SOT-23-6 (ST): 1 I/O1, 2 GND, 3 I/O2, 4 I/O2', 5 VBUS, 6 I/O1'
 defsym("USBLC6", 10.16, 17.78,
@@ -384,7 +384,7 @@ place("CAP", "C17", "100n sw debounce", 52, 90, {"1": "SW_SENSE", "2": "GND"})
 section("3. SUPERVISOR (always-on ~25uA) + TELEMETRY (switched)", 20, 158)
 # D5 protects the always-on LDO from reverse-battery (TPS7A16 IN abs max -0.3V;
 # the SMBJ16A conducts ~-1V until the fuse clears)
-place("TVS", "D5", "B5819W schottky", 30, 163, {"1": "VBATT_F", "2": "VBATT_FD"})
+place("TVS", "D5", "B5819W schottky", 30, 163, {"1": "VBATT_FD", "2": "VBATT_F"})  # pad1=CATHODE (D_SOD-123): cathode faces the LDO side
 place("TPS7A16", "U6", "TPS7A1633 3V3 60V LDO", 30, 183,
       {"8": "VBATT_FD", "5": "VBATT_FD", "4": "GND", "9": "GND", "1": "MCU_3V3",
        "3": None, "7": None, "2": None, "6": None})
@@ -406,7 +406,7 @@ place("RES", "R26", "10k v5a-lo", 30, 237, {"1": "V5A_SENSE", "2": "GND"})
 place("RES", "R27", "10k NTC-top (3V3_SW)", 135, 162, {"1": "3V3_SW", "2": "NTC"})
 place("RES", "R28", "10k NTC 3380K", 135, 173, {"1": "NTC", "2": "GND"})
 place("RES", "R29", "1k LED", 135, 184, {"1": "LED_STAT", "2": "LED_K"})
-place("LED", "D4", "green status", 135, 195, {"1": "LED_K", "2": "GND"})
+place("LED", "D4", "green status", 135, 195, {"1": "GND", "2": "LED_K"})  # pad1=CATHODE (LED_0805): cathode to GND
 place("RES", "R30", "10k FAULT pu", 135, 206, {"1": "MCU_3V3", "2": "FAULT_USB"})
 # telemetry on the SWITCHED side (INA226 IQ ~330uA would dominate cut-state drain)
 place("AP2112", "U9", "AP2112K-3.3 (switched)", 135, 222,
@@ -532,12 +532,12 @@ link("R1", "2", "R2", "1")          # FE_EN junction
 link("R2", "2", "R3", "1")          # FE_OV junction
 link("R1", "2", "C16", "1")         # EN delay cap on the junction
 # S3: supervisor sense chains
-link("D5", "2", "U6", "8")          # VBATT_FD into LDO
+link("D5", "1", "U6", "8")          # VBATT_FD into LDO (pin1=cathode)
 link("R10", "2", "R11", "1")        # VSENSE divider midpoint
 link("R11", "1", "C4", "1")         # VSENSE hold cap
 link("R25", "2", "R26", "1")        # V5A_SENSE divider
 link("R27", "2", "R28", "1")        # NTC divider
-link("R29", "2", "D4", "1")         # LED_K
+link("R29", "2", "D4", "2")         # LED_K (pin2=anode)
 # S4/S5: buck power trains, gate drives, FB and comp networks
 for S in ("A", "B"):
     U = "U1" if S == "A" else "U2"
