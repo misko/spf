@@ -68,7 +68,7 @@ def defsym(name, w, h, pins, ref="U"):
     PINMAPS[name] = (pm, w, h)
 
 
-defsym("XT60", 5.08, 7.62, [("1", "+", "R", 0), ("2", "-", "R", 1)], ref="J")
+defsym("XT60", 5.08, 7.62, [("1", "-", "R", 0), ("2", "+", "R", 1)], ref="J")
 defsym("SCREW2", 5.08, 7.62, [("1", "1", "L", 0), ("2", "2", "L", 1)], ref="J")
 defsym("HDR3", 5.08, 10.16, [(str(i), f"P{i}", "L", i - 1) for i in range(1, 4)], ref="J")
 defsym("HDR8", 5.08, 22.86, [(str(i), f"P{i}", "L", i - 1) for i in range(1, 9)], ref="J")
@@ -350,7 +350,7 @@ def buck_stage(suffix, uref, x0, y0, rilim, cilim, en_net, vout, rfb2, pgood_net
 
 # --- section 1: input & protection (battery -, chassis = GND) ---
 section("1. INPUT + PROTECTION (3S: 9-13V)", 20, 20)
-place("XT60", "J1", "XT60_BATT", 30, 40, {"1": "VBATT_RAW", "2": "GND"})
+place("XT60", "J1", "XT60_BATT", 30, 40, {"1": "GND", "2": "VBATT_RAW"})  # pad1 = "-" blade on the physical part
 place("FUSE", "F1", "15A ATO", 60, 40, {"1": "VBATT_RAW", "2": "VBATT_F"})
 place("TVS", "D1", "SMBJ16A", 60, 55, {"1": "VBATT_F", "2": "GND"})
 place("SHUNT", "R20", "2m 3W shunt", 90, 40, {"1": "VBATT_F", "2": "VBATT_S"})
@@ -516,7 +516,7 @@ place("HDR3", "J11", "UPDI prog (UPDI/3V3/GND)", 40, 300,
 # Dashed guide lines for the topology-carrying chains (validated: both ends
 # must already share a net). Connectivity itself stays on the global labels.
 # S1: battery input chain
-link("J1", "1", "F1", "1")          # VBATT_RAW
+link("J1", "2", "F1", "1")          # VBATT_RAW (pin2=+)
 link("F1", "2", "D1", "1")          # VBATT_F -> TVS
 link("F1", "2", "R20", "1")         # VBATT_F -> shunt
 link("R20", "2", "C15", "1")        # VBATT_S

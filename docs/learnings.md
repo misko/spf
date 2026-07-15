@@ -259,3 +259,21 @@ carries the cathode net in the generator, parts rotated 180 on the routed
 board with pad nets rebound (copper untouched), v4.7. Standing rule: for
 every 2-pad polarized part, EXPLICITLY verify pad1's net is the cathode/+
 per the footprint's marker — connectivity checks can never catch this.
+
+## Power board (2026-07-14): XT60 battery connector polarity was REVERSED (third
+## instance of the symbol-pin vs footprint-pad convention bug in one day)
+
+KiCad's AMASS_XT60PW-M footprint puts pad 1 at the "-" blade (its own silk
+says so; JLC/EasyEDA part data agrees: + is the north blade with the
+opening west). Our XT60 symbol had pin1="+" -> pad1, so a correctly-wired
+battery would have put + into GND: the front-end reverse protection blocks
+it and every board reads dead-on-arrival. Fixed in v4.8 (symbol pins
+renamed, J1 net map + board pad nets swapped, VBATT_RAW re-run to the
+north blade, GND via pours). Deterministic verification method that found
+it: fetch JLC's footprint per LCSC code from the EasyEDA API
+(easyeda.com/api/products/<code>/components — blocked from curl, works
+via WebFetch) and compare pad frames against the KiCad footprint; also
+cross-check the footprint's own polarity silk against pad nets. THE RULE,
+final form: for EVERY polarized 2-pad part — diodes, LEDs, electrolytics,
+AND connectors — verify pad 1's net against the footprint's own polarity
+marker. Symbol pin names are vibes; footprint pads are physical.
