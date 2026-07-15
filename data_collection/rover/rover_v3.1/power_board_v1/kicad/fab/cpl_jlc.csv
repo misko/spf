@@ -60,10 +60,10 @@ D8,USBLC6-2SC6,SOT-23-6,138.25,-74.161,top,270.0
 F1,15A ATO,FuseHolder_Blade_ATO_Littelfuse_FLR_178.6165,64.0,-68.0,top,90.0
 F2,2A polyfuse,Fuse_1812_4532Metric,90.0,-106.0,top,0.0
 J1,XT60_BATT,AMASS_XT60PW-M_1x02_P7.20mm_Horizontal,57.25,-72.0,top,90.0
-J10,from Pi USB2,PinHeader_1x04_P2.54mm_Vertical,86.0,-101.0,top,90.0
+J10,from Pi USB2,PinHeader_1x04_P2.54mm_Vertical,86.0,-101.0,top,0.0
 J11,UPDI prog (UPDI/3V3/GND),JST_GH_BM03B-GHS-TBT_1x03-1MP_P1.25mm_Vertical,80.0,-111.0,top,0.0
 J13,USB_A port3 (3A),USB_A_CNCTech_1001-011-01101_Horizontal,146.0,-58.0,top,0.0
-J14,from Pi USB3,PinHeader_1x04_P2.54mm_Vertical,138.0,-70.0,top,90.0
+J14,from Pi USB3,PinHeader_1x04_P2.54mm_Vertical,138.0,-70.0,top,0.0
 J2,PANEL_SW,JST_GH_BM02B-GHS-TBT_1x02-1MP_P1.25mm_Vertical,54.5,-103.0,top,0.0
 J3,USB4105-GF-A (TH shell),USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal,125.0,-53.0,top,180.0
 J4,USB_A radio1,USB_A_CNCTech_1001-011-01101_Horizontal,146.0,-85.0,top,0.0
@@ -71,7 +71,7 @@ J5,USB_A radio2,USB_A_CNCTech_1001-011-01101_Horizontal,146.0,-105.0,top,0.0
 J6,AUX 5V 2A,"TerminalBlock_Phoenix_MKDS-1,5-2_1x02_P5.00mm_Horizontal",99.0,-113.0,top,0.0
 J7,PI GPIO harness,JST_GH_SM08B-GHS-TB_1x08-1MP_P1.25mm_Horizontal,68.0,-111.5,top,180.0
 J8,AUX_CTL out (JST-GH),JST_GH_BM02B-GHS-TBT_1x02-1MP_P1.25mm_Vertical,88.0,-111.0,top,0.0
-J9,from Pi USB1,PinHeader_1x04_P2.54mm_Vertical,113.0,-104.0,top,0.0
+J9,from Pi USB1,PinHeader_1x04_P2.54mm_Vertical,113.0,-104.0,top,270.0
 L4,pi-filter 1u,L_Chilisin_BMRx00060630,112.0,-80.0,top,0.0
 LA1,MWSA1005S-3R3 16A,L_Sunlord_MWSA1005S,106.0,-59.0,top,0.0
 LB1,MWSA1005S-3R3 16A,L_Sunlord_MWSA1005S,106.0,-92.0,top,0.0
