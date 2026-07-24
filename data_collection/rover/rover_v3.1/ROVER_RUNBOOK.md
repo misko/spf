@@ -447,6 +447,27 @@ python spf/scripts/dataset_quality_scan.py \
 
 Read `report_rover.md`. **Quarantine/flag on:** `QUAR:no_signal` (NaN > 90% or < 100 valid samples), `FLAG:heading` (|heading_common| > 0.25 rad → recheck compass), `FLAG:rX_noisy` (circstd_corr > 0.7), `FLAG:ts_nonmonotonic` (> 1% out-of-order), `FLAG:fit_at_bound`. **Rover NaN 46–70% is normal** (bursty emitter) — do **not** quarantine on NaN alone. The true launch-quality failures are `no_signal` and heading-common bias. Use the newest report (`scan_2026_07_12_v2/report_rover.md`, the v2 scanner with the serial ERROR re-check), not the stale 09:15 copy.
 
+### CI — which rungs run automatically, and what has actually passed
+
+One workflow: `.github/workflows/docker-build-and-test.yml` ("Build, Deploy and Test"), on every push/PR to `main`, on a **self-hosted runner** (`gh run list --workflow=docker-build-and-test.yml` to inspect). Two jobs:
+
+1. **`build`** — builds and **pushes `csmisko/ardupilotspf:latest`** to Docker Hub. CI is what publishes the SITL image §6 depends on. Still green as of 2026-07-24.
+2. **`pytest`** (after `build`) — Python 3.10, `pip install -e .`, bladeRF python bindings from source, a flake8 gate (E9/F63/F7/F82/F811 fatal, the rest advisory), then **bare `python3 -m pytest`** = the whole `tests/` suite (88 items, 23–55 min).
+
+Ladder coverage: rungs **(a) unit, (b) fake-drone, and (c) SITL all run in CI** — (c) works because the same runner just built the image. Rungs **(d)–(g) never run in CI** (real hardware / field / recorded data).
+
+Historical record (as of 2026-07-24; pushes are infrequent, so only 7 runs exist):
+
+| Run (push date) | Verdict | Detail |
+|---|---|---|
+| 2025-06-10 | ✅ success | Last fully green run. |
+| 2026-02-16 | ❌ failure | Logs expired — failing test(s) unrecorded. |
+| 2026-07-14 | ❌ failure | `1 failed, 85 passed, 2 xfailed` — sole red = `tests/test_zarr_tools.py::test_zarr_rechunk` (AttributeError, zarr-library regression, **not rover code**). |
+| 2026-07-23 | ❌ failure | **Identical**: only `test_zarr_rechunk`; `tests/test_in_simulator.py .......` (all 7 SITL tests) and `test_mavlink_radio_collect.py` (fake-drone) **passed**. |
+| 2026-07-24 (×3) | ⏳ queued/running | Backlogged behind the self-hosted runner (each run 23–55 min). |
+
+**Reading a red X:** since 2026-07-14 the suite has one known non-rover failure (`test_zarr_rechunk`). Before suspecting rover code on a failed run, open the summary line — if it's `1 failed` and it's the zarr rechunk test, the rover ladder (a)–(c) is green.
+
 ---
 
 ## 8. Adding a NEW movement pattern (routine)
