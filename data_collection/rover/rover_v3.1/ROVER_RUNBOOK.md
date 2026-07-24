@@ -1,0 +1,869 @@
+# SPF 2D Electric Rover — Operational Runbook (`ROVER_RUNBOOK.md`)
+
+Data-collection platform: Raspberry Pi + ArduPilot flight controller (FMUv3) + PlutoSDR radios.
+Repo root: `/home/mouse9911/gits/spf`. Active hardware generation: **rover v3.1**.
+
+> Scope / provenance note: every command and fact below is traced to files in this repo. A handful of field-lore items (Pluto v0.38 brick, DFU jumper, faulty power switches, low-voltage cutoff thresholds, emitter-height tuning) are operational knowledge included at the maintainer's direction; where a detail is not directly verifiable in-tree it is flagged **[field note]**. Where the ground truth is genuinely ambiguous it is called out inline rather than guessed.
+
+---
+
+## 1. Overview & platform map
+
+The rover is an ArduPilot-driven skid-steer ground vehicle that carries PlutoSDR radios and records RF + telemetry to `.zarr` datasets while it drives a geometric pattern inside a GPS boundary. The on-Pi entry point is `spf/mavlink_radio_collection.py`; motion is owned by the `Drone` class in `spf/mavlink/mavlink_controller.py`.
+
+### Rover generations
+
+| Generation | Status | Notes |
+|---|---|---|
+| rover v1 | **abandoned** | Superseded; not maintained. |
+| rover v2 | **deprecated** | Superseded by v3.1. |
+| **rover v3.1** | **active** | RPi (Pi4 or Pi5) + ArduPilot FMUv3 over MAVLink + 2x PlutoPlus SDR (rover 2 carries 1). All scripts under `data_collection/rover/rover_v3.1/`. Data format = **v4**. |
+| rpi5_inference | real-time on-rover inference variant | Runs the NN/particle-filter inference path on the rover in real time. **Effectively a no-op end-to-end today** (KI#63: realtime consumer loop is commented out) and still carries live `breakpoint()`s and a heading `/720` bug — do **not** enable `--realtime` for a field mission without the realtime-review fixes (KI#55–#60). |
+
+> The exact `rpi5_inference` directory/script names are not enumerated in the ground truth; treat the realtime path as `--realtime` + `--checkpoint`/`--checkpoint-config` on `mavlink_radio_collection.py`, gated off for normal collection.
+
+### Base station
+
+The **base station is the dev box at `192.168.1.141`**. In tethered/manual production mode the rover's collector dials the base station over MAVLink TCP via `--drone-uri tcp:192.168.1.141:14590` (`data_collection/rover/rover_v3.1/drone_run.sh:103`). The base station also runs the telemetry fan-out (`telem.sh`, a macOS script) and any ground-control station (Mission Planner / mavproxy).
+
+### RF / power topology (from `data_collection/rover/rover_v3.1/make_schematic.py`)
+
+- RF center **5.766 GHz**, sample rate **30 MS/s**, **3 MHz** bandwidth.
+- Motor driver: **Cytron MDDS30**; buck regulators for the Pi/FC/radios.
+- SiK telemetry NetIDs: Rover1=25, Rover2=32, Rover3=39.
+- Pi4 USB mapping: **USB2 = Radio A, USB1 = Radio B**.
+
+### Two-process, two-port MAVLink model
+
+SITL/production expose two MAVLink TCP endpoints. Each `tcpin` endpoint is a **single-client TCP server** (first client owns it):
+
+- **14590 = data collection** — `mavlink_radio_collection.py --drone-uri tcp:<host>:14590` (production convention).
+- **14591 = ground control / commanding** — `mavlink_controller.py --ip <host> --port 14591 --proto tcp`, or Mission Planner / mavproxy.
+
+> Nuance: the **pytest harness inverts this** — `tests/rover_config.yaml` sets `drone-uri: tcp:127.0.0.1:14591`, so under test the collector grabs 14591 and the guided-mode command is issued on 14590 (code comment: "other port is busy!"). The ports are functionally interchangeable; ownership is first-come.
+
+---
+
+## 2. Network / IP map
+
+| Element | Address | Source |
+|---|---|---|
+| Rover N (eth0, static) | `192.168.1.(40+rover_id)` → **rover1 = .41, rover2 = .42, rover3 = .43** | `setup.sh` |
+| Gateway | `192.168.1.1` | `setup.sh` (Pi4 + Pi5) |
+| DNS | `8.8.8.8` | `setup.sh` |
+| Wifi | **DISABLED** (`dtoverlay=disable-wifi`) | `setup.sh` |
+| PlutoSDR (USB gadget) | `192.168.2.1` | `check_and_set_pluto.sh`, `ssh_config` |
+| Pluto radios over IP (real-radio config) | `192.168.1.17` / `192.168.1.18` | `tests/test_config_realradio.yaml` |
+| Base station (dev box) | `192.168.1.141` | `drone_run.sh:103` |
+| Telemetry (base station, per rover) | mavproxy `roverX` → UDP `127.0.0.1:1457X` and `127.0.0.1:1458X` (rover1 → 14571/14581, rover2 → 14572/14582, rover3 → 14573/14583) | `telem.sh` |
+| Collector drone-uri (tethered prod) | `tcp:192.168.1.141:1459x` (observed concrete value `tcp:192.168.1.141:14590`) | `drone_run.sh:103` |
+
+**Caveat — reserve these IPs.** The rover static addresses `192.168.1.41/.42/.43` (and the base station `.141`) sit **inside the LAN's DHCP pool**. This has been observed to cause **IP squatting**: a DHCP client leases a rover's static address while it is off, and the rover then fails to come up or collides on the LAN. These addresses **must be reserved / excluded from the DHCP pool** on the router before a mission.
+
+**Two board paths, one gateway discrepancy.** `interfaces_template` (Pi4 `/etc/network/interfaces` template) hardcodes `gateway 192.168.1.254`, but the script actually used (`setup.sh`) writes `gateway 192.168.1.1` for both Pi4 and Pi5. Trust `setup.sh` (`.1`); the template is stale.
+
+---
+
+## 3. One-time provisioning & flashing
+
+Master script: `data_collection/rover/rover_v3.1/setup.sh <ROVER_ID>` (ID = `1|2|3`; fails with usage if not exactly one arg). It persists identity to `~/rover_id` and reboots into the mission service. Repo root on the Pi is hardcoded to `/home/pi/spf`, venv `~/spf-virtualenv`.
+
+### 3.0 Flash the Raspberry Pi OS image
+
+Flash a fresh Raspberry Pi OS image, boot, get a shell as user `pi`. (Pi4 and Pi5 are both supported; `setup.sh` contains **two mutually-exclusive board blocks that are NOT gated** — as written it runs both, editing both `/boot/config.txt` and `/boot/firmware/config.txt`, writing both `/etc/network/interfaces` and the systemd-networkd unit, and appending both `device_mapping` lines to `~/.bashrc`. **Comment out the wrong board's section by hand** before running.)
+
+### 3.1 Run the provisioner
+
+```bash
+bash /home/pi/spf/data_collection/rover/rover_v3.1/setup.sh <ROVER_ID>
+```
+
+Internally, in order: persist rover id; clone; deps; venv; editable install; network; wifi off; udev; Pluto fw; ArduPilot fw; service + arduino-cli; reboot. Key steps traceable individually:
+
+```bash
+echo ${rover_id} > ~/rover_id
+cd /home/pi && git clone https://github.com/misko/spf.git
+bash /home/pi/spf/data_collection/rover/rover_v3.1/install_deps.sh   # apt: git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev sshpass
+python -m venv ~/spf-virtualenv && source ~/spf-virtualenv/bin/activate
+cd spf && pip install -e . && pip install RPi.GPIO
+```
+
+Network (Pi4 shown; the Pi5 systemd-networkd variant is in `setup.sh`):
+
+```bash
+# eth0 static = 192.168.1.(40+rover_id)/24, gw 192.168.1.1
+cat > interfaces <<- EOM
+source /etc/network/interfaces.d/*
+
+auto eth0
+iface eth0 inet static
+    address 192.168.1.__ROVERID__/24
+    gateway 192.168.1.1
+EOM
+sed -i "s/__ROVERID__/$(expr 40 + ${rover_id})/g" interfaces
+sudo cp -f interfaces /etc/network/interfaces
+```
+
+```bash
+# disable wifi (Pi4 path; Pi5 uses /boot/firmware/config.txt)
+grep -v disable-wifi /boot/config.txt > /tmp/config.txt && sudo cp /tmp/config.txt /boot/config.txt
+sudo sh -c 'echo dtoverlay=disable-wifi >> /boot/config.txt'
+```
+
+### 3.2 Pluto firmware / DFU
+
+Production firmware = **plutosdr-fw-v0.37-dirty** (`setup.sh`), md5 `613fcdd4f45ad695d85abd53d1e0b918`, in a download-until-md5-matches loop, copied to the Pluto USB mass-storage mount and ejected to flash:
+
+```bash
+wget -O plutosdr-fw-v0.37-dirty.zip 'https://www.dropbox.com/s/4jji77rk3d9ikba/plutosdr-fw-v0.37-dirty.zip?dl=0'   # loop until md5sum == 613fcdd4f45ad695d85abd53d1e0b918
+sudo mkdir -p /media/pluto
+for mount in /dev/sda /dev/sdb; do
+  [ -b "$mount" ] && sudo mount "${mount}1" /media/pluto && sudo cp plutosdr-fw-v0.37-dirty.zip /media/pluto && sudo eject ${mount}
+done   # then poll `[ ! -b ${mount}1 ]` until the device re-enumerates
+```
+
+At boot the Pluto is forced into AD9361 / 2r2t mode over SSH:
+
+```bash
+bash /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh
+# ssh root@192.168.2.1 (sshpass -panalog): fw_setenv attr_name=compatible, attr_val=ad9361, compatible=ad9361, mode=2r2t; reboot; re-verify fw_printenv.
+```
+
+**[field note] Do NOT flash v0.38 — it bricks some PlutoPlus units.** Stay on **v0.37**. If a Pluto is bricked or won't mount, recover via **DFU**: move the boot jumper from **URST to MIO52** (the DFU position) and re-flash, then restore the jumper. The SSH secret `analog` is in plaintext and host-key checking is disabled for `192.168.2.*` (`ssh_config`) — expected, but note it.
+
+### 3.3 ArduPilot flight controller — Rover 4.5.0 fmuv3
+
+`flash_ardupilot.sh` (also inlined in `setup.sh`) stops the service and flashes **Rover stable-4.5.0 fmuv3** via ArduPilot's `uploader.py`:
+
+```bash
+sudo systemctl stop mavlink_controller.service; sleep 5
+wget https://raw.githubusercontent.com/ArduPilot/ardupilot/master/Tools/scripts/uploader.py
+wget https://firmware.ardupilot.org/Rover/stable-4.5.0/fmuv3/ardurover.apj
+python uploader.py ardurover.apj | tee > ardurover_flash.log; sleep 5
+```
+
+> Note the SITL Docker image builds a **different** firmware version (Rover-4.5.7); production hardware is **4.5.0**. The one-time ArduPilot param-reset (FORMAT_VERSION 0) step is commented out in `setup.sh` with a note that it must be done by hand a few times after flashing.
+
+### 3.4 SikRadio NetIDs (unique per rover pair)
+
+`data_collection/rover/rover_v3.1/README.md`: **Rover1 = 25, Rover2 = 32, Rover3 = 39.** Non-unique NetIDs cause link/state cross-talk.
+
+### 3.5 Taranis Q RC channel map (safety-critical)
+
+From `data_collection/rover/rover_v3.1/README.md`:
+
+- **CH5 (SF) = Arm**
+- **CH8 (SA) = Flight mode [Manual / Guided / RTL]**
+- **CH9 (SH) = Shutdown (momentary)** — drives `sudo shutdown` from the message thread (MC-1).
+- **CH10 (SC) = Mag (compass) calibration**
+
+> The in-code RC handler `handle_RC_CHANNELS` reads raw channels 7/9/10/12: ch9>1500 → `sudo shutdown 0`; ch7>1500 → force reboot, 1000<ch7≤1500 → reboot + `sys.exit(1)`; ch10>1500 → compass cal; ch12>1000 → disable ultrasonic. Confirm the transmitter mapping matches these before powering on (see Safety §10).
+
+### 3.6 ArduPilot calibration sequence
+
+Per `data_collection/rover/rover_v3.1/README.md` "Ardupilot calibration", in order. Use a ground station over the SiK link:
+
+```bash
+mavproxy.py --master /dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0G4IOK-if00-port0   # rover1; rover2 ...DK0G4W25..., rover3 ...DK0G5WCE...
+```
+
+1. **Load base parameters** (the `setup.sh` provisioning installs the ArduPilot settings; the boot flow also enforces them — see §4).
+2. **Accel calibration.**
+3. **Compass / magcal** (`magcal start` then accept via mavproxy/Mission Planner). **Do this every collection era** — a skipped magcal is the traced root cause of the Dec–Feb heading bias (−0.14…−0.33 rad); it will trip `FLAG:heading` in the post-run scan.
+4. **Set `SYSID_THISMAV`** — unique MAVLink system id per rover.
+5. **Backup parameters** (verify the backup actually succeeded — see MP-2: a failed diff can exit 0).
+
+Base ArduPilot param block (`spf/ardupilot/ardupilot_setup.md`): `RC1/2_MAX 2006 MIN 982 TRIM 1495`, `RC3 TRIM 1515`; `MODE4=10`, `MODE6=11`; `SERVO1_FUNCTION 73`, `SERVO3_FUNCTION 74` + `SERVO3_REVERSED 1`, both `MAX 2200 MIN 800`; `MOT_THR_MIN 12`; `TURN_RADIUS 5`, `WP_PIVOT_ANGLE 0`, `WP_RADIUS 0.5`, `WP_SPEED 3`, `RTL_SPEED 3`, `CRUISE_SPEED 3`, `CRUISE_THROTTLE 70`.
+
+---
+
+## 4. Update flow (boot-time self-update)
+
+On every boot systemd runs `drone_run.sh` (unit `mavlink_controller.service`, `ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/drone_run.sh`, `After/Wants network-online.target`). With **no args**, `drone_run.sh` self-updates before the mission loop:
+
+```bash
+sleep 10; ping -c 1 8.8.8.8                                                   # internet gate; skip whole update block if no net
+python /home/pi/spf/spf/mavlink/mavlink_controller.py --buzzer git            # chirp: entering update
+bash ${repo_root}/data_collection/.../install_deps.sh                         # reinstall apt deps
+pushd /home/pi/spf; current_hash=`git rev-parse --short HEAD`; git pull; new_hash=`git rev-parse --short HEAD`
+# if HEAD changed: sleep 15 (operator interrupt window) -> reinstall+enable service -> sudo reboot
+# else:            pip install -e ${repo_root}  and continue
+```
+
+Gates: the update block is skipped entirely if `ping -c 1 8.8.8.8` fails **or** if `drone_run.sh` is called with args (manual/tethered mode). A `reboot` fires **only** if the short HEAD changed across `git pull`; a 15 s sleep gives an operator time to Ctrl-C.
+
+**Known broken paths (would fail on a real Pi):** the update/params/service/ssh steps reference the **non-existent** `data_collection_model_and_results/` directory (real dir is `data_collection/`). Affected: `drone_run.sh` lines 11, 21, 30, 47; `debug_drone_run.sh` line 9; `setup.sh` line 164. `drone_run.sh` is internally inconsistent — its Pluto/capture-config lines correctly use `data_collection/`. Fix these paths before relying on the auto-update.
+
+---
+
+## 5. Running a real field mission
+
+The mission is the args-less branch of `drone_run.sh` (auto-run by the service on boot). After the update block it: enforces params, syncs GPS time, pins CPU governor, waits for the expected radio count, conditions the Plutos, then runs an **infinite capture loop**.
+
+```bash
+# param enforce (load then diff-verify)
+cat ${params_root}/rover3_base_parameters.params ${params_root}/rover3_rc_servo_parameters.params \
+  | sed "s/__ROVER_ID__/${rover_id}/g" > this_rover.params
+python ${repo_root}/spf/mavlink/mavlink_controller.py --load-params this_rover.params
+python ${repo_root}/spf/mavlink/mavlink_controller.py --diff-params this_rover.params
+
+# GPS time + performance governor
+python ${repo_root}/spf/mavlink/mavlink_controller.py --get-time time
+sudo date -s "$(cat time)"
+echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+
+# radio-count gate (blocks with failure buzzer until count matches)
+while true; do
+  found_radios=`lsusb | grep ADALM | wc -l`
+  [ ${found_radios} -eq ${expected_radios} ] && break
+  python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer failure; sleep 15
+done
+
+bash ${repo_root}/data_collection/rover/rover_v3.1/check_and_set_pluto.sh    # ad9361/2r2t + regen ~/device_mapping
+
+# the infinite capture loop (per-rover config/routine/n)
+python3 ${repo_root}/spf/mavlink_radio_collection.py -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n ${n}
+```
+
+### Per-rover configuration table (from `drone_run.sh`)
+
+| Rover | ID | eth0 IP | Routine | Capture config (`data_collection/rover/rover_v3.1/capture_configs/…`) | n (records/rx) | expected_radios | SiK NetID |
+|---|---|---|---|---|---|---|---|
+| Rover 1 | 1 | 192.168.1.41 | `bounce` | `rover_receiver_config_pi_3mhz_35mm.yaml` | 3000 | 2 | 25 |
+| Rover 2 | 2 | 192.168.1.42 | `circle` | `rover_single_receiver_config_pi_3mhz.yaml` | 3500 | 1 | 32 |
+| Rover 3 | 3 | 192.168.1.43 | `bounce` | `rover_receiver_config_pi_3mhz_43mm.yaml` | 3000 | 2 | 39 |
+
+The **param gate does not abort**: a non-zero `--diff-params` prints "FAILED TO RESOLVE DIFFERENCES!!! running with incorrect params" but collection proceeds anyway — watch for it.
+
+The tethered/manual branch (called **with** args) uses `--drone-uri tcp:192.168.1.141:14590 --no-ultrasonic` with `n=40` (`drone_run.sh:103`).
+
+Manual field launch outside the loop (real Plutos, real serial ArduPilot autodetect, ultrasonic on) — **DO NOT run casually**:
+
+```bash
+cd /home/mouse9911/gits/spf
+python spf/mavlink_radio_collection.py -c spf/rover_configs/rover_config.yaml -m /home/pi/device_mapping -r bounce -t RO1 -n 3000
+# time-capped variant: append -s 600
+```
+
+Completion behavior: temp `.tmp` → final rename **and** `move_to_home` happen **only after a full collection completes**. A run stopped by `-s/--run-for-seconds` (`sys.exit(0)`) leaves `.tmp` files and does **not** return the drone home. On a Pi (non-fake) it also does `sudo sync`.
+
+---
+
+## 6. Simulated-rover testing (SITL) — no wheels move, ArduPilot believes it is driving
+
+**This is the most important section for development.**
+
+### 6.1 The concept
+
+The SPF test suite drives a rover with **zero hardware** by running ArduPilot's **SITL (Software-In-The-Loop)** `ardurover` firmware inside a Docker container. SITL replaces **every** sensor and actuator with a software model:
+
+- There is **no physical rover** — nothing moves in the real world.
+- Commanded motor PWM outputs (the `SERVO_OUTPUT_RAW` the code reads to detect `motor_active`) feed a **simulated dynamics integrator**, which advances a **simulated GPS + IMU**.
+- ArduPilot's EKF consumes that advancing simulated position, so the flight controller **reports GUIDED-mode motion and its GPS coordinate changes** exactly as if it were driving. No servo pins, motors, or radio hardware are touched.
+
+Contrast of the two behaviors the tests assert:
+
+- **MANUAL mode → stationary.** The planner never gains control, the simulated position never advances, and the collector's files stay as `*.zarr.tmp / *.log.tmp / *.yaml.tmp` (never promoted to final).
+- **GUIDED mode → moving + recording.** After arm + GUIDED, the planner issues `MAV_CMD_DO_REPOSITION` moves (a circle), the simulated position advances, the run completes, `.tmp` files are renamed to final `*.zarr / *.log / *.yaml`, and every `v4rx_f64_keys` field under `receivers/r0` is finite (no NaNs).
+
+### 6.2 The image
+
+Only one real, runnable tag exists: **`csmisko/ardupilotspf:latest`** (built from repo-root `Dockerfile`: Ubuntu 22.04, ArduPilot checked out at **`Rover-4.5.7`**, `waf … build --target bin/ardurover`; built and pushed by `.github/workflows/docker-build-and-test.yml`).
+
+> There is **no** `ghcr.io/misko/ardupilotspf` and **no** `v0.2`/`v0.x` tag anywhere in the repo. The bare name `ardupilot_spf` appears only in comments/docstrings and is never built — ignore it. (A second, unrelated `docker/repo/Dockerfile` is the inference app image; do not confuse it with the SITL image.)
+
+Pre-pull (daemon must be running and image reachable, else the pytest fixture errors at setup):
+
+```bash
+docker pull csmisko/ardupilotspf:latest
+```
+
+### 6.3 Exact SITL launch command
+
+Canonical human-run form (`spf/mavlink/README.md`), real-time `-S 1`:
+
+```bash
+docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest \
+  /ardupilot/Tools/autotest/sim_vehicle.py \
+  -l 37.76509485,-122.40940127,0,0 -v rover -f rover-skid \
+  --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 -S 1
+```
+
+The pytest fixture (`tests/test_in_simulator.py`) runs the identical command via the `docker` Python SDK with **`-S 5`** (5x sim speed; `simulator_speedup=5`), publishing only `14590`/`14591` on `127.0.0.1`, and waits for the log line **`Detected vehicle`** before proceeding.
+
+Argument meanings: `-l lat,lon,alt,heading` = spawn (37.76509485,-122.40940127 = SF / Crissy-Field, so `boundary: auto` resolves to `franklin_safe`); `-v rover` = Rover; `-f rover-skid` = **skid-steer frame** (matters: `motor_active` is inferred from servo1/servo3 == 1500 neutral); `--out tcpin:0.0.0.0:PORT` = MAVLink **TCP server** endpoint, one client each; `-S N` = sim speed-up.
+
+### 6.4 Point the collector at the sim
+
+```bash
+python3 spf/mavlink_radio_collection.py -d tcp:127.0.0.1:14590 \
+  -c tests/rover_config.yaml -m tests/device_mapping -r bounce --temp ./temp_sitl -s 30 --no-ultrasonic
+```
+
+`-d/--drone-uri` overrides the yaml value, so this claims **14590**, leaving **14591** free for mode commands. (If you use `tests/rover_config.yaml` unmodified, the collector takes **14591** and you must command modes on 14590 — the inverted test convention.)
+
+### 6.5 The exact pytest commands
+
+```bash
+cd /home/mouse9911/gits/spf
+pip3 install -e . && pip3 install pytest      # editable install (mirrors CI)
+
+# Full simulated-rover suite (requires Docker + image). -s so streamed child stdout is visible.
+python3 -m pytest tests/test_in_simulator.py -v -s
+
+# Just the two behavior gates:
+python3 -m pytest tests/test_in_simulator.py::test_manual_mode_stationary -v -s
+python3 -m pytest tests/test_in_simulator.py::test_guided_mode_moving_and_recording -v -s
+```
+
+`test_in_simulator.py` runs (one shared session container): `test_gps_time`, `test_time_since_boot`, `test_reboot`, `test_load_and_diff_params`, `test_buzzer`, `test_manual_mode_stationary`, `test_guided_mode_moving_and_recording`.
+
+### 6.6 Run-it-yourself recipe (manual, step by step)
+
+1. **Prereqs.** Docker daemon up; from repo root `pip3 install -e .`; `docker pull csmisko/ardupilotspf:latest`. On a headless box also `export PYTHONBREAKPOINT=0` (KI#2/#7 breakpoints hang headless).
+2. **Start the sim** (a terminal you can watch):
+   ```bash
+   docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest \
+     /ardupilot/Tools/autotest/sim_vehicle.py -l 37.76509485,-122.40940127,0,0 \
+     -v rover -f rover-skid --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 -S 1
+   ```
+   Wait until the log prints **`Detected vehicle`**.
+3. **Put it in MANUAL** (on 14591 while the collector will take 14590):
+   ```bash
+   python3 spf/mavlink/mavlink_controller.py --ip 127.0.0.1 --port 14591 --proto tcp --mode manual
+   ```
+   Confirm it stays stationary — this is the stationary case; a collector started now would only write `.tmp` files.
+4. **Start the collector on 14590:**
+   ```bash
+   python3 spf/mavlink_radio_collection.py -d tcp:127.0.0.1:14590 \
+     -c tests/rover_config.yaml -m tests/device_mapping -r bounce --temp ./temp_sitl --no-ultrasonic
+   ```
+   Watch its stdout for `MavRadioCollection: Waiting for drone to start moving` and then `waiting for rover to move into guided mode...`.
+5. **Flip to GUIDED** (on 14591) to start motion:
+   ```bash
+   python3 spf/mavlink/mavlink_controller.py --ip 127.0.0.1 --port 14591 --proto tcp --mode guided
+   ```
+6. **Confirm it "drove":** collector prints `Planner starting to issue move commands...`, the simulated GPS advances, and on completion `./temp_sitl/rover_*.zarr` (final, not `.tmp`) appears with all-finite `receivers/r0` keys.
+7. **Stop** the sim container (Ctrl-C in its terminal; the container is `--rm`).
+
+---
+
+## 7. Full test & gate ladder before launching a NEW movement pattern
+
+Ordered **cheapest → most expensive**. Do not proceed to a later stage until the earlier ones pass.
+
+### (a) Unit tests — planners / dynamics / GPS / EKF (seconds, no hardware)
+
+```bash
+cd /home/mouse9911/gits/spf
+python3 -m pytest tests/ -v
+```
+
+Passing = green suite. The two load-bearing integration tests documented here live under `tests/`; **dedicated planner/dynamics/gps/ekf unit-test filenames are not confirmed in the ground truth** — if they exist they run as part of `tests/`. For a new pattern, the cheapest direct check is a hand-written unit test of your planner's `yield_points()` against a `Dynamics(bounding_box=…)` asserting every yielded `[long, lat]` stays inside the convex hull (this is the only cheap way to validate geometry; fake-drone does **not**).
+
+### (b) Fake-drone smoke test — no Docker (seconds)
+
+```bash
+python3 -m pytest tests/test_mavlink_radio_collect.py -v
+```
+
+Internally shells `mavlink_radio_collection.py --fake-drone --exit -c tests/test_config.yaml -m tests/test_device_mapping -r center -n 50 --temp <tmp>`. **Passing = a `*.zarr` is produced and every `v4rx_f64_keys` field under `receivers/r0` is all-finite (no NaNs).** This exercises the full pipeline + planner factory dispatch but **bypasses the move loop** — it does **not** validate path geometry.
+
+To smoke a new routine name directly:
+
+```bash
+python3 spf/mavlink_radio_collection.py --fake-drone --exit \
+  -c tests/test_config.yaml -m tests/test_device_mapping -r NEWNAME -n 50 --temp <tmpdir>
+```
+
+Passing = exits 0, writes `.zarr/.log/.yaml`, no NaNs, and does **not** hit `else: raise Exception('Missing planner')`.
+
+### (c) SITL integration — Docker (minutes)
+
+```bash
+python3 -m pytest tests/test_in_simulator.py -v -s
+```
+
+Covers: `test_gps_time` (a GPS timestamp is written), `test_time_since_boot` (a value is written), `test_reboot` (monotonic boot-time behavior; time-since-boot advances faster than wall/`simulator_speedup` within 20 s slack, and post-reboot time_since_boot < elapsed wall), `test_load_and_diff_params` (load rover-id 5 then diff succeeds; diffing rover-id 6 raises `CalledProcessError`; after loading 6, diffing 6 succeeds — SYSID mismatch drives the exit code), `test_buzzer` (tones gps-time/check-diff/git/planner/ready all exit 0), **`test_manual_mode_stationary`** (`.tmp` files, no "Planner starting…" line), **`test_guided_mode_moving_and_recording`** (final files, "Planner starting to issue move commands", no-NaN `receivers/r0`). This is where new pattern **geometry** is actually exercised (GUIDED mode only).
+
+### (d) Real-radio lab check — real SDRs, fake drone (bench)
+
+On the actual Pi, with real Plutos wired, run the collector with `--fake-drone` to bring up radios + config with no motion. `export PYTHONBREAKPOINT=0` first.
+
+```bash
+/home/pi/spf-virtualenv/bin/python3 ${repo_root}/spf/mavlink_radio_collection.py \
+  -c data_collection/rover/rover_v3.1/capture_configs/<real_config>.yaml \
+  -m ~/device_mapping --fake-drone -r center -n 4000
+```
+
+Passing = both PlutoPlus receivers (+ emitter if `type: sdr`) come online (`radios_to_online` does **not** `sys.exit(1)`) and records are written. There is **no `lsusb`/ADALM count check inside the collector** — the only radio validation is a per-URI open of each yaml receiver. (The rover-v3.1 README lab-check example points at `rover_configs/…`, but that dir is **empty**; use the live `capture_configs/*.yaml`.)
+
+### (e) On-rover pre-flight gates enforced at runtime
+
+These fire in order in the mission flow. Verify each:
+
+1. **Param gate** — `--diff-params` exit code (0 = match). Enforced non-fatally in `drone_run.sh`:
+   ```bash
+   python spf/mavlink/mavlink_controller.py --diff-params this_rover.params   # exit 0 = OK; N>0 = N diffs (does not abort)
+   ```
+2. **Expected-radio-count gate** — blocks (failure buzzer, retry 15 s) until the count matches (rover1/3 = 2, rover2 = 1):
+   ```bash
+   [ "$(lsusb | grep ADALM | wc -l)" -eq "${expected_radios}" ]   # must be true to proceed
+   ```
+3. **GPS-fix / EKF-ready gate** — non-fake runs block `while not drone.drone_ready: sleep(10)`. `drone_ready` needs: MAV_STATE STANDBY/ACTIVE, a GPS lock with non-zero longitude, the GPS sensor-health bit, and `ekf_healthy`. **Verify a real 3D fix and absolute EKF convergence out-of-band** — MC-4/KI#40 means the gate accepts a **relative-only** EKF (see §10). Do **not** trust `drone_ready` alone.
+4. **GPS boundary / geofence present** — yaml `boundary` must be a known name in the selectable `boundaries` dict (`franklin_safe`, `fort_baker_boundary`, `fort_baker_right_boundary`, `fort_baker_left_boundary`) or `auto` (nearest to `drone.gps`). Unknown → `sys.exit(1)`. The boundary must be **convex** or the planner build raises.
+5. **Ultrasonic check** — on a Pi with `--ultrasonic` (default), the HC-SR04 DistanceFinder is wired (threshold 30 cm, GUIDED-only). Disable with `--no-ultrasonic` for bench/SITL. Confirm RC ch12 has not toggled `disable_distance_finder`.
+
+### (f) Short field dry-run at low n
+
+Use the debug variant (`n=50`, `--fake-drone --temp /dev/shm/`) or a small manual `-n`. NOTE: `debug_drone_run.sh` is **currently broken** (references the empty `spf/rover_configs/` yamls and the `data_collection_model_and_results/` ssh path) — fix those paths or run the collector directly:
+
+```bash
+python3 spf/mavlink_radio_collection.py -c data_collection/rover/rover_v3.1/capture_configs/<real_config>.yaml \
+  -m /home/pi/device_mapping -r NEWNAME -t RO1 -n 50 --temp /dev/shm/
+```
+
+Passing = a full short collection completes (`.tmp` renamed to final) and `move_to_home` runs.
+
+### (g) Post-run data-quality scan gate
+
+```bash
+python spf/scripts/dataset_quality_scan.py \
+  --splits <split1.txt> [<split2.txt> ...] \
+  --precompute-cache /mnt/md2/cache/precompute_cache_3p7 \
+  --output-dir data_quality_reports/scan_<YYYY_MM_DD> \
+  --parallel 12
+```
+
+Read `report_rover.md`. **Quarantine/flag on:** `QUAR:no_signal` (NaN > 90% or < 100 valid samples), `FLAG:heading` (|heading_common| > 0.25 rad → recheck compass), `FLAG:rX_noisy` (circstd_corr > 0.7), `FLAG:ts_nonmonotonic` (> 1% out-of-order), `FLAG:fit_at_bound`. **Rover NaN 46–70% is normal** (bursty emitter) — do **not** quarantine on NaN alone. The true launch-quality failures are `no_signal` and heading-common bias. Use the newest report (`scan_2026_07_12_v2/report_rover.md`, the v2 scanner with the serial ERROR re-check), not the stale 09:15 copy.
+
+---
+
+## 8. Adding a NEW movement pattern (routine)
+
+1. **Write the planner class** in `spf/motion_planners/planner.py`, subclassing `Planner` (ABC). Implement the generator:
+   ```python
+   class NewPlanner(Planner):
+       # base __init__(self, dynamics, start_point, step_size, epsilon=1, seed=None)
+       # if you add args, call super().__init__(...)
+       def yield_points(self):
+           while self.running:                 # loop forever — never StopIteration during a timed run
+               yield np.array([long, lat])     # shape (2,), [long, lat] order (move_to_point uses lat=point[1], long=point[0])
+   ```
+   You inherit `self.dynamics`, `self.step_size`, `self.start_point`, `self.rng`, `self.running`, plus `stop()`, `random_direction()`, `get_bounce_pos_and_new_direction()`. Optionally override `get_planner_start_position(self)` (default `None`). **Keep every yielded point inside the convex boundary hull** — `move_to_point` does **not** re-check bounds; `Dynamics.to_steps` raises `PointOutOfBoundsException` outside the hull for bounce-style planners.
+
+2. **Import it** in the `from spf.motion_planners.planner import (...)` block at the top of `spf/mavlink/mavlink_controller.py`.
+
+3. **Register it** in the factory `drone_get_planner(routine, boundary)` (`spf/mavlink/mavlink_controller.py:176`):
+   ```bash
+   grep -n "elif routine ==" spf/mavlink/mavlink_controller.py
+   ```
+   Add `elif routine == "NEWNAME":` that builds `Dynamics(bounding_box=boundary, bounds_radius=...)`, sets `start_point=boundary.mean(axis=0)`, and returns your planner. Existing branches for reference: `circle`→CirclePlanner (diameter 0.0003 deg, step 0.0001), `center`→StationaryPlanner (step 0.0002), `bounce`→BouncePlanner (step 0.1, epsilon 1e-7), `diamond`→PointCycle (`boundary_to_diamond(boundary)*0.85 + boundary.mean*0.15`). After this, `-r NEWNAME` (or yaml `routine: NEWNAME`) works; `-r` overrides yaml.
+
+4. **Provide a GPS boundary** if yours needs one not already registered. The selectable `boundaries` dict (`spf/gps/boundaries.py:121`) contains **only** `franklin_safe`, `fort_baker_boundary`, `fort_baker_right_boundary`, `fort_baker_left_boundary`. `crissy_*` and `franklin_boundary` are **defined but not registered** — add them to that dict or `boundary_name not in boundaries` aborts with `sys.exit(1)`. Home is derived as `self.planner.dynamics.bounding_box.mean(axis=0)`.
+
+5. **Validate** via §6 (SITL) and §7 (the ladder): fake-drone smoke first (dispatch + no-NaN), then the SITL **guided-mode** test which actually exercises path geometry. `--fake-drone` and `ignore_mode` short-circuit `run_planner` before `move_to_point`, so a fake-drone run does **not** validate the pattern's path.
+
+Pattern-specific gotchas: don't copy `CirclePlanner`'s `while current_angle < 360` (it bounds a **radian** accumulator with a degrees literal → ~57 revolutions; bound at `2*np.pi` instead — KI#5). `boundary_to_diamond` assumes exactly 4 corner vertices (uses indices 0..3; `fort_baker_right_boundary` has 5, only first 4 used). Direction randomness in `CirclePlanner`/diamond uses `np.random.rand()`, not the seeded `self.rng` — seed `self.rng` if you need reproducibility.
+
+---
+
+## 9. Command cheat-sheet
+
+### Flash / provision
+
+```bash
+bash /home/pi/spf/data_collection/rover/rover_v3.1/setup.sh <ROVER_ID>                 # one-time provision (1|2|3)
+bash /home/pi/spf/data_collection/rover/rover_v3.1/install_deps.sh                     # apt deps
+bash /home/pi/spf/data_collection/rover/rover_v3.1/flash_ardupilot.sh                  # ArduPilot Rover 4.5.0 fmuv3 via uploader.py
+bash /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh              # Pluto -> ad9361/2r2t + regen ~/device_mapping
+wget -O plutosdr-fw-v0.37-dirty.zip 'https://www.dropbox.com/s/4jji77rk3d9ikba/plutosdr-fw-v0.37-dirty.zip?dl=0'   # md5 613fcdd4f45ad695d85abd53d1e0b918
+```
+
+### Update
+
+```bash
+# (boot flow, args-less drone_run.sh) — manual equivalents:
+ping -c 1 8.8.8.8
+git -C /home/pi/spf pull && pip install -e /home/pi/spf
+```
+
+### Run (field)
+
+```bash
+python3 spf/mavlink_radio_collection.py -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n ${n}
+python3 spf/mavlink_radio_collection.py -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n ${n} -s 600   # time-capped
+sudo systemctl {start,stop,status} mavlink_controller.service
+```
+
+### Sim / test
+
+```bash
+docker pull csmisko/ardupilotspf:latest
+docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest \
+  /ardupilot/Tools/autotest/sim_vehicle.py -l 37.76509485,-122.40940127,0,0 -v rover -f rover-skid \
+  --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 -S 1
+cd /home/mouse9911/gits/spf && pip3 install -e . && pip3 install pytest
+python3 -m pytest tests/test_mavlink_radio_collect.py -v                               # fake-drone, no Docker, no-NaN zarr
+python3 -m pytest tests/test_in_simulator.py -v -s                                     # full SITL suite
+python3 -m pytest tests/test_in_simulator.py::test_manual_mode_stationary -v -s
+python3 -m pytest tests/test_in_simulator.py::test_guided_mode_moving_and_recording -v -s
+python3 spf/mavlink_radio_collection.py -d tcp:127.0.0.1:14590 -c tests/rover_config.yaml -m tests/device_mapping -r bounce --temp ./temp_sitl --no-ultrasonic
+```
+
+### Ground-control / commanding (`spf/mavlink/mavlink_controller.py`)
+
+```bash
+python spf/mavlink/mavlink_controller.py --ip 127.0.0.1 --port 14591 --proto tcp --mode manual     # or --mode guided
+python spf/mavlink/mavlink_controller.py --ip 127.0.0.1 --port 14591 --proto tcp --get-time time
+python spf/mavlink/mavlink_controller.py --ip 127.0.0.1 --port 14591 --proto tcp --time-since-boot tsb
+python spf/mavlink/mavlink_controller.py --ip 127.0.0.1 --port 14591 --proto tcp --reboot
+python spf/mavlink/mavlink_controller.py --buzzer git            # tones: gps-time check-diff git planner wait ready failure (others = raw tune)
+python spf/mavlink/mavlink_controller.py --save-params out.params
+python spf/mavlink/mavlink_controller.py --load-params this_rover.params
+python spf/mavlink/mavlink_controller.py --diff-params this_rover.params    # EXIT CODE = number of differing params (0 = match)
+python spf/mavlink/mavlink_controller.py --serial /dev/serial/by-id/usb-ArduPilot...   # serial @115200 (auto-detects if exactly one)
+mavproxy.py --master=tcp:192.168.1.127:14560 --out 127.0.0.1:14550 --out 127.0.0.1:14552   # GCS routing example
+# base-station telemetry fan-out (macOS, telem.sh): roverX -> UDP 1457X/1458X over SiK @57600
+screen -S rover1 -d -m bash -c 'mavproxy.py --force-connected --master=/dev/tty.usbserial-DK0G4IOK --baudrate 57600 --out=127.0.0.1:14571 --out=127.0.0.1:14581 --daemon'
+```
+
+Connection defaults: `--port` 14552, `--proto` udpin, `--ip` "" — override to `--port 14591 --proto tcp` for the sim/rover. `--skip-heartbeat` skips the heartbeat wait (mutually exclusive with `--buzzer`); with no action flag the process becomes the `mavlink_controller.service` daemon (`while True: sleep(200)`).
+
+### Data-ops
+
+```bash
+python spf/scripts/dataset_quality_scan.py --splits <s1.txt> [...] --precompute-cache /mnt/md2/cache/precompute_cache_3p7 --output-dir data_quality_reports/scan_<YYYY_MM_DD> --parallel 12
+vcgencmd measure_temp                                                                  # Pi thermal check
+lsusb | grep ADALM | wc -l                                                             # radio count
+```
+
+---
+
+## 10. Safety & known issues
+
+**Read the DRIVE-CRITICAL items before every mission.** All line refs are `spf/mavlink/mavlink_controller.py` unless noted.
+
+### Controller safety catalog (MC / MP)
+
+- **MC-1 / KI#18 [DRIVE-CRITICAL]** `handle_RC_CHANNELS` runs on the MAVLink message thread with **no debounce**: ch9>1500 → `sudo shutdown 0` (powers off the Pi mid-run), ch7>1500 → force reboot, 1000<ch7≤1500 → reboot+`sys.exit(1)`, ch10>1500 → compass cal, ch12>1000 → disables ultrasonic avoidance. A single noisy RC reading can kill the rover. (:897–917)
+- **MC-2** `is_planner_in_control` reads a lazy attr → AttributeError if called before `set_and_start_planner`; current order is safe.
+- **MC-3 / KI#44 [DRIVE-CRITICAL]** `move_to_point` loops `while distance>tolerance` with **no timeout/abort** — an unreachable/blocked target hangs the planner thread forever. (:436)
+- **MC-4 / KI#40 [DRIVE-CRITICAL, silently-wrong]** `healthy_ekf_flag` ORs `EKF_POS_HORIZ_REL` twice and **omits `EKF_POS_HORIZ_ABS`** — the arm/ready gate accepts a relative-only EKF, so the rover can arm and drive absolute lat/long waypoints before the absolute fix converges. Verify absolute GPS/EKF health out-of-band. (:264–268)
+- **MC-5** No locks on cross-thread `mav_mode/armed/gps/motor_active` reads in `run_planner` — worst case a mis-timed arm/disarm for ~0.1 s (GIL bounds tearing to logical, not memory).
+- **MC-6** `single_operation_mode` is non-reentrant (asserts not already single); not reached by current callers.
+- **MC-7 [DRIVE-CRITICAL]** `run_planner`'s ready / MANUAL / GUIDED `while…sleep` loops have **no timeout** — a never-healthy EKF or un-flipped RC switch silently stalls at "Waiting…". Monitor heartbeat liveness after launch.
+- **MC-8 / KI#44 [DRIVE-CRITICAL]** `move_to_home` starts its `max_wait` clock **after** the unbounded `move_to_point`, so return-home can hang forever if home is unreachable. (Note: this is GUIDED-reposition home, not autopilot RTL — `set_rtl_mode` is commented out.)
+- **MC-9** `gps_fix_type_str_to_num` is actually an int→str map (name inverted); works but misleads during debugging.
+- **MC-10 / KI#43 [DRIVE-CRITICAL]** `handle_HEARTBEAT` does unguarded `custom_mode_mapping[msg.custom_mode]`; mapped keys = {0,1,3,4,5,6,7,10,11,12,15,16}. Any other Rover mode (2/8/9/13/14/≥17) raises KeyError on the message thread → kills state ingestion, strands the planner. Ensure the operator only ever selects mapped modes.
+- **MP-1** `mavparm.load` has a stray unconditional `print('WRITTING',...)`.
+- **MP-2 [silently-wrong]** `mavparm.diff` returns `None` when the other file fails to load → caller `sys.exit(None)` = exit code 0 on a **failed** param diff. A param-backup/verify step can falsely report success. (`mavparm.py`)
+- **MP-3** `mavparm.load` returns bare `False` on open failure → caller unpack TypeError; dead in practice (caller pre-checks `os.path.isfile`).
+
+### Arm/motion facts (assume-success hazards)
+
+- `arm()/disarm()` do **not** await `COMMAND_ACK` (ACK wait commented out) — a failed arm is silently ignored.
+- `--planner` on the `mavlink_controller` CLI is parsed but **ignored** (construction commented out).
+- `RTL`/`HOLD` are not settable from the CLI; only `MANUAL`/`GUIDED` are `switchable_modes`. `--diff-params` exit code = diff count.
+
+### Numbered KNOWN_ISSUES (one line each; `claude_docs/KNOWN_ISSUES.md`)
+
+- **#1** load_optimizer cosine → UnboundLocalError (abandoned config). `train_single_point.py:389`
+- **#2 [DRIVE-CRITICAL, headless hang]** live `breakpoint()` in `PFSingleThetaDualRadioNN.observation` → Pool worker hangs. `particle_dual_radio_nn_filter.py:41` — delete the line; set `PYTHONBREAKPOINT=0`.
+- **#3** cloud filter drivers import a moved module → ModuleNotFoundError (B2/DynamoDB pipeline dead). `run_filters_on_data_b2.py:25`
+- **#4** `swap_lat_long` 2-D array branch is a **no-op** (columns not swapped); live callers pass 1D/tuples so rover GPS math is correct today — but any new 2-D caller feeds unswapped (long,lat) into haversine. `gps_utils.py:8-10`
+- **#5** `CirclePlanner` radian-increment vs `<360` overshoots ~57x but does not manifest (sin/cos periodic; run ends by n-records). `planner.py:205`
+- **#6** `setup_rxtx_and_phase_calibration` → AttributeError; only via `--mode rxcal`, not normal collection. `sdr_controller.py:971,982`
+- **#7 [DRIVE-CRITICAL, headless hang]** two `breakpoint()` in NN dataset wrapper. `spf_nn_dataset_wrapper.py:86,126` — delete + `PYTHONBREAKPOINT=0`.
+- **#8** `get_segmentation` destructive recovery deletes `.pkl` (not the expensive `.yarr`). `spf_dataset.py:1753-1760`
+- **#9** `beamform_signal_cpu` is a stub returning None. `segmentation.py:~1025`
+- **#10** `v2_rssi_idxs` sets both RSSI indices to `rssi0`. `wall_array_v2_idxs.py:~40`
+- **#11** v5inference mutable-default `skip_fields=[]` mutated in place. `spf_dataset.py:506`
+- **#12** `run_filters_on_data.py __main__` calls without `nparallel` → TypeError. `:731`
+- **#13** `config_to_job_params` `eval()`s config strings (self-flagged dangerous). `run_filters_on_data.py:530`
+- **#14** `FakePPlus.get_rssi_and_gain` reads undefined `self.dev`. `sdr_controller.py:543`
+- **#15** `sdr.py` creates matplotlib figures at import time. `:212-230`
+- **#16** V4 heading path is internally consistent — **do NOT "fix"**. `data_collector.py:540`
+- **#17** `yaml_defaults` reads module-global `args` → NameError if imported as a library. `mavlink_radio_collection.py:32-71`
+- **#18** = MC-1 (see above). `:897-909`
+- **#19** destructive zarr scripts: `zarr_fix_rx_spacing` overwrites in place **no backup**; `precompute_3p3_to_3p31` in-place non-finite→0 hack.
+- **#20–#30 (P2 dead/hygiene)** np-on-torch dead fn; fast2 scalar-to-array (call site commented); non-callable Source; `yarr_rechunk` missing args; `.add()` on list; steps==-1 empty loop; missing inner return; hardcoded seg_version 3.5; hardcoded `Pool(8)`; `wait_while_moving` KeyError (dead); device-mapping parse duplicated across the two collectors.
+- **#31–#39 (Phase-2)** torch `.copy()` AttributeError; unlocked store read race; non-daemon reader thread never closes Queue; in-place batch zeroing; **#35 REFUTED**; `global_config_to_keys_used` KeyError; rf trimmed-stat backend divergence; dead `SPFFilter.trajectory`; `min_idx_stored` init only in locked block.
+- **#40** = MC-4 (see above). `:264-268`
+- **#41** inference cache key omits v4 → stale/wrong inference. `single_point_networks_inference.py:228`
+- **#42** GRBL `to_steps` PointOutOfBounds kills the daemon motion thread; collection keeps stamping frozen position (wall-specific). `grbl_interactive.py:376,493`
+- **#43** = MC-10 (see above). `:838`
+- **#44** = MC-3/MC-8 (see above). `:436,558`
+- **#45** segmentation `keep_signal_surrounded_by_noise` drops both abutting signal runs; fires on default production config. `segmentation.py:817-828`
+- **#46–#52 (Phase-3)** cross-thread motion read no lock (=MC-5); never-invalidated `.md5` sidecar; `apply_symmetry_rules` even-bins off-by-one; cupy-absent NameError; `update_status` unbounded recursion; Kalman metrics uses tx_x mm as theta; duplicate test def.
+- **#53** `--resume` clobbers `best.pth`. `train_single_point.py:1191,1275-1292`
+- **#54** `--resume` unfreezes frozen backbones on stage-2 — **never `--resume` a stage-2 run without re-freezing**. `train_single_point.py:1141-1150,471-487`
+- **#55** inference-cache save is local-fs only but prod points at `b2://` → saves land in a literal `./b2:/` dir. `single_point_networks_inference.py:236-251`
+- **#56** single-NN particle filter omits `crash_if_not_cached` → any cache miss aborts the whole sweep. `particle_single_radio_nn_filter.py:44-54`
+- **#57–#64 (Phase-4)** paired input_dropout dead; scatter:onehot broken; absolute-mode wrapper wrong frame; vehicle_type double-dropout; frozen single net runs in train mode; concurrent workers share one `.tmp.npz`; **#63 realtime is a no-op end-to-end** (consumer loop commented out); dual-NN filter hardcodes `reshape(-1,65)`.
+- **Realtime-review addendum:** four live `breakpoint()`s in the realtime NN path (incl. `particle_dual_radio_nn_filter.py:41`, `scripts/test.py:13`); AGC wall=fast_attack vs rover=slow_attack; realtime heading always 0; realtime consumer lifecycle crash-or-hang; a v4→v5 heading `/720` vs `/180` bug (only direct-v4/replay path). Do **not** enable `--realtime` for a field mission without these fixes.
+
+---
+
+## 11. Troubleshooting
+
+**Rover stuck at a waypoint / mission never advances.** `move_to_point` has no timeout (MC-3): an unreachable target, GPS drift, or a collision-disarm that never re-arms hangs the planner. Also check MC-7 (ready/MANUAL/GUIDED waits are unbounded) — if it's sitting at "Waiting for drone to start moving," the RC mode switch (CH8) hasn't been flipped MANUAL→GUIDED, or the EKF never went healthy. Recovery is manual abort (RC or power). Watch heartbeat liveness live; there is no watchdog anywhere in the Drone stack.
+
+**Weak signal / high NaN / raise the emitter.** Rover NaN 46–70% is normal (bursty emitter) — do not panic on NaN alone; only `no_signal` (NaN > 90% / < 100 valid) and heading-common bias are true failures in the post-run scan. **[field note]** If signal is genuinely weak, physically **raise the emitter mast** (line-of-sight at 5.766 GHz is height-sensitive) and/or increase emitter tx-gain with `--tx-gain <int>` (only valid when the emitter `type: sdr`). The RF chain runs 5.766 GHz / 30 MS/s / 3 MHz BW.
+
+**Pluto won't mount / bricked after a firmware change.** **[field note]** Never flash **v0.38** — it bricks some PlutoPlus units; stay on **v0.37** (`plutosdr-fw-v0.37-dirty.zip`, md5 `613fcdd4f45ad695d85abd53d1e0b918`). To recover a bricked unit, enter **DFU** by moving the boot jumper from **URST to MIO52**, re-flash v0.37, then restore the jumper. If the Pluto is up but not in the right mode, re-run `check_and_set_pluto.sh` (forces `compatible=ad9361`, `mode=2r2t` over `ssh root@192.168.2.1`). If `device_mapping` is empty, you're likely using the wrong board's generator (Pi4 `lsusb -t | grep usb-storage` sed form vs Pi5 `lsusb | grep PLUTO | awk` form).
+
+**TURN OFF WIFI.** Onboard wifi must be disabled — `setup.sh` appends `dtoverlay=disable-wifi` to `config.txt`. **[field note]** Leaving wifi on has caused RF self-interference and network-routing confusion; if a rover behaves oddly on the LAN or shows elevated RF noise, confirm wifi is actually off (`grep disable-wifi /boot/config.txt` on Pi4 or `/boot/firmware/config.txt` on Pi5) and reboot.
+
+**Antenna-spacing data surgery (mislabeled rx_spacing).** The yaml `antenna-spacing-m` must match the **physical** spacing (rover1 = 35 mm config `rover_receiver_config_pi_3mhz_35mm.yaml`, rover3 = 43 mm config `rover_receiver_config_pi_3mhz_43mm.yaml`; **[field note]** a 47 mm build also exists). If a dataset was recorded with the wrong spacing baked in, correct it with the in-place fixer — **KI#19: `zarr_fix_rx_spacing` overwrites the zarr in place with NO backup**, so copy the dataset first. The post-run scan will flag mismatches as `Too many mismatches in rx_spacing` ERRORs (seen in `report_rover.md`) and as `rX_gain` (|g−1|>0.25) since g = effective/configured d/λ.
+
+**Faulty power switches. [field note]** Intermittent power switches have caused mid-mission brown-outs and spurious reboots. If a rover reboots or dies unpredictably (and it isn't the RC ch9 shutdown / ch7 reboot from MC-1), suspect the physical power switch and the buck-reg wiring before software.
+
+**Low-power auto-disconnect (~11.2 / 11.1 V). [field note]** The pack cuts power / the vehicle disconnects around **11.2 V**, hard at **~11.1 V**. If a mission ends early with a clean power loss, check pack voltage — below ~11.2 V the platform will disconnect to protect the battery. Recharge/swap the pack; do not push a mission on a pack near this threshold.
+
+**Docker/SITL fixture errors at setup.** All `test_in_simulator.py` tests require Docker + the `csmisko/ardupilotspf:latest` image; if the daemon is down or the image is absent/unpullable, all simulator tests error at fixture setup. `test_mavlink_radio_collect.py` (`--fake-drone`) is the only one that needs no Docker. There is no `ghcr.io` image and no `v0.2` tag — only `csmisko/ardupilotspf:latest`.
+
+**Param "success" that isn't.** MP-2: a failed `--diff-params` (file fails to load) can exit 0. After a param backup, verify the file is non-empty and re-diff explicitly rather than trusting a silent success. The `drone_run.sh` param gate is non-fatal — it prints "FAILED TO RESOLVE DIFFERENCES" and runs anyway.
+
+---
+
+## 12. Observed on-device operator commands (from `pi@roverpi1` history)
+
+> Provenance: extracted 2026-07-22 from `/home/pi/.bash_history` on **rover 1** (`roverpi1`, `192.168.1.41`), 1961 lines. These are the real command patterns used to operate the rover in the field — line numbers are into that history file. Paths reflect what was actually typed (note the historical `data_collection_model_and_results/` dir name and the now-empty `rover_configs/` — see §4/§7 for the current locations).
+
+### 12.1 Controlling the onboard service (`mavlink_controller.service` → `drone_run.sh`)
+
+```bash
+sudo systemctl start   mavlink_controller.service     # begin collection
+sudo systemctl stop    mavlink_controller.service     # clean way to take the rover offline (always used before manual runs / data ops)
+sudo systemctl restart mavlink_controller.service     # bounce it
+sudo systemctl status  mavlink_controller.service     # check state
+sudo systemctl enable  mavlink_controller.service     # run at boot
+sudo systemctl daemon-reload                          # after editing the .service unit
+
+# read the service logs (the standard debug pair):
+journalctl -u mavlink_controller.service | tail -n 900
+journalctl -u mavlink_controller.service | tail -n 900 | less
+journalctl -u mavlink_controller.service > ~/march8.log     # dump full log to a file
+
+# run the mission script directly, bypassing systemd (debug arg skips the self-update block, low n):
+bash /home/pi/spf/.../rover/rover_v3.1/drone_run.sh
+bash /home/pi/spf/.../rover/rover_v3.1/drone_run.sh debug
+
+# network-stack service (part of forcing static IP / stopping DHCP interference — NOT collection):
+sudo systemctl {stop,start,enable,disable,status} NetworkManager
+```
+
+Notes: the operator **never** `pkill`/`kill`ed the capture process by hand — always `systemctl stop` or a direct `drone_run.sh`. Force-kills of `run_capture`/`python` only happen inside the UPS `onbattery` script, not interactively.
+
+### 12.2 Working with recorded sessions (`.zarr`)
+
+Run from `~/temp/` (where recordings land). Each session = a `.zarr` (data) + `.yaml` (sidecar config: routine, `spacing0p035`, `tag_RO1`) + `.log`.
+
+```bash
+# a) post-mission compaction — the most-repeated data op (script has lived at BOTH paths):
+for x in *2025_04_05*zarr* ; do python ../spf/spf/scripts/zarr_shrink.py $x; done
+for x in *2025_02_22*zarr* ; do python ../spf/spf/dataset/zarr_shrink.py $x; done
+python ../spf/spf/dataset/zarr_shrink.py rover_2024_11_13_..._bounce_..._RO1.zarr.tmp
+
+# b) manually FINALIZE an interrupted recording (.tmp -> final; only auto-renames on a clean run):
+mv rover_2025_03_15_..._diamond_spacing0p035_tag_RO1.zarr.tmp  rover_2025_03_15_..._diamond_spacing0p035_tag_RO1.zarr
+mv rover_..._RO1.yaml.tmp  rover_..._RO1.yaml
+mv rover_..._RO1.log.tmp   rover_..._RO1.log
+
+# c) inspect sizes / configs of recordings:
+du -sh rover_2025_01_30_*          # recording sizes
+du -sh *.zarr*
+cat rover_2025_01_10_..._bounce_spacing0p05075_tag_RO1.yaml    # read a recording's sidecar config
+
+# d) antenna-spacing capture-config juggling (the 47/43/35 mm data-surgery story):
+diff rover_receiver_config_pi_3mhz_47mm.yaml rover_receiver_config_pi_3mhz_43mm.yaml
+cp   rover_receiver_config_pi_3mhz_47mm.yaml rover_receiver_config_pi_3mhz_35mm.yaml
+```
+
+Notes: many `.tmp -> final` renames means many rover-1 sessions were **interrupted** and salvaged by hand. There is **no `rsync`/`scp` on the rover** — offload to storage is driven from the base station, not the Pi. Compaction was run after missions on 2024-04-10, 2024-11-13, 2025-01-30, 02-22, 02-23, 03-02, 03-15, 03-22, 04-05.
+
+### 12.3 Calibration (magnetometer / compass / accel) — where it actually happens
+
+**Calibration does NOT happen at the bash prompt** — grepping the rover-1 history for `magcal|compass|calibrat|accel|gyro|level` returns nothing but parameter-file inspection. Calibration is performed one of two ways, neither of which lands in `.bash_history`:
+
+1. **Interactively inside mavproxy** — the history only shows mavproxy being *launched*; `magcal start` / `accelcal` / `magcal accept` are typed at mavproxy's own prompt:
+   ```bash
+   mavproxy.py --out 192.168.1.140:14550 --out 127.0.0.1:14550 --out 192.168.1.140:14551
+   # (192.168.1.140 = the ground-control laptop)
+   ```
+2. **Via the RC transmitter** — magnetometer calibration is triggered by **Taranis CH10** (`handle_RC_CHANNELS` → `run_compass_calibration()` when ch10 > 1500). A physical switch flip, so no shell trace.
+
+The only calibration-adjacent shell commands are ArduPilot **parameter inspection** of a saved dump:
+```bash
+vi mav.parm            # view a saved ArduPilot parameter dump
+grep BRD mav.parm      # inspect board (BRD_*) params
+```
+
+The CLI param path (`mavlink_controller.py --load-params/--diff-params`) runs **inside `drone_run.sh`**, not typed by hand — so it doesn't appear in interactive history either. See §3.6 for the full calibration procedure and §5 for the runtime param gate.
+
+---
+
+## 13. Boot / update / debug / production sequences (detailed)
+
+> Line numbers reference `data_collection/rover/rover_v3.1/{drone_run.sh, debug_drone_run.sh, setup.sh, mavlink_controller.service}`. The **production** entry point is the systemd unit running `drone_run.sh` with **no arguments**; passing **any argument** switches to the tethered/skip-update path; `debug_drone_run.sh` is a separate stripped bench script.
+
+### 13.1 Boot decision flowchart
+
+```
+setup.sh <id>  (one-time provision) ── enable service ── sudo reboot        [setup.sh:164-177]
+                                                              │
+power-on ▶ systemd  (After=/Wants=network-online.target; WantedBy=multi-user.target)
+           │   ⚠ NO Restart= in the unit → if drone_run.sh ever exits, the rover stays DEAD
+           ▼
+   drone_run.sh   (ExecStart, NO args)                                       [service:11]
+           │
+   $# -eq 0 ?  ──any arg──▶  TETHERED/DEBUG: SKIP ssh-config + entire update block (lines 10-41)
+           │ yes                                                    │
+   sleep 10 ; ping -c1 8.8.8.8                              [15-16] │
+           │                                                        │
+   internet? ── no ──▶  SKIP update block (18-39) ─────────────────┤
+           │ yes                                                    │
+   buzzer "git"                                            [18]     │
+   install_deps.sh  (apt update/install)                  [21]     │
+   git pull ; compare short HEAD                           [23-25] │
+   HEAD changed? ── yes ─▶ sleep 15 (only interrupt window) ─▶ reinstall+enable service ─▶ sudo REBOOT ↺  [26-33]
+           │ no                                                     │
+   pip install -e ${repo_root}                             [38]     │
+           └────────────────────────┬───────────────────────────────┘
+                                    ▼
+   MISSION PREP  (ALWAYS — both internet and tethered paths):
+     • build this_rover.params → --load-params → --diff-params   ⚠ NON-FATAL on mismatch   [47-53]
+     • --get-time → sudo date -s      (clock from GPS via MAVLink, NOT NTP)                 [56-57]
+     • echo performance → scaling_governor                                                  [59]
+     • rover_id → routine / config / n / expected_radios                                    [61-80]
+     • RADIO-COUNT GATE: block until `lsusb|grep ADALM|wc -l` == expected  ⚠ hangs forever  [82-90]
+     • check_and_set_pluto.sh   (⚠ also blocks forever if pluto @192.168.2.1 unreachable)   [95]
+                                    ▼
+   INFINITE CAPTURE LOOP  (while true):                                                     [97-111]
+     no-args :  mavlink_radio_collection.py -c <cfg> -m device_mapping -r <routine> -t RO<id> -n <n>
+     with-arg:  …same…  -n 40 --drone-uri tcp:192.168.1.141:14590 --no-ultrasonic
+     sleep 8 ; re-`--get-time`+`date -s` ; sleep 2 ; repeat
+```
+
+### 13.2 Per-rover selection (production `drone_run.sh:61-80`)
+
+| Rover | routine | capture config (`…/capture_configs/`) | n | expected_radios |
+|---|---|---|---|---|
+| 1 | `bounce` | `rover_receiver_config_pi_3mhz_35mm.yaml` | 3000 | 2 (35 mm dual-rx) |
+| 2 | `circle` | `rover_single_receiver_config_pi_3mhz.yaml` | 3500 | 1 (single rx) |
+| 3 | `bounce` | `rover_receiver_config_pi_3mhz_43mm.yaml` | 3000 | 2 (43 mm dual-rx) |
+| else | — | `echo Invalid rover_id` → bare `exit` | | |
+
+⚠ **`debug_drone_run.sh` uses a DIFFERENT table**: all `n=50`, no radio gate, OLD `spf/rover_configs/*.yaml` paths, and **rover 3 = `center`** (not `bounce`). A passing debug run does **not** validate the production path.
+
+### 13.3 The five sequences
+
+- **first-boot-after-provision** — `setup.sh <id>` flashes ArduPilot (Rover 4.5.0 fmuv3), copies+`enable`s the unit (`setup.sh:164-166`), then `sudo reboot` (`:177`). The next boot auto-runs `drone_run.sh` (no args) → one of the two production sequences below.
+- **production-boot-with-internet** — the full flowchart left branch: `buzzer git` → `install_deps` → `git pull` → **if HEAD changed: `sleep 15` then `sudo reboot`** (converges on next boot since the pull is now a no-op); else `pip install -e` → mission prep → capture loop.
+- **production-boot-no-internet** — `ping` fails → the entire update block (18-39) is skipped (no buzzer/apt/pull/reboot/pip) → straight to mission prep → capture loop. The rover needs no internet to run (clock comes from GPS, not NTP).
+- **debug-run** — `debug_drone_run.sh`: single `--fake-drone -n 50 --temp /dev/shm/` run, no update/params/GPS/radio-gate/pluto, no MAVLink vehicle. (Or `drone_run.sh <arg>` → skips only update, still enforces params/radio-gate/pluto, then the tethered loop.)
+- **tethered-manual-run** — `drone_run.sh <arg>`: update skipped; still loads params, sets GPS time, **enforces the radio-count gate and pluto config**, then loops `-n 40 --drone-uri tcp:192.168.1.141:14590 --no-ultrasonic`. The tether URI/port is **hard-coded** — a GCS at a different address silently fails to connect.
+
+### 13.4 Boot-flow gotchas (verified)
+
+- **Two divergent path trees.** `data_collection_model_and_results/` is referenced by `drone_run.sh:11,21,30,47` and `setup.sh:164` (ssh_config, install_deps, service copy, params_root); `data_collection/` by `drone_run.sh:63,68,74,95`, the unit ExecStart, and `setup.sh:17` (configs, pluto, service launch). **Both trees must resolve on the Pi** (symlink/duplicate) or provisioning + updates silently break — the service is copied from one tree but launched from the other.
+- **Non-fatal param gate** (`:50-53`) — `--diff-params` non-zero only prints "FAILED TO RESOLVE DIFFERENCES!!! running with incorrect params" and continues; the rover collects with unresolved ArduPilot params.
+- **No `Restart=`** in the unit — if `drone_run.sh` exits (invalid rover_id `exit` at `:79`, or a crash before the loop), systemd does **not** relaunch it; resilience is only the two in-script `while` loops.
+- **15 s is the only interrupt window** (`:28-29`) before an auto-update reboots the Pi mid-field.
+- **Silent blocking gates** — the radio-count loop (`:82-90`) and `check_and_set_pluto`'s `wait_for_pluto` loop forever with no timeout; missing radios (buzzes "failure" every 15 s) or an unreachable pluto (silent) hang boot indefinitely.
+- **`pip install -e` only on the online-no-change branch** — offline boots and post-update-reboot boots skip it.
+
+---
+
+## 14. Control flow — how the RC + arming + GPS/EKF + mode drive the robot
+
+> Verified against `spf/mavlink/mavlink_controller.py` (adversarial read, 2026-07-22). **Division of responsibility:** the human Taranis transmitter arms and mode-selects the **ArduPilot flight controller** directly over the RC link; the Raspberry Pi (`Drone` class) is a **companion computer** that mostly *reads* vehicle state and, only after a human MANUAL→GUIDED handshake, streams GUIDED position targets. **Mode is read-only in the drive loop; arming is bidirectional** (the Pi also arms/disarms).
+
+### 14.1 The pipeline
+
+```
+ ┌──────────────────────────────────────────────────────────────────────────────┐
+ │  HUMAN OPERATOR  —  Taranis Q transmitter                                      │
+ │  CH1-4 sticks · CH5 ARM · CH8 MODE(Manual/Guided/RTL)   → go to the FC direct  │
+ │  CH7 reboot-FC · CH9 shutdown-Pi · CH10 magcal · CH12 ultrasonic → Pi reads    │
+ └───────────────┬───────────────────────────────────────┬──────────────────────┘
+      CH1-5,8 (RC link)                        CH7/9/10/12 arrive as RC_CHANNELS
+                 ▼                                         ▼ (MAVLink → handle_RC_CHANNELS L897)
+ ┌───────────────────────────────┐        ┌───────────────────────────────────────────┐
+ │  ArduPilot FC  (Rover 4.5.0)  │        │  Raspberry Pi — Drone class (companion)     │
+ │  • arms / disarms (CH5)       │        │                                             │
+ │  • MANUAL: sticks → servos    │        │  READS from telemetry:                      │
+ │  • GUIDED: nav target→servos  │◀──┐    │   armed  (HEARTBEAT base_mode SAFETY_ARMED) │
+ │  emits: HEARTBEAT,            │   │    │   mav_mode (HEARTBEAT custom_mode)          │
+ │   GLOBAL_POSITION_INT,        │───┼───▶│   gps, heading (GLOBAL_POSITION_INT)        │
+ │   SYS_STATUS, EKF_STATUS,     │   │    │   gps_healthy (SYS_STATUS), ekf (EKF_STATUS)│
+ │   SERVO_OUTPUT_RAW            │   │    │                                             │
+ └──────────┬────────────────────┘   │    │  run_planner state machine ▼                │
+            │ servo1=steer            │    │   wait drone_ready → wait MANUAL → wait     │
+            │ servo3=throttle (PWM)   │    │   GUIDED → ARM → move_to_point(home) → loop │
+            ▼                         │    │   yield_points()→move_to_point→reposition   │
+      ┌──────────┐                    └────┤   ultrasonic<30 → disarm; clear → re-arm    │
+      │  WHEELS  │   MAV_CMD_DO_REPOSITION  │                                             │
+      └──────────┘   (lat,long ×1e7,        └───────────────────────────────────────────┘
+                      command_int_send)  ← the ONLY motion the Pi issues (reposition L710-739)
+```
+
+**Key point:** in the autonomous drive loop the Pi never *sets* the mode — it **waits** for the human to flip MANUAL then GUIDED (`run_planner` L498-506). Arming is cooperative: the Pi arms only *after* GUIDED (`if not self.armed: self.arm()` L508-510), and disarms/re-arms for ultrasonic stops — but it honors an existing human/RC arm.
+
+### 14.2 The `drone_ready` gate (all must hold; latches True once, then never re-checks)
+
+`drone_ready` is computed in `handle_HEARTBEAT` (L845-871) as **`mav_state_check AND gps_check AND gps_healthy AND ekf_healthy`**:
+
+| Condition | Exact check | Note |
+|---|---|---|
+| `mav_state_check` | `MAV_STATE_STANDBY` or `MAV_STATE_ACTIVE` in `mav_states` (L846-849) | from HEARTBEAT `system_status` |
+| `gps_check` | `self.gps is not None AND gps[0] != 0` (L850) | ⚠ `self.gps` inits to `zeros(2)`, never `None` → the effective gate is **longitude ≠ 0** |
+| `gps_healthy` | `MAV_SYS_STATUS_SENSOR_GPS` in `sensors_health` (L851) | SYS_STATUS health bit |
+| `ekf_healthy` | `(EKF flags & mask) == mask` (L813-817, mask L264-268) | ⚠ see bug below |
+| ~~`guided_mode`~~ | commented out of the AND (`# and guided_mode` L867) | GUIDED enforced separately by `run_planner` S3 |
+
+`GPS_RAW_INT` (fix type / sats) is **logged only** — it does *not* feed the boolean gate.
+
+### 14.3 `run_planner` state machine (the drive sequence)
+
+```
+S0 INIT      planner_should_move=True; home=boundary.mean; set_home(MAV_CMD_DO_SET_HOME)   [L469-480]
+S1 WAIT READY   while not drone_ready: sleep(10)                       ⚠ UNBOUNDED          [L485-489]
+     └ (if ignore_mode) S2a: spin planner_in_control=True, NEVER issue motion (record-in-place) [L491-495]
+S2 WAIT MANUAL  while mav_mode != ROVER_MODE_MANUAL: sleep(10); buzzer('wait')  ⚠ UNBOUNDED  [L498-501]
+S3 WAIT GUIDED  while mav_mode != ROVER_MODE_GUIDED: sleep(10); buzzer('ready') ⚠ UNBOUNDED  [L503-506]
+S4 ARM        if not armed: arm()  (MAV_CMD_COMPONENT_ARM_DISARM)                            [L508-510]
+S5 GO HOME    move_to_point(home)                                                            [L513-514]
+S6 LOOP       for point in planner.yield_points(): if new → move_to_point(point)             [L518-534]
+S7 EXIT       planner_in_control=False                                                        [L536]
+```
+
+`move_to_point` (L409-462) issues a `reposition()` and then loops `while distance_to_target > tolerance_in_m` (default **5 m**, haversine) with **no timeout** (⚠ unbounded); inside it, if GUIDED-and-armed-but-`motor_active`-False it re-repositions (`motor_active` inferred from `SERVO_OUTPUT_RAW` servo1/servo3 ≠ 1500 neutral). `move_to_home` exists but is **not** called on the drive path (S5 uses `move_to_point(home)` directly).
+
+### 14.4 RC channels — who intercepts what
+
+The Pi's `handle_RC_CHANNELS` (L897-917) only acts on **CH7/9/10/12** (companion-computer functions); **CH1-4 (sticks), CH5 (arm), CH8 (mode)** are consumed by ArduPilot directly and only *observed* by the Pi via HEARTBEAT.
+
+| Channel | Threshold | Effect | Who |
+|---|---|---|---|
+| CH5 | (RC) | **Arm** | ArduPilot FC (Pi reads `armed`) |
+| CH8 | (RC) | **Flight mode** Manual/Guided/RTL | ArduPilot FC (Pi reads `mav_mode`) |
+| CH7 | `>1500` | Force-reboot the **FC** (`MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN` p1=1) | Pi (L902-905) |
+| CH7 | `>1000 & ≤1500` | Soft-reboot FC then **`sys.exit(1)`** (kills the Pi collector) | Pi (L906-909) |
+| CH9 | `>1500` | **Power off the Pi** (`sudo shutdown 0`) | Pi (L898-899) |
+| CH10 | `>1500` | Start **compass/mag calibration** (`MAV_CMD_DO_START_MAG_CAL`) | Pi (L900-901) |
+| CH12 | `>1000` disable / `≤1000` enable | Toggle **ultrasonic** avoidance (`disable_distance_finder`) | Pi (L910-917) |
+
+⚠ These run on the MAVLink **message thread with no debounce** — a single noisy reading on CH9 powers off the Pi mid-run (MC-1 / §10).
+
+### 14.5 Ultrasonic safety stop
+
+Inside `move_to_point`, when `mav_mode == GUIDED` and a `DistanceFinder` exists: if `distance_finder.distance < 30` (⚠ the finder's **native units** — "cm" is *not* established in code) and not disabled, the Pi **`disarm()`s** to stop the rover (L451-453), then **re-`arm()`s** when clear (L455-457). `--no-ultrasonic` (or CH12) sets `disable_distance_finder` and bypasses this.
+
+### 14.6 Verified control-flow bugs (carry into any change)
+
+- **EKF gate too weak (MC-4 / KI#40).** `healthy_ekf_flag = ATTITUDE(1) | POS_HORIZ_REL(8) | POS_HORIZ_REL(8) = 9` (L264-268) — `POS_HORIZ_REL` is OR'd **twice** and `POS_HORIZ_ABS(16)` is **omitted**. So "EKF healthy" requires only attitude + *relative* horizontal position, **never absolute** — the rover can arm and drive absolute lat/long waypoints before the absolute fix converges. **Verify absolute GPS/EKF health out-of-band before a mission.**
+- **Vacuous GPS-not-None** — `self.gps is not None` is always True (inits to `zeros(2)`); the real readiness gate is `longitude ≠ 0`.
+- **Unbounded waits everywhere on the drive path** — `drone_ready`/`MANUAL`/`GUIDED` waits and `move_to_point`'s distance loop have no timeout/watchdog; a never-healthy EKF, an un-flipped RC switch, or an unreachable target stalls the mission silently at "Waiting…".
+- **Motion has no inline arm/GUIDED guard** — `reposition()` sends `MAV_CMD_DO_REPOSITION` unconditionally; safety comes only from `run_planner`'s ordering, so calling `move_to_point` out of sequence would command motion regardless of state.
