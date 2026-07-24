@@ -143,6 +143,13 @@ CH 10 -> 100 SC -> Mag calibration [ Nothing, Mag cal, Nothing ]
 
 ```
 
+> **Correction (2026-07-23):** with the boot-enforced ArduPilot params
+> (`rover3_base_parameters.params`: `MODE_CH 8`, `MODE4=11` RTL, `MODE6=15` Guided),
+> the SA flight-mode positions are **[ Manual, RTL, Guided ]** — Guided/RTL are swapped
+> relative to the list above. The list above also omits CH7 (SD = reboot FC / kill
+> collector) and CH12 (ultrasonic on/off), which the Pi consumes. Full current control
+> map: [`ROVER_RUNBOOK.md`](./ROVER_RUNBOOK.md) §3.5 and `taranis_q_controls.png`.
+
 To swap throttle from the left to the right , 
 
 ```
