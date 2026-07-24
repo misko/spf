@@ -500,11 +500,11 @@ Historical record (as of 2026-07-24; pushes are infrequent, so only 7 runs exist
 |---|---|---|
 | 2025-06-10 | ✅ success | Last fully green run. |
 | 2026-02-16 | ❌ failure | Logs expired — failing test(s) unrecorded. |
-| 2026-07-14 | ❌ failure | `1 failed, 85 passed, 2 xfailed` — sole red = `tests/test_zarr_tools.py::test_zarr_rechunk` (AttributeError, zarr-library regression, **not rover code**). |
+| 2026-07-14 | ❌ failure | `1 failed, 85 passed, 2 xfailed` — sole red = `tests/test_zarr_tools.py::test_zarr_rechunk` (**not rover code, not a zarr version issue** — zarr is pinned `<=2.18.4`; root cause is a `skip_fields` string-normalization bug from `fb40860`, 2026-07-13: `list("signal_matrix")` explodes the string into characters, so `v5spfdataset` tries to load `signal_matrix` from the deliberately-stripped nosig rechunk). |
 | 2026-07-23 | ❌ failure | **Identical**: only `test_zarr_rechunk`; `tests/test_in_simulator.py .......` (all 7 SITL tests) and `test_mavlink_radio_collect.py` (fake-drone) **passed**. |
 | 2026-07-24 (×3) | ⏳ queued/running | Backlogged behind the self-hosted runner (each run 23–55 min). |
 
-**Reading a red X:** since 2026-07-14 the suite has one known non-rover failure (`test_zarr_rechunk`). Before suspecting rover code on a failed run, open the summary line — if it's `1 failed` and it's the zarr rechunk test, the rover ladder (a)–(c) is green.
+**Reading a red X:** since 2026-07-14 the suite has one known non-rover failure (`test_zarr_rechunk`, the `skip_fields` string bug above — fix: normalize `isinstance(skip_fields, str)` → `[skip_fields]` in both `spf_dataset.py` `__init__`s). Before suspecting rover code on a failed run, open the summary line — if it's `1 failed` and it's the zarr rechunk test, the rover ladder (a)–(c) is green.
 
 ---
 
