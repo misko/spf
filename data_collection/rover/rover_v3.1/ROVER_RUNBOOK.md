@@ -540,6 +540,8 @@ screen -S rover1 -d -m bash -c 'mavproxy.py --force-connected --master=/dev/tty.
 
 Connection defaults: `--port` 14552, `--proto` udpin, `--ip` "" — override to `--port 14591 --proto tcp` for the sim/rover. `--skip-heartbeat` skips the heartbeat wait (mutually exclusive with `--buzzer`); with no action flag the process becomes the `mavlink_controller.service` daemon (`while True: sleep(200)`).
 
+GCS connection recipes (QGC / Mission Planner over radio, ethernet, or SITL): **§16**.
+
 ### Data-ops
 
 ```bash
@@ -897,3 +899,49 @@ The tone strings live in `spf/mavlink/mavlink_controller.py:162-170` (`tones` di
 **Field diagnosis by ear:** `git` = boot found internet → expect a possible self-update reboot within ~30 s (§13.1's 15 s window). `check-diff` ×2 = params stage running. Looping `gps-time` = no GPS fix — move for sky view. Looping `failure` = check Pluto USB/power (§11). `wait` = rover is healthy and wants **MANUAL**; `ready` = wants **GUIDED**; after `ready` stops, the rover arms and drives (§14.3).
 
 Play any tone by hand against a connected FC: `python spf/mavlink/mavlink_controller.py --ip <fc-ip> --port 14591 --proto tcp --buzzer <name>` — the CLI also accepts a **raw MML string** in place of a name (`mavlink_controller.py:1061-1070`). Regenerate the WAVs with `python3 make_tones.py` (no dependencies).
+
+---
+
+## 16. Connecting a ground station (QGC / Mission Planner)
+
+QGC / Mission Planner / mavproxy are all just MAVLink clients — the only questions are which **transport** reaches the FC and **who already owns that link** (serial and `tcpin` endpoints are single-client; the fan-outs below exist to share them).
+
+| Path | When | Vehicle link owner | GCS attaches via |
+|---|---|---|---|
+| SiK radio + Mac fan-out (§16.1) | field | mavproxy on the Mac (`telem.sh`) | UDP `1457X` (spare `1458X`) |
+| Tethered ethernet, mavproxy on the Pi (§16.2) | bench | mavproxy on the Pi (service stopped) | UDP `14550` → QGC auto-connects |
+| SITL TCP (§16.3) | sim | sim serves two `tcpin` ports | TCP `<sim-host>:14591` |
+
+### 16.1 Field — SiK radio + `telem.sh` fan-out (Mac)
+
+1. Plug the rover's SiK ground dongle into the Mac: rover1 = `/dev/tty.usbserial-DK0G4IOK`, rover2 = `…DK0G4W25`, rover3 = `…DK0G5WCE` (NetIDs 25/32/39 pair dongle ↔ rover, §3.4).
+2. `bash telem.sh` — one detached screen per rover: `mavproxy.py --force-connected --master=<dongle> --baudrate 57600 --out=127.0.0.1:1457X --out=127.0.0.1:1458X --daemon` (invokes `~/.virtualenvs/spf/bin/mavproxy.py`; check with `screen -ls`, attach with `screen -r rover1`).
+3. QGC → Application Settings → Comm Links → Add → type **UDP**, **listening port 14571** (rover1) → Connect. QGC does **not** auto-connect here — its default is 14550, which `telem.sh` doesn't emit; either add this link once or add a third `--out=127.0.0.1:14550`.
+
+`1458X` is the spare slot for a second tool. mavproxy owns the dongle serial — never point QGC at `/dev/tty.usbserial-*` directly while `telem.sh` runs. At 57600 baud the initial param download is slow; give it a minute.
+
+### 16.2 Bench — tethered ethernet, mavproxy on the Pi (no radio)
+
+The §12.3 calibration-era pattern, with the GCS machine's IP substituted (example: Mac at `192.168.1.155`):
+
+```bash
+ssh pi@192.168.1.41                              # rover1 (.42/.43 = rover2/3); tether only — rover wifi is disabled (§2)
+sudo systemctl stop mavlink_controller.service   # the collector owns the FC serial while running (§12.1 habit)
+source ~/spf-virtualenv/bin/activate
+mavproxy.py --out 192.168.1.155:14550 --out 192.168.1.155:14551
+```
+
+QGC on the Mac auto-connects (UDP 14550, zero config); `14551` is the spare for a second listener. `--master` omitted = autodetect, exactly as in the rover-1 history — but this Pi also enumerates Pluto serial consoles, so if mavproxy latches onto the wrong device (garbage / no heartbeat), pin it: `--master=/dev/ttyACM0` (FMUv3 over USB). When done: Ctrl-C mavproxy and `sudo systemctl start mavlink_controller.service` (or reboot) to restore collection.
+
+### 16.3 Sim — QGC straight into SITL
+
+The docker sim serves `tcpin:0.0.0.0:14590` + `tcpin:0.0.0.0:14591` (§6.3), each single-client (§1). Convention from the field log: the collector takes 14590 and **QGC connects TCP to `<sim-host>:14591`** ("Run ground q control - connect to IP on port 14591").
+
+### 16.4 Historical network-proxy variants (recorded, for reference)
+
+- **Mission Planner MAVLink mirror** (Setup → Advanced; `spf/mavlink/README.md`: "MAKE SURE WRITE ACCESS CHECK BOX IS CLICKED!!!") forwarding the vehicle to `192.168.1.139:14551`, re-proxied for other tools: `mavproxy.py --master=udp:192.168.1.139:14551 --out 127.0.0.1:14550 --out 192.168.1.139:14552`.
+- Network-master variant: `mavproxy.py --master=tcp:192.168.1.127:14560 --out 127.0.0.1:14550 --out 127.0.0.1:14552` (also quoted in §9).
+- On-Pi LAN fan-out to the GCS laptop of the era: `mavproxy.py --out 192.168.1.140:14550 --out 127.0.0.1:14550 --out 192.168.1.140:14551` (rover-1 history, §12.3) — §16.2 is this command modernized.
+- The collector itself consuming network MAVLink: `--drone-uri tcp:192.168.1.141:14590` (tether, §13.3), `:14591` (Apr-2025 log), and a commented `tcp:192.168.1.142:14591` in `debug_drone_run.sh`.
+
+> ⚠ **Any attached GCS has write access** — it can arm, change modes, and save params on a live rover (MC-1 / §10 hazards apply). The boot param gate only *warns* on drift (§13.4): after experimenting in QGC, re-run the param load or check `--diff-params` before the next mission.
