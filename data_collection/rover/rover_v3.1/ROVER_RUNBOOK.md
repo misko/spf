@@ -7,6 +7,44 @@ Repo root: `/home/mouse9911/gits/spf`. Active hardware generation: **rover v3.1*
 
 ---
 
+## Table of contents
+
+**Know the platform**
+
+- [§1 Overview & platform map](#1-overview--platform-map) — rover generations, base station, RF/power topology, the two-process/two-port MAVLink model
+- [§2 Network / IP map](#2-network--ip-map) — every address on the bench and field networks
+
+**Provision & maintain a rover**
+
+- [§3 One-time provisioning & flashing](#3-one-time-provisioning--flashing) — OS image · provisioner · Pluto firmware/DFU · ArduPilot flash · SiK NetIDs · [Taranis control map (§3.5)](#35-taranis-q-rc-channel-map-safety-critical) · calibration sequence
+- [§4 Update flow](#4-update-flow-boot-time-self-update) — the boot-time git self-update and its 15 s interrupt window
+
+**Operate in the field**
+
+- [§5 Running a real field mission](#5-running-a-real-field-mission) — pre-flight order and the per-rover routine/config table
+- [§15 Buzzer tones](#15-buzzer-tones--what-the-rover-is-telling-you-wav-renders) — what each chirp means, with WAV renders
+- [§16 Connecting a ground station](#16-connecting-a-ground-station-qgc--mission-planner) — QGC / Mission Planner over SiK radio, tethered ethernet, or SITL
+- [§9 Command cheat-sheet](#9-command-cheat-sheet) — copy-paste commands for every phase (flash → update → run → sim → GCS → data-ops)
+
+**Test & develop**
+
+- [§6 Simulated-rover testing (SITL)](#6-simulated-rover-testing-sitl--no-wheels-move-ardupilot-believes-it-is-driving) — the docker sim, exact launch and pytest commands, run-it-yourself recipe
+- [§7 Test & gate ladder](#7-full-test--gate-ladder-before-launching-a-new-movement-pattern) — rungs (a)–(g), cheapest → most expensive, plus [which rungs run in CI and what has passed](#ci--which-rungs-run-automatically-and-what-has-actually-passed)
+- [§8 Adding a NEW movement pattern](#8-adding-a-new-movement-pattern-routine) — planner-factory recipe and its validation path
+
+**Safety & failure modes**
+
+- [§10 Safety & known issues](#10-safety--known-issues) — controller safety catalog (MC/MP), arm/motion hazards, numbered KNOWN_ISSUES digest
+- [§11 Troubleshooting](#11-troubleshooting) — stuck at waypoint, weak signal, bricked Pluto, wifi interference, spacing surgery, power gremlins
+
+**Deep reference (verified reads)**
+
+- [§12 Observed operator commands](#12-observed-on-device-operator-commands-from-piroverpi1-history) — what was actually typed on roverpi1: service control, zarr ops, where calibration really happens
+- [§13 Boot / update / debug / production sequences](#13-boot--update--debug--production-sequences-detailed) — boot decision flowchart, the five sequences, verified gotchas
+- [§14 Control flow](#14-control-flow--how-the-rc--arming--gpsekf--mode-drive-the-robot) — RC → FC → Pi pipeline, `drone_ready` gate, `run_planner` state machine, verified bugs
+
+---
+
 ## 1. Overview & platform map
 
 The rover is an ArduPilot-driven skid-steer ground vehicle that carries PlutoSDR radios and records RF + telemetry to `.zarr` datasets while it drives a geometric pattern inside a GPS boundary. The on-Pi entry point is `spf/mavlink_radio_collection.py`; motion is owned by the `Drone` class in `spf/mavlink/mavlink_controller.py`.
