@@ -2,6 +2,18 @@
 
 Date: 2026-07-25
 
+Final evidence audit:
+
+```text
+docs/direct_usb_gain_completion_audit.md
+```
+
+The transport, firmware, Python compatibility facade, v4 Zarr path, throughput,
+soak, publication, and rollback are complete. Two physical RF
+characterizations remain unproven because the required bench equipment was not
+attached: calibrated stepped-input RSSI response and coherent common-CW
+phase-versus-gain-change behavior.
+
 ## Revised compatibility-first delivery — gain and RSSI in dB
 
 This section supersedes the original Python-output and dataset contract below.
@@ -494,7 +506,7 @@ Fail:
 - equal dB is used as proof that raw gain state did not change;
 - endpoint RSSI is described as sample-exact or as whole-buffer power.
 
-Status: **PASS WITH THE GATE-D STIMULUS LIMITATION**
+Status: **IMPLEMENTATION PASS; PHYSICAL CHARACTERIZATION INCOMPLETE**
 
 Evidence:
 
@@ -505,8 +517,9 @@ Evidence:
   lower and inside the 5% budget;
 - final RSS reached a stable plateau rather than growing with frame count.
 
-The only unexecuted hardware item is the calibrated stepped-attenuator stimulus
-recorded under Gate D.
+The unexecuted physical items are the calibrated stepped-attenuator stimulus
+recorded under Gate D and the coherent common-CW phase characterization
+recorded in the final audit.
 
 ### Deferred extension
 
@@ -1046,18 +1059,20 @@ Fail:
 - the implementation claims that equal endpoints prove no in-frame change;
 - gain metadata cannot be correlated unambiguously with its IQ frame.
 
-Status: **PASS**
+Status: **PASS FOR FRAME ASSOCIATION; CONTROLLED PHASE CHARACTERIZATION PENDING**
 
 The two 100-frame manual captures were constant at `[34,34]` and `[34,54]`.
 RX1-only and RX2-only induced changes set only their corresponding endpoint
 flags. The slow-attack run produced plausible independent endpoint motion in
 68/100 frames. No coherent common CW was attached, so ambient phase values are
-not treated as phase characterization; that does not weaken the verified
-frame/gain association.
+not treated as phase characterization. This does not weaken the verified
+frame/gain association, but it means the phase-characterization portion of this
+gate has not passed.
 
 ## Completion boundary
 
-The CPU-side delivery is complete after Gates 0–10 pass. FPGA CTRL_OUT event
-capture is a separate subsequent project. It will strengthen detection of
-in-frame transitions but is not allowed to delay or blur the device-local
-start/end gain-metadata delivery.
+The CPU-side implementation is complete. Full plan closure additionally
+requires the two physical RF characterizations in
+`docs/direct_usb_gain_completion_audit.md`. FPGA CTRL_OUT event capture remains
+a separate subsequent project; it will strengthen detection of in-frame
+transitions but is not part of the CPU-side implementation.

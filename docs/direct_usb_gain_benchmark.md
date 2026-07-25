@@ -238,3 +238,7 @@ ssh root@192.168.2.1 /usr/sbin/device_reboot reset
 
 Pass rollback only when stock firmware reports its original version, standard
 USB-IIO captures two channels, and the custom protocol is absent.
+
+See `docs/direct_usb_gain_completion_audit.md` for the final evidence matrix
+and the two physical RF characterizations that require additional bench
+equipment.

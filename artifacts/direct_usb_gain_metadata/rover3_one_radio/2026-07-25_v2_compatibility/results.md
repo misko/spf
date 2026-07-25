@@ -164,3 +164,10 @@ serial                       unchanged
 ```
 
 Rollback passed and QSPI was not modified.
+
+The requirement-by-requirement audit, including the remaining calibrated-RSSI
+and coherent-phase bench work, is in:
+
+```text
+docs/direct_usb_gain_completion_audit.md
+```
