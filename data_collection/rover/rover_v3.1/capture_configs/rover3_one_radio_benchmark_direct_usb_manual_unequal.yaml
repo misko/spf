@@ -1,0 +1,52 @@
+# Gain-metadata acceptance variant of the matched Rover 3 direct-USB benchmark.
+# RX1 is held at 20 dB and RX2 at 40 dB; all other settings match the benchmark.
+emitter:
+  type: o4
+  signal: digital
+
+boundary: auto
+
+receivers:
+  - receiver-port: 2
+    rx-transport: direct_usb
+    theta-in-pis: 0
+    antenna-spacing-m: 0.05075
+    nelements: 2
+    array-type: linear
+    rx-gain-mode: manual
+    rx-gain: 20
+    rx-gain-modes: [manual, manual]
+    rx-gains: [20, 40]
+    rx-buffers: 4
+    buffer-size: 524288
+    f-intermediate: 100000
+    f-carrier: 5.766e+9
+    f-sampling: 30.0e+6
+    bandwidth: 3.0e+6
+    filter_fir_en: 1
+    direct-usb:
+      protocol-version: 2
+      frame-count-per-request: 1
+      require-gain-metadata: true
+      firmware-base-git-sha: a098f87b2302dde8bc3f442133800f6386512960
+      gadget-base-git-sha: 7339ab52678459da4c52a457f3259d52e7adf007
+      firmware-image-sha256: f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
+
+benchmark:
+  warmup-frames: 25
+  measured-frames: 100
+  snapshot-interval-seconds: 0.5
+
+n-thetas: 65
+n-records-per-receiver: 100
+width: 4000
+calibration-frames: 0
+routine: null
+drone-uri: serial
+dry-run: false
+data-version: 4
+seconds-per-sample: 0.5
+
+collector:
+  type: rover
+  version: "3.1"

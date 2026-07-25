@@ -4,6 +4,7 @@ fonttools==4.42.0
 importlib-resources==6.0.1
 kiwisolver==1.4.4
 libaio==0.9.1
+libusb1>=3.1
 matplotlib==3.7.2
 numpy==1.25.2
 packaging==23.1

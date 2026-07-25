@@ -8,6 +8,11 @@ from spf.dataset.spf_dataset import SessionsDatasetSimulated
 from spf.dataset.spf_generate import generate_session_and_dump
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
+from spf.dataset.v6_data import (
+    v6rx_2x_keys,
+    v6rx_scalar_keys,
+    v6rx_new_dataset,
+)
 from spf.rf import get_peaks_for_2rx
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store, zarr_shrink
 from spf.utils import dotdict, random_signal_matrix
@@ -183,3 +188,41 @@ def testv5_data_create():
 
         z = zarr_open_from_lmdb_store(fn)
         assert np.isclose(z1, z.receivers.r1.signal_matrix[:]).all()
+
+
+def testv6_data_create_and_metadata_round_trip():
+    with tempfile.TemporaryDirectory() as tmp:
+        fn = tmp + "/testdata"
+        z = v6rx_new_dataset(
+            fn,
+            timesteps=3,
+            buffer_size=16,
+            n_receivers=1,
+            config={"data-version": 6},
+        )
+        receiver = z.receivers.r0
+        expected_scalar = {
+            "gain_metadata_valid": True,
+            "gain_metadata_flags": 0x413,
+            "stream_id": 0x123456789ABC,
+            "buffer_sequence": 7,
+            "sample_sequence": 7 * 16,
+            "gain_start_read_duration_ns": 1200,
+            "gain_end_read_duration_ns": 1300,
+        }
+        expected_2x = {
+            "gain_index_start": [42, 43],
+            "gain_index_end": [41, 43],
+            "gain_endpoints_equal": [False, True],
+            "first_gain_change_sample": [-1, -1],
+            "iq_power_dbfs": [-18.5, -19.0],
+        }
+        for key in v6rx_scalar_keys:
+            receiver[key][1] = expected_scalar[key]
+        for key in v6rx_2x_keys:
+            receiver[key][1] = expected_2x[key]
+
+        for key in v6rx_scalar_keys:
+            assert receiver[key][1] == expected_scalar[key]
+        for key in v6rx_2x_keys:
+            np.testing.assert_allclose(receiver[key][1], expected_2x[key])

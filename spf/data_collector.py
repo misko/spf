@@ -17,6 +17,7 @@ from tqdm import tqdm
 
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
+from spf.dataset.v6_data import v6rx_2x_keys, v6rx_scalar_keys, v6rx_new_dataset
 from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import beamformer_given_steering, get_avg_phase, get_avg_phase_fast, get_avg_phase_fast2,  precompute_steering_vectors
 from spf.scripts.zarr_utils import zarr_shrink
@@ -91,6 +92,22 @@ class DataSnapshotV5(DataSnapshotRaw):
     tx_pos_y_mm: Optional[float] = None
     rx_pos_x_mm: Optional[float] = None
     rx_pos_y_mm: Optional[float] = None
+
+
+@dataclass
+class DataSnapshotV6(DataSnapshotV4):
+    gain_index_start: Optional[np.ndarray] = None
+    gain_index_end: Optional[np.ndarray] = None
+    gain_metadata_valid: bool = False
+    gain_endpoints_equal: Optional[np.ndarray] = None
+    gain_metadata_flags: int = 0
+    stream_id: int = 0
+    buffer_sequence: int = 0
+    sample_sequence: int = 0
+    gain_start_read_duration_ns: int = 0
+    gain_end_read_duration_ns: int = 0
+    first_gain_change_sample: Optional[np.ndarray] = None
+    iq_power_dbfs: Optional[np.ndarray] = None
 
 
 @dataclass
@@ -242,13 +259,19 @@ class ThreadedRX:
             self.t.start()
 
     def get_rx(self, max_retries=15) -> Dict[str, Any]:
+        if self.pplus.rx_config.rx_transport == "direct_usb":
+            # A direct-USB retry creates a new stream generation and would
+            # conceal the failed frame. Fail the collection instead.
+            max_retries = 1
         tries = 0
         while tries < max_retries:
             try:
-                signal_matrix = self.pplus.sdr.rx() # complex128 for pluto, even though its 12bit TODO
-                rssis = self.pplus.rssis()
-                gains = self.pplus.gains()
-                return {"signal_matrix": signal_matrix, "rssis": rssis, "gains": gains}
+                signal_matrix = self.pplus.rx()
+                return {
+                    "signal_matrix": signal_matrix,
+                    "rssis": self.pplus.rssis(),
+                    "gains": self.pplus.gains(),
+                }
             except Exception as e:
                 logging.error(
                     f"Failed to receive RX data! : retry {tries} {e}",
@@ -289,7 +312,7 @@ class ThreadedRXRaw(ThreadedRX):
 
         avg_phase_diff =get_avg_phase_fast2(signal_matrix)
         assert self.pplus.rx_config.rx_spacing > 0.001
-        return self.snapshot_class(
+        snapshot_kwargs = dict(
             signal_matrix=signal_matrix,
             system_timestamp=current_time,
             rssis=sdr_rx["rssis"],
@@ -300,6 +323,26 @@ class ThreadedRXRaw(ThreadedRX):
             rx_lo=self.pplus.rx_config.lo,
             rx_bandwidth=self.pplus.rx_config.rf_bandwidth,
         )
+        if issubclass(self.snapshot_class, DataSnapshotV6):
+            snapshot_kwargs.update(
+                gain_index_start=sdr_rx["gain_index_start"],
+                gain_index_end=sdr_rx["gain_index_end"],
+                gain_metadata_valid=sdr_rx["gain_metadata_valid"],
+                gain_endpoints_equal=sdr_rx["gain_endpoints_equal"],
+                gain_metadata_flags=sdr_rx["gain_metadata_flags"],
+                stream_id=sdr_rx["stream_id"],
+                buffer_sequence=sdr_rx["buffer_sequence"],
+                sample_sequence=sdr_rx["sample_sequence"],
+                gain_start_read_duration_ns=sdr_rx[
+                    "gain_start_read_duration_ns"
+                ],
+                gain_end_read_duration_ns=sdr_rx[
+                    "gain_end_read_duration_ns"
+                ],
+                first_gain_change_sample=sdr_rx["first_gain_change_sample"],
+                iq_power_dbfs=sdr_rx["iq_power_dbfs"],
+            )
+        return self.snapshot_class(**snapshot_kwargs)
 
 
 class ThreadedRXRawV4(ThreadedRXRaw):
@@ -316,6 +359,27 @@ class ThreadedRXRawV5(ThreadedRXRaw):
         super(ThreadedRXRawV5, self).__init__(
             **kwargs,
         )
+
+
+class ThreadedRXRawV6(ThreadedRXRaw):
+    def __init__(self, **kwargs):
+        self.snapshot_class = DataSnapshotV6
+        super(ThreadedRXRawV6, self).__init__(**kwargs)
+
+    def get_rx(self, max_retries=15) -> Dict[str, Any]:
+        """Retain the explicit v1 metadata schema for v6 datasets."""
+
+        if self.pplus.rx_config.rx_transport == "direct_usb":
+            max_retries = 1
+        tries = 0
+        while tries < max_retries:
+            try:
+                return asdict(self.pplus.rx_with_metadata())
+            except Exception as e:
+                logging.error("Failed to receive RX data! : retry %s %s", tries, e)
+                time.sleep(0.1)
+                tries += 1
+        return None
 
 
 class DataCollector:
@@ -495,6 +559,8 @@ class DataCollector:
         logging.info("Collector wait for join!")
         for read_thread_idx, read_thread in enumerate(self.read_threads):
             read_thread.join()
+        for pplus in self.receiver_pplus.values():
+            pplus.close()
         logging.info("Collector clean exit!")
 
     def close(self):
@@ -561,6 +627,71 @@ class DroneDataCollectorRaw(DataCollector):
             self.zarr = None
             logging.info(f"Trying to shrink... {self.data_filename}")
             zarr_shrink(self.data_filename)
+
+
+class DroneDataCollectorRawV6(DroneDataCollectorRaw):
+    """Rover collector preserving v4 fields plus direct-USB metadata."""
+
+    def __init__(self, realtime_v5inf, *args, **kwargs):
+        DataCollector.__init__(
+            self,
+            *args,
+            thread_class=ThreadedRXRawV6,
+            **kwargs,
+        )
+        self.realtime_v5inf = realtime_v5inf
+
+    def radios_to_online(self):
+        super().radios_to_online()
+        if self.data_filename is None:
+            return
+        for receiver_idx, pplus in enumerate(self.receiver_pplus.values()):
+            direct_rx = getattr(pplus, "direct_rx", None)
+            if direct_rx is None:
+                continue
+            identity = direct_rx.identity
+            capabilities = direct_rx.capabilities
+            receiver_z = self.zarr[f"receivers/r{receiver_idx}"]
+            receiver_z.attrs["rx_transport"] = "direct_usb"
+            receiver_z.attrs["direct_usb_serial"] = identity.serial
+            receiver_z.attrs["direct_usb_bus"] = identity.bus
+            receiver_z.attrs["direct_usb_port_path"] = list(identity.port_path)
+            receiver_z.attrs["direct_usb_interface"] = identity.interface
+            receiver_z.attrs["direct_usb_bulk_in_endpoint"] = (
+                identity.bulk_in_endpoint
+            )
+            receiver_z.attrs["gain_metadata_protocol_version"] = 1
+            receiver_z.attrs["gain_metadata_capability_flags"] = int(
+                capabilities.capability_flags
+            )
+
+    def setup_record_matrix(self):
+        if self.data_filename is None:
+            return
+        buffer_sizes = {
+            receiver["buffer-size"] for receiver in self.yaml_config["receivers"]
+        }
+        if len(buffer_sizes) != 1:
+            raise ValueError("all receivers must use one buffer size")
+        self.zarr = v6rx_new_dataset(
+            filename=self.data_filename,
+            timesteps=self.yaml_config["n-records-per-receiver"],
+            buffer_size=buffer_sizes.pop(),
+            n_receivers=len(self.yaml_config["receivers"]),
+            chunk_size=512,
+            compressor=None,
+            config=self.yaml_config,
+        )
+
+    def write_to_record_matrix(self, thread_idx, record_idx, data):
+        super().write_to_record_matrix(thread_idx, record_idx, data)
+        if self.data_filename is None:
+            return
+        receiver_z = self.zarr[f"receivers/r{thread_idx}"]
+        for key in v6rx_scalar_keys:
+            receiver_z[key][record_idx] = getattr(data, key)
+        for key in v6rx_2x_keys:
+            receiver_z[key][record_idx] = getattr(data, key)
 
 
 # V5 data format

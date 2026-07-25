@@ -9,7 +9,7 @@ from datetime import datetime
 import yaml
 from pymavlink import mavutil
 
-from spf.data_collector import DroneDataCollectorRaw
+from spf.data_collector import DroneDataCollectorRaw, DroneDataCollectorRawV6
 from spf.dataset.spf_dataset import training_only_keys, v5inferencedataset
 from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
@@ -69,6 +69,31 @@ def yaml_defaults(yaml_config, device_mapping_fn):
     if args.inference:
         yaml_config["inference"] = True
     return yaml_config
+
+
+def validate_transport_schema(yaml_config):
+    direct_receivers = [
+        receiver
+        for receiver in yaml_config["receivers"]
+        if receiver.get("rx-transport", "iio") == "direct_usb"
+    ]
+    for receiver in direct_receivers:
+        protocol_version = receiver.get("direct-usb", {}).get(
+            "protocol-version", 1
+        )
+        if protocol_version == 1 and yaml_config["data-version"] != 6:
+            raise ValueError(
+                "direct_usb protocol v1 requires data-version: 6"
+            )
+        if protocol_version == 2 and yaml_config["data-version"] != 4:
+            raise ValueError(
+                "direct_usb protocol v2 compatibility capture requires "
+                "data-version: 4"
+            )
+        if protocol_version not in (1, 2):
+            raise ValueError(
+                f"unsupported direct_usb protocol version: {protocol_version}"
+            )
 
 
 def parse_args():
@@ -181,6 +206,7 @@ if __name__ == "__main__":
 
     # read YAML
     yaml_config = yaml_defaults(load_config(args.yaml_config), args.device_mapping)
+    validate_transport_schema(yaml_config)
 
     temp_filenames, final_filenames = filenames_from_time_in_seconds(
         run_started_at,
@@ -209,7 +235,9 @@ if __name__ == "__main__":
         yaml.dump(yaml_config, outfile, default_flow_style=False)
 
     distance_finder = None
-    if is_pi() and args.ultrasonic:
+    # A fake-drone run must be hardware-independent.  In particular, do not
+    # initialize RPi.GPIO merely because the tests happen to run on a Pi.
+    if is_pi() and args.ultrasonic and not args.fake_drone:
         distance_finder = DistanceFinderController(
             trigger=yaml_config["distance-finder"]["trigger"],
             echo=yaml_config["distance-finder"]["echo"],
@@ -293,6 +321,13 @@ if __name__ == "__main__":
 
     if yaml_config["data-version"] == 4:
         data_collector = DroneDataCollectorRaw(
+            realtime_v5inf=v5inf if args.realtime else None,
+            data_filename=temp_filenames["data"] if args.write_to_disk else None,
+            yaml_config=yaml_config,
+            position_controller=drone,
+        )
+    elif yaml_config["data-version"] == 6:
+        data_collector = DroneDataCollectorRawV6(
             realtime_v5inf=v5inf if args.realtime else None,
             data_filename=temp_filenames["data"] if args.write_to_disk else None,
             yaml_config=yaml_config,

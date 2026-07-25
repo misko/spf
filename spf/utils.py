@@ -118,7 +118,7 @@ def filenames_from_time_in_seconds(
     filename_yaml = f"{temp_dir_name}/{output_files_prefix}.yaml.tmp"
     if data_version == (2, 3):
         filename_data = f"{temp_dir_name}/{output_files_prefix}.npy.tmp"
-    elif data_version in (4, 5):
+    elif data_version in (4, 5, 6):
         filename_data = f"{temp_dir_name}/{output_files_prefix}.zarr.tmp"
     else:
         raise NotImplementedError
