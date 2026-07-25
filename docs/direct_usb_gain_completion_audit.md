@@ -53,6 +53,52 @@ Buildroot                      6d5b0298364dc03ae9fb1c0754b83355960b4d63
 USB gadget                     54610e01c6fd6a69df77f148ea0dc88f9cb18063
 ```
 
+## Ambient 2.4 GHz functional exercise
+
+On 2026-07-25/26, a passive spectrum sweep found strong bursty
+20 MHz-class activity centered near 2457 MHz (Wi-Fi channel 10). The
+hardware-tested v2 image was RAM-booted and exercised through the normal Rover
+3.1 collector and v4 Zarr writer using:
+
+```text
+LO                              2457 MHz
+sample rate                     30 MS/s
+RF bandwidth                    20 MHz
+samples per RX per frame        524,288
+stored frames per run           100
+```
+
+The fixed-gain run used 10/10 dB. It passed 100/100 frames with exact
+10.0/10.0 dB metadata, a median 2.018 frame/s, RSSI magnitudes from 38.5 to
+66.75 dB, no clipped frames, and peak I/Q components of 579 and 638 counts.
+Frame-average IQ power ranged from -63.4 to -22.0 dBFS on RX1 and -62.5 to
+-20.7 dBFS on RX2. This provides a clean real-signal transport and
+frame-association check.
+
+The matched slow-attack run also passed 100/100 frames at a median 2.006
+frame/s. Stored gain ranged from 18 to 71 dB on RX1 and 17 to 58 dB on RX2,
+with changes at 70 and 84 stored-frame boundaries respectively. A bounded
+two-buffer protocol trace returned continuous buffer/sample sequences and
+valid start/end gain and RSSI pairs; both channel endpoint-change flags were
+set with no dummy, overflow, or metadata-read-failure flags.
+
+Slow-attack AGC is not suitable for clean capture of this particular bursty
+ambient signal at these settings: quiet periods drive gain high, and a
+subsequent burst clipped in 71/100 RX1 frames and 95/100 RX2 frames. The
+fixed 10 dB capture did not clip.
+
+The captures and their resolved YAML files are beneath:
+
+```text
+artifacts/direct_usb_gain_metadata/rover3_one_radio/
+    2026-07-25_wifi_ch10/manual_100/
+    2026-07-25_wifi_ch10/slow_attack_100/
+```
+
+This is useful cross-band and live-AGC evidence, but it does not close either
+calibrated RF gate below: ambient transmitter power, packet duty cycle, and
+multipath are uncontrolled.
+
 ## Physical characterization still missing
 
 ### 1. Calibrated stepped-input RSSI test
