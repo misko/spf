@@ -68,6 +68,18 @@ Post-rollback/restoration capture:
 /home/pi/preflight/boot_direct_usb/20260726_061050_rover1/
 ```
 
+The committed service-mode helper was then exercised in both directions on
+Rover 1. `restore-legacy` stopped/disabled both qualification units and
+enabled—but did not start—the legacy unit. `enable` reversed those states,
+preserved the existing environment, and reinstalled the committed units. A
+final capture from SPF commit `11c025aa6ed45d27c54c0605813093b51dc19877`
+passed:
+
+```text
+/home/pi/preflight/boot_direct_usb/20260726_062540_rover1/
+validation_final_deployed_commit.json
+```
+
 The large LMDB/Zarr files remain on Rover 1 and are not committed.
 
 ## Rollback observations
