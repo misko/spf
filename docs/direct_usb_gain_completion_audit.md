@@ -232,7 +232,7 @@ USB-IIO mapping, and automatically ran and reopened the 100-frame Zarr.
 Because a Pi-only reboot kept USB power applied, the radios retained their RAM
 images and the idempotent loader verified rather than reloaded them.
 
-Rollback was therefore tested separately and more strongly:
+Rollback was therefore first tested separately:
 
 1. both radios were reset by serial into their installed QSPI images;
 2. both reported `direct_usb=false`, standard USB-IIO, `v0.37-dirty`, and no
@@ -240,6 +240,22 @@ Rollback was therefore tested separately and more strongly:
 3. the loader then backed up each stock state, entered each physical DFU path,
    reloaded the checksum-pinned RAM image, and restored both direct interfaces;
 4. another two-radio 100-frame v7 capture passed.
+
+It was then tested as the actual boot precondition. Both radios were reset to
+stock QSPI, the Pi rebooted from boot ID
+`b559577b-611c-4e73-847b-7fd53a41db51` to
+`fbbe101d-8448-429e-a958-cfb7556f338d`, and systemd automatically:
+
+1. verified both stock U-Boot configurations;
+2. created a fresh stock backup for each serial;
+3. ran checksum-pinned DFU loads against physical paths `1-1.1` and `1-1.2`;
+4. verified both direct gadgets and standard IIO;
+5. regenerated the final IIO mapping;
+6. launched, finalized, reopened, and passed another two-radio 100-frame v7
+   capture.
+
+That capture is recorded as
+`validation_stock_to_ram_boot.json` in the Rover 1 acceptance artifact.
 
 The transport/data objective is complete. The stricter field cadence gate is
 still open: median throughput is near the intended 2 Hz, but each 100-frame

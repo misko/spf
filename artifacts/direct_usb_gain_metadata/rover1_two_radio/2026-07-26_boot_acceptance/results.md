@@ -82,6 +82,33 @@ validation_final_deployed_commit.json
 
 The large LMDB/Zarr files remain on Rover 1 and are not committed.
 
+## Stock-to-RAM boot proof
+
+The initial reboot proved service ordering and automatic capture, but retained
+Pluto RAM because a Pi-only reboot did not remove USB power. A stronger final
+test therefore reset both Plutos to stock QSPI immediately before rebooting
+the Pi:
+
+```text
+boot ID before  b559577b-611c-4e73-847b-7fd53a41db51
+boot ID after   fbbe101d-8448-429e-a958-cfb7556f338d
+```
+
+On the new boot, the journal records both checksum-pinned, physical-path DFU
+loads (`dfu-util -p 1-1.1` and `-p 1-1.2`), a separate pre-load stock backup
+for each serial, both post-load direct-USB verification passes, post-
+enumeration mapping regeneration, and only then the dependent capture.
+
+The resulting exact-commit capture passed:
+
+```text
+/home/pi/preflight/boot_direct_usb/20260726_063517_rover1/
+validation_stock_to_ram_boot.json
+```
+
+This closes both idempotent cases: retained correct RAM is verified/skipped,
+while stock QSPI is automatically RAM-loaded at boot.
+
 ## Rollback observations
 
 After `rollback-all 2`, runtime discovery reported:
