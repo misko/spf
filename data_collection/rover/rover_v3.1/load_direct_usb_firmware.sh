@@ -35,6 +35,7 @@ Commands:
   rollback   Reboot into the unchanged firmware stored in QSPI.
   load-all N      RAM-load and verify exactly N attached Plutos by serial/path.
   verify-all N    Verify exactly N RAM-loaded direct-USB Plutos.
+  check-config-all N  Verify persistent ad9361/2r2t settings on N Plutos.
   rollback-all N  Reset exactly N Plutos into unchanged QSPI firmware.
   status-all N    Show serial/path/direct-USB status for N expected Plutos.
 
@@ -395,7 +396,7 @@ main() {
             [[ "$#" -eq 1 ]] || die "rollback takes no arguments."
             rollback_firmware
             ;;
-        load-all|verify-all|rollback-all|status-all)
+        load-all|verify-all|check-config-all|rollback-all|status-all)
             [[ "$#" -eq 2 ]] || die "${command} requires the expected Pluto count."
             run_multi_loader "$command" "$2"
             ;;

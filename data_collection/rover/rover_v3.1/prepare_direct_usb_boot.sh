@@ -9,7 +9,6 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
 readonly LOADER="${SCRIPT_DIR}/load_direct_usb_firmware.sh"
 readonly MAPPING_SCRIPT="${SCRIPT_DIR}/device_mapping.sh"
-readonly PLUTO_CHECK="${SCRIPT_DIR}/check_and_set_pluto.sh"
 readonly READY_DIR="/run/spf"
 readonly READY_FILE="${READY_DIR}/direct_usb_ready"
 
@@ -43,16 +42,18 @@ EXPECTED_RADIOS="${EXPECTED_RADIOS:-$default_expected}"
 [[ "$EXPECTED_RADIOS" -eq "$default_expected" ]] ||
     die "Rover ${rover_id} expects ${default_expected} radios, not ${EXPECTED_RADIOS}."
 
-for command in bash iio_info timeout; do
+for command in bash iio_info; do
     command -v "$command" >/dev/null 2>&1 ||
         die "Required command is missing: ${command}"
 done
 
 rm -f -- "$READY_FILE"
 
-# Apply the persistent AD9361/2R2T settings before RAM-loading. A normal Pluto
-# reset inside this legacy script would discard an already loaded RAM image.
-timeout 240 bash "$PLUTO_CHECK"
+# Boot must not rewrite U-Boot or reset a radio opportunistically. Verify the
+# settings established during Rover provisioning and fail closed on drift.
+SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
+SPF_FIRMWARE_STATE_DIR="$FIRMWARE_STATE" \
+    bash "$LOADER" check-config-all "$EXPECTED_RADIOS"
 
 SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
 SPF_FIRMWARE_STATE_DIR="$FIRMWARE_STATE" \

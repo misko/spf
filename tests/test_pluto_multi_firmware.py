@@ -6,6 +6,7 @@ from spf.scripts.pluto_multi_firmware import (
     FirmwareError,
     MultiPlutoFirmwareManager,
     discover_runtime_plutos,
+    parse_uboot_environment,
 )
 
 
@@ -85,3 +86,12 @@ def test_firmware_manager_rejects_wrong_image_checksum(tmp_path):
 
     with pytest.raises(FirmwareError, match="SHA-256 mismatch"):
         manager._check_image()
+
+
+def test_parse_uboot_environment_ignores_diagnostics():
+    assert parse_uboot_environment(
+        "Warning: Bad CRC\ncompatible=ad9361\nmode=2r2t\n"
+    ) == {
+        "compatible": "ad9361",
+        "mode": "2r2t",
+    }

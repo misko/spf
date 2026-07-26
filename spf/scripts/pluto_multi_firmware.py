@@ -27,6 +27,12 @@ PLUTO_DFU_PRODUCT = "b674"
 PLUTO_HOST_ADDRESS = "192.168.2.1"
 HOST_NAMESPACE_ADDRESS = "192.168.2.10/24"
 DIRECT_USB_INTERFACE = 6
+REQUIRED_UBOOT_ENV = {
+    "attr_name": "compatible",
+    "attr_val": "ad9361",
+    "compatible": "ad9361",
+    "mode": "2r2t",
+}
 
 
 class FirmwareError(RuntimeError):
@@ -76,6 +82,15 @@ def _require_commands(commands: tuple[str, ...]) -> None:
     missing = [command for command in commands if shutil.which(command) is None]
     if missing:
         raise FirmwareError(f"required commands are missing: {', '.join(missing)}")
+
+
+def parse_uboot_environment(output: str) -> dict[str, str]:
+    environment: dict[str, str] = {}
+    for line in output.splitlines():
+        key, separator, value = line.partition("=")
+        if separator:
+            environment[key] = value
+    return environment
 
 
 def _interface_class_path(device_path: Path, interface: int) -> Path:
@@ -556,6 +571,25 @@ class MultiPlutoFirmwareManager:
             )
         print(f"PASS: verified {len(devices)} direct-USB Pluto radios", flush=True)
 
+    def check_config_all(self) -> None:
+        self._check_root()
+        devices = self._devices()
+        for device in devices:
+            result = self._ssh(device.serial, "fw_printenv")
+            environment = parse_uboot_environment(result.stdout)
+            mismatches = {
+                key: {"expected": expected, "actual": environment.get(key)}
+                for key, expected in REQUIRED_UBOOT_ENV.items()
+                if environment.get(key) != expected
+            }
+            if mismatches:
+                raise FirmwareError(
+                    f"{device.serial}: Pluto U-Boot environment mismatch: "
+                    f"{mismatches}"
+                )
+            print(f"{device.serial}: PASS ad9361/2r2t configuration", flush=True)
+        print(f"PASS: verified configuration on {len(devices)} Plutos", flush=True)
+
     def rollback_all(self) -> None:
         self._check_root()
         devices = self._devices()
@@ -599,7 +633,13 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=("load-all", "verify-all", "rollback-all", "status-all"),
+        choices=(
+            "load-all",
+            "verify-all",
+            "check-config-all",
+            "rollback-all",
+            "status-all",
+        ),
     )
     parser.add_argument("--image", type=Path, required=True)
     parser.add_argument("--image-sha256", required=True)
