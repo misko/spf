@@ -18,6 +18,20 @@ def validate_capture(path: Path, expected_frames: int) -> dict:
         if receiver_names != ["r0"]:
             raise ValueError(f"expected one receiver, found {receiver_names}")
         receiver = z.receivers.r0
+        if z.attrs.get("sdr_identity_version") != 1:
+            raise ValueError("capture is missing SDR identity version 1")
+        if receiver.attrs.get("sdr_family") != "pluto":
+            raise ValueError("receiver is missing Pluto hardware identity")
+        serial = receiver.attrs.get("sdr_serial")
+        usb_port_path = receiver.attrs.get("usb_port_path")
+        if not serial:
+            raise ValueError("receiver is missing Pluto serial")
+        if not usb_port_path:
+            raise ValueError("receiver is missing Pluto physical USB path")
+        if receiver.attrs.get("rx_transport") != "direct_usb":
+            raise ValueError("receiver was not recorded through direct USB")
+        if receiver.attrs.get("direct_usb_serial") != serial:
+            raise ValueError("direct USB and generic Pluto serials disagree")
         signal = receiver.signal_matrix
         expected_shape = (expected_frames, 2, 524288)
         if signal.shape != expected_shape:
@@ -54,6 +68,8 @@ def validate_capture(path: Path, expected_frames: int) -> dict:
         return {
             "status": "pass",
             "frames": expected_frames,
+            "sdr_serial": serial,
+            "usb_port_path": list(usb_port_path),
             "signal_shape": list(signal.shape),
             "signal_dtype": str(signal.dtype),
             "gains_shape": list(gains.shape),

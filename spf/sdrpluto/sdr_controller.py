@@ -50,6 +50,64 @@ class PlutoRxBuffer:
     iq_power_dbfs: np.ndarray
 
 
+@dataclasses.dataclass(frozen=True)
+class SdrDeviceIdentity:
+    """Capture-time hardware identity associated with one logical receiver."""
+
+    sdr_family: str
+    serial: Optional[str]
+    receiver_uri: str
+    rx_transport: str
+    usb_vendor_id: Optional[int] = None
+    usb_product_id: Optional[int] = None
+    usb_bus: Optional[int] = None
+    usb_address: Optional[int] = None
+    usb_port_path: Optional[tuple[int, ...]] = None
+    direct_usb_interface: Optional[int] = None
+    direct_usb_bulk_in_endpoint: Optional[int] = None
+    direct_usb_bulk_out_endpoint: Optional[int] = None
+    direct_usb_protocol_version: Optional[int] = None
+    direct_usb_capability_flags: Optional[int] = None
+
+
+PLUTO_USB_VENDOR_ID = 0x0456
+PLUTO_USB_PRODUCT_ID = 0xB673
+
+
+def _find_local_pluto_usb_device(serial: str) -> tuple[int, int, tuple[int, ...]]:
+    """Resolve one local Pluto serial to its capture-time USB location."""
+
+    import usb1
+
+    matches = []
+    with usb1.USBContext() as context:
+        for device in context.getDeviceIterator(skip_on_error=True):
+            if (
+                device.getVendorID() != PLUTO_USB_VENDOR_ID
+                or device.getProductID() != PLUTO_USB_PRODUCT_ID
+            ):
+                continue
+            try:
+                candidate_serial = device.getSerialNumber()
+            except usb1.USBError:
+                continue
+            if candidate_serial == serial:
+                matches.append(
+                    (
+                        device.getBusNumber(),
+                        device.getDeviceAddress(),
+                        tuple(device.getPortNumberList()),
+                    )
+                )
+
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"expected exactly one local Pluto with serial {serial}, "
+            f"found {len(matches)}"
+        )
+    return matches[0]
+
+
 def _iq_power_dbfs(signal_matrix: np.ndarray) -> np.ndarray:
     """Return post-gain complex-sample power relative to a 12-bit ADC."""
 
@@ -426,6 +484,16 @@ class BladeRFSdr:
     def rx_with_metadata(self):
         return _legacy_rx_buffer(self.rx(), self.rssis(), self.gains())
 
+    def receiver_identity(self) -> SdrDeviceIdentity:
+        return SdrDeviceIdentity(
+            sdr_family="bladerf",
+            serial=None,
+            receiver_uri=self.uri,
+            rx_transport=(
+                self.rx_config.rx_transport if self.rx_config is not None else "iio"
+            ),
+        )
+
     def set_config(
         self, rx_config: ReceiverConfig = None, tx_config: EmitterConfig = None
     ):
@@ -616,6 +684,16 @@ class FakePPlus:
 
     def rx_with_metadata(self):
         return _legacy_rx_buffer(self.sdr.rx(), self.rssis(), self.gains())
+
+    def receiver_identity(self) -> SdrDeviceIdentity:
+        return SdrDeviceIdentity(
+            sdr_family="fake",
+            serial=None,
+            receiver_uri=self.uri,
+            rx_transport=(
+                self.rx_config.rx_transport if self.rx_config is not None else "iio"
+            ),
+        )
 
     def soft_reset_radio(self):
         time.sleep(0.1)
@@ -1090,7 +1168,18 @@ class PPlus:
                 "the synchronous direct USB receiver requires "
                 "frame-count-per-request: 1"
             )
-        serial = self.rx_config.direct_usb_serial or self._iio_hardware_serial()
+        iio_serial = self._iio_hardware_serial()
+        configured_serial = self.rx_config.direct_usb_serial
+        if (
+            configured_serial is not None
+            and iio_serial is not None
+            and configured_serial != iio_serial
+        ):
+            raise RuntimeError(
+                "configured direct USB serial does not match the USB-IIO "
+                f"radio: {configured_serial} != {iio_serial}"
+            )
+        serial = configured_serial or iio_serial
         port_path = self.rx_config.direct_usb_port_path
         if serial is None and port_path is None:
             raise RuntimeError(
@@ -1106,6 +1195,14 @@ class PPlus:
             protocol_version=self.rx_config.direct_usb_protocol_version,
         )
         self.direct_rx.open()
+        if iio_serial is not None and self.direct_rx.identity.serial != iio_serial:
+            direct_serial = self.direct_rx.identity.serial
+            self.direct_rx.close()
+            self.direct_rx = None
+            raise RuntimeError(
+                "opened direct USB radio does not match the USB-IIO radio: "
+                f"{direct_serial} != {iio_serial}"
+            )
         logging.info(
             "%s: direct USB RX open as serial=%s port_path=%s",
             self.uri,
@@ -1119,6 +1216,59 @@ class PPlus:
             return str(getattr(attr, "value", attr))
         except (AttributeError, KeyError, TypeError):
             return None
+
+    def receiver_identity(self) -> SdrDeviceIdentity:
+        serial = self._iio_hardware_serial()
+        if serial is None:
+            raise RuntimeError(
+                f"{self.uri}: USB-IIO context did not expose a Pluto serial"
+            )
+
+        rx_transport = (
+            self.rx_config.rx_transport if self.rx_config is not None else "iio"
+        )
+        if self.direct_rx is not None:
+            direct_identity = self.direct_rx.identity
+            if direct_identity.serial != serial:
+                raise RuntimeError(
+                    "direct USB identity does not match the USB-IIO identity: "
+                    f"{direct_identity.serial} != {serial}"
+                )
+            capabilities = self.direct_rx.capabilities
+            return SdrDeviceIdentity(
+                sdr_family="pluto",
+                serial=serial,
+                receiver_uri=self.uri,
+                rx_transport=rx_transport,
+                usb_vendor_id=PLUTO_USB_VENDOR_ID,
+                usb_product_id=PLUTO_USB_PRODUCT_ID,
+                usb_bus=direct_identity.bus,
+                usb_address=direct_identity.address,
+                usb_port_path=direct_identity.port_path,
+                direct_usb_interface=direct_identity.interface,
+                direct_usb_bulk_in_endpoint=direct_identity.bulk_in_endpoint,
+                direct_usb_bulk_out_endpoint=direct_identity.bulk_out_endpoint,
+                direct_usb_protocol_version=self.rx_config.direct_usb_protocol_version,
+                direct_usb_capability_flags=int(capabilities.capability_flags),
+            )
+
+        if self.uri.startswith("usb:"):
+            usb_bus, usb_address, usb_port_path = _find_local_pluto_usb_device(serial)
+        else:
+            usb_bus = None
+            usb_address = None
+            usb_port_path = None
+        return SdrDeviceIdentity(
+            sdr_family="pluto",
+            serial=serial,
+            receiver_uri=self.uri,
+            rx_transport=rx_transport,
+            usb_vendor_id=PLUTO_USB_VENDOR_ID,
+            usb_product_id=PLUTO_USB_PRODUCT_ID,
+            usb_bus=usb_bus,
+            usb_address=usb_address,
+            usb_port_path=usb_port_path,
+        )
 
     """
     Given an online SDR receiver check if the max power peak is as expected during calibration

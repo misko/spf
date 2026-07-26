@@ -257,6 +257,29 @@ gains           float64[100, 2], dB
 rssis           float64[100, 2], positive dB magnitude
 ```
 
+Array compatibility does not discard hardware provenance. Every Pluto
+receiver group records capture-time identity attributes:
+
+```text
+sdr_identity_version
+sdr_family
+sdr_serial
+usb_vendor_id
+usb_product_id
+usb_bus_at_capture
+usb_address_at_capture
+usb_port_path
+iio_uri_at_capture
+rx_transport
+```
+
+Direct-USB captures additionally retain the established `direct_usb_*` and
+gain-metadata capability attributes. `sdr_serial` is the durable device
+identity; `usb_port_path` records its physical Rover connection. Bus, address,
+and IIO URI are diagnostics that may change after re-enumeration. Collection
+fails before frame zero if two receiver entries resolve to the same Pluto
+serial or physical USB path.
+
 ## Semantics
 
 The Pluto reads raw RX1/RX2 gain indices locally, converts them through the
