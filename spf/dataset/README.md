@@ -96,6 +96,25 @@ Each item in the dataset is a dictionary containing various tensors and metadata
 - **all_windows_stats**: Statistics for each window
 - **segmentation_mask**: Segmentation mask for the data
 
+### Capture Hardware Provenance
+
+New Pluto Zarr captures store hardware identity on each
+`receivers/rN` group without changing the versioned frame arrays:
+
+```python
+receiver = z["receivers/r0"]
+serial = receiver.attrs["sdr_serial"]
+usb_port_path = receiver.attrs["usb_port_path"]
+transport = receiver.attrs["rx_transport"]
+```
+
+The serial is the durable Pluto identity. The physical USB path preserves its
+Rover receiver-port association. `usb_bus_at_capture`,
+`usb_address_at_capture`, and `iio_uri_at_capture` are diagnostic values that
+may change when USB re-enumerates. Older datasets may not have these
+attributes; absence means the serial was not recorded at capture time and must
+not be inferred from a stale USB address.
+
 ### Example: Working with Paired Data
 
 ```python

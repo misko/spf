@@ -298,10 +298,20 @@ from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 path, expected_frames, expected_receivers = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 z = zarr_open_from_lmdb_store(path)
 try:
+    assert z.attrs["sdr_identity_version"] == 1
     receiver_names = sorted(z.receivers.keys())
     assert len(receiver_names) == expected_receivers, receiver_names
+    receiver_serials = []
+    receiver_paths = []
     for name in receiver_names:
         rx = z.receivers[name]
+        assert rx.attrs["sdr_family"] == "pluto", dict(rx.attrs)
+        serial = rx.attrs["sdr_serial"]
+        usb_path = tuple(rx.attrs["usb_port_path"])
+        assert serial, f"{name}: missing Pluto serial"
+        assert usb_path, f"{name}: missing Pluto USB path"
+        receiver_serials.append(serial)
+        receiver_paths.append(usb_path)
         signal = rx.signal_matrix
         assert signal.shape == (expected_frames, 2, 524288), signal.shape
         assert signal.dtype == np.dtype("complex64"), signal.dtype
@@ -319,9 +329,12 @@ try:
         median_hz = float(1.0 / np.median(intervals))
         p99_seconds = float(np.percentile(intervals, 99))
         print(f"{name}: frames={expected_frames} median_hz={median_hz:.3f} "
-              f"interval_p99_s={p99_seconds:.3f}")
+              f"interval_p99_s={p99_seconds:.3f} "
+              f"serial={serial} usb_path={usb_path}")
         assert median_hz >= 1.8, f"{name}: capture too slow"
         assert p99_seconds <= 1.0, f"{name}: excessive frame stalls"
+    assert len(receiver_serials) == len(set(receiver_serials)), receiver_serials
+    assert len(receiver_paths) == len(set(receiver_paths)), receiver_paths
 finally:
     z.store.close()
 print("PASS")
@@ -336,6 +349,7 @@ Pass:
 - every receiver has `complex64[100,2,524288]` IQ;
 - every frame has finite, nonzero RX1 and RX2 samples;
 - gain and RSSI arrays are finite and shaped `[100,2]`;
+- every receiver records a unique Pluto serial and physical USB path;
 - receiver timestamps are strictly increasing;
 - setup completes without a radio-configuration assertion, and the resolved
   YAML records the intended LO, sample rate, bandwidth, FIR, gain mode, and

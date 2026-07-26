@@ -25,11 +25,58 @@ from spf.sdrpluto.sdr_controller import (
     EmitterConfig,
     PPlus,
     ReceiverConfig,
+    SdrDeviceIdentity,
     get_pplus,
     rx_config_from_receiver_yaml,
     setup_rx,
     setup_rxtx,
 )
+
+SDR_IDENTITY_VERSION = 1
+
+
+def _identity_zarr_attrs(identity: SdrDeviceIdentity) -> dict[str, Any]:
+    attrs = {
+        "sdr_identity_version": SDR_IDENTITY_VERSION,
+        "sdr_family": identity.sdr_family,
+        "iio_uri_at_capture": identity.receiver_uri,
+        "rx_transport": identity.rx_transport,
+    }
+    optional_attrs = {
+        "sdr_serial": identity.serial,
+        "usb_vendor_id": identity.usb_vendor_id,
+        "usb_product_id": identity.usb_product_id,
+        "usb_bus_at_capture": identity.usb_bus,
+        "usb_address_at_capture": identity.usb_address,
+        "usb_port_path": (
+            list(identity.usb_port_path) if identity.usb_port_path is not None else None
+        ),
+    }
+    attrs.update(
+        {key: value for key, value in optional_attrs.items() if value is not None}
+    )
+
+    if identity.rx_transport == "direct_usb":
+        direct_attrs = {
+            # Preserve the original v6 attribute names while also exposing the
+            # transport-independent identity above.
+            "direct_usb_serial": identity.serial,
+            "direct_usb_bus": identity.usb_bus,
+            "direct_usb_port_path": (
+                list(identity.usb_port_path)
+                if identity.usb_port_path is not None
+                else None
+            ),
+            "direct_usb_interface": identity.direct_usb_interface,
+            "direct_usb_bulk_in_endpoint": identity.direct_usb_bulk_in_endpoint,
+            "direct_usb_bulk_out_endpoint": identity.direct_usb_bulk_out_endpoint,
+            "gain_metadata_protocol_version": (identity.direct_usb_protocol_version),
+            "gain_metadata_capability_flags": (identity.direct_usb_capability_flags),
+        }
+        attrs.update(
+            {key: value for key, value in direct_attrs.items() if value is not None}
+        )
+    return attrs
 
 
 class ThreadPoolExecutorWithQueueSizeLimit(futures.ThreadPoolExecutor):
@@ -471,7 +518,49 @@ class DataCollector:
                 logging.debug("RX online!")
                 self.receiver_pplus[pplus_rx.uri] = pplus_rx
                 assert pplus_rx.rx_config.rx_pos is not None
+        self._record_receiver_identities()
         self.prepare_threads()
+
+    def _record_receiver_identities(self):
+        pplus_receivers = list(self.receiver_pplus.values())
+        expected_receivers = len(self.yaml_config["receivers"])
+        if len(pplus_receivers) != expected_receivers:
+            raise RuntimeError(
+                "receiver identity is ambiguous: "
+                f"{expected_receivers} configured receivers resolved to "
+                f"{len(pplus_receivers)} radio objects"
+            )
+
+        identities = [
+            pplus_receiver.receiver_identity() for pplus_receiver in pplus_receivers
+        ]
+        pluto_identities = [
+            identity for identity in identities if identity.sdr_family == "pluto"
+        ]
+        pluto_serials = [identity.serial for identity in pluto_identities]
+        if any(serial is None or not serial for serial in pluto_serials):
+            raise RuntimeError("every Pluto receiver must expose a non-empty serial")
+        if len(pluto_serials) != len(set(pluto_serials)):
+            raise RuntimeError("multiple receiver entries resolved to one Pluto serial")
+
+        local_pluto_paths = [
+            identity.usb_port_path
+            for identity in pluto_identities
+            if identity.usb_port_path is not None
+        ]
+        if len(local_pluto_paths) != len(set(local_pluto_paths)):
+            raise RuntimeError(
+                "multiple receiver entries resolved to one Pluto USB physical path"
+            )
+
+        self.receiver_identities = identities
+        if self.data_filename is None:
+            return
+
+        self.zarr.attrs["sdr_identity_version"] = SDR_IDENTITY_VERSION
+        for receiver_idx, identity in enumerate(identities):
+            receiver_z = self.zarr[f"receivers/r{receiver_idx}"]
+            receiver_z.attrs.update(_identity_zarr_attrs(identity))
 
     def prepare_threads(self):
         self.read_threads = []
@@ -640,30 +729,6 @@ class DroneDataCollectorRawV6(DroneDataCollectorRaw):
             **kwargs,
         )
         self.realtime_v5inf = realtime_v5inf
-
-    def radios_to_online(self):
-        super().radios_to_online()
-        if self.data_filename is None:
-            return
-        for receiver_idx, pplus in enumerate(self.receiver_pplus.values()):
-            direct_rx = getattr(pplus, "direct_rx", None)
-            if direct_rx is None:
-                continue
-            identity = direct_rx.identity
-            capabilities = direct_rx.capabilities
-            receiver_z = self.zarr[f"receivers/r{receiver_idx}"]
-            receiver_z.attrs["rx_transport"] = "direct_usb"
-            receiver_z.attrs["direct_usb_serial"] = identity.serial
-            receiver_z.attrs["direct_usb_bus"] = identity.bus
-            receiver_z.attrs["direct_usb_port_path"] = list(identity.port_path)
-            receiver_z.attrs["direct_usb_interface"] = identity.interface
-            receiver_z.attrs["direct_usb_bulk_in_endpoint"] = (
-                identity.bulk_in_endpoint
-            )
-            receiver_z.attrs["gain_metadata_protocol_version"] = 1
-            receiver_z.attrs["gain_metadata_capability_flags"] = int(
-                capabilities.capability_flags
-            )
 
     def setup_record_matrix(self):
         if self.data_filename is None:
