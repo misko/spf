@@ -354,14 +354,19 @@ docker pull csmisko/ardupilotspf:latest
 
 ### 6.3 Exact SITL launch command
 
-Canonical human-run form (`spf/mavlink/README.md`), real-time `-S 1`:
+> **Run this on the base station / dev box (`192.168.1.141`) — never on a rover.** The rovers do not run the sim: rover 1's 1972-line shell history contains **zero** `docker` / `sim_vehicle` / `ardupilotspf` invocations, and no arm64 image is built. The sim runs on `.141`, and the rover (or a local collector) **dials out to it** — see §6.4 and the tethered `--drone-uri tcp:192.168.1.141:1459x` pattern in §5/§13.3.
+
+Canonical human-run form (`spf/mavlink/README.md`), real-time `-S 1` — copy-paste as one line:
 
 ```bash
-docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest \
-  /ardupilot/Tools/autotest/sim_vehicle.py \
-  -l 37.76509485,-122.40940127,0,0 -v rover -f rover-skid \
-  --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 -S 1
+docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest /ardupilot/Tools/autotest/sim_vehicle.py -l 37.76509485,-122.40940127,0,0 -v rover -f rover-skid --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 -S 1
 ```
+
+`-p 14590-14595:14590-14595` publishes on **all** interfaces (not just loopback), which is what lets a rover on the LAN reach the sim at `192.168.1.141`. Wait for the log line **`Detected vehicle`** before connecting anything.
+
+⚠ **Port collision with CI.** The self-hosted CI runner is on this same box and `tests/test_in_simulator.py` binds `14590`/`14591` for every push. A long-running manual sim will make CI fail with `Bind for 127.0.0.1:14591 failed: port is already allocated` (and vice versa — observed 2026-07-25). Check `docker ps` and `ss -tlnp | grep 1459` before launching, and stop the sim when done.
+
+Fort Baker rehearsal spawns used in the field log, if you want the real site's geofence instead of the SF default: `-l 37.835940,-122.478244,0,0`, `-l 37.835450,-122.478590,0,0`, `-l 37.834975,-122.478842,0,0`.
 
 The pytest fixture (`tests/test_in_simulator.py`) runs the identical command via the `docker` Python SDK with **`-S 5`** (5x sim speed; `simulator_speedup=5`), publishing only `14590`/`14591` on `127.0.0.1`, and waits for the log line **`Detected vehicle`** before proceeding.
 
@@ -606,10 +611,9 @@ sudo systemctl {start,stop,status} mavlink_controller.service
 ### Sim / test
 
 ```bash
+# SITL: run on the base station 192.168.1.141, NOT on a rover (§6.3)
 docker pull csmisko/ardupilotspf:latest
-docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest \
-  /ardupilot/Tools/autotest/sim_vehicle.py -l 37.76509485,-122.40940127,0,0 -v rover -f rover-skid \
-  --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 -S 1
+docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest /ardupilot/Tools/autotest/sim_vehicle.py -l 37.76509485,-122.40940127,0,0 -v rover -f rover-skid --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 -S 1
 cd /home/pi/spf && pip3 install -e . && pip3 install pytest
 python3 -m pytest tests/test_mavlink_radio_collect.py -v                               # fake-drone, no Docker, no-NaN zarr
 python3 -m pytest tests/test_in_simulator.py -v -s                                     # full SITL suite
