@@ -92,9 +92,16 @@ SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
 SPF_FIRMWARE_STATE_DIR="$FIRMWARE_STATE" \
     bash "$LOADER" verify-all "$EXPECTED_RADIOS"
 
+spf_git_sha="$(
+    git -c "safe.directory=${REPO_ROOT}" \
+        -C "$REPO_ROOT" rev-parse --verify HEAD
+)" || die "Could not determine the SPF Git commit."
+[[ "$spf_git_sha" =~ ^[0-9a-f]{40}$ ]] ||
+    die "Invalid SPF Git commit: ${spf_git_sha}"
+
 mkdir -p "$READY_DIR"
 {
-    printf 'spf_git_sha=%s\n' "$(git -C "$REPO_ROOT" rev-parse HEAD)"
+    printf 'spf_git_sha=%s\n' "$spf_git_sha"
     printf 'rover_id=%s\n' "$rover_id"
     printf 'expected_radios=%s\n' "$EXPECTED_RADIOS"
     printf 'firmware_image_sha256=%s\n' \
