@@ -30,6 +30,12 @@ The SPF framework provides tools for:
 - **GPS**: Position tracking and geofencing
 - **Distance Finder**: Ultrasonic distance sensors
 
+## Hardware Bench Tools
+
+- [Pluto+ dual-RX manual-gain phase sweep](../docs/dual_rx_gain_phase_sweep.md):
+  feed RX1/RX2 from one split sine source, sweep every ordered manual-gain
+  combination repeatedly, and produce resumable quality-gated phase reports.
+
 ## Data Collection Scripts
 
 ### GRBL Radio Collection (CNC-based systems)
@@ -154,4 +160,4 @@ The typical workflow with SPF involves:
 
 ## Examples
 
-See the `notebooks/` directory for examples and tutorials on using different aspects of the SPF framework. 
+See the `notebooks/` directory for examples and tutorials on using different aspects of the SPF framework.
