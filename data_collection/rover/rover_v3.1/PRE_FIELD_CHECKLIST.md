@@ -87,17 +87,27 @@ Fail:
 ### Gain/RSSI direct-USB path
 
 Follow [the direct-USB firmware and capture runbook](../../../docs/direct_usb_gain_benchmark.md).
-Verify the RAM image before loading it:
+Use the committed checksum-pinned loader:
 
 ```bash
-sha256sum /path/to/pluto.dfu
+cd /home/pi/spf
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh download
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh status
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh load
 ```
 
-The exact hardware-tested image was:
+It obtains the exact hardware-tested image from:
 
 ```text
+https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-v2
+
 f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
 ```
+
+The loader requires exactly one connected Pluto and writes only to RAM. On a
+multi-radio Rover, isolate and load each Pluto one at a time. Run `verify`
+again immediately before collection; loading is required after every reset or
+power cycle, not before every frame or capture.
 
 Use `capture_configs/rover3_one_radio_benchmark_direct_usb.yaml` for the
 current one-radio acceptance test. It uses protocol v2 and preserves the

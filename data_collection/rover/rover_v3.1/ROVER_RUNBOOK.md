@@ -170,7 +170,25 @@ bash /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh
 # ssh root@192.168.2.1 (sshpass -panalog): fw_setenv attr_name=compatible, attr_val=ad9361, compatible=ad9361, mode=2r2t; reboot; re-verify fw_printenv.
 ```
 
-**[field note] Do NOT flash v0.38 — it bricks some PlutoPlus units.** Stay on **v0.37**. If a Pluto is bricked or won't mount, recover via **DFU**: move the boot jumper from **URST to MIO52** (the DFU position) and re-flash, then restore the jumper. The SSH secret `analog` is in plaintext and host-key checking is disabled for `192.168.2.*` (`ssh_config`) — expected, but note it.
+**[field note] Do NOT persistently flash v0.38 — it bricks some PlutoPlus
+units.** Keep production QSPI on **v0.37**. The experimental direct-USB
+gain/RSSI image is a separate, volatile RAM-boot workflow:
+
+```bash
+cd /home/pi/spf
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh load
+```
+
+That script accepts only the published SHA-256-pinned image, requires exactly
+one attached Pluto, saves the current version/environment, and never writes
+QSPI. Use `verify` before capture and `rollback` (or power cycle) to return to
+v0.37. Full pass/fail criteria are in
+[`PRE_FIELD_CHECKLIST.md`](./PRE_FIELD_CHECKLIST.md).
+
+If a Pluto is bricked or won't mount, recover via **DFU**: move the boot jumper
+from **URST to MIO52** (the DFU position) and re-flash v0.37, then restore the
+jumper. The SSH secret `analog` is in plaintext and host-key checking is
+disabled for `192.168.2.*` (`ssh_config`) — expected, but note it.
 
 ### 3.3 ArduPilot flight controller — Rover 4.5.0 fmuv3
 
@@ -702,7 +720,18 @@ lsusb | grep ADALM | wc -l                                                      
 
 **Weak signal / high NaN / raise the emitter.** Rover NaN 46–70% is normal (bursty emitter) — do not panic on NaN alone; only `no_signal` (NaN > 90% / < 100 valid) and heading-common bias are true failures in the post-run scan. **[field note]** If signal is genuinely weak, physically **raise the emitter mast** (line-of-sight at 5.766 GHz is height-sensitive) and/or increase emitter tx-gain with `--tx-gain <int>` (only valid when the emitter `type: sdr`). The RF chain runs 5.766 GHz / 30 MS/s / 3 MHz BW.
 
-**Pluto won't mount / bricked after a firmware change.** **[field note]** Never flash **v0.38** — it bricks some PlutoPlus units; stay on **v0.37** (`plutosdr-fw-v0.37-dirty.zip`, md5 `613fcdd4f45ad695d85abd53d1e0b918`). To recover a bricked unit, enter **DFU** by moving the boot jumper from **URST to MIO52**, re-flash v0.37, then restore the jumper. If the Pluto is up but not in the right mode, re-run `check_and_set_pluto.sh` (forces `compatible=ad9361`, `mode=2r2t` over `ssh root@192.168.2.1`). If `device_mapping` is empty, you're likely using the wrong board's generator (Pi4 `lsusb -t | grep usb-storage` sed form vs Pi5 `lsusb | grep PLUTO | awk` form).
+**Pluto won't mount / bricked after a firmware change.** **[field note]** Never
+persistently flash **v0.38** — it bricks some PlutoPlus units; keep QSPI on
+**v0.37** (`plutosdr-fw-v0.37-dirty.zip`, md5
+`613fcdd4f45ad695d85abd53d1e0b918`). The direct-USB v0.38-based image is
+permitted only through `load_direct_usb_firmware.sh load`, which writes it to
+RAM and leaves QSPI unchanged. To recover a bricked unit, enter **DFU** by
+moving the boot jumper from **URST to MIO52**, re-flash v0.37, then restore the
+jumper. If the Pluto is up but not in the right mode, re-run
+`check_and_set_pluto.sh` (forces `compatible=ad9361`, `mode=2r2t` over
+`ssh root@192.168.2.1`). If `device_mapping` is empty, you're likely using the
+wrong board's generator (Pi4 `lsusb -t | grep usb-storage` sed form vs Pi5
+`lsusb | grep PLUTO | awk` form).
 
 **TURN OFF WIFI.** Onboard wifi must be disabled — `setup.sh` appends `dtoverlay=disable-wifi` to `config.txt`. **[field note]** Leaving wifi on has caused RF self-interference and network-routing confusion; if a rover behaves oddly on the LAN or shows elevated RF noise, confirm wifi is actually off (`grep disable-wifi /boot/config.txt` on Pi4 or `/boot/firmware/config.txt` on Pi5) and reboot.
 

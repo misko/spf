@@ -14,6 +14,11 @@ characterizations remain unproven because the required bench equipment was not
 attached: calibrated stepped-input RSSI response and coherent common-CW
 phase-versus-gain-change behavior.
 
+The exact hardware-tested DFU is published at
+[`v0.38-plutoplus-spf-gain-rssi-v2`](https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-v2).
+Rovers download, checksum, RAM-boot, verify, and roll it back with
+`data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh`.
+
 ## Revised compatibility-first delivery — gain and RSSI in dB
 
 This section supersedes the original Python-output and dataset contract below.

@@ -31,7 +31,7 @@ characterization that cannot be inferred from transport tests.
 | Bounded memory and explicit cleanup | Pass | Ten-minute and one-hour runs reached the same stable RSS plateau |
 | One-hour soak | Pass | 7,200 frames, zero invalid headers/IQ/read failures |
 | RAM boot and stock rollback | Pass | QSPI remained unchanged; reset restored stock v0.37 and removed interface 6 |
-| Publish reproducible source | Pass | Firmware, Buildroot, gadget, and SPF commits are present on GitHub |
+| Publish source and tested image | Pass | Firmware, Buildroot, gadget, and SPF commits are on GitHub; the exact hardware-tested DFU is a checksum-pinned release asset |
 | Fetch/build from published pin | Pass | Buildroot fetched gadget commit from GitHub, cross-built it, and installed ARM ELF |
 
 Test evidence:
@@ -60,6 +60,19 @@ SPF                            5461f247240d46b5b874191a3eea628338abc0a1
 firmware main/master           dd6b1f4db710abc20693888db08e8da2427e0dc3
 Buildroot                      6d5b0298364dc03ae9fb1c0754b83355960b4d63
 USB gadget                     54610e01c6fd6a69df77f148ea0dc88f9cb18063
+```
+
+Published hardware-tested image:
+
+```text
+release
+    https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-v2
+asset
+    plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu
+size
+    13733347 bytes
+SHA-256
+    f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
 ```
 
 ## Ambient 2.4 GHz functional exercise

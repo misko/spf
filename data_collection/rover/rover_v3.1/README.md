@@ -12,6 +12,9 @@ Instead of simulations we can collect real world data by moving several rovers a
 - [Direct-USB gain/RSSI firmware runbook](../../../docs/direct_usb_gain_benchmark.md)
   — experimental RAM-boot firmware build, smoke, capture, validation, and
   rollback.
+- [`load_direct_usb_firmware.sh`](./load_direct_usb_firmware.sh) — downloads
+  the published checksum-pinned image, backs up the attached Pluto, performs a
+  single-radio RAM boot, verifies it, and rolls back to QSPI.
 
 ## Design
 

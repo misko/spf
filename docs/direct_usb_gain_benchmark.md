@@ -57,6 +57,12 @@ Repository:
 https://github.com/misko/plutosdr-fw
 ```
 
+Hardware-tested release:
+
+```text
+https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-v2
+```
+
 Pins:
 
 ```text
@@ -68,10 +74,11 @@ USB gadget
     54610e01c6fd6a69df77f148ea0dc88f9cb18063
 ```
 
-The exact hardware-tested RAM image was:
+The exact hardware-tested RAM image is published as:
 
 ```text
-/home/pi/spf-direct-usb/plutosdr-fw/build/pluto.dfu
+plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu
+size: 13733347 bytes
 SHA-256:
 f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
 ```
@@ -112,7 +119,7 @@ make
 sha256sum build/pluto.dfu
 ```
 
-## Identify and RAM boot
+## Download, identify, and RAM boot
 
 Before changing boot state, record the installed firmware, serial, USB path,
 and U-Boot environment:
@@ -125,14 +132,48 @@ ssh root@192.168.2.1 cat /opt/VERSIONS
 ssh root@192.168.2.1 fw_printenv > plutoplus_uboot_env_backup.txt
 ```
 
-Enter RAM-boot DFU mode, load the image, and execute it:
+The preferred Rover loader downloads the release asset, verifies its SHA-256,
+backs up `/opt/VERSIONS` and `fw_printenv`, enters DFU, loads the image into
+RAM, and verifies the resulting composite USB device:
+
+`setup.sh` installs its `curl`, `dfu-util`, `sshpass`, `lsusb`, and
+`iio_info` prerequisites through `install_deps.sh`.
 
 ```sh
+cd /home/pi/spf
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh download
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh status
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh load
+```
+
+For safety, `load` requires exactly one attached Pluto. On a Rover with two
+Plutos, disconnect or power down one, load and verify the remaining unit, then
+repeat for the other unit. The first loader version deliberately refuses to
+select a radio using a transient bus/device number.
+
+The verified image is cached at:
+
+```text
+~/.cache/spf/firmware/plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu
+```
+
+Pre-load device records are written under:
+
+```text
+~/.local/state/spf/pluto-firmware/
+```
+
+For diagnosis, the equivalent manual RAM-load sequence is:
+
+```sh
+sha256sum \
+  ~/.cache/spf/firmware/plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu
+
 ssh root@192.168.2.1 /usr/sbin/device_reboot ram
 
 dfu-util -d 0456:b673,0456:b674 \
   -a firmware.dfu \
-  -D /home/pi/spf-direct-usb/plutosdr-fw/build/pluto.dfu
+  -D ~/.cache/spf/firmware/plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu
 
 dfu-util -d 0456:b673,0456:b674 \
   -a firmware.dfu \
@@ -142,6 +183,17 @@ dfu-util -d 0456:b673,0456:b674 \
 Pass only if standard USB-IIO and vendor interface 6 both enumerate and both
 `iiod` and `sdr_usb_gadget` run. Do not flash an image that has not passed RAM
 boot and rollback.
+
+This is a boot-time prerequisite, not a per-capture operation. Load once after
+each Pluto power cycle or reset, then run any number of direct-USB captures
+until the next reboot. The collector does not silently load firmware. Run:
+
+```sh
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh verify
+```
+
+before starting a direct-USB capture; it fails closed if the expected
+interface or on-device processes are absent.
 
 ## Smoke test
 
@@ -239,7 +291,7 @@ channel, or continued RSS growth.
 A normal reboot or power cycle leaves RAM firmware and restores stock QSPI:
 
 ```sh
-ssh root@192.168.2.1 /usr/sbin/device_reboot reset
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh rollback
 ```
 
 Pass rollback only when stock firmware reports its original version, standard
