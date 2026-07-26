@@ -192,6 +192,31 @@ def test_rt11_no_mutable_default_skip_fields():
     assert default is None or not isinstance(default, list)
 
 
+def test_rt11_skip_fields_bare_string_is_one_field():
+    """RT11 follow-up: a bare string must normalize to a ONE-element list.
+
+    fb40860 normalized skip_fields with list(skip_fields); str is iterable, so
+    list("signal_matrix") became 13 single characters and membership tests like
+    `"signal_matrix" not in self.skip_fields` silently flipped to True.
+    """
+    from spf.dataset.spf_dataset import normalize_skip_fields
+
+    assert normalize_skip_fields("signal_matrix") == ["signal_matrix"]
+    assert "signal_matrix" in normalize_skip_fields("signal_matrix")
+
+    assert normalize_skip_fields(None) == []
+
+    assert normalize_skip_fields(["a", "b"]) == ["a", "b"]
+    assert sorted(normalize_skip_fields({"a", "b"})) == ["a", "b"]
+    assert normalize_skip_fields(("a", "b")) == ["a", "b"]
+
+    # must copy, so caller mutation cannot leak in (the original RT11 contract)
+    src = ["a"]
+    out = normalize_skip_fields(src)
+    src.append("b")
+    assert out == ["a"]
+
+
 @pytest.mark.xfail(
     strict=True,
     reason="RT7: cached_model_inference_to_absolute_north hardcodes reshape(-1, 65)",
