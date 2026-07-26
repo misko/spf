@@ -20,7 +20,7 @@ readonly IMAGE_PATH="${CACHE_ROOT}/${ASSET_NAME}"
 readonly SSH_HOST="${SPF_PLUTO_SSH_HOST:-192.168.2.1}"
 readonly SSH_PASSWORD="${SPF_PLUTO_SSH_PASSWORD:-analog}"
 readonly SSH_CONFIG="${SCRIPT_DIR}/ssh_config"
-readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../../.." && pwd)"
+readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
 readonly MULTI_LOADER="${REPO_ROOT}/spf/scripts/pluto_multi_firmware.py"
 
 usage() {
