@@ -1,0 +1,58 @@
+{
+  "data_version": 7,
+  "frames_per_receiver": 100,
+  "receiver_count": 2,
+  "receivers": {
+    "r0": {
+      "endpoint_changed_frames": 63,
+      "frames": 100,
+      "gain_minmax_db": [
+        47.0,
+        62.0
+      ],
+      "interval_p99_seconds": 1.5618041610717668,
+      "median_frame_rate_hz": 1.989838988434247,
+      "rssi_minmax_db": [
+        72.0,
+        124.5
+      ],
+      "serial": "10400090fd950014020005008faf192e5a",
+      "signal_shape": [
+        100,
+        2,
+        524288
+      ],
+      "unique_streams": 100,
+      "usb_port_path": [
+        1,
+        2
+      ]
+    },
+    "r1": {
+      "endpoint_changed_frames": 59,
+      "frames": 100,
+      "gain_minmax_db": [
+        45.0,
+        62.0
+      ],
+      "interval_p99_seconds": 1.8859576177596955,
+      "median_frame_rate_hz": 1.976559160763102,
+      "rssi_minmax_db": [
+        70.25,
+        125.25
+      ],
+      "serial": "104000d02597000b16003400eb98846432",
+      "signal_shape": [
+        100,
+        2,
+        524288
+      ],
+      "unique_streams": 100,
+      "usb_port_path": [
+        1,
+        1
+      ]
+    }
+  },
+  "status": "pass"
+}

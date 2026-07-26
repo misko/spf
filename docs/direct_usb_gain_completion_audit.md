@@ -1,6 +1,6 @@
 # Direct-USB gain/RSSI completion audit
 
-Date: 2026-07-25
+Date: 2026-07-25, extended for dual-radio Rover 1 on 2026-07-26
 
 This audit distinguishes the completed implementation from physical RF bench
 characterization that cannot be inferred from transport tests.
@@ -177,3 +177,74 @@ Why current evidence is insufficient:
 Until those two RF stimuli are available, the firmware and software delivery
 is operationally complete, but the full physical characterization gates are
 not proven.
+
+## Rover 1 dual-radio boot and v7 extension
+
+The later Rover 1 qualification extends the original one-radio/v4
+compatibility result without invalidating it.
+
+Hardware:
+
+```text
+Rover                         1, roverpi1, 192.168.1.41
+Pluto physical path 1-1.1    104000d02597000b16003400eb98846432
+Pluto physical path 1-1.2    10400090fd950014020005008faf192e5a
+installed QSPI, both          device-fw v0.37-dirty
+tested SPF boot commit        cd006ea675ad93e4e441dae16fae117bce45f3fe
+RAM image SHA-256             f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
+```
+
+The serial/path-aware multi-loader kept both duplicate-address USB-network
+devices attached, verified `ad9361`/`2r2t`, loaded each image through its exact
+DFU physical path, regenerated the IIO mapping after final enumeration, and
+verified IIO plus direct USB on both devices.
+
+The explicit Rover 1 profile uses protocol v2 and dataset v7. In addition to
+the v4 compatibility fields, v7 stores both gain and RSSI endpoint pairs,
+validity and raw endpoint-change flags, local read durations, stream/buffer/
+sample sequences, first-change placeholders, IQ power, and radio identity.
+
+Three service-shaped two-radio captures and one earlier direct capture passed
+the strict data validator. The actual reboot run produced:
+
+```text
+capture
+  /home/pi/preflight/boot_direct_usb/20260726_060246_rover1/
+frames
+  100 per receiver
+IQ
+  complex64[100,2,524288] per receiver; finite and nonzero
+gain/RSSI metadata
+  valid on every frame; legacy fields equal frame-end fields
+identity
+  two unique serials and physical USB paths
+stream metadata
+  valid; 100 finite one-frame stream generations per receiver
+validator
+  status=pass
+median cadence
+  1.990 Hz and 1.977 Hz
+```
+
+A real Raspberry Pi reboot changed the Linux boot ID, left the legacy
+motion-capable service disabled, ran the loader unit, regenerated the changed
+USB-IIO mapping, and automatically ran and reopened the 100-frame Zarr.
+Because a Pi-only reboot kept USB power applied, the radios retained their RAM
+images and the idempotent loader verified rather than reloaded them.
+
+Rollback was therefore tested separately and more strongly:
+
+1. both radios were reset by serial into their installed QSPI images;
+2. both reported `direct_usb=false`, standard USB-IIO, `v0.37-dirty`, and no
+   `sdr_usb_gadget`;
+3. the loader then backed up each stock state, entered each physical DFU path,
+   reloaded the checksum-pinned RAM image, and restored both direct interfaces;
+4. another two-radio 100-frame v7 capture passed.
+
+The transport/data objective is complete. The stricter field cadence gate is
+still open: median throughput is near the intended 2 Hz, but each 100-frame
+direct run had one post-start synchronized interval of 1.2–2.0 seconds, so
+the existing p99 ≤1.0 second criterion was not met. The timing pattern is
+consistent with host-side storage/writeback pressure on the 2 GB Pi and is
+not evidence of malformed USB metadata, but that inference still requires a
+dedicated writer/USB trace before field sign-off.

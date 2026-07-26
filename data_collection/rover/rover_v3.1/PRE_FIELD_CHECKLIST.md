@@ -51,8 +51,8 @@ Do not mix the two paths within a capture.
 | Radio configuration | Standard USB-IIO / pyadi | Standard USB-IIO / pyadi before direct streaming |
 | Gain and RSSI | Host reads after IQ | Pluto-local observations in the same transfer as IQ |
 | YAML | Production Rover config; omitted `rx-transport` means `iio` | `rx-transport: direct_usb`, protocol v2 |
-| Dataset | v4 | v4 compatibility schema |
-| Current qualification | Production path | One Pluto and one-radio configuration validated |
+| Dataset | v4 | v7: v4 fields plus complete protocol-v2 metadata |
+| Current qualification | Production path | Rover 1: simultaneous two-Pluto bench/boot qualification |
 | Rollback | Already running QSPI | Reset/power-cycle restores unchanged QSPI |
 
 ### Legacy production path
@@ -87,13 +87,16 @@ Fail:
 ### Gain/RSSI direct-USB path
 
 Follow [the direct-USB firmware and capture runbook](../../../docs/direct_usb_gain_benchmark.md).
-Use the committed checksum-pinned loader:
+Use the committed checksum-pinned, serial/path-aware loader. For Rover 1 or 3,
+which each require two Plutos:
 
 ```bash
 cd /home/pi/spf
 data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh download
-data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh status
-data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh load
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
+  check-config-all 2
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh load-all 2
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh verify-all 2
 ```
 
 It obtains the exact hardware-tested image from:
@@ -104,23 +107,28 @@ https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-
 f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
 ```
 
-The loader requires exactly one connected Pluto and writes only to RAM. On a
-multi-radio Rover, isolate and load each Pluto one at a time. Run `verify`
-again immediately before collection; loading is required after every reset or
-power cycle, not before every frame or capture.
+The multi-radio loader keeps both Plutos attached. It identifies each by USB
+serial and physical path, moves each duplicate `192.168.2.1` USB-network
+interface into a temporary network namespace, and targets DFU with the exact
+physical USB path. It writes only to RAM. Run `verify-all` again immediately
+before collection; loading is required after every Pluto reset or full power
+cycle, not before every frame or capture.
 
-Use `capture_configs/rover3_one_radio_benchmark_direct_usb.yaml` for the
-current one-radio acceptance test. It uses protocol v2 and preserves the
-legacy v4 `signal_matrix`, `gains`, and `rssis` interface.
+Rover 1 uses
+`capture_configs/rover1_receiver_config_pi_3mhz_35mm_direct_usb_v2.yaml`.
+It runs both radios simultaneously, negotiates protocol v2, writes data
+version 7, preserves the legacy `signal_matrix`, `gains`, and `rssis` fields,
+and also stores complete start/end gain/RSSI and stream metadata.
 
 Pass:
 
 - the image was RAM-booted, not written to QSPI;
 - standard USB-IIO and vendor interface 6 both enumerate;
 - `iiod` and `sdr_usb_gadget` both run on the Pluto;
-- the 4,096-sample smoke and 524,288-sample smoke both pass;
-- the normal 100-frame Zarr capture and validator pass;
+- the normal simultaneous 100-frame-per-radio Zarr capture and v7 validator
+  pass;
 - gain and RSSI are finite for both channels;
+- every receiver stores a unique Pluto serial and physical USB path;
 - a reset restores the original QSPI firmware and removes interface 6.
 
 Fail:
@@ -132,12 +140,80 @@ Fail:
 - QSPI was flashed before RAM-boot and rollback acceptance;
 - equal gain endpoints are described as proof of no in-frame transition.
 
-The new path is not yet qualified for a multi-radio field mission merely
-because its one-radio benchmark passes. Before deploying it on Rover 1 or 3,
-add and commit that Rover's direct-USB production configuration and pass a
-simultaneous two-Pluto, 100-frame-per-receiver Zarr test. Rover 2 must pass its
-single installed Pluto. Until those per-Rover configurations and simultaneous
-tests exist, use the legacy path in the field.
+Rover 1 passed the simultaneous two-Pluto, 100-frame-per-receiver bench test,
+automatic reboot preflight, stock-QSPI rollback, and RAM-image restoration on
+2026-07-26. This is hardware evidence for Rover 1 only. Rover 2 and Rover 3
+still require their own committed physical configurations and per-Rover
+qualification before using direct USB in the field.
+
+### Rover 1 boot qualification mode
+
+The boot qualification workflow is deliberately separate from the
+motion-capable `mavlink_controller.service`. Enabling it installs two units:
+
+1. `spf-pluto-direct-usb.service` verifies the persistent AD9361/2r2t
+   configuration, checksum-verifies and RAM-loads both Plutos when needed,
+   regenerates `~/device_mapping` after final USB enumeration, and writes
+   `/run/spf/direct_usb_ready`.
+2. `spf-direct-usb-preflight.service` requires that ready stamp, runs exactly
+   100 motion-free fake-drone frames per receiver, reopens the final v7 Zarr,
+   validates it, and writes `PASS` plus `validation.json`.
+
+Enable the mode without starting either capture immediately:
+
+```bash
+cd /home/pi/spf
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh enable
+sudoedit /etc/spf/direct_usb_boot.env
+sudo reboot
+```
+
+The enable command stops and disables `mavlink_controller.service`; this is a
+safety requirement, because that legacy unit starts the production mission
+loop. After reboot:
+
+```bash
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh status
+systemctl status spf-pluto-direct-usb.service \
+  spf-direct-usb-preflight.service --no-pager
+cat /run/spf/direct_usb_ready
+find /home/pi/preflight/boot_direct_usb -maxdepth 2 \
+  \( -name PASS -o -name validation.json \) -print
+```
+
+A Pi-only reboot may leave USB power applied to the Plutos. In that case the
+loader must identify the already-correct RAM image, verify both radios, and
+skip DFU. A full Rover power cycle or a tested `rollback-all` returns the
+Plutos to QSPI and exercises the stock-to-RAM path.
+
+To prove rollback without enabling motion:
+
+```bash
+sudo systemctl stop spf-direct-usb-preflight.service \
+  spf-pluto-direct-usb.service
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
+  rollback-all 2
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh status-all 2
+iio_info -s
+```
+
+Pass only when both radios report `direct_usb=false`, standard USB-IIO is
+present, the vendor interface/gadget process is absent, and `/opt/VERSIONS`
+matches the recorded QSPI version. Restore qualification mode with
+`systemctl start spf-pluto-direct-usb.service` followed by
+`systemctl start spf-direct-usb-preflight.service`.
+
+To return permanently to the legacy IIO boot workflow, first run
+`rollback-all`, then:
+
+```bash
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  restore-legacy
+sudo reboot
+```
+
+`restore-legacy` enables but deliberately does not immediately start the
+motion-capable service.
 
 ## 2. Release-level software gates
 
@@ -364,17 +440,27 @@ at roughly 2 frames/s, so a much larger reported number is not expected.
 Investigate a result below the pass threshold rather than silently lowering
 the threshold.
 
-For the current one-radio direct-USB v2 configuration, validate with:
+For Rover 1 direct-USB v2/data-v7 qualification, validate with:
 
 ```bash
-python3 -m spf.scripts.validate_direct_usb_compat_zarr \
+python3 -m spf.scripts.validate_direct_usb_v7_zarr \
   /path/to/final_capture.zarr \
-  --expected-frames 100
+  --expected-frames 100 \
+  --expected-receivers 2
 ```
 
-For Rover 1/3 direct-USB field qualification, the validator and committed
-configuration must cover both receiver groups; the current one-radio
-validator is insufficient.
+This validator checks both receiver groups, IQ shape/content, metadata
+validity and unsafe flags, legacy gain/RSSI compatibility, endpoint flags,
+stream sequences, protocol version, and unique serial/physical-path identity.
+It does not enforce cadence; apply the median and p99 gates above separately.
+
+The Rover 1 direct captures on 2026-07-26 sustained median rates of
+1.93–1.99 frames/s. Each 100-frame run also contained one post-start,
+synchronized 1.2–2.0 second host-side stall, plausibly when the 2 GB Pi began
+background writeback of the 294–360 MB LMDB file. The strict p99 ≤1.0 second
+field gate therefore remains open even though the transport/data validator
+passes. Do not hide that distinction or lower the field threshold without a
+separate performance decision.
 
 ## 5. Per-Rover controls and restrained physical dry-run
 
@@ -426,11 +512,14 @@ Before leaving:
 - [ ] New-firmware Rovers passed RAM boot, metadata validation, and rollback.
 - [ ] Batteries, spare storage, cables, stock firmware, DFU recovery image,
       tools, and the rollback instructions are packed.
-- [ ] The automatic mission service is restored only after bench work is done:
+- [ ] Exactly one boot workflow is enabled after bench work. For the legacy
+      IIO mission path, restore it only when motion is safe:
 
 ```bash
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  restore-legacy
+# Start now only when the rover is safe to move; otherwise reboot in the field.
 sudo systemctl start mavlink_controller.service
-sudo systemctl status mavlink_controller.service --no-pager
 ```
 
 Final pass means the exact software, configuration, radios, storage path,

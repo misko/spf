@@ -176,13 +176,18 @@ gain/RSSI image is a separate, volatile RAM-boot workflow:
 
 ```bash
 cd /home/pi/spf
-data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh load
+data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh download
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
+  check-config-all 2
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh load-all 2
 ```
 
-That script accepts only the published SHA-256-pinned image, requires exactly
-one attached Pluto, saves the current version/environment, and never writes
-QSPI. Use `verify` before capture and `rollback` (or power cycle) to return to
-v0.37. Full pass/fail criteria are in
+The multi-radio path accepts only the published SHA-256-pinned image, requires
+the exact expected radio count, selects each attached Pluto by serial and
+physical path, saves its current version/environment, and never writes QSPI.
+Use `verify-all 2` before a Rover 1/3 capture and `rollback-all 2` (or a full
+power cycle) to return to v0.37. Single-radio commands remain available for
+isolated development. Full pass/fail criteria are in
 [`PRE_FIELD_CHECKLIST.md`](./PRE_FIELD_CHECKLIST.md).
 
 If a Pluto is bricked or won't mount, recover via **DFU**: move the boot jumper
@@ -262,6 +267,62 @@ pushd /home/pi/spf; current_hash=`git rev-parse --short HEAD`; git pull; new_has
 Gates: the update block is skipped entirely if `ping -c 1 8.8.8.8` fails **or** if `drone_run.sh` is called with args (manual/tethered mode). A `reboot` fires **only** if the short HEAD changed across `git pull`; a 15 s sleep gives an operator time to Ctrl-C.
 
 **Known broken paths (would fail on a real Pi):** the update/params/service/ssh steps reference the **non-existent** `data_collection_model_and_results/` directory (real dir is `data_collection/`). Affected: `drone_run.sh` lines 11, 21, 30, 47; `debug_drone_run.sh` line 9; `setup.sh` line 164. `drone_run.sh` is internally inconsistent — its Pluto/capture-config lines correctly use `data_collection/`. Fix these paths before relying on the auto-update.
+
+### 4.1 Opt-in direct-USB qualification boot
+
+The direct-USB qualification boot is mutually exclusive with the production
+mission service above. It is motion-free and writes one validated 100-frame
+Rover 1 v7 capture after preparing both radios:
+
+```bash
+cd /home/pi/spf
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh enable
+sudoedit /etc/spf/direct_usb_boot.env
+sudo reboot
+```
+
+`configure_direct_usb_boot.sh enable` stops/disables
+`mavlink_controller.service`, installs and enables:
+
+- `spf-pluto-direct-usb.service`, a root oneshot that verifies AD9361/2r2t,
+  checksum-verifies and conditionally RAM-loads every expected Pluto,
+  regenerates `~/device_mapping`, verifies standard IIO and direct USB, and
+  writes `/run/spf/direct_usb_ready`;
+- `spf-direct-usb-preflight.service`, a `pi` oneshot that requires the loader,
+  runs the committed two-radio protocol-v2/data-v7 fake-drone profile for 100
+  frames per receiver, reopens the final Zarr, and writes `PASS` plus
+  `validation.json`.
+
+Inspect it with:
+
+```bash
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh status
+systemctl status spf-pluto-direct-usb.service \
+  spf-direct-usb-preflight.service --no-pager
+cat /run/spf/direct_usb_ready
+```
+
+The loader is idempotent. A Pi reboot can leave USB power and Pluto RAM
+resident; it verifies and skips a redundant DFU load. A full Rover power cycle
+returns each Pluto to its unchanged QSPI image and exercises the load path.
+
+To restore legacy IIO boot safely, stop the qualification units, run the
+serial/path-aware `rollback-all` command, verify `direct_usb=false` for every
+radio, then enable—but do not immediately start—the motion-capable mission
+service:
+
+```bash
+sudo systemctl stop spf-direct-usb-preflight.service \
+  spf-pluto-direct-usb.service
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
+  rollback-all 2
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh status-all 2
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  restore-legacy
+```
+
+Rover 1 passed this reboot, rollback, restoration, and two-radio v7 flow on
+2026-07-26. That result does not qualify Rover 2 or Rover 3 automatically.
 
 ---
 
@@ -488,6 +549,14 @@ the only radio validation is a per-URI open of each yaml receiver. Use the live
 `capture_configs/*.yaml`; the old `spf/rover_configs/` path is empty. Apply the
 shape, IQ, metadata, and cadence checks in
 [`PRE_FIELD_CHECKLIST.md`](./PRE_FIELD_CHECKLIST.md) §4.
+
+For Rover 1 direct USB, use
+`capture_configs/rover1_receiver_config_pi_3mhz_35mm_direct_usb_v2.yaml` and
+validate the resulting data-version-7 Zarr with
+`python3 -m spf.scripts.validate_direct_usb_v7_zarr <zarr>
+--expected-frames 100 --expected-receivers 2`. This checks the complete
+gain/RSSI and stream metadata plus unique Pluto identities; it does not replace
+the separate cadence gate.
 
 ### (e) On-rover pre-flight gates enforced at runtime
 

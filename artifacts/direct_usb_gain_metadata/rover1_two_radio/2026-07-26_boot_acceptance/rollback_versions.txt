@@ -1,0 +1,17 @@
+--- 104000d02597000b16003400eb98846432 path=1-1.1 direct_usb=False ---
+device-fw v0.37-dirty
+hdl dev_prj_2018_r1-1763-ge5660-dirty
+buildroot 2021.02.7-adi-6643-g0d5db4-dirty
+linux adi-xilinx-2020.1-98725-g3eae70-dirty
+u-boot-xlnx v0.20-PlutoSDR-25-g90401c-dirty
+iiod=present
+sdr_usb_gadget=absent
+
+--- 10400090fd950014020005008faf192e5a path=1-1.2 direct_usb=False ---
+device-fw v0.37-dirty
+hdl dev_prj_2018_r1-1763-ge5660-dirty
+buildroot 2021.02.7-adi-6643-g0d5db4-dirty
+linux adi-xilinx-2020.1-98725-g3eae70-dirty
+u-boot-xlnx v0.20-PlutoSDR-25-g90401c-dirty
+iiod=present
+sdr_usb_gadget=absent

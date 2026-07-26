@@ -1,0 +1,11 @@
+spf_git_sha=cd006ea675ad93e4e441dae16fae117bce45f3fe
+rover_id=1
+expected_radios=2
+firmware_image_sha256=f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
+--- device_mapping ---
+1 9
+2 11
+--- loader_status ---
+serial=104000d02597000b16003400eb98846432 usb=1-1.1 bus=1 port=1.1 direct_usb=true
+serial=10400090fd950014020005008faf192e5a usb=1-1.2 bus=1 port=1.2 direct_usb=true
+runtime_count=2 expected_count=2
