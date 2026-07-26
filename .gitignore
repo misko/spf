@@ -40,3 +40,25 @@ wandb
 # fab order artifacts are versioned (exception to the dataset-CSV ignore)
 !**/fab/bom_jlc.csv
 !**/fab/cpl_jlc.csv
+
+# Local direct-USB hardware outputs. Commit curated Markdown reports instead.
+/artifacts/direct_usb_gain_metadata/**/device_mapping
+/artifacts/direct_usb_gain_metadata/**/console.txt
+/artifacts/direct_usb_gain_metadata/**/rover_*.yaml
+/artifacts/direct_usb_gain_metadata/**/one_frame.json
+/artifacts/direct_usb_gain_metadata/**/attribute_reads.jsonl
+/artifacts/direct_usb_gain_metadata/**/frames.jsonl
+/artifacts/direct_usb_gain_metadata/**/provenance.yaml
+/artifacts/direct_usb_gain_metadata/**/summary.json
+/artifacts/direct_usb_gain_metadata/**/*validation.json
+
+# Historical local data tree and one-off bench output.
+/data_collection_model_and_results/
+/go_home
+/pi4_store_compress_log
+/r
+/run_old.sh
+/spf.pdf
+/spf/mavlink/test.py
+/spf/sdrpluto/pi4_store_compress_log
+/spf/v5_configs/

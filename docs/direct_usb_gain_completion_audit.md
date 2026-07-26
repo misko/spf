@@ -44,6 +44,15 @@ ARM cross-build               passed
 published-pin Buildroot       passed
 ```
 
+Earlier bring-up and correction records are retained in:
+
+```text
+artifacts/direct_usb_gain_metadata/2026-07-24/
+artifacts/direct_usb_gain_metadata/2026-07-25/timestamp_validation.md
+artifacts/direct_usb_gain_metadata/rover3_one_radio/
+    2026-07-25_iio_baseline_repeat/report.md
+```
+
 Published commits:
 
 ```text

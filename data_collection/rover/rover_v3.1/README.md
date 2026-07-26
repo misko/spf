@@ -2,6 +2,17 @@
 
 Instead of simulations we can collect real world data by moving several rovers around autonomously in a field. Some rovers will transmit and others will listen and collect data.
 
+## Operator documentation
+
+- [Pre-field acceptance checklist](./PRE_FIELD_CHECKLIST.md) — mandatory
+  release-level, per-Rover, real-radio Zarr, fake-drone, SITL, and restrained
+  physical gates.
+- [Full Rover operational runbook](./ROVER_RUNBOOK.md) — provisioning,
+  operation, safety, troubleshooting, and recovery details.
+- [Direct-USB gain/RSSI firmware runbook](../../../docs/direct_usb_gain_benchmark.md)
+  — experimental RAM-boot firmware build, smoke, capture, validation, and
+  rollback.
+
 ## Design
 
 Youtube [link](https://youtu.be/6D6IM0DY81c)
@@ -175,6 +186,10 @@ See [here](https://www.dropbox.com/s/egpfn434aox6vvk/roverv3_3dparts.zip?dl=0)
 
 ## Lab checks
 
+Use the mandatory, current commands and pass/fail criteria in the
+[pre-field acceptance checklist](./PRE_FIELD_CHECKLIST.md). The snippets below
+are ad hoc diagnostics, not field-readiness evidence.
+
 ### SDR
 
 Emit from an SDR
@@ -189,19 +204,28 @@ Receive frmo an SDR
 python sdr_controller.py --receiver-uri usb:2.11.5 --mode rx --fc 2500000000 --rx-mode fast_attack
 ```
 
-Use a fake drone and real configuration to receive
+Use a fake drone and the current Rover 3 production configuration to receive
+100 frames per configured physical radio:
 
 ```
-python mavlink_radio_collection.py -c rover_configs/rover_receiver_config_simulator.yaml -m device_mapping -r center --fake-drone
+/home/pi/spf-virtualenv/bin/python3 spf/mavlink_radio_collection.py \
+  -c data_collection/rover/rover_v3.1/capture_configs/rover_receiver_config_pi_3mhz_43mm.yaml \
+  -m ~/device_mapping -r center --fake-drone --no-ultrasonic -n 100
 ```
 
-Use a fake drone and real configuration to emit (and receive)
+Rover 1 and Rover 2 use different production configs. Select them from the
+per-Rover table in the checklist rather than reusing the Rover 3 example.
+
+Use a fake drone and the emitter bench configuration to emit and receive:
 
 ```
-python mavlink_radio_collection.py -c rover_configs/rover_emitter_config_pi_simulator.yaml -m device_mapping -r center --fake-drone
+/home/pi/spf-virtualenv/bin/python3 spf/mavlink_radio_collection.py \
+  -c data_collection/rover/rover_v3.1/capture_configs/rover_emitter_config_pi_simulator.yaml \
+  -m ~/device_mapping -r center --fake-drone --no-ultrasonic -n 100
 ```
 
-Can also use the above with a simulated drone [instructions](/spf/mavlink/README.md)
+For ArduPilot SITL, use the [MAVLink simulator instructions](../../../spf/mavlink/README.md)
+and the release-level gate in the pre-field checklist.
 
 
 ## devpi mission control

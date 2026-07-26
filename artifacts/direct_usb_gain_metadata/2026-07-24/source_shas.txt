@@ -1,0 +1,9 @@
+SPF 36390252131ad1c475d2932b0802c4f84468d915
+pluto-sdr-usb-gadget 7339ab52678459da4c52a457f3259d52e7adf007
+SoapyPlutoSDR 2bbf77152d4e6d30c6630807fdfc8a869a528cf3
+plutosdr-fw a098f87b2302dde8bc3f442133800f6386512960
+plutosdr-fw/buildroot af0a100f5479ccbf46a8ca0cfcb3907e87f3e9ce
+plutosdr-fw/hdl be89a77d3fd0b344419377fac6fab8cfc7a66ad8
+plutosdr-fw/hdl-quantulum d70102267713f5bbc99805be5f4f08b0a07766cb
+plutosdr-fw/linux d798b0d821b85ebd51ecffbfa68d8e4d69b77132
+plutosdr-fw/u-boot-xlnx 1ff0468e9bea29b0a768a7bf52db8d025c521b9a

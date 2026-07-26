@@ -1,0 +1,413 @@
+# Rover 3.1 pre-field acceptance checklist
+
+Use this checklist before taking Rover 1, 2, or 3 into the field. It is the
+short, pass/fail companion to [ROVER_RUNBOOK.md](./ROVER_RUNBOOK.md), which
+remains the detailed operational and recovery reference.
+
+Do not substitute one gate for another:
+
+- the fake-radio pytest checks the Python collection pipeline;
+- SITL checks ArduPilot/MAVLink motion and file completion;
+- a real-radio `--fake-drone` capture checks each physical Rover and Pluto
+  without moving the vehicle;
+- a restrained physical dry-run checks the assembled vehicle.
+
+Every box in the release-level section must pass for the exact SPF commit being
+deployed. Every box in the per-Rover section must pass independently on each
+physical Rover.
+
+## Acceptance record
+
+Create one copy of this table in the field log for each test campaign.
+
+| Item | Value |
+|---|---|
+| Test date / operator | |
+| SPF commit (`git rev-parse HEAD`) | |
+| Rover | `1` / `2` / `3` |
+| Pi model and serial | |
+| ArduPilot version | |
+| Pluto transport | `iio` / `direct_usb_v2` |
+| Pluto serial(s) and USB path(s) | |
+| Pluto installed QSPI version(s) | |
+| RAM image SHA-256, if used | |
+| Capture config | |
+| Zarr path | |
+| Frames stored per receiver | |
+| Median frame rate per receiver | |
+| SITL report for this SPF commit | |
+| Overall result | `PASS` / `FAIL` |
+
+A failed or unrecorded required item means the Rover is not field-ready.
+
+## 1. Choose and record one Pluto firmware path
+
+Do not mix the two paths within a capture.
+
+| | Legacy production path | Gain/RSSI direct-USB path |
+|---|---|---|
+| Pluto boot image | Installed QSPI `v0.37-dirty` | Experimental v0.38-based image, RAM boot only |
+| IQ transport | Standard USB-IIO | Vendor interface 6, direct USB bulk |
+| Radio configuration | Standard USB-IIO / pyadi | Standard USB-IIO / pyadi before direct streaming |
+| Gain and RSSI | Host reads after IQ | Pluto-local observations in the same transfer as IQ |
+| YAML | Production Rover config; omitted `rx-transport` means `iio` | `rx-transport: direct_usb`, protocol v2 |
+| Dataset | v4 | v4 compatibility schema |
+| Current qualification | Production path | One Pluto and one-radio configuration validated |
+| Rollback | Already running QSPI | Reset/power-cycle restores unchanged QSPI |
+
+### Legacy production path
+
+Use the committed production configuration selected by `drone_run.sh`:
+
+| Rover | Required real-radio configuration | Receivers |
+|---|---|---:|
+| 1 | `capture_configs/rover_receiver_config_pi_3mhz_35mm.yaml` | 2 |
+| 2 | `capture_configs/rover_single_receiver_config_pi_3mhz.yaml` | 1 |
+| 3 | `capture_configs/rover_receiver_config_pi_3mhz_43mm.yaml` | 2 |
+
+The production RF/frame contract is 5.766 GHz LO, 30 MS/s, 3 MHz RF
+bandwidth, 524,288 complex samples per channel per frame, two RX channels per
+Pluto, four kernel RX buffers, slow-attack gain control, and a 0.5 second
+snapshot interval.
+
+Pass:
+
+- every installed Pluto reports the expected installed firmware;
+- standard USB-IIO enumerates and captures both RX channels;
+- the production config has the correct physical antenna spacing;
+- the custom direct-USB interface is not required.
+
+Fail:
+
+- a Rover's physical spacing and YAML disagree;
+- a radio is missing, maps to the wrong receiver port, or has only one RX
+  channel;
+- the intended legacy capture accidentally selects `direct_usb`.
+
+### Gain/RSSI direct-USB path
+
+Follow [the direct-USB firmware and capture runbook](../../../docs/direct_usb_gain_benchmark.md).
+Verify the RAM image before loading it:
+
+```bash
+sha256sum /path/to/pluto.dfu
+```
+
+The exact hardware-tested image was:
+
+```text
+f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
+```
+
+Use `capture_configs/rover3_one_radio_benchmark_direct_usb.yaml` for the
+current one-radio acceptance test. It uses protocol v2 and preserves the
+legacy v4 `signal_matrix`, `gains`, and `rssis` interface.
+
+Pass:
+
+- the image was RAM-booted, not written to QSPI;
+- standard USB-IIO and vendor interface 6 both enumerate;
+- `iiod` and `sdr_usb_gadget` both run on the Pluto;
+- the 4,096-sample smoke and 524,288-sample smoke both pass;
+- the normal 100-frame Zarr capture and validator pass;
+- gain and RSSI are finite for both channels;
+- a reset restores the original QSPI firmware and removes interface 6.
+
+Fail:
+
+- magic, version, header size, CRC, transfer length, sequence, gain, or RSSI
+  validation fails;
+- either IQ channel is zero or non-finite;
+- the host performs per-frame IIO gain/RSSI reads;
+- QSPI was flashed before RAM-boot and rollback acceptance;
+- equal gain endpoints are described as proof of no in-frame transition.
+
+The new path is not yet qualified for a multi-radio field mission merely
+because its one-radio benchmark passes. Before deploying it on Rover 1 or 3,
+add and commit that Rover's direct-USB production configuration and pass a
+simultaneous two-Pluto, 100-frame-per-receiver Zarr test. Rover 2 must pass its
+single installed Pluto. Until those per-Rover configurations and simultaneous
+tests exist, use the legacy path in the field.
+
+## 2. Release-level software gates
+
+Run these once for the exact SPF commit that will be installed on all Rovers.
+Record the commit and test output. Re-run after any code, configuration, Docker
+image, or ArduPilot parameter change.
+
+### 2.1 Fake radios plus fake drone
+
+This is fast and needs neither Docker nor hardware:
+
+```bash
+cd /home/pi/spf
+source /home/pi/spf-virtualenv/bin/activate
+export PYTHONBREAKPOINT=0
+python3 -m pytest tests/test_mavlink_radio_collect.py -v
+```
+
+Pass:
+
+- all tests pass;
+- the fake collector produces a final `.zarr`, `.yaml`, and `.log`;
+- v4 and v6 compatibility/schema guards pass.
+
+Fail:
+
+- any test fails, times out, or leaves only a partial file unexpectedly.
+
+### 2.2 ArduPilot SITL
+
+SITL validates MAVLink, parameters, mode transitions, simulated motion, and
+final-file promotion. It uses fake radios and does not validate any physical
+Rover or Pluto.
+
+```bash
+docker pull csmisko/ardupilotspf:latest
+python3 -m pytest tests/test_in_simulator.py -v -s
+```
+
+Pass:
+
+- all seven SITL tests pass;
+- MANUAL remains stationary and leaves temporary files;
+- GUIDED produces simulated movement and final `.zarr/.yaml/.log` files;
+- the final receiver data checked by the test is finite.
+
+Fail:
+
+- Docker/image setup fails;
+- MANUAL moves;
+- GUIDED does not move or does not finish a recording;
+- parameter load/diff, reboot, clock, or buzzer tests fail.
+
+Because SITL contains no physical Rover, one passing report may cover all
+Rovers only when they deploy the exact recorded SPF commit. If SITL is also run
+on each Pi to test its local Docker/Python installation, record those results
+separately; they still do not replace the real-radio gate.
+
+## 3. Per-Rover static bench inspection
+
+Put the Rover on blocks so the wheels cannot drive it off the bench. Stop the
+automatic mission service before testing:
+
+```bash
+sudo systemctl stop mavlink_controller.service
+cd /home/pi/spf
+source /home/pi/spf-virtualenv/bin/activate
+export PYTHONBREAKPOINT=0
+
+git rev-parse HEAD
+cat ~/rover_id
+cat /proc/device-tree/model
+lsusb
+lsusb -t
+cat ~/device_mapping
+iio_info -s
+df -h /
+vcgencmd measure_temp
+```
+
+Also verify:
+
+- [ ] Rover ID, static IP, SiK NetID, and ArduPilot `SYSID_THISMAV` are unique.
+- [ ] Rover 1/3 show two Plutos; Rover 2 shows one.
+- [ ] USB physical ports agree with `device_mapping` and the receiver-port
+      assignments.
+- [ ] Both channels and antenna cables are connected to every receiver.
+- [ ] YAML antenna spacing equals the measured physical spacing.
+- [ ] Pi Wi-Fi is disabled.
+- [ ] Battery is charged and the low-voltage disconnect is set correctly.
+- [ ] GPS cable is routed away from the Pi and SDRs.
+- [ ] There is enough free storage for the test and field mission.
+- [ ] System time is sane and the CPU governor can enter `performance`.
+- [ ] No unexpected reboot, USB error, undervoltage, or thermal warning is
+      present in `dmesg`.
+
+Run the normal Pluto environment/mapping check:
+
+```bash
+bash data_collection/rover/rover_v3.1/check_and_set_pluto.sh
+cat ~/device_mapping
+```
+
+Pass only when the expected number of radios is present after the check and
+the receiver-port association regenerates correctly after one unplug/replug or
+full Rover power cycle. USB bus/device numbers may change; serial number and
+physical port assignment must not.
+
+## 4. Per-Rover real-radio capture with a fake drone
+
+This is the required no-motion hardware acceptance. It uses each Rover's real
+Pluto(s), normal collector, real YAML, and LMDB-backed Zarr writer while
+replacing only the vehicle/GPS controller with `Drone(fake=True)`.
+
+Select the production configuration:
+
+```bash
+case "$(cat ~/rover_id)" in
+  1) CONFIG=data_collection/rover/rover_v3.1/capture_configs/rover_receiver_config_pi_3mhz_35mm.yaml; EXPECTED_RX=2 ;;
+  2) CONFIG=data_collection/rover/rover_v3.1/capture_configs/rover_single_receiver_config_pi_3mhz.yaml; EXPECTED_RX=1 ;;
+  3) CONFIG=data_collection/rover/rover_v3.1/capture_configs/rover_receiver_config_pi_3mhz_43mm.yaml; EXPECTED_RX=2 ;;
+  *) echo "Invalid rover_id"; exit 1 ;;
+esac
+```
+
+Capture 100 stored frames per receiver:
+
+```bash
+OUT=/home/pi/preflight/$(date +%Y%m%d_%H%M%S)
+mkdir -p "$OUT"
+
+python3 spf/mavlink_radio_collection.py \
+  --fake-drone \
+  --no-ultrasonic \
+  --yaml-config "$CONFIG" \
+  --device-mapping ~/device_mapping \
+  --routine center \
+  --records-per-receiver 100 \
+  --temp "$OUT" \
+  --tag "PREFLIGHT_RO$(cat ~/rover_id)"
+```
+
+The production configs exercise all installed radios simultaneously. Do not
+replace them with `tests/test_config.yaml`; that file uses fake radios and a
+small 4,096-sample frame.
+
+Validate every receiver and print its measured cadence:
+
+```bash
+ZARR=$(find "$OUT" -maxdepth 1 -name '*.zarr' -print -quit)
+python3 - "$ZARR" 100 "$EXPECTED_RX" <<'PY'
+import sys
+
+import numpy as np
+
+from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
+
+path, expected_frames, expected_receivers = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+z = zarr_open_from_lmdb_store(path)
+try:
+    receiver_names = sorted(z.receivers.keys())
+    assert len(receiver_names) == expected_receivers, receiver_names
+    for name in receiver_names:
+        rx = z.receivers[name]
+        signal = rx.signal_matrix
+        assert signal.shape == (expected_frames, 2, 524288), signal.shape
+        assert signal.dtype == np.dtype("complex64"), signal.dtype
+        assert rx.gains.shape == (expected_frames, 2), rx.gains.shape
+        assert rx.rssis.shape == (expected_frames, 2), rx.rssis.shape
+        assert np.isfinite(rx.gains[:]).all(), f"{name}: invalid gain"
+        assert np.isfinite(rx.rssis[:]).all(), f"{name}: invalid RSSI"
+        for frame_index in range(expected_frames):
+            frame = signal[frame_index]
+            assert np.isfinite(frame).all(), f"{name}: frame {frame_index} non-finite"
+            assert np.any(frame[0]), f"{name}: frame {frame_index} RX1 all-zero"
+            assert np.any(frame[1]), f"{name}: frame {frame_index} RX2 all-zero"
+        intervals = np.diff(rx.system_timestamp[:])
+        assert np.all(intervals > 0), f"{name}: timestamps not increasing"
+        median_hz = float(1.0 / np.median(intervals))
+        p99_seconds = float(np.percentile(intervals, 99))
+        print(f"{name}: frames={expected_frames} median_hz={median_hz:.3f} "
+              f"interval_p99_s={p99_seconds:.3f}")
+        assert median_hz >= 1.8, f"{name}: capture too slow"
+        assert p99_seconds <= 1.0, f"{name}: excessive frame stalls"
+finally:
+    z.store.close()
+print("PASS")
+PY
+```
+
+Pass:
+
+- the process exits zero;
+- the output is final `.zarr/.yaml/.log`, not `.tmp`;
+- every configured receiver stores exactly 100 frames;
+- every receiver has `complex64[100,2,524288]` IQ;
+- every frame has finite, nonzero RX1 and RX2 samples;
+- gain and RSSI arrays are finite and shaped `[100,2]`;
+- receiver timestamps are strictly increasing;
+- setup completes without a radio-configuration assertion, and the resolved
+  YAML records the intended LO, sample rate, bandwidth, FIR, gain mode, and
+  frame size;
+- median cadence is at least 1.8 frames/s and interval p99 is at most 1.0 s;
+- logs contain no radio retry exhaustion, overflow, USB error, or writer
+  failure.
+
+The measured one-radio reference on this codebase is approximately 2.06
+frames/s for USB-IIO and 2.02 frames/s for direct USB v2. The capture is paced
+at roughly 2 frames/s, so a much larger reported number is not expected.
+Investigate a result below the pass threshold rather than silently lowering
+the threshold.
+
+For the current one-radio direct-USB v2 configuration, validate with:
+
+```bash
+python3 -m spf.scripts.validate_direct_usb_compat_zarr \
+  /path/to/final_capture.zarr \
+  --expected-frames 100
+```
+
+For Rover 1/3 direct-USB field qualification, the validator and committed
+configuration must cover both receiver groups; the current one-radio
+validator is insufficient.
+
+## 5. Per-Rover controls and restrained physical dry-run
+
+Keep the vehicle on blocks for the initial control checks.
+
+- [ ] MANUAL / RTL / GUIDED switch positions are confirmed as
+      **Manual / RTL / Guided**, in that order.
+- [ ] Arm/disarm operates on CH5.
+- [ ] CH7 reboot behavior is understood and cannot be triggered accidentally.
+- [ ] CH9 cleanly shuts down the Pi.
+- [ ] CH10 starts compass calibration only when intended.
+- [ ] CH12 enables/disables the ultrasonic stop as intended.
+- [ ] Left/right motor direction and neutral PWM are correct.
+- [ ] GPS has a real 3D fix and the EKF has absolute-position convergence.
+- [ ] Compass calibration is current and heading agrees with the vehicle.
+- [ ] Ultrasonic sensing stops GUIDED motion at the configured distance.
+- [ ] Ground-station telemetry works on the Rover's assigned SiK NetID.
+
+Then perform a short, supervised, low-speed outdoor run inside the intended
+convex boundary. Use a small record count and keep an operator ready to
+disarm. Pass only if GUIDED motion, recording, return/home behavior, and final
+file promotion all complete without manual file repair.
+
+Do not use `debug_drone_run.sh` as proof of production readiness: it currently
+contains stale config/path selections and uses a fake drone. Invoke
+`mavlink_radio_collection.py` with the intended production config explicitly.
+
+## 6. Inspect, archive, and sign off
+
+For every Rover, archive:
+
+- the resolved YAML sidecar generated by the collector;
+- the complete log;
+- the final Zarr;
+- the acceptance table from the top of this document;
+- `git rev-parse HEAD`;
+- `~/device_mapping`;
+- Pluto serial, USB path, firmware version, and RAM-image hash if applicable;
+- frame count, median frame rate, p99 interval, and any USB/overflow count;
+- SITL output for the exact deployed SPF commit.
+
+Before leaving:
+
+- [ ] All required release-level gates are green.
+- [ ] Every physical Rover has its own passing 100-frame real-radio Zarr.
+- [ ] Every physical radio and both RX channels were exercised.
+- [ ] Multi-radio Rovers passed with their radios running simultaneously.
+- [ ] The intended firmware path is written in the field log.
+- [ ] New-firmware Rovers passed RAM boot, metadata validation, and rollback.
+- [ ] Batteries, spare storage, cables, stock firmware, DFU recovery image,
+      tools, and the rollback instructions are packed.
+- [ ] The automatic mission service is restored only after bench work is done:
+
+```bash
+sudo systemctl start mavlink_controller.service
+sudo systemctl status mavlink_controller.service --no-pager
+```
+
+Final pass means the exact software, configuration, radios, storage path,
+MAVLink behavior, and assembled Rover intended for the field were tested.

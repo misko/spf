@@ -4,6 +4,12 @@ This runbook records the normal Rover 3 v4 Zarr dataset while the Pluto+ sends
 device-local gain and RSSI observations in each direct-USB IQ transfer. The
 experimental firmware is RAM-booted; these instructions never flash QSPI.
 
+For deployment decisions and the old-versus-new firmware acceptance matrix,
+use the Rover 3.1
+[pre-field checklist](../data_collection/rover/rover_v3.1/PRE_FIELD_CHECKLIST.md).
+The direct-USB work documented here is qualified on one Pluto. It does not by
+itself qualify a simultaneous two-Pluto Rover 1/3 field configuration.
+
 ## Fixed capture contract
 
 ```text

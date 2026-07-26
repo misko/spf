@@ -1,7 +1,7 @@
 # SPF 2D Electric Rover — Operational Runbook (`ROVER_RUNBOOK.md`)
 
 Data-collection platform: Raspberry Pi + ArduPilot flight controller (FMUv3) + PlutoSDR radios.
-Repo root: `/home/mouse9911/gits/spf`. Active hardware generation: **rover v3.1**.
+On-Rover repo root: `/home/pi/spf`. Active hardware generation: **rover v3.1**.
 
 > Scope / provenance note: every command and fact below is traced to files in this repo. A handful of field-lore items (Pluto v0.38 brick, DFU jumper, faulty power switches, low-voltage cutoff thresholds, emitter-height tuning) are operational knowledge included at the maintainer's direction; where a detail is not directly verifiable in-tree it is flagged **[field note]**. Where the ground truth is genuinely ambiguous it is called out inline rather than guessed.
 
@@ -21,6 +21,9 @@ Repo root: `/home/mouse9911/gits/spf`. Active hardware generation: **rover v3.1*
 
 **Operate in the field**
 
+- [Pre-field acceptance checklist](./PRE_FIELD_CHECKLIST.md) — mandatory
+  release-level and per-Rover sign-off, including a real-radio 100-frame Zarr,
+  fake-drone, SITL, controls, and firmware/rollback checks
 - [§5 Running a real field mission](#5-running-a-real-field-mission) — pre-flight order and the per-rover routine/config table
 - [§15 Buzzer tones](#15-buzzer-tones--what-the-rover-is-telling-you-wav-renders) — what each chirp means, with WAV renders
 - [§16 Connecting a ground station](#16-connecting-a-ground-station-qgc--mission-planner) — QGC / Mission Planner over SiK radio, tethered ethernet, or SITL
@@ -288,10 +291,15 @@ The tethered/manual branch (called **with** args) uses `--drone-uri tcp:192.168.
 Manual field launch outside the loop (real Plutos, real serial ArduPilot autodetect, ultrasonic on) — **DO NOT run casually**:
 
 ```bash
-cd /home/mouse9911/gits/spf
-python spf/mavlink_radio_collection.py -c spf/rover_configs/rover_config.yaml -m /home/pi/device_mapping -r bounce -t RO1 -n 3000
+cd /home/pi/spf
+python spf/mavlink_radio_collection.py \
+  -c data_collection/rover/rover_v3.1/capture_configs/rover_receiver_config_pi_3mhz_35mm.yaml \
+  -m /home/pi/device_mapping -r bounce -t RO1 -n 3000
 # time-capped variant: append -s 600
 ```
+
+The command above is the Rover 1 example. Select the Rover 2/3 config from the
+per-Rover table rather than reusing Rover 1's antenna spacing.
 
 Completion behavior: temp `.tmp` → final rename **and** `move_to_home` happen **only after a full collection completes**. A run stopped by `-s/--run-for-seconds` (`sys.exit(0)`) leaves `.tmp` files and does **not** return the drone home. On a Pi (non-fake) it also does `sudo sync`.
 
@@ -353,7 +361,7 @@ python3 spf/mavlink_radio_collection.py -d tcp:127.0.0.1:14590 \
 ### 6.5 The exact pytest commands
 
 ```bash
-cd /home/mouse9911/gits/spf
+cd /home/pi/spf
 pip3 install -e . && pip3 install pytest      # editable install (mirrors CI)
 
 # Full simulated-rover suite (requires Docker + image). -s so streamed child stdout is visible.
@@ -400,10 +408,15 @@ python3 -m pytest tests/test_in_simulator.py::test_guided_mode_moving_and_record
 
 Ordered **cheapest → most expensive**. Do not proceed to a later stage until the earlier ones pass.
 
+For field deployment, this development ladder is necessary but not sufficient.
+Complete the per-release and per-vehicle sign-off in
+[`PRE_FIELD_CHECKLIST.md`](./PRE_FIELD_CHECKLIST.md), including a 100-frame
+real-radio Zarr from every Rover.
+
 ### (a) Unit tests — planners / dynamics / GPS / EKF (seconds, no hardware)
 
 ```bash
-cd /home/mouse9911/gits/spf
+cd /home/pi/spf
 python3 -m pytest tests/ -v
 ```
 
@@ -441,10 +454,17 @@ On the actual Pi, with real Plutos wired, run the collector with `--fake-drone` 
 ```bash
 /home/pi/spf-virtualenv/bin/python3 ${repo_root}/spf/mavlink_radio_collection.py \
   -c data_collection/rover/rover_v3.1/capture_configs/<real_config>.yaml \
-  -m ~/device_mapping --fake-drone -r center -n 4000
+  -m ~/device_mapping --fake-drone --no-ultrasonic -r center -n 100 \
+  --temp /home/pi/preflight/<test_run>
 ```
 
-Passing = both PlutoPlus receivers (+ emitter if `type: sdr`) come online (`radios_to_online` does **not** `sys.exit(1)`) and records are written. There is **no `lsusb`/ADALM count check inside the collector** — the only radio validation is a per-URI open of each yaml receiver. (The rover-v3.1 README lab-check example points at `rover_configs/…`, but that dir is **empty**; use the live `capture_configs/*.yaml`.)
+Passing = both PlutoPlus receivers (+ emitter if `type: sdr`) come online
+(`radios_to_online` does **not** `sys.exit(1)`) and 100 records per receiver
+are written. There is **no `lsusb`/ADALM count check inside the collector** —
+the only radio validation is a per-URI open of each yaml receiver. Use the live
+`capture_configs/*.yaml`; the old `spf/rover_configs/` path is empty. Apply the
+shape, IQ, metadata, and cadence checks in
+[`PRE_FIELD_CHECKLIST.md`](./PRE_FIELD_CHECKLIST.md) §4.
 
 ### (e) On-rover pre-flight gates enforced at runtime
 
@@ -572,7 +592,7 @@ docker pull csmisko/ardupilotspf:latest
 docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest \
   /ardupilot/Tools/autotest/sim_vehicle.py -l 37.76509485,-122.40940127,0,0 -v rover -f rover-skid \
   --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 -S 1
-cd /home/mouse9911/gits/spf && pip3 install -e . && pip3 install pytest
+cd /home/pi/spf && pip3 install -e . && pip3 install pytest
 python3 -m pytest tests/test_mavlink_radio_collect.py -v                               # fake-drone, no Docker, no-NaN zarr
 python3 -m pytest tests/test_in_simulator.py -v -s                                     # full SITL suite
 python3 -m pytest tests/test_in_simulator.py::test_manual_mode_stationary -v -s
