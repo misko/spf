@@ -1,0 +1,19 @@
+[Unit]
+Description=RAM-load and verify SPF direct-USB firmware on every Pluto
+After=local-fs.target network-online.target
+Wants=network-online.target
+Before=spf-direct-usb-preflight.service
+ConditionPathExists=/etc/spf/direct_usb_boot.env
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/spf/direct_usb_boot.env
+WorkingDirectory=/home/pi/spf
+ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/prepare_direct_usb_boot.sh
+TimeoutStartSec=8min
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

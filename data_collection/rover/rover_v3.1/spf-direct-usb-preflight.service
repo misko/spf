@@ -1,0 +1,19 @@
+[Unit]
+Description=Capture and validate 100 fake-drone direct-USB Rover frames
+Requires=spf-pluto-direct-usb.service
+After=spf-pluto-direct-usb.service
+ConditionPathExists=/etc/spf/direct_usb_boot.env
+
+[Service]
+Type=oneshot
+User=pi
+Group=pi
+Environment=PYTHONPATH=/home/pi/spf
+EnvironmentFile=/etc/spf/direct_usb_boot.env
+WorkingDirectory=/home/pi/spf
+ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/run_direct_usb_boot_preflight.sh
+TimeoutStartSec=12min
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
