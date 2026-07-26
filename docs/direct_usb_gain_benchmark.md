@@ -318,7 +318,21 @@ On Rover 1 the two-radio runs on 2026-07-26 sustained median rates of
 post-start synchronized host-side interval above one second. Keep the
 pre-field checklist's cadence gate separate from the protocol/data pass.
 
-## Opt-in boot qualification
+## Default firmware prerequisite and opt-in qualification
+
+Normal production now requires `spf-pluto-direct-usb.service` before
+`mavlink_controller.service`. With no `/etc/spf/direct_usb_boot.env`, the
+loader defaults to enabled and derives the expected radio count from
+`/home/pi/rover_id`. Capture transport and Zarr schema remain selected
+separately by `SPF_CAPTURE_PROFILE`.
+
+For an existing installation, apply that ordering without changing the capture
+profile:
+
+```sh
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  production-default
+```
 
 Install the boot units and environment while disabling the legacy,
 motion-capable mission service:
@@ -401,8 +415,11 @@ sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
   restore-legacy
 ```
 
-That command enables but does not immediately start the motion-capable mission
-service. To restore the direct qualification state instead, start
+That command sets `SPF_DIRECT_USB_DISABLE=1` and enables but does not
+immediately start the motion-capable mission service. The prerequisite service
+still runs first but deliberately skips RAM loading. To restore the direct
+qualification state instead, select `qualify` (which resets the disable value)
+or start
 `spf-pluto-direct-usb.service` and then
 `spf-direct-usb-preflight.service`.
 

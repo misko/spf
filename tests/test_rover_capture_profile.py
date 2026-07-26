@@ -94,9 +94,42 @@ def test_boot_launcher_prints_resolved_direct_v4_plan_without_hardware(tmp_path)
     assert plan["data_version"] == "4"
 
 
-def test_direct_production_unit_waits_for_firmware_loader():
-    dropin = (ROVER_ROOT / "mavlink_controller.direct_usb.conf").read_text()
-    assert "Requires=spf-pluto-direct-usb.service" in dropin
-    assert "After=spf-pluto-direct-usb.service" in dropin
+def test_every_production_boot_waits_for_firmware_loader_by_default():
     production_unit = (ROVER_ROOT / "mavlink_controller.service").read_text()
+    assert "Requires=spf-pluto-direct-usb.service" in production_unit
+    assert "After=network-online.target spf-pluto-direct-usb.service" in production_unit
     assert "EnvironmentFile=-/etc/spf/rover_collection.env" in production_unit
+
+    loader_unit = (ROVER_ROOT / "spf-pluto-direct-usb.service").read_text()
+    assert "ConditionPathExists=" not in loader_unit
+    assert "EnvironmentFile=-/etc/spf/direct_usb_boot.env" in loader_unit
+    assert "ExecStart=" in loader_unit
+
+
+def test_fresh_setup_installs_and_enables_loader_with_mavlink():
+    setup = (ROVER_ROOT / "setup.sh").read_text()
+    assert "spf-pluto-direct-usb.service" in setup
+    assert "load_direct_usb_firmware.sh" in setup
+    assert "download" in setup
+    assert (
+        "systemctl enable spf-pluto-direct-usb.service mavlink_controller.service"
+        in setup
+    )
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    assert '"${SCRIPT_DIR}/spf-pluto-direct-usb.service"' in launcher
+    assert (
+        "spf-pluto-direct-usb.service mavlink_controller.service"
+        in launcher.replace("\\\n", "")
+    )
+
+
+def test_stock_firmware_restore_is_an_explicit_opt_out():
+    configure = (ROVER_ROOT / "configure_direct_usb_boot.sh").read_text()
+    assert "production-default" in configure
+    assert "cache_firmware_image" in configure
+    assert "set_ram_load_disabled 0" in configure
+    assert "set_ram_load_disabled 1" in configure
+    environment = (ROVER_ROOT / "direct_usb_boot.env.example").read_text()
+    assert "SPF_DIRECT_USB_DISABLE=0" in environment
+    collection = (ROVER_ROOT / "rover_collection.env.example").read_text()
+    assert "SPF_CAPTURE_PROFILE=legacy_iio_v4" in collection

@@ -148,6 +148,15 @@ qualification before using direct USB in the field.
 
 ### Rover 1 boot qualification and production modes
 
+The normal production unit now always requires the RAM-firmware preparation
+unit first. Migrate an existing installation without changing its capture
+profile with:
+
+```bash
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  production-default
+```
+
 The boot qualification workflow is deliberately separate from the
 motion-capable `mavlink_controller.service`. Enabling it installs two units:
 
@@ -203,8 +212,8 @@ matches the recorded QSPI version. Restore qualification mode with
 `systemctl start spf-pluto-direct-usb.service` followed by
 `systemctl start spf-direct-usb-preflight.service`.
 
-To return permanently to the legacy IIO boot workflow, first run
-`rollback-all`, then:
+To opt out of the default RAM image and return to the stock-QSPI legacy IIO
+workflow, first run `rollback-all`, then:
 
 ```bash
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
@@ -212,11 +221,13 @@ sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
 sudo reboot
 ```
 
-`restore-legacy` enables but deliberately does not immediately start the
-motion-capable service.
+`restore-legacy` sets `SPF_DIRECT_USB_DISABLE=1`, enables but deliberately does
+not immediately start the motion-capable service, and retains the base
+firmware-before-MAVLink ordering. The prerequisite service exits without a RAM
+load in this explicit rollback mode.
 
-After qualification, restore the original production boot shape through direct
-USB without starting it immediately:
+After qualification, restore production through direct USB without starting
+it immediately:
 
 ```bash
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \

@@ -136,10 +136,14 @@ maybe_self_update() {
         printf 'Repository updated; installing current unit and rebooting.\n'
         sleep 15
         sudo install -m 0644 \
+            "${SCRIPT_DIR}/spf-pluto-direct-usb.service" \
+            /etc/systemd/system/spf-pluto-direct-usb.service
+        sudo install -m 0644 \
             "${SCRIPT_DIR}/mavlink_controller.service" \
             /etc/systemd/system/mavlink_controller.service
         sudo systemctl daemon-reload
-        sudo systemctl enable mavlink_controller.service
+        sudo systemctl enable \
+            spf-pluto-direct-usb.service mavlink_controller.service
         sudo reboot
         exit 0
     fi

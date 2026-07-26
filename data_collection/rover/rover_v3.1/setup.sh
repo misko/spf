@@ -160,10 +160,19 @@ sleep 5
 #mkfifo tmp_file
 #cat tmp_file |  mavproxy.py &
 
-#mavlink controller service
-sudo cp /home/pi/spf/data_collection_model_and_results/rover/rover_v3.1/mavlink_controller.service /lib/systemd/system/
+# Production services. The firmware oneshot is a hard prerequisite of the
+# MAVLink launcher and RAM-loads the checksum-pinned image by default.
+sudo env SPF_FIRMWARE_CACHE_DIR=/home/pi/.cache/spf/firmware \
+    bash /home/pi/spf/data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
+    download
+sudo install -m 0644 \
+    /home/pi/spf/data_collection/rover/rover_v3.1/spf-pluto-direct-usb.service \
+    /etc/systemd/system/spf-pluto-direct-usb.service
+sudo install -m 0644 \
+    /home/pi/spf/data_collection/rover/rover_v3.1/mavlink_controller.service \
+    /etc/systemd/system/mavlink_controller.service
 sudo systemctl daemon-reload
-sudo systemctl enable mavlink_controller.service
+sudo systemctl enable spf-pluto-direct-usb.service mavlink_controller.service
 
 mkdir -p /home/pi/arduino
 pushd /home/pi/arduino

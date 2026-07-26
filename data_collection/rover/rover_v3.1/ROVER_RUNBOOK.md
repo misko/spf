@@ -256,7 +256,16 @@ Base ArduPilot param block (`spf/ardupilot/ardupilot_setup.md`): `RC1/2_MAX 2006
 On every production boot systemd runs `drone_run.sh` (unit
 `mavlink_controller.service`,
 `ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/drone_run.sh`,
-`After/Wants network-online.target`). The root-managed
+`Requires/After=spf-pluto-direct-usb.service`). The firmware service runs
+first as root, checksum-verifies and RAM-loads the tested image when necessary,
+regenerates `~/device_mapping`, and writes `/run/spf/direct_usb_ready`.
+`/etc/spf/direct_usb_boot.env` is optional; RAM loading is enabled by default
+and the expected radio count is derived from `/home/pi/rover_id`. The
+provisioning script downloads and checksum-verifies the image into
+`/home/pi/.cache/spf/firmware`, so ordinary boots do not require GitHub access.
+If the cache is deliberately removed, the loader requires network access to
+restore it before MAVLink can start. The
+root-managed
 `/etc/spf/rover_collection.env` selects the capture profile and bounded test
 overrides. Unless `SPF_SKIP_SELF_UPDATE=1`, the launcher self-updates before the
 mission loop:
@@ -278,7 +287,21 @@ differences fail closed.
 
 ### 4.1 Direct-USB qualification and production boot
 
-There are two mutually exclusive direct-USB modes.
+RAM firmware preparation is the default prerequisite for every production
+boot. Transport/schema selection remains independent: `legacy_iio_v4` uses
+the standard IIO function retained by the RAM image, while qualified
+`direct_usb_v4` and `direct_usb_v7` profiles use the direct bulk interface.
+The motion-free qualification workflow remains mutually exclusive with the
+production collector.
+
+To migrate an already-provisioned Rover to the default ordering without
+changing its selected capture profile:
+
+```bash
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  production-default
+sudo reboot
+```
 
 Qualification is motion-free and writes one validated 100-frame Rover 1 v7
 capture after preparing both radios:
@@ -325,9 +348,10 @@ sudoedit /etc/spf/rover_collection.env
 sudo reboot
 ```
 
-Direct production enables the loader and `mavlink_controller.service`, disables
-the 100-frame preflight, and installs a systemd dependency so the mission
-launcher cannot run before radio preparation succeeds. It does not start the
+Direct production enables the loader and `mavlink_controller.service` and
+disables the 100-frame preflight. The loader dependency is part of the base
+production unit, so the mission launcher cannot run before radio preparation
+succeeds even when no environment files exist. The command does not start the
 motion-capable service immediately. `direct_usb_v4` preserves the legacy v4
 Zarr surface; `direct_usb_v7` stores the full frame endpoint metadata.
 
@@ -348,10 +372,10 @@ The loader is idempotent. A Pi reboot can leave USB power and Pluto RAM
 resident; it verifies and skips a redundant DFU load. A full Rover power cycle
 returns each Pluto to its unchanged QSPI image and exercises the load path.
 
-To restore legacy IIO boot safely, stop the qualification units, run the
+To run the original stock QSPI firmware explicitly, stop the qualification
+units, run the
 serial/path-aware `rollback-all` command, verify `direct_usb=false` for every
-radio, then enable—but do not immediately start—the motion-capable mission
-service:
+radio, then select the legacy profile and explicit RAM-load opt-out:
 
 ```bash
 sudo systemctl stop spf-direct-usb-preflight.service \
@@ -362,6 +386,11 @@ sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh status-all 2
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
   restore-legacy
 ```
+
+`restore-legacy` writes `SPF_DIRECT_USB_DISABLE=1`. The firmware prerequisite
+still starts before MAVLink but exits successfully without loading an image.
+Return to the default with `production-v4`, `production-v7`, or by setting the
+disable value back to `0`.
 
 Rover 1 passed two-radio 100-frame v4 and v7 captures, profile rollback,
 loader-before-launcher service execution, and a validation-only real reboot on

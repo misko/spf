@@ -15,15 +15,32 @@ readonly READY_FILE="${READY_DIR}/direct_usb_ready"
 EXPECTED_RADIOS="${SPF_DIRECT_USB_EXPECTED_RADIOS:-}"
 FIRMWARE_CACHE="${SPF_FIRMWARE_CACHE_DIR:-/home/pi/.cache/spf/firmware}"
 FIRMWARE_STATE="${SPF_FIRMWARE_STATE_DIR:-/var/lib/spf/pluto-firmware}"
+DISABLE_DIRECT_USB="${SPF_DIRECT_USB_DISABLE:-0}"
 
 die() {
     printf 'ERROR: %s\n' "$*" >&2
     exit 1
 }
 
-[[ "${EUID}" -eq 0 ]] || die "prepare_direct_usb_boot.sh must run as root."
-[[ -f /home/pi/rover_id ]] || die "Missing /home/pi/rover_id."
+is_true() {
+    case "${1,,}" in
+        1|true|yes|on) return 0 ;;
+        0|false|no|off|"") return 1 ;;
+        *) die "Invalid SPF_DIRECT_USB_DISABLE value: $1" ;;
+    esac
+}
 
+[[ "${EUID}" -eq 0 ]] || die "prepare_direct_usb_boot.sh must run as root."
+
+if is_true "$DISABLE_DIRECT_USB"; then
+    rm -f -- "$READY_FILE"
+    printf '%s\n' \
+        "Direct-USB RAM loading was explicitly disabled by" \
+        "SPF_DIRECT_USB_DISABLE=${DISABLE_DIRECT_USB}."
+    exit 0
+fi
+
+[[ -f /home/pi/rover_id ]] || die "Missing /home/pi/rover_id."
 rover_id="$(tr -d '[:space:]' </home/pi/rover_id)"
 case "$rover_id" in
     1|3)

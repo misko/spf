@@ -1,6 +1,7 @@
 [Unit]
 Description=Run mavlink controller
-After=network-online.target
+Requires=spf-pluto-direct-usb.service
+After=network-online.target spf-pluto-direct-usb.service
 Wants=network-online.target
 
 [Service]
