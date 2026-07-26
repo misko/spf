@@ -13,6 +13,11 @@ from spf.dataset.v6_data import (
     v6rx_scalar_keys,
     v6rx_new_dataset,
 )
+from spf.dataset.v7_data import (
+    v7rx_2x_keys,
+    v7rx_scalar_keys,
+    v7rx_new_dataset,
+)
 from spf.rf import get_peaks_for_2rx
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store, zarr_shrink
 from spf.utils import dotdict, random_signal_matrix
@@ -225,4 +230,47 @@ def testv6_data_create_and_metadata_round_trip():
         for key in v6rx_scalar_keys:
             assert receiver[key][1] == expected_scalar[key]
         for key in v6rx_2x_keys:
+            np.testing.assert_allclose(receiver[key][1], expected_2x[key])
+
+
+def testv7_data_create_and_radio_metadata_round_trip():
+    with tempfile.TemporaryDirectory() as tmp:
+        z = v7rx_new_dataset(
+            tmp + "/testdata",
+            timesteps=3,
+            buffer_size=16,
+            n_receivers=1,
+            config={"data-version": 7},
+        )
+        receiver = z.receivers.r0
+        expected_scalar = {
+            "gain_metadata_valid": True,
+            "rssi_metadata_valid": True,
+            "gain_metadata_flags": 0x58013,
+            "stream_id": 0x123456789ABC,
+            "buffer_sequence": 7,
+            "sample_sequence": 7 * 16,
+            "gain_start_read_duration_ns": 1200,
+            "gain_end_read_duration_ns": 1300,
+            "rssi_start_read_duration_ns": 1400,
+            "rssi_end_read_duration_ns": 1500,
+        }
+        expected_2x = {
+            "gain_db_start": [20.0, 40.0],
+            "gain_db_end": [21.0, 40.0],
+            "rssi_db_start": [80.25, 81.5],
+            "rssi_db_end": [80.5, 81.75],
+            "gain_endpoints_equal": [False, True],
+            "first_gain_change_sample": [-1, -1],
+            "iq_power_dbfs": [-18.5, -19.0],
+        }
+        for key in v7rx_scalar_keys:
+            receiver[key][1] = expected_scalar[key]
+        for key in v7rx_2x_keys:
+            receiver[key][1] = expected_2x[key]
+
+        assert z.attrs["radio_metadata_schema_version"] == 2
+        for key in v7rx_scalar_keys:
+            assert receiver[key][1] == expected_scalar[key]
+        for key in v7rx_2x_keys:
             np.testing.assert_allclose(receiver[key][1], expected_2x[key])

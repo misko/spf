@@ -48,6 +48,13 @@ class PlutoRxBuffer:
     gain_end_read_duration_ns: int
     first_gain_change_sample: np.ndarray
     iq_power_dbfs: np.ndarray
+    gain_db_start: np.ndarray
+    gain_db_end: np.ndarray
+    rssi_db_start: np.ndarray
+    rssi_db_end: np.ndarray
+    rssi_metadata_valid: bool
+    rssi_start_read_duration_ns: int
+    rssi_end_read_duration_ns: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -136,6 +143,13 @@ def _legacy_rx_buffer(signal_matrix, rssis, gains) -> PlutoRxBuffer:
         gain_end_read_duration_ns=0,
         first_gain_change_sample=np.full(2, -1, dtype=np.int32),
         iq_power_dbfs=_iq_power_dbfs(signal_matrix),
+        gain_db_start=np.asarray(gains, dtype=np.float32),
+        gain_db_end=np.asarray(gains, dtype=np.float32),
+        rssi_db_start=np.asarray(rssis, dtype=np.float32),
+        rssi_db_end=np.asarray(rssis, dtype=np.float32),
+        rssi_metadata_valid=False,
+        rssi_start_read_duration_ns=0,
+        rssi_end_read_duration_ns=0,
     )
 
 
@@ -144,9 +158,9 @@ def bladerf_serial_to_info():
         serial_to_uri = {}
         for dev in _bladerf.get_device_list():
             dev_dict = dev._asdict()
-            serial_to_uri[dev_dict["serial"].decode()] = (
-                f'bladerf://libusb:device={dev_dict["usb_bus"]}:{dev_dict["usb_addr"]}'
-            )
+            serial_to_uri[
+                dev_dict["serial"].decode()
+            ] = f'bladerf://libusb:device={dev_dict["usb_bus"]}:{dev_dict["usb_addr"]}'
         return serial_to_uri
     except _bladerf.BladeRFError:
         print("No bladeRF devices found.")
@@ -292,9 +306,7 @@ def rx_config_from_receiver_yaml(receiver_yaml):
     if len(gains) != 2:
         raise ValueError("rx-gains must contain exactly RX1 and RX2 values")
     if len(gain_control_modes) != 2:
-        raise ValueError(
-            "rx-gain-modes must contain exactly RX1 and RX2 values"
-        )
+        raise ValueError("rx-gain-modes must contain exactly RX1 and RX2 values")
     direct_usb_port_path = direct_usb.get("port-path")
     if direct_usb_port_path is not None:
         direct_usb_port_path = tuple(int(part) for part in direct_usb_port_path)
@@ -319,12 +331,8 @@ def rx_config_from_receiver_yaml(receiver_yaml):
         ),
         rx_transport=receiver_yaml.get("rx-transport", "iio"),
         direct_usb_protocol_version=direct_usb.get("protocol-version", 1),
-        direct_usb_frame_count_per_request=direct_usb.get(
-            "frame-count-per-request", 1
-        ),
-        direct_usb_require_gain_metadata=direct_usb.get(
-            "require-gain-metadata", True
-        ),
+        direct_usb_frame_count_per_request=direct_usb.get("frame-count-per-request", 1),
+        direct_usb_require_gain_metadata=direct_usb.get("require-gain-metadata", True),
         direct_usb_serial=direct_usb.get("serial"),
         direct_usb_port_path=direct_usb_port_path,
     )
@@ -824,9 +832,7 @@ class PPlus:
 
         if isinstance(metadata, RadioMetadataV2):
             self._cache_direct_legacy_values(metadata)
-            return _legacy_rx_buffer(
-                signal_matrix, self._last_direct_rssis, self._last_direct_gains
-            )
+            return self._direct_v2_rx_buffer(signal_matrix, metadata)
 
         return self._direct_v1_rx_buffer(signal_matrix, metadata)
 
@@ -861,12 +867,8 @@ class PPlus:
             raise RuntimeError("direct USB frame has invalid gain metadata")
         if not metadata.rssi_metadata_valid:
             raise RuntimeError("direct USB frame has invalid RSSI metadata")
-        self._last_direct_gains = np.asarray(
-            metadata.gain_db_end, dtype=np.float64
-        )
-        self._last_direct_rssis = np.asarray(
-            metadata.rssi_db_end, dtype=np.float64
-        )
+        self._last_direct_gains = np.asarray(metadata.gain_db_end, dtype=np.float64)
+        self._last_direct_rssis = np.asarray(metadata.rssi_db_end, dtype=np.float64)
         self._last_direct_metadata = metadata
 
     def _direct_v1_rx_buffer(self, signal_matrix, metadata):
@@ -891,9 +893,7 @@ class PPlus:
             signal_matrix=signal_matrix,
             rssis=np.full(2, np.nan, dtype=np.float64),
             gains=np.full(2, np.nan, dtype=np.float64),
-            gain_index_start=np.asarray(
-                metadata.gain_index_start, dtype=np.uint8
-            ),
+            gain_index_start=np.asarray(metadata.gain_index_start, dtype=np.uint8),
             gain_index_end=np.asarray(metadata.gain_index_end, dtype=np.uint8),
             gain_metadata_valid=metadata.gain_metadata_valid,
             gain_endpoints_equal=np.asarray(
@@ -907,6 +907,52 @@ class PPlus:
             gain_end_read_duration_ns=metadata.gain_end_read_duration_ns,
             first_gain_change_sample=first_change,
             iq_power_dbfs=_iq_power_dbfs(signal_matrix),
+            gain_db_start=np.full(2, np.nan, dtype=np.float32),
+            gain_db_end=np.full(2, np.nan, dtype=np.float32),
+            rssi_db_start=np.full(2, np.nan, dtype=np.float32),
+            rssi_db_end=np.full(2, np.nan, dtype=np.float32),
+            rssi_metadata_valid=False,
+            rssi_start_read_duration_ns=0,
+            rssi_end_read_duration_ns=0,
+        )
+
+    def _direct_v2_rx_buffer(self, signal_matrix, metadata):
+        first_change = np.array(
+            [
+                -1
+                if metadata.rx1_first_change_sample == 0xFFFFFFFF
+                else metadata.rx1_first_change_sample,
+                -1
+                if metadata.rx2_first_change_sample == 0xFFFFFFFF
+                else metadata.rx2_first_change_sample,
+            ],
+            dtype=np.int32,
+        )
+        return PlutoRxBuffer(
+            signal_matrix=signal_matrix,
+            rssis=np.asarray(metadata.rssi_db_end, dtype=np.float64),
+            gains=np.asarray(metadata.gain_db_end, dtype=np.float64),
+            gain_index_start=np.full(2, 0xFF, dtype=np.uint8),
+            gain_index_end=np.full(2, 0xFF, dtype=np.uint8),
+            gain_metadata_valid=metadata.gain_metadata_valid,
+            gain_endpoints_equal=np.asarray(
+                metadata.gain_endpoints_equal, dtype=np.bool_
+            ),
+            gain_metadata_flags=int(metadata.flags),
+            stream_id=metadata.stream_id,
+            buffer_sequence=metadata.buffer_sequence,
+            sample_sequence=metadata.first_sample_sequence,
+            gain_start_read_duration_ns=metadata.gain_start_read_duration_ns,
+            gain_end_read_duration_ns=metadata.gain_end_read_duration_ns,
+            first_gain_change_sample=first_change,
+            iq_power_dbfs=_iq_power_dbfs(signal_matrix),
+            gain_db_start=np.asarray(metadata.gain_db_start, dtype=np.float32),
+            gain_db_end=np.asarray(metadata.gain_db_end, dtype=np.float32),
+            rssi_db_start=np.asarray(metadata.rssi_db_start, dtype=np.float32),
+            rssi_db_end=np.asarray(metadata.rssi_db_end, dtype=np.float32),
+            rssi_metadata_valid=metadata.rssi_metadata_valid,
+            rssi_start_read_duration_ns=metadata.rssi_start_read_duration_ns,
+            rssi_end_read_duration_ns=metadata.rssi_end_read_duration_ns,
         )
 
     def soft_reset_radio(self):
@@ -1160,9 +1206,7 @@ class PPlus:
 
     def _open_direct_rx(self):
         if self.rx_config.direct_usb_protocol_version not in (1, 2):
-            raise ValueError(
-                "SPF supports direct USB metadata protocol v1 or v2"
-            )
+            raise ValueError("SPF supports direct USB metadata protocol v1 or v2")
         if self.rx_config.direct_usb_frame_count_per_request != 1:
             raise ValueError(
                 "the synchronous direct USB receiver requires "

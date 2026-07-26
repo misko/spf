@@ -20,6 +20,8 @@ readonly IMAGE_PATH="${CACHE_ROOT}/${ASSET_NAME}"
 readonly SSH_HOST="${SPF_PLUTO_SSH_HOST:-192.168.2.1}"
 readonly SSH_PASSWORD="${SPF_PLUTO_SSH_PASSWORD:-analog}"
 readonly SSH_CONFIG="${SCRIPT_DIR}/ssh_config"
+readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../../.." && pwd)"
+readonly MULTI_LOADER="${REPO_ROOT}/spf/scripts/pluto_multi_firmware.py"
 
 usage() {
     cat <<EOF
@@ -31,11 +33,17 @@ Commands:
   load       Back up device state, then load the verified image into RAM.
   verify     Require the direct-USB firmware, interface, and daemons.
   rollback   Reboot into the unchanged firmware stored in QSPI.
+  load-all N      RAM-load and verify exactly N attached Plutos by serial/path.
+  verify-all N    Verify exactly N RAM-loaded direct-USB Plutos.
+  rollback-all N  Reset exactly N Plutos into unchanged QSPI firmware.
+  status-all N    Show serial/path/direct-USB status for N expected Plutos.
 
 Safety:
   load and rollback require exactly one attached Pluto. The image is loaded
   into RAM with dfu-util; this script never flashes QSPI. A power cycle also
   restores the installed QSPI firmware.
+  Multi-radio mutation commands require root so each duplicate USB-network
+  address can be isolated in a temporary network namespace.
 
 Overrides:
   SPF_PLUTO_SSH_HOST          Pluto USB-network address (default: 192.168.2.1)
@@ -340,6 +348,29 @@ rollback_firmware() {
     show_status
 }
 
+run_multi_loader() {
+    local command="$1"
+    local expected_count="$2"
+
+    [[ "$expected_count" =~ ^[1-9][0-9]*$ ]] ||
+        die "Expected Pluto count must be a positive integer."
+    require_command python3
+    [[ -f "$MULTI_LOADER" ]] ||
+        die "Multi-radio loader is missing: ${MULTI_LOADER}"
+    if [[ "$command" == "load-all" ]]; then
+        download_image
+        verify_image "$IMAGE_PATH"
+    fi
+    python3 "$MULTI_LOADER" \
+        "$command" \
+        --image "$IMAGE_PATH" \
+        --image-sha256 "$IMAGE_SHA256" \
+        --ssh-config "$SSH_CONFIG" \
+        --ssh-password "$SSH_PASSWORD" \
+        --state-root "$STATE_ROOT" \
+        --expected-count "$expected_count"
+}
+
 main() {
     local command="${1:-}"
 
@@ -363,6 +394,10 @@ main() {
         rollback)
             [[ "$#" -eq 1 ]] || die "rollback takes no arguments."
             rollback_firmware
+            ;;
+        load-all|verify-all|rollback-all|status-all)
+            [[ "$#" -eq 2 ]] || die "${command} requires the expected Pluto count."
+            run_multi_loader "$command" "$2"
             ;;
         -h|--help|help)
             usage

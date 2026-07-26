@@ -9,7 +9,11 @@ from datetime import datetime
 import yaml
 from pymavlink import mavutil
 
-from spf.data_collector import DroneDataCollectorRaw, DroneDataCollectorRawV6
+from spf.data_collector import (
+    DroneDataCollectorRaw,
+    DroneDataCollectorRawV6,
+    DroneDataCollectorRawV7,
+)
 from spf.dataset.spf_dataset import training_only_keys, v5inferencedataset
 from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
@@ -38,9 +42,9 @@ def yaml_defaults(yaml_config, device_mapping_fn):
             if len(mapping) == 2:
                 port_to_uri[int(mapping[0])] = f"pluto://usb:1.{mapping[1]}.5"
             elif len(mapping) == 3:
-                port_to_uri[int(mapping[0])] = (
-                    f"pluto://usb:{mapping[1]}.{mapping[2]}.5"
-                )
+                port_to_uri[
+                    int(mapping[0])
+                ] = f"pluto://usb:{mapping[1]}.{mapping[2]}.5"
             else:
                 raise ValueError("port mapping invalid")
 
@@ -78,17 +82,13 @@ def validate_transport_schema(yaml_config):
         if receiver.get("rx-transport", "iio") == "direct_usb"
     ]
     for receiver in direct_receivers:
-        protocol_version = receiver.get("direct-usb", {}).get(
-            "protocol-version", 1
-        )
+        protocol_version = receiver.get("direct-usb", {}).get("protocol-version", 1)
         if protocol_version == 1 and yaml_config["data-version"] != 6:
+            raise ValueError("direct_usb protocol v1 requires data-version: 6")
+        if protocol_version == 2 and yaml_config["data-version"] not in (4, 7):
             raise ValueError(
-                "direct_usb protocol v1 requires data-version: 6"
-            )
-        if protocol_version == 2 and yaml_config["data-version"] != 4:
-            raise ValueError(
-                "direct_usb protocol v2 compatibility capture requires "
-                "data-version: 4"
+                "direct_usb protocol v2 requires data-version: 4 "
+                "(compatibility) or 7 (full metadata)"
             )
         if protocol_version not in (1, 2):
             raise ValueError(
@@ -200,7 +200,6 @@ def parse_args():
 
 
 if __name__ == "__main__":
-
     args = parse_args()
     run_started_at = datetime.now().timestamp()  #
 
@@ -307,7 +306,7 @@ if __name__ == "__main__":
             vehicle_type="rover",
             skip_segmentation=True,
             skip_detrend=False,
-            max_store_size=3, # needs to process fast enough otherwise delayed
+            max_store_size=3,  # needs to process fast enough otherwise delayed
         )
         nn_ds = v5spfdataset_nn_wrapper(
             v5inf,
@@ -328,6 +327,13 @@ if __name__ == "__main__":
         )
     elif yaml_config["data-version"] == 6:
         data_collector = DroneDataCollectorRawV6(
+            realtime_v5inf=v5inf if args.realtime else None,
+            data_filename=temp_filenames["data"] if args.write_to_disk else None,
+            yaml_config=yaml_config,
+            position_controller=drone,
+        )
+    elif yaml_config["data-version"] == 7:
+        data_collector = DroneDataCollectorRawV7(
             realtime_v5inf=v5inf if args.realtime else None,
             data_filename=temp_filenames["data"] if args.write_to_disk else None,
             yaml_config=yaml_config,

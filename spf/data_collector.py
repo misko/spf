@@ -10,7 +10,8 @@ from concurrent import futures
 from typing import Any, Dict, Optional
 import concurrent.futures
 import numpy as np
-#from attr import dataclass
+
+# from attr import dataclass
 from dataclasses import dataclass, asdict
 
 from tqdm import tqdm
@@ -18,8 +19,15 @@ from tqdm import tqdm
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.dataset.v6_data import v6rx_2x_keys, v6rx_scalar_keys, v6rx_new_dataset
+from spf.dataset.v7_data import v7rx_2x_keys, v7rx_scalar_keys, v7rx_new_dataset
 from spf.dataset.wall_array_v2_idxs import v2_column_names
-from spf.rf import beamformer_given_steering, get_avg_phase, get_avg_phase_fast, get_avg_phase_fast2,  precompute_steering_vectors
+from spf.rf import (
+    beamformer_given_steering,
+    get_avg_phase,
+    get_avg_phase_fast,
+    get_avg_phase_fast2,
+    precompute_steering_vectors,
+)
 from spf.scripts.zarr_utils import zarr_shrink
 from spf.sdrpluto.sdr_controller import (
     EmitterConfig,
@@ -105,6 +113,7 @@ class ProcessPoolExecutorWithQueueSizeLimit:
         self._executor.shutdown(wait=wait)
 
         # Add context manager methods:
+
     def __enter__(self):
         return self
 
@@ -155,6 +164,17 @@ class DataSnapshotV6(DataSnapshotV4):
     gain_end_read_duration_ns: int = 0
     first_gain_change_sample: Optional[np.ndarray] = None
     iq_power_dbfs: Optional[np.ndarray] = None
+
+
+@dataclass
+class DataSnapshotV7(DataSnapshotV6):
+    gain_db_start: Optional[np.ndarray] = None
+    gain_db_end: Optional[np.ndarray] = None
+    rssi_db_start: Optional[np.ndarray] = None
+    rssi_db_end: Optional[np.ndarray] = None
+    rssi_metadata_valid: bool = False
+    rssi_start_read_duration_ns: int = 0
+    rssi_end_read_duration_ns: int = 0
 
 
 @dataclass
@@ -214,7 +234,6 @@ def prepare_record_entry_v2(ds: DataSnapshot, rx_pos: np.array, tx_pos: np.array
 def data_to_snapshot(
     current_time, signal_matrix, steering_vectors, rssis, gains, rx_config
 ):
-
     beam_sds = beamformer_given_steering(
         steering_vectors=steering_vectors, signal_matrix=signal_matrix
     )
@@ -335,7 +354,7 @@ class ThreadedRX:
         if sdr_rx is None:
             raise ValueError("SDR RX is None, aborting.")
         # process the data
-        signal_matrix = np.vstack(sdr_rx["signal_matrix"],dtype=np.complex64)
+        signal_matrix = np.vstack(sdr_rx["signal_matrix"], dtype=np.complex64)
         current_time = time.time() - self.time_offset  # timestamp
 
         return data_to_snapshot(
@@ -350,14 +369,13 @@ class ThreadedRX:
 
 class ThreadedRXRaw(ThreadedRX):
     def get_data(self):
-
         sdr_rx = self.get_rx()
 
         # process the data
         signal_matrix = np.vstack(sdr_rx["signal_matrix"]).astype(np.complex64)
         current_time = time.time() - self.time_offset  # timestamp after sample arrives
 
-        avg_phase_diff =get_avg_phase_fast2(signal_matrix)
+        avg_phase_diff = get_avg_phase_fast2(signal_matrix)
         assert self.pplus.rx_config.rx_spacing > 0.001
         snapshot_kwargs = dict(
             signal_matrix=signal_matrix,
@@ -380,14 +398,20 @@ class ThreadedRXRaw(ThreadedRX):
                 stream_id=sdr_rx["stream_id"],
                 buffer_sequence=sdr_rx["buffer_sequence"],
                 sample_sequence=sdr_rx["sample_sequence"],
-                gain_start_read_duration_ns=sdr_rx[
-                    "gain_start_read_duration_ns"
-                ],
-                gain_end_read_duration_ns=sdr_rx[
-                    "gain_end_read_duration_ns"
-                ],
+                gain_start_read_duration_ns=sdr_rx["gain_start_read_duration_ns"],
+                gain_end_read_duration_ns=sdr_rx["gain_end_read_duration_ns"],
                 first_gain_change_sample=sdr_rx["first_gain_change_sample"],
                 iq_power_dbfs=sdr_rx["iq_power_dbfs"],
+            )
+        if issubclass(self.snapshot_class, DataSnapshotV7):
+            snapshot_kwargs.update(
+                gain_db_start=sdr_rx["gain_db_start"],
+                gain_db_end=sdr_rx["gain_db_end"],
+                rssi_db_start=sdr_rx["rssi_db_start"],
+                rssi_db_end=sdr_rx["rssi_db_end"],
+                rssi_metadata_valid=sdr_rx["rssi_metadata_valid"],
+                rssi_start_read_duration_ns=sdr_rx["rssi_start_read_duration_ns"],
+                rssi_end_read_duration_ns=sdr_rx["rssi_end_read_duration_ns"],
             )
         return self.snapshot_class(**snapshot_kwargs)
 
@@ -427,6 +451,12 @@ class ThreadedRXRawV6(ThreadedRXRaw):
                 time.sleep(0.1)
                 tries += 1
         return None
+
+
+class ThreadedRXRawV7(ThreadedRXRawV6):
+    def __init__(self, **kwargs):
+        self.snapshot_class = DataSnapshotV7
+        ThreadedRXRaw.__init__(self, **kwargs)
 
 
 class DataCollector:
@@ -601,9 +631,7 @@ class DataCollector:
 
     def run_inner_collector_thread(self):
         futures = []
-        with ThreadPoolExecutorWithQueueSizeLimit(
-            max_workers=2, maxsize=1
-        ) as executor:
+        with ThreadPoolExecutorWithQueueSizeLimit(max_workers=2, maxsize=1) as executor:
             for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
                 for read_thread_idx, read_thread in enumerate(self.read_threads):
                     data = read_thread.read_q.get()
@@ -664,7 +692,7 @@ class DroneDataCollectorRaw(DataCollector):
             thread_class=ThreadedRXRawV4,
             **kwargs,
         )
-        self.realtime_v5inf=realtime_v5inf
+        self.realtime_v5inf = realtime_v5inf
 
     def setup_record_matrix(self):
         if self.data_filename is not None:
@@ -700,15 +728,18 @@ class DroneDataCollectorRaw(DataCollector):
         data.gps_lat = current_pos_heading_and_time["gps"][1]
         data.gps_timestamp = current_pos_heading_and_time["gps_time"]
         if self.realtime_v5inf is not None:
-            data_dict=asdict(data)
-            data_dict['signal_matrix']=data_dict['signal_matrix'].reshape(1,1,*data_dict['signal_matrix'].shape).astype(np.complex64)
+            data_dict = asdict(data)
+            data_dict["signal_matrix"] = (
+                data_dict["signal_matrix"]
+                .reshape(1, 1, *data_dict["signal_matrix"].shape)
+                .astype(np.complex64)
+            )
             self.realtime_v5inf.write_to_idx(record_idx, thread_idx, data_dict)
         if self.data_filename is not None:
             z = self.zarr[f"receivers/r{thread_idx}"]
             z.signal_matrix[record_idx] = data.signal_matrix
             for k in v4rx_f64_keys + v4rx_2xf64_keys:
                 z[k][record_idx] = getattr(data, k)  # getattr(data, k)
-
 
     def close(self):
         if self.data_filename is not None:
@@ -756,6 +787,47 @@ class DroneDataCollectorRawV6(DroneDataCollectorRaw):
         for key in v6rx_scalar_keys:
             receiver_z[key][record_idx] = getattr(data, key)
         for key in v6rx_2x_keys:
+            receiver_z[key][record_idx] = getattr(data, key)
+
+
+class DroneDataCollectorRawV7(DroneDataCollectorRaw):
+    """Rover collector for protocol v2 gain/RSSI and stream metadata."""
+
+    def __init__(self, realtime_v5inf, *args, **kwargs):
+        DataCollector.__init__(
+            self,
+            *args,
+            thread_class=ThreadedRXRawV7,
+            **kwargs,
+        )
+        self.realtime_v5inf = realtime_v5inf
+
+    def setup_record_matrix(self):
+        if self.data_filename is None:
+            return
+        buffer_sizes = {
+            receiver["buffer-size"] for receiver in self.yaml_config["receivers"]
+        }
+        if len(buffer_sizes) != 1:
+            raise ValueError("all receivers must use one buffer size")
+        self.zarr = v7rx_new_dataset(
+            filename=self.data_filename,
+            timesteps=self.yaml_config["n-records-per-receiver"],
+            buffer_size=buffer_sizes.pop(),
+            n_receivers=len(self.yaml_config["receivers"]),
+            chunk_size=512,
+            compressor=None,
+            config=self.yaml_config,
+        )
+
+    def write_to_record_matrix(self, thread_idx, record_idx, data):
+        super().write_to_record_matrix(thread_idx, record_idx, data)
+        if self.data_filename is None:
+            return
+        receiver_z = self.zarr[f"receivers/r{thread_idx}"]
+        for key in v7rx_scalar_keys:
+            receiver_z[key][record_idx] = getattr(data, key)
+        for key in v7rx_2x_keys:
             receiver_z[key][record_idx] = getattr(data, key)
 
 

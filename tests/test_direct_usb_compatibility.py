@@ -107,6 +107,24 @@ def test_cached_values_are_not_exposed_for_mutation():
     np.testing.assert_array_equal(pplus.rssis(), [100.75, 101.0])
 
 
+def test_v2_metadata_result_preserves_legacy_and_stream_values():
+    pplus = _pplus_with_v2_frame()
+
+    result = pplus.rx_with_metadata()
+
+    np.testing.assert_array_equal(result.gains, [20.0, 40.0])
+    np.testing.assert_array_equal(result.rssis, [100.75, 101.0])
+    np.testing.assert_array_equal(result.gain_db_start, [20.0, 40.0])
+    np.testing.assert_array_equal(result.gain_db_end, [20.0, 40.0])
+    np.testing.assert_array_equal(result.rssi_db_start, [100.25, 100.5])
+    np.testing.assert_array_equal(result.rssi_db_end, [100.75, 101.0])
+    assert result.gain_metadata_valid
+    assert result.rssi_metadata_valid
+    assert result.stream_id == 1
+    assert result.buffer_sequence == 0
+    assert result.sample_sequence == 0
+
+
 def test_compatibility_values_fail_closed_before_first_frame():
     pplus = _pplus_with_v2_frame()
     for accessor in (pplus.gains, pplus.rssis):

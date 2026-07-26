@@ -1,6 +1,6 @@
 import numpy as np
 
-from spf.data_collector import ThreadedRXRawV6
+from spf.data_collector import ThreadedRXRawV6, ThreadedRXRawV7
 from spf.sdrpluto.sdr_controller import (
     PlutoRxBuffer,
     ReceiverConfig,
@@ -40,6 +40,13 @@ class _DirectOnlyPPlus:
             gain_end_read_duration_ns=1200,
             first_gain_change_sample=np.array([-1, -1], dtype=np.int32),
             iq_power_dbfs=np.array([-30.0, -30.0], dtype=np.float32),
+            gain_db_start=np.array([20.0, 40.0], dtype=np.float32),
+            gain_db_end=np.array([20.0, 40.0], dtype=np.float32),
+            rssi_db_start=np.array([80.0, 81.0], dtype=np.float32),
+            rssi_db_end=np.array([80.25, 81.25], dtype=np.float32),
+            rssi_metadata_valid=True,
+            rssi_start_read_duration_ns=1300,
+            rssi_end_read_duration_ns=1400,
         )
 
     def rssis(self):
@@ -64,6 +71,26 @@ def test_direct_collector_hot_path_preserves_metadata_without_attribute_reads():
     np.testing.assert_array_equal(snapshot.gain_index_start, [42, 43])
     np.testing.assert_array_equal(snapshot.gain_index_end, [41, 43])
     np.testing.assert_array_equal(snapshot.gain_endpoints_equal, [False, True])
+    assert snapshot.stream_id == 123
+    assert snapshot.buffer_sequence == 9
+    assert snapshot.sample_sequence == 72
+
+
+def test_v7_collector_preserves_gain_rssi_and_stream_metadata():
+    reader = ThreadedRXRawV7(
+        pplus=_DirectOnlyPPlus(),
+        time_offset=0,
+        nthetas=65,
+    )
+
+    snapshot = reader.get_data()
+
+    np.testing.assert_array_equal(snapshot.gains, [np.nan, np.nan])
+    np.testing.assert_array_equal(snapshot.rssis, [np.nan, np.nan])
+    np.testing.assert_array_equal(snapshot.gain_db_end, [20.0, 40.0])
+    np.testing.assert_array_equal(snapshot.rssi_db_end, [80.25, 81.25])
+    assert snapshot.gain_metadata_valid
+    assert snapshot.rssi_metadata_valid
     assert snapshot.stream_id == 123
     assert snapshot.buffer_sequence == 9
     assert snapshot.sample_sequence == 72
