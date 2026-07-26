@@ -253,7 +253,13 @@ Base ArduPilot param block (`spf/ardupilot/ardupilot_setup.md`): `RC1/2_MAX 2006
 
 ## 4. Update flow (boot-time self-update)
 
-On every boot systemd runs `drone_run.sh` (unit `mavlink_controller.service`, `ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/drone_run.sh`, `After/Wants network-online.target`). With **no args**, `drone_run.sh` self-updates before the mission loop:
+On every production boot systemd runs `drone_run.sh` (unit
+`mavlink_controller.service`,
+`ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/drone_run.sh`,
+`After/Wants network-online.target`). The root-managed
+`/etc/spf/rover_collection.env` selects the capture profile and bounded test
+overrides. Unless `SPF_SKIP_SELF_UPDATE=1`, the launcher self-updates before the
+mission loop:
 
 ```bash
 sleep 10; ping -c 1 8.8.8.8                                                   # internet gate; skip whole update block if no net
@@ -264,24 +270,27 @@ pushd /home/pi/spf; current_hash=`git rev-parse --short HEAD`; git pull; new_has
 # else:            pip install -e ${repo_root}  and continue
 ```
 
-Gates: the update block is skipped entirely if `ping -c 1 8.8.8.8` fails **or** if `drone_run.sh` is called with args (manual/tethered mode). A `reboot` fires **only** if the short HEAD changed across `git pull`; a 15 s sleep gives an operator time to Ctrl-C.
+If the ping fails, collection continues with the checked-out code. A changed
+HEAD causes the historical 15-second interrupt window followed by a reboot.
+The stale `data_collection_model_and_results/` paths in the production launcher
+were repaired; update pulls are now `--ff-only`, and vehicle parameter
+differences fail closed.
 
-**Known broken paths (would fail on a real Pi):** the update/params/service/ssh steps reference the **non-existent** `data_collection_model_and_results/` directory (real dir is `data_collection/`). Affected: `drone_run.sh` lines 11, 21, 30, 47; `debug_drone_run.sh` line 9; `setup.sh` line 164. `drone_run.sh` is internally inconsistent — its Pluto/capture-config lines correctly use `data_collection/`. Fix these paths before relying on the auto-update.
+### 4.1 Direct-USB qualification and production boot
 
-### 4.1 Opt-in direct-USB qualification boot
+There are two mutually exclusive direct-USB modes.
 
-The direct-USB qualification boot is mutually exclusive with the production
-mission service above. It is motion-free and writes one validated 100-frame
-Rover 1 v7 capture after preparing both radios:
+Qualification is motion-free and writes one validated 100-frame Rover 1 v7
+capture after preparing both radios:
 
 ```bash
 cd /home/pi/spf
-sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh enable
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh qualify
 sudoedit /etc/spf/direct_usb_boot.env
 sudo reboot
 ```
 
-`configure_direct_usb_boot.sh enable` stops/disables
+`enable` remains an alias for `qualify`. Qualification stops/disables
 `mavlink_controller.service`, installs and enables:
 
 - `spf-pluto-direct-usb.service`, a root oneshot that verifies AD9361/2r2t,
@@ -302,6 +311,39 @@ systemctl status spf-pluto-direct-usb.service \
 cat /run/spf/direct_usb_ready
 ```
 
+Production restores the historical real-MAVLink mission loop. Choose the Zarr
+schema, review both environment files, and perform the first reboot with the
+read-only vehicle gate enabled:
+
+```bash
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  production-v4                    # or production-v7
+sudoedit /etc/spf/rover_collection.env
+# First reboot only:
+# SPF_SKIP_SELF_UPDATE=1
+# SPF_BOOT_VALIDATE_ONLY=1
+sudo reboot
+```
+
+Direct production enables the loader and `mavlink_controller.service`, disables
+the 100-frame preflight, and installs a systemd dependency so the mission
+launcher cannot run before radio preparation succeeds. It does not start the
+motion-capable service immediately. `direct_usb_v4` preserves the legacy v4
+Zarr surface; `direct_usb_v7` stores the full frame endpoint metadata.
+
+Inspect the resolved mission without accessing hardware:
+
+```bash
+data_collection/rover/rover_v3.1/drone_run.sh --print-plan
+```
+
+With `SPF_BOOT_VALIDATE_ONLY=1`, a boot verifies both radios and a real MAVLink
+heartbeat, requires `armed=false`, then exits before parameter writes,
+collection, planning, arming, or motion. Once this passes and the assembled
+Rover is physically safe to move, set `SPF_BOOT_VALIDATE_ONLY=0`. The next boot
+uses the original Rover routine, record count, real serial MAVLink source, and
+infinite repeat cadence.
+
 The loader is idempotent. A Pi reboot can leave USB power and Pluto RAM
 resident; it verifies and skips a redundant DFU load. A full Rover power cycle
 returns each Pluto to its unchanged QSPI image and exercises the load path.
@@ -321,14 +363,22 @@ sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
   restore-legacy
 ```
 
-Rover 1 passed this reboot, rollback, restoration, and two-radio v7 flow on
+Rover 1 passed two-radio 100-frame v4 and v7 captures, profile rollback,
+loader-before-launcher service execution, and a validation-only real reboot on
 2026-07-26. That result does not qualify Rover 2 or Rover 3 automatically.
 
 ---
 
 ## 5. Running a real field mission
 
-The mission is the args-less branch of `drone_run.sh` (auto-run by the service on boot). After the update block it: enforces params, syncs GPS time, pins CPU governor, waits for the expected radio count, conditions the Plutos, then runs an **infinite capture loop**.
+The mission is the default branch of `drone_run.sh` (auto-run by the service on
+boot). It validates the selected profile before hardware access. In direct mode
+the systemd loader has already RAM-booted and verified every radio, regenerated
+`~/device_mapping`, and written `/run/spf/direct_usb_ready`; the launcher
+verifies that stamp and never calls the duplicate-IP-sensitive legacy
+`check_and_set_pluto.sh`. In legacy mode it retains the old Pluto conditioning
+path. It then enforces params, syncs GPS time, pins the CPU governor, and runs
+an **infinite capture loop**.
 
 ```bash
 # param enforce (load then diff-verify)
@@ -349,7 +399,8 @@ while true; do
   python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer failure; sleep 15
 done
 
-bash ${repo_root}/data_collection/rover/rover_v3.1/check_and_set_pluto.sh    # ad9361/2r2t + regen ~/device_mapping
+# legacy_iio_v4 only:
+bash ${repo_root}/data_collection/rover/rover_v3.1/check_and_set_pluto.sh
 
 # the infinite capture loop (per-rover config/routine/n)
 python3 ${repo_root}/spf/mavlink_radio_collection.py -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n ${n}
@@ -363,9 +414,15 @@ python3 ${repo_root}/spf/mavlink_radio_collection.py -c ${config} -m /home/pi/de
 | Rover 2 | 2 | 192.168.1.42 | `circle` | `rover_single_receiver_config_pi_3mhz.yaml` | 3500 | 1 | 32 |
 | Rover 3 | 3 | 192.168.1.43 | `bounce` | `rover_receiver_config_pi_3mhz_43mm.yaml` | 3000 | 2 | 39 |
 
-The **param gate does not abort**: a non-zero `--diff-params` prints "FAILED TO RESOLVE DIFFERENCES!!! running with incorrect params" but collection proceeds anyway — watch for it.
+Rover 1 direct profiles keep the same `bounce`, 3,000 records per receiver,
+two radios, 524,288-sample frame size, 30 MS/s device sample rate, 3 MHz
+bandwidth, and 0.5-second pacing. The v4 profile is
+`rover1_receiver_config_pi_3mhz_35mm_direct_usb_v2_v4.yaml`; v7 is
+`rover1_receiver_config_pi_3mhz_35mm_direct_usb_v2.yaml`.
 
-The tethered/manual branch (called **with** args) uses `--drone-uri tcp:192.168.1.141:14590 --no-ultrasonic` with `n=40` (`drone_run.sh:103`).
+The parameter gate now aborts if the post-load diff is nonzero. The only
+launcher arguments are explicit and bounded: `--print-plan`,
+`--boot-validate-only`, and `--once`; unknown arguments fail.
 
 Manual field launch outside the loop (real Plutos, real serial ArduPilot autodetect, ultrasonic on) — **DO NOT run casually**:
 
@@ -899,7 +956,7 @@ The CLI param path (`mavlink_controller.py --load-params/--diff-params`) runs **
 
 ## 13. Boot / update / debug / production sequences (detailed)
 
-> Line numbers reference `data_collection/rover/rover_v3.1/{drone_run.sh, debug_drone_run.sh, setup.sh, mavlink_controller.service}`. The **production** entry point is the systemd unit running `drone_run.sh` with **no arguments**; passing **any argument** switches to the tethered/skip-update path; `debug_drone_run.sh` is a separate stripped bench script.
+> Line numbers reference `data_collection/rover/rover_v3.1/{drone_run.sh, debug_drone_run.sh, setup.sh, mavlink_controller.service}`. The **production** entry point is the systemd unit running `drone_run.sh` with **no arguments**. The launcher accepts only `--print-plan`, `--boot-validate-only`, and `--once`; update and safety overrides live in `/etc/spf/rover_collection.env`. `debug_drone_run.sh` is a separate stripped bench script.
 
 ### 13.1 Boot decision flowchart
 

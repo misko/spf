@@ -8,6 +8,7 @@ WorkingDirectory=/home/pi/
 User=pi
 Group=pi
 Environment=PYTHONPATH=/home/pi/spf/
+EnvironmentFile=-/etc/spf/rover_collection.env
 ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/drone_run.sh
 
 [Install]

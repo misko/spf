@@ -1,6 +1,7 @@
 # Import mavutil
 import argparse
 import glob
+import json
 import logging
 import math
 import os
@@ -1032,6 +1033,13 @@ def get_mavlink_controller_parser():
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "--status-json",
+        type=str,
+        help="write one read-only heartbeat status snapshot and exit",
+        required=False,
+        default=None,
+    )
     return parser
 
 
@@ -1090,6 +1098,25 @@ def mavlink_controller_run(args):
     logging.info("Drone start()")
     drone.start()
     # upload_waypoints(connection)
+
+    if args.status_json is not None:
+        deadline = time.time() + 10
+        while drone.last_heartbeat == 0 and time.time() < deadline:
+            time.sleep(0.05)
+        if drone.last_heartbeat == 0:
+            logging.error("Timed out waiting for a processed heartbeat")
+            sys.exit(1)
+        status = {
+            "armed": bool(drone.armed),
+            "mav_mode": drone.mav_mode,
+            "mav_states": drone.mav_states,
+            "heartbeat_age_seconds": time.time() - drone.last_heartbeat,
+        }
+        with open(args.status_json, "w") as status_file:
+            json.dump(status, status_file, indent=2, sort_keys=True)
+            status_file.write("\n")
+        print(json.dumps(status, sort_keys=True))
+        sys.exit(0)
 
     if args.time_since_boot is not None:
         with open(args.time_since_boot, "w") as f:

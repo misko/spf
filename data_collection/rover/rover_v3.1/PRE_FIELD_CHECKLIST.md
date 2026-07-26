@@ -146,7 +146,7 @@ automatic reboot preflight, stock-QSPI rollback, and RAM-image restoration on
 still require their own committed physical configurations and per-Rover
 qualification before using direct USB in the field.
 
-### Rover 1 boot qualification mode
+### Rover 1 boot qualification and production modes
 
 The boot qualification workflow is deliberately separate from the
 motion-capable `mavlink_controller.service`. Enabling it installs two units:
@@ -163,12 +163,12 @@ Enable the mode without starting either capture immediately:
 
 ```bash
 cd /home/pi/spf
-sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh enable
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh qualify
 sudoedit /etc/spf/direct_usb_boot.env
 sudo reboot
 ```
 
-The enable command stops and disables `mavlink_controller.service`; this is a
+The qualify command stops and disables `mavlink_controller.service`; this is a
 safety requirement, because that legacy unit starts the production mission
 loop. After reboot:
 
@@ -214,6 +214,30 @@ sudo reboot
 
 `restore-legacy` enables but deliberately does not immediately start the
 motion-capable service.
+
+After qualification, restore the original production boot shape through direct
+USB without starting it immediately:
+
+```bash
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  production-v4                    # or production-v7
+sudoedit /etc/spf/rover_collection.env
+```
+
+For the first reboot set `SPF_SKIP_SELF_UPDATE=1` and
+`SPF_BOOT_VALIDATE_ONLY=1`. Pass only when:
+
+- the loader completes before `mavlink_controller.service`;
+- both serial/path identities appear in `/run/spf/direct_usb_ready`;
+- the old `spf-direct-usb-preflight.service` is disabled and creates no Zarr;
+- a real heartbeat reports MANUAL and `armed=false`; and
+- the launcher exits before parameter writes, collection, planner, arm, or
+  motion.
+
+When the Rover is physically safe to move and the normal MANUAL→GUIDED operator
+procedure is ready, set `SPF_BOOT_VALIDATE_ONLY=0`. `direct_usb_v4` then retains
+the existing v4 Zarr API; `direct_usb_v7` writes full endpoint metadata. Both
+retain Rover 1's original two-radio `bounce`, 3,000-record, repeating mission.
 
 ## 2. Release-level software gates
 
@@ -512,10 +536,17 @@ Before leaving:
 - [ ] New-firmware Rovers passed RAM boot, metadata validation, and rollback.
 - [ ] Batteries, spare storage, cables, stock firmware, DFU recovery image,
       tools, and the rollback instructions are packed.
-- [ ] Exactly one boot workflow is enabled after bench work. For the legacy
-      IIO mission path, restore it only when motion is safe:
+- [ ] Exactly one boot workflow is enabled after bench work. Select direct v4,
+      direct v7, or legacy IIO without starting the mission immediately:
 
 ```bash
+# New firmware, existing v4 Zarr:
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  production-v4
+# New firmware, full v7 endpoint metadata:
+sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+  production-v7
+# Stock firmware / IIO rollback:
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
   restore-legacy
 # Start now only when the rover is safe to move; otherwise reboot in the field.

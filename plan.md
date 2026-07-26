@@ -2,6 +2,65 @@
 
 Date: 2026-07-25
 
+## Rover 1 production-boot restoration — 2026-07-26
+
+The qualification boot introduced while developing direct USB intentionally
+disabled the original mission loop and captured 100 fake-drone frames on every
+boot. Production boot now has the original operational shape again, with a
+recoverable radio-preparation dependency inserted before it.
+
+| Stage | Original production boot | Qualification boot before this change | Restored production boot |
+|---|---|---|---|
+| systemd entry | `mavlink_controller.service` | `spf-pluto-direct-usb` + 100-frame preflight | loader, then `mavlink_controller.service` |
+| radio firmware | stock QSPI / IIO | checksum-verified RAM direct USB | checksum-verified RAM direct USB |
+| radio mapping | legacy `check_and_set_pluto.sh` | regenerated after RAM boot | regenerated after RAM boot; launcher verifies ready stamp |
+| vehicle source | real serial MAVLink | fake drone | real serial MAVLink |
+| Rover 1 motion | `bounce`, MANUAL→GUIDED operator handshake | none | unchanged `bounce` and handshake |
+| records per receiver | 3,000 | 100 once | 3,000 |
+| radios | 2 | 2 | 2 |
+| repetition | forever; 8 s pause, GPS-time refresh, 2 s pause | once per boot | unchanged |
+| default Zarr | v4 | v7 | direct-USB v4 compatibility; v7 selectable |
+| metadata source | slow host IIO reads | per-frame Pluto metadata | per-frame Pluto metadata; no hot-path IIO reads |
+
+Profiles are explicit and validated before any radio or MAVLink action:
+
+- `legacy_iio_v4`: original per-Rover IIO configurations;
+- `direct_usb_v4`: original Rover 1 Zarr surface with gain/RSSI supplied from
+  the same direct-USB frame;
+- `direct_usb_v7`: full gain/RSSI endpoint metadata.
+
+### Discrete pass/fail gates
+
+1. **Profile gate — PASS.** Resolver proves config exists, receiver count,
+   transport, protocol, schema, routine, and record count. Unknown or
+   unqualified Rover/profile combinations fail before hardware access.
+2. **Unit gate — PASS.** Direct production requires and starts after
+   `spf-pluto-direct-usb.service`; the old preflight is disabled. Configuration
+   commands never start the motion-capable service immediately.
+3. **v4 hardware gate — PASS.** Rover 1 recorded and reopened 100 frames from
+   both Plutos. Both IQ arrays were `complex64[100,2,524288]`; gain/RSSI arrays
+   were finite `float64[100,2]`; serials and physical USB paths were distinct.
+   Median rates were 1.977 and 1.983 frames/s.
+4. **v7 hardware gate — PASS.** Rover 1 recorded and strictly validated 100
+   frames from both Plutos, including complete v2 metadata, serial/path
+   identity, sequence semantics, and nonzero finite IQ. Median rates were
+   1.916 and 1.924 frames/s.
+5. **real-MAVLink safety gate — PASS.** A read-only heartbeat reported
+   `ROVER_MODE_MANUAL`, `armed=false`, and `MAV_STATE_ACTIVE`; no planner or arm
+   command was sent.
+6. **boot-order gate — PASS.** A real reboot ran the loader first, verified both
+   serial/path identities and wrote the new mapping, then launched the
+   production profile. Validation-only mode stopped before parameter writes,
+   collection, planning, arming, or motion. No boot preflight Zarr was created.
+7. **mode/rollback gate — PASS.** `direct_usb_v7`, `legacy_iio_v4`, and
+   `direct_usb_v4` transitions all resolved correctly; legacy removes the
+   direct systemd dependency and direct production reinstalls it.
+8. **motion-capable production gate — OPERATOR GATE.** Set
+   `SPF_BOOT_VALIDATE_ONLY=0` only with the Rover physically safe to move and
+   the normal RC MANUAL→GUIDED procedure ready. This restores the repeating
+   3,000-frame mission; it was intentionally not armed during unattended bench
+   validation.
+
 Final evidence audit:
 
 ```text
