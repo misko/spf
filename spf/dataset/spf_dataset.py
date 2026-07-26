@@ -445,6 +445,21 @@ def data_single_radio_to_raw(d, ds):
     return {k: d[k] for k in list(set(v5_raw_keys) - set(ds.skip_fields))}
 
 
+def normalize_skip_fields(skip_fields) -> List[str]:
+    """Normalize a skip_fields argument into a fresh list of field names.
+
+    A bare string is a single field name, not a sequence of characters -- it must
+    be wrapped rather than iterated, otherwise list("signal_matrix") explodes into
+    13 one-character entries and every `"signal_matrix" not in self.skip_fields`
+    membership test silently flips to True.
+    """
+    if skip_fields is None:
+        return []
+    if isinstance(skip_fields, str):
+        return [skip_fields]
+    return list(skip_fields)
+
+
 class v5inferencedataset(Dataset):
     def __init__(
         self,
@@ -500,9 +515,7 @@ class v5inferencedataset(Dataset):
         self.windows_per_snapshot = windows_per_snapshot
 
         self.distance_normalization = distance_normalization
-        if skip_fields is None:
-            skip_fields = []
-        self.skip_fields = list(skip_fields)
+        self.skip_fields = normalize_skip_fields(skip_fields)
         self.skip_segmentation = skip_segmentation
         if self.skip_segmentation:
             self.skip_fields += segmentation_based_keys
@@ -886,9 +899,7 @@ class v5spfdataset(Dataset):
         self.distance_normalization = distance_normalization
         self.flip = flip
         self.double_flip = double_flip
-        if skip_fields is None:
-            skip_fields = []
-        self.skip_fields = list(skip_fields)
+        self.skip_fields = normalize_skip_fields(skip_fields)
         self.paired = paired
         self.gpu = gpu  # Whether to use GPU acceleration for beamforming calculations
         self.target_dtype = target_dtype
