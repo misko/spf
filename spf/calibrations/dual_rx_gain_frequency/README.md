@@ -49,6 +49,34 @@ python -m spf.calibrations.dual_rx_gain_frequency run \
   --output artifacts/dual_rx_gain_frequency/pilot
 ```
 
+For broad-band model discovery, qualify the three AD9361 gain-table regions
+before launching a large Cartesian scan:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency run \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/pilot_cross_band.yaml \
+  --output artifacts/dual_rx_gain_frequency/pilot_cross_band_RUN_NAME
+```
+
+The cross-band pilot covers 868/915 MHz, both sides of the 1.3 GHz table
+boundary, SPF's 2.412/2.467 GHz frequencies, both sides of the 4.0 GHz table
+boundary, and four 5.8 GHz anchors. If its stored-IQ validation passes, run the
+17-gain stage-focused Cartesian design:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency run \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/survey_cross_band.yaml \
+  --output artifacts/dual_rx_gain_frequency/survey_cross_band_RUN_NAME
+```
+
+Both frequency-block order and ordered gain-pair order are independently
+deterministic-randomized in each of three epochs. This is not random sparse
+sampling: every configured frequency receives the complete configured
+RX1-by-RX2 Cartesian grid, which keeps missing-cell and repeatability tests
+well-defined.
+
 Validate and fit each serial-specific dataset:
 
 ```bash

@@ -44,7 +44,10 @@ from spf.calibrations.dual_rx_gain_frequency.report import (
     render_markdown,
     write_analysis_bundle,
 )
-from spf.calibrations.dual_rx_gain_frequency.runner import run_calibration
+from spf.calibrations.dual_rx_gain_frequency.runner import (
+    load_calibration_document,
+    run_calibration,
+)
 from spf.calibrations.dual_rx_gain_frequency.validate import validate_dataset
 from spf.sdrpluto.direct_usb_protocol import MetadataFlags
 from spf.sdrpluto.sdr_controller import PlutoRxBuffer, SdrDeviceIdentity
@@ -902,6 +905,67 @@ def test_rf_dc_report_is_deterministic_and_hashes_full_evidence(tmp_path):
     ).read_bytes()
     assert (output1 / "REPORT.md").read_bytes() == (output2 / "REPORT.md").read_bytes()
     assert first["input_evidence"]["before_diagnostic"]["file_count"] == 2
+
+
+def test_committed_cross_band_configs_cover_three_gain_tables():
+    config_dir = (
+        Path(__file__).parents[1]
+        / "spf"
+        / "calibrations"
+        / "dual_rx_gain_frequency"
+        / "configs"
+    )
+    expected_frequencies = (
+        868_000_000,
+        915_000_000,
+        1_280_000_000,
+        1_320_000_000,
+        2_412_000_000,
+        2_467_000_000,
+        3_990_000_000,
+        4_010_000_000,
+        5_766_000_000,
+        5_804_000_000,
+        5_838_000_000,
+        5_866_000_000,
+    )
+    _, pilot = load_calibration_document(config_dir / "pilot_cross_band.yaml")
+    _, survey = load_calibration_document(config_dir / "survey_cross_band.yaml")
+
+    assert pilot.frequencies_hz == survey.frequencies_hz == expected_frequencies
+    assert pilot.gains_db == (-1, 26, 62)
+    assert survey.gains_db == (
+        -1,
+        0,
+        3,
+        5,
+        6,
+        15,
+        16,
+        17,
+        23,
+        25,
+        26,
+        27,
+        33,
+        34,
+        41,
+        52,
+        62,
+    )
+    assert pilot.measurements_per_radio == 324
+    assert survey.measurements_per_radio == 10_404
+    for config in (pilot, survey):
+        blocks = group_schedule_by_frequency(build_schedule(config))
+        assert len(blocks) == 36
+        assert all(len(block) == len(config.gains_db) ** 2 for block in blocks)
+        assert all(
+            {(entry.gain_rx1_db, entry.gain_rx2_db) for entry in block}
+            == {
+                (gain1, gain2) for gain1 in config.gains_db for gain2 in config.gains_db
+            }
+            for block in blocks
+        )
 
 
 def test_additive_circular_model_recovers_wrapped_gain_effects():
