@@ -586,6 +586,137 @@ def _evaluate_shared_gain_curve_cv(
     )
 
 
+def _gain_table_band_index(frequency_hz: int | float) -> int:
+    """Return the full-gain-table band selected by the pinned AD9361 driver.
+
+    The driver's table lookup uses ``start < frequency <= end``. Consequently,
+    exactly 1.3 GHz belongs to the low table and exactly 4.0 GHz belongs to the
+    middle table.
+    """
+
+    if frequency_hz <= 1_300_000_000:
+        return 0
+    if frequency_hz <= 4_000_000_000:
+        return 1
+    return 2
+
+
+def _evaluate_gain_table_shared_curve_cv(
+    *,
+    eligible: np.ndarray,
+    phases: np.ndarray,
+    epochs: np.ndarray,
+    frequency_indices: np.ndarray,
+    gain1_indices: np.ndarray,
+    gain2_indices: np.ndarray,
+    config: CalibrationConfig,
+) -> dict[str, Any] | None:
+    """Compare independent curves with one gain curve per AD9361 table.
+
+    Every measured frequency retains its own intercept. RX1 and RX2 gain
+    effects are shared only among frequencies that use the same one of the
+    three full gain tables. This is the natural parsimonious middle ground
+    between one global gain curve and an independent curve at every frequency.
+    """
+
+    gain_count = len(config.gains_db)
+    table_count = 3
+    table_by_frequency = np.asarray(
+        [_gain_table_band_index(frequency) for frequency in config.frequencies_hz],
+        dtype=np.int64,
+    )
+    table_indices = table_by_frequency[frequency_indices]
+    table_gain1_indices = table_indices * gain_count + gain1_indices
+    table_gain2_indices = table_indices * gain_count + gain2_indices
+    composite_gain_count = table_count * gain_count
+    independent_residuals: list[float] = []
+    table_shared_residuals: list[float] = []
+
+    for held_epoch in range(config.repetitions):
+        train_all = eligible & (epochs != held_epoch)
+        test_all = eligible & (epochs == held_epoch)
+        if not np.any(train_all) or not np.any(test_all):
+            continue
+        table_shared = fit_grouped_additive_surface(
+            phases[train_all],
+            table_gain1_indices[train_all],
+            table_gain2_indices[train_all],
+            frequency_indices[train_all],
+            composite_gain_count,
+            len(config.frequencies_hz),
+        )
+        shared_rx1_count = np.bincount(
+            table_gain1_indices[train_all], minlength=composite_gain_count
+        )
+        shared_rx2_count = np.bincount(
+            table_gain2_indices[train_all], minlength=composite_gain_count
+        )
+        for frequency_index, _ in enumerate(config.frequencies_hz):
+            train = train_all & (frequency_indices == frequency_index)
+            test = test_all & (frequency_indices == frequency_index)
+            if not np.any(train) or not np.any(test):
+                continue
+            independent = fit_additive_surface(
+                phases[train],
+                gain1_indices[train],
+                gain2_indices[train],
+                gain_count,
+            )
+            independent_rx1_count = np.bincount(
+                gain1_indices[train], minlength=gain_count
+            )
+            independent_rx2_count = np.bincount(
+                gain2_indices[train], minlength=gain_count
+            )
+            paired = (
+                test
+                & (shared_rx1_count[table_gain1_indices] > 0)
+                & (shared_rx2_count[table_gain2_indices] > 0)
+                & (independent_rx1_count[gain1_indices] > 0)
+                & (independent_rx2_count[gain2_indices] > 0)
+            )
+            if not np.any(paired):
+                continue
+            independent_prediction = wrap_phase(
+                independent["intercept_rad"]
+                + independent["rx1_effect_rad"][gain1_indices[paired]]
+                + independent["rx2_effect_rad"][gain2_indices[paired]]
+            )
+            table_shared_prediction = wrap_phase(
+                table_shared["intercept_rad_by_group"][frequency_index]
+                + table_shared["rx1_effect_rad"][table_gain1_indices[paired]]
+                + table_shared["rx2_effect_rad"][table_gain2_indices[paired]]
+            )
+            independent_residuals.extend(
+                wrap_phase(phases[paired] - independent_prediction)
+            )
+            table_shared_residuals.extend(
+                wrap_phase(phases[paired] - table_shared_prediction)
+            )
+
+    comparison = _comparison(
+        "frequency_specific_gain_curves",
+        independent_residuals,
+        "gain_table_shared_gain_curves",
+        table_shared_residuals,
+        preferred_if_equivalent="gain_table_shared_gain_curves",
+    )
+    if comparison is not None:
+        frequency_count = len(config.frequencies_hz)
+        comparison["nominal_parameter_counts"] = {
+            "frequency_specific_gain_curves": frequency_count
+            * (1 + 2 * (gain_count - 1)),
+            "gain_table_shared_gain_curves": frequency_count
+            + table_count * 2 * (gain_count - 1),
+        }
+        comparison["gain_table_boundaries_hz"] = [1_300_000_000, 4_000_000_000]
+        comparison["boundary_membership"] = (
+            "start < frequency <= end; 1.3 GHz is low-table and "
+            "4.0 GHz is middle-table"
+        )
+    return comparison
+
+
 def _evaluate_linear_delay_intercept_cv(
     *,
     eligible: np.ndarray,
@@ -926,6 +1057,17 @@ def fit_dataset(path: Path, *, config: CalibrationConfig) -> dict[str, Any]:
         model_comparisons[
             "frequency_specific_vs_shared_gain_curves"
         ] = _evaluate_shared_gain_curve_cv(
+            eligible=valid,
+            phases=phases,
+            epochs=epochs,
+            frequency_indices=frequency_indices,
+            gain1_indices=gain1_indices,
+            gain2_indices=gain2_indices,
+            config=config,
+        )
+        model_comparisons[
+            "frequency_specific_vs_gain_table_shared_gain_curves"
+        ] = _evaluate_gain_table_shared_curve_cv(
             eligible=valid,
             phases=phases,
             epochs=epochs,

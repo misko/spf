@@ -61,8 +61,25 @@ python -m spf.calibrations.dual_rx_gain_frequency run \
 
 The cross-band pilot covers 868/915 MHz, both sides of the 1.3 GHz table
 boundary, SPF's 2.412/2.467 GHz frequencies, both sides of the 4.0 GHz table
-boundary, and four 5.8 GHz anchors. If its stored-IQ validation passes, run the
-17-gain stage-focused Cartesian design:
+boundary, and four 5.8 GHz anchors. If its stored-IQ validation passes, map
+frequency behaviour more densely before choosing the final gain grid:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency run \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/frequency_scout_cross_band.yaml \
+  --output artifacts/dual_rx_gain_frequency/frequency_scout_RUN_NAME
+```
+
+The frequency scout covers 47 points from 433 MHz through 5.9 GHz, including
+tight spacing around the 1.3 and 4.0 GHz gain-table boundaries. At every point
+it captures the complete `[-1, 26, 62]` RX1-by-RX2 grid in three separated
+epochs. Its TX reference level uses the safe headroom measured by the pilot so
+moderate asymmetric cells remain measurable without approaching the clipping
+guard.
+
+After interpreting the scout, run or refine the 17-gain stage-focused
+Cartesian design:
 
 ```bash
 python -m spf.calibrations.dual_rx_gain_frequency run \
@@ -95,6 +112,16 @@ python -m spf.calibrations.dual_rx_gain_frequency report \
   --validation artifacts/dual_rx_gain_frequency/pilot/SERIAL/validation.json \
   --model artifacts/dual_rx_gain_frequency/pilot/SERIAL/model.json \
   --output-dir artifacts/dual_rx_gain_frequency/pilot/SERIAL/analysis
+```
+
+Compare the fitted baselines of two physical radios without interpreting a
+linear phase slope as literal PCB trace length:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency compare-radios \
+  --model-a artifacts/dual_rx_gain_frequency/RUN/SERIAL_A/model.json \
+  --model-b artifacts/dual_rx_gain_frequency/RUN/SERIAL_B/model.json \
+  --output-dir artifacts/dual_rx_gain_frequency/RUN/cross_radio
 ```
 
 To reproduce the stricter comparison of constant, gain-difference, ordered

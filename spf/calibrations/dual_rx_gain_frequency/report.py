@@ -233,6 +233,12 @@ def render_markdown(summary: dict[str, Any]) -> str:
             "frequency_shared_gain_curves",
         ),
         (
+            "frequency_specific_vs_gain_table_shared_gain_curves",
+            "Frequency-specific vs gain-table-shared curves",
+            "frequency_specific_gain_curves",
+            "gain_table_shared_gain_curves",
+        ),
+        (
             "frequency_specific_vs_linear_delay_intercept",
             "Per-frequency vs constant-plus-delay baseline",
             "frequency_specific_intercepts",

@@ -26,6 +26,10 @@ from spf.calibrations.dual_rx_gain_frequency.dc_offset import (
 from spf.calibrations.dual_rx_gain_frequency.dc_report import (
     write_rf_dc_evidence_report,
 )
+from spf.calibrations.dual_rx_gain_frequency.cross_radio import (
+    compare_radio_models,
+    render_cross_radio_markdown,
+)
 from spf.calibrations.dual_rx_gain_frequency.dc_diagnostic import (
     run_rf_dc_recovery,
     run_rx2_dc_diagnostic,
@@ -574,6 +578,19 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
             comparisons["frequency_specific_vs_shared_gain_curves"]["recommended_model"]
             == "frequency_shared_gain_curves"
         )
+        table_shared = comparisons[
+            "frequency_specific_vs_gain_table_shared_gain_curves"
+        ]
+        assert table_shared["n_observations"] == 12
+        assert table_shared["recommended_model"] == "gain_table_shared_gain_curves"
+        assert table_shared["gain_table_boundaries_hz"] == [
+            1_300_000_000,
+            4_000_000_000,
+        ]
+        assert table_shared["nominal_parameter_counts"] == {
+            "frequency_specific_gain_curves": 3,
+            "gain_table_shared_gain_curves": 7,
+        }
         assert [
             tier["minimum_both_channel_tone_snr_db"]
             for tier in comparisons["confidence_tiers"]
@@ -966,6 +983,81 @@ def test_committed_cross_band_configs_cover_three_gain_tables():
             }
             for block in blocks
         )
+
+
+def test_frequency_scout_densely_covers_gain_table_boundaries():
+    config_path = (
+        Path(__file__).parents[1]
+        / "spf"
+        / "calibrations"
+        / "dual_rx_gain_frequency"
+        / "configs"
+        / "frequency_scout_cross_band.yaml"
+    )
+    _, scout = load_calibration_document(config_path)
+
+    assert scout.frequencies_hz[0] == 433_000_000
+    assert scout.frequencies_hz[-1] == 5_900_000_000
+    assert len(scout.frequencies_hz) == 47
+    assert scout.gains_db == (-1, 26, 62)
+    assert scout.measurements_per_radio == 47 * 9 * 3
+    assert {
+        1_299_000_000,
+        1_300_000_000,
+        1_301_000_000,
+        3_999_000_000,
+        4_000_000_000,
+        4_001_000_000,
+    }.issubset(scout.frequencies_hz)
+    assert scout.tx_gain_db == 0
+    blocks = group_schedule_by_frequency(build_schedule(scout))
+    assert len(blocks) == 47 * 3
+    assert all(len(block) == 9 for block in blocks)
+
+
+def test_cross_radio_delay_report_recovers_known_difference():
+    frequencies = (900_000_000, 1_200_000_000, 2_000_000_000, 3_000_000_000)
+    delay_a = 35e-12
+    delay_b = 10e-12
+
+    def model(serial, delay):
+        return {
+            "serial": serial,
+            "frequency_models": [
+                {
+                    "status": "fit",
+                    "frequency_hz": frequency,
+                    "intercept_rad": -2 * np.pi * frequency * delay + 0.2,
+                }
+                for frequency in frequencies
+            ],
+            "frequency_intercept_delay_model": {
+                "descriptive_delay_seconds": delay,
+                "equivalent_free_space_path_m": delay * 299_792_458.0,
+                "fit_residual_metrics": {
+                    "circular_mae_deg": 0.0,
+                    "circular_rmse_deg": 0.0,
+                    "circular_p95_deg": 0.0,
+                    "circular_max_deg": 0.0,
+                },
+            },
+        }
+
+    result = compare_radio_models(
+        model("SERIAL-A", delay_a),
+        model("SERIAL-B", delay_b),
+    )
+    assert result["schema_version"] == 1
+    assert result["common_frequency_count"] == 4
+    assert result["global_difference_fit"]["effective_delay_seconds"] == pytest.approx(
+        delay_a - delay_b
+    )
+    assert (
+        result["global_difference_fit"]["residual_metrics"]["circular_max_deg"] < 1e-9
+    )
+    markdown = render_cross_radio_markdown(result)
+    assert "literal PCB trace length" in markdown
+    assert "25.00 ps" in markdown
 
 
 def test_additive_circular_model_recovers_wrapped_gain_effects():

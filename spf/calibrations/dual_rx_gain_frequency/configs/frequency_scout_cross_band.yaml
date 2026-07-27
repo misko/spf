@@ -1,0 +1,102 @@
+# Frequency-first survey before committing to a dense gain Cartesian grid.
+#
+# The grid covers common operational/ISM frequencies, broad points throughout
+# every AD9361 gain-table band, and tightly spaced points around the 1.3 and
+# 4.0 GHz table boundaries. Each frequency still receives the complete
+# 3-by-3 representative gain grid in three time-separated randomized epochs.
+data-version: 7
+
+pluto-firmware:
+  release-tag: v0.38-plutoplus-spf-gain-rssi-v2
+  asset-name: plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-rssi-v2/plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu
+  image-sha256: f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
+  firmware-git-sha: dd6b1f4db710abc20693888db08e8da2427e0dc3
+  gadget-git-sha: 54610e01c6fd6a69df77f148ea0dc88f9cb18063
+  boot-mode: ram
+
+calibration:
+  frequencies-hz:
+    - 433000000
+    - 600000000
+    - 700000000
+    - 800000000
+    - 868000000
+    - 915000000
+    - 1000000000
+    - 1100000000
+    - 1200000000
+    - 1250000000
+    - 1280000000
+    - 1290000000
+    - 1299000000
+    - 1300000000
+    - 1301000000
+    - 1310000000
+    - 1320000000
+    - 1500000000
+    - 1800000000
+    - 2100000000
+    - 2300000000
+    - 2400000000
+    - 2412000000
+    - 2437000000
+    - 2467000000
+    - 2700000000
+    - 3000000000
+    - 3300000000
+    - 3600000000
+    - 3900000000
+    - 3990000000
+    - 3999000000
+    - 4000000000
+    - 4001000000
+    - 4010000000
+    - 4200000000
+    - 4500000000
+    - 4800000000
+    - 5100000000
+    - 5400000000
+    - 5600000000
+    - 5700000000
+    - 5766000000
+    - 5804000000
+    - 5838000000
+    - 5866000000
+    - 5900000000
+  # Intersection of both radios' manual-gain ranges across all three tables.
+  gains-db: [-1, 26, 62]
+  repetitions: 3
+  sample-rate-hz: 30000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000
+  tone-search-width-hz: 25000
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
+  random-seed: 20260727
+  tx-source: fpga_dds
+  # Use the pilot's measured headroom to keep moderate asymmetric pairs above
+  # the SNR threshold without approaching the -3 dBFS clipping guard.
+  tx-gain-db: 0
+  tx-gain-policy: adaptive_max_rx_gain
+  tx-reference-rx-gain-db: 26
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 16384
+  min-quality-valid-per-cell: 2
+  max-across-repeat-phase-std-deg: 5
+  setup-label: two-pluto-tx2-30db-split-rx1-rx2-frequency-scout
+  notes: TX2 -> 30 dB attenuator -> two-way splitter -> RX1/RX2
+  quality:
+    min-tone-snr-db: -10
+    min-tone-dbfs: -75
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5

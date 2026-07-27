@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from .comparative_analysis import write_comparative_bundle
 from .config import build_schedule, group_schedule_by_frequency
+from .cross_radio import write_cross_radio_bundle
 from .dc_diagnostic import run_rf_dc_recovery, run_rx2_dc_diagnostic
 from .dc_offset import inspect_radio_rf_dc
 from .dc_report import write_rf_dc_evidence_report
@@ -156,6 +157,16 @@ def _compare_models(args) -> int:
     return 0
 
 
+def _compare_radios(args) -> int:
+    result = write_cross_radio_bundle(
+        model_a_path=args.model_a,
+        model_b_path=args.model_b,
+        output_dir=args.output_dir,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def _diagnose_rx2_dc(args) -> int:
     result = run_rx2_dc_diagnostic(
         config_path=args.config,
@@ -287,6 +298,18 @@ def parse_args():
     compare_parser.add_argument("--artifact-root", type=Path, required=True)
     compare_parser.add_argument("--output-dir", type=Path, required=True)
     compare_parser.set_defaults(function=_compare_models)
+
+    compare_radios_parser = subparsers.add_parser(
+        "compare-radios",
+        help=(
+            "compare two fitted radio baselines and test whether a stable "
+            "differential-delay interpretation is supported"
+        ),
+    )
+    compare_radios_parser.add_argument("--model-a", type=Path, required=True)
+    compare_radios_parser.add_argument("--model-b", type=Path, required=True)
+    compare_radios_parser.add_argument("--output-dir", type=Path, required=True)
+    compare_radios_parser.set_defaults(function=_compare_radios)
 
     dc_diagnostic_parser = subparsers.add_parser(
         "diagnose-rx2-dc",
