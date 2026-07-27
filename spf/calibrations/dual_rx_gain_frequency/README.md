@@ -72,6 +72,41 @@ bit is committed only after IQ, V7 metadata, coordinates, and quality metrics.
 Initial and resumed capture use the same asynchronous LMDB write mode, with a
 durable sync after every radio/frequency block and on clean shutdown.
 
+## Model selection
+
+The operational candidate is fitted independently for each radio and RF
+frequency:
+
+```text
+angle(RX1) - angle(RX2)
+    = frequency intercept + RX1_effect(gain1) + RX2_effect(gain2) + residual
+```
+
+The fit command evaluates predictions only on an epoch excluded from training.
+It also performs paired, identical-mask comparisons against:
+
+- a model that knows only `gain1 - gain2`;
+- an additive model plus one residual for every ordered gain pair;
+- one set of gain curves shared by all RF frequencies; and
+- the additive model adjusted from one equal-gain anchor frame in each held-out
+  frequency/epoch.
+
+Differences smaller than the declared 0.1° held-out MAE margin are treated as
+practically equivalent and select the predeclared simpler operational choice.
+The report also repeats additive cross-validation with both channels above
+-10, 0, and 10 dB tone SNR. These are confidence/coverage diagnostics, not
+permission to use a frame that failed any base quality check.
+
+`predict_phase_offset()` accepts only an exact fitted frequency and an ordered
+gain pair that passed the repeatability criterion. It raises instead of
+interpolating an unsupported point, even when both individual gains were
+observed elsewhere in the surface. With the recorded convention, apply a valid
+prediction as:
+
+```text
+corrected_phase = wrap(measured_angle_RX1_minus_RX2 - predicted_offset)
+```
+
 ## Pass/fail interpretation
 
 - Structural validation must pass: all scheduled frames, exact V7 shape,
@@ -84,5 +119,11 @@ durable sync after every radio/frequency block and on clean shutdown.
 - Model effects are emitted only for gain states observed in that receiver
   role. Missing effects are JSON `null`; they must never be interpreted as
   zero phase correction.
+- A correction is available only for the exact radio serial and calibrated RF
+  frequency, with non-null RX1/RX2 effects and a live frame that passes gain
+  metadata and signal-quality checks. Never extrapolate across an unsupported
+  gain, frequency, clipping region, or weak-signal region.
+- The ordered gain pair matters. A model based only on gain difference is
+  retained as a measured baseline, not assumed correct.
 - The fitted frequency slope is descriptive. LO retuning can introduce phase
   state changes, so it is not claimed to be physical cable delay.

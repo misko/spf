@@ -3,6 +3,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+import pytest
 import yaml
 
 from spf.bench.dual_rx_phase import ToneQualityThresholds
@@ -16,10 +17,13 @@ from spf.calibrations.dual_rx_gain_frequency.hardware import DirectUsbLoopbackRa
 from spf.calibrations.dual_rx_gain_frequency.model import (
     fit_additive_surface,
     fit_dataset,
+    fit_grouped_additive_surface,
+    predict_phase_offset,
 )
 from spf.calibrations.dual_rx_gain_frequency.report import (
     build_analysis_summary,
     render_markdown,
+    write_analysis_bundle,
 )
 from spf.calibrations.dual_rx_gain_frequency.runner import run_calibration
 from spf.calibrations.dual_rx_gain_frequency.validate import validate_dataset
@@ -419,19 +423,101 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
         assert report["status"] == "pass"
         assert report["completed_frames"] == 12
         model = fit_dataset(dataset, config=config)
+        assert model["schema_version"] == 2
         assert model["serial"] == serial
         assert model["quality_valid_observations"] == 12
         assert model["cross_validation_metrics"]["circular_p95_deg"] < 0.2
+        predicted = predict_phase_offset(
+            model,
+            frequency_hz=2_400_000_000,
+            gain_rx1_db=0,
+            gain_rx2_db=10,
+        )
+        assert (
+            abs(math.atan2(math.sin(predicted + 0.2), math.cos(predicted + 0.2))) < 0.01
+        )
+        with pytest.raises(ValueError, match="unsupported RF frequency"):
+            predict_phase_offset(
+                model,
+                frequency_hz=2_401_000_000,
+                gain_rx1_db=0,
+                gain_rx2_db=10,
+            )
+        model["frequency_models"][0]["supported_gain_pair"][0][1] = False
+        with pytest.raises(ValueError, match="unvalidated ordered gain pair"):
+            predict_phase_offset(
+                model,
+                frequency_hz=2_400_000_000,
+                gain_rx1_db=0,
+                gain_rx2_db=10,
+            )
+        model["frequency_models"][0]["supported_gain_pair"][0][1] = True
+        assert (
+            model["frequency_models"][0]["cross_validation_metrics"]["circular_p95_deg"]
+            < 0.2
+        )
+        comparisons = model["model_comparisons"]
+        assert comparisons["additive"]["n_observations"] == 12
+        assert comparisons["additive_vs_cell_interaction"]["n_observations"] == 12
+        assert (
+            comparisons["additive_vs_cell_interaction"]["recommended_model"]
+            == "additive"
+        )
+        assert comparisons["additive_vs_gain_difference_only"]["n_observations"] == 12
+        assert (
+            comparisons["additive_vs_gain_difference_only"]["recommended_model"]
+            == "additive"
+        )
+        assert comparisons["unanchored_vs_one_frame_anchor"]["n_observations"] == 9
+        assert (
+            comparisons["unanchored_vs_one_frame_anchor"]["recommended_model"]
+            == "unanchored"
+        )
+        assert (
+            comparisons["frequency_specific_vs_shared_gain_curves"]["n_observations"]
+            == 12
+        )
+        assert (
+            comparisons["frequency_specific_vs_shared_gain_curves"]["recommended_model"]
+            == "frequency_shared_gain_curves"
+        )
+        assert [
+            tier["minimum_both_channel_tone_snr_db"]
+            for tier in comparisons["confidence_tiers"]
+        ] == [-10.0, 0.0, 10.0]
         summary = build_analysis_summary(report, model)
+        assert summary["schema_version"] == 2
         assert summary["serial"] == serial
         assert summary["passing_cells"] == 4
         assert len(summary["frequency_summary"]) == 1
-        assert "Leave-one-epoch-out circular MAE" in render_markdown(summary)
+        markdown = render_markdown(summary)
+        assert "Leave-one-epoch-out circular MAE" in markdown
+        assert "Paired model comparisons" in markdown
+        assert "Signal-confidence tiers" in markdown
+        if serial == "SERIAL-A":
+            validation_path = tmp_path / "validation.json"
+            model_path = tmp_path / "model.json"
+            validation_path.write_text(json.dumps(report))
+            model_path.write_text(json.dumps(model))
+            bundle = write_analysis_bundle(
+                validation_path=validation_path,
+                model_path=model_path,
+                output_dir=tmp_path / "analysis",
+            )
+            assert set(bundle["plot_files"]) == {
+                "phase_surface_2400000000.png",
+                "fitted_gain_effects.png",
+                "additive_residual_2400000000.png",
+            }
+            assert all(
+                (tmp_path / "analysis" / filename).is_file()
+                for filename in bundle["plot_files"]
+            )
         preflights = [
             json.loads(line)
-            for line in (
-                tmp_path / "output" / serial / "preflight.jsonl"
-            ).read_text().splitlines()
+            for line in (tmp_path / "output" / serial / "preflight.jsonl")
+            .read_text()
+            .splitlines()
         ]
         assert len(preflights) == 3
         if serial == "SERIAL-A":
@@ -442,9 +528,9 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
             assert all(item["prime_after_arm"] is True for item in preflights)
             failures = [
                 json.loads(line)
-                for line in (
-                    tmp_path / "output" / serial / "preflight_failures.jsonl"
-                ).read_text().splitlines()
+                for line in (tmp_path / "output" / serial / "preflight_failures.jsonl")
+                .read_text()
+                .splitlines()
             ]
             assert len(failures) == 3
             assert all(item["prime_after_arm"] is False for item in failures)
@@ -468,9 +554,7 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
     )
     assert resumed["completed_measurements"] == 24
     writable_resume_calls = [
-        kwargs
-        for _, kwargs in resume_open_calls
-        if kwargs.get("mode") == "rw"
+        kwargs for _, kwargs in resume_open_calls if kwargs.get("mode") == "rw"
     ]
     assert len(writable_resume_calls) == 2
     assert all(kwargs["map_async"] is True for kwargs in writable_resume_calls)
@@ -483,4 +567,28 @@ def test_additive_circular_model_recovers_wrapped_gain_effects():
     rx2 = np.array([0.0, -0.3, -0.8, -1.4])
     phase = (2.9 + rx1[g1] + rx2[g2] + np.pi) % (2 * np.pi) - np.pi
     fitted = fit_additive_surface(phase.ravel(), g1.ravel(), g2.ravel(), gain_count)
+    assert np.max(np.abs(fitted["residual_rad"])) < 1e-6
+
+
+def test_grouped_additive_model_recovers_shared_curves_and_group_intercepts():
+    gain_count = 4
+    group_count = 3
+    group, g1, g2 = np.meshgrid(
+        np.arange(group_count),
+        np.arange(gain_count),
+        np.arange(gain_count),
+        indexing="ij",
+    )
+    intercept = np.array([2.9, -2.8, 0.7])
+    rx1 = np.array([0.0, 0.2, 0.5, 1.0])
+    rx2 = np.array([0.0, -0.3, -0.8, -1.4])
+    phase = (intercept[group] + rx1[g1] + rx2[g2] + np.pi) % (2 * np.pi) - np.pi
+    fitted = fit_grouped_additive_surface(
+        phase.ravel(),
+        g1.ravel(),
+        g2.ravel(),
+        group.ravel(),
+        gain_count,
+        group_count,
+    )
     assert np.max(np.abs(fitted["residual_rad"])) < 1e-6

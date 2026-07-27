@@ -61,6 +61,7 @@ def build_analysis_summary(
                 "model_status": fitted.get("status", "missing"),
                 "model_observations": fitted.get("n_observations", 0),
                 "training_metrics": fitted.get("training_metrics"),
+                "cross_validation_metrics": fitted.get("cross_validation_metrics"),
             }
         )
 
@@ -95,7 +96,7 @@ def build_analysis_summary(
 
     return {
         "schema": "spf.calibration.dual_rx_gain_frequency.analysis",
-        "schema_version": 1,
+        "schema_version": 2,
         "serial": validation["serial"],
         "validation_status": validation["status"],
         "completed_frames": validation["completed_frames"],
@@ -107,6 +108,7 @@ def build_analysis_summary(
         "frequency_summary": frequency_rows,
         "gain_mismatch_summary": mismatch_rows,
         "cross_validation_metrics": model.get("cross_validation_metrics"),
+        "model_comparisons": model.get("model_comparisons"),
         "frequency_intercept_delay_model": model.get("frequency_intercept_delay_model"),
     }
 
@@ -145,11 +147,12 @@ def render_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Frequency coverage",
         "",
-        "| Frequency (MHz) | Passing cells | Coverage | Median repeat std | Model observations | Train RMSE |",
-        "|---:|---:|---:|---:|---:|---:|",
+        "| Frequency (MHz) | Passing cells | Coverage | Median repeat std | Model observations | Train RMSE | CV MAE / p95 |",
+        "|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in summary["frequency_summary"]:
         training = row.get("training_metrics") or {}
+        cross_validation = row.get("cross_validation_metrics") or {}
         lines.append(
             "| "
             f"{row['frequency_hz'] / 1e6:.3f} | "
@@ -157,7 +160,9 @@ def render_markdown(summary: dict[str, Any]) -> str:
             f"{row['passing_fraction']:.1%} | "
             f"{_format_number(row['median_repeat_phase_std_deg'])}° | "
             f"{row['model_observations']} | "
-            f"{_format_number(training.get('circular_rmse_deg'))}° |"
+            f"{_format_number(training.get('circular_rmse_deg'))}° | "
+            f"{_format_number(cross_validation.get('circular_mae_deg'))}° / "
+            f"{_format_number(cross_validation.get('circular_p95_deg'))}° |"
         )
 
     lines.extend(
@@ -206,6 +211,92 @@ def render_markdown(summary: dict[str, Any]) -> str:
         )
     else:
         lines.append("- Cross-validation was unavailable.")
+
+    model_comparisons = summary.get("model_comparisons") or {}
+    comparison_specs = (
+        (
+            "additive_vs_gain_difference_only",
+            "Ordered additive vs gain difference",
+            "additive",
+            "gain_difference_only",
+        ),
+        (
+            "additive_vs_cell_interaction",
+            "Additive vs cell interaction",
+            "additive",
+            "additive_plus_cell_interaction",
+        ),
+        (
+            "frequency_specific_vs_shared_gain_curves",
+            "Frequency-specific vs shared curves",
+            "frequency_specific_gain_curves",
+            "frequency_shared_gain_curves",
+        ),
+        (
+            "unanchored_vs_one_frame_anchor",
+            "Unanchored vs one-frame anchor",
+            "unanchored",
+            "one_frame_anchored",
+        ),
+    )
+    if any(model_comparisons.get(spec[0]) for spec in comparison_specs):
+        lines.extend(
+            [
+                "",
+                "### Paired model comparisons",
+                "",
+                "| Comparison | Held-out frames | First MAE / p95 | Second MAE / p95 | Recommended |",
+                "|---|---:|---:|---:|---|",
+            ]
+        )
+        for key, label, first_name, second_name in comparison_specs:
+            comparison = model_comparisons.get(key)
+            if not comparison:
+                continue
+            first = comparison[first_name]
+            second = comparison[second_name]
+            lines.append(
+                f"| {label} | {comparison['n_observations']} | "
+                f"{first['circular_mae_deg']:.2f}° / "
+                f"{first['circular_p95_deg']:.2f}° | "
+                f"{second['circular_mae_deg']:.2f}° / "
+                f"{second['circular_p95_deg']:.2f}° | "
+                f"`{comparison['recommended_model']}` |"
+            )
+        lines.extend(
+            [
+                "",
+                (
+                    "Every row uses an identical held-out observation mask. "
+                    "Differences within the declared 0.1° MAE equivalence margin "
+                    "select the predeclared simpler operational model."
+                ),
+            ]
+        )
+
+    confidence_tiers = model_comparisons.get("confidence_tiers") or []
+    if confidence_tiers:
+        lines.extend(
+            [
+                "",
+                "### Signal-confidence tiers",
+                "",
+                "| Minimum SNR in both channels | Eligible frames | Held-out frames | MAE | RMSE | p95 |",
+                "|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for tier in confidence_tiers:
+            additive = tier.get("additive")
+            if not additive:
+                continue
+            lines.append(
+                f"| {tier['minimum_both_channel_tone_snr_db']:.0f} dB | "
+                f"{tier['eligible_observations']} | "
+                f"{additive['n_observations']} | "
+                f"{additive['circular_mae_deg']:.2f}° | "
+                f"{additive['circular_rmse_deg']:.2f}° | "
+                f"{additive['circular_p95_deg']:.2f}° |"
+            )
     lines.extend(
         [
             "",
@@ -285,6 +376,95 @@ def _plot_heatmaps(
     return filenames
 
 
+def _plot_model_diagnostics(
+    model: dict[str, Any],
+    output_dir: Path,
+) -> list[str]:
+    """Plot fitted gain curves and the remaining ordered-pair residuals."""
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    gains = np.asarray(model.get("gain_values_db", []), dtype=np.float64)
+    fitted = [
+        row for row in model.get("frequency_models", []) if row.get("status") == "fit"
+    ]
+    if gains.size == 0 or not fitted:
+        return []
+
+    filenames = []
+    fig, axes = plt.subplots(
+        len(fitted),
+        1,
+        figsize=(11, max(3.5, 3.2 * len(fitted))),
+        sharex=True,
+        constrained_layout=True,
+        squeeze=False,
+    )
+    for axis, row in zip(axes[:, 0], fitted):
+        rx1 = np.asarray(
+            [np.nan if value is None else value for value in row["rx1_effect_rad"]],
+            dtype=np.float64,
+        )
+        rx2 = np.asarray(
+            [np.nan if value is None else value for value in row["rx2_effect_rad"]],
+            dtype=np.float64,
+        )
+        axis.plot(gains, np.degrees(rx1), label="RX1 effect", linewidth=1.4)
+        axis.plot(gains, np.degrees(rx2), label="RX2 effect", linewidth=1.4)
+        axis.axhline(0, color="black", linewidth=0.6, alpha=0.5)
+        axis.grid(True, alpha=0.25)
+        axis.set_ylabel("Phase effect (°)")
+        axis.set_title(f"{int(row['frequency_hz']) / 1e6:.3f} MHz")
+        axis.legend(loc="best")
+    axes[-1, 0].set_xlabel("Manual gain (dB)")
+    fig.suptitle(f"{model['serial']} — fitted ordered gain effects")
+    filename = "fitted_gain_effects.png"
+    fig.savefig(output_dir / filename, dpi=160)
+    plt.close(fig)
+    filenames.append(filename)
+
+    for row in fitted:
+        interaction = np.degrees(
+            np.asarray(row["interaction_residual_rad"], dtype=np.float64)
+        )
+        finite = np.abs(interaction[np.isfinite(interaction)])
+        if finite.size == 0:
+            continue
+        limit = max(1.0, float(np.percentile(finite, 95)))
+        fig, axis = plt.subplots(figsize=(7.5, 6.5), constrained_layout=True)
+        extent = (
+            gains[0] - 0.5,
+            gains[-1] + 0.5,
+            gains[0] - 0.5,
+            gains[-1] + 0.5,
+        )
+        image = axis.imshow(
+            interaction.T,
+            origin="lower",
+            aspect="equal",
+            interpolation="nearest",
+            extent=extent,
+            cmap="RdBu_r",
+            vmin=-limit,
+            vmax=limit,
+        )
+        axis.set_xlabel("RX1 manual gain (dB)")
+        axis.set_ylabel("RX2 manual gain (dB)")
+        axis.set_title(
+            f"…{str(model['serial'])[-12:]} — additive residual, "
+            f"{int(row['frequency_hz']) / 1e6:.3f} MHz"
+        )
+        fig.colorbar(image, ax=axis, label="Circular residual (°)")
+        filename = f"additive_residual_{int(row['frequency_hz'])}.png"
+        fig.savefig(output_dir / filename, dpi=160)
+        plt.close(fig)
+        filenames.append(filename)
+    return filenames
+
+
 def write_analysis_bundle(
     *,
     validation_path: Path,
@@ -297,7 +477,12 @@ def write_analysis_bundle(
     summary = build_analysis_summary(validation, model)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    summary["plot_files"] = _plot_heatmaps(validation, output_dir) if plots else []
+    summary["plot_files"] = (
+        _plot_heatmaps(validation, output_dir)
+        + _plot_model_diagnostics(model, output_dir)
+        if plots
+        else []
+    )
     (output_dir / "analysis_summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n"
     )
