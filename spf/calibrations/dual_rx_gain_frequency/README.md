@@ -65,6 +65,19 @@ python -m spf.calibrations.dual_rx_gain_frequency report \
   --output-dir artifacts/dual_rx_gain_frequency/pilot/SERIAL/analysis
 ```
 
+When diagnosing an AD9361 DC-correction failure, capture a read-only snapshot
+of both RF-input correction banks:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency dc-registers \
+  --serial PLUTO_SERIAL \
+  --output rf_dc_registers.json
+```
+
+This command does not change gain, LO, tracking, calibration, or streaming
+state. It decodes all four packed 10-bit RX1/RX2 I/Q correction words and
+flags the documented stuck value `0x200`.
+
 After the pilot establishes usable signal levels, replace `pilot_5ghz.yaml`
 with `coarse_5ghz.yaml` to enumerate all 73 manual gain states on both
 receivers at the four coarse frequencies. Runs are resumable: the completion

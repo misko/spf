@@ -10,6 +10,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .config import build_schedule, group_schedule_by_frequency
+from .dc_offset import inspect_radio_rf_dc
 from .model import fit_dataset, write_model
 from .report import write_analysis_bundle
 from .runner import load_calibration_document, probe_loopback, run_calibration
@@ -134,6 +135,14 @@ def _probe(args) -> int:
     return 0 if result["status"] == "pass" else 1
 
 
+def _dc_registers(args) -> int:
+    result = inspect_radio_rf_dc(serial=args.serial, uri=args.uri)
+    if args.output:
+        args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -205,6 +214,16 @@ def parse_args():
     probe_parser.add_argument("--minimum-on-off-delta-db", type=float, default=20.0)
     probe_parser.add_argument("--output", type=Path)
     probe_parser.set_defaults(function=_probe)
+
+    dc_parser = subparsers.add_parser(
+        "dc-registers",
+        help="read and decode AD9361 RF DC correction words without mutation",
+    )
+    dc_selector = dc_parser.add_mutually_exclusive_group(required=True)
+    dc_selector.add_argument("--serial")
+    dc_selector.add_argument("--uri")
+    dc_parser.add_argument("--output", type=Path)
+    dc_parser.set_defaults(function=_dc_registers)
     return parser.parse_args()
 
 

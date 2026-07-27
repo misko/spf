@@ -12,6 +12,10 @@ from spf.calibrations.dual_rx_gain_frequency.config import (
     build_schedule,
     group_schedule_by_frequency,
 )
+from spf.calibrations.dual_rx_gain_frequency.dc_offset import (
+    decode_rf_dc_correction_words,
+    signed_10bit,
+)
 from spf.calibrations.dual_rx_gain_frequency.hardware import make_cyclic_tone
 from spf.calibrations.dual_rx_gain_frequency.hardware import DirectUsbLoopbackRadio
 from spf.calibrations.dual_rx_gain_frequency.model import (
@@ -346,6 +350,38 @@ def test_frequency_delay_fit_uses_rx1_minus_rx2_physical_sign():
     assert [point["frequency_hz"] for point in fitted["frequency_points"]] == sorted(
         frequency_hz.tolist()
     )
+
+
+def test_rf_dc_correction_register_decoder_flags_documented_stuck_word():
+    expected = {
+        "rx1_q": 0x123,
+        "rx1_i": 0x234,
+        "rx2_q": 0x345,
+        "rx2_i": 0x200,
+    }
+    registers = {
+        0x174: expected["rx1_q"] & 0xFF,
+        0x175: ((expected["rx1_i"] & 0x3F) << 2) | (expected["rx1_q"] >> 8),
+        0x176: ((expected["rx2_q"] & 0x0F) << 4) | (expected["rx1_i"] >> 6),
+        0x177: ((expected["rx2_i"] & 0x03) << 6) | (expected["rx2_q"] >> 4),
+        0x178: expected["rx2_i"] >> 2,
+    }
+
+    decoded = decode_rf_dc_correction_words(registers)
+
+    assert {name: value["raw"] for name, value in decoded.items()} == expected
+    assert decoded["rx2_i"] == {
+        "raw": 0x200,
+        "signed": -512,
+        "is_documented_stuck_value": True,
+    }
+    assert all(
+        not value["is_documented_stuck_value"]
+        for name, value in decoded.items()
+        if name != "rx2_i"
+    )
+    assert signed_10bit(0x1FF) == 511
+    assert signed_10bit(0x3FF) == -1
 
 
 class FakePrimingSdr:
