@@ -277,8 +277,20 @@ If the cache is deliberately removed, the loader requires network access to
 restore it before MAVLink can start. The
 root-managed
 `/etc/spf/rover_collection.env` contains bounded test overrides; normal
-production needs no profile switch. Unless `SPF_SKIP_SELF_UPDATE=1`, the
-launcher self-updates before the
+production needs no profile switch.
+
+Before any network check, parameter write, or mission activity, the launcher
+compares the three committed Rover unit files with `/etc/systemd/system` and
+checks that the firmware loader and mission units are enabled. This
+reconciliation runs even when self-update is disabled or the Rover is offline.
+Changed units are installed atomically, hash-verified, enabled, and recorded in
+`/var/lib/spf/boot-unit-reconcile-attempt` before one reboot is requested. On
+the next boot a matching installation removes the attempt record. If the same
+desired Git commit and unit hashes are still inconsistent, the launcher fails
+closed without rebooting again. Installation, verification, `daemon-reload`,
+or enablement failures also stop without rebooting.
+
+Unless `SPF_SKIP_SELF_UPDATE=1`, the launcher then self-updates before the
 mission loop:
 
 ```bash
@@ -286,15 +298,17 @@ sleep 10; ping -c 1 8.8.8.8                                                   # 
 python /home/pi/spf/spf/mavlink/mavlink_controller.py --buzzer git            # chirp: entering update
 bash ${repo_root}/data_collection/.../install_deps.sh                         # reinstall apt deps
 pushd /home/pi/spf; current_hash=`git rev-parse --short HEAD`; git pull; new_hash=`git rev-parse --short HEAD`
-# if HEAD changed: sleep 15 (operator interrupt window) -> reinstall+enable service -> sudo reboot
+# if HEAD changed: reconcile+verify units; sleep 15 (operator window) -> reboot
 # else:            pip install -e ${repo_root}  and continue
 ```
 
 If the ping fails, collection continues with the checked-out code. A changed
 HEAD causes the historical 15-second interrupt window followed by a reboot.
-The stale `data_collection_model_and_results/` paths in the production launcher
-were repaired; update pulls are now `--ff-only`, and vehicle parameter
-differences fail closed.
+An update that changes the root-managed units can take two convergence reboots:
+the first enters the new checkout and the second activates its verified units.
+The third start is stable. The persistent attempt record prevents this bounded
+sequence from becoming a reboot loop. Update pulls are `--ff-only`, and vehicle
+parameter differences fail closed.
 
 ### 4.1 Direct-USB qualification and production boot
 

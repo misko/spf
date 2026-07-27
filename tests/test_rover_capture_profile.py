@@ -117,11 +117,19 @@ def test_fresh_setup_installs_and_enables_loader_with_mavlink():
     assert "cache_firmware_image" in configure
     assert 'systemctl enable "$LOADER_UNIT" "$PRODUCTION_UNIT"' in configure
     launcher = (ROVER_ROOT / "drone_run.sh").read_text()
-    assert '"${SCRIPT_DIR}/spf-pluto-direct-usb.service"' in launcher
-    assert (
-        "spf-pluto-direct-usb.service mavlink_controller.service"
-        in launcher.replace("\\\n", "")
+    assert "reconcile_rover_boot_units.sh" in launcher
+    main_body = launcher.rsplit("main() {", 1)[1]
+    assert main_body.index("reconcile_boot_units_or_reboot") < main_body.index(
+        "maybe_self_update"
     )
+    reconciler = (ROVER_ROOT / "reconcile_rover_boot_units.sh").read_text()
+    assert "spf-pluto-direct-usb.service" in reconciler
+    assert "mavlink_controller.service" in reconciler
+    enabled_block = reconciler.split("readonly -a ENABLED_UNITS=(", 1)[1].split(")", 1)[
+        0
+    ]
+    assert "spf-pluto-direct-usb.service" in enabled_block
+    assert "mavlink_controller.service" in enabled_block
 
 
 def test_stock_firmware_restore_is_an_explicit_opt_out():

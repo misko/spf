@@ -13,6 +13,7 @@ readonly PROFILE_ENV="/etc/spf/rover_collection.env"
 readonly READY_FILE="/run/spf/direct_usb_ready.json"
 readonly DEVICE_MAPPING="/home/pi/device_mapping"
 readonly MAVLINK_CONTROLLER="${REPO_ROOT}/spf/mavlink/mavlink_controller.py"
+readonly BOOT_UNIT_RECONCILER="${SCRIPT_DIR}/reconcile_rover_boot_units.sh"
 readonly PARAMS_FILE="/home/pi/this_rover.params"
 readonly TIME_FILE="/home/pi/time"
 
@@ -120,6 +121,31 @@ esac
 export PYTHONPATH="$REPO_ROOT"
 export PYTHONBREAKPOINT=0
 
+reconcile_boot_units_or_reboot() {
+    local reconcile_rc
+    reconcile_rc=0
+    "$BOOT_UNIT_RECONCILER" || reconcile_rc=$?
+    case "$reconcile_rc" in
+        0)
+            return 0
+            ;;
+        10)
+            printf '%s\n' \
+                "Verified root-managed boot-unit changes require a reboot." \
+                "Rebooting in 15 seconds; this desired state gets one attempt."
+            sleep 15
+            sudo reboot
+            exit 0
+            ;;
+        75)
+            die "Boot-unit reconciliation reboot limit reached; refusing a reboot loop."
+            ;;
+        *)
+            die "Boot-unit reconciliation failed (status ${reconcile_rc}); not rebooting."
+            ;;
+    esac
+}
+
 maybe_self_update() {
     is_true "$SKIP_SELF_UPDATE" && return 0
     sleep 10
@@ -135,17 +161,10 @@ maybe_self_update() {
     git -C "$REPO_ROOT" pull --ff-only
     new_hash="$(git -C "$REPO_ROOT" rev-parse --verify HEAD)"
     if [[ "$current_hash" != "$new_hash" ]]; then
-        printf 'Repository updated; installing current unit and rebooting.\n'
+        printf 'Repository updated; reconciling boot units before reboot.\n'
+        reconcile_boot_units_or_reboot
+        printf 'Repository changed without boot-unit drift; rebooting.\n'
         sleep 15
-        sudo install -m 0644 \
-            "${SCRIPT_DIR}/spf-pluto-direct-usb.service" \
-            /etc/systemd/system/spf-pluto-direct-usb.service
-        sudo install -m 0644 \
-            "${SCRIPT_DIR}/mavlink_controller.service" \
-            /etc/systemd/system/mavlink_controller.service
-        sudo systemctl daemon-reload
-        sudo systemctl enable \
-            spf-pluto-direct-usb.service mavlink_controller.service
         sudo reboot
         exit 0
     fi
@@ -228,6 +247,7 @@ run_capture() {
 
 main() {
     print_plan
+    reconcile_boot_units_or_reboot
     maybe_self_update
     wait_for_radios
 
