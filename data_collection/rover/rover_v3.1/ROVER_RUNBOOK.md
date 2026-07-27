@@ -1191,6 +1191,8 @@ QGC / Mission Planner / mavproxy are all just MAVLink clients — the only quest
 | Tethered ethernet, mavproxy on the Pi (§16.2) | bench | mavproxy on the Pi (service stopped) | UDP `14550` → QGC auto-connects |
 | SITL TCP (§16.3) | sim | sim serves two `tcpin` ports | TCP `<sim-host>:14591` |
 
+> **Working from a Mac? Go to §16.5** — the step-by-step macOS + QGroundControl walkthrough for the `--out <mac-ip>:14550 --out <mac-ip>:14551` pattern.
+
 ### 16.1 Field — SiK radio + `telem.sh` fan-out (Mac)
 
 1. Plug the rover's SiK ground dongle into the Mac: rover1 = `/dev/tty.usbserial-DK0G4IOK`, rover2 = `…DK0G4W25`, rover3 = `…DK0G5WCE` (NetIDs 25/32/39 pair dongle ↔ rover, §3.4).
@@ -1224,3 +1226,52 @@ The docker sim serves `tcpin:0.0.0.0:14590` + `tcpin:0.0.0.0:14591` (§6.3), eac
 - The collector itself consuming network MAVLink: `--drone-uri tcp:192.168.1.141:14590` (tether, §13.3), `:14591` (Apr-2025 log), and a commented `tcp:192.168.1.142:14591` in `debug_drone_run.sh`.
 
 > ⚠ **Any attached GCS has write access** — it can arm, change modes, and save params on a live rover (MC-1 / §10 hazards apply). The boot param gate only *warns* on drift (§13.4): after experimenting in QGC, re-run the param load or check `--diff-params` before the next mission.
+
+### 16.5 macOS + QGroundControl — the `--out <mac-ip>:14550 --out <mac-ip>:14551` recipe
+
+The attested workflow (rover-1 history lines 1964-1972, run 2026-07-25). mavproxy runs **on the rover's Pi** and pushes MAVLink over the LAN to the Mac; QGC on the Mac just listens. Example Mac IP below is **`192.168.1.155`** — substitute your own.
+
+**Step 1 — find your Mac's IP.** On the Mac:
+
+```bash
+ipconfig getifaddr en0 || ipconfig getifaddr en1
+```
+
+`en0` is usually Wi-Fi, `en1` wired. It must be on the rover's subnet (`192.168.1.x`) — the rovers have no route anywhere else (§2).
+
+**Step 2 — start the fan-out on the rover.** From the Mac:
+
+```bash
+ssh pi@192.168.1.41
+```
+
+then on the Pi (rover1; `.42`/`.43` = rover2/3):
+
+```bash
+sudo systemctl stop mavlink_controller.service && source ~/spf-virtualenv/bin/activate && mavproxy.py --out 192.168.1.155:14550 --out 192.168.1.155:14551
+```
+
+Stopping the service first is **required** — the collector owns the FC serial while it runs (§12.1). Wait for mavproxy to print heartbeat/param lines before moving on. `--master` is omitted (autodetect, as in the history); if it grabs a Pluto console instead of the FC (garbage output, no heartbeat), pin it with `--master=/dev/ttyACM0`.
+
+**Step 3 — QGroundControl on the Mac.** With `14550` in the fan-out, **QGC connects by itself** — its built-in "UDP auto-connect" listens on 14550. Just launch QGC; the vehicle appears within a few seconds.
+
+If it doesn't appear:
+- **Application Settings → General → AutoConnect**: make sure **UDP** is ticked.
+- Add the link by hand: **Application Settings → Comm Links → Add** → Type **UDP**, Name `rover1`, **Listening Port 14550**, leave Server Addresses empty → **OK** → **Connect**. (Leave the server list empty — QGC is the listener here; mavproxy is the sender.)
+- **macOS firewall**: System Settings → Network → Firewall. If it's on, allow incoming connections for QGroundControl, or the UDP stream is silently dropped.
+
+**Step 4 — what the two ports are for.** `14550` is QGC. **`14551` is the spare** so a second tool can watch the same vehicle without stealing QGC's link — e.g. on the Mac:
+
+```bash
+mavproxy.py --master=udp:0.0.0.0:14551
+```
+
+or point `mavlink_controller.py --ip <mac-ip> --port 14551 --proto udp` at it for scripted commands (§9). Each UDP out is an independent stream, so both can run at once.
+
+**Step 5 — teardown.** `Ctrl-C` mavproxy on the Pi, then restore collection:
+
+```bash
+sudo systemctl start mavlink_controller.service
+```
+
+**Notes.** This is bench/tether only — `192.168.1.41` exists over ethernet; rover Wi-Fi is disabled (§2, §11), so in the field it's the SiK path (§16.1) instead. This is a **push** setup (mavproxy sends to a fixed IP), so if the Mac's DHCP lease changes the stream goes nowhere — re-check step 1. And per the warning above, a connected QGC can arm and drive a live rover: keep it on blocks or powered down while experimenting.
