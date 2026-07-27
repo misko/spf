@@ -45,7 +45,7 @@ calibration:
   rf-dc-calibration-policy: before_each_frequency_block
   random-seed: 20260727
   tx-source: fpga_dds
-  # The two completed 47-frequency scout epochs established 0 dB as the safe
+  # The three completed 47-frequency scout epochs established 0 dB as the safe
   # reference: it keeps moderate asymmetric pairs measurable while the
   # adaptive policy still attenuates TX for the stronger receive channel.
   tx-gain-db: 0
