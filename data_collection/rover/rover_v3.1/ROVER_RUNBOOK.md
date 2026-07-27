@@ -7,6 +7,47 @@ On-Rover repo root: `/home/pi/spf`. Active hardware generation: **rover v3.1**.
 
 ---
 
+## Quick start — SITL bench test (sim on `.141` + real rover + QGC on the Mac)
+
+Three MAVLink endpoints, one client each (`tcpin` is **single-client, first-come**): sim → **14592** collector · **14591** QGC · **14590** spare/scripted. Full detail in §6 and §16.
+
+**1 — on the base station `192.168.1.141`** (wait for `Detected vehicle` before connecting anything):
+
+```bash
+docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest /ardupilot/Tools/autotest/sim_vehicle.py -l 37.76509485,-122.40940127,0,0 -v rover -f rover-skid --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 --out tcpin:0.0.0.0:14592 -S 1
+```
+
+**2 — on the rover** (stop the service first; it owns the FC serial and the radios):
+
+```bash
+sudo systemctl stop mavlink_controller.service
+```
+
+```bash
+python spf/spf/mavlink_radio_collection.py -c spf/data_collection/rover/rover_v3.1/capture_configs/rover_receiver_config_pi_3mhz_35mm.yaml -m /home/pi/device_mapping -r  circle -t "RO1" -n 100 --drone-uri tcp:192.168.1.141:14592 --no-ultrasonic
+```
+
+**3 — on the Mac:** QGroundControl → Application Settings → Comm Links → **Add** → Type **TCP**, Server Address `192.168.1.141`, Port **14591** → Connect. (TCP links must be added by hand; QGC auto-connect is UDP-only.)
+
+**4 — drive the handshake from QGC:** set mode **Manual**, then **Guided**. `run_planner` waits for MANUAL *first*, then GUIDED (§14.3); the Pi arms itself after GUIDED and the planner starts issuing waypoints. Port **14590** is left free for scripted commands (`mavlink_controller.py --ip 127.0.0.1 --port 14590 --proto tcp --mode guided`).
+
+⚠ CI runs on `.141` too and its SITL tests bind 14590/14591 — check `docker ps` and `ss -tlnp | grep 1459` first.
+
+### Test GPS coordinates per fence
+
+Boundaries are hard-coded in `spf/gps/boundaries.py` as `(long, lat)` polygons; `boundary: auto` picks the nearest **centroid** (§14). Points below are verified by point-in-polygon; "outside" is 3 m beyond the nearest edge. Useful as SITL spawn (`-l <lat>,<lon>,0,0`) to test in-bounds vs out-of-bounds behaviour.
+
+| Fence | Inside (lat, lon) | Just outside (lat, lon) |
+|---|---|---|
+| `franklin_safe` | `37.7652738, -122.4092914` | `37.7650712, -122.4098717` |
+| `fort_baker_boundary` | `37.8352850, -122.4781192` | `37.8351705, -122.4781252` |
+| `fort_baker_right_boundary` | `37.8357159, -122.4788198` | `37.8359233, -122.4790347` |
+| `fort_baker_left_boundary` | `37.8351069, -122.4787865` | `37.8347338, -122.4785077` |
+
+> ⚠ The three Fort Baker fences have centroids only **50–100 m apart**, so `boundary: auto` cannot reliably tell them apart — set `boundary:` explicitly there. Franklin is ~9.9 km away and resolves unambiguously.
+
+---
+
 ## Table of contents
 
 **Know the platform**
