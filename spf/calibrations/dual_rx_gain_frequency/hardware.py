@@ -86,7 +86,6 @@ class DirectUsbLoopbackRadio:
         if self.direct.identity.serial != serial:
             self.direct.close()
             raise RuntimeError("direct USB identity does not match IIO identity")
-        self._tone = make_cyclic_tone(config)
         self._tone_active = False
         self._active_tx_gain = None
         try:
@@ -209,9 +208,8 @@ class DirectUsbLoopbackRadio:
             raise RuntimeError("cannot change TX gain while the tone is stopped")
         if self._active_tx_gain == float(tx_gain_db):
             return
-        # Updating attenuation in place preserves the cyclic DMA buffer and its
-        # phase continuity. Destroying and recreating that buffer for every
-        # gain pair proved unreliable on the tested firmware.
+        # Updating attenuation in place preserves the FPGA DDS and its phase
+        # continuity throughout one frequency block.
         self.sdr.tx_hardwaregain_chan1 = float(tx_gain_db)
         actual = float(self.sdr.tx_hardwaregain_chan1)
         if not np.isclose(actual, tx_gain_db, atol=0.25):
@@ -220,40 +218,55 @@ class DirectUsbLoopbackRadio:
             )
         self._active_tx_gain = actual
 
-    def start_tone(self, tx_channel: int = 1, tx_gain_db: float | None = None) -> None:
+    def start_tone(
+        self,
+        tx_channel: int = 1,
+        tx_gain_db: float | None = None,
+        *,
+        prime_after_arm: bool = False,
+    ) -> None:
         if tx_channel not in (0, 1):
             raise ValueError("TX channel must be 0 or 1")
         if self._tone_active:
             raise RuntimeError("TX2 tone is already active")
+        if self.config.tx_source != "fpga_dds":
+            raise RuntimeError(f"unsupported TX source: {self.config.tx_source}")
         if tx_gain_db is None:
             tx_gain_db = self.config.tx_gain_db
-        self._prime_iio_rx_dma()
+        tone_hz = int(self.config.tone_offset_hz)
+        if float(tone_hz) != self.config.tone_offset_hz:
+            raise ValueError("FPGA DDS tone offset must be an integer number of Hz")
+        dds_scale = float(self.config.tx_digital_amplitude) / float(2**15)
+        self.sdr.disable_dds()
         self.sdr.tx_destroy_buffer()
-        self.sdr.tx_cyclic_buffer = True
+        self.sdr.tx_cyclic_buffer = False
         self.sdr.tx_hardwaregain_chan0 = float(tx_gain_db) if tx_channel == 0 else -80
         self.sdr.tx_hardwaregain_chan1 = float(tx_gain_db) if tx_channel == 1 else -80
-        self.sdr.tx_enabled_channels = [tx_channel]
-        self.sdr.tx(self._tone)
+        self.sdr.tx_enabled_channels = []
+        self.sdr.dds_single_tone(tone_hz, dds_scale, channel=tx_channel)
         self._tone_active = True
         self._active_tx_gain = float(tx_gain_db)
-        # With two Pluto IIO contexts open on the same host, the first direct
-        # RX START can still silence a newly armed cyclic TX unless one IIO RX
-        # buffer is also completed after TX starts. Relinquish that buffer
-        # immediately; all recorded frames continue to use direct USB.
-        self._prime_iio_rx_dma()
+        if prime_after_arm:
+            # Some Pluto+ runtime states require one IIO RX completion after
+            # DDS arm before the first direct RX START. The runner negotiates
+            # this at every block using a direct-USB tone preflight.
+            self._prime_iio_rx_dma()
 
     def stop_tone(self) -> None:
         if not hasattr(self, "sdr"):
             return
         try:
-            self.sdr.tx_destroy_buffer()
+            self.sdr.disable_dds()
         finally:
-            self.sdr.tx_enabled_channels = []
-            self.sdr.tx_hardwaregain_chan0 = -80
-            self.sdr.tx_hardwaregain_chan1 = -80
-            self.sdr.tx_cyclic_buffer = False
-            self._tone_active = False
-            self._active_tx_gain = None
+            try:
+                self.sdr.tx_destroy_buffer()
+            finally:
+                self.sdr.tx_enabled_channels = []
+                self.sdr.tx_hardwaregain_chan0 = -80
+                self.sdr.tx_hardwaregain_chan1 = -80
+                self.sdr.tx_cyclic_buffer = False
+                self._tone_active = False
+                self._active_tx_gain = None
 
     def discard(self, frame_count: int) -> None:
         for _ in range(frame_count):
@@ -324,10 +337,17 @@ class DirectUsbLoopbackRadio:
             self.direct.close()
             self.direct = None
         if getattr(self, "sdr", None) is not None:
+            sdr = self.sdr
             try:
                 self.stop_tone()
             finally:
-                self.sdr.rx_destroy_buffer()
+                try:
+                    sdr.rx_destroy_buffer()
+                finally:
+                    # Drop the final pyadi/libiio context reference now so a
+                    # negotiated handoff retry can reclaim USB-IIO interface 5
+                    # deterministically.
+                    self.sdr = None
 
     def __enter__(self):
         return self

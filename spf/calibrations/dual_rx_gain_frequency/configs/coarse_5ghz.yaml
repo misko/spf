@@ -30,6 +30,7 @@ calibration:
   discard-frames-after-gain: 1
   max-retries: 1
   random-seed: 20260727
+  tx-source: fpga_dds
   tx-gain-db: -15
   tx-gain-policy: adaptive_max_rx_gain
   tx-reference-rx-gain-db: 26

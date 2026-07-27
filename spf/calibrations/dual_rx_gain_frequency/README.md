@@ -17,11 +17,14 @@ only when its gain/RSSI metadata, tone level, clipping, cross-channel
 coherence, and segmented phase-stability checks pass. Failed frames remain in
 the dataset with an explicit quality-reason mask.
 
-The hardware adapter performs one standard-IIO RX DMA priming read immediately
-before arming cyclic TX at each frequency. It destroys that IIO buffer before
-direct USB starts; there are no host-side IIO gain or RSSI reads in the frame
-loop. TX attenuation changes in place so the cyclic TX DMA and phase continuity
-are preserved.
+The calibration tone comes from TX2's FPGA DDS, so TX DMA never competes with
+the direct-USB receive path. Only one Pluto control/direct context is open at a
+time. At every radio/frequency block, the runner negotiates the two observed
+Pluto+ RX-DMA handoff sequences (direct start, then post-arm IIO prime) and
+accepts one only after a direct-USB reference-gain tone preflight passes. The
+selected handoff is logged with the preflight. There are no host-side IIO gain
+or RSSI reads in the frame loop, and TX attenuation changes in place without
+restarting the DDS.
 
 ## Commands
 
@@ -66,6 +69,8 @@ After the pilot establishes usable signal levels, replace `pilot_5ghz.yaml`
 with `coarse_5ghz.yaml` to enumerate all 73 manual gain states on both
 receivers at the four coarse frequencies. Runs are resumable: the completion
 bit is committed only after IQ, V7 metadata, coordinates, and quality metrics.
+Initial and resumed capture use the same asynchronous LMDB write mode, with a
+durable sync after every radio/frequency block and on clean shutdown.
 
 ## Pass/fail interpretation
 

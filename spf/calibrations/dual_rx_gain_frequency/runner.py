@@ -25,6 +25,9 @@ from spf.calibrations.dual_rx_gain_frequency.hardware import DirectUsbLoopbackRa
 from spf.scripts.pluto_ready_manifest import load_manifest
 
 
+HANDOFF_PRIME_SEQUENCE = (False, True, False, True)
+
+
 def _dataclass_keys(cls) -> set[str]:
     return {field.name for field in fields(cls)}
 
@@ -139,6 +142,62 @@ def _preflight_tone(radio, config: CalibrationConfig) -> dict[str, Any]:
     return analysis
 
 
+def _open_preflight_radio(
+    *,
+    serial: str,
+    frequency_hz: int,
+    config: CalibrationConfig,
+    radio_factory: Callable[..., Any],
+    failure_log: Path,
+) -> tuple[Any, dict[str, Any], dict[str, Any]]:
+    """Open one radio and negotiate a direct-RX-safe FPGA DDS handoff."""
+
+    failures = []
+    for attempt, prime_after_arm in enumerate(HANDOFF_PRIME_SEQUENCE, start=1):
+        radio = None
+        try:
+            radio = radio_factory(serial, config)
+            radio.configure_frequency(frequency_hz, start_tone=False)
+            radio.start_tone(
+                tx_channel=1,
+                prime_after_arm=prime_after_arm,
+            )
+            preflight = _preflight_tone(radio, config)
+            return (
+                radio,
+                preflight,
+                {
+                    "attempt": attempt,
+                    "tx_source": config.tx_source,
+                    "prime_after_arm": prime_after_arm,
+                },
+            )
+        except Exception as error:
+            failure = {
+                "status": "fail",
+                "serial": serial,
+                "frequency_hz": frequency_hz,
+                "attempt": attempt,
+                "tx_source": config.tx_source,
+                "prime_after_arm": prime_after_arm,
+                "error_type": type(error).__name__,
+                "error": str(error),
+            }
+            failures.append(failure)
+            _append_jsonl(failure_log, failure)
+            if radio is not None:
+                radio.close()
+            # Give FunctionFS/libusb teardown a bounded interval before a new
+            # pyadi context claims the same USB-IIO interface.
+            time.sleep(0.5)
+    summary = "; ".join(
+        f"attempt {failure['attempt']} prime_after_arm="
+        f"{failure['prime_after_arm']}: {failure['error']}"
+        for failure in failures
+    )
+    raise RuntimeError(f"{serial}: no direct-safe TX2 DDS handoff: {summary}")
+
+
 def run_calibration(
     *,
     config_path: Path,
@@ -160,25 +219,25 @@ def run_calibration(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with ExitStack() as stack:
-        radios = {
-            serial: stack.enter_context(radio_factory(serial, config))
-            for serial in serials
-        }
-        for serial, radio in radios.items():
+    identities = {}
+    for serial in serials:
+        with radio_factory(serial, config) as radio:
             available = set(radio.available_gains())
             unavailable = sorted(set(config.gains_db) - available)
             if unavailable:
                 raise RuntimeError(
                     f"{serial}: requested unavailable gains {unavailable}"
                 )
+            identities[serial] = radio.identity()
+
+    with ExitStack() as stack:
         writers = {
             serial: stack.enter_context(
                 CalibrationV7Writer(
                     output_dir / serial / "calibration.v7.zarr",
                     config=config,
                     schedule=schedule,
-                    identity=radios[serial].identity(),
+                    identity=identities[serial],
                     yaml_config=yaml_document,
                     resume=True,
                 )
@@ -197,18 +256,19 @@ def run_calibration(
                 tuple(reversed(serials)) if block_index % 2 else tuple(serials)
             )
             for serial in radio_order:
-                radio = radios[serial]
                 writer = writers[serial]
                 pending = [entry for entry in block if not writer.is_complete(entry)]
                 if not pending:
                     continue
-                # This also stops any stale cyclic buffer before retuning.
-                for other_serial, other_radio in radios.items():
-                    if other_serial != serial:
-                        other_radio.stop_tone()
-                radio.configure_frequency(block[0].lo_frequency_hz)
+                radio = None
                 try:
-                    preflight = _preflight_tone(radio, config)
+                    radio, preflight, handoff = _open_preflight_radio(
+                        serial=serial,
+                        frequency_hz=block[0].lo_frequency_hz,
+                        config=config,
+                        radio_factory=radio_factory,
+                        failure_log=output_dir / serial / "preflight_failures.jsonl",
+                    )
                     _append_jsonl(
                         output_dir / serial / "preflight.jsonl",
                         {
@@ -223,6 +283,7 @@ def run_calibration(
                             "within_capture_phase_std_deg": preflight[
                                 "within_capture_phase_std_deg"
                             ],
+                            **handoff,
                         },
                     )
                     for entry in pending:
@@ -286,7 +347,8 @@ def run_calibration(
                                     break
                 finally:
                     try:
-                        radio.stop_tone()
+                        if radio is not None:
+                            radio.close()
                     finally:
                         # Per-frame LMDB writes are asynchronous for capture
                         # throughput. Make every radio/frequency block a
@@ -324,42 +386,58 @@ def probe_loopback(
         config.frequencies_hz[0] if frequency_hz is None else int(frequency_hz)
     )
     gain_db = config.gains_db[len(config.gains_db) // 2] if gain_db is None else gain_db
-    with radio_factory(serial, config) as radio:
-        if gain_db not in radio.available_gains():
-            raise ValueError(f"gain {gain_db} is unavailable")
-        radio.configure_frequency(frequency_hz, start_tone=False)
-        radio.set_gains(gain_db, gain_db)
-        time.sleep(config.settle_seconds)
-        radio.discard(config.discard_frames_after_gain)
-        off = radio.capture()
-        off_analysis = _analyze(off, config)
+    last_result = None
+    for attempt, prime_after_arm in enumerate(HANDOFF_PRIME_SEQUENCE, start=1):
+        with radio_factory(serial, config) as radio:
+            if gain_db not in radio.available_gains():
+                raise ValueError(f"gain {gain_db} is unavailable")
+            radio.configure_frequency(frequency_hz, start_tone=False)
+            radio.set_gains(gain_db, gain_db)
+            time.sleep(config.settle_seconds)
+            radio.discard(config.discard_frames_after_gain)
+            off = radio.capture()
+            off_analysis = _analyze(off, config)
 
-        radio.start_tone(tx_channel=tx_channel)
-        if tx_channel == 1:
-            radio.set_tx_gain(config.tx_gain_for(gain_db, gain_db))
-        time.sleep(config.frequency_settle_seconds)
-        radio.discard(config.discard_frames_after_gain)
-        on = radio.capture()
-        on_analysis = _analyze(on, config)
-        delta = np.asarray(on_analysis["tone_dbfs"]) - np.asarray(
-            off_analysis["tone_dbfs"]
-        )
-        passed = bool(
-            on_analysis["quality_valid"] and np.all(delta >= minimum_on_off_delta_db)
-        )
-        return {
-            "status": "pass" if passed else "fail",
-            "serial": serial,
-            "frequency_hz": frequency_hz,
-            "gain_db": gain_db,
-            "tx_channel": tx_channel,
-            "minimum_on_off_delta_db": minimum_on_off_delta_db,
-            "tone_off_dbfs": off_analysis["tone_dbfs"],
-            "tone_on_dbfs": on_analysis["tone_dbfs"],
-            "tone_on_off_delta_db": delta.tolist(),
-            "tone_on_snr_db": on_analysis["tone_snr_db"],
-            "tone_on_frequency_hz": on_analysis["tone_frequency_hz"],
-            "tone_on_phase_difference_rad": on_analysis["phase_difference_rad"],
-            "tone_on_quality_valid": on_analysis["quality_valid"],
-            "tone_on_quality_reasons": on_analysis["quality_reasons"],
-        }
+            radio.start_tone(
+                tx_channel=tx_channel,
+                prime_after_arm=prime_after_arm,
+            )
+            if tx_channel == 1:
+                radio.set_tx_gain(config.tx_gain_for(gain_db, gain_db))
+            time.sleep(config.frequency_settle_seconds)
+            radio.discard(config.discard_frames_after_gain)
+            on = radio.capture()
+            on_analysis = _analyze(on, config)
+            delta = np.asarray(on_analysis["tone_dbfs"]) - np.asarray(
+                off_analysis["tone_dbfs"]
+            )
+            passed = bool(
+                on_analysis["quality_valid"]
+                and np.all(delta >= minimum_on_off_delta_db)
+            )
+            last_result = {
+                "status": "pass" if passed else "fail",
+                "serial": serial,
+                "frequency_hz": frequency_hz,
+                "gain_db": gain_db,
+                "tx_channel": tx_channel,
+                "tx_source": config.tx_source,
+                "handoff_attempt": attempt,
+                "prime_after_arm": prime_after_arm,
+                "minimum_on_off_delta_db": minimum_on_off_delta_db,
+                "tone_off_dbfs": off_analysis["tone_dbfs"],
+                "tone_on_dbfs": on_analysis["tone_dbfs"],
+                "tone_on_off_delta_db": delta.tolist(),
+                "tone_on_snr_db": on_analysis["tone_snr_db"],
+                "tone_on_frequency_hz": on_analysis["tone_frequency_hz"],
+                "tone_on_phase_difference_rad": on_analysis[
+                    "phase_difference_rad"
+                ],
+                "tone_on_quality_valid": on_analysis["quality_valid"],
+                "tone_on_quality_reasons": on_analysis["quality_reasons"],
+            }
+            if passed:
+                return last_result
+        time.sleep(0.5)
+    assert last_result is not None
+    return last_result

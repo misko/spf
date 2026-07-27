@@ -31,6 +31,7 @@ calibration:
   discard-frames-after-gain: 1
   max-retries: 1
   random-seed: 20260727
+  tx-source: fpga_dds
   # At 26 dB RX gain this puts the loopback tone near -34 dBFS. The adaptive
   # policy holds the stronger receiver near that target where TX range allows.
   tx-gain-db: -15

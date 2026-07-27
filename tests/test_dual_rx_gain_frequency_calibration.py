@@ -219,9 +219,20 @@ class FakeLoopbackRadio:
     def identity(self):
         return fake_identity(self.serial)
 
-    def configure_frequency(self, frequency):
+    def configure_frequency(self, frequency, *, start_tone=True):
         self.frequency = frequency
+        if start_tone:
+            self.start_tone()
+
+    def start_tone(
+        self,
+        tx_channel=1,
+        tx_gain_db=None,
+        *,
+        prime_after_arm=False,
+    ):
         self.tone_active = True
+        self.prime_after_arm = prime_after_arm
 
     def set_gains(self, gain1, gain2):
         self.gains = (gain1, gain2)
@@ -246,6 +257,37 @@ class FakeLoopbackRadio:
 
     def close(self):
         self.stop_tone()
+
+
+class FakeNegotiatingLoopbackRadio(FakeLoopbackRadio):
+    active_contexts = 0
+    max_active_contexts = 0
+
+    def __init__(self, serial, config):
+        super().__init__(serial, config)
+        self.closed = False
+        type(self).active_contexts += 1
+        type(self).max_active_contexts = max(
+            type(self).max_active_contexts,
+            type(self).active_contexts,
+        )
+
+    def capture(self):
+        frame = super().capture()
+        if self.serial == "SERIAL-B" and not self.prime_after_arm:
+            rng = np.random.default_rng(self.stream_id)
+            frame.signal_matrix = (
+                rng.normal(size=frame.signal_matrix.shape)
+                + 1j * rng.normal(size=frame.signal_matrix.shape)
+            ).astype(np.complex64)
+        return frame
+
+    def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        super().close()
+        type(self).active_contexts -= 1
 
 
 def test_schedule_has_complete_separated_epochs_and_deterministic_pair_orders():
@@ -298,38 +340,43 @@ class FakePrimingSdr:
     def tx_destroy_buffer(self):
         self.calls.append("tx_destroy")
 
-    def tx(self, tone):
-        self.calls.append("tx")
+    def disable_dds(self):
+        self.calls.append("disable_dds")
+
+    def dds_single_tone(self, frequency, scale, channel):
+        self.calls.append(("dds_single_tone", frequency, scale, channel))
 
 
-def test_tone_primes_iio_rx_before_arming_cyclic_tx_and_updates_gain_in_place():
+def test_dds_tone_supports_negotiated_post_arm_prime_and_gain_updates():
     config = small_config()
     radio = DirectUsbLoopbackRadio.__new__(DirectUsbLoopbackRadio)
     radio.config = config
     radio.sdr = FakePrimingSdr(config)
-    radio._tone = make_cyclic_tone(config)
     radio._tone_active = False
     radio._active_tx_gain = None
 
-    radio.start_tone(tx_channel=1, tx_gain_db=-20)
+    radio.start_tone(
+        tx_channel=1,
+        tx_gain_db=-20,
+        prime_after_arm=True,
+    )
     assert radio.sdr.calls == [
-        "rx",
-        "rx_destroy",
+        "disable_dds",
         "tx_destroy",
-        "tx",
+        ("dds_single_tone", 100_000, 0.125, 1),
         "rx",
         "rx_destroy",
     ]
-    assert radio.sdr.tx_enabled_channels == [1]
+    assert radio.sdr.tx_enabled_channels == []
+    assert radio.sdr.tx_cyclic_buffer is False
     assert radio.sdr.tx_hardwaregain_chan1 == -20
 
     radio.set_tx_gain(-35)
     assert radio.sdr.tx_hardwaregain_chan1 == -35
     assert radio.sdr.calls == [
-        "rx",
-        "rx_destroy",
+        "disable_dds",
         "tx_destroy",
-        "tx",
+        ("dds_single_tone", 100_000, 0.125, 1),
         "rx",
         "rx_destroy",
     ]
@@ -343,16 +390,20 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
     serials = ("SERIAL-A", "SERIAL-B")
     write_ready_manifest(ready_path, serials)
     monkeypatch.setenv("SPF_DIRECT_USB_READY_FILE", str(ready_path))
+    FakeNegotiatingLoopbackRadio.active_contexts = 0
+    FakeNegotiatingLoopbackRadio.max_active_contexts = 0
 
     result = run_calibration(
         config_path=config_path,
         output_dir=tmp_path / "output",
         ready_manifest_path=ready_path,
         serials=serials,
-        radio_factory=FakeLoopbackRadio,
+        radio_factory=FakeNegotiatingLoopbackRadio,
     )
     assert result["status"] == "complete"
     assert result["completed_measurements"] == 24
+    assert FakeNegotiatingLoopbackRadio.active_contexts == 0
+    assert FakeNegotiatingLoopbackRadio.max_active_contexts == 1
 
     for serial in serials:
         dataset = tmp_path / "output" / serial / "calibration.v7.zarr"
@@ -376,6 +427,27 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
         assert summary["passing_cells"] == 4
         assert len(summary["frequency_summary"]) == 1
         assert "Leave-one-epoch-out circular MAE" in render_markdown(summary)
+        preflights = [
+            json.loads(line)
+            for line in (
+                tmp_path / "output" / serial / "preflight.jsonl"
+            ).read_text().splitlines()
+        ]
+        assert len(preflights) == 3
+        if serial == "SERIAL-A":
+            assert all(item["attempt"] == 1 for item in preflights)
+            assert all(item["prime_after_arm"] is False for item in preflights)
+        else:
+            assert all(item["attempt"] == 2 for item in preflights)
+            assert all(item["prime_after_arm"] is True for item in preflights)
+            failures = [
+                json.loads(line)
+                for line in (
+                    tmp_path / "output" / serial / "preflight_failures.jsonl"
+                ).read_text().splitlines()
+            ]
+            assert len(failures) == 3
+            assert all(item["prime_after_arm"] is False for item in failures)
 
     from spf.calibrations.dual_rx_gain_frequency import dataset as dataset_module
 
@@ -392,7 +464,7 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
         output_dir=tmp_path / "output",
         ready_manifest_path=ready_path,
         serials=serials,
-        radio_factory=FakeLoopbackRadio,
+        radio_factory=FakeNegotiatingLoopbackRadio,
     )
     assert resumed["completed_measurements"] == 24
     writable_resume_calls = [

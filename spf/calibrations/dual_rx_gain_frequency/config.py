@@ -49,6 +49,7 @@ class CalibrationConfig:
     discard_frames_after_gain: int = 1
     max_retries: int = 1
     random_seed: int = 20260727
+    tx_source: str = "fpga_dds"
     tx_gain_db: float = -30.0
     tx_gain_policy: str = "fixed"
     tx_reference_rx_gain_db: int = 34
@@ -97,6 +98,8 @@ class CalibrationConfig:
             raise ValueError("repeat phase threshold must be positive")
         if not 0 < self.tx_digital_amplitude <= 2**14:
             raise ValueError("TX digital amplitude must be in (0, 16384]")
+        if self.tx_source != "fpga_dds":
+            raise ValueError(f"unsupported TX source: {self.tx_source}")
         if self.tx_gain_policy not in ("fixed", "adaptive_max_rx_gain"):
             raise ValueError(f"unsupported TX gain policy: {self.tx_gain_policy}")
         if self.tx_min_gain_db > self.tx_max_gain_db:
