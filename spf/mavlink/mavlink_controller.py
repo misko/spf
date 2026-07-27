@@ -694,18 +694,31 @@ class Drone:
         self.connection.mav.send(message)
 
     def set_home(self, lat, long):
-        # set home position
-        self.connection.mav.command_long_send(
+        """Set the vehicle home (and therefore the RTL destination) to lat/long.
+
+        param1 MUST be 0 = "use specified location". With param1=1 ArduPilot
+        reads it as "use current location" and silently DISCARDS lat/long —
+        verified in SITL, where home stayed at the spawn point 14.14 m away
+        from the requested position.
+
+        Sent as COMMAND_INT (degrees x 1e7, integer) rather than COMMAND_LONG:
+        COMMAND_LONG carries lat/long as float32, which quantizes to ~0.67 m at
+        these longitudes — larger than the per-rover rest offsets themselves.
+        This mirrors reposition(), which already uses command_int_send.
+        """
+        self.connection.mav.command_int_send(
             self.connection.target_system,
             self.connection.target_component,
+            mavutil.mavlink.MAV_FRAME_GLOBAL,
             self.get_cmd("MAV_CMD_DO_SET_HOME"),
-            0,  # set position
-            1,  # param1
+            0,  # current
+            0,  # autocontinue
+            0,  # param1: 0 = use SPECIFIED location (1 would discard lat/long)
             0,  # param2
             0,  # param3
             0,  # param4
-            lat,  # 37.8047122,  # lat
-            long,  # -122.4659164,  # lon
+            int(lat * 1e7),
+            int(long * 1e7),
             0,
         )
         # self.ack("COMMAND_ACK")
