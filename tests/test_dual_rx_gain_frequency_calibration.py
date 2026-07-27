@@ -307,13 +307,27 @@ def test_tone_primes_iio_rx_before_arming_cyclic_tx_and_updates_gain_in_place():
     radio._active_tx_gain = None
 
     radio.start_tone(tx_channel=1, tx_gain_db=-20)
-    assert radio.sdr.calls == ["rx", "rx_destroy", "tx_destroy", "tx"]
+    assert radio.sdr.calls == [
+        "rx",
+        "rx_destroy",
+        "tx_destroy",
+        "tx",
+        "rx",
+        "rx_destroy",
+    ]
     assert radio.sdr.tx_enabled_channels == [1]
     assert radio.sdr.tx_hardwaregain_chan1 == -20
 
     radio.set_tx_gain(-35)
     assert radio.sdr.tx_hardwaregain_chan1 == -35
-    assert radio.sdr.calls == ["rx", "rx_destroy", "tx_destroy", "tx"]
+    assert radio.sdr.calls == [
+        "rx",
+        "rx_destroy",
+        "tx_destroy",
+        "tx",
+        "rx",
+        "rx_destroy",
+    ]
 
 
 def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):

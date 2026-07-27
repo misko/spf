@@ -114,6 +114,31 @@ def _analyze(frame, config: CalibrationConfig) -> dict[str, Any]:
     )
 
 
+def _preflight_tone(radio, config: CalibrationConfig) -> dict[str, Any]:
+    """Require a clean reference-gain direct frame before recording a block."""
+
+    reference_gain = config.tx_reference_rx_gain_db
+    radio.set_gains(reference_gain, reference_gain)
+    radio.set_tx_gain(config.tx_gain_for(reference_gain, reference_gain))
+    time.sleep(config.settle_seconds)
+    radio.discard(config.discard_frames_after_gain)
+    frame = radio.capture()
+    requested = np.asarray([reference_gain, reference_gain], dtype=np.float32)
+    if not frame.gain_metadata_valid or not frame.rssi_metadata_valid:
+        raise RuntimeError("preflight metadata is invalid")
+    if not np.array_equal(frame.gain_db_start, requested) or not np.array_equal(
+        frame.gain_db_end, requested
+    ):
+        raise RuntimeError("preflight gain metadata does not match reference gain")
+    analysis = _analyze(frame, config)
+    if not analysis["quality_valid"]:
+        raise RuntimeError(
+            "direct-USB tone preflight failed: "
+            + ", ".join(analysis["quality_reasons"])
+        )
+    return analysis
+
+
 def run_calibration(
     *,
     config_path: Path,
@@ -183,6 +208,23 @@ def run_calibration(
                         other_radio.stop_tone()
                 radio.configure_frequency(block[0].lo_frequency_hz)
                 try:
+                    preflight = _preflight_tone(radio, config)
+                    _append_jsonl(
+                        output_dir / serial / "preflight.jsonl",
+                        {
+                            "status": "pass",
+                            "epoch": block[0].epoch,
+                            "frequency_index": block[0].frequency_index,
+                            "frequency_hz": block[0].lo_frequency_hz,
+                            "reference_gain_db": config.tx_reference_rx_gain_db,
+                            "tone_dbfs": preflight["tone_dbfs"],
+                            "tone_snr_db": preflight["tone_snr_db"],
+                            "coherence": preflight["coherence"],
+                            "within_capture_phase_std_deg": preflight[
+                                "within_capture_phase_std_deg"
+                            ],
+                        },
+                    )
                     for entry in pending:
                         if progress:
                             progress(serial, entry, completed, total)

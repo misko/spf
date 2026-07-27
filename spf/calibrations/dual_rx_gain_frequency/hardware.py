@@ -236,6 +236,11 @@ class DirectUsbLoopbackRadio:
         self.sdr.tx(self._tone)
         self._tone_active = True
         self._active_tx_gain = float(tx_gain_db)
+        # With two Pluto IIO contexts open on the same host, the first direct
+        # RX START can still silence a newly armed cyclic TX unless one IIO RX
+        # buffer is also completed after TX starts. Relinquish that buffer
+        # immediately; all recorded frames continue to use direct USB.
+        self._prime_iio_rx_dma()
 
     def stop_tone(self) -> None:
         if not hasattr(self, "sdr"):
