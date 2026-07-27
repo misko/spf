@@ -193,10 +193,14 @@ Pass only if standard USB-IIO and vendor interface 6 both enumerate and both
 `iiod` and `sdr_usb_gadget` run. Do not flash an image that has not passed RAM
 boot and rollback.
 
-This is a boot-time prerequisite, not a per-capture operation. Load once after
-each Pluto power cycle or reset, then run any number of direct-USB captures
-until the next Pluto reset. A Pi-only reboot may leave USB power applied and
-the RAM image resident; the loader detects, verifies, and skips a redundant
+This is a boot-time prerequisite, not a per-capture operation. The Rover boot
+service always checksum-verifies and reloads the configured RAM image on every
+Pi boot. A Pi-only reboot may leave USB power applied and an older RAM image
+resident; `/opt/VERSIONS` therefore describes that active image rather than
+proving QSPI identity and is not used as a pre-load version gate. Persistent
+`ad9361`/`2r2t` U-Boot values are checked, and the final direct interface,
+daemons, standard IIO, and dual-RX scan layout are verified after loading.
+Once boot preparation succeeds, any number of captures can run without another
 load. The collector itself never silently loads firmware. Run:
 
 ```sh

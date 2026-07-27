@@ -5,7 +5,8 @@
 
 set -euo pipefail
 
-readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 readonly LOADER="${SCRIPT_DIR}/load_direct_usb_firmware.sh"
 readonly MAPPING_SCRIPT="${SCRIPT_DIR}/device_mapping.sh"
 readonly READY_DIR="/run/spf"
@@ -86,7 +87,9 @@ attached_radios="$(run_loader discover-count)"
     die "Config has ${configured_radios} receivers but ${attached_radios} Plutos are attached."
 
 # Boot must not rewrite U-Boot. Verify the persistent settings established
-# during Rover provisioning, then load the exact configured image into RAM.
+# during Rover provisioning without treating the active runtime version as
+# QSPI identity. Then always load the exact configured image into RAM, including
+# after a Pi-only reboot that left an older RAM image powered.
 run_loader check-config-all "$attached_radios"
 
 run_loader load-all "$attached_radios"

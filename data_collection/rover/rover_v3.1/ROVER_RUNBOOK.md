@@ -177,6 +177,12 @@ sudo /home/pi/spf/data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
 ```
 
 Normal boots perform only the final read-only check; they never repair U-Boot.
+That check validates the persistent `compatible=ad9361` and `mode=2r2t`
+settings but does not gate on `/opt/VERSIONS`, because a Pi-only reboot can
+leave a volatile RAM image running. The boot service then checksum-verifies and
+RAM-loads the configured image on every boot, even when direct USB is already
+present. The stock-QSPI version allowlist remains enforced by the separate
+explicit provisioning path before it can write persistent U-Boot values.
 
 **[field note] Do NOT persistently flash v0.38 — it bricks some PlutoPlus
 units.** Keep production QSPI on **v0.37**. The experimental direct-USB

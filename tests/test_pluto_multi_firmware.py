@@ -249,6 +249,62 @@ def test_provision_rejects_unapproved_qspi_before_write(tmp_path, monkeypatch):
         manager.provision_config_all()
 
 
+@pytest.mark.parametrize("direct_usb", [False, True])
+def test_boot_config_check_ignores_active_runtime_version(
+    tmp_path, monkeypatch, direct_usb
+):
+    manager = _manager(tmp_path)
+    device = UsbPluto(
+        serial="SERIAL_A",
+        sysfs_name="1-1.1",
+        bus=1,
+        port_path="1.1",
+        direct_usb=direct_usb,
+    )
+    environment = {
+        "attr_name": "compatible",
+        "attr_val": "ad9361",
+        "compatible": "ad9361",
+        "mode": "2r2t",
+    }
+    monkeypatch.setattr(manager, "_check_root", lambda: None)
+    monkeypatch.setattr(manager, "_devices", lambda: [device])
+    monkeypatch.setattr(manager, "_read_uboot_environment", lambda serial: environment)
+    monkeypatch.setattr(
+        manager,
+        "_read_persistent_state",
+        lambda serial: pytest.fail("boot must not inspect the active image version"),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_verify_dual_rx",
+        lambda serial: pytest.fail("dual RX is verified after the exact RAM load"),
+    )
+
+    manager.check_config_all()
+
+
+def test_boot_config_check_still_rejects_persistent_uboot_mismatch(
+    tmp_path, monkeypatch
+):
+    manager = _manager(tmp_path)
+    monkeypatch.setattr(manager, "_check_root", lambda: None)
+    monkeypatch.setattr(manager, "_devices", lambda: [_device()])
+    monkeypatch.setattr(
+        manager,
+        "_read_uboot_environment",
+        lambda serial: {
+            "attr_name": "compatible",
+            "attr_val": "ad9361",
+            "compatible": "ad9361",
+            "mode": "1r1t",
+        },
+    )
+
+    with pytest.raises(FirmwareError, match="U-Boot environment mismatch"):
+        manager.check_config_all()
+
+
 def test_direct_firmware_is_reloaded_instead_of_only_trusted(tmp_path, monkeypatch):
     manager = MultiPlutoFirmwareManager(
         image=tmp_path / "pluto.dfu",
@@ -295,6 +351,19 @@ def test_direct_firmware_is_reloaded_instead_of_only_trusted(tmp_path, monkeypat
         call[0] == "ssh" and "/usr/sbin/device_reboot ram" in call[2] for call in calls
     )
     assert ("verify", "SERIAL_A") in calls
+
+
+def test_boot_preparation_always_checks_config_then_loads_exact_ram_image():
+    boot_script = (
+        Path(__file__).resolve().parents[1]
+        / "data_collection/rover/rover_v3.1/prepare_direct_usb_boot.sh"
+    ).read_text()
+    check = 'run_loader check-config-all "$attached_radios"'
+    load = 'run_loader load-all "$attached_radios"'
+
+    assert check in boot_script
+    assert load in boot_script
+    assert boot_script.index(check) < boot_script.index(load)
 
 
 @pytest.mark.parametrize(

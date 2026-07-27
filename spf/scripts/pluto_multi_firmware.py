@@ -514,6 +514,10 @@ class MultiPlutoFirmwareManager:
         environment = parse_uboot_environment(environment_output)
         return version, environment, result.stdout
 
+    def _read_uboot_environment(self, serial: str) -> dict[str, str]:
+        result = self._ssh(serial, "fw_printenv")
+        return parse_uboot_environment(result.stdout)
+
     def _require_approved_qspi_version(self, serial: str, version: str) -> None:
         if version not in self.approved_qspi_versions:
             raise FirmwareError(
@@ -682,16 +686,23 @@ class MultiPlutoFirmwareManager:
         self._check_root()
         devices = self._devices()
         for device in devices:
-            version, environment, _ = self._read_persistent_state(device.serial)
-            self._require_approved_qspi_version(device.serial, version)
+            # /opt/VERSIONS describes the active image, which may be a volatile
+            # RAM image retained across a Pi-only reboot. It cannot prove the
+            # version stored in QSPI, so ordinary RAM boot must not gate on it.
+            # Persistent writes retain the QSPI allowlist in
+            # provision_config_all(); this read-only boot gate checks only the
+            # U-Boot values needed by the exact image loaded immediately after.
+            environment = self._read_uboot_environment(device.serial)
             mismatches = self._environment_mismatches(environment)
             if mismatches:
                 raise FirmwareError(
                     f"{device.serial}: Pluto U-Boot environment mismatch: "
                     f"{mismatches}"
                 )
-            self._verify_dual_rx(device.serial)
-            print(f"{device.serial}: PASS ad9361/2r2t configuration", flush=True)
+            print(
+                f"{device.serial}: PASS persistent ad9361/2r2t configuration",
+                flush=True,
+            )
         print(f"PASS: verified configuration on {len(devices)} Plutos", flush=True)
 
     def provision_config_all(self, *, dry_run: bool = False) -> None:

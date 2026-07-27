@@ -193,8 +193,12 @@ find /home/pi/preflight/boot_direct_usb -maxdepth 2 \
 
 A Pi-only reboot may leave USB power applied to the Plutos. The loader still
 reloads the exact checksum-pinned image because a vendor interface alone does
-not prove its build. A full Rover power cycle or a tested `rollback-all` returns
-the Plutos to QSPI.
+not prove its build. The pre-load gate checks persistent `ad9361`/`2r2t`
+U-Boot values but deliberately does not interpret the active RAM
+`/opt/VERSIONS` value as QSPI identity. The stock-QSPI version allowlist remains
+mandatory for the separate, explicit operation that writes persistent U-Boot
+configuration. A full Rover power cycle or a tested `rollback-all` returns the
+Plutos to QSPI.
 
 To prove rollback without enabling motion:
 

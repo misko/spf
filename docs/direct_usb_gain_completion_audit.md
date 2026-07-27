@@ -232,6 +232,12 @@ USB-IIO mapping, and automatically ran and reopened the 100-frame Zarr.
 Because a Pi-only reboot kept USB power applied, the radios retained their RAM
 images and the idempotent loader verified rather than reloaded them.
 
+The production policy was subsequently tightened after a warm-reboot failure:
+the boot loader now always reloads the checksum-pinned RAM image. It no longer
+uses the active RAM image's `/opt/VERSIONS` value as evidence of QSPI identity.
+The historical observation above remains accurate for that qualification run,
+but it is not the current boot behavior.
+
 Rollback was therefore first tested separately:
 
 1. both radios were reset by serial into their installed QSPI images;
