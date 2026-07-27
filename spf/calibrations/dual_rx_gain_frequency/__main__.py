@@ -11,7 +11,9 @@ from tqdm import tqdm
 
 from .comparative_analysis import write_comparative_bundle
 from .config import build_schedule, group_schedule_by_frequency
+from .dc_diagnostic import run_rf_dc_recovery, run_rx2_dc_diagnostic
 from .dc_offset import inspect_radio_rf_dc
+from .dc_report import write_rf_dc_evidence_report
 from .model import fit_dataset, write_model
 from .report import write_analysis_bundle
 from .runner import load_calibration_document, probe_loopback, run_calibration
@@ -154,6 +156,44 @@ def _compare_models(args) -> int:
     return 0
 
 
+def _diagnose_rx2_dc(args) -> int:
+    result = run_rx2_dc_diagnostic(
+        config_path=args.config,
+        serial=args.serial,
+        output_dir=args.output,
+        frequency_hz=args.frequency_hz,
+        gain_rx1_db=args.gain_rx1_db,
+        gain_rx2_values_db=tuple(args.gain_rx2_db),
+        frames_per_state=args.frames_per_state,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def _recover_rf_dc(args) -> int:
+    result = run_rf_dc_recovery(
+        config_path=args.config,
+        serial=args.serial,
+        output_path=args.output,
+        frequency_hz=args.frequency_hz,
+        gain_rx1_db=args.gain_rx1_db,
+        gain_rx2_values_db=tuple(args.gain_rx2_db),
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def _report_rf_dc(args) -> int:
+    result = write_rf_dc_evidence_report(
+        before_dir=args.before,
+        recovery_path=args.recovery,
+        after_dir=args.after,
+        output_dir=args.output_dir,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result["conclusions"]["rf_dc_recovery_passed"] else 1
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -247,6 +287,61 @@ def parse_args():
     compare_parser.add_argument("--artifact-root", type=Path, required=True)
     compare_parser.add_argument("--output-dir", type=Path, required=True)
     compare_parser.set_defaults(function=_compare_models)
+
+    dc_diagnostic_parser = subparsers.add_parser(
+        "diagnose-rx2-dc",
+        help=(
+            "capture matched fresh-context TX2-off/on IQ and RF-DC state "
+            "without touching the exhaustive V7 artifact"
+        ),
+    )
+    dc_diagnostic_parser.add_argument("--config", type=Path, required=True)
+    dc_diagnostic_parser.add_argument("--serial", required=True)
+    dc_diagnostic_parser.add_argument("--output", type=Path, required=True)
+    dc_diagnostic_parser.add_argument("--frequency-hz", type=int, required=True)
+    dc_diagnostic_parser.add_argument("--gain-rx1-db", type=int, default=26)
+    dc_diagnostic_parser.add_argument(
+        "--gain-rx2-db",
+        type=int,
+        action="append",
+        required=True,
+        help="repeat this option for every RX2 gain state",
+    )
+    dc_diagnostic_parser.add_argument("--frames-per-state", type=int, default=3)
+    dc_diagnostic_parser.set_defaults(function=_diagnose_rx2_dc)
+
+    recovery_parser = subparsers.add_parser(
+        "recover-rf-dc",
+        help=(
+            "with TX stopped, snapshot selected LUT entries and run the "
+            "driver-supported RF-DC initialization calibration"
+        ),
+    )
+    recovery_parser.add_argument("--config", type=Path, required=True)
+    recovery_parser.add_argument("--serial", required=True)
+    recovery_parser.add_argument("--output", type=Path, required=True)
+    recovery_parser.add_argument("--frequency-hz", type=int, required=True)
+    recovery_parser.add_argument("--gain-rx1-db", type=int, default=26)
+    recovery_parser.add_argument(
+        "--gain-rx2-db",
+        type=int,
+        action="append",
+        required=True,
+        help="repeat this option for every RX2 LUT entry to snapshot",
+    )
+    recovery_parser.set_defaults(function=_recover_rf_dc)
+
+    rf_dc_report_parser = subparsers.add_parser(
+        "report-rf-dc",
+        help=(
+            "verify, hash, and report matched RF-DC before/recovery/after " "evidence"
+        ),
+    )
+    rf_dc_report_parser.add_argument("--before", type=Path, required=True)
+    rf_dc_report_parser.add_argument("--recovery", type=Path, required=True)
+    rf_dc_report_parser.add_argument("--after", type=Path, required=True)
+    rf_dc_report_parser.add_argument("--output-dir", type=Path, required=True)
+    rf_dc_report_parser.set_defaults(function=_report_rf_dc)
     return parser.parse_args()
 
 

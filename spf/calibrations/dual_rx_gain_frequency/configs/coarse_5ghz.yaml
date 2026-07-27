@@ -29,6 +29,7 @@ calibration:
   frequency-settle-seconds: 0.5
   discard-frames-after-gain: 1
   max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
   random-seed: 20260727
   tx-source: fpga_dds
   tx-gain-db: -15

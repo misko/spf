@@ -5,6 +5,10 @@ manual RX-gain pairs and RF frequencies. It uses the SPF direct-USB protocol-v2
 firmware, writes one data-version-7 Zarr per radio serial, validates every frame
 from its stored IQ, and fits a circular additive gain model.
 
+The [reports index](reports/README.md) combines the current model errors,
+per-radio RF-DC findings, calibration status, and correction recommendations
+for previously calibrated and new radios.
+
 The physical path on each radio is:
 
 ```text
@@ -104,6 +108,84 @@ python -m spf.calibrations.dual_rx_gain_frequency dc-registers \
 This command does not change gain, LO, tracking, calibration, or streaming
 state. It decodes all four packed 10-bit RX1/RX2 I/Q correction words and
 flags the documented stuck value `0x200`.
+
+For the RX2 high-gain DC/rail diagnostic, use a new output directory and one
+radio serial. This command opens a fresh context for every gain/state point,
+never arms TX2 in the off condition, and stores full IQ plus protocol-v2
+metadata and RF-DC correction words:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency diagnose-rx2-dc \
+  --config spf/calibrations/dual_rx_gain_frequency/configs/coarse_5ghz.yaml \
+  --serial PLUTO_SERIAL \
+  --frequency-hz 5866000000 \
+  --gain-rx1-db 26 \
+  --gain-rx2-db 45 \
+  --gain-rx2-db 48 \
+  --gain-rx2-db 50 \
+  --gain-rx2-db 51 \
+  --gain-rx2-db 52 \
+  --gain-rx2-db 55 \
+  --gain-rx2-db 60 \
+  --gain-rx2-db 62 \
+  --frames-per-state 3 \
+  --output artifacts/dual_rx_gain_frequency/rx2_dc_diagnostic/RUN_NAME
+```
+
+The diagnostic directory is intentionally separate from the exhaustive V7
+artifact. It contains `manifest.json`, one `.npy` full-IQ file per frame,
+`records.jsonl`, and a matched on/off `summary.json`. It must never be pointed
+at an existing directory, so it cannot overwrite or resume the exhaustive
+checkpoint.
+
+If the diagnostic finds saturated RF-DC correction words, the supported Linux
+RF-only initialization can be run with TX stopped and its selected LUT entries
+recorded before and after:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency recover-rf-dc \
+  --config spf/calibrations/dual_rx_gain_frequency/configs/coarse_5ghz.yaml \
+  --serial PLUTO_SERIAL \
+  --frequency-hz 5866000000 \
+  --gain-rx1-db 26 \
+  --gain-rx2-db 45 \
+  --gain-rx2-db 48 \
+  --gain-rx2-db 50 \
+  --gain-rx2-db 51 \
+  --gain-rx2-db 52 \
+  --gain-rx2-db 55 \
+  --gain-rx2-db 60 \
+  --gain-rx2-db 62 \
+  --output artifacts/dual_rx_gain_frequency/rx2_dc_diagnostic/RUN_NAME_recovery.json
+```
+
+This explicitly invokes the driver’s `calib_mode=rf_dc_offs`; it does not claim
+to rerun the separate BB-DC initialization. ADI’s complete recovery procedure
+requires both initializations with the receive input isolated, so the RF-only
+operation must be followed by a new matched TX-off/TX-on diagnostic and must
+not be treated as a successful recovery merely because the command returned.
+
+Turn the matched before/recovery/after artifacts into a deterministic report:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency report-rf-dc \
+  --before artifacts/dual_rx_gain_frequency/rx2_dc_diagnostic/BEFORE \
+  --recovery artifacts/dual_rx_gain_frequency/rx2_dc_diagnostic/RECOVERY.json \
+  --after artifacts/dual_rx_gain_frequency/rx2_dc_diagnostic/AFTER \
+  --output-dir \
+    spf/calibrations/dual_rx_gain_frequency/reports/RF_DC_REPORT_NAME
+```
+
+The report command verifies the serial, frequency, gain grid, and completion
+state. It hashes every evidence file, including all full-IQ frames, and writes
+`evidence.json` plus `REPORT.md`. This lets a committed report identify its
+large gitignored source evidence exactly.
+
+Before TX2 is armed for every radio/frequency block, normal pilot and exhaustive
+collection now invokes the same driver-supported RF-DC initialization and then
+requires the direct-USB tone preflight to pass. The preparation policy is part
+of the calibration configuration signature. Consequently, an older partial
+run that predates this policy cannot be silently resumed as a new run.
 
 After the pilot establishes usable signal levels, replace `pilot_5ghz.yaml`
 with `coarse_5ghz.yaml` to enumerate all 73 manual gain states on both

@@ -218,6 +218,13 @@ class DirectUsbLoopbackRadio:
             )
         self._active_tx_gain = actual
 
+    def run_rf_dc_calibration(self) -> None:
+        """Run the Linux driver's supported RF-DC initialization calibration."""
+
+        if self._tone_active:
+            raise RuntimeError("RF-DC calibration requires TX to be stopped")
+        self.sdr._ctrl.attrs["calib_mode"].value = "rf_dc_offs"
+
     def start_tone(
         self,
         tx_channel: int = 1,

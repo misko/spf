@@ -23,6 +23,13 @@ from spf.calibrations.dual_rx_gain_frequency.dc_offset import (
     decode_rf_dc_correction_words,
     signed_10bit,
 )
+from spf.calibrations.dual_rx_gain_frequency.dc_report import (
+    write_rf_dc_evidence_report,
+)
+from spf.calibrations.dual_rx_gain_frequency.dc_diagnostic import (
+    run_rf_dc_recovery,
+    run_rx2_dc_diagnostic,
+)
 from spf.calibrations.dual_rx_gain_frequency.hardware import make_cyclic_tone
 from spf.calibrations.dual_rx_gain_frequency.hardware import DirectUsbLoopbackRadio
 from spf.calibrations.dual_rx_gain_frequency.model import (
@@ -221,6 +228,7 @@ class FakeLoopbackRadio:
         self.gains = (0, 0)
         self.stream_id = 0
         self.tone_active = False
+        self.rf_dc_calibrations = 0
         FakeLoopbackRadio.instances[serial] = self
 
     def __enter__(self):
@@ -270,6 +278,10 @@ class FakeLoopbackRadio:
 
     def stop_tone(self):
         self.tone_active = False
+
+    def run_rf_dc_calibration(self):
+        assert self.tone_active is False
+        self.rf_dc_calibrations += 1
 
     def close(self):
         self.stop_tone()
@@ -598,6 +610,11 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
             .splitlines()
         ]
         assert len(preflights) == 3
+        assert all(
+            item["rf_dc_calibration_policy"] == "before_each_frequency_block"
+            for item in preflights
+        )
+        assert all(item["rf_dc_calibration_before_tone"] is True for item in preflights)
         if serial == "SERIAL-A":
             assert all(item["attempt"] == 1 for item in preflights)
             assert all(item["prime_after_arm"] is False for item in preflights)
@@ -661,6 +678,230 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
     comparative_report = Path(comparative["report"]).read_text()
     assert "Errors explained by competing models" in comparative_report
     assert "New (“unseen”) radio" in comparative_report
+
+
+def test_rx2_dc_diagnostic_writes_matched_full_iq_without_v7_mutation(tmp_path):
+    config = small_config(
+        frequencies_hz=(2_400_000_000,),
+        gains_db=(0, 10),
+        discard_frames_after_gain=0,
+    )
+    config_path = tmp_path / "config.yaml"
+    write_config(config_path, config)
+    output = tmp_path / "dc_diagnostic"
+
+    result = run_rx2_dc_diagnostic(
+        config_path=config_path,
+        serial="SERIAL-A",
+        output_dir=output,
+        frequency_hz=2_400_000_000,
+        gain_rx1_db=0,
+        gain_rx2_values_db=(0, 10),
+        frames_per_state=1,
+        radio_factory=FakeLoopbackRadio,
+        dc_reader=lambda radio: {
+            "fake": {
+                "tone_active": radio.tone_active,
+                "gains": list(radio.gains),
+            }
+        },
+        sleep=lambda _: None,
+    )
+
+    assert result["status"] == "complete"
+    assert result["record_count"] == result["expected_record_count"] == 4
+    assert len(result["on_off_comparisons"]) == 2
+    assert len(list((output / "frames").glob("*.npy"))) == 4
+    for iq_path in (output / "frames").glob("*.npy"):
+        iq = np.load(iq_path, allow_pickle=False)
+        assert iq.shape == (2, config.buffer_size)
+        assert iq.dtype == np.complex64
+    records = [
+        json.loads(line) for line in (output / "records.jsonl").read_text().splitlines()
+    ]
+    assert {record["tx2_enabled"] for record in records} == {False, True}
+    assert all(record["frame_metadata"]["gain_metadata_valid"] for record in records)
+    assert all(
+        record["handoff"]["rf_dc_calibration_before_tone"] is False
+        for record in records
+        if record["tx2_enabled"]
+    )
+    assert not (output / "calibration.v7.zarr").exists()
+
+
+def test_rf_dc_recovery_snapshots_lut_and_never_arms_tx(tmp_path):
+    config = small_config(
+        frequencies_hz=(2_400_000_000,),
+        gains_db=(0, 10),
+    )
+    config_path = tmp_path / "config.yaml"
+    write_config(config_path, config)
+    output = tmp_path / "rf_dc_recovery.json"
+
+    result = run_rf_dc_recovery(
+        config_path=config_path,
+        serial="SERIAL-A",
+        output_path=output,
+        frequency_hz=2_400_000_000,
+        gain_rx1_db=0,
+        gain_rx2_values_db=(0, 10),
+        radio_factory=FakeLoopbackRadio,
+        dc_reader=lambda radio: {
+            "fake": {
+                "tone_active": radio.tone_active,
+                "calibrations": radio.rf_dc_calibrations,
+                "gains": list(radio.gains),
+            }
+        },
+        sleep=lambda _: None,
+    )
+
+    assert output.is_file()
+    assert result["status"] == "complete"
+    assert result["tx2_enabled"] is False
+    assert all(
+        snapshot["correction_banks"]["fake"]["tone_active"] is False
+        for snapshot in result["before"] + result["after"]
+    )
+    assert all(
+        snapshot["correction_banks"]["fake"]["calibrations"] == 0
+        for snapshot in result["before"]
+    )
+    assert all(
+        snapshot["correction_banks"]["fake"]["calibrations"] == 1
+        for snapshot in result["after"]
+    )
+
+
+def test_rf_dc_report_is_deterministic_and_hashes_full_evidence(tmp_path):
+    def state(tx2_enabled, gain, dc, clipping, valid):
+        return {
+            "tx2_enabled": tx2_enabled,
+            "gain_rx1_db": 26,
+            "gain_rx2_db": gain,
+            "frames": 3,
+            "quality_valid_frames": valid,
+            "median_tone_dbfs": [-30.0, -30.0],
+            "median_dc_dbfs": [-70.0, dc],
+            "median_clipping_fraction": [0.0, clipping],
+            "maximum_clipping_fraction": [0.0, clipping],
+        }
+
+    before_dir = tmp_path / "before"
+    after_dir = tmp_path / "after"
+    before_dir.mkdir()
+    after_dir.mkdir()
+    (before_dir / "frame.npy").write_bytes(b"full IQ before")
+    (after_dir / "frame.npy").write_bytes(b"full IQ after")
+    common = {
+        "status": "complete",
+        "serial": "SERIAL-A",
+        "frequency_hz": 2_400_000_000,
+        "on_off_comparisons": [
+            {"gain_rx1_db": 26, "gain_rx2_db": 48},
+        ],
+    }
+    (before_dir / "summary.json").write_text(
+        json.dumps(
+            {
+                **common,
+                "state_summaries": [
+                    state(False, 48, -5.0, 0.1, 0),
+                    state(True, 48, -5.0, 0.1, 0),
+                ],
+            }
+        )
+    )
+    (after_dir / "summary.json").write_text(
+        json.dumps(
+            {
+                **common,
+                "state_summaries": [
+                    state(False, 48, -70.0, 0.0, 0),
+                    state(True, 48, -70.0, 0.0, 3),
+                ],
+            }
+        )
+    )
+    recovery_path = tmp_path / "recovery.json"
+    correction_before = {
+        "A": {
+            "correction_words": {
+                "rx2_i": {
+                    "signed": -511,
+                    "is_documented_stuck_value": False,
+                },
+                "rx2_q": {
+                    "signed": -512,
+                    "is_documented_stuck_value": True,
+                },
+            }
+        }
+    }
+    correction_after = {
+        "A": {
+            "correction_words": {
+                "rx2_i": {
+                    "signed": 10,
+                    "is_documented_stuck_value": False,
+                },
+                "rx2_q": {
+                    "signed": -120,
+                    "is_documented_stuck_value": False,
+                },
+            }
+        }
+    }
+    recovery_path.write_text(
+        json.dumps(
+            {
+                "status": "complete",
+                "serial": "SERIAL-A",
+                "frequency_hz": 2_400_000_000,
+                "gain_rx2_values_db": [48],
+                "operation": "Linux IIO calib_mode=rf_dc_offs",
+                "operation_started_unix_seconds": 10.0,
+                "operation_completed_unix_seconds": 10.08,
+                "tx2_enabled": False,
+                "before": [
+                    {
+                        "gain_rx2_db": 48,
+                        "correction_banks": correction_before,
+                    }
+                ],
+                "after": [
+                    {
+                        "gain_rx2_db": 48,
+                        "correction_banks": correction_after,
+                    }
+                ],
+            }
+        )
+    )
+    output1 = tmp_path / "report1"
+    output2 = tmp_path / "report2"
+    first = write_rf_dc_evidence_report(
+        before_dir=before_dir,
+        recovery_path=recovery_path,
+        after_dir=after_dir,
+        output_dir=output1,
+    )
+    second = write_rf_dc_evidence_report(
+        before_dir=before_dir,
+        recovery_path=recovery_path,
+        after_dir=after_dir,
+        output_dir=output2,
+    )
+
+    assert first == second
+    assert first["conclusions"]["rf_dc_recovery_passed"] is True
+    assert first["before_failed_rx2_gains_db"] == [48]
+    assert first["after_failed_rx2_gains_db"] == []
+    assert (output1 / "evidence.json").read_bytes() == (
+        output2 / "evidence.json"
+    ).read_bytes()
+    assert (output1 / "REPORT.md").read_bytes() == (output2 / "REPORT.md").read_bytes()
+    assert first["input_evidence"]["before_diagnostic"]["file_count"] == 2
 
 
 def test_additive_circular_model_recovers_wrapped_gain_effects():

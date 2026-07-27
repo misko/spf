@@ -149,6 +149,7 @@ def _open_preflight_radio(
     config: CalibrationConfig,
     radio_factory: Callable[..., Any],
     failure_log: Path,
+    prepare_rf_dc: bool = True,
 ) -> tuple[Any, dict[str, Any], dict[str, Any]]:
     """Open one radio and negotiate a direct-RX-safe FPGA DDS handoff."""
 
@@ -158,6 +159,11 @@ def _open_preflight_radio(
         try:
             radio = radio_factory(serial, config)
             radio.configure_frequency(frequency_hz, start_tone=False)
+            if (
+                prepare_rf_dc
+                and config.rf_dc_calibration_policy == "before_each_frequency_block"
+            ):
+                radio.run_rf_dc_calibration()
             radio.start_tone(
                 tx_channel=1,
                 prime_after_arm=prime_after_arm,
@@ -170,6 +176,8 @@ def _open_preflight_radio(
                     "attempt": attempt,
                     "tx_source": config.tx_source,
                     "prime_after_arm": prime_after_arm,
+                    "rf_dc_calibration_policy": (config.rf_dc_calibration_policy),
+                    "rf_dc_calibration_before_tone": prepare_rf_dc,
                 },
             )
         except Exception as error:
@@ -392,6 +400,7 @@ def probe_loopback(
             if gain_db not in radio.available_gains():
                 raise ValueError(f"gain {gain_db} is unavailable")
             radio.configure_frequency(frequency_hz, start_tone=False)
+            radio.run_rf_dc_calibration()
             radio.set_gains(gain_db, gain_db)
             time.sleep(config.settle_seconds)
             radio.discard(config.discard_frames_after_gain)
@@ -430,9 +439,7 @@ def probe_loopback(
                 "tone_on_off_delta_db": delta.tolist(),
                 "tone_on_snr_db": on_analysis["tone_snr_db"],
                 "tone_on_frequency_hz": on_analysis["tone_frequency_hz"],
-                "tone_on_phase_difference_rad": on_analysis[
-                    "phase_difference_rad"
-                ],
+                "tone_on_phase_difference_rad": on_analysis["phase_difference_rad"],
                 "tone_on_quality_valid": on_analysis["quality_valid"],
                 "tone_on_quality_reasons": on_analysis["quality_reasons"],
             }

@@ -48,6 +48,7 @@ class CalibrationConfig:
     frequency_settle_seconds: float = 0.5
     discard_frames_after_gain: int = 1
     max_retries: int = 1
+    rf_dc_calibration_policy: str = "before_each_frequency_block"
     random_seed: int = 20260727
     tx_source: str = "fpga_dds"
     tx_gain_db: float = -30.0
@@ -92,6 +93,11 @@ class CalibrationConfig:
             raise ValueError("settling times cannot be negative")
         if self.discard_frames_after_gain < 0 or self.max_retries < 0:
             raise ValueError("discard and retry counts cannot be negative")
+        if self.rf_dc_calibration_policy != "before_each_frequency_block":
+            raise ValueError(
+                "unsupported RF-DC calibration policy: "
+                f"{self.rf_dc_calibration_policy}"
+            )
         if not 1 <= self.min_quality_valid_per_cell <= self.repetitions:
             raise ValueError("minimum valid count must fit within the epochs")
         if self.max_across_repeat_phase_std_deg <= 0:
