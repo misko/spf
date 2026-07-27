@@ -51,6 +51,8 @@ wandb
 /artifacts/direct_usb_gain_metadata/**/provenance.yaml
 /artifacts/direct_usb_gain_metadata/**/summary.json
 /artifacts/direct_usb_gain_metadata/**/*validation.json
+/artifacts/dual_rx_gain_frequency/
+/artifacts/dual_rx_gain_frequency_probe_*.json
 
 # Historical local data tree and one-off bench output.
 /data_collection_model_and_results/
