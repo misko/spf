@@ -17,6 +17,10 @@ from spf.calibrations.dual_rx_gain_frequency.model import (
     fit_additive_surface,
     fit_dataset,
 )
+from spf.calibrations.dual_rx_gain_frequency.report import (
+    build_analysis_summary,
+    render_markdown,
+)
 from spf.calibrations.dual_rx_gain_frequency.runner import run_calibration
 from spf.calibrations.dual_rx_gain_frequency.validate import validate_dataset
 from spf.sdrpluto.direct_usb_protocol import MetadataFlags
@@ -363,6 +367,11 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
         assert model["serial"] == serial
         assert model["quality_valid_observations"] == 12
         assert model["cross_validation_metrics"]["circular_p95_deg"] < 0.2
+        summary = build_analysis_summary(report, model)
+        assert summary["serial"] == serial
+        assert summary["passing_cells"] == 4
+        assert len(summary["frequency_summary"]) == 1
+        assert "Leave-one-epoch-out circular MAE" in render_markdown(summary)
 
     resumed = run_calibration(
         config_path=config_path,

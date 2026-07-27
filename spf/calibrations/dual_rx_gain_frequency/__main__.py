@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from .config import build_schedule, group_schedule_by_frequency
 from .model import fit_dataset, write_model
+from .report import write_analysis_bundle
 from .runner import load_calibration_document, probe_loopback, run_calibration
 from .validate import validate_dataset, write_validation_report
 
@@ -80,6 +81,17 @@ def _fit(args) -> int:
         )
     )
     return 0 if model["quality_valid_observations"] else 1
+
+
+def _report(args) -> int:
+    summary = write_analysis_bundle(
+        validation_path=args.validation,
+        model_path=args.model,
+        output_dir=args.output_dir,
+        plots=not args.no_plots,
+    )
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
 
 
 def _schedule(args) -> int:
@@ -155,6 +167,15 @@ def parse_args():
     fit_parser.add_argument("--dataset", type=Path, required=True)
     fit_parser.add_argument("--output", type=Path)
     fit_parser.set_defaults(function=_fit)
+
+    report_parser = subparsers.add_parser(
+        "report", help="write Markdown, JSON, and phase-surface plots"
+    )
+    report_parser.add_argument("--validation", type=Path, required=True)
+    report_parser.add_argument("--model", type=Path, required=True)
+    report_parser.add_argument("--output-dir", type=Path, required=True)
+    report_parser.add_argument("--no-plots", action="store_true")
+    report_parser.set_defaults(function=_report)
 
     schedule_parser = subparsers.add_parser(
         "schedule", help="render the deterministic epoch/frequency schedule"

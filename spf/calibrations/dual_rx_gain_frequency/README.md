@@ -55,6 +55,11 @@ python -m spf.calibrations.dual_rx_gain_frequency fit \
   --config spf/calibrations/dual_rx_gain_frequency/configs/pilot_5ghz.yaml \
   --dataset artifacts/dual_rx_gain_frequency/pilot/SERIAL/calibration.v7.zarr \
   --output artifacts/dual_rx_gain_frequency/pilot/SERIAL/model.json
+
+python -m spf.calibrations.dual_rx_gain_frequency report \
+  --validation artifacts/dual_rx_gain_frequency/pilot/SERIAL/validation.json \
+  --model artifacts/dual_rx_gain_frequency/pilot/SERIAL/model.json \
+  --output-dir artifacts/dual_rx_gain_frequency/pilot/SERIAL/analysis
 ```
 
 After the pilot establishes usable signal levels, replace `pilot_5ghz.yaml`
