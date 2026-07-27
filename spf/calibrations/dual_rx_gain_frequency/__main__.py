@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from tqdm import tqdm
@@ -20,7 +21,11 @@ def _run(args) -> int:
     total = config.measurements_per_radio * (
         len(args.serial) if args.serial else args.expected_radios
     )
-    progress_bar = tqdm(total=total, unit="frame")
+    progress_bar = tqdm(
+        total=total,
+        unit="frame",
+        disable=not sys.stderr.isatty(),
+    )
 
     def progress(serial, entry, completed, expected):
         progress_bar.total = expected

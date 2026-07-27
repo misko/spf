@@ -285,7 +285,13 @@ def run_calibration(
                                 if retry >= config.max_retries:
                                     break
                 finally:
-                    radio.stop_tone()
+                    try:
+                        radio.stop_tone()
+                    finally:
+                        # Per-frame LMDB writes are asynchronous for capture
+                        # throughput. Make every radio/frequency block a
+                        # durable restart boundary.
+                        writer.sync()
 
         result = {
             "status": "complete" if completed == total else "partial",

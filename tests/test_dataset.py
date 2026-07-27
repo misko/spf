@@ -274,3 +274,34 @@ def testv7_data_create_and_radio_metadata_round_trip():
             assert receiver[key][1] == expected_scalar[key]
         for key in v7rx_2x_keys:
             np.testing.assert_allclose(receiver[key][1], expected_2x[key])
+
+
+def test_lmdb_async_resume_matches_initial_capture_write_flags():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = tmp + "/testdata"
+        z = zarr_open_from_lmdb_store(path, mode="w", map_size=2**20)
+        z.create_dataset("value", shape=(1,), dtype=np.int32)
+        z["value"][0] = 7
+        initial_flags = z.store.db.flags()
+        z.store.close()
+
+        z = zarr_open_from_lmdb_store(
+            path,
+            mode="rw",
+            map_size=2**20,
+            map_async=True,
+        )
+        resumed_flags = z.store.db.flags()
+        assert resumed_flags["writemap"] is True
+        assert resumed_flags["map_async"] is True
+        assert resumed_flags["sync"] is False
+        assert resumed_flags["metasync"] is False
+        for flag in ("writemap", "map_async", "sync", "metasync"):
+            assert resumed_flags[flag] == initial_flags[flag]
+        assert z["value"][0] == 7
+        z["value"][0] = 8
+        z.store.close()
+
+        z = zarr_open_from_lmdb_store(path, mode="r", map_size=2**20)
+        assert z["value"][0] == 8
+        z.store.close()

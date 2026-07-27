@@ -173,7 +173,13 @@ class CalibrationV7Writer:
         if data_path.exists():
             if not resume:
                 raise FileExistsError(f"calibration dataset exists: {self.path}")
-            self.zarr = zarr_open_from_lmdb_store(str(self.path), mode="rw")
+            # A resumed exhaustive capture must retain the same LMDB write
+            # mode as initial creation. The generic synchronous ``rw`` mode
+            # makes every per-frame Zarr field assignment durable separately
+            # and is several times slower than the normal capture path.
+            self.zarr = zarr_open_from_lmdb_store(
+                str(self.path), mode="rw", map_async=True
+            )
             actual = self.zarr.attrs.get("calibration_run_signature")
             if actual != self.signature:
                 self.zarr.store.close()
@@ -207,6 +213,7 @@ class CalibrationV7Writer:
                 "calibration_schema": CALIBRATION_SCHEMA,
                 "calibration_schema_version": CALIBRATION_SCHEMA_VERSION,
                 "calibration_run_signature": self.signature,
+                "lmdb_write_policy": "map_async_block_sync",
                 "phase_convention": PHASE_CONVENTION,
                 **_software_provenance(),
             }
@@ -351,11 +358,28 @@ class CalibrationV7Writer:
         )
         receiver.sweep_completed[index] = True
 
+    def sync(self) -> None:
+        """Durably checkpoint all asynchronous LMDB writes."""
+
+        if getattr(self, "zarr", None) is None:
+            return
+        store = self.zarr.store
+        database = getattr(store, "db", None)
+        if database is not None:
+            # The pinned python-lmdb 1.4 API accepts ``force`` positionally
+            # but not as a keyword.
+            database.sync(True)
+        else:
+            store.flush()
+
     def close(self) -> None:
         if getattr(self, "zarr", None) is not None:
-            self.zarr.store.close()
-            self.zarr = None
-            self.receiver = None
+            try:
+                self.sync()
+            finally:
+                self.zarr.store.close()
+                self.zarr = None
+                self.receiver = None
 
     def __enter__(self):
         return self

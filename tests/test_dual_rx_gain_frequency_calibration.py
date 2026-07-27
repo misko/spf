@@ -25,6 +25,7 @@ from spf.calibrations.dual_rx_gain_frequency.runner import run_calibration
 from spf.calibrations.dual_rx_gain_frequency.validate import validate_dataset
 from spf.sdrpluto.direct_usb_protocol import MetadataFlags
 from spf.sdrpluto.sdr_controller import PlutoRxBuffer, SdrDeviceIdentity
+from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 
 
 FIRMWARE = {
@@ -355,6 +356,9 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
 
     for serial in serials:
         dataset = tmp_path / "output" / serial / "calibration.v7.zarr"
+        zarr = zarr_open_from_lmdb_store(str(dataset), mode="r")
+        assert zarr.attrs["lmdb_write_policy"] == "map_async_block_sync"
+        zarr.store.close()
         report = validate_dataset(
             dataset,
             config=config,
@@ -373,6 +377,16 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
         assert len(summary["frequency_summary"]) == 1
         assert "Leave-one-epoch-out circular MAE" in render_markdown(summary)
 
+    from spf.calibrations.dual_rx_gain_frequency import dataset as dataset_module
+
+    real_open = dataset_module.zarr_open_from_lmdb_store
+    resume_open_calls = []
+
+    def tracked_open(*args, **kwargs):
+        resume_open_calls.append((args, kwargs))
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(dataset_module, "zarr_open_from_lmdb_store", tracked_open)
     resumed = run_calibration(
         config_path=config_path,
         output_dir=tmp_path / "output",
@@ -381,6 +395,13 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
         radio_factory=FakeLoopbackRadio,
     )
     assert resumed["completed_measurements"] == 24
+    writable_resume_calls = [
+        kwargs
+        for _, kwargs in resume_open_calls
+        if kwargs.get("mode") == "rw"
+    ]
+    assert len(writable_resume_calls) == 2
+    assert all(kwargs["map_async"] is True for kwargs in writable_resume_calls)
 
 
 def test_additive_circular_model_recovers_wrapped_gain_effects():

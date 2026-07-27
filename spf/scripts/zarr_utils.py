@@ -96,7 +96,12 @@ def new_yarr_dataset(
 
 
 def zarr_open_from_lmdb_store(
-    filename, mode="r", readahead=False, map_size=2**37, lock=None
+    filename,
+    mode="r",
+    readahead=False,
+    map_size=2**37,
+    lock=None,
+    map_async=False,
 ):
     if mode == "r":
         if lock is None:
@@ -114,17 +119,33 @@ def zarr_open_from_lmdb_store(
     elif mode == "rw":
         if lock is None:
             lock = True
-        store = zarr.LMDBStore(
-            filename,
-            map_size=map_size,
-            writemap=False,
-            readonly=False,
-            sync=True,
-            max_readers=32,  # 1024 * 1024,
-            lock=lock,
-            meminit=False,
-            readahead=readahead,
-        )
+        if map_async:
+            # Match the high-throughput flags used when a dataset is first
+            # created. This is opt-in because most callers opening an existing
+            # dataset for occasional mutation prefer fully synchronous LMDB
+            # transactions.
+            store = zarr.LMDBStore(
+                filename,
+                map_size=map_size,
+                writemap=True,
+                map_async=True,
+                max_readers=32,
+                lock=lock,
+                meminit=False,
+                readahead=readahead,
+            )
+        else:
+            store = zarr.LMDBStore(
+                filename,
+                map_size=map_size,
+                writemap=False,
+                readonly=False,
+                sync=True,
+                max_readers=32,  # 1024 * 1024,
+                lock=lock,
+                meminit=False,
+                readahead=readahead,
+            )
     elif mode == "w":
         store = zarr.LMDBStore(
             filename, map_size=map_size, writemap=True, map_async=True
