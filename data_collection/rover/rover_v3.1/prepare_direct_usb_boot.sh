@@ -6,16 +6,15 @@
 set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
 readonly LOADER="${SCRIPT_DIR}/load_direct_usb_firmware.sh"
 readonly MAPPING_SCRIPT="${SCRIPT_DIR}/device_mapping.sh"
 readonly READY_DIR="/run/spf"
-readonly READY_FILE="${READY_DIR}/direct_usb_ready"
+readonly READY_FILE="${READY_DIR}/direct_usb_ready.json"
 
-EXPECTED_RADIOS="${SPF_DIRECT_USB_EXPECTED_RADIOS:-}"
 FIRMWARE_CACHE="${SPF_FIRMWARE_CACHE_DIR:-/home/pi/.cache/spf/firmware}"
 FIRMWARE_STATE="${SPF_FIRMWARE_STATE_DIR:-/var/lib/spf/pluto-firmware}"
 DISABLE_DIRECT_USB="${SPF_DIRECT_USB_DISABLE:-0}"
+PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
 
 die() {
     printf 'ERROR: %s\n' "$*" >&2
@@ -42,39 +41,55 @@ fi
 
 [[ -f /home/pi/rover_id ]] || die "Missing /home/pi/rover_id."
 rover_id="$(tr -d '[:space:]' </home/pi/rover_id)"
-case "$rover_id" in
-    1|3)
-        default_expected=2
-        ;;
-    2)
-        default_expected=1
-        ;;
-    *)
-        die "Unsupported rover_id: ${rover_id}"
-        ;;
-esac
-EXPECTED_RADIOS="${EXPECTED_RADIOS:-$default_expected}"
-[[ "$EXPECTED_RADIOS" =~ ^[1-9][0-9]*$ ]] ||
-    die "SPF_DIRECT_USB_EXPECTED_RADIOS must be a positive integer."
-[[ "$EXPECTED_RADIOS" -eq "$default_expected" ]] ||
-    die "Rover ${rover_id} expects ${default_expected} radios, not ${EXPECTED_RADIOS}."
+[[ "$rover_id" =~ ^[1-3]$ ]] || die "Unsupported rover_id: ${rover_id}"
 
-for command in bash iio_info; do
+resolver_args=(
+    --rover-id "$rover_id"
+    --format null
+)
+if [[ -n "${SPF_CAPTURE_CONFIG:-}" ]]; then
+    resolver_args+=(--config "$SPF_CAPTURE_CONFIG")
+fi
+mapfile -d '' -t config_values < <(
+    "$PYTHON" -m spf.scripts.rover_capture_config "${resolver_args[@]}"
+)
+[[ "${#config_values[@]}" -eq 15 ]] ||
+    die "Capture config resolver returned ${#config_values[@]} fields, expected 15."
+configured_radios="${config_values[5]}"
+firmware_release_tag="${config_values[8]}"
+firmware_asset_name="${config_values[9]}"
+firmware_image_url="${config_values[10]}"
+firmware_image_sha256="${config_values[11]}"
+
+for command in bash iio_info "$PYTHON"; do
     command -v "$command" >/dev/null 2>&1 ||
         die "Required command is missing: ${command}"
 done
 
 rm -f -- "$READY_FILE"
 
-# Boot must not rewrite U-Boot or reset a radio opportunistically. Verify the
-# settings established during Rover provisioning and fail closed on drift.
-SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
-SPF_FIRMWARE_STATE_DIR="$FIRMWARE_STATE" \
-    bash "$LOADER" check-config-all "$EXPECTED_RADIOS"
+run_loader() {
+    SPF_FIRMWARE_RELEASE_TAG="$firmware_release_tag" \
+    SPF_FIRMWARE_ASSET_NAME="$firmware_asset_name" \
+    SPF_FIRMWARE_IMAGE_URL="$firmware_image_url" \
+    SPF_FIRMWARE_IMAGE_SHA256="$firmware_image_sha256" \
+    SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
+    SPF_FIRMWARE_STATE_DIR="$FIRMWARE_STATE" \
+        bash "$LOADER" "$@"
+}
 
-SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
-SPF_FIRMWARE_STATE_DIR="$FIRMWARE_STATE" \
-    bash "$LOADER" load-all "$EXPECTED_RADIOS"
+attached_radios="$(run_loader discover-count)"
+[[ "$attached_radios" =~ ^[0-9]+$ ]] ||
+    die "Could not determine the attached Pluto count: ${attached_radios}"
+[[ "$attached_radios" -gt 0 ]] || die "No runtime Pluto radios are attached."
+[[ "$attached_radios" -eq "$configured_radios" ]] ||
+    die "Config has ${configured_radios} receivers but ${attached_radios} Plutos are attached."
+
+# Boot must not rewrite U-Boot. Verify the persistent settings established
+# during Rover provisioning, then load the exact configured image into RAM.
+run_loader check-config-all "$attached_radios"
+
+run_loader load-all "$attached_radios"
 
 # USB-IIO URIs contain the post-enumeration USB device address, so mapping must
 # be regenerated only after every radio reaches its final RAM-booted state.
@@ -83,8 +98,8 @@ trap 'rm -f -- "${mapping_tmp:-}"' EXIT
 bash "$MAPPING_SCRIPT" >"$mapping_tmp"
 
 mapfile -t mapping_lines < <(awk 'NF { print }' "$mapping_tmp")
-[[ "${#mapping_lines[@]}" -eq "$EXPECTED_RADIOS" ]] ||
-    die "Expected ${EXPECTED_RADIOS} mapping rows; found ${#mapping_lines[@]}."
+[[ "${#mapping_lines[@]}" -eq "$attached_radios" ]] ||
+    die "Expected ${attached_radios} mapping rows; found ${#mapping_lines[@]}."
 
 declare -A seen_ports=()
 declare -A seen_addresses=()
@@ -105,31 +120,19 @@ done
 
 install -o pi -g pi -m 0644 "$mapping_tmp" /home/pi/device_mapping
 
-SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
-SPF_FIRMWARE_STATE_DIR="$FIRMWARE_STATE" \
-    bash "$LOADER" verify-all "$EXPECTED_RADIOS"
-
-spf_git_sha="$(
-    git -c "safe.directory=${REPO_ROOT}" \
-        -C "$REPO_ROOT" rev-parse --verify HEAD
-)" || die "Could not determine the SPF Git commit."
-[[ "$spf_git_sha" =~ ^[0-9a-f]{40}$ ]] ||
-    die "Invalid SPF Git commit: ${spf_git_sha}"
+run_loader verify-all "$attached_radios"
 
 mkdir -p "$READY_DIR"
-{
-    printf 'spf_git_sha=%s\n' "$spf_git_sha"
-    printf 'rover_id=%s\n' "$rover_id"
-    printf 'expected_radios=%s\n' "$EXPECTED_RADIOS"
-    printf 'firmware_image_sha256=%s\n' \
-        "f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4"
-    printf '%s\n' "--- device_mapping ---"
-    cat /home/pi/device_mapping
-    printf '%s\n' "--- loader_status ---"
-    SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
-    SPF_FIRMWARE_STATE_DIR="$FIRMWARE_STATE" \
-        bash "$LOADER" status-all "$EXPECTED_RADIOS"
-} >"$READY_FILE"
+manifest_args=(
+    write
+    --rover-id "$rover_id"
+    --output "$READY_FILE"
+    --device-mapping /home/pi/device_mapping
+)
+if [[ -n "${SPF_CAPTURE_CONFIG:-}" ]]; then
+    manifest_args+=(--config "$SPF_CAPTURE_CONFIG")
+fi
+"$PYTHON" -m spf.scripts.pluto_ready_manifest "${manifest_args[@]}"
 
 trap - EXIT
 rm -f -- "$mapping_tmp"

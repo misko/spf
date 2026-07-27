@@ -9,6 +9,7 @@ Type=oneshot
 User=root
 Group=root
 EnvironmentFile=-/etc/spf/direct_usb_boot.env
+EnvironmentFile=-/etc/spf/rover_collection.env
 WorkingDirectory=/home/pi/spf
 ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/prepare_direct_usb_boot.sh
 TimeoutStartSec=8min

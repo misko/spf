@@ -50,20 +50,20 @@ Do not mix the two paths within a capture.
 | IQ transport | Standard USB-IIO | Vendor interface 6, direct USB bulk |
 | Radio configuration | Standard USB-IIO / pyadi | Standard USB-IIO / pyadi before direct streaming |
 | Gain and RSSI | Host reads after IQ | Pluto-local observations in the same transfer as IQ |
-| YAML | Production Rover config; omitted `rx-transport` means `iio` | `rx-transport: direct_usb`, protocol v2 |
+| YAML | Recovery/manual only | Canonical `rover<id>_production_v7.yaml`; V7 implies direct USB/V2 |
 | Dataset | v4 | v7: v4 fields plus complete protocol-v2 metadata |
 | Current qualification | Production path | Rover 1: simultaneous two-Pluto bench/boot qualification |
 | Rollback | Already running QSPI | Reset/power-cycle restores unchanged QSPI |
 
-### Legacy production path
+### Canonical production path
 
 Use the committed production configuration selected by `drone_run.sh`:
 
 | Rover | Required real-radio configuration | Receivers |
 |---|---|---:|
-| 1 | `capture_configs/rover_receiver_config_pi_3mhz_35mm.yaml` | 2 |
-| 2 | `capture_configs/rover_single_receiver_config_pi_3mhz.yaml` | 1 |
-| 3 | `capture_configs/rover_receiver_config_pi_3mhz_43mm.yaml` | 2 |
+| 1 | `capture_configs/rover1_production_v7.yaml` | 2 |
+| 2 | `capture_configs/rover2_production_v7.yaml` | 1 |
+| 3 | `capture_configs/rover3_production_v7.yaml` | 2 |
 
 The production RF/frame contract is 5.766 GHz LO, 30 MS/s, 3 MHz RF
 bandwidth, 524,288 complex samples per channel per frame, two RX channels per
@@ -161,9 +161,10 @@ The boot qualification workflow is deliberately separate from the
 motion-capable `mavlink_controller.service`. Enabling it installs two units:
 
 1. `spf-pluto-direct-usb.service` verifies the persistent AD9361/2r2t
-   configuration, checksum-verifies and RAM-loads both Plutos when needed,
+   configuration and four dual-RX DMA scan elements, checksum-verifies and
+   RAM-loads every attached/configured Pluto,
    regenerates `~/device_mapping` after final USB enumeration, and writes
-   `/run/spf/direct_usb_ready`.
+   `/run/spf/direct_usb_ready.json`.
 2. `spf-direct-usb-preflight.service` requires that ready stamp, runs exactly
    100 motion-free fake-drone frames per receiver, reopens the final v7 Zarr,
    validates it, and writes `PASS` plus `validation.json`.
@@ -185,15 +186,15 @@ loop. After reboot:
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh status
 systemctl status spf-pluto-direct-usb.service \
   spf-direct-usb-preflight.service --no-pager
-cat /run/spf/direct_usb_ready
+python3 -m json.tool /run/spf/direct_usb_ready.json
 find /home/pi/preflight/boot_direct_usb -maxdepth 2 \
   \( -name PASS -o -name validation.json \) -print
 ```
 
-A Pi-only reboot may leave USB power applied to the Plutos. In that case the
-loader must identify the already-correct RAM image, verify both radios, and
-skip DFU. A full Rover power cycle or a tested `rollback-all` returns the
-Plutos to QSPI and exercises the stock-to-RAM path.
+A Pi-only reboot may leave USB power applied to the Plutos. The loader still
+reloads the exact checksum-pinned image because a vendor interface alone does
+not prove its build. A full Rover power cycle or a tested `rollback-all` returns
+the Plutos to QSPI.
 
 To prove rollback without enabling motion:
 
@@ -231,7 +232,7 @@ it immediately:
 
 ```bash
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
-  production-v4                    # or production-v7
+  production-v7
 sudoedit /etc/spf/rover_collection.env
 ```
 
@@ -239,16 +240,17 @@ For the first reboot set `SPF_SKIP_SELF_UPDATE=1` and
 `SPF_BOOT_VALIDATE_ONLY=1`. Pass only when:
 
 - the loader completes before `mavlink_controller.service`;
-- both serial/path identities appear in `/run/spf/direct_usb_ready`;
+- every serial/path and verified firmware identity appears in
+  `/run/spf/direct_usb_ready.json`;
 - the old `spf-direct-usb-preflight.service` is disabled and creates no Zarr;
 - a real heartbeat reports MANUAL and `armed=false`; and
 - the launcher exits before parameter writes, collection, planner, arm, or
   motion.
 
 When the Rover is physically safe to move and the normal MANUAL→GUIDED operator
-procedure is ready, set `SPF_BOOT_VALIDATE_ONLY=0`. `direct_usb_v4` then retains
-the existing v4 Zarr API; `direct_usb_v7` writes full endpoint metadata. Both
-retain Rover 1's original two-radio `bounce`, 3,000-record, repeating mission.
+procedure is ready, set `SPF_BOOT_VALIDATE_ONLY=0`. The canonical V7 config
+writes full endpoint metadata and retains each Rover's established routine and
+record count.
 
 ## 2. Release-level software gates
 
@@ -345,11 +347,21 @@ Also verify:
 - [ ] No unexpected reboot, USB error, undervoltage, or thermal warning is
       present in `dmesg`.
 
-Run the normal Pluto environment/mapping check:
+Run the normal read-only Pluto environment check and regenerate the mapping:
 
 ```bash
-bash data_collection/rover/rover_v3.1/check_and_set_pluto.sh
+sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
+  check-config-all 2
+bash data_collection/rover/rover_v3.1/device_mapping.sh > ~/device_mapping
 cat ~/device_mapping
+```
+
+If this fails, do not repair a radio during collection boot. In a controlled
+provisioning session, inspect and then explicitly apply the serial-aware plan:
+
+```bash
+sudo data_collection/rover/rover_v3.1/check_and_set_pluto.sh --dry-run
+sudo data_collection/rover/rover_v3.1/check_and_set_pluto.sh --apply
 ```
 
 Pass only when the expected number of radios is present after the check and
@@ -547,17 +559,15 @@ Before leaving:
 - [ ] New-firmware Rovers passed RAM boot, metadata validation, and rollback.
 - [ ] Batteries, spare storage, cables, stock firmware, DFU recovery image,
       tools, and the rollback instructions are packed.
-- [ ] Exactly one boot workflow is enabled after bench work. Select direct v4,
-      direct v7, or legacy IIO without starting the mission immediately:
+- [ ] Exactly one boot workflow is enabled after bench work. Select canonical
+      V7 production or the stock-QSPI recovery state without starting a mission
+      immediately:
 
 ```bash
-# New firmware, existing v4 Zarr:
-sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
-  production-v4
-# New firmware, full v7 endpoint metadata:
+# New firmware, full V7 endpoint metadata:
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
   production-v7
-# Stock firmware / IIO rollback:
+# Stock firmware recovery; automatic production remains disabled:
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
   restore-legacy
 # Start now only when the rover is safe to move; otherwise reboot in the field.

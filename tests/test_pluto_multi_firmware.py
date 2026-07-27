@@ -1,11 +1,14 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from spf.scripts.pluto_multi_firmware import (
     FirmwareError,
     MultiPlutoFirmwareManager,
+    UsbPluto,
     discover_runtime_plutos,
+    parse_device_fw_version,
     parse_uboot_environment,
 )
 
@@ -95,3 +98,240 @@ def test_parse_uboot_environment_ignores_diagnostics():
         "compatible": "ad9361",
         "mode": "2r2t",
     }
+
+
+def test_parse_device_fw_version():
+    assert (
+        parse_device_fw_version(
+            "build  abcdef\n" "device-fw  v0.37-dirty\n" "linux  4.14\n"
+        )
+        == "v0.37-dirty"
+    )
+
+
+def _manager(tmp_path, expected_count=1):
+    return MultiPlutoFirmwareManager(
+        image=tmp_path / "pluto.dfu",
+        image_sha256="0" * 64,
+        ssh_config=tmp_path / "ssh_config",
+        ssh_password="analog",
+        state_root=tmp_path / "state",
+        expected_count=expected_count,
+    )
+
+
+def _device(serial="SERIAL_A", path="1-1.1"):
+    return UsbPluto(
+        serial=serial,
+        sysfs_name=path,
+        bus=1,
+        port_path=path.removeprefix("1-"),
+        direct_usb=False,
+    )
+
+
+def test_provision_dry_run_identifies_only_incorrect_radio(tmp_path, monkeypatch):
+    manager = _manager(tmp_path, expected_count=2)
+    devices = [_device("SERIAL_A", "1-1.1"), _device("SERIAL_B", "1-1.2")]
+    environments = {
+        "SERIAL_A": {
+            "attr_name": "compatible",
+            "attr_val": "ad9361",
+            "compatible": "ad9361",
+            "mode": "2r2t",
+        },
+        "SERIAL_B": {
+            "attr_name": "compatible",
+            "attr_val": "ad9361",
+            "compatible": "ad9361",
+            "mode": "1r1t",
+        },
+    }
+    calls = []
+    monkeypatch.setattr(manager, "_check_root", lambda: None)
+    monkeypatch.setattr(manager, "_devices", lambda: devices)
+    monkeypatch.setattr(
+        manager,
+        "_device",
+        lambda serial: next(device for device in devices if device.serial == serial),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_read_persistent_state",
+        lambda serial: ("v0.37-dirty", environments[serial], "backup"),
+    )
+    monkeypatch.setattr(
+        manager, "_verify_dual_rx", lambda serial: calls.append(("verify", serial))
+    )
+    monkeypatch.setattr(
+        manager,
+        "_back_up_provisioning_state",
+        lambda *args: calls.append(("backup", args[0].serial)),
+    )
+    monkeypatch.setattr(manager, "_ssh", lambda *args, **kwargs: calls.append(("ssh",)))
+
+    manager.provision_config_all(dry_run=True)
+
+    assert calls == [("verify", "SERIAL_A")]
+
+
+def test_provision_writes_reboots_and_verifies_incorrect_radio(tmp_path, monkeypatch):
+    manager = _manager(tmp_path)
+    device = _device()
+    before = {
+        "attr_name": "compatible",
+        "attr_val": "ad9361",
+        "compatible": "ad9361",
+        "mode": "1r1t",
+    }
+    after = {**before, "mode": "2r2t"}
+    states = iter(
+        [
+            ("v0.37-dirty", before, "persistent backup"),
+            ("v0.37-dirty", after, "persistent after"),
+        ]
+    )
+    calls = []
+    monkeypatch.setattr(manager, "_check_root", lambda: None)
+    monkeypatch.setattr(manager, "_devices", lambda: [device])
+    monkeypatch.setattr(manager, "_device", lambda serial: device)
+    monkeypatch.setattr(manager, "_read_persistent_state", lambda serial: next(states))
+    monkeypatch.setattr(
+        manager,
+        "_back_up_provisioning_state",
+        lambda target, state: calls.append(("backup", target.serial, state)),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_ssh",
+        lambda serial, command, **kwargs: calls.append(("ssh", serial, command)),
+    )
+    monkeypatch.setattr(
+        manager, "_wait_absent", lambda *args: calls.append(("absent",))
+    )
+    monkeypatch.setattr(
+        manager, "_wait_product", lambda *args: calls.append(("product",))
+    )
+    monkeypatch.setattr(
+        manager, "_wait_for_ssh", lambda *args: calls.append(("wait-ssh",))
+    )
+    monkeypatch.setattr(
+        manager, "_verify_dual_rx", lambda serial: calls.append(("verify", serial))
+    )
+
+    manager.provision_config_all()
+
+    assert ("backup", "SERIAL_A", "persistent backup") in calls
+    write = next(call for call in calls if call[0] == "ssh" and "fw_setenv" in call[2])
+    assert "fw_setenv mode 2r2t" in write[2]
+    assert any(call[0] == "ssh" and "device_reboot reset" in call[2] for call in calls)
+    assert ("verify", "SERIAL_A") in calls
+
+
+def test_provision_rejects_unapproved_qspi_before_write(tmp_path, monkeypatch):
+    manager = _manager(tmp_path)
+    device = _device()
+    monkeypatch.setattr(manager, "_check_root", lambda: None)
+    monkeypatch.setattr(manager, "_devices", lambda: [device])
+    monkeypatch.setattr(manager, "_device", lambda serial: device)
+    monkeypatch.setattr(
+        manager,
+        "_read_persistent_state",
+        lambda serial: ("v0.32-1-g7bdc-dirty", {"mode": "1r1t"}, "backup"),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_ssh",
+        lambda *args, **kwargs: pytest.fail("must not write an unapproved radio"),
+    )
+
+    with pytest.raises(FirmwareError, match="is not approved"):
+        manager.provision_config_all()
+
+
+def test_direct_firmware_is_reloaded_instead_of_only_trusted(tmp_path, monkeypatch):
+    manager = MultiPlutoFirmwareManager(
+        image=tmp_path / "pluto.dfu",
+        image_sha256="0" * 64,
+        ssh_config=tmp_path / "ssh_config",
+        ssh_password="analog",
+        state_root=tmp_path / "state",
+        expected_count=1,
+    )
+    device = UsbPluto(
+        serial="SERIAL_A",
+        sysfs_name="1-1.1",
+        bus=1,
+        port_path="1.1",
+        direct_usb=True,
+    )
+    calls = []
+    monkeypatch.setattr(
+        manager,
+        "_back_up",
+        lambda serial: calls.append(("backup", serial)),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_ssh",
+        lambda serial, command, **kwargs: calls.append(("ssh", serial, command)),
+    )
+    monkeypatch.setattr(manager, "_wait_product", lambda *args: None)
+    monkeypatch.setattr(manager, "_wait_for_ssh", lambda *args: None)
+    monkeypatch.setattr(
+        manager,
+        "_verify_device",
+        lambda serial: calls.append(("verify", serial)),
+    )
+    monkeypatch.setattr(
+        "spf.scripts.pluto_multi_firmware._run",
+        lambda command, **kwargs: calls.append(("run", command)),
+    )
+
+    manager._load_device(device)
+
+    assert ("backup", "SERIAL_A") in calls
+    assert any(
+        call[0] == "ssh" and "/usr/sbin/device_reboot ram" in call[2] for call in calls
+    )
+    assert ("verify", "SERIAL_A") in calls
+
+
+@pytest.mark.parametrize(
+    ("channels", "passes"),
+    [
+        ((0, 1, 2, 3), True),
+        ((0, 1), False),
+    ],
+)
+def test_dual_rx_gate_requires_four_dma_scan_elements(
+    tmp_path, monkeypatch, channels, passes
+):
+    manager = MultiPlutoFirmwareManager(
+        image=tmp_path / "pluto.dfu",
+        image_sha256="0" * 64,
+        ssh_config=tmp_path / "ssh_config",
+        ssh_password="analog",
+        state_root=tmp_path / "state",
+        expected_count=1,
+    )
+    monkeypatch.setattr(manager, "_iio_uri_for_serial", lambda serial: "usb:1.2.5")
+    rendered_channels = "\n".join(
+        f"\t\t\tvoltage{channel}:  " f"(input, index: {channel}, format: le:S12/16>>0)"
+        for channel in channels
+    )
+    output = (
+        "\tiio:device3: cf-ad9361-lpc (buffer capable)\n"
+        f"{rendered_channels}\n"
+        "\tiio:device4: other\n"
+    )
+    monkeypatch.setattr(
+        "spf.scripts.pluto_multi_firmware._run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=output),
+    )
+
+    if passes:
+        manager._verify_dual_rx("SERIAL_A")
+    else:
+        with pytest.raises(FirmwareError, match="dual RX is unavailable"):
+            manager._verify_dual_rx("SERIAL_A")

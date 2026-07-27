@@ -12,6 +12,7 @@ import spf
 from spf.dataset.v4_data import v4rx_f64_keys
 from spf.dataset.v6_data import v6rx_2x_keys, v6rx_scalar_keys
 from spf.dataset.v7_data import v7rx_2x_keys, v7rx_scalar_keys
+from spf.capture_schema import normalize_capture_config
 from spf.mavlink_radio_collection import validate_transport_schema
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 
@@ -103,6 +104,31 @@ def test_direct_usb_v2_accepts_compatibility_and_full_metadata_schemas():
                         "direct-usb": {"protocol-version": 2},
                     }
                 ],
+            }
+        )
+
+
+def test_v7_infers_direct_usb_protocol_v2_and_rejects_conflicts():
+    normalized = normalize_capture_config(
+        {
+            "data-version": 7,
+            "receivers": [{"receiver-port": 1}],
+        }
+    )
+    receiver = normalized["receivers"][0]
+    assert receiver["rx-transport"] == "direct_usb"
+    assert receiver["direct-usb"] == {
+        "protocol-version": 2,
+        "require-gain-metadata": True,
+        "frame-count-per-request": 1,
+    }
+    validate_transport_schema(normalized)
+
+    with pytest.raises(ValueError, match="requires rx-transport: direct_usb"):
+        normalize_capture_config(
+            {
+                "data-version": 7,
+                "receivers": [{"rx-transport": "iio"}],
             }
         )
 

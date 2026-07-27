@@ -19,7 +19,7 @@ readonly PRODUCTION_UNIT="mavlink_controller.service"
 readonly SYSTEMD_DIR="/etc/systemd/system"
 readonly DROPIN_DIR="${SYSTEMD_DIR}/${PRODUCTION_UNIT}.d"
 readonly DROPIN="${DROPIN_DIR}/10-direct-usb.conf"
-readonly READY_FILE="/run/spf/direct_usb_ready"
+readonly READY_FILE="/run/spf/direct_usb_ready.json"
 
 die() {
     printf 'ERROR: %s\n' "$*" >&2
@@ -30,6 +30,15 @@ require_root() {
     [[ "${EUID}" -eq 0 ]] || die "$1 must run as root."
 }
 
+require_rover_identity() {
+    local rover_id
+    [[ -f /home/pi/rover_id ]] ||
+        die "Missing /home/pi/rover_id; refusing to select a production config."
+    rover_id="$(tr -d '[:space:]' </home/pi/rover_id)"
+    [[ "$rover_id" =~ ^[1-3]$ ]] ||
+        die "Unsupported rover_id: ${rover_id}"
+}
+
 unit_state() {
     local operation="$1"
     local unit="$2"
@@ -38,11 +47,14 @@ unit_state() {
     printf '%s\n' "${state:-unknown}"
 }
 
-collection_profile() {
+collection_config() {
     if [[ -f "$COLLECTION_ENV_DEST" ]]; then
-        sed -n 's/^SPF_CAPTURE_PROFILE=//p' "$COLLECTION_ENV_DEST" | tail -1
+        value="$(
+            sed -n 's/^SPF_CAPTURE_CONFIG=//p' "$COLLECTION_ENV_DEST" | tail -1
+        )"
+        printf '%s\n' "${value:-canonical-by-rover-id}"
     else
-        printf 'legacy_iio_v4\n'
+        printf 'canonical-by-rover-id\n'
     fi
 }
 
@@ -59,7 +71,7 @@ ram_load_setting() {
 }
 
 show_status() {
-    printf 'capture_profile=%s\n' "$(collection_profile)"
+    printf 'capture_config=%s\n' "$(collection_config)"
     printf 'ram_load_disabled=%s\n' "$(ram_load_setting)"
     printf '%-34s enabled=%-10s active=%s\n' \
         "$PRODUCTION_UNIT" \
@@ -124,22 +136,36 @@ set_ram_load_disabled() {
 }
 
 cache_firmware_image() {
-    local cache_dir
+    local cache_dir config_override rover_id
+    local -a resolver_args config_values
     cache_dir="$(
         sed -n 's/^SPF_FIRMWARE_CACHE_DIR=//p' "$DIRECT_ENV_DEST" | tail -1
     )"
     cache_dir="${cache_dir:-/home/pi/.cache/spf/firmware}"
-    SPF_FIRMWARE_CACHE_DIR="$cache_dir" bash "$FIRMWARE_LOADER" download
+    rover_id="$(tr -d '[:space:]' </home/pi/rover_id)"
+    resolver_args=(--rover-id "$rover_id" --format null)
+    config_override="$(collection_config)"
+    if [[ "$config_override" != "canonical-by-rover-id" ]]; then
+        resolver_args+=(--config "$config_override")
+    fi
+    mapfile -d '' -t config_values < <(
+        /home/pi/spf-virtualenv/bin/python3 \
+            -m spf.scripts.rover_capture_config "${resolver_args[@]}"
+    )
+    [[ "${#config_values[@]}" -eq 15 ]] ||
+        die "Capture config resolver returned the wrong firmware plan."
+    SPF_FIRMWARE_RELEASE_TAG="${config_values[8]}" \
+    SPF_FIRMWARE_ASSET_NAME="${config_values[9]}" \
+    SPF_FIRMWARE_IMAGE_URL="${config_values[10]}" \
+    SPF_FIRMWARE_IMAGE_SHA256="${config_values[11]}" \
+    SPF_FIRMWARE_CACHE_DIR="$cache_dir" \
+        bash "$FIRMWARE_LOADER" download
 }
 
-set_profile() {
-    local profile="$1"
-    if grep -q '^SPF_CAPTURE_PROFILE=' "$COLLECTION_ENV_DEST"; then
-        sed -i "s/^SPF_CAPTURE_PROFILE=.*/SPF_CAPTURE_PROFILE=${profile}/" \
-            "$COLLECTION_ENV_DEST"
-    else
-        printf 'SPF_CAPTURE_PROFILE=%s\n' "$profile" >>"$COLLECTION_ENV_DEST"
-    fi
+use_canonical_config() {
+    sed -i \
+        '/^SPF_CAPTURE_PROFILE=/d; /^SPF_CAPTURE_CONFIG=/d' \
+        "$COLLECTION_ENV_DEST"
 }
 
 stop_all() {
@@ -151,8 +177,10 @@ stop_all() {
 
 enable_qualification() {
     require_root "qualify"
+    require_rover_identity
     stop_all
     install_units_and_environments
+    use_canonical_config
     set_ram_load_disabled 0
     cache_firmware_image
     rm -f -- "$DROPIN"
@@ -167,8 +195,10 @@ enable_qualification() {
 
 enable_default_production() {
     require_root "production-default"
+    require_rover_identity
     stop_all
     install_units_and_environments
+    use_canonical_config
     set_ram_load_disabled 0
     cache_firmware_image
     rm -f -- "$DROPIN"
@@ -177,17 +207,17 @@ enable_default_production() {
     systemctl enable "$LOADER_UNIT" "$PRODUCTION_UNIT"
     printf '%s\n' \
         "PASS: RAM firmware preparation before MAVLink is enabled." \
-        "The existing capture profile is preserved." \
+        "The canonical Rover V7 capture config is selected by rover_id." \
         "No service was started."
     show_status
 }
 
 enable_production() {
-    local profile="$1"
     require_root "production"
+    require_rover_identity
     stop_all
     install_units_and_environments
-    set_profile "$profile"
+    use_canonical_config
     set_ram_load_disabled 0
     cache_firmware_image
     rm -f -- "$DROPIN"
@@ -195,7 +225,7 @@ enable_production() {
     systemctl disable "$PREFLIGHT_UNIT"
     systemctl enable "$LOADER_UNIT" "$PRODUCTION_UNIT"
     printf '%s\n' \
-        "PASS: ${profile} production boot is enabled." \
+        "PASS: canonical V7 production boot is enabled." \
         "No service was started. Review ${COLLECTION_ENV_DEST}; use" \
         "SPF_BOOT_VALIDATE_ONLY=1 for the first reboot."
     show_status
@@ -205,19 +235,20 @@ restore_legacy() {
     require_root "restore-legacy"
     stop_all
     install_units_and_environments
-    set_profile legacy_iio_v4
+    use_canonical_config
     set_ram_load_disabled 1
     rm -f -- "$DROPIN" "$READY_FILE"
     systemctl daemon-reload
     systemctl disable "$PREFLIGHT_UNIT"
-    systemctl enable "$LOADER_UNIT" "$PRODUCTION_UNIT"
+    systemctl disable "$PRODUCTION_UNIT"
+    systemctl enable "$LOADER_UNIT"
     printf '%s\n' \
-        "PASS: explicit stock-QSPI legacy IIO boot policy is enabled." \
+        "PASS: explicit stock-QSPI recovery policy is enabled." \
         "The firmware prerequisite still runs before MAVLink but exits without" \
         "RAM-loading because SPF_DIRECT_USB_DISABLE=1." \
         "Reset each Pluto into QSPI with rollback-all (or a full power cycle)" \
-        "before starting collection; this command does not reset radios." \
-        "No service was started."
+        "before manual legacy-IIO collection; this command does not reset radios." \
+        "Automatic production collection is disabled."
     show_status
 }
 
@@ -228,9 +259,8 @@ Usage: sudo $(basename "$0") COMMAND
 Commands:
   qualify        Enable loader + one 100-frame fake-drone qualification.
   production-default
-                 RAM-load before MAVLink; preserve the current capture profile.
-  production-v4 Enable original production loop through direct USB, v4 Zarr.
-  production-v7 Enable original production loop through direct USB, v7 Zarr.
+                 RAM-load before MAVLink and use canonical Rover V7 config.
+  production-v7 Alias for production-default.
   restore-legacy
                  Explicitly opt out of RAM loading and use legacy IIO/v4.
   status         Show profile, unit exclusivity, ordering, and ready stamp.
@@ -252,11 +282,11 @@ main() {
             ;;
         production-v4)
             [[ "$#" -eq 1 ]] || die "production-v4 takes no arguments."
-            enable_production direct_usb_v4
+            die "production-v4 was retired; production uses the canonical V7 config"
             ;;
         production-v7)
             [[ "$#" -eq 1 ]] || die "production-v7 takes no arguments."
-            enable_production direct_usb_v7
+            enable_production
             ;;
         restore-legacy)
             [[ "$#" -eq 1 ]] || die "restore-legacy takes no arguments."

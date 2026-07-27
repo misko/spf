@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -33,6 +34,7 @@ REQUIRED_UBOOT_ENV = {
     "compatible": "ad9361",
     "mode": "2r2t",
 }
+DEFAULT_APPROVED_QSPI_DEVICE_FW = ("v0.37-dirty",)
 
 
 class FirmwareError(RuntimeError):
@@ -51,8 +53,8 @@ class UsbPluto:
 @dataclasses.dataclass(frozen=True)
 class InterfaceState:
     name: str
-    address: str
-    prefixlen: int
+    address: str | None
+    prefixlen: int | None
     route_metric: int | None
 
 
@@ -91,6 +93,14 @@ def parse_uboot_environment(output: str) -> dict[str, str]:
         if separator:
             environment[key] = value
     return environment
+
+
+def parse_device_fw_version(output: str) -> str:
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[0] == "device-fw":
+            return fields[1]
+    raise FirmwareError("/opt/VERSIONS does not contain a device-fw version")
 
 
 def _interface_class_path(device_path: Path, interface: int) -> Path:
@@ -185,9 +195,10 @@ def _capture_interface_state(interface: str) -> InterfaceState:
         for address in address_data[0].get("addr_info", [])
         if address.get("family") == "inet"
     ]
-    if len(ipv4) != 1:
+    if len(ipv4) > 1:
         raise FirmwareError(
-            f"{interface}: expected one IPv4 address before isolation; found {ipv4}"
+            f"{interface}: expected at most one IPv4 address before isolation; "
+            f"found {ipv4}"
         )
     route_result = _run(
         ["ip", "-j", "route", "show", "dev", interface],
@@ -197,8 +208,8 @@ def _capture_interface_state(interface: str) -> InterfaceState:
     metric = routes[0].get("metric") if routes else None
     return InterfaceState(
         name=interface,
-        address=ipv4[0]["local"],
-        prefixlen=int(ipv4[0]["prefixlen"]),
+        address=ipv4[0]["local"] if ipv4 else None,
+        prefixlen=int(ipv4[0]["prefixlen"]) if ipv4 else None,
         route_metric=int(metric) if metric is not None else None,
     )
 
@@ -296,18 +307,19 @@ class IsolatedPlutoNetwork:
                 check=False,
             )
             _run(["ip", "link", "set", self.state.name, "up"], check=False)
-            _run(
-                [
-                    "ip",
-                    "address",
-                    "replace",
-                    f"{self.state.address}/{self.state.prefixlen}",
-                    "dev",
-                    self.state.name,
-                ],
-                check=False,
-            )
-            if self.state.route_metric is not None:
+            if self.state.address is not None and self.state.prefixlen is not None:
+                _run(
+                    [
+                        "ip",
+                        "address",
+                        "replace",
+                        f"{self.state.address}/{self.state.prefixlen}",
+                        "dev",
+                        self.state.name,
+                    ],
+                    check=False,
+                )
+            if self.state.route_metric is not None and self.state.address is not None:
                 subnet = ".".join(self.state.address.split(".")[:3]) + ".0/24"
                 _run(
                     ["ip", "route", "del", subnet, "dev", self.state.name],
@@ -345,6 +357,7 @@ class MultiPlutoFirmwareManager:
         ssh_password: str,
         state_root: Path,
         expected_count: int,
+        approved_qspi_versions: tuple[str, ...] = DEFAULT_APPROVED_QSPI_DEVICE_FW,
     ):
         self.image = image
         self.image_sha256 = image_sha256.lower()
@@ -352,6 +365,7 @@ class MultiPlutoFirmwareManager:
         self.ssh_password = ssh_password
         self.state_root = state_root
         self.expected_count = expected_count
+        self.approved_qspi_versions = approved_qspi_versions
 
     def _check_root(self) -> None:
         if os.geteuid() != 0:
@@ -452,6 +466,15 @@ class MultiPlutoFirmwareManager:
             f"{sysfs_name}: expected USB product {product}, found {actual}"
         )
 
+    def _wait_absent(self, sysfs_name: str, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        product_path = Path("/sys/bus/usb/devices") / sysfs_name / "idProduct"
+        while time.monotonic() < deadline:
+            if not product_path.exists():
+                return
+            time.sleep(0.25)
+        raise FirmwareError(f"{sysfs_name}: Pluto did not disconnect during reboot")
+
     def _wait_for_ssh(self, serial: str, timeout: float = 60) -> None:
         deadline = time.monotonic() + timeout
         last_error: Exception | None = None
@@ -476,11 +499,98 @@ class MultiPlutoFirmwareManager:
         destination.write_text(result.stdout)
         print(f"Saved pre-load state: {destination}", flush=True)
 
+    def _read_persistent_state(self, serial: str) -> tuple[str, dict[str, str], str]:
+        result = self._ssh(
+            serial,
+            'printf "%s\\n" "--- /opt/VERSIONS ---"; cat /opt/VERSIONS; '
+            'printf "%s\\n" "--- fw_printenv ---"; fw_printenv',
+        )
+        versions, separator, environment_output = result.stdout.partition(
+            "--- fw_printenv ---"
+        )
+        if not separator:
+            raise FirmwareError(f"{serial}: persistent-state response is incomplete")
+        version = parse_device_fw_version(versions)
+        environment = parse_uboot_environment(environment_output)
+        return version, environment, result.stdout
+
+    def _require_approved_qspi_version(self, serial: str, version: str) -> None:
+        if version not in self.approved_qspi_versions:
+            raise FirmwareError(
+                f"{serial}: QSPI device-fw {version!r} is not approved; "
+                f"expected one of {list(self.approved_qspi_versions)}"
+            )
+
+    @staticmethod
+    def _environment_mismatches(
+        environment: dict[str, str],
+    ) -> dict[str, dict[str, str | None]]:
+        return {
+            key: {"expected": expected, "actual": environment.get(key)}
+            for key, expected in REQUIRED_UBOOT_ENV.items()
+            if environment.get(key) != expected
+        }
+
+    def _back_up_provisioning_state(
+        self, device: UsbPluto, persistent_state: str
+    ) -> Path:
+        timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+        destination_dir = self.state_root / device.serial / "provisioning"
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        destination = destination_dir / (
+            f"{timestamp}-{device.sysfs_name}-before-2r2t.txt"
+        )
+        destination.write_text(persistent_state)
+        print(f"Saved pre-provisioning state: {destination}", flush=True)
+        return destination
+
     def _iio_has_serial(self, serial: str) -> bool:
         result = _run(["iio_info", "-s"], capture_output=True, check=False)
         return any(
             serial in line and "[usb:" in line for line in result.stdout.splitlines()
         )
+
+    def _iio_uri_for_serial(self, serial: str) -> str:
+        result = _run(["iio_info", "-s"], capture_output=True, check=False)
+        matches = []
+        for line in result.stdout.splitlines():
+            if serial not in line or "[usb:" not in line:
+                continue
+            start = line.rfind("[usb:")
+            end = line.find("]", start)
+            if start >= 0 and end > start:
+                matches.append(line[start + 1 : end])
+        if len(matches) != 1:
+            raise FirmwareError(f"{serial}: expected one USB-IIO URI; found {matches}")
+        return matches[0]
+
+    def _verify_dual_rx(self, serial: str) -> None:
+        uri = self._iio_uri_for_serial(serial)
+        result = _run(
+            ["iio_info", "-u", uri],
+            capture_output=True,
+            check=False,
+            timeout=15,
+        )
+        if result.returncode != 0:
+            raise FirmwareError(f"{serial}: failed to inspect USB-IIO context {uri}")
+        in_rx_dma = False
+        scan_channels = set()
+        for line in result.stdout.splitlines():
+            if line.startswith("\tiio:device"):
+                in_rx_dma = "cf-ad9361-lpc" in line
+                continue
+            if not in_rx_dma:
+                continue
+            stripped = line.strip()
+            for channel in range(4):
+                if stripped.startswith(f"voltage{channel}:") and "(input," in stripped:
+                    scan_channels.add(channel)
+        if scan_channels != {0, 1, 2, 3}:
+            raise FirmwareError(
+                f"{serial}: dual RX is unavailable; cf-ad9361-lpc scan "
+                f"channels are {sorted(scan_channels)}, expected [0, 1, 2, 3]"
+            )
 
     def _verify_device(self, serial: str) -> None:
         device = self._device(serial)
@@ -488,6 +598,7 @@ class MultiPlutoFirmwareManager:
             raise FirmwareError(f"{serial}: vendor direct-USB interface 6 is absent")
         if not self._iio_has_serial(serial):
             raise FirmwareError(f"{serial}: standard USB-IIO context is absent")
+        self._verify_dual_rx(serial)
         result = self._ssh(
             serial,
             "pidof iiod >/dev/null && pidof sdr_usb_gadget >/dev/null",
@@ -499,14 +610,10 @@ class MultiPlutoFirmwareManager:
             )
 
     def _load_device(self, device: UsbPluto) -> None:
-        if device.direct_usb:
-            print(f"{device.serial}: direct firmware already present; verifying")
-            self._verify_device(device.serial)
-            return
-
         self._back_up(device.serial)
         print(
-            f"{device.serial}: requesting volatile RAM boot at {device.sysfs_name}",
+            f"{device.serial}: requesting exact volatile RAM boot at "
+            f"{device.sysfs_name}",
             flush=True,
         )
         try:
@@ -575,20 +682,116 @@ class MultiPlutoFirmwareManager:
         self._check_root()
         devices = self._devices()
         for device in devices:
-            result = self._ssh(device.serial, "fw_printenv")
-            environment = parse_uboot_environment(result.stdout)
-            mismatches = {
-                key: {"expected": expected, "actual": environment.get(key)}
-                for key, expected in REQUIRED_UBOOT_ENV.items()
-                if environment.get(key) != expected
-            }
+            version, environment, _ = self._read_persistent_state(device.serial)
+            self._require_approved_qspi_version(device.serial, version)
+            mismatches = self._environment_mismatches(environment)
             if mismatches:
                 raise FirmwareError(
                     f"{device.serial}: Pluto U-Boot environment mismatch: "
                     f"{mismatches}"
                 )
+            self._verify_dual_rx(device.serial)
             print(f"{device.serial}: PASS ad9361/2r2t configuration", flush=True)
         print(f"PASS: verified configuration on {len(devices)} Plutos", flush=True)
+
+    def provision_config_all(self, *, dry_run: bool = False) -> None:
+        self._check_root()
+        _require_commands(("iio_info", "ip", "ssh", "sshpass", "udevadm"))
+        devices = self._devices()
+        for original in devices:
+            device = self._device(original.serial)
+            if device.direct_usb:
+                raise FirmwareError(
+                    f"{device.serial}: refuse persistent provisioning while "
+                    "the temporary direct-USB RAM image is running"
+                )
+            if (
+                device.bus != original.bus
+                or device.port_path != original.port_path
+                or device.sysfs_name != original.sysfs_name
+            ):
+                raise FirmwareError(
+                    f"{device.serial}: USB identity changed before provisioning"
+                )
+
+            version, environment, persistent_state = self._read_persistent_state(
+                device.serial
+            )
+            self._require_approved_qspi_version(device.serial, version)
+            mismatches = self._environment_mismatches(environment)
+            if not mismatches:
+                self._verify_dual_rx(device.serial)
+                print(
+                    f"{device.serial}: already provisioned "
+                    f"qspi={version} path={device.sysfs_name}; no writes",
+                    flush=True,
+                )
+                continue
+
+            print(
+                f"{device.serial}: {'DRY-RUN ' if dry_run else ''}"
+                f"provision qspi={version} path={device.sysfs_name} "
+                f"changes={mismatches}",
+                flush=True,
+            )
+            if dry_run:
+                continue
+
+            self._back_up_provisioning_state(device, persistent_state)
+            assignments = "; ".join(
+                f"fw_setenv {shlex.quote(key)} {shlex.quote(value)}"
+                for key, value in REQUIRED_UBOOT_ENV.items()
+            )
+            self._ssh(device.serial, f"set -eu; {assignments}; sync")
+            try:
+                self._ssh(
+                    device.serial,
+                    "/usr/sbin/device_reboot reset",
+                    check=False,
+                    timeout=10,
+                )
+            except subprocess.TimeoutExpired:
+                pass
+            self._wait_absent(device.sysfs_name, 30)
+            self._wait_product(device.sysfs_name, PLUTO_RUNTIME_PRODUCT, 90)
+            self._wait_for_ssh(device.serial, 60)
+
+            returned = self._device(device.serial)
+            if (
+                returned.bus != device.bus
+                or returned.port_path != device.port_path
+                or returned.sysfs_name != device.sysfs_name
+            ):
+                raise FirmwareError(
+                    f"{device.serial}: returned on unexpected USB path "
+                    f"{returned.sysfs_name}; expected {device.sysfs_name}"
+                )
+            returned_version, returned_environment, _ = self._read_persistent_state(
+                device.serial
+            )
+            self._require_approved_qspi_version(device.serial, returned_version)
+            returned_mismatches = self._environment_mismatches(returned_environment)
+            if returned_mismatches:
+                raise FirmwareError(
+                    f"{device.serial}: U-Boot provisioning did not persist: "
+                    f"{returned_mismatches}"
+                )
+            self._verify_dual_rx(device.serial)
+            print(
+                f"{device.serial}: PASS provisioned ad9361/2r2t "
+                f"path={device.sysfs_name}",
+                flush=True,
+            )
+        if dry_run:
+            print(
+                f"PASS: dry-run inspected {len(devices)} Plutos; no writes",
+                flush=True,
+            )
+        else:
+            print(
+                f"PASS: provisioned and verified {len(devices)} Plutos",
+                flush=True,
+            )
 
     def rollback_all(self) -> None:
         self._check_root()
@@ -634,24 +837,50 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "command",
         choices=(
+            "discover-count",
             "load-all",
             "verify-all",
             "check-config-all",
+            "provision-config-all",
             "rollback-all",
             "status-all",
         ),
     )
-    parser.add_argument("--image", type=Path, required=True)
-    parser.add_argument("--image-sha256", required=True)
-    parser.add_argument("--ssh-config", type=Path, required=True)
+    parser.add_argument("--image", type=Path)
+    parser.add_argument("--image-sha256")
+    parser.add_argument("--ssh-config", type=Path)
     parser.add_argument("--ssh-password", default="analog")
-    parser.add_argument("--state-root", type=Path, required=True)
-    parser.add_argument("--expected-count", type=int, required=True)
+    parser.add_argument("--state-root", type=Path)
+    parser.add_argument("--expected-count", type=int)
+    parser.add_argument(
+        "--approved-qspi-version",
+        action="append",
+        dest="approved_qspi_versions",
+    )
+    parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
 
 def main() -> int:
     args = _parse_args()
+    if args.command == "discover-count":
+        print(len(discover_runtime_plutos()))
+        return 0
+    missing = [
+        name
+        for name in (
+            "image",
+            "image_sha256",
+            "ssh_config",
+            "state_root",
+            "expected_count",
+        )
+        if getattr(args, name) is None
+    ]
+    if missing:
+        raise SystemExit(
+            f"{args.command} requires: {', '.join('--' + name.replace('_', '-') for name in missing)}"
+        )
     manager = MultiPlutoFirmwareManager(
         image=args.image,
         image_sha256=args.image_sha256,
@@ -659,9 +888,16 @@ def main() -> int:
         ssh_password=args.ssh_password,
         state_root=args.state_root,
         expected_count=args.expected_count,
+        approved_qspi_versions=tuple(
+            args.approved_qspi_versions or DEFAULT_APPROVED_QSPI_DEVICE_FW
+        ),
     )
     try:
-        getattr(manager, args.command.replace("-", "_"))()
+        method = getattr(manager, args.command.replace("-", "_"))
+        if args.command == "provision-config-all":
+            method(dry_run=args.dry_run)
+        else:
+            method()
     except (FirmwareError, subprocess.SubprocessError, OSError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 1

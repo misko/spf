@@ -74,6 +74,9 @@ class SdrDeviceIdentity:
     direct_usb_bulk_in_endpoint: Optional[int] = None
     direct_usb_bulk_out_endpoint: Optional[int] = None
     direct_usb_protocol_version: Optional[int] = None
+    direct_usb_protocol_min: Optional[int] = None
+    direct_usb_protocol_max: Optional[int] = None
+    direct_usb_supported_features: Optional[int] = None
     direct_usb_capability_flags: Optional[int] = None
 
 
@@ -1293,6 +1296,9 @@ class PPlus:
                 direct_usb_bulk_in_endpoint=direct_identity.bulk_in_endpoint,
                 direct_usb_bulk_out_endpoint=direct_identity.bulk_out_endpoint,
                 direct_usb_protocol_version=self.rx_config.direct_usb_protocol_version,
+                direct_usb_protocol_min=capabilities.protocol_min,
+                direct_usb_protocol_max=capabilities.protocol_max,
+                direct_usb_supported_features=int(capabilities.supported_features),
                 direct_usb_capability_flags=int(capabilities.capability_flags),
             )
 

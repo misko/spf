@@ -2,6 +2,275 @@
 
 Date: 2026-07-25
 
+## Two-Pluto AD9361/2R2T provisioning — 2026-07-27
+
+### Goal and safety contract
+
+Provision every Pluto attached to a Rover as AD9361/2R2T exactly once, identify
+each device by USB serial and physical port, and prove that both receive
+channels are actually exposed before allowing firmware loading or collection.
+
+Persistent U-Boot writes belong only to an explicit provisioning command.
+Ordinary Rover boot must remain read-only: it verifies the established state
+and fails closed if a radio has reverted to `1r1t`, has incompatible QSPI
+firmware, disappears, or moves unexpectedly.
+
+This work must not:
+
+- flash the v0.38-derived direct-USB image into QSPI;
+- identify a Pluto only by the shared `192.168.2.1` address;
+- treat four matching U-Boot strings as proof that RX2 works;
+- repair persistent state silently during a production boot; or
+- start MAVLink, motion planning, or collection after any failed radio gate.
+
+The required persistent environment is:
+
+```text
+attr_name=compatible
+attr_val=ad9361
+compatible=ad9361
+mode=2r2t
+```
+
+The actual hardware proof is that `cf-ad9361-lpc` exposes enabled scan elements
+0, 1, 2, and 3: RX1 I/Q and RX2 I/Q.
+
+### Intended lifecycle
+
+```text
+explicit Rover provisioning
+    -> discover exact Pluto count, serials, and USB paths
+    -> isolate one Pluto USB-network interface
+    -> back up its version and complete U-Boot environment
+    -> require the approved QSPI baseline
+    -> write the four AD9361/2R2T values if needed
+    -> reboot and reacquire the same serial
+    -> verify U-Boot values and both RX scan channels
+    -> repeat for every Pluto
+
+every normal Rover boot
+    -> discover the exact configured radio set
+    -> read-only U-Boot and dual-RX verification
+    -> checksum-verified direct-USB RAM boot
+    -> regenerate mapping and readiness manifest
+    -> start MAVLink/collection only after every gate passes
+```
+
+### Step 0 — Freeze evidence and recovery inputs
+
+Actions:
+
+1. Record each attached Pluto's serial, physical USB path, `/opt/VERSIONS`,
+   complete `fw_printenv`, and available IIO scan elements.
+2. Save the records under
+   `/var/lib/spf/pluto-firmware/<serial>/provisioning/`.
+3. Pin the known-good production QSPI v0.37 artifact and checksum separately
+   from the RAM-only direct-USB artifact.
+4. Confirm DFU recovery instructions and the known-good image are locally
+   available before any persistent write.
+
+Pass:
+
+- every discovered serial has a timestamped, non-empty environment and version
+  backup;
+- the number of discovered Plutos exactly matches the selected Rover config;
+- the QSPI and RAM images have distinct names, roles, and verified checksums.
+
+Fail:
+
+- an empty/duplicate serial, ambiguous USB path, unexpected device count,
+  missing recovery image, or unreadable U-Boot environment stops the process
+  without changing a radio.
+
+### Step 1 — Add one serial-aware provisioning command
+
+Add `provision-config-all N` to `spf.scripts.pluto_multi_firmware`, reusing its
+existing per-interface network-namespace isolation. The command must:
+
+1. require root and exactly `N` runtime Pluto devices;
+2. reject radios already running the temporary direct-USB RAM image;
+3. resolve and log interface, serial, and physical USB path together;
+4. back up state before mutation;
+5. inspect the installed QSPI version and fail explicitly if it is not an
+   approved baseline;
+6. write all four required values only when the complete tuple differs;
+7. check every `fw_setenv` return status;
+8. reboot only the selected radio;
+9. reacquire the same serial within a bounded timeout;
+10. verify the complete environment with exact key/value parsing; and
+11. verify RX1 I/Q and RX2 I/Q through USB-IIO.
+
+Add `--dry-run` so operators can see the resolved serial/path plan and proposed
+writes without mutation. Running the real command twice must be idempotent:
+the second run performs no writes or reboot.
+
+Pass:
+
+- with one correct and one `mode=1r1t` radio, only the incorrect serial is
+  written and rebooted;
+- logs always name the affected serial and physical path;
+- both radios expose four RX scan elements after completion;
+- a second invocation reports both radios already provisioned and performs no
+  persistent writes.
+
+Fail:
+
+- wrong device count, wrong QSPI baseline, command failure, timeout, serial/path
+  substitution, incomplete environment, or missing RX2 returns nonzero and
+  leaves no readiness marker.
+
+### Step 2 — Make verification and provisioning share one implementation
+
+Retain `check-config-all N` as the read-only production gate and make it use the
+same exact environment parser and dual-RX probe as provisioning.
+
+Retire the independent logic in `check_and_set_pluto.sh`. Preserve its filename
+for operator familiarity, but turn it into a small, explicit provisioning
+wrapper that:
+
+- prints a persistent-change warning;
+- supports dry-run;
+- invokes `provision-config-all`;
+- never implements its own interface discovery, SSH loop, or greps; and
+- never regenerates `device_mapping` before all radios have passed.
+
+Remove `check_and_set_pluto.sh` from normal legacy collection startup. Both IIO
+and direct-USB production paths must use read-only verification; mapping
+generation remains a separate operation.
+
+Pass:
+
+- there is one definition of the four required U-Boot values;
+- `mode=1r1t` can never produce “Params already set”;
+- legacy IIO and direct-USB boot both stop before collection when RX2 is absent;
+- shell and Python entry points produce the same per-serial verdict.
+
+Fail:
+
+- any boot-time path can persistently modify U-Boot, or any checker validates
+  only the three AD9361 compatibility fields.
+
+### Step 3 — Integrate provisioning into Rover deployment
+
+Place explicit radio provisioning after the approved QSPI v0.37 installation
+and re-enumeration in `setup.sh`, before production services are enabled.
+Deployment should expose two distinct operations:
+
+```text
+setup/provision: may write QSPI environment after backup and confirmation
+normal boot:      read-only verification plus volatile RAM firmware load
+```
+
+`setup.sh` must not continue merely because mass-storage flashing completed.
+It must wait for every original serial to return, provision all radios, and
+run `check-config-all` before enabling the collection units.
+
+Pass:
+
+- a fresh Rover installation ends with every configured serial verified as
+  AD9361/2R2T;
+- re-running setup is idempotent at the U-Boot provisioning stage;
+- production units are not enabled after a provisioning failure.
+
+Fail:
+
+- setup can enable production with a `1r1t` radio, or ordinary boot must write
+  persistent settings to become operational.
+
+### Step 4 — Unit and failure-injection tests
+
+Add tests for:
+
+- two duplicate `192.168.2.1` devices isolated by different interfaces;
+- stable serial/path association across reboot/re-enumeration;
+- only `mode` wrong;
+- each compatibility key independently missing or wrong;
+- approved and rejected QSPI versions;
+- failed `fw_setenv`, failed reboot, and timeout;
+- a radio returning with a different serial or path;
+- correct environment but only two RX scan elements;
+- exact four-channel dual-RX success;
+- dry-run making no calls that mutate device state; and
+- a second provisioning run making no writes.
+
+Pass:
+
+- all tests assert both return status and mutation count;
+- failure tests prove MAVLink/collection cannot become reachable downstream.
+
+Fail:
+
+- tests only inspect console text, or mocks allow an unaddressed
+  `192.168.2.1` command without proving which interface owns the route.
+
+### Step 5 — Two-radio hardware qualification
+
+On a motion-safe Rover bench:
+
+1. stop production services;
+2. run provisioning dry-run and archive its output;
+3. provision both radios explicitly;
+4. power-cycle both radios;
+5. run `check-config-all 2`;
+6. RAM-load and verify the direct-USB image on both;
+7. query protocol-v2 capabilities for both serials;
+8. capture 100 V7 frames per radio with the fake drone;
+9. reopen and strictly validate both Zarr groups; and
+10. reset/power-cycle once more and repeat the read-only boot gate.
+
+Pass:
+
+- both original serials retain `mode=2r2t` across a cold power cycle;
+- both expose RX1/RX2 and protocol-v2 features `0x37`;
+- both collect 100 readable, nonzero two-channel frames;
+- sequences, firmware provenance, serials, and USB paths validate;
+- no per-frame host gain/RSSI reads occur;
+- a second boot performs no persistent U-Boot writes.
+
+Fail:
+
+- either serial reverts to `1r1t`, lacks RX2, fails direct USB, produces an
+  invalid Zarr, or cannot be associated unambiguously with its dataset.
+
+### Step 6 — Boot-order and recovery acceptance
+
+Perform one controlled Rover reboot with collection validation-only enabled.
+Confirm the journal ordering:
+
+```text
+read-only AD9361/2R2T checks
+    -> RAM firmware load and capability checks
+    -> mapping/readiness manifest
+    -> MAVLink launcher validation
+```
+
+Then test recovery by resetting to the unchanged QSPI image. The volatile
+direct-USB interface must disappear while the persistent AD9361/2R2T state
+remains valid.
+
+Pass:
+
+- a healthy reboot reaches validation without radio mutation;
+- deliberately setting a bench radio to `1r1t` makes the firmware prerequisite
+  fail before MAVLink, then explicit provisioning restores it;
+- QSPI rollback remains functional and documented.
+
+Fail:
+
+- collection starts with stale readiness data, a failed radio is silently
+  skipped, or recovery requires flashing the experimental image persistently.
+
+### Delivery boundary
+
+The work is complete only when:
+
+1. one serial-aware implementation owns provisioning and verification;
+2. normal boot is demonstrably read-only;
+3. both attached Plutos survive a cold boot in actual dual-RX mode;
+4. the two-radio 100-frame V7 capture and strict Zarr validation pass; and
+5. the runbook contains exact provision, verify, recovery, and field-check
+   commands.
+
 ## Rover 1 production-boot restoration — 2026-07-26
 
 The qualification boot introduced while developing direct USB intentionally

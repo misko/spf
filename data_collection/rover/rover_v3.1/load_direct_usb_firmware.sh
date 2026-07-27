@@ -5,10 +5,10 @@
 
 set -euo pipefail
 
-readonly RELEASE_TAG="v0.38-plutoplus-spf-gain-rssi-v2"
-readonly ASSET_NAME="plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu"
-readonly IMAGE_SHA256="f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4"
-readonly IMAGE_URL="https://github.com/misko/plutosdr-fw/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
+readonly RELEASE_TAG="${SPF_FIRMWARE_RELEASE_TAG:-v0.38-plutoplus-spf-gain-rssi-v2}"
+readonly ASSET_NAME="${SPF_FIRMWARE_ASSET_NAME:-plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu}"
+readonly IMAGE_SHA256="${SPF_FIRMWARE_IMAGE_SHA256:-f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4}"
+readonly IMAGE_URL="${SPF_FIRMWARE_IMAGE_URL:-https://github.com/misko/plutosdr-fw/releases/download/${RELEASE_TAG}/${ASSET_NAME}}"
 readonly PLUTO_RUNTIME_ID="0456:b673"
 readonly PLUTO_DFU_ID="0456:b674"
 
@@ -16,6 +16,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly CACHE_ROOT="${SPF_FIRMWARE_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/spf/firmware}"
 readonly STATE_ROOT="${SPF_FIRMWARE_STATE_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/spf/pluto-firmware}"
+readonly APPROVED_QSPI_DEVICE_FW="${SPF_APPROVED_QSPI_DEVICE_FW:-v0.37-dirty}"
 readonly IMAGE_PATH="${CACHE_ROOT}/${ASSET_NAME}"
 readonly SSH_HOST="${SPF_PLUTO_SSH_HOST:-192.168.2.1}"
 readonly SSH_PASSWORD="${SPF_PLUTO_SSH_PASSWORD:-analog}"
@@ -36,8 +37,11 @@ Commands:
   load-all N      RAM-load and verify exactly N attached Plutos by serial/path.
   verify-all N    Verify exactly N RAM-loaded direct-USB Plutos.
   check-config-all N  Verify persistent ad9361/2r2t settings on N Plutos.
+  provision-config-all N [--dry-run]
+                      Explicitly provision and verify ad9361/2r2t on N Plutos.
   rollback-all N  Reset exactly N Plutos into unchanged QSPI firmware.
   status-all N    Show serial/path/direct-USB status for N expected Plutos.
+  discover-count  Print the number of attached runtime Plutos.
 
 Safety:
   load and rollback require exactly one attached Pluto. The image is loaded
@@ -51,6 +55,7 @@ Overrides:
   SPF_PLUTO_SSH_PASSWORD      Pluto root password (default: factory 'analog')
   SPF_FIRMWARE_CACHE_DIR      Download cache
   SPF_FIRMWARE_STATE_DIR      Pre-load backup directory
+  SPF_APPROVED_QSPI_DEVICE_FW Approved persistent device-fw (default: v0.37-dirty)
 EOF
 }
 
@@ -352,6 +357,7 @@ rollback_firmware() {
 run_multi_loader() {
     local command="$1"
     local expected_count="$2"
+    shift 2
 
     [[ "$expected_count" =~ ^[1-9][0-9]*$ ]] ||
         die "Expected Pluto count must be a positive integer."
@@ -369,7 +375,14 @@ run_multi_loader() {
         --ssh-config "$SSH_CONFIG" \
         --ssh-password "$SSH_PASSWORD" \
         --state-root "$STATE_ROOT" \
-        --expected-count "$expected_count"
+        --expected-count "$expected_count" \
+        --approved-qspi-version "$APPROVED_QSPI_DEVICE_FW" \
+        "$@"
+}
+
+discover_count() {
+    require_command python3
+    python3 "$MULTI_LOADER" discover-count
 }
 
 main() {
@@ -399,6 +412,22 @@ main() {
         load-all|verify-all|check-config-all|rollback-all|status-all)
             [[ "$#" -eq 2 ]] || die "${command} requires the expected Pluto count."
             run_multi_loader "$command" "$2"
+            ;;
+        provision-config-all)
+            [[ "$#" -eq 2 || "$#" -eq 3 ]] ||
+                die "provision-config-all requires N and optional --dry-run."
+            if [[ "$#" -eq 3 && "$3" != "--dry-run" ]]; then
+                die "Unknown provision-config-all option: $3"
+            fi
+            if [[ "$#" -eq 3 ]]; then
+                run_multi_loader "$command" "$2" "$3"
+            else
+                run_multi_loader "$command" "$2"
+            fi
+            ;;
+        discover-count)
+            [[ "$#" -eq 1 ]] || die "discover-count takes no arguments."
+            discover_count
             ;;
         -h|--help|help)
             usage

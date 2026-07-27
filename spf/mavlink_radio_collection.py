@@ -14,6 +14,10 @@ from spf.data_collector import (
     DroneDataCollectorRawV6,
     DroneDataCollectorRawV7,
 )
+from spf.capture_schema import (
+    normalize_capture_config,
+    validate_transport_schema,
+)
 from spf.dataset.spf_dataset import training_only_keys, v5inferencedataset
 from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
 from spf.distance_finder.distance_finder_controller import DistanceFinderController
@@ -73,27 +77,6 @@ def yaml_defaults(yaml_config, device_mapping_fn):
     if args.inference:
         yaml_config["inference"] = True
     return yaml_config
-
-
-def validate_transport_schema(yaml_config):
-    direct_receivers = [
-        receiver
-        for receiver in yaml_config["receivers"]
-        if receiver.get("rx-transport", "iio") == "direct_usb"
-    ]
-    for receiver in direct_receivers:
-        protocol_version = receiver.get("direct-usb", {}).get("protocol-version", 1)
-        if protocol_version == 1 and yaml_config["data-version"] != 6:
-            raise ValueError("direct_usb protocol v1 requires data-version: 6")
-        if protocol_version == 2 and yaml_config["data-version"] not in (4, 7):
-            raise ValueError(
-                "direct_usb protocol v2 requires data-version: 4 "
-                "(compatibility) or 7 (full metadata)"
-            )
-        if protocol_version not in (1, 2):
-            raise ValueError(
-                f"unsupported direct_usb protocol version: {protocol_version}"
-            )
 
 
 def parse_args():
@@ -204,7 +187,10 @@ if __name__ == "__main__":
     run_started_at = datetime.now().timestamp()  #
 
     # read YAML
-    yaml_config = yaml_defaults(load_config(args.yaml_config), args.device_mapping)
+    yaml_config = yaml_defaults(
+        normalize_capture_config(load_config(args.yaml_config)),
+        args.device_mapping,
+    )
     validate_transport_schema(yaml_config)
 
     temp_filenames, final_filenames = filenames_from_time_in_seconds(

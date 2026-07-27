@@ -142,6 +142,19 @@ def validate_capture(path: Path, expected_frames: int, expected_receivers: int) 
                 raise ValueError(f"{name}: receiver was not captured by direct USB")
             if receiver.attrs.get("gain_metadata_protocol_version") != 2:
                 raise ValueError(f"{name}: receiver did not negotiate protocol v2")
+            if receiver.attrs.get("firmware_verified") is not True:
+                raise ValueError(f"{name}: capture firmware was not boot-verified")
+            for attribute in (
+                "firmware_release_tag",
+                "firmware_image_sha256",
+                "firmware_git_sha",
+                "firmware_gadget_git_sha",
+                "firmware_boot_mode",
+            ):
+                if not receiver.attrs.get(attribute):
+                    raise ValueError(
+                        f"{name}: missing firmware provenance attribute {attribute}"
+                    )
             report = _validate_receiver(receiver, expected_frames)
             if not report["serial"] or not report["usb_port_path"]:
                 raise ValueError(f"{name}: missing Pluto serial or physical USB path")

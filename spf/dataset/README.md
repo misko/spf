@@ -106,6 +106,8 @@ receiver = z["receivers/r0"]
 serial = receiver.attrs["sdr_serial"]
 usb_port_path = receiver.attrs["usb_port_path"]
 transport = receiver.attrs["rx_transport"]
+firmware_sha256 = receiver.attrs.get("firmware_image_sha256")
+firmware_verified = receiver.attrs.get("firmware_verified", False)
 ```
 
 The serial is the durable Pluto identity. The physical USB path preserves its
@@ -114,6 +116,12 @@ Rover receiver-port association. `usb_bus_at_capture`,
 may change when USB re-enumerates. Older datasets may not have these
 attributes; absence means the serial was not recorded at capture time and must
 not be inferred from a stale USB address.
+
+Canonical Rover V7 captures also store the boot-verified RAM firmware release,
+image SHA-256, firmware/gadget Git SHAs, boot mode, negotiated protocol range,
+and supported feature mask on each receiver group. `firmware_verified=True`
+means the receiver serial matched the boot readiness manifest for the exact
+firmware declaration embedded in the capture config.
 
 ### Example: Working with Paired Data
 

@@ -2,16 +2,15 @@
 #
 # Rover 3.1 production boot launcher.
 #
-# With no overrides this preserves the historical legacy-IIO capture loop.
-# /etc/spf/rover_collection.env selects a qualified direct-USB profile without
-# changing the motion, frame count, radio geometry, or repeat cadence.
+# The canonical Rover YAML is the source of truth for dataset schema, firmware,
+# radio count, motion routine, frame count, geometry, and RF configuration.
 
 set -euo pipefail
 
 readonly REPO_ROOT="/home/pi/spf"
 readonly SCRIPT_DIR="${REPO_ROOT}/data_collection/rover/rover_v3.1"
 readonly PROFILE_ENV="/etc/spf/rover_collection.env"
-readonly READY_FILE="/run/spf/direct_usb_ready"
+readonly READY_FILE="/run/spf/direct_usb_ready.json"
 readonly DEVICE_MAPPING="/home/pi/device_mapping"
 readonly MAVLINK_CONTROLLER="${REPO_ROOT}/spf/mavlink/mavlink_controller.py"
 readonly PARAMS_FILE="/home/pi/this_rover.params"
@@ -36,7 +35,6 @@ if [[ -f "$PROFILE_ENV" ]]; then
     source "$PROFILE_ENV"
 fi
 
-CAPTURE_PROFILE="${SPF_CAPTURE_PROFILE:-legacy_iio_v4}"
 PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
 SKIP_SELF_UPDATE="${SPF_SKIP_SELF_UPDATE:-0}"
 SKIP_PARAMETER_SYNC="${SPF_SKIP_PARAMETER_SYNC:-0}"
@@ -56,39 +54,43 @@ fi
 rover_id="$(tr -d '[:space:]' <"$ROVER_ID_FILE")"
 [[ "$rover_id" =~ ^[1-3]$ ]] || die "Unsupported rover_id: ${rover_id}"
 
-mapfile -d '' -t profile_values < <(
-    "$PYTHON" -m spf.scripts.rover_capture_profile \
-        --profile "$CAPTURE_PROFILE" \
-        --rover-id "$rover_id" \
-        --format null
+resolver_args=(
+    --rover-id "$rover_id"
+    --format null
 )
-[[ "${#profile_values[@]}" -eq 6 ]] ||
-    die "Capture profile resolver returned ${#profile_values[@]} fields, expected 6."
-config="${profile_values[0]}"
-routine="${profile_values[1]}"
-records_per_receiver="${profile_values[2]}"
-expected_radios="${profile_values[3]}"
-rx_transport="${profile_values[4]}"
-data_version="${profile_values[5]}"
-
-if [[ -n "${SPF_RECORDS_PER_RECEIVER:-}" ]]; then
-    records_per_receiver="$SPF_RECORDS_PER_RECEIVER"
+if [[ -n "${SPF_CAPTURE_CONFIG:-}" ]]; then
+    resolver_args+=(--config "$SPF_CAPTURE_CONFIG")
 fi
-[[ "$records_per_receiver" =~ ^[1-9][0-9]*$ ]] ||
-    die "SPF_RECORDS_PER_RECEIVER must be a positive integer."
+mapfile -d '' -t config_values < <(
+    "$PYTHON" -m spf.scripts.rover_capture_config "${resolver_args[@]}"
+)
+[[ "${#config_values[@]}" -eq 15 ]] ||
+    die "Capture config resolver returned ${#config_values[@]} fields, expected 15."
+config="${config_values[1]}"
+config_sha256="${config_values[2]}"
+routine="${config_values[3]}"
+records_per_receiver="${config_values[4]}"
+expected_radios="${config_values[5]}"
+rx_transport="${config_values[6]}"
+data_version="${config_values[7]}"
+firmware_release_tag="${config_values[8]}"
+firmware_image_sha256="${config_values[11]}"
+
 [[ "$RADIO_WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]] ||
     die "SPF_RADIO_WAIT_SECONDS must be a positive integer."
 
 print_plan() {
     printf '%s\n' \
         "rover_id=${rover_id}" \
-        "capture_profile=${CAPTURE_PROFILE}" \
         "config=${config}" \
+        "config_sha256=${config_sha256}" \
         "routine=${routine}" \
         "records_per_receiver=${records_per_receiver}" \
         "expected_radios=${expected_radios}" \
         "rx_transport=${rx_transport}" \
         "data_version=${data_version}" \
+        "firmware_release_tag=${firmware_release_tag}" \
+        "firmware_image_sha256=${firmware_image_sha256}" \
         "boot_validate_only=${BOOT_VALIDATE_ONLY}" \
         "run_once=${RUN_ONCE}" \
         "output_root=${OUTPUT_ROOT}"
@@ -169,14 +171,18 @@ wait_for_radios() {
 verify_direct_ready() {
     [[ -f "$READY_FILE" ]] ||
         die "Direct-USB preparation did not produce ${READY_FILE}."
-    grep -qx "rover_id=${rover_id}" "$READY_FILE" ||
-        die "Direct-USB ready stamp belongs to a different rover."
-    grep -qx "expected_radios=${expected_radios}" "$READY_FILE" ||
-        die "Direct-USB ready stamp has the wrong radio count."
     [[ -f "$DEVICE_MAPPING" ]] || die "Missing ${DEVICE_MAPPING}."
-    mapping_rows="$(awk 'NF { count++ } END { print count + 0 }' "$DEVICE_MAPPING")"
-    [[ "$mapping_rows" -eq "$expected_radios" ]] ||
-        die "Device mapping has ${mapping_rows} rows, expected ${expected_radios}."
+    manifest_args=(
+        verify
+        --rover-id "$rover_id"
+        --output "$READY_FILE"
+        --device-mapping "$DEVICE_MAPPING"
+    )
+    if [[ -n "${SPF_CAPTURE_CONFIG:-}" ]]; then
+        manifest_args+=(--config "$SPF_CAPTURE_CONFIG")
+    fi
+    "$PYTHON" -m spf.scripts.pluto_ready_manifest \
+        "${manifest_args[@]}" >/dev/null
 }
 
 sync_vehicle_configuration() {
@@ -216,9 +222,7 @@ run_capture() {
     "$PYTHON" "${REPO_ROOT}/spf/mavlink_radio_collection.py" \
         --yaml-config "$config" \
         --device-mapping "$DEVICE_MAPPING" \
-        --routine "$routine" \
         --tag "RO${rover_id}" \
-        --records-per-receiver "$records_per_receiver" \
         --temp "$OUTPUT_ROOT"
 }
 
@@ -230,8 +234,10 @@ main() {
     if [[ "$rx_transport" == "direct_usb" ]]; then
         verify_direct_ready
     else
-        printf 'Checking and configuring legacy IIO Pluto radios.\n'
-        bash "${SCRIPT_DIR}/check_and_set_pluto.sh"
+        printf 'Read-only verification of legacy IIO Pluto radios.\n'
+        sudo -n bash "${SCRIPT_DIR}/load_direct_usb_firmware.sh" \
+            check-config-all "$expected_radios"
+        bash "${SCRIPT_DIR}/device_mapping.sh" >"$DEVICE_MAPPING"
     fi
 
     if is_true "$BOOT_VALIDATE_ONLY"; then

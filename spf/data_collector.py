@@ -1,5 +1,7 @@
 import logging
 import multiprocessing
+import os
+from pathlib import Path
 import queue
 import struct
 import sys
@@ -43,7 +45,10 @@ from spf.sdrpluto.sdr_controller import (
 SDR_IDENTITY_VERSION = 1
 
 
-def _identity_zarr_attrs(identity: SdrDeviceIdentity) -> dict[str, Any]:
+def _identity_zarr_attrs(
+    identity: SdrDeviceIdentity,
+    firmware_provenance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     attrs = {
         "sdr_identity_version": SDR_IDENTITY_VERSION,
         "sdr_family": identity.sdr_family,
@@ -79,12 +84,66 @@ def _identity_zarr_attrs(identity: SdrDeviceIdentity) -> dict[str, Any]:
             "direct_usb_bulk_in_endpoint": identity.direct_usb_bulk_in_endpoint,
             "direct_usb_bulk_out_endpoint": identity.direct_usb_bulk_out_endpoint,
             "gain_metadata_protocol_version": (identity.direct_usb_protocol_version),
+            "direct_usb_protocol_min": identity.direct_usb_protocol_min,
+            "direct_usb_protocol_max": identity.direct_usb_protocol_max,
+            "direct_usb_supported_features": identity.direct_usb_supported_features,
             "gain_metadata_capability_flags": (identity.direct_usb_capability_flags),
         }
         attrs.update(
             {key: value for key, value in direct_attrs.items() if value is not None}
         )
+        if firmware_provenance is not None:
+            attrs.update(firmware_provenance)
     return attrs
+
+
+def _capture_firmware_provenance(
+    yaml_config: dict[str, Any],
+    identity: SdrDeviceIdentity,
+) -> dict[str, Any] | None:
+    if identity.rx_transport != "direct_usb":
+        return None
+    firmware = yaml_config.get("pluto-firmware")
+    if not isinstance(firmware, dict):
+        return None
+
+    provenance = {
+        "firmware_release_tag": firmware.get("release-tag"),
+        "firmware_image_sha256": firmware.get("image-sha256"),
+        "firmware_git_sha": firmware.get("firmware-git-sha"),
+        "firmware_gadget_git_sha": firmware.get("gadget-git-sha"),
+        "firmware_boot_mode": firmware.get("boot-mode"),
+        "firmware_verified": False,
+    }
+    ready_path = Path(
+        os.environ.get(
+            "SPF_DIRECT_USB_READY_FILE",
+            "/run/spf/direct_usb_ready.json",
+        )
+    )
+    if ready_path.is_file() and identity.serial:
+        from spf.scripts.pluto_ready_manifest import (
+            firmware_for_serial,
+            load_manifest,
+        )
+
+        manifest = load_manifest(ready_path)
+        actual = firmware_for_serial(manifest, identity.serial)
+        if actual is not None:
+            expected_matches = (
+                actual.get("release_tag") == firmware.get("release-tag")
+                and actual.get("image_sha256") == firmware.get("image-sha256")
+                and actual.get("firmware_git_sha") == firmware.get("firmware-git-sha")
+                and actual.get("gadget_git_sha") == firmware.get("gadget-git-sha")
+                and actual.get("boot_mode") == firmware.get("boot-mode")
+            )
+            provenance["firmware_verified"] = bool(
+                expected_matches and actual.get("firmware_verified")
+            )
+            provenance["firmware_ready_manifest_version"] = manifest.get(
+                "ready_manifest_version"
+            )
+    return {key: value for key, value in provenance.items() if value is not None}
 
 
 class ThreadPoolExecutorWithQueueSizeLimit(futures.ThreadPoolExecutor):
@@ -590,7 +649,12 @@ class DataCollector:
         self.zarr.attrs["sdr_identity_version"] = SDR_IDENTITY_VERSION
         for receiver_idx, identity in enumerate(identities):
             receiver_z = self.zarr[f"receivers/r{receiver_idx}"]
-            receiver_z.attrs.update(_identity_zarr_attrs(identity))
+            receiver_z.attrs.update(
+                _identity_zarr_attrs(
+                    identity,
+                    _capture_firmware_provenance(self.yaml_config, identity),
+                )
+            )
 
     def prepare_threads(self):
         self.read_threads = []

@@ -5,11 +5,9 @@
 set -euo pipefail
 
 readonly REPO_ROOT="/home/pi/spf"
-readonly READY_FILE="/run/spf/direct_usb_ready"
+readonly READY_FILE="/run/spf/direct_usb_ready.json"
 readonly PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
-readonly CONFIG="${SPF_DIRECT_USB_CONFIG:-${REPO_ROOT}/data_collection/rover/rover_v3.1/capture_configs/rover1_receiver_config_pi_3mhz_35mm_direct_usb_v2.yaml}"
 readonly RECORDS="${SPF_DIRECT_USB_RECORDS:-100}"
-readonly EXPECTED_RADIOS="${SPF_DIRECT_USB_EXPECTED_RADIOS:-2}"
 readonly OUTPUT_ROOT="${SPF_DIRECT_USB_OUTPUT_ROOT:-/home/pi/preflight/boot_direct_usb}"
 
 die() {
@@ -19,14 +17,26 @@ die() {
 
 [[ -f "$READY_FILE" ]] || die "Direct-USB firmware preparation did not pass."
 [[ -x "$PYTHON" ]] || die "Python environment is unavailable: ${PYTHON}"
+rover_id="$(tr -d '[:space:]' </home/pi/rover_id)"
+resolver_args=(--rover-id "$rover_id" --format null)
+if [[ -n "${SPF_CAPTURE_CONFIG:-}" ]]; then
+    resolver_args+=(--config "$SPF_CAPTURE_CONFIG")
+fi
+mapfile -d '' -t config_values < <(
+    "$PYTHON" -m spf.scripts.rover_capture_config "${resolver_args[@]}"
+)
+[[ "${#config_values[@]}" -eq 15 ]] ||
+    die "Capture config resolver returned ${#config_values[@]} fields, expected 15."
+CONFIG="${config_values[1]}"
+EXPECTED_RADIOS="${config_values[5]}"
 [[ -f "$CONFIG" ]] || die "Direct-USB capture config is unavailable: ${CONFIG}"
 [[ "$RECORDS" =~ ^[1-9][0-9]*$ ]] ||
     die "SPF_DIRECT_USB_RECORDS must be a positive integer."
 [[ "$EXPECTED_RADIOS" =~ ^[1-9][0-9]*$ ]] ||
-    die "SPF_DIRECT_USB_EXPECTED_RADIOS must be a positive integer."
+    die "Canonical config receiver count must be a positive integer."
 
 export PYTHONBREAKPOINT=0
-run_dir="${OUTPUT_ROOT}/$(date +%Y%m%d_%H%M%S)_rover$(cat /home/pi/rover_id)"
+run_dir="${OUTPUT_ROOT}/$(date +%Y%m%d_%H%M%S)_rover${rover_id}"
 mkdir -p "$run_dir"
 
 cd "$REPO_ROOT"
@@ -38,7 +48,7 @@ cd "$REPO_ROOT"
     --routine center \
     --records-per-receiver "$RECORDS" \
     --temp "$run_dir" \
-    --tag "BOOT_DIRECT_V7_RO$(cat /home/pi/rover_id)" \
+    --tag "BOOT_DIRECT_V7_RO${rover_id}" \
     2>&1 | tee "$run_dir/console.txt"
 
 mapfile -t zarr_paths < <(find "$run_dir" -maxdepth 1 -name '*.zarr' -print)

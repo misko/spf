@@ -163,12 +163,20 @@ for mount in /dev/sda /dev/sdb; do
 done   # then poll `[ ! -b ${mount}1 ]` until the device re-enumerates
 ```
 
-At boot the Pluto is forced into AD9361 / 2r2t mode over SSH:
+After the approved v0.37 package is installed, provision AD9361/2R2T once.
+The dry-run is non-mutating; `--apply` backs up and addresses each Pluto by
+serial/path before any persistent U-Boot write:
 
 ```bash
-bash /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh
-# ssh root@192.168.2.1 (sshpass -panalog): fw_setenv attr_name=compatible, attr_val=ad9361, compatible=ad9361, mode=2r2t; reboot; re-verify fw_printenv.
+sudo /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh \
+  --dry-run
+sudo /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh \
+  --apply
+sudo /home/pi/spf/data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
+  check-config-all 2
 ```
+
+Normal boots perform only the final read-only check; they never repair U-Boot.
 
 **[field note] Do NOT persistently flash v0.38 — it bricks some PlutoPlus
 units.** Keep production QSPI on **v0.37**. The experimental direct-USB
@@ -257,17 +265,20 @@ On every production boot systemd runs `drone_run.sh` (unit
 `mavlink_controller.service`,
 `ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/drone_run.sh`,
 `Requires/After=spf-pluto-direct-usb.service`). The firmware service runs
-first as root, checksum-verifies and RAM-loads the tested image when necessary,
-regenerates `~/device_mapping`, and writes `/run/spf/direct_usb_ready`.
+first as root, checksum-verifies and RAM-loads the exact configured image,
+regenerates `~/device_mapping`, and writes
+`/run/spf/direct_usb_ready.json`.
 `/etc/spf/direct_usb_boot.env` is optional; RAM loading is enabled by default
-and the expected radio count is derived from `/home/pi/rover_id`. The
+and every attached Pluto must map one-to-one to the `receivers` in the canonical
+Rover YAML selected from `/home/pi/rover_id`. The
 provisioning script downloads and checksum-verifies the image into
 `/home/pi/.cache/spf/firmware`, so ordinary boots do not require GitHub access.
 If the cache is deliberately removed, the loader requires network access to
 restore it before MAVLink can start. The
 root-managed
-`/etc/spf/rover_collection.env` selects the capture profile and bounded test
-overrides. Unless `SPF_SKIP_SELF_UPDATE=1`, the launcher self-updates before the
+`/etc/spf/rover_collection.env` contains bounded test overrides; normal
+production needs no profile switch. Unless `SPF_SKIP_SELF_UPDATE=1`, the
+launcher self-updates before the
 mission loop:
 
 ```bash
@@ -288,14 +299,12 @@ differences fail closed.
 ### 4.1 Direct-USB qualification and production boot
 
 RAM firmware preparation is the default prerequisite for every production
-boot. Transport/schema selection remains independent: `legacy_iio_v4` uses
-the standard IIO function retained by the RAM image, while qualified
-`direct_usb_v4` and `direct_usb_v7` profiles use the direct bulk interface.
-The motion-free qualification workflow remains mutually exclusive with the
-production collector.
+boot. The canonical `data-version: 7` contract implies direct USB, wire protocol
+V2, required gain/RSSI metadata, and a V7 Zarr. Transport/protocol are negotiated
+and verified at runtime rather than repeated under every receiver. The
+motion-free qualification workflow remains mutually exclusive with production.
 
-To migrate an already-provisioned Rover to the default ordering without
-changing its selected capture profile:
+To migrate an already-provisioned Rover to the canonical V7 flow:
 
 ```bash
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
@@ -303,8 +312,8 @@ sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
 sudo reboot
 ```
 
-Qualification is motion-free and writes one validated 100-frame Rover 1 v7
-capture after preparing both radios:
+Qualification is motion-free and writes one validated 100-frame V7 capture
+after preparing every receiver in that Rover's canonical config:
 
 ```bash
 cd /home/pi/spf
@@ -316,10 +325,11 @@ sudo reboot
 `enable` remains an alias for `qualify`. Qualification stops/disables
 `mavlink_controller.service`, installs and enables:
 
-- `spf-pluto-direct-usb.service`, a root oneshot that verifies AD9361/2r2t,
-  checksum-verifies and conditionally RAM-loads every expected Pluto,
+- `spf-pluto-direct-usb.service`, a root oneshot that verifies both persistent
+  AD9361/2r2t settings and the four dual-RX DMA scan elements, checksum-verifies
+  and RAM-loads every attached/configured Pluto with the exact image,
   regenerates `~/device_mapping`, verifies standard IIO and direct USB, and
-  writes `/run/spf/direct_usb_ready`;
+  writes `/run/spf/direct_usb_ready.json`;
 - `spf-direct-usb-preflight.service`, a `pi` oneshot that requires the loader,
   runs the committed two-radio protocol-v2/data-v7 fake-drone profile for 100
   frames per receiver, reopens the final Zarr, and writes `PASS` plus
@@ -331,16 +341,16 @@ Inspect it with:
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh status
 systemctl status spf-pluto-direct-usb.service \
   spf-direct-usb-preflight.service --no-pager
-cat /run/spf/direct_usb_ready
+python3 -m json.tool /run/spf/direct_usb_ready.json
 ```
 
-Production restores the historical real-MAVLink mission loop. Choose the Zarr
-schema, review both environment files, and perform the first reboot with the
-read-only vehicle gate enabled:
+Production restores the historical real-MAVLink mission loop using the
+canonical per-Rover V7 YAML. Review both environment files and perform the
+first reboot with the read-only vehicle gate enabled:
 
 ```bash
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
-  production-v4                    # or production-v7
+  production-v7
 sudoedit /etc/spf/rover_collection.env
 # First reboot only:
 # SPF_SKIP_SELF_UPDATE=1
@@ -352,8 +362,8 @@ Direct production enables the loader and `mavlink_controller.service` and
 disables the 100-frame preflight. The loader dependency is part of the base
 production unit, so the mission launcher cannot run before radio preparation
 succeeds even when no environment files exist. The command does not start the
-motion-capable service immediately. `direct_usb_v4` preserves the legacy v4
-Zarr surface; `direct_usb_v7` stores the full frame endpoint metadata.
+motion-capable service immediately. The YAML contains the production routine,
+record count, RF/frame settings, and top-level expected firmware manifest.
 
 Inspect the resolved mission without accessing hardware:
 
@@ -368,14 +378,15 @@ Rover is physically safe to move, set `SPF_BOOT_VALIDATE_ONLY=0`. The next boot
 uses the original Rover routine, record count, real serial MAVLink source, and
 infinite repeat cadence.
 
-The loader is idempotent. A Pi reboot can leave USB power and Pluto RAM
-resident; it verifies and skips a redundant DFU load. A full Rover power cycle
-returns each Pluto to its unchanged QSPI image and exercises the load path.
+The loader deliberately reloads the exact checksum-pinned image even when a
+direct interface is already present; interface presence alone cannot prove the
+build identity. A full Rover power cycle returns each Pluto to its unchanged
+QSPI image.
 
 To run the original stock QSPI firmware explicitly, stop the qualification
 units, run the
 serial/path-aware `rollback-all` command, verify `direct_usb=false` for every
-radio, then select the legacy profile and explicit RAM-load opt-out:
+radio, then select the explicit RAM-load opt-out:
 
 ```bash
 sudo systemctl stop spf-direct-usb-preflight.service \
@@ -387,10 +398,9 @@ sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
   restore-legacy
 ```
 
-`restore-legacy` writes `SPF_DIRECT_USB_DISABLE=1`. The firmware prerequisite
-still starts before MAVLink but exits successfully without loading an image.
-Return to the default with `production-v4`, `production-v7`, or by setting the
-disable value back to `0`.
+`restore-legacy` writes `SPF_DIRECT_USB_DISABLE=1` and disables automatic
+production collection. It is a recovery state, not a second production mode.
+Return to the default with `production-v7`.
 
 Rover 1 passed two-radio 100-frame v4 and v7 captures, profile rollback,
 loader-before-launcher service execution, and a validation-only real reboot on
@@ -401,12 +411,12 @@ loader-before-launcher service execution, and a validation-only real reboot on
 ## 5. Running a real field mission
 
 The mission is the default branch of `drone_run.sh` (auto-run by the service on
-boot). It validates the selected profile before hardware access. In direct mode
-the systemd loader has already RAM-booted and verified every radio, regenerated
-`~/device_mapping`, and written `/run/spf/direct_usb_ready`; the launcher
-verifies that stamp and never calls the duplicate-IP-sensitive legacy
-`check_and_set_pluto.sh`. In legacy mode it retains the old Pluto conditioning
-path. It then enforces params, syncs GPS time, pins the CPU governor, and runs
+boot). It validates the canonical config before hardware access. The systemd
+loader has already RAM-booted and verified every radio, regenerated
+`~/device_mapping`, and written `/run/spf/direct_usb_ready.json`; the launcher
+re-enumerates the radios and verifies the config hash, SPF commit, firmware
+manifest, serial/path set, and V2 capabilities. It then enforces params, syncs
+GPS time, pins the CPU governor, and runs
 an **infinite capture loop**.
 
 ```bash
@@ -428,8 +438,9 @@ while true; do
   python ${repo_root}/spf/mavlink/mavlink_controller.py --buzzer failure; sleep 15
 done
 
-# legacy_iio_v4 only:
-bash ${repo_root}/data_collection/rover/rover_v3.1/check_and_set_pluto.sh
+# legacy_iio_v4 only: read-only configuration check + mapping
+sudo -n bash ${repo_root}/data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh check-config-all ${expected_radios}
+bash ${repo_root}/data_collection/rover/rover_v3.1/device_mapping.sh > /home/pi/device_mapping
 
 # the infinite capture loop (per-rover config/routine/n)
 python3 ${repo_root}/spf/mavlink_radio_collection.py -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n ${n}
@@ -636,13 +647,12 @@ the only radio validation is a per-URI open of each yaml receiver. Use the live
 shape, IQ, metadata, and cadence checks in
 [`PRE_FIELD_CHECKLIST.md`](./PRE_FIELD_CHECKLIST.md) §4.
 
-For Rover 1 direct USB, use
-`capture_configs/rover1_receiver_config_pi_3mhz_35mm_direct_usb_v2.yaml` and
+Use `capture_configs/rover<id>_production_v7.yaml` and
 validate the resulting data-version-7 Zarr with
 `python3 -m spf.scripts.validate_direct_usb_v7_zarr <zarr>
 --expected-frames 100 --expected-receivers 2`. This checks the complete
-gain/RSSI and stream metadata plus unique Pluto identities; it does not replace
-the separate cadence gate.
+gain/RSSI and stream metadata, unique Pluto identities, and verified firmware
+provenance; it does not replace the separate cadence gate.
 
 ### (e) On-rover pre-flight gates enforced at runtime
 
@@ -743,7 +753,9 @@ Pattern-specific gotchas: don't copy `CirclePlanner`'s `while current_angle < 36
 bash /home/pi/spf/data_collection/rover/rover_v3.1/setup.sh <ROVER_ID>                 # one-time provision (1|2|3)
 bash /home/pi/spf/data_collection/rover/rover_v3.1/install_deps.sh                     # apt deps
 bash /home/pi/spf/data_collection/rover/rover_v3.1/flash_ardupilot.sh                  # ArduPilot Rover 4.5.0 fmuv3 via uploader.py
-bash /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh              # Pluto -> ad9361/2r2t + regen ~/device_mapping
+sudo /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh --dry-run    # inspect exact per-serial changes
+sudo /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh --apply      # explicit one-time AD9361/2R2T provisioning
+sudo /home/pi/spf/data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh check-config-all 2  # read-only boot gate
 wget -O plutosdr-fw-v0.37-dirty.zip 'https://www.dropbox.com/s/4jji77rk3d9ikba/plutosdr-fw-v0.37-dirty.zip?dl=0'   # md5 613fcdd4f45ad695d85abd53d1e0b918
 ```
 
@@ -886,9 +898,9 @@ persistently flash **v0.38** — it bricks some PlutoPlus units; keep QSPI on
 permitted only through `load_direct_usb_firmware.sh load`, which writes it to
 RAM and leaves QSPI unchanged. To recover a bricked unit, enter **DFU** by
 moving the boot jumper from **URST to MIO52**, re-flash v0.37, then restore the
-jumper. If the Pluto is up but not in the right mode, re-run
-`check_and_set_pluto.sh` (forces `compatible=ad9361`, `mode=2r2t` over
-`ssh root@192.168.2.1`). If `device_mapping` is empty, you're likely using the
+jumper. If the Pluto is up but not in the right mode, first run
+`check_and_set_pluto.sh --dry-run`; after confirming the exact serial/path,
+use `--apply` for explicit persistent provisioning. If `device_mapping` is empty, you're likely using the
 wrong board's generator (Pi4 `lsusb -t | grep usb-storage` sed form vs Pi5
 `lsusb | grep PLUTO | awk` form).
 

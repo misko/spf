@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -43,6 +44,9 @@ def _identity(
         direct_usb_bulk_in_endpoint=0x89 if direct else None,
         direct_usb_bulk_out_endpoint=0x07 if direct else None,
         direct_usb_protocol_version=2 if direct else None,
+        direct_usb_protocol_min=1 if direct else None,
+        direct_usb_protocol_max=2 if direct else None,
+        direct_usb_supported_features=0x37 if direct else None,
         direct_usb_capability_flags=0x3F if direct else None,
     )
 
@@ -114,7 +118,69 @@ def test_v4_records_two_pluto_identities_without_changing_array_schema(tmp_path)
         assert r1_attrs["direct_usb_bulk_in_endpoint"] == 0x89
         assert r1_attrs["direct_usb_bulk_out_endpoint"] == 0x07
         assert r1_attrs["gain_metadata_protocol_version"] == 2
+        assert r1_attrs["direct_usb_protocol_min"] == 1
+        assert r1_attrs["direct_usb_protocol_max"] == 2
+        assert r1_attrs["direct_usb_supported_features"] == 0x37
         assert r1_attrs["gain_metadata_capability_flags"] == 0x3F
+    finally:
+        zarr.store.close()
+
+
+def test_v7_records_verified_firmware_for_each_radio(tmp_path, monkeypatch):
+    identity = _identity(
+        SERIAL_A,
+        (1, 2),
+        uri="usb:1.9.5",
+        transport="direct_usb",
+        direct=True,
+    )
+    collector, zarr_path = _collector_with_identities(tmp_path, [identity])
+    firmware = {
+        "release-tag": "release",
+        "image-sha256": "a" * 64,
+        "firmware-git-sha": "b" * 40,
+        "gadget-git-sha": "c" * 40,
+        "boot-mode": "ram",
+    }
+    collector.yaml_config["data-version"] = 7
+    collector.yaml_config["pluto-firmware"] = firmware
+    ready_path = tmp_path / "ready.json"
+    ready_path.write_text(
+        json.dumps(
+            {
+                "ready_manifest_version": 1,
+                "firmware": {
+                    "release_tag": "release",
+                    "image_sha256": "a" * 64,
+                    "firmware_git_sha": "b" * 40,
+                    "gadget_git_sha": "c" * 40,
+                    "boot_mode": "ram",
+                },
+                "radios": [
+                    {
+                        "serial": SERIAL_A,
+                        "firmware_verified": True,
+                    }
+                ],
+            }
+        )
+    )
+    monkeypatch.setenv("SPF_DIRECT_USB_READY_FILE", str(ready_path))
+
+    collector._record_receiver_identities()
+    collector.zarr.store.close()
+
+    zarr = zarr_open_from_lmdb_store(str(zarr_path))
+    try:
+        attrs = dict(zarr.receivers.r0.attrs)
+        assert attrs["sdr_serial"] == SERIAL_A
+        assert attrs["firmware_release_tag"] == "release"
+        assert attrs["firmware_image_sha256"] == "a" * 64
+        assert attrs["firmware_git_sha"] == "b" * 40
+        assert attrs["firmware_gadget_git_sha"] == "c" * 40
+        assert attrs["firmware_boot_mode"] == "ram"
+        assert attrs["firmware_verified"] is True
+        assert attrs["firmware_ready_manifest_version"] == 1
     finally:
         zarr.store.close()
 
@@ -155,9 +221,7 @@ def test_pluto_identity_requires_a_serial():
     collector = object.__new__(DataCollector)
     collector.yaml_config = {"receivers": [{}]}
     collector.receiver_pplus = {
-        "receiver-0": _IdentityPPlus(
-            _identity(None, (1, 1), uri="usb:1.8.5")
-        )
+        "receiver-0": _IdentityPPlus(_identity(None, (1, 1), uri="usb:1.8.5"))
     }
     collector.data_filename = None
 

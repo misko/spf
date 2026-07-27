@@ -160,19 +160,14 @@ sleep 5
 #mkfifo tmp_file
 #cat tmp_file |  mavproxy.py &
 
-# Production services. The firmware oneshot is a hard prerequisite of the
-# MAVLink launcher and RAM-loads the checksum-pinned image by default.
-sudo env SPF_FIRMWARE_CACHE_DIR=/home/pi/.cache/spf/firmware \
-    bash /home/pi/spf/data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
-    download
-sudo install -m 0644 \
-    /home/pi/spf/data_collection/rover/rover_v3.1/spf-pluto-direct-usb.service \
-    /etc/systemd/system/spf-pluto-direct-usb.service
-sudo install -m 0644 \
-    /home/pi/spf/data_collection/rover/rover_v3.1/mavlink_controller.service \
-    /etc/systemd/system/mavlink_controller.service
-sudo systemctl daemon-reload
-sudo systemctl enable spf-pluto-direct-usb.service mavlink_controller.service
+# Production services and the firmware asset are installed from the canonical
+# Rover V7 config selected by /home/pi/rover_id.
+# Persistent AD9361/2R2T provisioning is explicit and happens only here, after
+# the checksum-verified v0.37 QSPI installation. Ordinary boots are read-only.
+sudo /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh \
+    --apply
+sudo /home/pi/spf/data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
+    production-default
 
 mkdir -p /home/pi/arduino
 pushd /home/pi/arduino
