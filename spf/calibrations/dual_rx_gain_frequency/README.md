@@ -88,6 +88,8 @@ It also performs paired, identical-mask comparisons against:
 - a model that knows only `gain1 - gain2`;
 - an additive model plus one residual for every ordered gain pair;
 - one set of gain curves shared by all RF frequencies; and
+- independent per-frequency baselines versus a constant phase plus a linear
+  frequency slope (an effective differential-delay description); and
 - the additive model adjusted from one equal-gain anchor frame in each held-out
   frequency/epoch.
 
@@ -125,5 +127,9 @@ corrected_phase = wrap(measured_angle_RX1_minus_RX2 - predicted_offset)
   gain, frequency, clipping region, or weak-signal region.
 - The ordered gain pair matters. A model based only on gain difference is
   retained as a measured baseline, not assumed correct.
-- The fitted frequency slope is descriptive. LO retuning can introduce phase
-  state changes, so it is not claimed to be physical cable delay.
+- The fitted baseline follows `phase = constant - 2*pi*frequency*delay`.
+  Its reported delay and free-space-equivalent path describe the measured
+  electrical group delay. They do not identify literal cable length: cables,
+  splitter paths, PCB traces, analogue filters, and retune/calibration state
+  can all contribute. The report gives the linear-fit residual and a paired
+  held-out comparison against independent frequency baselines.

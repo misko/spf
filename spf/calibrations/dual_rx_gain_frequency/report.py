@@ -233,6 +233,12 @@ def render_markdown(summary: dict[str, Any]) -> str:
             "frequency_shared_gain_curves",
         ),
         (
+            "frequency_specific_vs_linear_delay_intercept",
+            "Per-frequency vs constant-plus-delay baseline",
+            "frequency_specific_intercepts",
+            "linear_delay_intercept",
+        ),
+        (
             "unanchored_vs_one_frame_anchor",
             "Unanchored vs one-frame anchor",
             "unanchored",
@@ -274,6 +280,41 @@ def render_markdown(summary: dict[str, Any]) -> str:
             ]
         )
 
+    delay_model = summary.get("frequency_intercept_delay_model")
+    if delay_model:
+        residual = delay_model["fit_residual_metrics"]
+        lines.extend(
+            [
+                "",
+                "### Effective differential-delay description",
+                "",
+                (
+                    "- Common reference gain: "
+                    f"{delay_model['reference_gain_db']} dB on RX1 and RX2"
+                ),
+                (
+                    "- Phase slope: "
+                    f"{math.degrees(delay_model['slope_rad_per_hz']) * 1e8:.2f}° "
+                    "per 100 MHz"
+                ),
+                (
+                    "- Effective differential delay: "
+                    f"{delay_model['descriptive_delay_seconds'] * 1e9:.3f} ns"
+                ),
+                (
+                    "- Free-space-equivalent signed path difference: "
+                    f"{delay_model['equivalent_free_space_path_m'] * 100:.2f} cm"
+                ),
+                (
+                    "- Linear-fit residual RMSE / maximum: "
+                    f"{residual['circular_rmse_deg']:.2f}° / "
+                    f"{residual['circular_max_deg']:.2f}°"
+                ),
+                "",
+                delay_model["warning"],
+            ]
+        )
+
     confidence_tiers = model_comparisons.get("confidence_tiers") or []
     if confidence_tiers:
         lines.extend(
@@ -297,17 +338,17 @@ def render_markdown(summary: dict[str, Any]) -> str:
                 f"{additive['circular_rmse_deg']:.2f}° | "
                 f"{additive['circular_p95_deg']:.2f}° |"
             )
-    lines.extend(
-        [
-            "",
-            (
-                "The frequency-intercept slope is descriptive only. LO retunes "
-                "can introduce phase state changes, so it is not asserted to be "
-                "physical cable delay."
-            ),
-            "",
-        ]
-    )
+    if not delay_model:
+        lines.extend(
+            [
+                "",
+                (
+                    "An effective differential-delay fit requires at least two "
+                    "frequencies with a common observed reference gain."
+                ),
+            ]
+        )
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -425,6 +466,43 @@ def _plot_model_diagnostics(
     fig.savefig(output_dir / filename, dpi=160)
     plt.close(fig)
     filenames.append(filename)
+
+    delay_model = model.get("frequency_intercept_delay_model")
+    if delay_model and len(delay_model.get("frequency_points", [])) >= 2:
+        points = delay_model["frequency_points"]
+        frequency_mhz = np.asarray(
+            [point["frequency_hz"] / 1e6 for point in points],
+            dtype=np.float64,
+        )
+        observed_deg = np.degrees([point["phase_rad_unwrapped"] for point in points])
+        fitted_deg = np.degrees(
+            [point["fitted_phase_rad_unwrapped"] for point in points]
+        )
+        fig, axis = plt.subplots(figsize=(8.5, 5.0), constrained_layout=True)
+        axis.plot(
+            frequency_mhz,
+            observed_deg,
+            "o",
+            label="Fitted per-frequency baseline",
+        )
+        axis.plot(
+            frequency_mhz,
+            fitted_deg,
+            "-",
+            label="Constant-plus-delay fit",
+        )
+        axis.grid(True, alpha=0.25)
+        axis.set_xlabel("RF frequency (MHz)")
+        axis.set_ylabel("Unwrapped RX1−RX2 baseline phase (°)")
+        axis.set_title(
+            f"{model['serial']} — effective differential delay "
+            f"{delay_model['descriptive_delay_seconds'] * 1e9:.3f} ns"
+        )
+        axis.legend(loc="best")
+        filename = "frequency_intercept_delay.png"
+        fig.savefig(output_dir / filename, dpi=160)
+        plt.close(fig)
+        filenames.append(filename)
 
     for row in fitted:
         interaction = np.degrees(

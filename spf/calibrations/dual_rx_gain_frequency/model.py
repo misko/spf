@@ -194,6 +194,73 @@ def _residual_metrics(residual: np.ndarray) -> dict[str, float]:
     }
 
 
+def fit_frequency_delay(
+    frequency_hz: np.ndarray,
+    phase_rad: np.ndarray,
+) -> dict[str, Any]:
+    """Fit phase(f) = phase(reference) - 2*pi*f_offset*delay.
+
+    This estimates an *effective differential delay*. It is a useful
+    description of a linear phase slope, but it does not identify which
+    combination of cables, PCB paths, analogue filters, and retune state
+    produced that slope.
+    """
+
+    frequency_hz = np.asarray(frequency_hz, dtype=np.float64)
+    phase_rad = np.asarray(phase_rad, dtype=np.float64)
+    if (
+        frequency_hz.ndim != 1
+        or phase_rad.ndim != 1
+        or frequency_hz.size != phase_rad.size
+        or frequency_hz.size < 2
+        or not np.all(np.isfinite(frequency_hz))
+        or not np.all(np.isfinite(phase_rad))
+        or np.unique(frequency_hz).size != frequency_hz.size
+    ):
+        raise ValueError(
+            "delay fit requires equal-length finite vectors at two or more "
+            "distinct frequencies"
+        )
+
+    order = np.argsort(frequency_hz)
+    frequency_sorted = frequency_hz[order]
+    phase_sorted = phase_rad[order]
+    unwrapped = np.unwrap(phase_sorted)
+    reference_frequency_hz = float(np.mean(frequency_sorted))
+    offset_hz = frequency_sorted - reference_frequency_hz
+    slope, phase_at_reference = np.polyfit(offset_hz, unwrapped, 1)
+    fitted_unwrapped = phase_at_reference + slope * offset_hz
+    residual = wrap_phase(unwrapped - fitted_unwrapped)
+    delay_seconds = -float(slope) / (2 * np.pi)
+    points = [
+        {
+            "frequency_hz": int(frequency),
+            "phase_rad_unwrapped": float(observed),
+            "fitted_phase_rad_unwrapped": float(fitted),
+            "residual_rad": float(error),
+        }
+        for frequency, observed, fitted, error in zip(
+            frequency_sorted,
+            unwrapped,
+            fitted_unwrapped,
+            residual,
+        )
+    ]
+    return {
+        "reference_frequency_hz": reference_frequency_hz,
+        "phase_at_reference_rad_unwrapped": float(phase_at_reference),
+        "slope_rad_per_hz": float(slope),
+        "descriptive_delay_seconds": delay_seconds,
+        "equivalent_free_space_path_m": delay_seconds * 299_792_458.0,
+        "fit_residual_metrics": _residual_metrics(residual),
+        "frequency_points": points,
+        "phase_unwrap_assumption": (
+            "Adjacent measured frequencies differ by less than 180 degrees "
+            "of true unwrapped phase."
+        ),
+    }
+
+
 def _comparison(
     first_name: str,
     first_residuals: list[float],
@@ -519,6 +586,137 @@ def _evaluate_shared_gain_curve_cv(
     )
 
 
+def _evaluate_linear_delay_intercept_cv(
+    *,
+    eligible: np.ndarray,
+    phases: np.ndarray,
+    epochs: np.ndarray,
+    frequency_indices: np.ndarray,
+    gain1_indices: np.ndarray,
+    gain2_indices: np.ndarray,
+    config: CalibrationConfig,
+) -> dict[str, Any] | None:
+    """Compare independent intercepts with a constant-plus-delay intercept.
+
+    Gain effects remain independently fitted at every frequency. Only the
+    per-frequency baseline at one common reference gain is constrained to a
+    straight line in frequency, so both alternatives are evaluated on the
+    exact same held-out observations.
+    """
+
+    gain_count = len(config.gains_db)
+    independent_residuals: list[float] = []
+    delay_residuals: list[float] = []
+    for held_epoch in range(config.repetitions):
+        fits: dict[int, dict[str, Any]] = {}
+        counts: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+        for frequency_index, _ in enumerate(config.frequencies_hz):
+            train = (
+                eligible
+                & (epochs != held_epoch)
+                & (frequency_indices == frequency_index)
+            )
+            test = (
+                eligible
+                & (epochs == held_epoch)
+                & (frequency_indices == frequency_index)
+            )
+            if not np.any(train) or not np.any(test):
+                continue
+            fits[frequency_index] = fit_additive_surface(
+                phases[train],
+                gain1_indices[train],
+                gain2_indices[train],
+                gain_count,
+            )
+            counts[frequency_index] = (
+                np.bincount(gain1_indices[train], minlength=gain_count),
+                np.bincount(gain2_indices[train], minlength=gain_count),
+            )
+        if len(fits) < 2:
+            continue
+
+        common_reference = [
+            index
+            for index in range(gain_count)
+            if all(
+                counts[frequency_index][0][index] > 0
+                and counts[frequency_index][1][index] > 0
+                for frequency_index in fits
+            )
+        ]
+        if not common_reference:
+            continue
+        preferred_gain = config.tx_reference_rx_gain_db
+        reference_index = min(
+            common_reference,
+            key=lambda index: abs(config.gains_db[index] - preferred_gain),
+        )
+        fit_frequency_indices = sorted(fits)
+        baseline = np.asarray(
+            [
+                wrap_phase(
+                    fits[index]["intercept_rad"]
+                    + fits[index]["rx1_effect_rad"][reference_index]
+                    + fits[index]["rx2_effect_rad"][reference_index]
+                )
+                for index in fit_frequency_indices
+            ]
+        )
+        delay_fit = fit_frequency_delay(
+            np.asarray(
+                [config.frequencies_hz[index] for index in fit_frequency_indices]
+            ),
+            baseline,
+        )
+
+        for frequency_index in fit_frequency_indices:
+            test = (
+                eligible
+                & (epochs == held_epoch)
+                & (frequency_indices == frequency_index)
+            )
+            rx1_count, rx2_count = counts[frequency_index]
+            paired = (
+                test & (rx1_count[gain1_indices] > 0) & (rx2_count[gain2_indices] > 0)
+            )
+            if not np.any(paired):
+                continue
+            fitted = fits[frequency_index]
+            independent_prediction = wrap_phase(
+                fitted["intercept_rad"]
+                + fitted["rx1_effect_rad"][gain1_indices[paired]]
+                + fitted["rx2_effect_rad"][gain2_indices[paired]]
+            )
+            frequency_offset = (
+                config.frequencies_hz[frequency_index]
+                - delay_fit["reference_frequency_hz"]
+            )
+            delay_baseline = (
+                delay_fit["phase_at_reference_rad_unwrapped"]
+                + delay_fit["slope_rad_per_hz"] * frequency_offset
+            )
+            delay_prediction = wrap_phase(
+                delay_baseline
+                + fitted["rx1_effect_rad"][gain1_indices[paired]]
+                - fitted["rx1_effect_rad"][reference_index]
+                + fitted["rx2_effect_rad"][gain2_indices[paired]]
+                - fitted["rx2_effect_rad"][reference_index]
+            )
+            independent_residuals.extend(
+                wrap_phase(phases[paired] - independent_prediction)
+            )
+            delay_residuals.extend(wrap_phase(phases[paired] - delay_prediction))
+
+    return _comparison(
+        "frequency_specific_intercepts",
+        independent_residuals,
+        "linear_delay_intercept",
+        delay_residuals,
+        preferred_if_equivalent="linear_delay_intercept",
+    )
+
+
 def fit_dataset(path: Path, *, config: CalibrationConfig) -> dict[str, Any]:
     """Fit one additive gain model per frequency and leave-one-epoch-out CV."""
 
@@ -665,26 +863,55 @@ def fit_dataset(path: Path, *, config: CalibrationConfig) -> dict[str, Any]:
                 else None
             )
 
-        fitted_intercepts = [
-            (model["frequency_hz"], model["intercept_rad"])
-            for model in frequency_models
-            if model.get("status") == "fit"
+        fitted_frequency_models = [
+            model for model in frequency_models if model.get("status") == "fit"
         ]
         delay_model = None
-        if len(fitted_intercepts) >= 2:
-            fitted_intercepts.sort()
-            frequency = np.asarray([item[0] for item in fitted_intercepts])
-            unwrapped = np.unwrap([item[1] for item in fitted_intercepts])
-            slope, intercept = np.polyfit(frequency, unwrapped, 1)
-            delay_model = {
-                "slope_rad_per_hz": float(slope),
-                "intercept_rad": float(intercept),
-                "descriptive_delay_seconds": float(slope / (2 * np.pi)),
-                "warning": (
-                    "Descriptive only: LO retunes and calibration state can add "
-                    "phase offsets that are not physical cable delay."
-                ),
-            }
+        if len(fitted_frequency_models) >= 2:
+            common_reference = [
+                index
+                for index in range(len(config.gains_db))
+                if all(
+                    model["rx1_effect_rad"][index] is not None
+                    and model["rx2_effect_rad"][index] is not None
+                    for model in fitted_frequency_models
+                )
+            ]
+            if common_reference:
+                reference_index = min(
+                    common_reference,
+                    key=lambda index: abs(
+                        config.gains_db[index] - config.tx_reference_rx_gain_db
+                    ),
+                )
+                baseline = np.asarray(
+                    [
+                        wrap_phase(
+                            model["intercept_rad"]
+                            + model["rx1_effect_rad"][reference_index]
+                            + model["rx2_effect_rad"][reference_index]
+                        )
+                        for model in fitted_frequency_models
+                    ]
+                )
+                delay_model = {
+                    **fit_frequency_delay(
+                        np.asarray(
+                            [model["frequency_hz"] for model in fitted_frequency_models]
+                        ),
+                        baseline,
+                    ),
+                    "reference_gain_db": config.gains_db[reference_index],
+                    "interpretation": (
+                        "Effective RX1-minus-RX2 electrical group delay at the "
+                        "common reference gain."
+                    ),
+                    "warning": (
+                        "Descriptive only: cables, PCB and analogue paths, LO "
+                        "retunes, and calibration state can all contribute. It "
+                        "is not asserted to be literal cable length."
+                    ),
+                }
         model_comparisons = _evaluate_independent_frequency_cv(
             eligible=valid,
             phases=phases,
@@ -699,6 +926,17 @@ def fit_dataset(path: Path, *, config: CalibrationConfig) -> dict[str, Any]:
         model_comparisons[
             "frequency_specific_vs_shared_gain_curves"
         ] = _evaluate_shared_gain_curve_cv(
+            eligible=valid,
+            phases=phases,
+            epochs=epochs,
+            frequency_indices=frequency_indices,
+            gain1_indices=gain1_indices,
+            gain2_indices=gain2_indices,
+            config=config,
+        )
+        model_comparisons[
+            "frequency_specific_vs_linear_delay_intercept"
+        ] = _evaluate_linear_delay_intercept_cv(
             eligible=valid,
             phases=phases,
             epochs=epochs,

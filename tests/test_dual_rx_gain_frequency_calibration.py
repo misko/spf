@@ -17,6 +17,7 @@ from spf.calibrations.dual_rx_gain_frequency.hardware import DirectUsbLoopbackRa
 from spf.calibrations.dual_rx_gain_frequency.model import (
     fit_additive_surface,
     fit_dataset,
+    fit_frequency_delay,
     fit_grouped_additive_surface,
     predict_phase_offset,
 )
@@ -323,6 +324,28 @@ def test_cyclic_tone_ends_on_an_integer_period():
     phase_step = 2 * np.pi * config.tone_offset_hz / config.sample_rate_hz
     expected_next = tone[-1] * np.exp(1j * phase_step)
     np.testing.assert_allclose(tone[0], expected_next, rtol=1e-5, atol=1e-3)
+
+
+def test_frequency_delay_fit_uses_rx1_minus_rx2_physical_sign():
+    frequency_hz = np.asarray(
+        [5_766_000_000, 5_804_000_000, 5_838_000_000, 5_866_000_000]
+    )
+    reference_hz = float(np.mean(frequency_hz))
+    expected_delay_seconds = 0.75e-9
+    phase_rad = (
+        -0.9 - 2 * np.pi * (frequency_hz - reference_hz) * expected_delay_seconds
+    )
+
+    fitted = fit_frequency_delay(frequency_hz, phase_rad)
+
+    assert fitted["descriptive_delay_seconds"] == pytest.approx(expected_delay_seconds)
+    assert fitted["equivalent_free_space_path_m"] == pytest.approx(
+        expected_delay_seconds * 299_792_458.0
+    )
+    assert fitted["fit_residual_metrics"]["circular_max_deg"] < 1e-9
+    assert [point["frequency_hz"] for point in fitted["frequency_points"]] == sorted(
+        frequency_hz.tolist()
+    )
 
 
 class FakePrimingSdr:
