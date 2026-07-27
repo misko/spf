@@ -619,11 +619,16 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
                 "phase_surface_2400000000.png",
                 "fitted_gain_effects.png",
                 "additive_residual_2400000000.png",
+                "model_fit_2400000000.png",
             }
             assert all(
                 (tmp_path / "analysis" / filename).is_file()
                 for filename in bundle["plot_files"]
             )
+            report_markdown = (tmp_path / "analysis" / "REPORT.md").read_text()
+            assert "## Model fit plots" in report_markdown
+            assert "model_fit_2400000000.png" in report_markdown
+            assert "solid lines are additive-model predictions" in report_markdown
         preflights = [
             json.loads(line)
             for line in (tmp_path / "output" / serial / "preflight.jsonl")

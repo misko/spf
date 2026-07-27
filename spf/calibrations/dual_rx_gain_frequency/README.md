@@ -130,6 +130,15 @@ python -m spf.calibrations.dual_rx_gain_frequency report \
   --output-dir artifacts/dual_rx_gain_frequency/pilot/SERIAL/analysis
 ```
 
+The generated `REPORT.md` embeds one four-panel diagnostic for every fitted
+frequency. It compares passing three-epoch cell means with the final additive
+fit while sweeping RX2 at three representative fixed RX1 gains and,
+symmetrically, RX1 at three fixed RX2 gains. It also shows observed versus
+fitted phase and cell-mean residual versus gain mismatch. Failed or unsupported
+cells are omitted, and phase is plotted on the circular branch nearest the
+fitted frequency intercept. The report links the corresponding coverage and
+residual heatmaps as additional views.
+
 Compare the fitted baselines of two physical radios without interpreting a
 linear phase slope as literal PCB trace length:
 

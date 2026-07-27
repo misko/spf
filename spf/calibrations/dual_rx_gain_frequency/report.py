@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import json
 import math
 from collections import defaultdict
@@ -119,6 +120,14 @@ def _format_number(value: float | None, digits: int = 2) -> str:
 
 def _format_percent(value: float | None) -> str:
     return "n/a" if value is None else f"{value:.1%}"
+
+
+def _close_figure(plt: Any, fig: Any) -> None:
+    """Release renderer arrays promptly during large multi-frequency reports."""
+
+    fig.clear()
+    plt.close(fig)
+    gc.collect()
 
 
 def render_markdown(summary: dict[str, Any]) -> str:
@@ -354,6 +363,88 @@ def render_markdown(summary: dict[str, Any]) -> str:
                 ),
             ]
         )
+
+    plot_files = set(summary.get("plot_files") or [])
+    if plot_files:
+        lines.extend(
+            [
+                "",
+                "## Model fit plots",
+                "",
+                (
+                    "In the per-frequency diagnostics, solid lines are additive-model "
+                    "predictions and circular markers are passing three-epoch cell "
+                    "means. Error bars show repeat circular standard deviation. "
+                    "Failed or unsupported cells are not drawn. Phase is placed on "
+                    "the branch nearest the fitted frequency intercept so wrap-around "
+                    "does not create false jumps."
+                ),
+                "",
+            ]
+        )
+        gain_effect_plots = sorted(
+            filename
+            for filename in plot_files
+            if filename == "fitted_gain_effects.png"
+            or filename.startswith("fitted_gain_effects_")
+        )
+        if gain_effect_plots:
+            lines.extend(
+                [
+                    "### Fitted gain effects across frequency",
+                    "",
+                ]
+            )
+            for page_index, filename in enumerate(gain_effect_plots, start=1):
+                suffix = (
+                    ""
+                    if len(gain_effect_plots) == 1
+                    else f", overview page {page_index}"
+                )
+                lines.extend(
+                    [
+                        (f"![Fitted RX1 and RX2 gain effects{suffix}]" f"({filename})"),
+                        "",
+                    ]
+                )
+        if "frequency_intercept_delay.png" in plot_files:
+            lines.extend(
+                [
+                    "### Frequency baseline and delay description",
+                    "",
+                    (
+                        "![Per-frequency baseline and constant-plus-delay "
+                        "description](frequency_intercept_delay.png)"
+                    ),
+                    "",
+                ]
+            )
+        lines.extend(["### Per-frequency data versus fit", ""])
+        for row in summary["frequency_summary"]:
+            frequency_hz = int(row["frequency_hz"])
+            fit_plot = f"model_fit_{frequency_hz}.png"
+            if fit_plot not in plot_files:
+                continue
+            surface_plot = f"phase_surface_{frequency_hz}.png"
+            residual_plot = f"additive_residual_{frequency_hz}.png"
+            links = []
+            if surface_plot in plot_files:
+                links.append(f"[coverage and phase surface]({surface_plot})")
+            if residual_plot in plot_files:
+                links.append(f"[residual heatmap]({residual_plot})")
+            lines.extend(
+                [
+                    f"#### {frequency_hz / 1e6:.3f} MHz",
+                    "",
+                    (
+                        f"![Gain sweeps and observed-versus-fitted phase at "
+                        f"{frequency_hz / 1e6:.3f} MHz]({fit_plot})"
+                    ),
+                    "",
+                ]
+            )
+            if links:
+                lines.extend(["Additional views: " + " · ".join(links), ""])
     lines.append("")
     return "\n".join(lines)
 
@@ -418,7 +509,7 @@ def _plot_heatmaps(
         )
         filename = f"phase_surface_{frequency_hz}.png"
         fig.savefig(output_dir / filename, dpi=160)
-        plt.close(fig)
+        _close_figure(plt, fig)
         filenames.append(filename)
     return filenames
 
@@ -442,36 +533,51 @@ def _plot_model_diagnostics(
         return []
 
     filenames = []
-    fig, axes = plt.subplots(
-        len(fitted),
-        1,
-        figsize=(11, max(3.5, 3.2 * len(fitted))),
-        sharex=True,
-        constrained_layout=True,
-        squeeze=False,
-    )
-    for axis, row in zip(axes[:, 0], fitted):
-        rx1 = np.asarray(
-            [np.nan if value is None else value for value in row["rx1_effect_rad"]],
-            dtype=np.float64,
+    frequencies_per_overview = 12
+    overview_pages = [
+        fitted[index : index + frequencies_per_overview]
+        for index in range(0, len(fitted), frequencies_per_overview)
+    ]
+    for page_index, page_rows in enumerate(overview_pages, start=1):
+        fig, axes = plt.subplots(
+            len(page_rows),
+            1,
+            figsize=(11, max(3.5, 3.2 * len(page_rows))),
+            sharex=True,
+            constrained_layout=True,
+            squeeze=False,
         )
-        rx2 = np.asarray(
-            [np.nan if value is None else value for value in row["rx2_effect_rad"]],
-            dtype=np.float64,
+        for axis, row in zip(axes[:, 0], page_rows):
+            rx1 = np.asarray(
+                [np.nan if value is None else value for value in row["rx1_effect_rad"]],
+                dtype=np.float64,
+            )
+            rx2 = np.asarray(
+                [np.nan if value is None else value for value in row["rx2_effect_rad"]],
+                dtype=np.float64,
+            )
+            axis.plot(gains, np.degrees(rx1), label="RX1 effect", linewidth=1.4)
+            axis.plot(gains, np.degrees(rx2), label="RX2 effect", linewidth=1.4)
+            axis.axhline(0, color="black", linewidth=0.6, alpha=0.5)
+            axis.grid(True, alpha=0.25)
+            axis.set_ylabel("Phase effect (°)")
+            axis.set_title(f"{int(row['frequency_hz']) / 1e6:.3f} MHz")
+            axis.legend(loc="best")
+        axes[-1, 0].set_xlabel("Manual gain (dB)")
+        page_suffix = (
+            ""
+            if len(overview_pages) == 1
+            else f" — page {page_index}/{len(overview_pages)}"
         )
-        axis.plot(gains, np.degrees(rx1), label="RX1 effect", linewidth=1.4)
-        axis.plot(gains, np.degrees(rx2), label="RX2 effect", linewidth=1.4)
-        axis.axhline(0, color="black", linewidth=0.6, alpha=0.5)
-        axis.grid(True, alpha=0.25)
-        axis.set_ylabel("Phase effect (°)")
-        axis.set_title(f"{int(row['frequency_hz']) / 1e6:.3f} MHz")
-        axis.legend(loc="best")
-    axes[-1, 0].set_xlabel("Manual gain (dB)")
-    fig.suptitle(f"{model['serial']} — fitted ordered gain effects")
-    filename = "fitted_gain_effects.png"
-    fig.savefig(output_dir / filename, dpi=160)
-    plt.close(fig)
-    filenames.append(filename)
+        fig.suptitle(f"{model['serial']} — fitted ordered gain effects{page_suffix}")
+        filename = (
+            "fitted_gain_effects.png"
+            if len(overview_pages) == 1
+            else f"fitted_gain_effects_{page_index:02d}.png"
+        )
+        fig.savefig(output_dir / filename, dpi=160)
+        _close_figure(plt, fig)
+        filenames.append(filename)
 
     delay_model = model.get("frequency_intercept_delay_model")
     if delay_model and len(delay_model.get("frequency_points", [])) >= 2:
@@ -507,7 +613,7 @@ def _plot_model_diagnostics(
         axis.legend(loc="best")
         filename = "frequency_intercept_delay.png"
         fig.savefig(output_dir / filename, dpi=160)
-        plt.close(fig)
+        _close_figure(plt, fig)
         filenames.append(filename)
 
     for row in fitted:
@@ -544,7 +650,296 @@ def _plot_model_diagnostics(
         fig.colorbar(image, ax=axis, label="Circular residual (°)")
         filename = f"additive_residual_{int(row['frequency_hz'])}.png"
         fig.savefig(output_dir / filename, dpi=160)
-        plt.close(fig)
+        _close_figure(plt, fig)
+        filenames.append(filename)
+    return filenames
+
+
+def _representative_gains(
+    gains: np.ndarray, reference_gain_db: float | None
+) -> list[float]:
+    """Choose up to three fixed-gain traces: low, reference, and high."""
+
+    if gains.size <= 3:
+        return [float(value) for value in gains]
+    reference = (
+        float(reference_gain_db)
+        if reference_gain_db is not None
+        else float(gains[len(gains) // 2])
+    )
+    middle = float(gains[int(np.argmin(np.abs(gains - reference)))])
+    selected = [float(gains[0]), middle, float(gains[-1])]
+    if len(set(selected)) == 3:
+        return selected
+
+    for candidate in gains:
+        value = float(candidate)
+        if value not in selected:
+            selected.insert(-1, value)
+        if len(set(selected)) >= 3:
+            break
+    return list(dict.fromkeys(selected))[:3]
+
+
+def _phase_near_reference(value: float, reference: float) -> float:
+    """Return ``value`` on the circular branch nearest ``reference``."""
+
+    return reference + float(np.angle(np.exp(1j * (value - reference))))
+
+
+def _plot_observed_vs_model(
+    validation: dict[str, Any],
+    model: dict[str, Any],
+    output_dir: Path,
+) -> list[str]:
+    """Plot passing cell means against each fitted per-frequency model."""
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    gains = np.asarray(model.get("gain_values_db", []), dtype=np.float64)
+    if gains.size == 0:
+        return []
+    gain_index = {float(gain): index for index, gain in enumerate(gains)}
+    cells_by_frequency: dict[
+        int, dict[tuple[float, float], dict[str, Any]]
+    ] = defaultdict(dict)
+    for cell in validation.get("cells", []):
+        frequency_hz = int(cell["frequency_hz"])
+        pair = (float(cell["gain_rx1_db"]), float(cell["gain_rx2_db"]))
+        cells_by_frequency[frequency_hz][pair] = cell
+
+    filenames = []
+    colors = plt.get_cmap("tab10").colors
+    for row in model.get("frequency_models", []):
+        if row.get("status") != "fit":
+            continue
+        frequency_hz = int(row["frequency_hz"])
+        cells = cells_by_frequency.get(frequency_hz, {})
+        intercept = float(row["intercept_rad"])
+        rx1_effect = np.asarray(
+            [np.nan if value is None else value for value in row["rx1_effect_rad"]],
+            dtype=np.float64,
+        )
+        rx2_effect = np.asarray(
+            [np.nan if value is None else value for value in row["rx2_effect_rad"]],
+            dtype=np.float64,
+        )
+        supported = np.asarray(row["supported_gain_pair"], dtype=bool)
+        fixed_gains = _representative_gains(gains, row.get("reference_gain_db"))
+
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10), constrained_layout=True)
+        rx2_axis, rx1_axis, identity_axis, residual_axis = axes.ravel()
+
+        for color_index, fixed_rx1 in enumerate(fixed_gains):
+            i = gain_index[fixed_rx1]
+            fitted_x = []
+            fitted_y = []
+            observed_x = []
+            observed_y = []
+            observed_error = []
+            for j, variable_rx2 in enumerate(gains):
+                cell = cells.get((fixed_rx1, float(variable_rx2)))
+                if (
+                    not supported[i, j]
+                    or not np.isfinite(rx1_effect[i])
+                    or not np.isfinite(rx2_effect[j])
+                    or not cell
+                    or not cell.get("pass")
+                    or cell.get("phase_mean_rad") is None
+                ):
+                    fitted_x.append(float(variable_rx2))
+                    fitted_y.append(np.nan)
+                    continue
+                prediction = _phase_near_reference(
+                    intercept + rx1_effect[i] + rx2_effect[j], intercept
+                )
+                observed = _phase_near_reference(
+                    float(cell["phase_mean_rad"]), prediction
+                )
+                fitted_x.append(float(variable_rx2))
+                fitted_y.append(math.degrees(prediction))
+                observed_x.append(float(variable_rx2))
+                observed_y.append(math.degrees(observed))
+                observed_error.append(float(cell["phase_circular_std_deg"]))
+            color = colors[color_index]
+            rx2_axis.plot(
+                fitted_x,
+                fitted_y,
+                color=color,
+                linewidth=1.5,
+                label=f"RX1 = {fixed_rx1:g} dB",
+            )
+            if observed_x:
+                rx2_axis.errorbar(
+                    observed_x,
+                    observed_y,
+                    yerr=observed_error,
+                    fmt="o",
+                    color=color,
+                    markersize=4,
+                    capsize=2,
+                    linestyle="none",
+                )
+
+        for color_index, fixed_rx2 in enumerate(fixed_gains):
+            j = gain_index[fixed_rx2]
+            fitted_x = []
+            fitted_y = []
+            observed_x = []
+            observed_y = []
+            observed_error = []
+            for i, variable_rx1 in enumerate(gains):
+                cell = cells.get((float(variable_rx1), fixed_rx2))
+                if (
+                    not supported[i, j]
+                    or not np.isfinite(rx1_effect[i])
+                    or not np.isfinite(rx2_effect[j])
+                    or not cell
+                    or not cell.get("pass")
+                    or cell.get("phase_mean_rad") is None
+                ):
+                    fitted_x.append(float(variable_rx1))
+                    fitted_y.append(np.nan)
+                    continue
+                prediction = _phase_near_reference(
+                    intercept + rx1_effect[i] + rx2_effect[j], intercept
+                )
+                observed = _phase_near_reference(
+                    float(cell["phase_mean_rad"]), prediction
+                )
+                fitted_x.append(float(variable_rx1))
+                fitted_y.append(math.degrees(prediction))
+                observed_x.append(float(variable_rx1))
+                observed_y.append(math.degrees(observed))
+                observed_error.append(float(cell["phase_circular_std_deg"]))
+            color = colors[color_index]
+            rx1_axis.plot(
+                fitted_x,
+                fitted_y,
+                color=color,
+                linewidth=1.5,
+                label=f"RX2 = {fixed_rx2:g} dB",
+            )
+            if observed_x:
+                rx1_axis.errorbar(
+                    observed_x,
+                    observed_y,
+                    yerr=observed_error,
+                    fmt="o",
+                    color=color,
+                    markersize=4,
+                    capsize=2,
+                    linestyle="none",
+                )
+
+        observed_phase = []
+        predicted_phase = []
+        residual_deg = []
+        mismatch_db = []
+        residual_rx1_gain = []
+        for (gain_rx1, gain_rx2), cell in sorted(cells.items()):
+            i = gain_index.get(gain_rx1)
+            j = gain_index.get(gain_rx2)
+            if (
+                i is None
+                or j is None
+                or not supported[i, j]
+                or not cell.get("pass")
+                or cell.get("phase_mean_rad") is None
+                or not np.isfinite(rx1_effect[i])
+                or not np.isfinite(rx2_effect[j])
+            ):
+                continue
+            prediction = _phase_near_reference(
+                intercept + rx1_effect[i] + rx2_effect[j], intercept
+            )
+            observed = _phase_near_reference(float(cell["phase_mean_rad"]), prediction)
+            predicted_phase.append(math.degrees(prediction))
+            observed_phase.append(math.degrees(observed))
+            residual_deg.append(math.degrees(observed - prediction))
+            mismatch_db.append(gain_rx2 - gain_rx1)
+            residual_rx1_gain.append(gain_rx1)
+
+        if predicted_phase:
+            limits = [
+                min(predicted_phase + observed_phase),
+                max(predicted_phase + observed_phase),
+            ]
+            padding = max(1.0, 0.05 * (limits[1] - limits[0]))
+            identity_axis.plot(
+                [limits[0] - padding, limits[1] + padding],
+                [limits[0] - padding, limits[1] + padding],
+                color="black",
+                linewidth=0.8,
+                linestyle="--",
+            )
+            identity_axis.scatter(
+                predicted_phase,
+                observed_phase,
+                c=residual_rx1_gain,
+                cmap="viridis",
+                s=35,
+                edgecolor="white",
+                linewidth=0.4,
+            )
+            absolute_residual = np.abs(np.asarray(residual_deg))
+            identity_axis.text(
+                0.03,
+                0.97,
+                (
+                    f"cell-mean MAE {np.mean(absolute_residual):.2f}°\n"
+                    f"p95 {np.percentile(absolute_residual, 95):.2f}°"
+                ),
+                transform=identity_axis.transAxes,
+                va="top",
+                bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none"},
+            )
+            residual_scatter = residual_axis.scatter(
+                mismatch_db,
+                residual_deg,
+                c=residual_rx1_gain,
+                cmap="viridis",
+                s=35,
+                edgecolor="white",
+                linewidth=0.4,
+            )
+            fig.colorbar(
+                residual_scatter,
+                ax=residual_axis,
+                label="RX1 manual gain (dB)",
+            )
+
+        for axis in (rx2_axis, rx1_axis, identity_axis, residual_axis):
+            axis.grid(True, alpha=0.25)
+        rx2_axis.set_title(
+            f"RX2 sweep at {len(fixed_gains)} representative fixed RX1 gains"
+        )
+        rx2_axis.set_xlabel("RX2 manual gain (dB)")
+        rx2_axis.set_ylabel("RX1−RX2 phase near fitted branch (°)")
+        rx2_axis.legend(loc="best")
+        rx1_axis.set_title(
+            f"RX1 sweep at {len(fixed_gains)} representative fixed RX2 gains"
+        )
+        rx1_axis.set_xlabel("RX1 manual gain (dB)")
+        rx1_axis.set_ylabel("RX1−RX2 phase near fitted branch (°)")
+        rx1_axis.legend(loc="best")
+        identity_axis.set_title("Passing cell means versus final additive fit")
+        identity_axis.set_xlabel("Fitted phase (°)")
+        identity_axis.set_ylabel("Observed cell-mean phase (°)")
+        residual_axis.axhline(0, color="black", linewidth=0.8)
+        residual_axis.set_title("Final-fit cell-mean residual by gain mismatch")
+        residual_axis.set_xlabel("RX2 gain − RX1 gain (dB)")
+        residual_axis.set_ylabel("Observed − fitted phase (°)")
+        fig.suptitle(
+            f"{model['serial']} — {frequency_hz / 1e6:.3f} MHz\n"
+            "lines = additive fit; circles = passing three-epoch cell means"
+        )
+        filename = f"model_fit_{frequency_hz}.png"
+        fig.savefig(output_dir / filename, dpi=160)
+        _close_figure(plt, fig)
         filenames.append(filename)
     return filenames
 
@@ -564,6 +959,7 @@ def write_analysis_bundle(
     summary["plot_files"] = (
         _plot_heatmaps(validation, output_dir)
         + _plot_model_diagnostics(model, output_dir)
+        + _plot_observed_vs_model(validation, model, output_dir)
         if plots
         else []
     )
