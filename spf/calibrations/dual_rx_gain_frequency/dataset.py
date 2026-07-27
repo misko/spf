@@ -235,25 +235,44 @@ class CalibrationV7Writer:
 
     def _initialize_schedule(self) -> None:
         receiver = self.receiver
-        for entry in self.schedule:
-            index = entry.record_index
-            receiver.sweep_epoch[index] = entry.epoch
-            receiver.sweep_frequency_index[index] = entry.frequency_index
-            receiver.sweep_schedule_index[index] = index
-            receiver.sweep_lo_frequency_hz[index] = entry.lo_frequency_hz
-            receiver.sweep_rf_tone_frequency_hz[index] = (
-                entry.lo_frequency_hz + self.config.tone_offset_hz
-            )
-            receiver.sweep_requested_gain_db[index] = (
-                entry.gain_rx1_db,
-                entry.gain_rx2_db,
-            )
-            receiver.sweep_tx_gain_db[index] = self.config.tx_gain_for(
-                entry.gain_rx1_db, entry.gain_rx2_db
-            )
-            receiver.sweep_tx_digital_amplitude[
-                index
-            ] = self.config.tx_digital_amplitude
+        # These arrays are each one full-length chunk. Populate them in bulk;
+        # element-wise Zarr assignment turns an exhaustive sweep into hundreds
+        # of thousands of LMDB transactions before RF capture can even start.
+        receiver.sweep_epoch[:] = np.fromiter(
+            (entry.epoch for entry in self.schedule),
+            dtype=np.uint16,
+            count=len(self.schedule),
+        )
+        receiver.sweep_frequency_index[:] = np.fromiter(
+            (entry.frequency_index for entry in self.schedule),
+            dtype=np.uint16,
+            count=len(self.schedule),
+        )
+        receiver.sweep_schedule_index[:] = np.arange(
+            len(self.schedule), dtype=np.uint64
+        )
+        lo_frequency = np.fromiter(
+            (entry.lo_frequency_hz for entry in self.schedule),
+            dtype=np.uint64,
+            count=len(self.schedule),
+        )
+        receiver.sweep_lo_frequency_hz[:] = lo_frequency
+        receiver.sweep_rf_tone_frequency_hz[:] = (
+            lo_frequency.astype(np.float64) + self.config.tone_offset_hz
+        )
+        receiver.sweep_requested_gain_db[:] = np.asarray(
+            [(entry.gain_rx1_db, entry.gain_rx2_db) for entry in self.schedule],
+            dtype=np.int16,
+        )
+        receiver.sweep_tx_gain_db[:] = np.fromiter(
+            (
+                self.config.tx_gain_for(entry.gain_rx1_db, entry.gain_rx2_db)
+                for entry in self.schedule
+            ),
+            dtype=np.float32,
+            count=len(self.schedule),
+        )
+        receiver.sweep_tx_digital_amplitude[:] = self.config.tx_digital_amplitude
 
     def is_complete(self, entry: ScheduleEntry) -> bool:
         return bool(self.receiver.sweep_completed[entry.record_index])
