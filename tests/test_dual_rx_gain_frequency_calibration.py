@@ -6,12 +6,7 @@ import numpy as np
 import pytest
 import yaml
 
-from spf.bench.dual_rx_phase import ToneQualityThresholds
-from spf.calibrations.dual_rx_gain_frequency.config import (
-    CalibrationConfig,
-    build_schedule,
-    group_schedule_by_frequency,
-)
+from spf.bench.dual_rx_phase import ToneQualityThresholds, wrap_phase
 from spf.calibrations.dual_rx_gain_frequency.comparative_analysis import (
     DEFAULT_STAGE_BOUNDARIES_DB,
     HIGH_BAND_GAIN_MIN_DB,
@@ -20,12 +15,10 @@ from spf.calibrations.dual_rx_gain_frequency.comparative_analysis import (
     _transfer,
     write_comparative_bundle,
 )
-from spf.calibrations.dual_rx_gain_frequency.dc_offset import (
-    decode_rf_dc_correction_words,
-    signed_10bit,
-)
-from spf.calibrations.dual_rx_gain_frequency.dc_report import (
-    write_rf_dc_evidence_report,
+from spf.calibrations.dual_rx_gain_frequency.config import (
+    CalibrationConfig,
+    build_schedule,
+    group_schedule_by_frequency,
 )
 from spf.calibrations.dual_rx_gain_frequency.cross_radio import (
     compare_radio_models,
@@ -35,14 +28,28 @@ from spf.calibrations.dual_rx_gain_frequency.dc_diagnostic import (
     run_rf_dc_recovery,
     run_rx2_dc_diagnostic,
 )
-from spf.calibrations.dual_rx_gain_frequency.hardware import make_cyclic_tone
-from spf.calibrations.dual_rx_gain_frequency.hardware import DirectUsbLoopbackRadio
+from spf.calibrations.dual_rx_gain_frequency.dc_offset import (
+    decode_rf_dc_correction_words,
+    signed_10bit,
+)
+from spf.calibrations.dual_rx_gain_frequency.dc_report import (
+    write_rf_dc_evidence_report,
+)
+from spf.calibrations.dual_rx_gain_frequency.hardware import (
+    DirectUsbLoopbackRadio,
+    make_cyclic_tone,
+)
 from spf.calibrations.dual_rx_gain_frequency.model import (
     fit_additive_surface,
     fit_dataset,
     fit_frequency_delay,
     fit_grouped_additive_surface,
     predict_phase_offset,
+)
+from spf.calibrations.dual_rx_gain_frequency.model_matrix import (
+    MODEL_SPECS,
+    _fit,
+    _predict,
 )
 from spf.calibrations.dual_rx_gain_frequency.report import (
     build_analysis_summary,
@@ -54,10 +61,9 @@ from spf.calibrations.dual_rx_gain_frequency.runner import (
     run_calibration,
 )
 from spf.calibrations.dual_rx_gain_frequency.validate import validate_dataset
+from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 from spf.sdrpluto.direct_usb_protocol import MetadataFlags
 from spf.sdrpluto.sdr_controller import PlutoRxBuffer, SdrDeviceIdentity
-from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
-
 
 FIRMWARE = {
     "release-tag": "test-release",
@@ -377,6 +383,89 @@ def test_frequency_delay_fit_uses_rx1_minus_rx2_physical_sign():
     assert [point["frequency_hz"] for point in fitted["frequency_points"]] == sorted(
         frequency_hz.tolist()
     )
+
+
+def test_gain_dependent_branch_delay_model_predicts_unseen_frequency():
+    frequencies_hz = np.asarray(
+        [850_000_000, 1_300_000_000, 2_450_000_000, 5_800_000_000],
+        dtype=np.int64,
+    )
+    gains_db = np.asarray([0, 20, 40], dtype=np.int64)
+    reference_frequency_hz = float(np.mean(frequencies_hz))
+    phase_effect_rx1 = np.asarray([-0.08, 0.0, 0.11])
+    phase_effect_rx2 = np.asarray([0.04, 0.0, -0.06])
+    delay_rx1_seconds = np.asarray([-7e-12, 0.0, 13e-12])
+    delay_rx2_seconds = np.asarray([5e-12, 0.0, -9e-12])
+    base_delay_seconds = 31e-12
+    rows = []
+    for frequency_index, frequency_hz in enumerate(frequencies_hz):
+        for gain1_index, gain1_db in enumerate(gains_db):
+            for gain2_index, gain2_db in enumerate(gains_db):
+                differential_delay = (
+                    base_delay_seconds
+                    + delay_rx1_seconds[gain1_index]
+                    + delay_rx2_seconds[gain2_index]
+                )
+                phase = (
+                    0.27
+                    + phase_effect_rx1[gain1_index]
+                    + phase_effect_rx2[gain2_index]
+                    - 2
+                    * np.pi
+                    * (frequency_hz - reference_frequency_hz)
+                    * differential_delay
+                )
+                rows.append(
+                    (
+                        frequency_index,
+                        frequency_hz,
+                        gain1_index,
+                        gain2_index,
+                        gain1_db,
+                        gain2_db,
+                        phase,
+                    )
+                )
+    values = np.asarray(rows)
+    data = {
+        "radio": np.zeros(len(rows), dtype=np.int64),
+        "epoch": np.zeros(len(rows), dtype=np.int64),
+        "frequency": values[:, 0].astype(np.int64),
+        "frequency_hz": values[:, 1].astype(np.int64),
+        "gain1": values[:, 2].astype(np.int64),
+        "gain2": values[:, 3].astype(np.int64),
+        "gain1_db": values[:, 4].astype(np.int64),
+        "gain2_db": values[:, 5].astype(np.int64),
+        "phase": values[:, 6],
+    }
+    spec = next(
+        model
+        for model in MODEL_SPECS
+        if model.name == "branch_gain_delay_lut_per_radio"
+    )
+    train = {key: value[data["frequency"] != 3] for key, value in data.items()}
+    test = {key: value[data["frequency"] == 3] for key, value in data.items()}
+    fitted = _fit(
+        spec,
+        train,
+        gain_count=3,
+        frequency_count=4,
+        reference_gain=1,
+        reference_frequency_hz=reference_frequency_hz,
+    )
+    prediction, supported = _predict(
+        fitted,
+        test,
+        gain_count=3,
+        frequency_count=4,
+        reference_gain=1,
+    )
+
+    assert supported.all()
+    assert np.max(np.abs(wrap_phase(test["phase"] - prediction))) < 1e-7
+    base_slope = fitted.beta[fitted.feature_names.index("frequency_rad_per_ghz")]
+    fitted_base_delay = -base_slope / (2 * np.pi * 1e9)
+    assert fitted_base_delay == pytest.approx(base_delay_seconds, abs=1e-16)
 
 
 def test_compact_stage_boundaries_are_reproducibly_derived_from_gain_table():

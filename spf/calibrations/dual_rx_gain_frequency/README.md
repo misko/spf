@@ -159,6 +159,34 @@ python -m spf.calibrations.dual_rx_gain_frequency compare-models \
   --output-dir spf/calibrations/dual_rx_gain_frequency/reports/RUN_NAME
 ```
 
+For the completed dense run, compare radio-specific and strict-universal
+models across frequency, gain, and gain pair; then separately test whether a
+differential path-delay model predicts an omitted frequency:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency model-matrix \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/survey_cross_band.yaml \
+  --artifact-root \
+    artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1 \
+  --output-dir \
+    artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1/model_matrix
+```
+
+This command uses three distinct tests:
+
+- leave one randomized epoch out, for correction of a measured
+  frequency/gain cell;
+- leave one frequency out, for models that claim frequency
+  generalization; and
+- leave one radio out, for strict universal models with no radio-specific
+  baseline adjustment.
+
+The gain-dependent delay model is identifiable only as differential RX1−RX2
+delay. Its separate RX1/RX2 lookup terms are relative contributions under the
+chosen reference constraints, not absolute branch delays or literal PCB trace
+lengths.
+
 This read-only command selects only completely captured epoch/frequency blocks,
 hashes every V7 scalar array used by the analysis, and writes:
 

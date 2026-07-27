@@ -16,6 +16,7 @@ from .dc_diagnostic import run_rf_dc_recovery, run_rx2_dc_diagnostic
 from .dc_offset import inspect_radio_rf_dc
 from .dc_report import write_rf_dc_evidence_report
 from .model import fit_dataset, write_model
+from .model_matrix import write_model_matrix_bundle
 from .report import write_analysis_bundle
 from .runner import load_calibration_document, probe_loopback, run_calibration
 from .validate import validate_dataset, write_validation_report
@@ -167,6 +168,28 @@ def _compare_radios(args) -> int:
     return 0
 
 
+def _model_matrix(args) -> int:
+    result = write_model_matrix_bundle(
+        config_path=args.config,
+        artifact_root=args.artifact_root,
+        output_dir=args.output_dir,
+    )
+    print(
+        json.dumps(
+            {
+                "schema": result["schema"],
+                "schema_version": result["schema_version"],
+                "output_dir": str(args.output_dir),
+                "radios": len(result["provenance"]),
+                "models": len(result["models"]),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def _diagnose_rx2_dc(args) -> int:
     result = run_rx2_dc_diagnostic(
         config_path=args.config,
@@ -243,6 +266,15 @@ def parse_args():
     fit_parser.add_argument("--dataset", type=Path, required=True)
     fit_parser.add_argument("--output", type=Path)
     fit_parser.set_defaults(function=_fit)
+
+    matrix_parser = subparsers.add_parser(
+        "model-matrix",
+        help="compare radio-specific, universal, lookup, and delay models",
+    )
+    matrix_parser.add_argument("--config", type=Path, required=True)
+    matrix_parser.add_argument("--artifact-root", type=Path, required=True)
+    matrix_parser.add_argument("--output-dir", type=Path, required=True)
+    matrix_parser.set_defaults(function=_model_matrix)
 
     report_parser = subparsers.add_parser(
         "report", help="write Markdown, JSON, and phase-surface plots"
