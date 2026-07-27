@@ -265,8 +265,14 @@ if __name__ == "__main__":
     elif boundary_name not in boundaries:
         logging.error(f"Failed to find boundary {boundary_name} in valid boundaries")
         sys.exit(1)
+    # Per-rover resting offset (east_m, north_m) away from the boundary centroid,
+    # so co-located rovers do not converge on the same point. Absent -> centroid.
     drone.set_and_start_planner(
-        drone_get_planner(yaml_config["routine"], boundary=boundaries[boundary_name])
+        drone_get_planner(
+            yaml_config["routine"],
+            boundary=boundaries[boundary_name],
+            rest_offset_m=yaml_config.get("rest-offset-m"),
+        )
     )
 
     if args.inference:

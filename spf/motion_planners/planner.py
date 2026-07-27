@@ -7,7 +7,15 @@ from .dynamics import a_to_b_in_stepsize, chord_length_to_angle
 
 
 class Planner(ABC):
-    def __init__(self, dynamics, start_point, step_size, epsilon=1, seed=None):
+    def __init__(
+        self,
+        dynamics,
+        start_point,
+        step_size,
+        epsilon=1,
+        seed=None,
+        home_point=None,
+    ):
         self.dynamics = dynamics
         self.current_direction = None
         self.epsilon = epsilon  # original was 0.001
@@ -15,6 +23,20 @@ class Planner(ABC):
         self.step_size = step_size
         self.rng = np.random.default_rng(seed)
         self.running = True
+        # Where this vehicle rests: the pre-run rendezvous, the post-run park, and
+        # the ArduPilot home/RTL destination. None keeps the historical behaviour
+        # (the boundary centroid), so an unconfigured rover is unchanged.
+        self.home_point = None if home_point is None else np.asarray(home_point, dtype=float)
+
+    def get_home_point(self):
+        """Resting position for this vehicle, in (long, lat) degrees.
+
+        Defaults to the boundary centroid — the expression run_planner used
+        before per-rover rest offsets existed.
+        """
+        if self.home_point is None:
+            return self.dynamics.bounding_box.mean(axis=0)
+        return self.home_point
 
     def get_bounce_pos_and_new_direction(self, p, direction):
         distance_to_bounce = self.dynamics.binary_search_edge(
@@ -116,9 +138,14 @@ class BouncePlanner(Planner):
 
 
 class StationaryPlanner(Planner):
-    def __init__(self, dynamics, start_point, stationary_point, step_size):
+    def __init__(
+        self, dynamics, start_point, stationary_point, step_size, home_point=None
+    ):
         super().__init__(
-            dynamics=dynamics, start_point=start_point, step_size=step_size
+            dynamics=dynamics,
+            start_point=start_point,
+            step_size=step_size,
+            home_point=home_point,
         )
         self.stationary_point = stationary_point
 
@@ -144,9 +171,13 @@ class PointCycle(Planner):
         start_point,
         points,
         step_size,
+        home_point=None,
     ):
         super().__init__(
-            dynamics=dynamics, start_point=start_point, step_size=step_size
+            dynamics=dynamics,
+            start_point=start_point,
+            step_size=step_size,
+            home_point=home_point,
         )
         self.points = points
 
@@ -179,9 +210,13 @@ class CirclePlanner(Planner):
         step_size,
         circle_diameter,
         circle_center=[0, 0],
+        home_point=None,
     ):
         super().__init__(
-            dynamics=dynamics, start_point=start_point, step_size=step_size
+            dynamics=dynamics,
+            start_point=start_point,
+            step_size=step_size,
+            home_point=home_point,
         )
         self.direction = ((np.random.rand() > 0.5) - 0.5) * 2
         self.circle_center = circle_center
