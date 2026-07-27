@@ -34,6 +34,7 @@ Generated-evidence SHA-256 values:
 | Radio B validation | `d5495f836940125840ca3d438edb3fed3477f04a7643c975f22313d819b71f06` |
 | Radio B model | `ae023fb9648002e0ad84a05f22f737e277a93ec09eecdd12a3c47aa4c68dee29` |
 | Cross-radio analysis | `91121b108689b31d7b9027aa8419776fa4d7be13a26b9a2ef15ea2820a4db617` |
+| Reproducible comparative analysis | `244335b0a18ebea1f3387490e63eac0b6b6af68d0d48d0800727ebf8362e86ca` |
 
 ## Parsimonious model comparison
 
@@ -72,6 +73,25 @@ respectively. That reduction is not justified for phase correction.
 The interaction comparison shows that a nine-cell lookup table is unnecessary
 at this scout resolution. RX1 and RX2 contributions are additive to within the
 measurement repeatability.
+
+## Transfer between radios
+
+The reproducible comparison also transfers the complete three-gain
+same-frequency shape from one radio to the other. It then obtains the target
+intercept from a quality-valid 26/26 dB frame in each epoch and excludes those
+anchors from scoring:
+
+| Source → target | Frames | All-frequency MAE / RMSE / max | 5.7–5.9 GHz MAE / RMSE / max |
+|---|---:|---:|---:|
+| Radio A → Radio B | 700 | 2.05° / 3.10° / 15.46° | 4.62° / 6.61° / 15.46° |
+| Radio B → Radio A | 701 | 2.02° / 3.11° / 15.97° | 4.56° / 6.58° / 15.97° |
+
+Thus, the other radio's gain shape plus a same-session intercept is a useful
+fallback prior, but it is about twice as inaccurate overall as the
+radio-specific model and materially worse in the 5.8 GHz operating region.
+It must not replace per-radio calibration. The whole-run and per-epoch anchor
+policies have nearly identical aggregate errors here; an epoch anchor removes
+only intercept drift and cannot repair radio-specific gain-shape differences.
 
 ## Frequency and physical-length interpretation
 
@@ -119,6 +139,57 @@ experiment does not isolate it.
    the RX cables. A radio-internal term should remain with the radio; an
    external path term should follow or reverse with the cable swap.
 
+## Dense-capture decision and immutable gates
+
+The scout supports proceeding with
+`configs/survey_cross_band.yaml`, rather than a sparse or one-dimensional gain
+design. The dense schedule is:
+
+| Quantity | Per radio | Both radios |
+|---|---:|---:|
+| Frequencies | 12 | 12 |
+| Ordered gain pairs per frequency | 289 | 578 frames per epoch |
+| Randomized epochs | 3 | 3 |
+| V7 frames | 10,404 | 20,808 |
+
+The 17 gains are the union of representative endpoints and gain-table stage
+transitions. The complete Cartesian grid is retained because additivity has
+only been established at the scout's three gains; the dense run must test it
+through the intermediate stage transitions.
+
+The dense run uses the scout-qualified 0 dB adaptive-TX reference. This is
+not a promise that every 63 dB-asymmetric pair will contain a measurable tone.
+The stronger receive channel determines safe TX attenuation, so the weaker
+channel can legitimately fall below the phase-quality threshold.
+
+Pass/fail conditions are fixed before starting the dense artifact:
+
+1. **Scout completion:** both serials reach 1,269/1,269 durable frames; strict
+   V7/full-IQ validation passes; every configured cell has three completed
+   attempts. A weak frame may fail phase quality but may not be missing.
+2. **Dense structural capture:** both serials reach 10,404/10,404 durable
+   frames with the configured firmware hashes, protocol v2, serial, schedule,
+   shape, and gain/RSSI provenance. Any missing, corrupt, or mismatched frame
+   fails the run.
+3. **Cell support:** a phase correction is emitted only when at least two of
+   three frames pass the stored-IQ quality gates and their circular phase
+   standard deviation is at most 5°. Unsupported cells remain explicit.
+4. **Signal-conditioned model accuracy:** on frames where both channel tones
+   have at least 10 dB SNR, leave-one-epoch-out MAE must be at most 2° and p95
+   at most 5° for a radio-specific correction model to pass.
+5. **Parsimony:** retain the ordered additive model unless an interaction model
+   improves paired held-out MAE by more than the predeclared 0.1° practical
+   margin. A simpler gain-difference, shared-frequency, or delay model must
+   meet the same paired criterion before replacing it.
+6. **Deployment support:** corrections are valid only for the exact radio
+   serial, LO frequency, and ordered gain pair that passed the cell gate.
+   Nearby committed centres such as 2.4671 GHz or 5.839 GHz require their own
+   capture unless deployment is standardized on a calibrated anchor.
+
+Collection remains paused at the durable scout checkpoint while this analysis
+is reviewed. Resumption must use the unchanged scout configuration and output
+directory; the dense survey must use a new output directory.
+
 ## Reproduction
 
 ```bash
@@ -144,6 +215,12 @@ python -m spf.calibrations.dual_rx_gain_frequency compare-radios \
   --model-a ARTIFACT_ROOT/104000f6ad020002fdff3a00bba2f096a1/model.json \
   --model-b ARTIFACT_ROOT/104000707f0700120f001a0095f2dbee49/model.json \
   --output-dir ARTIFACT_ROOT/cross_radio
+
+python -m spf.calibrations.dual_rx_gain_frequency compare-models \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/frequency_scout_cross_band.yaml \
+  --artifact-root ARTIFACT_ROOT \
+  --output-dir ARTIFACT_ROOT/comparative
 ```
 
 Set `ARTIFACT_ROOT` to:

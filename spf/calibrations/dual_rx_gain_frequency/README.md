@@ -94,6 +94,22 @@ sampling: every configured frequency receives the complete configured
 RX1-by-RX2 Cartesian grid, which keeps missing-cell and repeatability tests
 well-defined.
 
+The committed dense design contains 10,404 frames per radio: 12 frequencies,
+289 ordered gain pairs per frequency, and three separated epochs. Its
+adaptive-TX reference is 0 dB, the safe level established by the broad scout.
+TX is then attenuated according to the stronger receive channel. Consequently,
+highly asymmetric pairs can still leave the lower-gain channel below the
+quality threshold; those frames are retained and fail closed rather than
+being assigned a phase correction.
+
+The frequency list consists of representative calibration anchors. A fitted
+anchor is not automatically a correction for a nearby LO value. In
+particular, committed configurations also contain exact centres such as
+2.457 GHz, 2.4671 GHz, 5.770 GHz, and 5.839 GHz that are not all members of
+the dense design. The model's exact-frequency support rule still applies:
+either standardize deployment on a calibrated centre or acquire an additional
+dense block at the exact requested centre.
+
 Validate and fit each serial-specific dataset:
 
 ```bash

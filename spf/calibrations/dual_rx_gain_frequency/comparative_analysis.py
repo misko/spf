@@ -28,7 +28,7 @@ from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 
 
 COMPARISON_SCHEMA = "spf.calibration.dual_rx_gain_frequency.comparison"
-COMPARISON_SCHEMA_VERSION = 1
+COMPARISON_SCHEMA_VERSION = 2
 CALIBRATION_SCHEMA = "spf.calibration.dual_rx_gain_frequency.preliminary_model"
 CALIBRATION_SCHEMA_VERSION = 1
 
@@ -700,6 +700,124 @@ def _transfer(
             ),
             "intercept_shift_deg": float(np.degrees(anchor_shift)),
         }
+
+    epoch_residuals = []
+    anchor_observations = 0
+    anchored_epochs = []
+    for epoch in sorted(set(int(value) for value in target["epoch"])):
+        in_epoch = target["epoch"] == epoch
+        anchors = in_epoch & (target["gain1"] == 26) & (target["gain2"] == 26)
+        scored = in_epoch & ~anchors
+        if not np.any(anchors) or not np.any(scored):
+            continue
+        anchor_shift = float(np.angle(np.mean(np.exp(1j * raw_residual[anchors]))))
+        epoch_residuals.append(_wrap(raw_residual[scored] - anchor_shift))
+        anchor_observations += int(np.count_nonzero(anchors))
+        anchored_epochs.append(epoch)
+    result["one_26_db_anchor_per_epoch"] = (
+        {
+            "anchor_gain_db": 26,
+            "anchored_epochs": anchored_epochs,
+            "anchor_observations": anchor_observations,
+            "scored_observations": int(
+                sum(residual.size for residual in epoch_residuals)
+            ),
+            "source_shape_plus_epoch_anchor": _metrics(np.concatenate(epoch_residuals)),
+            "policy": (
+                "Fit one intercept from the target radio's quality-valid 26/26 "
+                "frame in each epoch and exclude every anchor from scoring."
+            ),
+        }
+        if epoch_residuals
+        else None
+    )
+    return result
+
+
+def _weighted_metric_summary(
+    rows: list[tuple[int, dict[str, float]]],
+) -> dict[str, Any] | None:
+    """Pool count-weighted MAE/RMSE summaries without inventing a pooled p95."""
+
+    observations = sum(count for count, _ in rows)
+    if not observations:
+        return None
+    return {
+        "n_observations": observations,
+        "circular_mae_deg": float(
+            sum(count * metrics["circular_mae_deg"] for count, metrics in rows)
+            / observations
+        ),
+        "circular_rmse_deg": float(
+            math.sqrt(
+                sum(
+                    count * metrics["circular_rmse_deg"] ** 2 for count, metrics in rows
+                )
+                / observations
+            )
+        ),
+        "circular_max_deg": float(
+            max(metrics["circular_max_deg"] for _, metrics in rows)
+        ),
+        "p95_available": False,
+    }
+
+
+def _cross_radio_transfer_summary(
+    transfers: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Summarize same-frequency transfer by direction and gain-table region."""
+
+    regions = {
+        "all_frequencies": lambda frequency: True,
+        "low_full_gain_table": lambda frequency: frequency <= 1_300_000_000,
+        "middle_full_gain_table": lambda frequency: (
+            1_300_000_000 < frequency <= 4_000_000_000
+        ),
+        "high_full_gain_table": lambda frequency: frequency > 4_000_000_000,
+        "vtx_5_7_to_5_9_ghz": lambda frequency: (
+            5_700_000_000 <= frequency <= 5_900_000_000
+        ),
+    }
+    directions = sorted(key.rsplit(":", 1)[0] for key in transfers)
+    result = {}
+    for direction in sorted(set(directions)):
+        direction_rows = [
+            (int(key.rsplit(":", 1)[1]), value)
+            for key, value in transfers.items()
+            if key.rsplit(":", 1)[0] == direction
+        ]
+        region_results = {}
+        for region, includes in regions.items():
+            selected = [
+                value for frequency, value in direction_rows if includes(frequency)
+            ]
+            if not selected:
+                continue
+            whole_run_rows = [
+                (
+                    row["single_26_db_equal_gain"]["scored_observations"],
+                    row["single_26_db_equal_gain"]["source_shape_plus_anchor"],
+                )
+                for row in selected
+                if row["single_26_db_equal_gain"] is not None
+            ]
+            per_epoch_rows = [
+                (
+                    row["one_26_db_anchor_per_epoch"]["scored_observations"],
+                    row["one_26_db_anchor_per_epoch"]["source_shape_plus_epoch_anchor"],
+                )
+                for row in selected
+                if row["one_26_db_anchor_per_epoch"] is not None
+            ]
+            region_results[region] = {
+                "frequency_count": len(selected),
+                "one_26_db_anchor_over_whole_run": _weighted_metric_summary(
+                    whole_run_rows
+                ),
+                "one_26_db_anchor_per_epoch": _weighted_metric_summary(per_epoch_rows),
+            }
+        result[direction] = region_results
     return result
 
 
@@ -1004,6 +1122,30 @@ def analyze_artifact(
         == config.repetitions * len(config.frequencies_hz)
         for radio in radios
     )
+    complete_epoch_counts = [
+        len(result["complete_epochs"])
+        for frequency_results in group_results_by_radio.values()
+        for result in frequency_results.values()
+    ]
+    minimum_complete_epochs = min(complete_epoch_counts, default=0)
+    limitations = [
+        "Only completely captured epoch/frequency blocks are analyzed.",
+        "Model comparison trusts stored quality decisions and phase values; "
+        "run strict validation with IQ recomputation before deployment.",
+        "Weak-signal and rail/DC failures remain explicit unsupported cells.",
+    ]
+    if minimum_complete_epochs < config.repetitions:
+        limitations.insert(
+            1,
+            f"The least-covered fitted radio/frequency currently has "
+            f"{minimum_complete_epochs}/{config.repetitions} complete epochs; "
+            "remaining epochs are required for final promotion.",
+        )
+    limitations.insert(
+        2,
+        "The compact stage basis was developed during epoch-0 exploration; "
+        "repeat epochs must be treated as confirmatory evidence.",
+    )
     comparison = {
         "schema": COMPARISON_SCHEMA,
         "schema_version": COMPARISON_SCHEMA_VERSION,
@@ -1012,6 +1154,7 @@ def analyze_artifact(
             if complete_capture
             else "partial_capture_engineering_evidence"
         ),
+        "configured_repetitions": config.repetitions,
         "config_path": str(config_path),
         "artifact_root": _portable_path(artifact_root),
         "stage_boundaries_db": list(_stage_boundaries(config)),
@@ -1051,16 +1194,9 @@ def analyze_artifact(
         },
         "cross_frequency_transfer": cross_frequency,
         "cross_radio_transfer": cross_radio,
-        "limitations": [
-            "Only completely captured epoch/frequency blocks are analyzed.",
-            "The paused source currently supplies epoch 0 only, so reboot, "
-            "temperature, and repeat-epoch stability remain untested.",
-            "The compact stage basis was developed during epoch-0 exploration; "
-            "repeat epochs must be treated as untouched confirmatory data.",
-            "Model comparison trusts stored quality decisions and phase values; "
-            "run strict validation with IQ recomputation before deployment.",
-            "High-RX2-gain rail/DC failures remain explicit unsupported cells.",
-        ],
+        "cross_radio_transfer_summary": _cross_radio_transfer_summary(cross_radio),
+        "minimum_complete_epochs_per_fitted_radio_frequency": (minimum_complete_epochs),
+        "limitations": limitations,
     }
     calibrations = {
         radio["serial"]: _calibration_for_radio(
@@ -1089,11 +1225,15 @@ def render_comparative_report(
 ) -> str:
     """Render a concise engineering report from machine-readable results."""
 
+    minimum_epochs = comparison["minimum_complete_epochs_per_fitted_radio_frequency"]
+    configured_epochs = comparison["configured_repetitions"]
     lines = [
         "# Dual-RX gain/frequency phase model comparison",
         "",
-        "> Status: preliminary engineering evidence from the deliberately paused "
-        "epoch-0 capture. These coefficients are not yet production calibration.",
+        f"> Status: `{comparison['analysis_status']}`. The least-covered fitted "
+        f"radio/frequency has {minimum_epochs}/{configured_epochs} complete "
+        "epochs. Coefficients remain engineering candidates until the configured "
+        "capture and strict full-IQ validation are complete.",
         "",
         "## Reproduce",
         "",
@@ -1184,17 +1324,27 @@ def render_comparative_report(
                 f"\nResidual linear drift was "
                 f"{drift['linear_residual_drift_deg_per_hour']:+.2f}°/hour; "
                 "the report does not interpret the small rank correlations as "
-                "temperature because no temperature channel or repeated epoch is "
-                "available."
+                "temperature because no temperature channel was recorded."
             )
 
+    first_models = next(
+        result["random_cell_five_fold"]["models"]
+        for radio in comparison["radios"].values()
+        for result in radio["frequency_results"].values()
+    )
+    stage_parameters = first_models["stage_ordered"]["nominal_parameters"]
+    categorical_parameters = first_models["categorical_ordered"]["nominal_parameters"]
+    gain_count = len(next(iter(calibrations.values()))["gain_values_db"])
+    boundaries = comparison["stage_boundaries_db"]
+    boundary_text = ", ".join(str(value) for value in boundaries) or "none"
     lines.extend(
         [
             "",
             "## Parsimonious interpretation",
             "",
-            "The 15-parameter ordered stage-boundary model is the smallest model "
-            "that retains nearly all observed predictive accuracy:",
+            f"The {stage_parameters}-parameter ordered stage-boundary model is "
+            "the compact candidate evaluated against the exact categorical "
+            "reference:",
             "",
             "```text",
             "phase(f,g1,g2) = intercept(f)",
@@ -1203,20 +1353,21 @@ def render_comparative_report(
             "                 + residual",
             "```",
             "",
-            "Its six boundaries (`-6, 6, 16, 23, 26, 41 dB`) are derived from "
+            f"Its configured in-range boundaries (`{boundary_text} dB`) are "
+            "selected from "
             "starts of LNA/mixer-byte plateaus lasting at least three requested "
             "gain states in `drivers/iio/adc/ad9361.c` at Linux commit "
             f"`{GAIN_TABLE_LINUX_GIT_SHA}`. The final 52–62 dB one-index-per-dB "
-            "mixer ramp is represented by the linear term rather than eleven "
-            "one-point dummies. The shared signed models are materially worse, "
-            "so RX1 and RX2 require separate effects. The 145-parameter "
-            "categorical model remains a useful exact-grid reference but gains "
-            "little over the compact model.",
+            "mixer ramp is represented by the linear term when it is present in "
+            "the configured grid. RX1 and RX2 retain separate effects. The "
+            f"{categorical_parameters}-parameter categorical model remains the "
+            "exact-grid reference; held-out tables above, rather than parameter "
+            "count alone, decide whether the compact approximation is adequate.",
             "",
             "Important: this compact basis was developed during epoch-0 "
-            "exploration. The held-out-cell results test missing combinations "
-            "inside that epoch, but the untouched repeat epochs must provide "
-            "confirmatory model-selection evidence.",
+            "exploration, so its selection is post-hoc. Completed repeat blocks "
+            "add evidence, but the remaining epoch and final dense grid must "
+            "provide confirmatory model-selection evidence.",
             "",
             "## Preliminary calibration artifacts",
             "",
@@ -1248,7 +1399,8 @@ def render_comparative_report(
             "### Compact coefficients by radio and frequency",
             "",
             "Slopes and steps are shown in degrees. The exact-radian values and "
-            "the 73-state categorical curves are in the linked JSON artifacts.",
+            f"the {gain_count}-state categorical curves are in the linked JSON "
+            "artifacts.",
             "",
             "| Radio / calibration | Frequency | Intercept | RX1 / RX2 slope | RX1 stage steps (boundary:value) | RX2 stage steps |",
             "|---|---:|---:|---:|---|---|",
@@ -1277,23 +1429,69 @@ def render_comparative_report(
                 f"{rx1_text} | {rx2_text} |"
             )
 
+    total_supported = sum(
+        row["production_supported_pair_count"]
+        for calibration in calibrations.values()
+        for row in calibration["frequency_models"]
+    )
+    support_text = (
+        f"The current complete blocks provide {total_supported} "
+        "radio/frequency/ordered-pair entries that pass the configured repeat "
+        "support gate. They remain conditional on strict full-IQ validation and "
+        "live signal/metadata quality."
+        if total_supported
+        else (
+            "No current ordered pair passes the configured repeat-support gate. "
+            f"The least-covered fitted radio/frequency has "
+            f"{minimum_epochs}/{configured_epochs} complete epochs."
+        )
+    )
     lines.extend(
         [
             "",
-            "No current pair is marked production-supported because the configured "
-            "gate requires at least two quality-valid repeats and at most 5° "
-            "repeat circular standard deviation. The paused artifact has only one "
-            "complete epoch at the fitted frequencies.",
+            support_text,
+            "",
+            "## Cross-radio transfer summary",
+            "",
+            "These are count-weighted summaries of same-frequency categorical "
+            "gain-shape transfer. A pooled p95 cannot be reconstructed from "
+            "per-frequency summaries, so MAE, RMSE, and maximum are reported.",
+            "",
+            "| Direction | Region | Anchor policy | Frames | MAE | RMSE | Max |",
+            "|---|---|---|---:|---:|---:|---:|",
+        ]
+    )
+    for direction, regions in comparison["cross_radio_transfer_summary"].items():
+        for region, policies in regions.items():
+            for policy_name, policy_label in (
+                ("one_26_db_anchor_over_whole_run", "one 26/26 over whole run"),
+                ("one_26_db_anchor_per_epoch", "one 26/26 per epoch"),
+            ):
+                metrics = policies[policy_name]
+                if metrics is None:
+                    continue
+                lines.append(
+                    f"| `{direction}` | {region.replace('_', ' ')} | "
+                    f"{policy_label} | {metrics['n_observations']} | "
+                    f"{_fmt(metrics['circular_mae_deg'])}° | "
+                    f"{_fmt(metrics['circular_rmse_deg'])}° | "
+                    f"{_fmt(metrics['circular_max_deg'])}° |"
+                )
+
+    lines.extend(
+        [
             "",
             "## Transfer to another frequency or radio",
             "",
             "The following figures transfer a complete categorical gain shape. "
             "“Optimal” uses all target observations to align the intercept and is "
-            "only a descriptive lower bound. Equal-gain anchors are operationally "
-            "possible but do not replace validation.",
+            "only a descriptive lower bound. The per-epoch column uses one "
+            "quality-valid 26/26 frame from the target radio in each epoch, excludes "
+            "those anchors from scoring, and represents a same-session policy. "
+            "Equal-gain anchors do not replace validation.",
             "",
-            "| Transfer | Unanchored MAE | One-anchor MAE | Five-anchor MAE | Optimal-intercept MAE |",
-            "|---|---:|---:|---:|---:|",
+            "| Transfer | Unanchored MAE | One whole-run anchor MAE | One anchor/epoch MAE | Five whole-run anchors MAE | Optimal-intercept MAE |",
+            "|---|---:|---:|---:|---:|---:|",
         ]
     )
     for key, result in {
@@ -1301,10 +1499,12 @@ def render_comparative_report(
         **comparison["cross_radio_transfer"],
     }.items():
         single = result.get("single_26_db_equal_gain")
+        per_epoch = result.get("one_26_db_anchor_per_epoch")
         five = result.get("five_equal_gain_anchors")
         lines.append(
             f"| `{key}` | {_fmt(result['unanchored']['circular_mae_deg'])}° | "
             f"{_fmt(single['source_shape_plus_anchor']['circular_mae_deg']) if single else 'n/a'}° | "
+            f"{_fmt(per_epoch['source_shape_plus_epoch_anchor']['circular_mae_deg']) if per_epoch else 'n/a'}° | "
             f"{_fmt(five['source_shape_plus_anchor']['circular_mae_deg']) if five else 'n/a'}° | "
             f"{_fmt(result['optimal_intercept_lower_bound']['circular_mae_deg'])}° |"
         )
@@ -1334,9 +1534,11 @@ def render_comparative_report(
             "",
             "Do not silently label a transferred model as calibrated. The current "
             "two-radio transfer shows that a source-radio gain shape plus anchors "
-            "is useful but leaves several degrees of error. Five distributed "
-            "equal-gain anchors are preferable to a single 26/26 dB anchor because "
-            "they average frame noise and expose gain-state-specific disagreement. "
+            "is useful but leaves several degrees of error unless the target "
+            "intercept is refreshed in the same session. A per-session 26/26 dB "
+            "anchor addresses intercept drift but cannot reveal gain-state-specific "
+            "disagreement; distributed equal-gain anchors are preferable when time "
+            "allows because they also exercise multiple gain states. "
             "Use the transferred result only with an explicit lower-confidence "
             "flag and collect that serial’s full calibration when precision matters.",
             "",

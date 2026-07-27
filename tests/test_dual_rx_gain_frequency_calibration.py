@@ -17,6 +17,7 @@ from spf.calibrations.dual_rx_gain_frequency.comparative_analysis import (
     HIGH_BAND_GAIN_MIN_DB,
     HIGH_BAND_LNA_MIXER_BYTE_BY_GAIN,
     _derive_stage_boundaries,
+    _transfer,
     write_comparative_bundle,
 )
 from spf.calibrations.dual_rx_gain_frequency.dc_offset import (
@@ -683,8 +684,13 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
     assert Path(comparative["report"]).is_file()
     assert set(comparative["calibrations"]) == set(serials)
     comparison = json.loads(Path(comparative["comparison"]).read_text())
-    assert comparison["schema_version"] == 1
+    assert comparison["schema_version"] == 2
     assert set(comparison["radios"]) == set(serials)
+    assert comparison["minimum_complete_epochs_per_fitted_radio_frequency"] == 3
+    assert set(comparison["cross_radio_transfer_summary"]) == {
+        "SERIAL-A->SERIAL-B",
+        "SERIAL-B->SERIAL-A",
+    }
     assert all(
         len(radio["analysis_input_sha256"]) == 64
         for radio in comparison["radios"].values()
@@ -972,6 +978,7 @@ def test_committed_cross_band_configs_cover_three_gain_tables():
     )
     assert pilot.measurements_per_radio == 324
     assert survey.measurements_per_radio == 10_404
+    assert survey.tx_gain_db == 0
     for config in (pilot, survey):
         blocks = group_schedule_by_frequency(build_schedule(config))
         assert len(blocks) == 36
@@ -1058,6 +1065,50 @@ def test_cross_radio_delay_report_recovers_known_difference():
     markdown = render_cross_radio_markdown(result)
     assert "literal PCB trace length" in markdown
     assert "25.00 ps" in markdown
+
+
+def test_cross_radio_transfer_distinguishes_whole_run_and_epoch_anchors():
+    config = small_config(gains_db=(0, 26))
+    gain_pairs = ((0, 0), (0, 26), (26, 0), (26, 26))
+    rx1_effect = {0: 0.0, 26: 0.12}
+    rx2_effect = {0: 0.0, 26: -0.08}
+    epoch_shift = {0: -0.3, 1: 0.0, 2: 0.3}
+
+    def observations(*, shifted):
+        gain1 = []
+        gain2 = []
+        phase = []
+        epochs = []
+        for epoch in range(3):
+            for value1, value2 in gain_pairs:
+                gain1.append(value1)
+                gain2.append(value2)
+                epochs.append(epoch)
+                phase.append(
+                    0.4
+                    + rx1_effect[value1]
+                    + rx2_effect[value2]
+                    + (epoch_shift[epoch] if shifted else 0.0)
+                )
+        return {
+            "gain1": np.asarray(gain1),
+            "gain2": np.asarray(gain2),
+            "phase": np.asarray(phase),
+            "epoch": np.asarray(epochs),
+        }
+
+    result = _transfer(
+        observations(shifted=False),
+        observations(shifted=True),
+        config=config,
+    )
+    whole_run = result["single_26_db_equal_gain"]["source_shape_plus_anchor"]
+    per_epoch = result["one_26_db_anchor_per_epoch"]
+    assert whole_run["circular_mae_deg"] > 10
+    assert per_epoch["anchored_epochs"] == [0, 1, 2]
+    assert per_epoch["anchor_observations"] == 3
+    assert per_epoch["scored_observations"] == 9
+    assert per_epoch["source_shape_plus_epoch_anchor"]["circular_max_deg"] < 1e-9
 
 
 def test_additive_circular_model_recovers_wrapped_gain_effects():
