@@ -9,6 +9,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from .comparative_analysis import write_comparative_bundle
 from .config import build_schedule, group_schedule_by_frequency
 from .dc_offset import inspect_radio_rf_dc
 from .model import fit_dataset, write_model
@@ -143,6 +144,16 @@ def _dc_registers(args) -> int:
     return 0
 
 
+def _compare_models(args) -> int:
+    result = write_comparative_bundle(
+        config_path=args.config,
+        artifact_root=args.artifact_root,
+        output_dir=args.output_dir,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -224,6 +235,18 @@ def parse_args():
     dc_selector.add_argument("--uri")
     dc_parser.add_argument("--output", type=Path)
     dc_parser.set_defaults(function=_dc_registers)
+
+    compare_parser = subparsers.add_parser(
+        "compare-models",
+        help=(
+            "write reproducible held-out model comparisons and preliminary "
+            "per-radio calibrations from an existing V7 run"
+        ),
+    )
+    compare_parser.add_argument("--config", type=Path, required=True)
+    compare_parser.add_argument("--artifact-root", type=Path, required=True)
+    compare_parser.add_argument("--output-dir", type=Path, required=True)
+    compare_parser.set_defaults(function=_compare_models)
     return parser.parse_args()
 
 

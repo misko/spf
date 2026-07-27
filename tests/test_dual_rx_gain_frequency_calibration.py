@@ -12,6 +12,13 @@ from spf.calibrations.dual_rx_gain_frequency.config import (
     build_schedule,
     group_schedule_by_frequency,
 )
+from spf.calibrations.dual_rx_gain_frequency.comparative_analysis import (
+    DEFAULT_STAGE_BOUNDARIES_DB,
+    HIGH_BAND_GAIN_MIN_DB,
+    HIGH_BAND_LNA_MIXER_BYTE_BY_GAIN,
+    _derive_stage_boundaries,
+    write_comparative_bundle,
+)
 from spf.calibrations.dual_rx_gain_frequency.dc_offset import (
     decode_rf_dc_correction_words,
     signed_10bit,
@@ -352,6 +359,18 @@ def test_frequency_delay_fit_uses_rx1_minus_rx2_physical_sign():
     )
 
 
+def test_compact_stage_boundaries_are_reproducibly_derived_from_gain_table():
+    assert len(HIGH_BAND_LNA_MIXER_BYTE_BY_GAIN) == 73
+    assert (
+        _derive_stage_boundaries(
+            HIGH_BAND_LNA_MIXER_BYTE_BY_GAIN,
+            minimum_gain_db=HIGH_BAND_GAIN_MIN_DB,
+        )
+        == DEFAULT_STAGE_BOUNDARIES_DB
+        == (-6, 6, 16, 23, 26, 41)
+    )
+
+
 def test_rf_dc_correction_register_decoder_flags_documented_stuck_word():
     expected = {
         "rx1_q": 0x123,
@@ -617,6 +636,31 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
     ]
     assert len(writable_resume_calls) == 2
     assert all(kwargs["map_async"] is True for kwargs in writable_resume_calls)
+
+    comparative = write_comparative_bundle(
+        config_path=config_path,
+        artifact_root=tmp_path / "output",
+        output_dir=tmp_path / "comparative",
+    )
+    assert Path(comparative["comparison"]).is_file()
+    assert Path(comparative["report"]).is_file()
+    assert set(comparative["calibrations"]) == set(serials)
+    comparison = json.loads(Path(comparative["comparison"]).read_text())
+    assert comparison["schema_version"] == 1
+    assert set(comparison["radios"]) == set(serials)
+    assert all(
+        len(radio["analysis_input_sha256"]) == 64
+        for radio in comparison["radios"].values()
+    )
+    for calibration_path in comparative["calibrations"].values():
+        calibration = json.loads(Path(calibration_path).read_text())
+        assert calibration["deployable"] is True
+        assert (
+            calibration["frequency_models"][0]["production_supported_pair_count"] == 4
+        )
+    comparative_report = Path(comparative["report"]).read_text()
+    assert "Errors explained by competing models" in comparative_report
+    assert "New (“unseen”) radio" in comparative_report
 
 
 def test_additive_circular_model_recovers_wrapped_gain_effects():

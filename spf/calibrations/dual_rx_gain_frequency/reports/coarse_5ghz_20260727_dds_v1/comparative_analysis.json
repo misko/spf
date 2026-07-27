@@ -1,0 +1,1213 @@
+{
+  "analysis_status": "partial_capture_engineering_evidence",
+  "artifact_root": "artifacts/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1",
+  "config_path": "spf/calibrations/dual_rx_gain_frequency/configs/coarse_5ghz.yaml",
+  "cross_frequency_transfer": {
+    "104000707f0700120f001a0095f2dbee49:5804000000->5866000000": {
+      "five_equal_gain_anchors": {
+        "anchor_gains_db": [
+          0,
+          16,
+          26,
+          41,
+          45
+        ],
+        "anchor_observations": 5,
+        "constant_anchor_only": {
+          "circular_mae_deg": 10.669600770942386,
+          "circular_max_deg": 38.02074436667604,
+          "circular_p95_deg": 27.428307778580827,
+          "circular_rmse_deg": 13.567308678811093,
+          "n": 3665
+        },
+        "intercept_shift_deg": -9.44768119803273,
+        "scored_observations": 3665,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 2.701145225835794,
+          "circular_max_deg": 10.806849467613596,
+          "circular_p95_deg": 6.405523207822994,
+          "circular_rmse_deg": 3.2950310311927145,
+          "n": 3665
+        }
+      },
+      "optimal_intercept_lower_bound": {
+        "circular_mae_deg": 2.6456013215250502,
+        "circular_max_deg": 9.8239710861095,
+        "circular_p95_deg": 5.827999283916721,
+        "circular_rmse_deg": 3.144395789410142,
+        "intercept_shift_deg": -10.430559579536821,
+        "n": 3670,
+        "warning": "Uses every target observation to align the intercept and is therefore a descriptive lower bound, not an operational policy."
+      },
+      "single_26_db_equal_gain": {
+        "anchor_gains_db": [
+          26
+        ],
+        "anchor_observations": 1,
+        "constant_anchor_only": {
+          "circular_mae_deg": 11.865323052472398,
+          "circular_max_deg": 39.45277094293546,
+          "circular_p95_deg": 28.302295302679937,
+          "circular_rmse_deg": 14.601675752945141,
+          "n": 3669
+        },
+        "intercept_shift_deg": -11.728561516475256,
+        "scored_observations": 3669,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 2.850007114913788,
+          "circular_max_deg": 9.949147122967295,
+          "circular_p95_deg": 6.149080096749817,
+          "circular_rmse_deg": 3.402097737549271,
+          "n": 3669
+        }
+      },
+      "supported_target_observations": 3670,
+      "unanchored": {
+        "circular_mae_deg": 10.430913448305263,
+        "circular_max_deg": 20.254530665646318,
+        "circular_p95_deg": 15.759960186039544,
+        "circular_rmse_deg": 10.89454818343894,
+        "n": 3670
+      }
+    },
+    "104000707f0700120f001a0095f2dbee49:5866000000->5804000000": {
+      "five_equal_gain_anchors": {
+        "anchor_gains_db": [
+          0,
+          16,
+          26,
+          41,
+          45
+        ],
+        "anchor_observations": 5,
+        "constant_anchor_only": {
+          "circular_mae_deg": 10.982220414707488,
+          "circular_max_deg": 39.109392274205845,
+          "circular_p95_deg": 25.102998034255023,
+          "circular_rmse_deg": 13.691880796889157,
+          "n": 3714
+        },
+        "intercept_shift_deg": 10.687717412121787,
+        "scored_observations": 3714,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 2.6724016794252075,
+          "circular_max_deg": 9.488251139578871,
+          "circular_p95_deg": 5.307843170602516,
+          "circular_rmse_deg": 3.0716457314433754,
+          "n": 3714
+        }
+      },
+      "optimal_intercept_lower_bound": {
+        "circular_mae_deg": 2.6593578918728134,
+        "circular_max_deg": 9.213557476874565,
+        "circular_p95_deg": 5.269538710245042,
+        "circular_rmse_deg": 3.0585136161700603,
+        "intercept_shift_deg": 10.413023749417494,
+        "n": 3719,
+        "warning": "Uses every target observation to align the intercept and is therefore a descriptive lower bound, not an operational policy."
+      },
+      "single_26_db_equal_gain": {
+        "anchor_gains_db": [
+          26
+        ],
+        "anchor_observations": 1,
+        "constant_anchor_only": {
+          "circular_mae_deg": 10.842363631738632,
+          "circular_max_deg": 37.02681610207303,
+          "circular_p95_deg": 25.058718975495974,
+          "circular_rmse_deg": 13.590008076786273,
+          "n": 3718
+        },
+        "intercept_shift_deg": 12.856041255532693,
+        "scored_observations": 3718,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.163870478918744,
+          "circular_max_deg": 11.656574982989763,
+          "circular_p95_deg": 7.219976727489883,
+          "circular_rmse_deg": 3.915030205355449,
+          "n": 3718
+        }
+      },
+      "supported_target_observations": 3719,
+      "unanchored": {
+        "circular_mae_deg": 10.412921408744937,
+        "circular_max_deg": 18.62293348857852,
+        "circular_p95_deg": 14.925522979993216,
+        "circular_rmse_deg": 10.852807829982186,
+        "n": 3719
+      }
+    },
+    "104000f6ad020002fdff3a00bba2f096a1:5804000000->5866000000": {
+      "five_equal_gain_anchors": {
+        "anchor_gains_db": [
+          0,
+          16,
+          26,
+          41,
+          45
+        ],
+        "anchor_observations": 5,
+        "constant_anchor_only": {
+          "circular_mae_deg": 9.207139677224319,
+          "circular_max_deg": 34.95993840014352,
+          "circular_p95_deg": 25.581127515140615,
+          "circular_rmse_deg": 12.186871286564303,
+          "n": 3400
+        },
+        "intercept_shift_deg": -24.258447412259816,
+        "scored_observations": 3400,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.014764164510209,
+          "circular_max_deg": 13.35042066903552,
+          "circular_p95_deg": 6.6345924449297815,
+          "circular_rmse_deg": 3.558279941842661,
+          "n": 3400
+        }
+      },
+      "optimal_intercept_lower_bound": {
+        "circular_mae_deg": 2.9864623553617506,
+        "circular_max_deg": 12.871069278020189,
+        "circular_p95_deg": 6.233953111313349,
+        "circular_rmse_deg": 3.526863954947225,
+        "intercept_shift_deg": -24.737798803275155,
+        "n": 3405,
+        "warning": "Uses every target observation to align the intercept and is therefore a descriptive lower bound, not an operational policy."
+      },
+      "single_26_db_equal_gain": {
+        "anchor_gains_db": [
+          26
+        ],
+        "anchor_observations": 1,
+        "constant_anchor_only": {
+          "circular_mae_deg": 9.23616494046981,
+          "circular_max_deg": 38.07721956720546,
+          "circular_p95_deg": 25.042255474659974,
+          "circular_rmse_deg": 11.952699430817498,
+          "n": 3404
+        },
+        "intercept_shift_deg": -26.32611489991677,
+        "scored_observations": 3404,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.1999895019454447,
+          "circular_max_deg": 11.282753181378567,
+          "circular_p95_deg": 6.560232780979455,
+          "circular_rmse_deg": 3.8682507505168813,
+          "n": 3404
+        }
+      },
+      "supported_target_observations": 3405,
+      "unanchored": {
+        "circular_mae_deg": 24.738600922425604,
+        "circular_max_deg": 37.608868081295334,
+        "circular_p95_deg": 30.889624077402832,
+        "circular_rmse_deg": 24.988740350652886,
+        "n": 3405
+      }
+    },
+    "104000f6ad020002fdff3a00bba2f096a1:5866000000->5804000000": {
+      "five_equal_gain_anchors": {
+        "anchor_gains_db": [
+          0,
+          16,
+          26,
+          41,
+          45
+        ],
+        "anchor_observations": 5,
+        "constant_anchor_only": {
+          "circular_mae_deg": 9.224294730236952,
+          "circular_max_deg": 36.61367571159434,
+          "circular_p95_deg": 23.71783868996061,
+          "circular_rmse_deg": 12.16045070526969,
+          "n": 3446
+        },
+        "intercept_shift_deg": 23.25603369947907,
+        "scored_observations": 3446,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.0734907451242357,
+          "circular_max_deg": 11.248051515563883,
+          "circular_p95_deg": 7.1990565356825424,
+          "circular_rmse_deg": 3.8160620492460917,
+          "n": 3446
+        }
+      },
+      "optimal_intercept_lower_bound": {
+        "circular_mae_deg": 3.0388799784166842,
+        "circular_max_deg": 10.908742461170501,
+        "circular_p95_deg": 6.526808695574765,
+        "circular_rmse_deg": 3.52411488990608,
+        "intercept_shift_deg": 24.723348133080755,
+        "n": 3451,
+        "warning": "Uses every target observation to align the intercept and is therefore a descriptive lower bound, not an operational policy."
+      },
+      "single_26_db_equal_gain": {
+        "anchor_gains_db": [
+          26
+        ],
+        "anchor_observations": 1,
+        "constant_anchor_only": {
+          "circular_mae_deg": 9.153284672283093,
+          "circular_max_deg": 34.67579947511501,
+          "circular_p95_deg": 23.367715083187623,
+          "circular_rmse_deg": 12.059362992552064,
+          "n": 3450
+        },
+        "intercept_shift_deg": 22.03919266523608,
+        "scored_observations": 3450,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.4460257861033385,
+          "circular_max_deg": 12.464892549806883,
+          "circular_p95_deg": 8.37606275415739,
+          "circular_rmse_deg": 4.430667661672869,
+          "n": 3450
+        }
+      },
+      "supported_target_observations": 3451,
+      "unanchored": {
+        "circular_mae_deg": 24.7235439400373,
+        "circular_max_deg": 34.50408521504296,
+        "circular_p95_deg": 30.41499610521896,
+        "circular_rmse_deg": 24.973446111297346,
+        "n": 3451
+      }
+    }
+  },
+  "cross_radio_transfer": {
+    "104000707f0700120f001a0095f2dbee49->104000f6ad020002fdff3a00bba2f096a1:5804000000": {
+      "five_equal_gain_anchors": {
+        "anchor_gains_db": [
+          0,
+          16,
+          26,
+          41,
+          45
+        ],
+        "anchor_observations": 5,
+        "constant_anchor_only": {
+          "circular_mae_deg": 9.210012312646313,
+          "circular_max_deg": 36.61367571159434,
+          "circular_p95_deg": 23.693149257366514,
+          "circular_rmse_deg": 12.138889332815657,
+          "n": 3554
+        },
+        "intercept_shift_deg": -17.025701680418187,
+        "scored_observations": 3554,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.2915009931033947,
+          "circular_max_deg": 16.358212806082022,
+          "circular_p95_deg": 8.386752724732585,
+          "circular_rmse_deg": 4.123703751018469,
+          "n": 3554
+        }
+      },
+      "optimal_intercept_lower_bound": {
+        "circular_mae_deg": 3.3082189787802587,
+        "circular_max_deg": 15.512728789676437,
+        "circular_p95_deg": 7.543663780146164,
+        "circular_rmse_deg": 4.035350371305687,
+        "intercept_shift_deg": -17.87118569682376,
+        "n": 3559,
+        "warning": "Uses every target observation to align the intercept and is therefore a descriptive lower bound, not an operational policy."
+      },
+      "single_26_db_equal_gain": {
+        "anchor_gains_db": [
+          26
+        ],
+        "anchor_observations": 1,
+        "constant_anchor_only": {
+          "circular_mae_deg": 9.158938365961504,
+          "circular_max_deg": 34.67579947511501,
+          "circular_p95_deg": 23.46085097144691,
+          "circular_rmse_deg": 12.07400748222918,
+          "n": 3558
+        },
+        "intercept_shift_deg": -14.317550151329424,
+        "scored_observations": 3558,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 4.046620073240526,
+          "circular_max_deg": 19.06636433517078,
+          "circular_p95_deg": 11.094620972901772,
+          "circular_rmse_deg": 5.379283253473438,
+          "n": 3558
+        }
+      },
+      "supported_target_observations": 3559,
+      "unanchored": {
+        "circular_mae_deg": 17.87346217458737,
+        "circular_max_deg": 33.3839144865002,
+        "circular_p95_deg": 25.412100304001303,
+        "circular_rmse_deg": 18.32333751103361,
+        "n": 3559
+      }
+    },
+    "104000707f0700120f001a0095f2dbee49->104000f6ad020002fdff3a00bba2f096a1:5866000000": {
+      "five_equal_gain_anchors": {
+        "anchor_gains_db": [
+          0,
+          16,
+          26,
+          41,
+          45
+        ],
+        "anchor_observations": 5,
+        "constant_anchor_only": {
+          "circular_mae_deg": 9.207139677224319,
+          "circular_max_deg": 34.95993840014352,
+          "circular_p95_deg": 25.581127515140615,
+          "circular_rmse_deg": 12.186871286564303,
+          "n": 3400
+        },
+        "intercept_shift_deg": -31.08924151638407,
+        "scored_observations": 3400,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.94645734240685,
+          "circular_max_deg": 16.66616192048048,
+          "circular_p95_deg": 10.104668607583829,
+          "circular_rmse_deg": 4.885699665685768,
+          "n": 3400
+        }
+      },
+      "optimal_intercept_lower_bound": {
+        "circular_mae_deg": 3.9233377805143483,
+        "circular_max_deg": 15.57751562715146,
+        "circular_p95_deg": 9.014873371059524,
+        "circular_rmse_deg": 4.7631266143523545,
+        "intercept_shift_deg": -32.17788780971308,
+        "n": 3405,
+        "warning": "Uses every target observation to align the intercept and is therefore a descriptive lower bound, not an operational policy."
+      },
+      "single_26_db_equal_gain": {
+        "anchor_gains_db": [
+          26
+        ],
+        "anchor_observations": 1,
+        "constant_anchor_only": {
+          "circular_mae_deg": 9.23616494046981,
+          "circular_max_deg": 38.07721956720546,
+          "circular_p95_deg": 25.042255474659974,
+          "circular_rmse_deg": 11.952699430817498,
+          "n": 3404
+        },
+        "intercept_shift_deg": -31.326643977088708,
+        "scored_observations": 3404,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.927916442610853,
+          "circular_max_deg": 16.428759459775844,
+          "circular_p95_deg": 9.866254444568057,
+          "circular_rmse_deg": 4.839856454546104,
+          "n": 3404
+        }
+      },
+      "supported_target_observations": 3405,
+      "unanchored": {
+        "circular_mae_deg": 32.18102435913578,
+        "circular_max_deg": 47.75540343686455,
+        "circular_p95_deg": 41.19276118077259,
+        "circular_rmse_deg": 32.53161069036854,
+        "n": 3405
+      }
+    },
+    "104000f6ad020002fdff3a00bba2f096a1->104000707f0700120f001a0095f2dbee49:5804000000": {
+      "five_equal_gain_anchors": {
+        "anchor_gains_db": [
+          0,
+          16,
+          26,
+          41,
+          45
+        ],
+        "anchor_observations": 5,
+        "constant_anchor_only": {
+          "circular_mae_deg": 10.970394672332628,
+          "circular_max_deg": 39.109392274205845,
+          "circular_p95_deg": 25.06975378378086,
+          "circular_rmse_deg": 13.673131700659276,
+          "n": 3755
+        },
+        "intercept_shift_deg": 17.52295071727281,
+        "scored_observations": 3755,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.1754885251531833,
+          "circular_max_deg": 11.832215709317339,
+          "circular_p95_deg": 7.580931951608679,
+          "circular_rmse_deg": 3.8855470046939438,
+          "n": 3755
+        }
+      },
+      "optimal_intercept_lower_bound": {
+        "circular_mae_deg": 3.2068100765914407,
+        "circular_max_deg": 11.613710993974154,
+        "circular_p95_deg": 7.384642777079886,
+        "circular_rmse_deg": 3.8788821295799747,
+        "intercept_shift_deg": 17.74145543261599,
+        "n": 3760,
+        "warning": "Uses every target observation to align the intercept and is therefore a descriptive lower bound, not an operational policy."
+      },
+      "single_26_db_equal_gain": {
+        "anchor_gains_db": [
+          26
+        ],
+        "anchor_observations": 1,
+        "constant_anchor_only": {
+          "circular_mae_deg": 10.832922626011547,
+          "circular_max_deg": 37.02681610207303,
+          "circular_p95_deg": 25.081827161905146,
+          "circular_rmse_deg": 13.582111359005044,
+          "n": 3759
+        },
+        "intercept_shift_deg": 17.856570332704628,
+        "scored_observations": 3759,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.227481091662435,
+          "circular_max_deg": 11.498596093885514,
+          "circular_p95_deg": 7.313201322500469,
+          "circular_rmse_deg": 3.8810445179316684,
+          "n": 3759
+        }
+      },
+      "supported_target_observations": 3760,
+      "unanchored": {
+        "circular_mae_deg": 17.743529234591623,
+        "circular_max_deg": 29.35516642659014,
+        "circular_p95_deg": 25.102804989253976,
+        "circular_rmse_deg": 18.162559070057497,
+        "n": 3760
+      }
+    },
+    "104000f6ad020002fdff3a00bba2f096a1->104000707f0700120f001a0095f2dbee49:5866000000": {
+      "five_equal_gain_anchors": {
+        "anchor_gains_db": [
+          0,
+          16,
+          26,
+          41,
+          45
+        ],
+        "anchor_observations": 5,
+        "constant_anchor_only": {
+          "circular_mae_deg": 10.78534632519129,
+          "circular_max_deg": 38.02074436667604,
+          "circular_p95_deg": 27.520076179705338,
+          "circular_rmse_deg": 13.699036663994935,
+          "n": 3502
+        },
+        "intercept_shift_deg": 30.831856873173727,
+        "scored_observations": 3502,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 3.8560920286424514,
+          "circular_max_deg": 15.345936744077433,
+          "circular_p95_deg": 9.985673710733087,
+          "circular_rmse_deg": 4.850037995373839,
+          "n": 3502
+        }
+      },
+      "optimal_intercept_lower_bound": {
+        "circular_mae_deg": 3.887503929629167,
+        "circular_max_deg": 14.011620143137645,
+        "circular_p95_deg": 8.824892236963148,
+        "circular_rmse_deg": 4.663053626059438,
+        "intercept_shift_deg": 32.16617347411352,
+        "n": 3507,
+        "warning": "Uses every target observation to align the intercept and is therefore a descriptive lower bound, not an operational policy."
+      },
+      "single_26_db_equal_gain": {
+        "anchor_gains_db": [
+          26
+        ],
+        "anchor_observations": 1,
+        "constant_anchor_only": {
+          "circular_mae_deg": 11.948848894767389,
+          "circular_max_deg": 39.45277094293546,
+          "circular_p95_deg": 28.291613134258146,
+          "circular_rmse_deg": 14.628127119164954,
+          "n": 3506
+        },
+        "intercept_shift_deg": 24.628181300090247,
+        "scored_observations": 3506,
+        "source_shape_plus_anchor": {
+          "circular_mae_deg": 7.560031027393473,
+          "circular_max_deg": 21.549612317160918,
+          "circular_p95_deg": 16.18929503658929,
+          "circular_rmse_deg": 8.867610063927494,
+          "n": 3506
+        }
+      },
+      "supported_target_observations": 3507,
+      "unanchored": {
+        "circular_mae_deg": 32.16927051584613,
+        "circular_max_deg": 46.17779361725117,
+        "circular_p95_deg": 40.817462774872716,
+        "circular_rmse_deg": 32.50547684697958,
+        "n": 3507
+      }
+    }
+  },
+  "limitations": [
+    "Only completely captured epoch/frequency blocks are analyzed.",
+    "The paused source currently supplies epoch 0 only, so reboot, temperature, and repeat-epoch stability remain untested.",
+    "The compact stage basis was developed during epoch-0 exploration; repeat epochs must be treated as untouched confirmatory data.",
+    "Model comparison trusts stored quality decisions and phase values; run strict validation with IQ recomputation before deployment.",
+    "High-RX2-gain rail/DC failures remain explicit unsupported cells."
+  ],
+  "radios": {
+    "104000707f0700120f001a0095f2dbee49": {
+      "analysis_input_sha256": "bfb6217518420aa16bdadf2190d2b1833c32d707f1667b74edb8efe00048d024",
+      "completed_frames": 10658,
+      "dataset_path": "artifacts/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1/104000707f0700120f001a0095f2dbee49/calibration.v7.zarr",
+      "frequency_results": {
+        "5804000000": {
+          "complete_epochs": [
+            0
+          ],
+          "quadrant_holdout": {
+            "evaluation": "Hold out each low/high RX1-by-RX2 quadrant in turn while retaining every tested gain state elsewhere in training.",
+            "models": {
+              "categorical_ordered": {
+                "circular_mae_deg": 1.968872511392165,
+                "circular_max_deg": 8.145007577350142,
+                "circular_p95_deg": 4.373921370765144,
+                "circular_rmse_deg": 2.363798226858922,
+                "label": "Ordered categorical additive",
+                "n": 2486
+              },
+              "stage_ordered": {
+                "circular_mae_deg": 1.8184939693693625,
+                "circular_max_deg": 6.426334545179758,
+                "circular_p95_deg": 3.902491784158405,
+                "circular_rmse_deg": 2.1701770907214195,
+                "label": "Ordered stage-boundary model",
+                "n": 2486
+              },
+              "stage_shared": {
+                "circular_mae_deg": 5.759743501228639,
+                "circular_max_deg": 13.260548568059502,
+                "circular_p95_deg": 9.575966110485185,
+                "circular_rmse_deg": 6.365403549860899,
+                "label": "Shared signed stage curve",
+                "n": 2486
+              }
+            },
+            "restriction": {
+              "gain_range_db": [
+                -10,
+                45
+              ],
+              "low_high_split_db": 18,
+              "maximum_absolute_gain_mismatch_db": 30,
+              "supported_test_observations_by_quadrant": {
+                "00": 784,
+                "01": 459,
+                "10": 459,
+                "11": 784
+              }
+            }
+          },
+          "quality_valid_observations": 3760,
+          "random_cell_five_fold": {
+            "evaluation": "Five deterministic folds hold out complete ordered gain-pair cells; all repeats of a cell remain in the same fold.",
+            "models": {
+              "categorical_ordered": {
+                "circular_mae_deg": 1.1577879100676807,
+                "circular_max_deg": 6.657531887887463,
+                "circular_p95_deg": 3.2641664880784074,
+                "circular_rmse_deg": 1.5467218544556027,
+                "label": "Ordered categorical additive",
+                "mae_reduction_vs_constant_fraction": 0.8914700296142702,
+                "n": 2415,
+                "nominal_parameters": 145
+              },
+              "categorical_shared": {
+                "circular_mae_deg": 3.868374422942328,
+                "circular_max_deg": 10.820361141820745,
+                "circular_p95_deg": 7.926843779713109,
+                "circular_rmse_deg": 4.614726605631948,
+                "label": "Shared signed categorical curve",
+                "mae_reduction_vs_constant_fraction": 0.6373821509862692,
+                "n": 2415,
+                "nominal_parameters": 73
+              },
+              "constant": {
+                "circular_mae_deg": 10.667909573298056,
+                "circular_max_deg": 37.496704649092415,
+                "circular_p95_deg": 24.77763749787434,
+                "circular_rmse_deg": 13.375110283842258,
+                "label": "Constant baseline",
+                "mae_reduction_vs_constant_fraction": 0.0,
+                "n": 2415,
+                "nominal_parameters": 1
+              },
+              "linear_difference": {
+                "circular_mae_deg": 10.710358781121975,
+                "circular_max_deg": 34.18178169298371,
+                "circular_p95_deg": 23.4441977870264,
+                "circular_rmse_deg": 13.120403133577499,
+                "label": "Linear gain difference",
+                "mae_reduction_vs_constant_fraction": -0.003979149573049456,
+                "n": 2415,
+                "nominal_parameters": 2
+              },
+              "linear_ordered": {
+                "circular_mae_deg": 10.00723028270116,
+                "circular_max_deg": 35.33149036628482,
+                "circular_p95_deg": 23.615941062338305,
+                "circular_rmse_deg": 12.311464456583934,
+                "label": "Separate linear RX1/RX2",
+                "mae_reduction_vs_constant_fraction": 0.06193146708429054,
+                "n": 2415,
+                "nominal_parameters": 3
+              },
+              "stage_ordered": {
+                "circular_mae_deg": 1.427208305612804,
+                "circular_max_deg": 7.425364254455886,
+                "circular_p95_deg": 3.7917910574238167,
+                "circular_rmse_deg": 1.8414921989002433,
+                "label": "Ordered stage-boundary model",
+                "mae_reduction_vs_constant_fraction": 0.8662148103331201,
+                "n": 2415,
+                "nominal_parameters": 15
+              },
+              "stage_shared": {
+                "circular_mae_deg": 3.796641083361101,
+                "circular_max_deg": 13.593196517742381,
+                "circular_p95_deg": 8.254424339470958,
+                "circular_rmse_deg": 4.5911020916107175,
+                "label": "Shared signed stage curve",
+                "mae_reduction_vs_constant_fraction": 0.6441063680494488,
+                "n": 2415,
+                "nominal_parameters": 8
+              }
+            }
+          },
+          "time_and_order": {
+            "linear_residual_drift_deg_per_hour": -0.02959172502645046,
+            "prior_total_gain_jump_vs_absolute_residual_spearman": {
+              "p_value": 0.5915777786020808,
+              "rho": -0.008752925194833486
+            },
+            "timestamp_vs_signed_residual_spearman": {
+              "p_value": 0.9446383762080662,
+              "rho": 0.001132838616027119
+            },
+            "training_residual": {
+              "circular_mae_deg": 1.0989439972871506,
+              "circular_max_deg": 7.144604787310485,
+              "circular_p95_deg": 3.0744217743365283,
+              "circular_rmse_deg": 1.4672797113165956,
+              "n": 3760
+            }
+          }
+        },
+        "5866000000": {
+          "complete_epochs": [
+            0
+          ],
+          "quadrant_holdout": {
+            "evaluation": "Hold out each low/high RX1-by-RX2 quadrant in turn while retaining every tested gain state elsewhere in training.",
+            "models": {
+              "categorical_ordered": {
+                "circular_mae_deg": 2.025823778155513,
+                "circular_max_deg": 9.210425609289153,
+                "circular_p95_deg": 4.6126615096659425,
+                "circular_rmse_deg": 2.4699941092002313,
+                "label": "Ordered categorical additive",
+                "n": 2486
+              },
+              "stage_ordered": {
+                "circular_mae_deg": 1.848870998296262,
+                "circular_max_deg": 8.961366931474988,
+                "circular_p95_deg": 4.252666805001434,
+                "circular_rmse_deg": 2.261962936556549,
+                "label": "Ordered stage-boundary model",
+                "n": 2486
+              },
+              "stage_shared": {
+                "circular_mae_deg": 4.187177551284233,
+                "circular_max_deg": 10.918128374543707,
+                "circular_p95_deg": 7.625375194519165,
+                "circular_rmse_deg": 4.6920121585496215,
+                "label": "Shared signed stage curve",
+                "n": 2486
+              }
+            },
+            "restriction": {
+              "gain_range_db": [
+                -10,
+                45
+              ],
+              "low_high_split_db": 18,
+              "maximum_absolute_gain_mismatch_db": 30,
+              "supported_test_observations_by_quadrant": {
+                "00": 784,
+                "01": 459,
+                "10": 459,
+                "11": 784
+              }
+            }
+          },
+          "quality_valid_observations": 3670,
+          "random_cell_five_fold": {
+            "evaluation": "Five deterministic folds hold out complete ordered gain-pair cells; all repeats of a cell remain in the same fold.",
+            "models": {
+              "categorical_ordered": {
+                "circular_mae_deg": 1.2717624775233436,
+                "circular_max_deg": 7.806240512021866,
+                "circular_p95_deg": 3.479007863464101,
+                "circular_rmse_deg": 1.6989456296680125,
+                "label": "Ordered categorical additive",
+                "mae_reduction_vs_constant_fraction": 0.8787132053547002,
+                "n": 2352,
+                "nominal_parameters": 145
+              },
+              "categorical_shared": {
+                "circular_mae_deg": 2.7256976635168852,
+                "circular_max_deg": 9.742121933440963,
+                "circular_p95_deg": 6.089658528721172,
+                "circular_rmse_deg": 3.3101136602501833,
+                "label": "Shared signed categorical curve",
+                "mae_reduction_vs_constant_fraction": 0.7400527703695536,
+                "n": 2352,
+                "nominal_parameters": 73
+              },
+              "constant": {
+                "circular_mae_deg": 10.485580736489744,
+                "circular_max_deg": 36.16218273127653,
+                "circular_p95_deg": 27.003163716280422,
+                "circular_rmse_deg": 13.36228219996458,
+                "label": "Constant baseline",
+                "mae_reduction_vs_constant_fraction": 0.0,
+                "n": 2352,
+                "nominal_parameters": 1
+              },
+              "linear_difference": {
+                "circular_mae_deg": 10.419999902091757,
+                "circular_max_deg": 34.32178336729491,
+                "circular_p95_deg": 23.745180262068885,
+                "circular_rmse_deg": 12.760859644178968,
+                "label": "Linear gain difference",
+                "mae_reduction_vs_constant_fraction": 0.00625438266568934,
+                "n": 2352,
+                "nominal_parameters": 2
+              },
+              "linear_ordered": {
+                "circular_mae_deg": 10.034998742054164,
+                "circular_max_deg": 36.93394669840538,
+                "circular_p95_deg": 24.08117532018798,
+                "circular_rmse_deg": 12.360836294571145,
+                "label": "Separate linear RX1/RX2",
+                "mae_reduction_vs_constant_fraction": 0.04297158219072772,
+                "n": 2352,
+                "nominal_parameters": 3
+              },
+              "stage_ordered": {
+                "circular_mae_deg": 1.4527261770954631,
+                "circular_max_deg": 7.894736189244955,
+                "circular_p95_deg": 3.919154510769757,
+                "circular_rmse_deg": 1.9018161299610927,
+                "label": "Ordered stage-boundary model",
+                "mae_reduction_vs_constant_fraction": 0.8614548670594862,
+                "n": 2352,
+                "nominal_parameters": 15
+              },
+              "stage_shared": {
+                "circular_mae_deg": 2.704033512164653,
+                "circular_max_deg": 11.523226189612181,
+                "circular_p95_deg": 6.1296289625940625,
+                "circular_rmse_deg": 3.3125264785059634,
+                "label": "Shared signed stage curve",
+                "mae_reduction_vs_constant_fraction": 0.7421188601643554,
+                "n": 2352,
+                "nominal_parameters": 8
+              }
+            }
+          },
+          "time_and_order": {
+            "linear_residual_drift_deg_per_hour": 0.023334599473289797,
+            "prior_total_gain_jump_vs_absolute_residual_spearman": {
+              "p_value": 0.8580322485995169,
+              "rho": 0.0029537571220372358
+            },
+            "timestamp_vs_signed_residual_spearman": {
+              "p_value": 0.37193918730137265,
+              "rho": 0.014742404155570236
+            },
+            "training_residual": {
+              "circular_mae_deg": 1.2354481860796855,
+              "circular_max_deg": 7.494606032952543,
+              "circular_p95_deg": 3.4020402163776966,
+              "circular_rmse_deg": 1.6440317542215261,
+              "n": 3670
+            }
+          }
+        }
+      },
+      "full_and_partial_blocks": [
+        {
+          "completed_frames": 5329,
+          "epoch": 0,
+          "frequency_hz": 5804000000,
+          "frequency_index": 1
+        },
+        {
+          "completed_frames": 5329,
+          "epoch": 0,
+          "frequency_hz": 5866000000,
+          "frequency_index": 3
+        }
+      ],
+      "provenance": {
+        "calibration_run_signature": "8e94db752080ffbd682821dea50f2fbbfeb261421d92f0c9c0713fd369246179",
+        "calibration_software_git_sha": "d7c959f00409e1541f91169e56c7804fc8a9f781",
+        "firmware_gadget_git_sha": "54610e01c6fd6a69df77f148ea0dc88f9cb18063",
+        "firmware_git_sha": "dd6b1f4db710abc20693888db08e8da2427e0dc3",
+        "firmware_image_sha256": "f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4",
+        "firmware_release_tag": "v0.38-plutoplus-spf-gain-rssi-v2",
+        "gain_metadata_protocol_version": 2,
+        "phase_convention": "angle(rx1) - angle(rx2)",
+        "sdr_serial": "104000707f0700120f001a0095f2dbee49"
+      }
+    },
+    "104000f6ad020002fdff3a00bba2f096a1": {
+      "analysis_input_sha256": "496f4575f7f6292ca4742258a36b217ae1d11a8424acadb97b8dae564e274564",
+      "completed_frames": 13024,
+      "dataset_path": "artifacts/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1/104000f6ad020002fdff3a00bba2f096a1/calibration.v7.zarr",
+      "frequency_results": {
+        "5804000000": {
+          "complete_epochs": [
+            0
+          ],
+          "quadrant_holdout": {
+            "evaluation": "Hold out each low/high RX1-by-RX2 quadrant in turn while retaining every tested gain state elsewhere in training.",
+            "models": {
+              "categorical_ordered": {
+                "circular_mae_deg": 1.7048638265491503,
+                "circular_max_deg": 9.29600991670502,
+                "circular_p95_deg": 4.577279714107869,
+                "circular_rmse_deg": 2.2128351223641656,
+                "label": "Ordered categorical additive",
+                "n": 2486
+              },
+              "stage_ordered": {
+                "circular_mae_deg": 1.6230435265161682,
+                "circular_max_deg": 9.112456004532707,
+                "circular_p95_deg": 4.468227403431633,
+                "circular_rmse_deg": 2.122925160172602,
+                "label": "Ordered stage-boundary model",
+                "n": 2486
+              },
+              "stage_shared": {
+                "circular_mae_deg": 2.3660906682646186,
+                "circular_max_deg": 9.568125082131546,
+                "circular_p95_deg": 5.413834244559315,
+                "circular_rmse_deg": 2.8745635720402434,
+                "label": "Shared signed stage curve",
+                "n": 2486
+              }
+            },
+            "restriction": {
+              "gain_range_db": [
+                -10,
+                45
+              ],
+              "low_high_split_db": 18,
+              "maximum_absolute_gain_mismatch_db": 30,
+              "supported_test_observations_by_quadrant": {
+                "00": 784,
+                "01": 459,
+                "10": 459,
+                "11": 784
+              }
+            }
+          },
+          "quality_valid_observations": 3559,
+          "random_cell_five_fold": {
+            "evaluation": "Five deterministic folds hold out complete ordered gain-pair cells; all repeats of a cell remain in the same fold.",
+            "models": {
+              "categorical_ordered": {
+                "circular_mae_deg": 1.4115690101908815,
+                "circular_max_deg": 7.883928705284874,
+                "circular_p95_deg": 3.9883596073769416,
+                "circular_rmse_deg": 1.8696466266001392,
+                "label": "Ordered categorical additive",
+                "mae_reduction_vs_constant_fraction": 0.8432000601470732,
+                "n": 2272,
+                "nominal_parameters": 145
+              },
+              "categorical_shared": {
+                "circular_mae_deg": 1.923199118662237,
+                "circular_max_deg": 9.506664860981173,
+                "circular_p95_deg": 4.762404020763416,
+                "circular_rmse_deg": 2.426180440263195,
+                "label": "Shared signed categorical curve",
+                "mae_reduction_vs_constant_fraction": 0.7863671531789564,
+                "n": 2272,
+                "nominal_parameters": 73
+              },
+              "constant": {
+                "circular_mae_deg": 9.002356834542708,
+                "circular_max_deg": 35.17832971805959,
+                "circular_p95_deg": 23.062657856088656,
+                "circular_rmse_deg": 11.94543463019439,
+                "label": "Constant baseline",
+                "mae_reduction_vs_constant_fraction": 0.0,
+                "n": 2272,
+                "nominal_parameters": 1
+              },
+              "linear_difference": {
+                "circular_mae_deg": 9.26814774606787,
+                "circular_max_deg": 32.91640214448775,
+                "circular_p95_deg": 22.156618936074686,
+                "circular_rmse_deg": 11.647922771035223,
+                "label": "Linear gain difference",
+                "mae_reduction_vs_constant_fraction": -0.029524591883016926,
+                "n": 2272,
+                "nominal_parameters": 2
+              },
+              "linear_ordered": {
+                "circular_mae_deg": 9.1903652817841,
+                "circular_max_deg": 31.7296669688431,
+                "circular_p95_deg": 22.03464379388617,
+                "circular_rmse_deg": 11.491456526865147,
+                "label": "Separate linear RX1/RX2",
+                "mae_reduction_vs_constant_fraction": -0.020884358473771014,
+                "n": 2272,
+                "nominal_parameters": 3
+              },
+              "stage_ordered": {
+                "circular_mae_deg": 1.579454851748296,
+                "circular_max_deg": 8.26209281369695,
+                "circular_p95_deg": 4.294991768466068,
+                "circular_rmse_deg": 2.0665410366352934,
+                "label": "Ordered stage-boundary model",
+                "mae_reduction_vs_constant_fraction": 0.8245509614007066,
+                "n": 2272,
+                "nominal_parameters": 15
+              },
+              "stage_shared": {
+                "circular_mae_deg": 2.024907520957768,
+                "circular_max_deg": 8.387936868981042,
+                "circular_p95_deg": 4.863695777009607,
+                "circular_rmse_deg": 2.534583084343108,
+                "label": "Shared signed stage curve",
+                "mae_reduction_vs_constant_fraction": 0.7750691781969752,
+                "n": 2272,
+                "nominal_parameters": 8
+              }
+            }
+          },
+          "time_and_order": {
+            "linear_residual_drift_deg_per_hour": 0.3267360511999664,
+            "prior_total_gain_jump_vs_absolute_residual_spearman": {
+              "p_value": 0.0014240942230375677,
+              "rho": 0.053447939618297795
+            },
+            "timestamp_vs_signed_residual_spearman": {
+              "p_value": 0.00018291769366044597,
+              "rho": 0.06267701469807731
+            },
+            "training_residual": {
+              "circular_mae_deg": 1.3669608863329696,
+              "circular_max_deg": 7.892184611974498,
+              "circular_p95_deg": 3.9074747621090555,
+              "circular_rmse_deg": 1.8065334991882447,
+              "n": 3559
+            }
+          }
+        },
+        "5866000000": {
+          "complete_epochs": [
+            0
+          ],
+          "quadrant_holdout": {
+            "evaluation": "Hold out each low/high RX1-by-RX2 quadrant in turn while retaining every tested gain state elsewhere in training.",
+            "models": {
+              "categorical_ordered": {
+                "circular_mae_deg": 1.781752951755991,
+                "circular_max_deg": 9.822967225136658,
+                "circular_p95_deg": 4.455774192776006,
+                "circular_rmse_deg": 2.250746163646933,
+                "label": "Ordered categorical additive",
+                "n": 2486
+              },
+              "stage_ordered": {
+                "circular_mae_deg": 1.6335233311708925,
+                "circular_max_deg": 9.033416848258227,
+                "circular_p95_deg": 3.9960877525531524,
+                "circular_rmse_deg": 2.0642432035881098,
+                "label": "Ordered stage-boundary model",
+                "n": 2486
+              },
+              "stage_shared": {
+                "circular_mae_deg": 2.077120169293752,
+                "circular_max_deg": 10.441992392019955,
+                "circular_p95_deg": 5.2510109464045245,
+                "circular_rmse_deg": 2.6350286158870575,
+                "label": "Shared signed stage curve",
+                "n": 2486
+              }
+            },
+            "restriction": {
+              "gain_range_db": [
+                -10,
+                45
+              ],
+              "low_high_split_db": 18,
+              "maximum_absolute_gain_mismatch_db": 30,
+              "supported_test_observations_by_quadrant": {
+                "00": 784,
+                "01": 459,
+                "10": 459,
+                "11": 784
+              }
+            }
+          },
+          "quality_valid_observations": 3405,
+          "random_cell_five_fold": {
+            "evaluation": "Five deterministic folds hold out complete ordered gain-pair cells; all repeats of a cell remain in the same fold.",
+            "models": {
+              "categorical_ordered": {
+                "circular_mae_deg": 1.491146929330424,
+                "circular_max_deg": 9.761135743396581,
+                "circular_p95_deg": 4.008500072312283,
+                "circular_rmse_deg": 1.9530058957638141,
+                "label": "Ordered categorical additive",
+                "mae_reduction_vs_constant_fraction": 0.8338324390086151,
+                "n": 2183,
+                "nominal_parameters": 145
+              },
+              "categorical_shared": {
+                "circular_mae_deg": 1.8739084023095485,
+                "circular_max_deg": 10.736318771753822,
+                "circular_p95_deg": 4.898476007261944,
+                "circular_rmse_deg": 2.3904590998760518,
+                "label": "Shared signed categorical curve",
+                "mae_reduction_vs_constant_fraction": 0.7911790028143892,
+                "n": 2183,
+                "nominal_parameters": 73
+              },
+              "constant": {
+                "circular_mae_deg": 8.973754687340772,
+                "circular_max_deg": 36.48398554031459,
+                "circular_p95_deg": 24.42489325337355,
+                "circular_rmse_deg": 11.812496372090106,
+                "label": "Constant baseline",
+                "mae_reduction_vs_constant_fraction": 0.0,
+                "n": 2183,
+                "nominal_parameters": 1
+              },
+              "linear_difference": {
+                "circular_mae_deg": 8.985484169809542,
+                "circular_max_deg": 31.802506427066962,
+                "circular_p95_deg": 21.344259092519412,
+                "circular_rmse_deg": 11.21976250266013,
+                "label": "Linear gain difference",
+                "mae_reduction_vs_constant_fraction": -0.00130708748761732,
+                "n": 2183,
+                "nominal_parameters": 2
+              },
+              "linear_ordered": {
+                "circular_mae_deg": 8.988920628440429,
+                "circular_max_deg": 31.974635407286694,
+                "circular_p95_deg": 21.476357700405032,
+                "circular_rmse_deg": 11.220469791288892,
+                "label": "Separate linear RX1/RX2",
+                "mae_reduction_vs_constant_fraction": -0.0016900329492013366,
+                "n": 2183,
+                "nominal_parameters": 3
+              },
+              "stage_ordered": {
+                "circular_mae_deg": 1.515364821030982,
+                "circular_max_deg": 8.996901416920833,
+                "circular_p95_deg": 4.002562618698382,
+                "circular_rmse_deg": 1.9816136706088132,
+                "label": "Ordered stage-boundary model",
+                "mae_reduction_vs_constant_fraction": 0.8311336922137287,
+                "n": 2183,
+                "nominal_parameters": 15
+              },
+              "stage_shared": {
+                "circular_mae_deg": 2.047232778841354,
+                "circular_max_deg": 10.07968144644794,
+                "circular_p95_deg": 5.2015536953527635,
+                "circular_rmse_deg": 2.597295147725218,
+                "label": "Shared signed stage curve",
+                "mae_reduction_vs_constant_fraction": 0.7718644145990112,
+                "n": 2183,
+                "nominal_parameters": 8
+              }
+            }
+          },
+          "time_and_order": {
+            "linear_residual_drift_deg_per_hour": -0.14649616585385197,
+            "prior_total_gain_jump_vs_absolute_residual_spearman": {
+              "p_value": 0.43204962181122386,
+              "rho": 0.013468895627965735
+            },
+            "timestamp_vs_signed_residual_spearman": {
+              "p_value": 0.0143370329394639,
+              "rho": -0.04196104570122593
+            },
+            "training_residual": {
+              "circular_mae_deg": 1.416076161107142,
+              "circular_max_deg": 9.265646606591668,
+              "circular_p95_deg": 3.7976617403129245,
+              "circular_rmse_deg": 1.848964371891776,
+              "n": 3405
+            }
+          }
+        }
+      },
+      "full_and_partial_blocks": [
+        {
+          "completed_frames": 2366,
+          "epoch": 0,
+          "excluded_as_partial": true,
+          "frequency_hz": 5766000000,
+          "frequency_index": 0
+        },
+        {
+          "completed_frames": 5329,
+          "epoch": 0,
+          "frequency_hz": 5804000000,
+          "frequency_index": 1
+        },
+        {
+          "completed_frames": 5329,
+          "epoch": 0,
+          "frequency_hz": 5866000000,
+          "frequency_index": 3
+        }
+      ],
+      "provenance": {
+        "calibration_run_signature": "5b8d39a0c3be33f5bb0cb0b32836e863a6f3c7c3c58507b4eb91e94b1f2eb5c4",
+        "calibration_software_git_sha": "d7c959f00409e1541f91169e56c7804fc8a9f781",
+        "firmware_gadget_git_sha": "54610e01c6fd6a69df77f148ea0dc88f9cb18063",
+        "firmware_git_sha": "dd6b1f4db710abc20693888db08e8da2427e0dc3",
+        "firmware_image_sha256": "f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4",
+        "firmware_release_tag": "v0.38-plutoplus-spf-gain-rssi-v2",
+        "gain_metadata_protocol_version": 2,
+        "phase_convention": "angle(rx1) - angle(rx2)",
+        "sdr_serial": "104000f6ad020002fdff3a00bba2f096a1"
+      }
+    }
+  },
+  "schema": "spf.calibration.dual_rx_gain_frequency.comparison",
+  "schema_version": 1,
+  "stage_boundaries_db": [
+    -6,
+    6,
+    16,
+    23,
+    26,
+    41
+  ],
+  "stage_boundary_provenance": {
+    "derivation": "Starts of LNA/mixer-byte plateaus lasting at least three requested gain states. The 52..62 dB one-index-per-dB mixer ramp is represented by the linear term.",
+    "high_band_requested_gain_range_db": [
+      -10,
+      62
+    ],
+    "linux_git_sha": "d798b0d821b85ebd51ecffbfa68d8e4d69b77132",
+    "selection_warning": "This exploratory basis was designed after epoch-0 inspection. Its coefficients and model choice require confirmation on the untouched repeat epochs.",
+    "source_path": "drivers/iio/adc/ad9361.c"
+  }
+}

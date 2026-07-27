@@ -65,6 +65,33 @@ python -m spf.calibrations.dual_rx_gain_frequency report \
   --output-dir artifacts/dual_rx_gain_frequency/pilot/SERIAL/analysis
 ```
 
+To reproduce the stricter comparison of constant, gain-difference, ordered
+stage-boundary, and categorical models across every serial in one run:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency compare-models \
+  --config spf/calibrations/dual_rx_gain_frequency/configs/coarse_5ghz.yaml \
+  --artifact-root artifacts/dual_rx_gain_frequency/RUN_NAME \
+  --output-dir spf/calibrations/dual_rx_gain_frequency/reports/RUN_NAME
+```
+
+This read-only command selects only completely captured epoch/frequency blocks,
+hashes every V7 scalar array used by the analysis, and writes:
+
+- `comparative_analysis.json`, containing held-out cell, held-out quadrant,
+  drift/order, cross-frequency, and cross-radio results;
+- `calibrations/SERIAL.json`, containing compact stage-boundary and exact
+  categorical coefficients plus the fail-closed list of production-supported
+  ordered pairs; and
+- `REPORT.md`, containing model-error tables and recommendations for known and
+  previously unseen radios.
+
+The committed report for the paused 2026-07-27 run is in
+`reports/coarse_5ghz_20260727_dds_v1/`. Its source IQ remains under
+`artifacts/` and is intentionally gitignored because of its size. A matching
+scalar-input SHA-256 in the regenerated report proves that the same model
+inputs were used; it does not replace full-IQ validation.
+
 When diagnosing an AD9361 DC-correction failure, capture a read-only snapshot
 of both RF-input correction banks:
 
@@ -94,6 +121,16 @@ frequency:
 angle(RX1) - angle(RX2)
     = frequency intercept + RX1_effect(gain1) + RX2_effect(gain2) + residual
 ```
+
+The `compare-models` command also evaluates a compact ordered stage model. Its
+candidate boundaries are derived reproducibly from the high-band full gain
+table in `drivers/iio/adc/ad9361.c` at Linux commit
+`d798b0d821b85ebd51ecffbfa68d8e4d69b77132`: start a new segment when the
+LNA/mixer byte begins a plateau of at least three requested gain states. This
+yields `-6, 6, 16, 23, 26, 41 dB`; the final 52–62 dB one-index-per-dB mixer
+ramp is represented by the linear term. Because this compact basis was
+developed while inspecting epoch 0, its apparent parsimony must be confirmed on
+the untouched repeat epochs before it is selected for deployment.
 
 The fit command evaluates predictions only on an epoch excluded from training.
 It also performs paired, identical-mask comparisons against:
