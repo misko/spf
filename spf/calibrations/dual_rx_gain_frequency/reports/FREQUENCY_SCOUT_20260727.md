@@ -1,11 +1,16 @@
-# Cross-band frequency scout — paused two-epoch analysis
+# Cross-band frequency scout — completed three-epoch analysis
 
 Date: 2026-07-27
 
-This is a deliberately provisional analysis of the paused cross-band scout.
-The datasets remain resumable. They contain two complete randomized epochs at
-every configured frequency and nine complete frequency blocks from the third
-epoch.
+The cross-band scout is structurally complete for both radios. All three
+randomized epochs were captured at every configured frequency. Cells whose
+stored IQ does not support a confident phase estimate remain explicit quality
+failures and are excluded from fitting.
+
+Fully plotted per-radio reports:
+
+- [Radio A](frequency_scout_cross_band_20260727_v1/104000f6ad020002fdff3a00bba2f096a1/REPORT.md)
+- [Radio B](frequency_scout_cross_band_20260727_v1/104000707f0700120f001a0095f2dbee49/REPORT.md)
 
 ## Captured evidence
 
@@ -13,13 +18,13 @@ epoch.
   `artifacts/dual_rx_gain_frequency/frequency_scout_cross_band_20260727_v1`
 - Radio A: `104000f6ad020002fdff3a00bba2f096a1`
 - Radio B: `104000707f0700120f001a0095f2dbee49`
-- V7 frames: 927/1,269 durable frames per radio
+- V7 frames: 1,269/1,269 durable frames per radio
 - Frequencies: 47 points from 433 MHz through 5.9 GHz
 - Ordered gain grid at every frequency: `[-1, 26, 62]²`
-- Complete randomized epochs: two
-- Strict stored-IQ validation: all 927 completed frames readable on both radios
-- Phase-supported cells: 368/423 on each radio
-- Quality-valid frames: 804 Radio A; 803 Radio B
+- Complete randomized epochs: three
+- Strict stored-IQ validation: all 1,269 frames readable on both radios
+- Phase-supported cells: 369/423 Radio A; 368/423 Radio B
+- Quality-valid frames: 1,105 on each radio
 
 The unsupported cells are retained in V7. They fail closed because one channel
 is too weak, its tone SNR/coherence is inadequate, or its segmented phase is
@@ -29,12 +34,12 @@ Generated-evidence SHA-256 values:
 
 | Artifact | SHA-256 |
 |---|---|
-| Radio A validation | `46abadf81d7c05fb422fa6e2a3d5f056b9da6db98f51aab6dc61a4941fed20b3` |
-| Radio A model | `b689778553059b307d4bee4e6ccdfac6bf617445fc9b94514a2ea1f295dc7d9c` |
-| Radio B validation | `d5495f836940125840ca3d438edb3fed3477f04a7643c975f22313d819b71f06` |
-| Radio B model | `ae023fb9648002e0ad84a05f22f737e277a93ec09eecdd12a3c47aa4c68dee29` |
-| Cross-radio analysis | `91121b108689b31d7b9027aa8419776fa4d7be13a26b9a2ef15ea2820a4db617` |
-| Reproducible comparative analysis | `244335b0a18ebea1f3387490e63eac0b6b6af68d0d48d0800727ebf8362e86ca` |
+| Radio A validation | `0a81463315cf8a65833cead7a7c3691b16e2b62d7b90081883d85b9586b7d247` |
+| Radio A model | `a14e313e6c33867fbf6c28e7bcb18f96e6076419c704d72835eb0518b69d4e30` |
+| Radio B validation | `682c5cf4431fdf9dac69d8c53e3bace64faa319d54661ee42633b794ba736d33` |
+| Radio B model | `a2d3b5215da36974272763082717d6da8bc2309d91cbc0b2e5dd4388f33ec9f8` |
+| Cross-radio analysis | `fcb3a27e66679f64893ececdbbcd78d826f0eb81674a20ff043aab2b188ee230` |
+| Reproducible comparative analysis | `2f9700eb731636a9536d192c7bceb28431e6c912bb35c671104f07bddbedab06` |
 
 ## Parsimonious model comparison
 
@@ -43,15 +48,15 @@ eligible observations.
 
 | Model | Radio A MAE | Radio B MAE | Interpretation |
 |---|---:|---:|---|
-| Per-frequency ordered additive | 1.04° | 0.94° | Best supported simple model |
-| Per-frequency additive plus cell interaction | 1.03° | 0.95° | Within the predeclared 0.1° equivalence margin; reject extra interaction |
-| Gain-difference-only | 1.22° | 1.35° | Worse; ordered RX1/RX2 effects matter |
+| Per-frequency ordered additive | 0.99° | 0.88° | Best supported simple model |
+| Per-frequency additive plus cell interaction | 0.99° | 0.88° | Within the predeclared 0.1° equivalence margin; reject extra interaction |
+| Gain-difference-only | 1.18° | 1.28° | Worse; ordered RX1/RX2 effects matter |
 | One gain curve shared globally | 3.90° | 3.83° | Too coarse |
-| One gain curve per AD9361 gain-table band | 3.30° | 3.33° | Better than global sharing, but still materially worse |
-| Constant-plus-linear-delay frequency baseline | 10.16° | 8.97° | Strongly rejected |
+| One gain curve per AD9361 gain-table band | 3.27° | 3.28° | Better than global sharing, but still materially worse |
+| Constant-plus-linear-delay frequency baseline | 10.04° | 9.35° | Strongly rejected |
 
 At a minimum 10 dB tone SNR in both channels, the selected additive model
-improves to 0.87° MAE for Radio A and 0.83° for Radio B.
+improves to 0.85° MAE for Radio A and 0.78° for Radio B.
 
 The selected measured-frequency model is:
 
@@ -67,7 +72,7 @@ With three gains, this uses five identifiable parameters per measured
 frequency: one intercept and two non-reference effects for each receiver.
 Across 47 frequencies that is 235 nominal parameters. Sharing gain effects
 only within the three hardware gain-table bands reduces this to 59 nominal
-parameters, but adds 2.26° and 2.39° held-out MAE for Radios A and B
+parameters, but adds 2.28° and 2.40° held-out MAE for Radios A and B
 respectively. That reduction is not justified for phase correction.
 
 The interaction comparison shows that a nine-cell lookup table is unnecessary
@@ -83,8 +88,8 @@ anchors from scoring:
 
 | Source → target | Frames | All-frequency MAE / RMSE / max | 5.7–5.9 GHz MAE / RMSE / max |
 |---|---:|---:|---:|
-| Radio A → Radio B | 700 | 2.05° / 3.10° / 15.46° | 4.62° / 6.61° / 15.46° |
-| Radio B → Radio A | 701 | 2.02° / 3.11° / 15.97° | 4.56° / 6.58° / 15.97° |
+| Radio A → Radio B | 964 | 2.09° / 3.18° / 15.38° | 4.48° / 6.55° / 15.38° |
+| Radio B → Radio A | 964 | 2.01° / 3.11° / 16.65° | 4.44° / 6.52° / 16.65° |
 
 Thus, the other radio's gain shape plus a same-session intercept is a useful
 fallback prior, but it is about twice as inaccurate overall as the
@@ -103,19 +108,19 @@ Individual global descriptive fits are:
 
 | Radio | Effective delay | Free-space-equivalent path | Fit residual MAE |
 |---|---:|---:|---:|
-| Radio A | 27.80 ps | 8.33 mm | 10.67° |
-| Radio B | 17.01 ps | 5.10 mm | 9.87° |
+| Radio A | 27.73 ps | 8.31 mm | 10.64° |
+| Radio B | 16.94 ps | 5.08 mm | 9.87° |
 
 The direct Radio-A-minus-Radio-B fit is 10.80 ps, or 3.24 mm
-free-space-equivalent, but its residual is 9.85° MAE and 90.49° maximum.
+free-space-equivalent, but its residual is 9.82° MAE and 90.77° maximum.
 Band-local results are inconsistent with one physical length:
 
 | Region | A-minus-B delay | Free-space equivalent | Residual MAE |
 |---|---:|---:|---:|
-| ≤1.3 GHz full table | -10.91 ps | -3.27 mm | 1.77° |
-| 1.3–4.0 GHz full table | 3.27 ps | 0.98 mm | 4.42° |
-| >4.0 GHz full table | 37.17 ps | 11.14 mm | 18.38° |
-| 5.7–5.9 GHz only | 510.40 ps | 153.01 mm | 0.69° |
+| ≤1.3 GHz full table | -10.17 ps | -3.05 mm | 1.83° |
+| 1.3–4.0 GHz full table | 3.36 ps | 1.01 mm | 4.45° |
+| >4.0 GHz full table | 37.61 ps | 11.28 mm | 18.31° |
+| 5.7–5.9 GHz only | 511.42 ps | 153.32 mm | 0.60° |
 
 The locally precise but physically implausible 153 mm result demonstrates why
 a short frequency interval can make radio-specific analogue behavior look like
@@ -133,8 +138,8 @@ experiment does not isolate it.
 5. Do not interpolate the baseline to an unseen frequency from a simple delay
    or low-order polynomial. Measure a same-session equal-gain baseline or add
    direct calibration data at the target frequency.
-6. Resume the third epoch before promoting these provisional models to final
-   calibration artifacts.
+6. Treat the completed scout as the design gate for the predeclared dense
+   survey, not as a substitute for its intermediate-gain coverage.
 7. To isolate PCB trace length, repeat with a common external source and swap
    the RX cables. A radio-internal term should remain with the radio; an
    external path term should follow or reverse with the cable swap.
@@ -165,8 +170,10 @@ channel can legitimately fall below the phase-quality threshold.
 Pass/fail conditions are fixed before starting the dense artifact:
 
 1. **Scout completion:** both serials reach 1,269/1,269 durable frames; strict
-   V7/full-IQ validation passes; every configured cell has three completed
-   attempts. A weak frame may fail phase quality but may not be missing.
+   V7/full-IQ structural validation finds no missing, corrupt, metadata-invalid,
+   or scalar-recomputation-mismatched frame; every configured cell has three
+   completed attempts. A weak frame may fail phase quality but may not be
+   missing.
 2. **Dense structural capture:** both serials reach 10,404/10,404 durable
    frames with the configured firmware hashes, protocol v2, serial, schedule,
    shape, and gain/RSSI provenance. Any missing, corrupt, or mismatched frame
@@ -186,9 +193,8 @@ Pass/fail conditions are fixed before starting the dense artifact:
    Nearby committed centres such as 2.4671 GHz or 5.839 GHz require their own
    capture unless deployment is standardized on a calibrated anchor.
 
-Collection remains paused at the durable scout checkpoint while this analysis
-is reviewed. Resumption must use the unchanged scout configuration and output
-directory; the dense survey must use a new output directory.
+The scout collection is complete. The dense survey must use its unchanged
+predeclared configuration and a new output directory.
 
 ## Reproduction
 

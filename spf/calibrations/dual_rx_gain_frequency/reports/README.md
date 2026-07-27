@@ -9,6 +9,9 @@ committed report records SHA-256 hashes of the exact inputs it used.
 
 | Report | Scope | Status |
 |---|---|---|
+| [Completed cross-band scout](FREQUENCY_SCOUT_20260727.md) | Two radios, 47 frequencies, three gains per receiver, three randomized epochs | Structurally complete; weak cells remain explicitly unsupported |
+| [Plotted Radio A model](frequency_scout_cross_band_20260727_v1/104000f6ad020002fdff3a00bba2f096a1/REPORT.md) | 47 per-frequency data-versus-fit figures plus overview plots | Complete three-epoch model |
+| [Plotted Radio B model](frequency_scout_cross_band_20260727_v1/104000707f0700120f001a0095f2dbee49/REPORT.md) | 47 per-frequency data-versus-fit figures plus overview plots | Complete three-epoch model |
 | [Phase model comparison](coarse_5ghz_20260727_dds_v1/REPORT.md) | Two radios, complete epoch-0 blocks at 5804 and 5866 MHz | Preliminary model-shape evidence only |
 | [RF-DC recovery: …00bba2f096a1](rx2_rf_dc_20260727_104000f6ad020002fdff3a00bba2f096a1/REPORT.md) | 5866 MHz, RX2 45–62 dB | Recovery passed, 24/24 post-recovery TX-on frames valid |
 | [RF-DC recovery: …0095f2dbee49](rx2_rf_dc_20260727_104000707f0700120f001a0095f2dbee49/REPORT.md) | 5866 MHz, RX2 45–52 dB | Recovery passed, 15/15 post-recovery TX-on frames valid |
