@@ -109,3 +109,98 @@ def test_center_routine_parks_at_the_offset_point():
 def test_malformed_offsets_are_rejected(bad):
     with pytest.raises((ValueError, TypeError)):
         rest_offset_to_degrees(bad, boundaries["franklin_safe"])
+
+
+# --- integration: the config -> collector -> planner wiring -------------------
+# The unit tests above call drone_get_planner() directly, so they would all pass
+# even if the YAML key were misspelled or the collector never read it. These
+# tests exercise the real production configs and the real key name.
+
+import pathlib
+
+import yaml as _yaml
+
+CONFIG_DIR = pathlib.Path(__file__).resolve().parents[1] / (
+    "data_collection/rover/rover_v3.1/capture_configs"
+)
+COLLECTOR = pathlib.Path(__file__).resolve().parents[1] / "spf/mavlink_radio_collection.py"
+REST_OFFSET_KEY = "rest-offset-m"
+
+EXPECTED_OFFSETS = {1: [1.0, 1.0], 2: [1.0, -1.0], 3: [-1.0, 1.0]}
+
+
+def test_collector_reads_the_same_key_the_configs_write():
+    """Guards against key-name drift between the YAML and the collector."""
+    assert REST_OFFSET_KEY in COLLECTOR.read_text()
+
+
+@pytest.mark.parametrize("rover_id", sorted(EXPECTED_OFFSETS))
+def test_production_configs_declare_the_intended_offset(rover_id):
+    config = _yaml.safe_load(
+        (CONFIG_DIR / f"rover{rover_id}_production_v7.yaml").read_text()
+    )
+    assert config[REST_OFFSET_KEY] == EXPECTED_OFFSETS[rover_id]
+
+
+@pytest.mark.parametrize("rover_id", sorted(EXPECTED_OFFSETS))
+def test_production_config_drives_the_planner_end_to_end(rover_id):
+    """Mirror what the collector does: read the YAML, build the planner."""
+    config = _yaml.safe_load(
+        (CONFIG_DIR / f"rover{rover_id}_production_v7.yaml").read_text()
+    )
+    boundary = boundaries["franklin_safe"]
+    centroid = boundary.mean(axis=0)
+    planner = drone_get_planner(
+        config["routine"],
+        boundary=boundary,
+        rest_offset_m=config.get(REST_OFFSET_KEY),  # exactly the collector's expression
+    )
+    home = planner.get_home_point()
+    assert not np.array_equal(home, centroid)
+    assert _distance_m(home, centroid, centroid[1]) == pytest.approx(
+        float(np.hypot(*EXPECTED_OFFSETS[rover_id])), abs=1e-6
+    )
+
+
+def test_the_three_production_rovers_rest_apart():
+    boundary = boundaries["franklin_safe"]
+    centroid = boundary.mean(axis=0)
+    homes = {}
+    for rover_id in EXPECTED_OFFSETS:
+        config = _yaml.safe_load(
+            (CONFIG_DIR / f"rover{rover_id}_production_v7.yaml").read_text()
+        )
+        homes[rover_id] = drone_get_planner(
+            config["routine"], boundary=boundary, rest_offset_m=config.get(REST_OFFSET_KEY)
+        ).get_home_point()
+    for a in homes:
+        for b in homes:
+            if a < b:
+                assert _distance_m(homes[a], homes[b], centroid[1]) >= 1.99
+
+
+@pytest.mark.parametrize(
+    "legacy_name",
+    [
+        "rover_receiver_config_pi_3mhz_35mm.yaml",
+        "rover_receiver_config_pi_3mhz_43mm.yaml",
+        "rover_single_receiver_config_pi_3mhz.yaml",
+    ],
+)
+def test_configs_without_the_key_are_unaffected(legacy_name):
+    """Legacy/bench configs must still resolve to the plain centroid.
+
+    These carry `routine: null` — the routine came from the collector's -r flag
+    in the legacy flow — so the routine is supplied here the same way.
+    """
+    boundary = boundaries["franklin_safe"]
+    centroid = boundary.mean(axis=0)
+    legacy = _yaml.safe_load((CONFIG_DIR / legacy_name).read_text())
+    assert REST_OFFSET_KEY not in legacy
+    planner = drone_get_planner(
+        "bounce",  # legacy flow: routine comes from -r, not the YAML
+        boundary=boundary,
+        rest_offset_m=legacy.get(REST_OFFSET_KEY),
+    )
+    assert planner.home_point is None
+    assert np.array_equal(planner.get_home_point(), centroid)
