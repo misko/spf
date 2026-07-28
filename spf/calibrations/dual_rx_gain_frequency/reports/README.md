@@ -9,6 +9,7 @@ committed report records SHA-256 hashes of the exact inputs it used.
 
 | Report | Scope | Status |
 |---|---|---|
+| [Historical-IP special-radio automated pilot](pilot_cross_band_20260728_special_17_18_v1/README.md) | Radios historically labeled `.17` and `.18`; full automated 2R2T check, RAM firmware load, fingerprint, TX2 probe, 12-frequency 3×3 pilot, and stored-IQ validation | 648/648 frames complete with valid gain/RSSI metadata and no capture errors; 488/648 quality-valid |
 | [Four-radio dense calibration and low-cost transfer](four_radio_dense_20260728_v1/README.md) ([model detail](four_radio_dense_20260728_v1/PER_FREQUENCY_ADDITIVE_GAIN_LUT.md)) | Four physical radios, complete 12-frequency 17×17 ordered gain grid; universal LUT transfer with zero, one, and two target-radio values; independent repeat for both replacement radios | Per-radio/per-frequency additive LUT: 0.903° held-out MAE; one equal-gain value at the operating frequency plus universal LUT: 3.385° leave-one-radio-out MAE |
 | [Replacement-radio cross-band pilot](pilot_cross_band_20260728_new_radios_v2/README.md) | Two new radios, 12 frequencies, complete 3×3 ordered gain grid, three randomized epochs | 648/648 frames complete; all 72 observed-tone preflights passed; extreme 63 dB mismatch explicitly unsupported |
 | [Replacement Radio `…beca79`](pilot_cross_band_20260728_new_radios_v2/104473b80a16000de6ff2000f8a6beca79/REPORT.md) | Per-frequency data-versus-fit figures and protocol-v2 metadata audit | 221/324 phase-valid; additive held-out MAE 1.45° |

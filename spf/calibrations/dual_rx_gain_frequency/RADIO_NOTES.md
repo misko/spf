@@ -13,8 +13,8 @@ serial and stored V7 hardware fingerprint.
 
 | Pluto serial | Historical IP | Calibration dataset roots | Notes |
 | --- | --- | --- | --- |
-| `1040007c4a94000211000b009186843ef2` | `192.168.1.18` | Pending | First inventoried alone on 2026-07-28 before SPF RAM loading. Persistent `ad9361`/`2r2t` verification passed. |
-| `104000bac4950008230026001b440a003a` | `192.168.1.17` | Pending | Identified as the newly attached radio on 2026-07-28 before SPF RAM loading. Persistent `ad9361`/`2r2t` verification passed. |
+| `1040007c4a94000211000b009186843ef2` | `192.168.1.18` | `artifacts/dual_rx_gain_frequency/pilot_cross_band_20260728_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr` | First inventoried alone on 2026-07-28 before SPF RAM loading. Persistent `ad9361`/`2r2t` verification passed. Automated pilot: 324/324 frames, 243 quality-valid, 81/108 passing cells. |
+| `104000bac4950008230026001b440a003a` | `192.168.1.17` | `artifacts/dual_rx_gain_frequency/pilot_cross_band_20260728_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr` | Identified as the newly attached radio on 2026-07-28 before SPF RAM loading. Persistent `ad9361`/`2r2t` verification passed. Automated pilot: 324/324 frames, 245 quality-valid, 82/108 passing cells. |
 
 ## Initial read-only inventory
 
