@@ -204,3 +204,68 @@ def test_configs_without_the_key_are_unaffected(legacy_name):
     )
     assert planner.home_point is None
     assert np.array_equal(planner.get_home_point(), centroid)
+
+
+# --- direct equivalence: [0,0] must be indistinguishable from omitting the key ---
+# The two tests above assert the same properties separately, which only IMPLIES
+# equivalence. These compare the two planners against each other directly.
+
+ZERO_FORMS = [
+    [0.0, 0.0],
+    (0.0, 0.0),
+    [0, 0],
+    (0.0, -0.0),  # IEEE negative zero
+    np.zeros(2),
+]
+
+
+def _offset_relevant_state(planner, routine):
+    """Every attribute a rest offset could possibly influence.
+
+    Excludes CirclePlanner.direction and the diamond point order, which are
+    randomised per construction and unrelated to the offset.
+    """
+    state = {
+        "home_point": planner.home_point,
+        "start_point": np.asarray(planner.start_point),
+        "get_home_point": planner.get_home_point(),
+    }
+    if routine == "center":
+        state["stationary_point"] = np.asarray(planner.stationary_point)
+    if routine == "circle":
+        state["circle_center"] = np.asarray(planner.circle_center)
+        state["circle_radius"] = planner.circle_radius
+    return state
+
+
+@pytest.mark.parametrize("zero", ZERO_FORMS)
+@pytest.mark.parametrize("routine", ROUTINES)
+@pytest.mark.parametrize("boundary_name", sorted(boundaries))
+def test_zero_offset_is_indistinguishable_from_omitting_the_key(
+    zero, routine, boundary_name
+):
+    boundary = boundaries[boundary_name]
+    omitted = drone_get_planner(routine, boundary)
+    explicit_zero = drone_get_planner(routine, boundary, rest_offset_m=zero)
+
+    a = _offset_relevant_state(omitted, routine)
+    b = _offset_relevant_state(explicit_zero, routine)
+    assert a.keys() == b.keys()
+    for key in a:
+        if a[key] is None or b[key] is None:
+            assert a[key] is None and b[key] is None, key
+        elif isinstance(a[key], np.ndarray):
+            assert np.array_equal(a[key], b[key]), key
+        else:
+            assert a[key] == b[key], key
+
+
+@pytest.mark.parametrize("zero", ZERO_FORMS)
+def test_zero_offset_short_circuits_before_any_arithmetic(zero):
+    """A zero offset must return None, not a zero-valued degree offset.
+
+    Returning array([0.0, 0.0]) would still be numerically correct, but it would
+    set home_point and take the non-default code path — this asserts the
+    original path is preserved exactly.
+    """
+    assert rest_offset_to_degrees(zero, boundaries["franklin_safe"]) is None
