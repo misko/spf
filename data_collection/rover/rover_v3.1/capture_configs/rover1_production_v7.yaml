@@ -1,5 +1,10 @@
 # Canonical Rover 1 production capture.
 # data-version 7 implies direct-USB metadata protocol v2 for every receiver.
+# Resting position offset from the fence centroid, metres (east, north).
+# Keeps rovers from converging on the same point at mission start/end.
+# Rover 1 = (+1, +1). Affects start/home/RTL only, never pattern geometry.
+rest-offset-m: [1.0, 1.0]
+
 emitter:
   type: o4
   signal: digital

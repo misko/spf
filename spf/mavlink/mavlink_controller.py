@@ -174,17 +174,81 @@ tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
 LOG_ERASE = 121
 
 
-def drone_get_planner(routine, boundary):
+# Mean earth radius, matching the `haversine` library used by
+# distance_to_target/move_to_point — so a rest offset expressed in metres
+# means the same metres the rover uses to decide it has arrived. (The WGS84
+# equatorial radius 6378137 would make a requested 2 m read as 1.9978 m.)
+EARTH_RADIUS_M = 6371008.8
+
+
+def meters_to_degrees(east_m, north_m, latitude_deg):
+    """Convert an (East, North) metre offset to (dlong, dlat) degrees.
+
+    Longitude degrees shrink by cos(latitude), so the two axes are NOT
+    interchangeable — at the SPF sites (~37.8 deg) the anisotropy is ~26%.
+    Returns (dlong, dlat) to match the (long, lat) convention used by
+    spf/gps/boundaries.py and every planner coordinate.
+    """
+    m_per_deg_lat = (np.pi / 180.0) * EARTH_RADIUS_M
+    m_per_deg_long = m_per_deg_lat * np.cos(np.radians(latitude_deg))
+    return np.array([east_m / m_per_deg_long, north_m / m_per_deg_lat])
+
+
+def rest_offset_to_degrees(rest_offset_m, boundary):
+    """Per-rover resting offset in degrees, or None when unconfigured.
+
+    rest_offset_m is (east_m, north_m). None/absent -> None, which preserves
+    the historical centroid behaviour exactly.
+    """
+    if rest_offset_m is None:
+        return None
+    offset = np.asarray(rest_offset_m, dtype=float)
+    if offset.shape != (2,):
+        raise ValueError(
+            f"rest-offset-m must be [east_m, north_m], got {rest_offset_m}"
+        )
+    if not np.isfinite(offset).all():
+        raise ValueError(f"rest-offset-m must be finite, got {rest_offset_m}")
+    if np.all(offset == 0.0):
+        return None
+    centroid = boundary.mean(axis=0)
+    return meters_to_degrees(offset[0], offset[1], centroid[1])
+
+
+def drone_get_planner(routine, boundary, rest_offset_m=None):
+    """Build the motion planner for a routine.
+
+    rest_offset_m (east_m, north_m) shifts this vehicle's RESTING position —
+    start point, stationary point and home/RTL — away from the boundary
+    centroid so that co-located rovers do not converge on the same spot.
+    It deliberately does NOT move `circle_center` or the diamond points: those
+    are pattern geometry measured against the fence, and CirclePlanner performs
+    no bounds check (planner.py yield_points never calls Dynamics.to_steps), so
+    shifting the ring would silently drive outside the geofence.
+    """
+    centroid = boundary.mean(axis=0)
+    offset_deg = rest_offset_to_degrees(rest_offset_m, boundary)
+    rest_point = centroid if offset_deg is None else centroid + offset_deg
+    # None keeps Planner.get_home_point() on its original centroid expression,
+    # so an unconfigured rover takes a bit-identical code path.
+    home_point = None if offset_deg is None else rest_point
+    if offset_deg is not None:
+        logging.info(
+            f"Rest offset {rest_offset_m} (east_m, north_m) -> "
+            f"centroid {centroid} shifted to {rest_point}"
+        )
+
     if routine == "circle":
         return CirclePlanner(
             dynamics=Dynamics(
                 bounding_box=boundary,
                 bounds_radius=0.000001,
             ),
-            start_point=boundary.mean(axis=0),
+            start_point=rest_point,
             step_size=0.0001,
             circle_diameter=0.0003,
-            circle_center=boundary.mean(axis=0),
+            circle_center=centroid,  # pattern geometry: stays fence-centred
+            home_point=home_point,
         )
     elif routine == "center":
         return StationaryPlanner(
@@ -192,9 +256,10 @@ def drone_get_planner(routine, boundary):
                 bounding_box=boundary,
                 bounds_radius=0.000001,
             ),
-            start_point=boundary.mean(axis=0),
-            stationary_point=boundary.mean(axis=0),
+            start_point=rest_point,
+            stationary_point=rest_point,
             step_size=0.0002,
+            home_point=home_point,
         )
     elif routine == "bounce":
         return BouncePlanner(
@@ -202,13 +267,14 @@ def drone_get_planner(routine, boundary):
                 bounding_box=boundary,
                 bounds_radius=0.000000001,
             ),
-            start_point=boundary.mean(axis=0),
+            start_point=rest_point,
             epsilon=0.0000001,
             step_size=0.1,
+            home_point=home_point,
         )
     elif routine == "diamond":
         base_points = boundary_to_diamond(boundary)
-        points = base_points * 0.85 + boundary.mean(axis=0) * 0.15
+        points = base_points * 0.85 + centroid * 0.15  # fence-relative geometry
         if np.random.rand() > 0.5:
             points = np.flip(points, axis=0)
         return PointCycle(
@@ -216,9 +282,10 @@ def drone_get_planner(routine, boundary):
                 bounding_box=boundary,
                 bounds_radius=0.000000001,
             ),
-            start_point=boundary.mean(axis=0),
+            start_point=rest_point,
             step_size=0.1,
             points=points,
+            home_point=home_point,
         )
 
     else:
@@ -471,7 +538,9 @@ class Drone:
 
         # self.single_operation_mode_on()
         # logging.info("SINGLE OPERATION MODE")
-        home = self.planner.dynamics.bounding_box.mean(axis=0)
+        # Per-rover rest offset lives on the planner so home, the S5 rendezvous,
+        # the post-run park and the RTL destination cannot drift apart.
+        home = self.planner.get_home_point()
 
         self.single_operation_mode_on()
         # self.connection.waypoint_clear_all_send()
@@ -629,18 +698,31 @@ class Drone:
         self.connection.mav.send(message)
 
     def set_home(self, lat, long):
-        # set home position
-        self.connection.mav.command_long_send(
+        """Set the vehicle home (and therefore the RTL destination) to lat/long.
+
+        param1 MUST be 0 = "use specified location". With param1=1 ArduPilot
+        reads it as "use current location" and silently DISCARDS lat/long —
+        verified in SITL, where home stayed at the spawn point 14.14 m away
+        from the requested position.
+
+        Sent as COMMAND_INT (degrees x 1e7, integer) rather than COMMAND_LONG:
+        COMMAND_LONG carries lat/long as float32, which quantizes to ~0.67 m at
+        these longitudes — larger than the per-rover rest offsets themselves.
+        This mirrors reposition(), which already uses command_int_send.
+        """
+        self.connection.mav.command_int_send(
             self.connection.target_system,
             self.connection.target_component,
+            mavutil.mavlink.MAV_FRAME_GLOBAL,
             self.get_cmd("MAV_CMD_DO_SET_HOME"),
-            0,  # set position
-            1,  # param1
+            0,  # current
+            0,  # autocontinue
+            0,  # param1: 0 = use SPECIFIED location (1 would discard lat/long)
             0,  # param2
             0,  # param3
             0,  # param4
-            lat,  # 37.8047122,  # lat
-            long,  # -122.4659164,  # lon
+            int(lat * 1e7),
+            int(long * 1e7),
             0,
         )
         # self.ack("COMMAND_ACK")
