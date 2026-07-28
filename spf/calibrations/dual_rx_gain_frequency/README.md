@@ -5,6 +5,19 @@ manual RX-gain pairs and RF frequencies. It uses the SPF direct-USB protocol-v2
 firmware, writes one data-version-7 Zarr per radio serial, validates every frame
 from its stored IQ, and fits a circular additive gain model.
 
+## Start here
+
+- [Calibrating a new radio](NEW_RADIO_CALIBRATION.md) is the operational
+  checklist: attach and identify radios, establish 2R2T state, RAM-load and
+  verify the firmware, collect pilot and dense V7 datasets, and locate every
+  output.
+- [Fitting and evaluating models](MODEL_FITTING_AND_EVALUATION.md) is the
+  analysis checklist: validate stored IQ, fit each physical radio, compare the
+  model ladder without data leakage, evaluate low-cost onboarding, and publish
+  reproducible reports.
+- [Rover v3.1 pre-field checklist](../../../data_collection/rover/rover_v3.1/PRE_FIELD_CHECKLIST.md)
+  covers the wider Rover, fake-drone, SITL, and field-deployment checks.
+
 New calibration stores also require the post-firmware passive hardware
 fingerprint from `/run/spf/direct_usb_ready.json`. Historical stores can be
 augmented without rewriting arrays using the dry-run-first procedure in
