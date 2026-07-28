@@ -39,6 +39,10 @@ from spf.calibrations.dual_rx_gain_frequency.hardware import (
     DirectUsbLoopbackRadio,
     make_cyclic_tone,
 )
+from spf.calibrations.dual_rx_gain_frequency.low_cost_calibration import (
+    _adaptation_delta,
+    _evaluate_per_frequency_strategy,
+)
 from spf.calibrations.dual_rx_gain_frequency.model import (
     fit_additive_surface,
     fit_dataset,
@@ -515,6 +519,62 @@ def test_compact_stage_boundaries_are_reproducibly_derived_from_gain_table():
         == DEFAULT_STAGE_BOUNDARIES_DB
         == (-6, 6, 16, 23, 26, 41)
     )
+
+
+def test_low_cost_calibration_one_and_two_value_adjustments():
+    frequencies = np.asarray([1.0e9, 2.0e9, 3.0e9])
+    constant = _adaptation_delta(
+        frequencies,
+        anchor_frequencies_hz=(2_000_000_000,),
+        anchor_residuals_rad=(0.3,),
+    )
+    linear = _adaptation_delta(
+        frequencies,
+        anchor_frequencies_hz=(1_000_000_000, 3_000_000_000),
+        anchor_residuals_rad=(0.1, 0.5),
+    )
+
+    assert constant == pytest.approx([0.3, 0.3, 0.3])
+    assert linear == pytest.approx([0.1, 0.3, 0.5])
+
+
+def test_low_cost_two_value_adjustment_uses_nearest_circular_branch():
+    frequencies = np.asarray([1.0e9, 2.0e9, 3.0e9])
+    adjustment = _adaptation_delta(
+        frequencies,
+        anchor_frequencies_hz=(1_000_000_000, 3_000_000_000),
+        anchor_residuals_rad=(math.radians(170), math.radians(-170)),
+    )
+
+    assert np.degrees(adjustment) == pytest.approx([170, 180, 190])
+
+
+def test_low_cost_one_value_per_frequency_removes_frequency_baseline():
+    target = {
+        "phase": np.asarray([0.2, 0.2, -0.3, -0.3]),
+        "frequency_hz": np.asarray([1_000, 1_000, 2_000, 2_000]),
+        "gain1_db": np.asarray([10, 20, 10, 20]),
+        "gain2_db": np.asarray([10, 10, 10, 10]),
+    }
+    prepared = [
+        {
+            "radio_index": 0,
+            "serial": "test",
+            "target": target,
+            "supported": np.ones(4, dtype=bool),
+            "prediction": np.zeros(4),
+            "base_residual": target["phase"],
+        }
+    ]
+
+    result = _evaluate_per_frequency_strategy(
+        prepared=prepared,
+        frequencies_hz=(1_000, 2_000),
+        reference_gain_db=10,
+    )
+
+    assert result["evaluated_observations"] == 2
+    assert result["circular_mae_deg"] == pytest.approx(0)
 
 
 def test_rf_dc_correction_register_decoder_flags_documented_stuck_word():

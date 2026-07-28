@@ -191,11 +191,32 @@ def _radio_arrays(
     config_path: Path,
     artifact_root: Path,
 ) -> tuple[Any, dict[str, np.ndarray], list[dict[str, Any]]]:
-    _, config = load_calibration_document(config_path)
     paths = sorted(artifact_root.glob("*/calibration.v7.zarr"))
     if not paths:
         raise FileNotFoundError(f"no V7 calibration datasets below {artifact_root}")
+    return _radio_arrays_from_paths(config_path=config_path, dataset_paths=paths)
+
+
+def _radio_arrays_from_paths(
+    *,
+    config_path: Path,
+    dataset_paths: Iterable[Path],
+) -> tuple[Any, dict[str, np.ndarray], list[dict[str, Any]]]:
+    """Load one dense dataset per physical radio from explicit paths."""
+
+    _, config = load_calibration_document(config_path)
+    paths = [Path(path) for path in dataset_paths]
+    if not paths:
+        raise ValueError("at least one dataset path is required")
+    if len(paths) != len(set(paths)):
+        raise ValueError("dataset paths must be unique")
     radios = [_load_radio(path, config=config) for path in paths]
+    serials = [radio["serial"] for radio in radios]
+    if len(serials) != len(set(serials)):
+        raise ValueError(
+            "each dataset must represent a different physical radio; "
+            f"duplicate serials: {serials}"
+        )
     gain_lookup = {int(value): index for index, value in enumerate(config.gains_db)}
     frequency_lookup = {
         int(value): index for index, value in enumerate(config.frequencies_hz)
@@ -709,11 +730,22 @@ def _fit_summary(
 def analyze_model_matrix(
     *,
     config_path: Path,
-    artifact_root: Path,
+    artifact_root: Path | None = None,
+    dataset_paths: Iterable[Path] | None = None,
 ) -> dict[str, Any]:
-    config, data, provenance = _radio_arrays(
-        config_path=config_path, artifact_root=artifact_root
-    )
+    explicit_paths = tuple(dataset_paths or ())
+    if (artifact_root is None) == (not explicit_paths):
+        raise ValueError("provide exactly one of artifact_root or dataset_paths")
+    if explicit_paths:
+        config, data, provenance = _radio_arrays_from_paths(
+            config_path=config_path,
+            dataset_paths=explicit_paths,
+        )
+    else:
+        config, data, provenance = _radio_arrays(
+            config_path=config_path,
+            artifact_root=artifact_root,
+        )
     radio_count = len(provenance)
     gain_count = len(config.gains_db)
     frequency_count = len(config.frequencies_hz)
@@ -771,7 +803,8 @@ def analyze_model_matrix(
         "schema": SCHEMA,
         "schema_version": SCHEMA_VERSION,
         "config_path": str(config_path),
-        "artifact_root": str(artifact_root),
+        "artifact_root": str(artifact_root) if artifact_root is not None else None,
+        "dataset_paths": [radio["dataset_path"] for radio in provenance],
         "phase_convention": "RX1 minus RX2",
         "evaluation": {
             "leave_one_epoch_out": (
@@ -834,7 +867,7 @@ def render_model_matrix_report(result: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "Both datasets are structurally complete. `fail_quality` means "
+            "All datasets are structurally complete. `fail_quality` means "
             "quality-rejected frames remain explicit in the V7 dataset; only "
             "quality-valid observations enter these fits.",
             "",
@@ -1014,8 +1047,20 @@ def render_model_matrix_report(result: dict[str, Any]) -> str:
             "```bash",
             "python -m spf.calibrations.dual_rx_gain_frequency model-matrix \\",
             f"  --config {result['config_path']} \\",
-            f"  --artifact-root {result['artifact_root']} \\",
-            f"  --output-dir {result['artifact_root']}/model_matrix",
+        ]
+    )
+    if result["artifact_root"] is not None:
+        lines.extend(
+            [
+                f"  --artifact-root {result['artifact_root']} \\",
+            ]
+        )
+    else:
+        for dataset_path in result["dataset_paths"]:
+            lines.append(f"  --dataset {dataset_path} \\")
+    lines.extend(
+        [
+            "  --output-dir artifacts/dual_rx_gain_frequency/model_matrix",
             "```",
             "",
         ]
@@ -1082,13 +1127,15 @@ def _write_plots(result: dict[str, Any], output_dir: Path) -> list[str]:
 def write_model_matrix_bundle(
     *,
     config_path: Path,
-    artifact_root: Path,
+    artifact_root: Path | None = None,
+    dataset_paths: Iterable[Path] | None = None,
     output_dir: Path,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     result = analyze_model_matrix(
         config_path=config_path,
         artifact_root=artifact_root,
+        dataset_paths=dataset_paths,
     )
     result["plots"] = _write_plots(result, output_dir)
     (output_dir / "model_matrix.json").write_text(
@@ -1098,7 +1145,7 @@ def write_model_matrix_bundle(
         render_model_matrix_report(result)
     )
     with (output_dir / "model_metrics.csv").open("w", newline="") as stream:
-        writer = csv.writer(stream)
+        writer = csv.writer(stream, lineterminator="\n")
         writer.writerow(
             (
                 "model",

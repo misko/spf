@@ -187,6 +187,38 @@ This command uses three distinct tests:
 - leave one radio out, for strict universal models with no radio-specific
   baseline adjustment.
 
+Datasets from separate capture roots can be combined without copying or
+symlinking the LMDB stores by repeating `--dataset` instead of supplying
+`--artifact-root`:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency model-matrix \
+  --config spf/calibrations/dual_rx_gain_frequency/configs/survey_cross_band.yaml \
+  --dataset artifacts/RUN_A/SERIAL_A/calibration.v7.zarr \
+  --dataset artifacts/RUN_A/SERIAL_B/calibration.v7.zarr \
+  --dataset artifacts/RUN_B/SERIAL_C/calibration.v7.zarr \
+  --dataset artifacts/RUN_B/SERIAL_D/calibration.v7.zarr \
+  --output-dir spf/calibrations/dual_rx_gain_frequency/reports/OUTPUT
+```
+
+To evaluate whether a universal gain LUT can onboard an unseen physical radio
+with only one or two scalar phase values, use the same one-dataset-per-radio
+inputs with `low-cost-calibration`. Independent repeat datasets may be added
+with `--repeat-dataset`; repeats measure temporal drift and are never counted
+as additional radios:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency low-cost-calibration \
+  --config spf/calibrations/dual_rx_gain_frequency/configs/survey_cross_band.yaml \
+  --dataset artifacts/RUN_A/SERIAL_A/calibration.v7.zarr \
+  --dataset artifacts/RUN_A/SERIAL_B/calibration.v7.zarr \
+  --dataset artifacts/RUN_B/SERIAL_C/calibration.v7.zarr \
+  --dataset artifacts/RUN_B/SERIAL_D/calibration.v7.zarr \
+  --repeat-dataset artifacts/RUN_C/SERIAL_C/calibration.v7.zarr \
+  --repeat-dataset artifacts/RUN_C/SERIAL_D/calibration.v7.zarr \
+  --output-dir spf/calibrations/dual_rx_gain_frequency/reports/OUTPUT
+```
+
 The gain-dependent delay model is identifiable only as differential RX1−RX2
 delay. Its separate RX1/RX2 lookup terms are relative contributions under the
 chosen reference constraints, not absolute branch delays or literal PCB trace

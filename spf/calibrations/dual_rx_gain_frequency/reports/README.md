@@ -9,6 +9,7 @@ committed report records SHA-256 hashes of the exact inputs it used.
 
 | Report | Scope | Status |
 |---|---|---|
+| [Four-radio dense calibration and low-cost transfer](four_radio_dense_20260728_v1/README.md) | Four physical radios, complete 12-frequency 17×17 ordered gain grid; universal LUT transfer with zero, one, and two target-radio values; independent repeat for both replacement radios | Per-radio/per-frequency additive LUT: 0.903° held-out MAE; one equal-gain value at the operating frequency plus universal LUT: 3.385° leave-one-radio-out MAE |
 | [Replacement-radio cross-band pilot](pilot_cross_band_20260728_new_radios_v2/README.md) | Two new radios, 12 frequencies, complete 3×3 ordered gain grid, three randomized epochs | 648/648 frames complete; all 72 observed-tone preflights passed; extreme 63 dB mismatch explicitly unsupported |
 | [Replacement Radio `…beca79`](pilot_cross_band_20260728_new_radios_v2/104473b80a16000de6ff2000f8a6beca79/REPORT.md) | Per-frequency data-versus-fit figures and protocol-v2 metadata audit | 221/324 phase-valid; additive held-out MAE 1.45° |
 | [Replacement Radio `…5222f`](pilot_cross_band_20260728_new_radios_v2/104000b299050013f4ff0700255e35222f/REPORT.md) | Per-frequency data-versus-fit figures and protocol-v2 metadata audit | 249/324 phase-valid; additive held-out MAE 1.03° |

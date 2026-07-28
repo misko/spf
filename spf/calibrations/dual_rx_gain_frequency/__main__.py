@@ -15,6 +15,7 @@ from .cross_radio import write_cross_radio_bundle
 from .dc_diagnostic import run_rf_dc_recovery, run_rx2_dc_diagnostic
 from .dc_offset import inspect_radio_rf_dc
 from .dc_report import write_rf_dc_evidence_report
+from .low_cost_calibration import write_low_cost_bundle
 from .model import fit_dataset, write_model
 from .model_matrix import write_model_matrix_bundle
 from .report import write_analysis_bundle
@@ -172,6 +173,7 @@ def _model_matrix(args) -> int:
     result = write_model_matrix_bundle(
         config_path=args.config,
         artifact_root=args.artifact_root,
+        dataset_paths=args.dataset,
         output_dir=args.output_dir,
     )
     print(
@@ -182,6 +184,39 @@ def _model_matrix(args) -> int:
                 "output_dir": str(args.output_dir),
                 "radios": len(result["provenance"]),
                 "models": len(result["models"]),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _low_cost_calibration(args) -> int:
+    command = " ".join(
+        [
+            "python -m spf.calibrations.dual_rx_gain_frequency low-cost-calibration",
+            f"--config {args.config}",
+            *[f"--dataset {path}" for path in args.dataset],
+            *[f"--repeat-dataset {path}" for path in args.repeat_dataset],
+            f"--output-dir {args.output_dir}",
+        ]
+    )
+    result = write_low_cost_bundle(
+        config_path=args.config,
+        dataset_paths=args.dataset,
+        repeat_dataset_paths=args.repeat_dataset,
+        output_dir=args.output_dir,
+        command=command,
+    )
+    print(
+        json.dumps(
+            {
+                "schema": result["schema"],
+                "schema_version": result["schema_version"],
+                "output_dir": str(args.output_dir),
+                "radios": len(result["provenance"]),
+                "base_models": len(result["models"]),
             },
             indent=2,
             sort_keys=True,
@@ -272,9 +307,38 @@ def parse_args():
         help="compare radio-specific, universal, lookup, and delay models",
     )
     matrix_parser.add_argument("--config", type=Path, required=True)
-    matrix_parser.add_argument("--artifact-root", type=Path, required=True)
+    matrix_inputs = matrix_parser.add_mutually_exclusive_group(required=True)
+    matrix_inputs.add_argument("--artifact-root", type=Path)
+    matrix_inputs.add_argument(
+        "--dataset",
+        type=Path,
+        action="append",
+        help="explicit V7 dataset path; repeat once per physical radio",
+    )
     matrix_parser.add_argument("--output-dir", type=Path, required=True)
     matrix_parser.set_defaults(function=_model_matrix)
+
+    low_cost_parser = subparsers.add_parser(
+        "low-cost-calibration",
+        help="evaluate universal gain LUTs adapted by one or two radio values",
+    )
+    low_cost_parser.add_argument("--config", type=Path, required=True)
+    low_cost_parser.add_argument(
+        "--dataset",
+        type=Path,
+        action="append",
+        required=True,
+        help="primary dense V7 dataset; repeat once per physical radio",
+    )
+    low_cost_parser.add_argument(
+        "--repeat-dataset",
+        type=Path,
+        action="append",
+        default=[],
+        help="independent repeat dataset used only for temporal drift",
+    )
+    low_cost_parser.add_argument("--output-dir", type=Path, required=True)
+    low_cost_parser.set_defaults(function=_low_cost_calibration)
 
     report_parser = subparsers.add_parser(
         "report", help="write Markdown, JSON, and phase-surface plots"
