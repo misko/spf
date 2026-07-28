@@ -174,7 +174,11 @@ tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
 LOG_ERASE = 121
 
 
-EARTH_RADIUS_M = 6378137.0
+# Mean earth radius, matching the `haversine` library used by
+# distance_to_target/move_to_point — so a rest offset expressed in metres
+# means the same metres the rover uses to decide it has arrived. (The WGS84
+# equatorial radius 6378137 would make a requested 2 m read as 1.9978 m.)
+EARTH_RADIUS_M = 6371008.8
 
 
 def meters_to_degrees(east_m, north_m, latitude_deg):

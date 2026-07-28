@@ -8,7 +8,7 @@ from spf.mavlink.mavlink_controller import (
     rest_offset_to_degrees,
 )
 
-EARTH_RADIUS_M = 6378137.0
+EARTH_RADIUS_M = 6371008.8  # match haversine, as the code does
 ROUTINES = ("bounce", "circle", "center", "diamond")
 
 
@@ -269,3 +269,75 @@ def test_zero_offset_short_circuits_before_any_arithmetic(zero):
     original path is preserved exactly.
     """
     assert rest_offset_to_degrees(zero, boundaries["franklin_safe"]) is None
+
+
+# --- magnitude, measured with the SAME metric the rover uses ------------------
+# The tests above re-implement the code's own flat-earth conversion, so they are
+# partly circular. These assert the resulting displacement using `haversine` —
+# the exact function Drone.distance_to_target uses to decide "arrived" — so an
+# error in the conversion cannot hide behind a matching error in the test.
+
+from haversine import Unit as _Unit
+from haversine import haversine as _haversine
+
+from spf.gps.gps_utils import swap_lat_long as _swap
+
+
+def _haversine_m(a, b):
+    """Distance in metres between two (long, lat) points, as the rover measures it."""
+    return _haversine(_swap(a), _swap(b), unit=_Unit.METERS)
+
+
+@pytest.mark.parametrize(
+    "offset,expected_m",
+    [
+        ((2.0, 2.0), np.sqrt(8.0)),  # the case asked about
+        ((1.0, 1.0), np.sqrt(2.0)),
+        ((-2.0, -2.0), np.sqrt(8.0)),
+        ((2.0, -2.0), np.sqrt(8.0)),
+        ((3.0, 4.0), 5.0),  # 3-4-5, catches an axis swap
+        ((0.0, 5.0), 5.0),  # pure north
+        ((5.0, 0.0), 5.0),  # pure east
+        ((10.0, 10.0), np.sqrt(200.0)),
+    ],
+)
+@pytest.mark.parametrize("boundary_name", sorted(boundaries))
+def test_offset_magnitude_by_haversine(offset, expected_m, boundary_name):
+    boundary = boundaries[boundary_name]
+    centroid = boundary.mean(axis=0)
+    home = drone_get_planner("bounce", boundary, rest_offset_m=offset).get_home_point()
+    assert _haversine_m(centroid, home) == pytest.approx(expected_m, rel=1e-4)
+
+
+@pytest.mark.parametrize("boundary_name", sorted(boundaries))
+def test_pure_east_and_north_land_on_their_own_axis(boundary_name):
+    """A pure-East offset must not move latitude, and vice versa.
+
+    This is the assertion that would fail if (long, lat) were ever swapped.
+    """
+    boundary = boundaries[boundary_name]
+    centroid = boundary.mean(axis=0)
+
+    east = drone_get_planner("bounce", boundary, rest_offset_m=(5.0, 0.0)).get_home_point()
+    assert east[1] == centroid[1]  # latitude untouched
+    assert east[0] > centroid[0]  # longitude increased (east is +long)
+    assert _haversine_m(centroid, east) == pytest.approx(5.0, rel=1e-4)
+
+    north = drone_get_planner("bounce", boundary, rest_offset_m=(0.0, 5.0)).get_home_point()
+    assert north[0] == centroid[0]  # longitude untouched
+    assert north[1] > centroid[1]  # latitude increased
+    assert _haversine_m(centroid, north) == pytest.approx(5.0, rel=1e-4)
+
+
+def test_equal_east_and_north_metres_give_UNEQUAL_degree_offsets():
+    """The cos(latitude) correction is real: (2,2) m is not a square in degrees."""
+    boundary = boundaries["franklin_safe"]
+    centroid = boundary.mean(axis=0)
+    home = drone_get_planner("bounce", boundary, rest_offset_m=(2.0, 2.0)).get_home_point()
+    dlong = home[0] - centroid[0]
+    dlat = home[1] - centroid[1]
+    assert dlong > dlat  # a degree of longitude is shorter here
+    assert dlong / dlat == pytest.approx(1.0 / np.cos(np.radians(centroid[1])), rel=1e-6)
+    # ...yet both legs are 2 m on the ground
+    assert _haversine_m(centroid, (home[0], centroid[1])) == pytest.approx(2.0, rel=1e-4)
+    assert _haversine_m(centroid, (centroid[0], home[1])) == pytest.approx(2.0, rel=1e-4)
