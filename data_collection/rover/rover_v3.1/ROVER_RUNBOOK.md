@@ -33,6 +33,31 @@ python spf/spf/mavlink_radio_collection.py -c spf/data_collection/rover/rover_v3
 
 ⚠ CI runs on `.141` too and its SITL tests bind 14590/14591 — check `docker ps` and `ss -tlnp | grep 1459` first.
 
+### The four GPS fences
+
+Regenerate any of these with
+`python spf/scripts/plot_gps_boundaries.py --output-dir docs/boundary_maps`
+(Esri World Imagery, no API key; tiles cached under the output dir).
+
+**Fort Baker has three overlapping fences** — this is the picture to look at before a Fort
+Baker run, because their centroids sit only 50–100 m apart and `boundary: auto` picks by
+nearest centroid, so it *cannot* reliably tell them apart. Set `boundary:` explicitly there.
+
+![Fort Baker — three overlapping fences](../../../docs/boundary_maps/fort_baker_combined.png)
+
+| Fence | Extent | Centroid (lat, lon) | Map |
+|---|---|---|---|
+| `franklin_safe` | 80 × 51 m | `37.7650948, -122.4094013` | [map](../../../docs/boundary_maps/franklin_safe.png) |
+| `fort_baker_boundary` | 134 × 160 m | `37.8353746, -122.4785567` | [map](../../../docs/boundary_maps/fort_baker_boundary.png) |
+| `fort_baker_right_boundary` | 93 × 69 m | `37.8358260, -122.4784740` | [map](../../../docs/boundary_maps/fort_baker_right_boundary.png) |
+| `fort_baker_left_boundary` | 68 × 108 m | `37.8349775, -122.4788400` | [map](../../../docs/boundary_maps/fort_baker_left_boundary.png) |
+
+The centroid is the **default start/home** for every rover (§14.3 S5), and each per-fence map
+carries an inset showing the four per-rover rest offsets against the 5 m arrival tolerance —
+the offsets sit well inside it, which is why they reduce rather than eliminate convergence.
+
+![franklin_safe](../../../docs/boundary_maps/franklin_safe.png)
+
 ### Test GPS coordinates per fence
 
 Boundaries are hard-coded in `spf/gps/boundaries.py` as `(long, lat)` polygons; `boundary: auto` picks the nearest **centroid** (§14). Points below are verified by point-in-polygon; "outside" is 3 m beyond the nearest edge. Useful as SITL spawn (`-l <lat>,<lon>,0,0`) to test in-bounds vs out-of-bounds behaviour.

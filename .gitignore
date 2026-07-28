@@ -64,3 +64,6 @@ wandb
 /spf/mavlink/test.py
 /spf/sdrpluto/pi4_store_compress_log
 /spf/v5_configs/
+
+# Satellite tile cache for spf/scripts/plot_gps_boundaries.py (re-downloadable)
+docs/boundary_maps/.tiles/
