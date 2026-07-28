@@ -14,16 +14,19 @@ import usb1
 from spf.sdrpluto.direct_usb_protocol import (
     CAPABILITIES_BYTES,
     COMMAND_GET_CAPABILITIES,
+    COMMAND_GET_HARDWARE_IDENTITY,
     COMMAND_START_RX_V1,
     COMMAND_STOP,
     COMMAND_TARGET_RX,
     HEADER_BYTES,
     HEADER_BYTES_V2,
+    HARDWARE_IDENTITY_BYTES,
     VERSION_V1,
     VERSION_V2,
     CapabilityFlags,
     DirectUsbRxFrame,
     GadgetCapabilitiesV1,
+    HardwareIdentityV1,
     MetadataFeatures,
     ProtocolError,
     RxFrameParser,
@@ -323,6 +326,25 @@ class PlutoDirectUsbReceiver:
             frames=tuple(frames),
             elapsed_seconds=time.monotonic() - start,
         )
+
+    def query_hardware_identity(self) -> HardwareIdentityV1:
+        """Read passive identity data without starting RX or TX."""
+
+        handle = self._require_handle()
+        identity = self.identity
+        if not (self.capabilities.capability_flags & CapabilityFlags.HARDWARE_IDENTITY):
+            raise ProtocolError(
+                "gadget does not advertise passive hardware identity support"
+            )
+        payload = handle.controlRead(
+            usb1.ENDPOINT_IN | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
+            COMMAND_GET_HARDWARE_IDENTITY,
+            COMMAND_TARGET_RX,
+            identity.interface,
+            HARDWARE_IDENTITY_BYTES,
+            timeout=USB_CONTROL_TIMEOUT_MS,
+        )
+        return HardwareIdentityV1.unpack(payload)
 
     def _capture_sync_for_test(
         self,

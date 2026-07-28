@@ -8,6 +8,7 @@ from spf.scripts.pluto_multi_firmware import (
     MultiPlutoFirmwareManager,
     UsbPluto,
     discover_runtime_plutos,
+    parse_passive_device_facts,
     parse_device_fw_version,
     parse_uboot_environment,
 )
@@ -28,6 +29,7 @@ def _add_usb_device(
     (device / "idProduct").write_text("b673\n")
     (device / "serial").write_text(f"{serial}\n")
     (device / "busnum").write_text(f"{bus}\n")
+    (device / "devnum").write_text(f"{8 + len(list(root.iterdir()))}\n")
     (device / "devpath").write_text(f"{port_path}\n")
     if direct_usb:
         interface = root / f"{name}:1.6"
@@ -107,6 +109,36 @@ def test_parse_device_fw_version():
         )
         == "v0.37-dirty"
     )
+
+
+def test_parse_passive_device_facts_uses_strict_allowlist():
+    output = "\n".join(
+        [
+            "device_tree_model=Analog Devices PlutoSDR Rev.C",
+            "memory_total_kib=506000",
+            "mtd0_size_bytes=1048576",
+            "mtd1_size_bytes=32768000",
+            "sd_present=true",
+            "uboot_attr_name=compatible",
+            "uboot_attr_val=ad9361",
+            "uboot_compatible=ad9361",
+            "uboot_mode=2r2t",
+            "device_fw=v0.38",
+            "linux_version=5.15",
+            "uboot_version=2022.01",
+            "private_key=must be ignored",
+        ]
+    )
+
+    facts = parse_passive_device_facts(output)
+
+    assert facts["uboot_mode"] == "2r2t"
+    assert "private_key" not in facts
+
+
+def test_parse_passive_device_facts_rejects_missing_field():
+    with pytest.raises(FirmwareError, match="incomplete"):
+        parse_passive_device_facts("uboot_mode=2r2t\n")
 
 
 def _manager(tmp_path, expected_count=1):
@@ -364,6 +396,10 @@ def test_boot_preparation_always_checks_config_then_loads_exact_ram_image():
     assert check in boot_script
     assert load in boot_script
     assert boot_script.index(check) < boot_script.index(load)
+    invalidate = 'rm -f -- "$READY_FILE"'
+    resolver = "resolver_args=("
+    assert invalidate in boot_script
+    assert boot_script.index(invalidate) < boot_script.index(resolver)
 
 
 @pytest.mark.parametrize(

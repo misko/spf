@@ -123,6 +123,7 @@ def _capture_firmware_provenance(
     )
     if ready_path.is_file() and identity.serial:
         from spf.scripts.pluto_ready_manifest import (
+            fingerprint_for_serial,
             firmware_for_serial,
             load_manifest,
         )
@@ -143,6 +144,26 @@ def _capture_firmware_provenance(
             provenance["firmware_ready_manifest_version"] = manifest.get(
                 "ready_manifest_version"
             )
+            fingerprint = fingerprint_for_serial(manifest, identity.serial)
+            if fingerprint is not None:
+                attachment = fingerprint.get("attachment", {})
+                stable_identity = fingerprint.get("stable_identity", {})
+                expected_port_path = (
+                    ".".join(str(part) for part in identity.usb_port_path)
+                    if identity.usb_port_path is not None
+                    else None
+                )
+                identity_matches = (
+                    stable_identity.get("pluto_serial") == identity.serial
+                    and attachment.get("usb_bus") == identity.usb_bus
+                    and attachment.get("usb_address") == identity.usb_address
+                    and attachment.get("usb_port_path") == expected_port_path
+                )
+                if identity_matches and provenance["firmware_verified"]:
+                    provenance["hardware_fingerprint_schema_version"] = fingerprint.get(
+                        "schema_version"
+                    )
+                    provenance["hardware_fingerprint_v1"] = fingerprint
     return {key: value for key, value in provenance.items() if value is not None}
 
 
@@ -655,6 +676,18 @@ class DataCollector:
                     _capture_firmware_provenance(self.yaml_config, identity),
                 )
             )
+            if self.yaml_config.get("data-version") == 7:
+                if receiver_z.attrs.get("firmware_verified") is not True:
+                    raise RuntimeError(
+                        f"{identity.serial}: V7 capture requires boot-verified firmware"
+                    )
+                if not isinstance(
+                    receiver_z.attrs.get("hardware_fingerprint_v1"), dict
+                ):
+                    raise RuntimeError(
+                        f"{identity.serial}: V7 capture requires a matching "
+                        "post-firmware hardware fingerprint"
+                    )
 
     def prepare_threads(self):
         self.read_threads = []

@@ -61,6 +61,7 @@ from spf.calibrations.dual_rx_gain_frequency.runner import (
     run_calibration,
 )
 from spf.calibrations.dual_rx_gain_frequency.validate import validate_dataset
+from spf.hardware_fingerprint import stable_identity_sha256
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 from spf.sdrpluto.direct_usb_protocol import MetadataFlags
 from spf.sdrpluto.sdr_controller import PlutoRxBuffer, SdrDeviceIdentity
@@ -195,7 +196,9 @@ def fake_identity(serial):
 
 def write_ready_manifest(path, serials):
     manifest = {
-        "ready_manifest_version": 1,
+        "ready_manifest_version": 2,
+        "host_boot_id": "BOOT-A",
+        "fingerprint_session_id": "SESSION-A",
         "firmware": {
             "release_tag": FIRMWARE["release-tag"],
             "asset_name": FIRMWARE["asset-name"],
@@ -205,7 +208,17 @@ def write_ready_manifest(path, serials):
             "gadget_git_sha": FIRMWARE["gadget-git-sha"],
             "boot_mode": FIRMWARE["boot-mode"],
         },
-        "radios": [
+        "radios": [],
+    }
+    for serial in serials:
+        identity = fake_identity(serial)
+        stable_identity = {
+            "pluto_serial": serial,
+            "spi_nor_unique_id_hmac_sha256": (
+                "a" * 64 if serial == "SERIAL-A" else "b" * 64
+            ),
+        }
+        manifest["radios"].append(
             {
                 "serial": serial,
                 "firmware_verified": True,
@@ -213,10 +226,34 @@ def write_ready_manifest(path, serials):
                 "protocol_max": 2,
                 "supported_features": 0x37,
                 "capability_flags": 1,
+                "hardware_fingerprint": {
+                    "schema": "spf.hardware_compatibility_fingerprint",
+                    "schema_version": 1,
+                    "fingerprint_timing": "post_firmware_before_recording",
+                    "acquisition_binding": True,
+                    "passive_observation": True,
+                    "tx_operations_performed": False,
+                    "host_boot_id": "BOOT-A",
+                    "fingerprint_session_id": "SESSION-A",
+                    "hmac_key_id": "c" * 16,
+                    "stable_identity": stable_identity,
+                    "stable_fingerprint_sha256": stable_identity_sha256(
+                        stable_identity
+                    ),
+                    "attachment": {
+                        "usb_bus": identity.usb_bus,
+                        "usb_address": identity.usb_address,
+                        "usb_port_path": ".".join(
+                            str(part) for part in identity.usb_port_path
+                        ),
+                    },
+                    "compatibility": {
+                        "status": "compatible",
+                        "failures": [],
+                    },
+                },
             }
-            for serial in serials
-        ],
-    }
+        )
     path.write_text(json.dumps(manifest))
 
 

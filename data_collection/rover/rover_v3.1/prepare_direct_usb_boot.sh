@@ -32,8 +32,12 @@ is_true() {
 
 [[ "${EUID}" -eq 0 ]] || die "prepare_direct_usb_boot.sh must run as root."
 
+# Readiness is session-bound. Invalidate it before any operation that can fail,
+# including configuration parsing, so stale firmware/fingerprint state can
+# never authorize capture after a reboot or interrupted RAM load.
+rm -f -- "$READY_FILE"
+
 if is_true "$DISABLE_DIRECT_USB"; then
-    rm -f -- "$READY_FILE"
     printf '%s\n' \
         "Direct-USB RAM loading was explicitly disabled by" \
         "SPF_DIRECT_USB_DISABLE=${DISABLE_DIRECT_USB}."
@@ -66,8 +70,6 @@ for command in bash iio_info "$PYTHON"; do
     command -v "$command" >/dev/null 2>&1 ||
         die "Required command is missing: ${command}"
 done
-
-rm -f -- "$READY_FILE"
 
 run_loader() {
     SPF_FIRMWARE_RELEASE_TAG="$firmware_release_tag" \

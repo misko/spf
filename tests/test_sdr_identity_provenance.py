@@ -5,6 +5,7 @@ import pytest
 
 from spf.data_collector import DataCollector, SDR_IDENTITY_VERSION
 from spf.dataset.v4_data import v4rx_keys, v4rx_new_dataset
+from spf.hardware_fingerprint import stable_identity_sha256
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 from spf.sdrpluto import sdr_controller
 from spf.sdrpluto.sdr_controller import PPlus, SdrDeviceIdentity
@@ -144,11 +145,17 @@ def test_v7_records_verified_firmware_for_each_radio(tmp_path, monkeypatch):
     }
     collector.yaml_config["data-version"] = 7
     collector.yaml_config["pluto-firmware"] = firmware
+    stable_identity = {
+        "pluto_serial": SERIAL_A,
+        "spi_nor_unique_id_hmac_sha256": "e" * 64,
+    }
     ready_path = tmp_path / "ready.json"
     ready_path.write_text(
         json.dumps(
             {
-                "ready_manifest_version": 1,
+                "ready_manifest_version": 2,
+                "host_boot_id": "BOOT-A",
+                "fingerprint_session_id": "SESSION-A",
                 "firmware": {
                     "release_tag": "release",
                     "image_sha256": "a" * 64,
@@ -160,6 +167,30 @@ def test_v7_records_verified_firmware_for_each_radio(tmp_path, monkeypatch):
                     {
                         "serial": SERIAL_A,
                         "firmware_verified": True,
+                        "hardware_fingerprint": {
+                            "schema": "spf.hardware_compatibility_fingerprint",
+                            "schema_version": 1,
+                            "fingerprint_timing": ("post_firmware_before_recording"),
+                            "acquisition_binding": True,
+                            "passive_observation": True,
+                            "tx_operations_performed": False,
+                            "host_boot_id": "BOOT-A",
+                            "fingerprint_session_id": "SESSION-A",
+                            "hmac_key_id": "d" * 16,
+                            "stable_identity": stable_identity,
+                            "stable_fingerprint_sha256": (
+                                stable_identity_sha256(stable_identity)
+                            ),
+                            "attachment": {
+                                "usb_bus": 1,
+                                "usb_address": 9,
+                                "usb_port_path": "1.2",
+                            },
+                            "compatibility": {
+                                "status": "compatible",
+                                "failures": [],
+                            },
+                        },
                     }
                 ],
             }
@@ -180,7 +211,12 @@ def test_v7_records_verified_firmware_for_each_radio(tmp_path, monkeypatch):
         assert attrs["firmware_gadget_git_sha"] == "c" * 40
         assert attrs["firmware_boot_mode"] == "ram"
         assert attrs["firmware_verified"] is True
-        assert attrs["firmware_ready_manifest_version"] == 1
+        assert attrs["firmware_ready_manifest_version"] == 2
+        assert attrs["hardware_fingerprint_schema_version"] == 1
+        assert (
+            attrs["hardware_fingerprint_v1"]["stable_identity"]["pluto_serial"]
+            == SERIAL_A
+        )
     finally:
         zarr.store.close()
 

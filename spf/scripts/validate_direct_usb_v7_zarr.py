@@ -8,6 +8,10 @@ from pathlib import Path
 
 import numpy as np
 
+from spf.hardware_fingerprint import (
+    HardwareFingerprintError,
+    validate_public_hardware_fingerprint,
+)
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 from spf.sdrpluto.direct_usb_protocol import MetadataFlags
 
@@ -136,6 +140,7 @@ def validate_capture(path: Path, expected_frames: int, expected_receivers: int) 
         reports = {}
         serials = []
         usb_paths = []
+        stable_fingerprints = []
         for name in receiver_names:
             receiver = z.receivers[name]
             if receiver.attrs.get("rx_transport") != "direct_usb":
@@ -155,16 +160,45 @@ def validate_capture(path: Path, expected_frames: int, expected_receivers: int) 
                     raise ValueError(
                         f"{name}: missing firmware provenance attribute {attribute}"
                     )
+            fingerprint = receiver.attrs.get("hardware_fingerprint_v1")
+            if not isinstance(fingerprint, dict):
+                raise ValueError(f"{name}: hardware fingerprint is missing")
+            try:
+                fingerprint = validate_public_hardware_fingerprint(fingerprint)
+            except HardwareFingerprintError as error:
+                raise ValueError(
+                    f"{name}: hardware fingerprint is invalid: {error}"
+                ) from error
+            if (
+                fingerprint.get("fingerprint_timing")
+                != "post_firmware_before_recording"
+                or fingerprint.get("acquisition_binding") is not True
+            ):
+                raise ValueError(
+                    f"{name}: hardware fingerprint is not bound to this acquisition"
+                )
+            if fingerprint.get("stable_identity", {}).get(
+                "pluto_serial"
+            ) != receiver.attrs.get("sdr_serial"):
+                raise ValueError(f"{name}: hardware fingerprint serial mismatch")
+            stable_hash = fingerprint.get("stable_fingerprint_sha256")
             report = _validate_receiver(receiver, expected_frames)
             if not report["serial"] or not report["usb_port_path"]:
                 raise ValueError(f"{name}: missing Pluto serial or physical USB path")
             serials.append(report["serial"])
             usb_paths.append(tuple(report["usb_port_path"]))
+            stable_fingerprints.append(stable_hash)
+            report["stable_fingerprint_sha256"] = stable_hash
+            report["fingerprint_session_id"] = fingerprint.get("fingerprint_session_id")
             reports[name] = report
         if len(serials) != len(set(serials)):
             raise ValueError(f"duplicate receiver serials: {serials}")
         if len(usb_paths) != len(set(usb_paths)):
             raise ValueError(f"duplicate receiver USB paths: {usb_paths}")
+        if len(stable_fingerprints) != len(set(stable_fingerprints)):
+            raise ValueError(
+                f"duplicate stable hardware fingerprints: {stable_fingerprints}"
+            )
         return {
             "status": "pass",
             "data_version": 7,

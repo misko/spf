@@ -5,6 +5,11 @@ manual RX-gain pairs and RF frequencies. It uses the SPF direct-USB protocol-v2
 firmware, writes one data-version-7 Zarr per radio serial, validates every frame
 from its stored IQ, and fits a circular additive gain model.
 
+New calibration stores also require the post-firmware passive hardware
+fingerprint from `/run/spf/direct_usb_ready.json`. Historical stores can be
+augmented without rewriting arrays using the dry-run-first procedure in
+[`HARDWARE_FINGERPRINT.md`](../../../data_collection/rover/rover_v3.1/HARDWARE_FINGERPRINT.md).
+
 The [reports index](reports/README.md) combines the current model errors,
 per-radio RF-DC findings, calibration status, and correction recommendations
 for previously calibrated and new radios.

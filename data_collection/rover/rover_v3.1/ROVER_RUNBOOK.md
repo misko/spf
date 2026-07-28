@@ -315,6 +315,11 @@ On every production boot systemd runs `drone_run.sh` (unit
 first as root, checksum-verifies and RAM-loads the exact configured image,
 regenerates `~/device_mapping`, and writes
 `/run/spf/direct_usb_ready.json`.
+The ready manifest also carries the passive, session-bound hardware
+compatibility fingerprint copied into every new V7 receiver group. See
+[HARDWARE_FINGERPRINT.md](HARDWARE_FINGERPRINT.md) for its boot ordering,
+privacy boundary, fail-closed checks, Zarr semantics, and historical
+calibration backfill procedure.
 `/etc/spf/direct_usb_boot.env` is optional; RAM loading is enabled by default
 and every attached Pluto must map one-to-one to the `receivers` in the canonical
 Rover YAML selected from `/home/pi/rover_id`. The

@@ -27,9 +27,12 @@ COMMAND_START_LEGACY: Final[int] = 0x10
 COMMAND_STOP: Final[int] = 0x11
 COMMAND_GET_CAPABILITIES: Final[int] = 0x12
 COMMAND_START_RX_V1: Final[int] = 0x13
+COMMAND_GET_HARDWARE_IDENTITY: Final[int] = 0x14
 COMMAND_TARGET_RX: Final[int] = 0
 
 CAPABILITIES_MAGIC: Final[int] = 0x50434753  # b"SGCP"
+HARDWARE_IDENTITY_MAGIC: Final[int] = 0x31464853  # b"SHF1"
+HARDWARE_IDENTITY_VERSION: Final[int] = 1
 START_REQUEST_MAGIC: Final[int] = 0x31534753  # b"SGS1"
 START_REQUEST_MAGIC_V2: Final[int] = 0x32534753  # b"SGS2"
 MAX_FINITE_FRAMES: Final[int] = 16
@@ -80,6 +83,12 @@ class MetadataFeatures(enum.IntFlag):
 class CapabilityFlags(enum.IntFlag):
     FINITE_RX = 1 << 0
     DUMMY_GAINS = 1 << 1
+    HARDWARE_IDENTITY = 1 << 2
+
+
+class HardwareIdentityFlags(enum.IntFlag):
+    FPGA_DEVICE_DNA_VALID = 1 << 0
+    GADGET_BUILD_ID_VALID = 1 << 1
 
 
 KNOWN_FEATURES: Final[MetadataFeatures] = (
@@ -129,6 +138,9 @@ assert HEADER_BYTES_V2 == 96
 _CAPABILITIES_STRUCT: Final[struct.Struct] = struct.Struct("<IHHHHIIIII")
 CAPABILITIES_BYTES: Final[int] = _CAPABILITIES_STRUCT.size
 assert CAPABILITIES_BYTES == 32
+_HARDWARE_IDENTITY_STRUCT: Final[struct.Struct] = struct.Struct("<IHHIIQ40s")
+HARDWARE_IDENTITY_BYTES: Final[int] = _HARDWARE_IDENTITY_STRUCT.size
+assert HARDWARE_IDENTITY_BYTES == 64
 _START_REQUEST_STRUCT: Final[struct.Struct] = struct.Struct("<IHHIIIIII")
 START_REQUEST_BYTES: Final[int] = _START_REQUEST_STRUCT.size
 assert START_REQUEST_BYTES == 32
@@ -177,7 +189,11 @@ class GadgetCapabilitiesV1:
             raise ProtocolError(
                 f"unknown capability feature bits: 0x{unknown_features:08x}"
             )
-        known_capability_flags = CapabilityFlags.FINITE_RX | CapabilityFlags.DUMMY_GAINS
+        known_capability_flags = (
+            CapabilityFlags.FINITE_RX
+            | CapabilityFlags.DUMMY_GAINS
+            | CapabilityFlags.HARDWARE_IDENTITY
+        )
         unknown_capability_flags = capability_flags & ~int(known_capability_flags)
         if unknown_capability_flags:
             raise ProtocolError(
@@ -194,6 +210,73 @@ class GadgetCapabilitiesV1:
             max_samples_per_channel=max_samples_per_channel,
             max_finite_frames=max_finite_frames,
             capability_flags=CapabilityFlags(capability_flags),
+        )
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class HardwareIdentityV1:
+    """Passive device identity returned without starting either DMA direction."""
+
+    flags: HardwareIdentityFlags
+    fpga_device_dna: int
+    gadget_build_id: str
+
+    @classmethod
+    def unpack(cls, payload: bytes | bytearray | memoryview) -> "HardwareIdentityV1":
+        if len(payload) != HARDWARE_IDENTITY_BYTES:
+            raise ProtocolError(
+                "hardware identity response size mismatch: "
+                f"got {len(payload)}, expected {HARDWARE_IDENTITY_BYTES}"
+            )
+        (
+            magic,
+            response_bytes,
+            version,
+            flags,
+            reserved0,
+            fpga_device_dna,
+            raw_build_id,
+        ) = _HARDWARE_IDENTITY_STRUCT.unpack(payload)
+        if magic != HARDWARE_IDENTITY_MAGIC:
+            raise ProtocolError(f"bad hardware identity magic: 0x{magic:08x}")
+        if response_bytes != HARDWARE_IDENTITY_BYTES:
+            raise ProtocolError(f"unsupported hardware identity size: {response_bytes}")
+        if version != HARDWARE_IDENTITY_VERSION:
+            raise ProtocolError(f"unsupported hardware identity version: {version}")
+        if reserved0 != 0:
+            raise ProtocolError("hardware identity reserved field must be zero")
+        known_flags = (
+            HardwareIdentityFlags.FPGA_DEVICE_DNA_VALID
+            | HardwareIdentityFlags.GADGET_BUILD_ID_VALID
+        )
+        unknown_flags = flags & ~int(known_flags)
+        if unknown_flags:
+            raise ProtocolError(
+                f"unknown hardware identity flags: 0x{unknown_flags:08x}"
+            )
+        parsed_flags = HardwareIdentityFlags(flags)
+        if parsed_flags & HardwareIdentityFlags.FPGA_DEVICE_DNA_VALID:
+            if fpga_device_dna == 0 or fpga_device_dna >> 57:
+                raise ProtocolError("FPGA Device DNA is outside the 57-bit range")
+        elif fpga_device_dna != 0:
+            raise ProtocolError("invalid FPGA Device DNA must be zero")
+        try:
+            gadget_build_id = raw_build_id.rstrip(b"\x00").decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise ProtocolError("gadget build ID is not ASCII") from exc
+        if parsed_flags & HardwareIdentityFlags.GADGET_BUILD_ID_VALID:
+            if len(gadget_build_id) != 40 or any(
+                character not in "0123456789abcdef" for character in gadget_build_id
+            ):
+                raise ProtocolError(
+                    "valid gadget build ID must be a lowercase 40-character SHA"
+                )
+        elif gadget_build_id:
+            raise ProtocolError("invalid gadget build ID must be empty")
+        return cls(
+            flags=parsed_flags,
+            fpga_device_dna=fpga_device_dna,
+            gadget_build_id=gadget_build_id,
         )
 
 

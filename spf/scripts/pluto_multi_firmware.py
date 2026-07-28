@@ -48,6 +48,7 @@ class UsbPluto:
     bus: int
     port_path: str
     direct_usb: bool
+    address: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -137,6 +138,7 @@ def discover_runtime_plutos(
                 bus=int(_read(device_path / "busnum")),
                 port_path=_read(device_path / "devpath"),
                 direct_usb=direct_usb,
+                address=int(_read(device_path / "devnum")),
             )
         )
     devices.sort(key=lambda device: (device.bus, device.port_path, device.serial))
@@ -345,6 +347,85 @@ class IsolatedPlutoNetwork:
 
     def __exit__(self, exc_type, exc, traceback) -> None:
         self._restore()
+
+
+PASSIVE_DEVICE_FACT_KEYS = (
+    "device_tree_model",
+    "memory_total_kib",
+    "mtd0_size_bytes",
+    "mtd1_size_bytes",
+    "sd_present",
+    "uboot_attr_name",
+    "uboot_attr_val",
+    "uboot_compatible",
+    "uboot_mode",
+    "device_fw",
+    "linux_version",
+    "uboot_version",
+)
+
+
+def parse_passive_device_facts(output: str) -> dict[str, str]:
+    """Parse only explicitly allowlisted hardware facts from Pluto output."""
+
+    facts: dict[str, str] = {}
+    allowed = set(PASSIVE_DEVICE_FACT_KEYS)
+    for line in output.splitlines():
+        key, separator, value = line.partition("=")
+        if not separator or key not in allowed:
+            continue
+        if key in facts:
+            raise FirmwareError(f"duplicate passive device fact: {key}")
+        if len(value.encode("utf-8")) > 512:
+            raise FirmwareError(f"passive device fact is too long: {key}")
+        if any(ord(character) < 0x20 and character != "\t" for character in value):
+            raise FirmwareError(f"passive device fact has control characters: {key}")
+        facts[key] = value.strip()
+    missing = allowed - set(facts)
+    if missing:
+        raise FirmwareError(f"passive device facts are incomplete: {sorted(missing)}")
+    return facts
+
+
+def read_passive_device_facts(
+    serial: str,
+    *,
+    ssh_config: Path,
+    ssh_password: str,
+    timeout: float = 15,
+) -> dict[str, str]:
+    """Read a fixed allowlist without enabling RX, TX, DDS, or changing RF state."""
+
+    remote_command = r"""
+printf 'device_tree_model='
+tr -d '\000' </proc/device-tree/model 2>/dev/null || true
+printf '\n'
+awk '/^MemTotal:/ { printf "memory_total_kib=%s\n", $2; found=1 } END { if (!found) print "memory_total_kib=" }' /proc/meminfo
+for item in mtd0 mtd1; do
+    printf '%s_size_bytes=' "$item"
+    test -r "/sys/class/mtd/$item/size" && tr -d '\n' <"/sys/class/mtd/$item/size"
+    printf '\n'
+done
+if test -e /sys/block/mmcblk0; then printf 'sd_present=true\n'; else printf 'sd_present=false\n'; fi
+for item in attr_name attr_val compatible mode; do
+    printf 'uboot_%s=' "$item"
+    fw_printenv -n "$item" 2>/dev/null || true
+    printf '\n'
+done
+awk '$1 == "device-fw" { print "device_fw=" $2; found=1; exit } END { if (!found) print "device_fw=" }' /opt/VERSIONS
+awk '$1 == "linux" { print "linux_version=" $2; found=1; exit } END { if (!found) print "linux_version=" }' /opt/VERSIONS
+awk '$1 == "uboot" { print "uboot_version=" $2; found=1; exit } END { if (!found) print "uboot_version=" }' /opt/VERSIONS
+"""
+    manager = MultiPlutoFirmwareManager(
+        image=Path("/dev/null"),
+        image_sha256="0" * 64,
+        ssh_config=ssh_config,
+        ssh_password=ssh_password,
+        state_root=Path("/run/spf/passive-fingerprint-unused"),
+        expected_count=1,
+    )
+    result = manager._ssh(serial, remote_command, timeout=timeout)
+    return parse_passive_device_facts(result.stdout)
 
 
 class MultiPlutoFirmwareManager:

@@ -102,9 +102,9 @@ sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh verify-all 2
 It obtains the exact hardware-tested image from:
 
 ```text
-https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-v2
+https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-fingerprint-v1
 
-f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
+0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9
 ```
 
 The multi-radio loader keeps both Plutos attached. It identifies each by USB
@@ -114,8 +114,7 @@ physical USB path. It writes only to RAM. Run `verify-all` again immediately
 before collection; loading is required after every Pluto reset or full power
 cycle, not before every frame or capture.
 
-Rover 1 uses
-`capture_configs/rover1_receiver_config_pi_3mhz_35mm_direct_usb_v2.yaml`.
+Rover 1 uses `capture_configs/rover1_production_v7.yaml`.
 It runs both radios simultaneously, negotiates protocol v2, writes data
 version 7, preserves the legacy `signal_matrix`, `gains`, and `rssis` fields,
 and also stores complete start/end gain/RSSI and stream metadata.
@@ -164,7 +163,8 @@ motion-capable `mavlink_controller.service`. Enabling it installs two units:
    configuration and four dual-RX DMA scan elements, checksum-verifies and
    RAM-loads every attached/configured Pluto,
    regenerates `~/device_mapping` after final USB enumeration, and writes
-   `/run/spf/direct_usb_ready.json`.
+   `/run/spf/direct_usb_ready.json` only after each radio has returned a valid,
+   passive hardware fingerprint.
 2. `spf-direct-usb-preflight.service` requires that ready stamp, runs exactly
    100 motion-free fake-drone frames per receiver, reopens the final v7 Zarr,
    validates it, and writes `PASS` plus `validation.json`.
@@ -190,6 +190,20 @@ python3 -m json.tool /run/spf/direct_usb_ready.json
 find /home/pi/preflight/boot_direct_usb -maxdepth 2 \
   \( -name PASS -o -name validation.json \) -print
 ```
+
+Pass the fingerprint gate only when every radio has:
+
+- `fingerprint_timing: post_firmware_before_recording`;
+- `acquisition_binding: true`;
+- `tx_operations_performed: false`;
+- a unique `stable_fingerprint_sha256`;
+- the expected serial, physical USB path, firmware build and compatibility
+  status.
+
+The fingerprint gate must not enable TX, DDS, direct RX streaming, or perform a
+2R2T RF functional test. Full details and the historical calibration backfill
+procedure are in
+[`HARDWARE_FINGERPRINT.md`](HARDWARE_FINGERPRINT.md).
 
 A Pi-only reboot may leave USB power applied to the Plutos. The loader still
 reloads the exact checksum-pinned image because a vendor interface alone does

@@ -3,12 +3,12 @@
 data-version: 7
 
 pluto-firmware:
-  release-tag: v0.38-plutoplus-spf-gain-rssi-v2
-  asset-name: plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu
-  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-rssi-v2/plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu
-  image-sha256: f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4
-  firmware-git-sha: dd6b1f4db710abc20693888db08e8da2427e0dc3
-  gadget-git-sha: 54610e01c6fd6a69df77f148ea0dc88f9cb18063
+  release-tag: v0.38-plutoplus-spf-gain-rssi-fingerprint-v1
+  asset-name: plutoplus-spf-direct-usb-gain-rssi-fingerprint-v1-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-rssi-fingerprint-v1/plutoplus-spf-direct-usb-gain-rssi-fingerprint-v1-pluto.dfu
+  image-sha256: 0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9
+  firmware-git-sha: 7b02276519a802aed83d47b6672c46e578ce4de0
+  gadget-git-sha: a1e6417d07188bd72be70692e28c5d6ae9a5ec62
   boot-mode: ram
 
 calibration:

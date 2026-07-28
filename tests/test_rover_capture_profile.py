@@ -92,7 +92,9 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
     assert plan["expected_radios"] == "2"
     assert plan["rx_transport"] == "direct_usb"
     assert plan["data_version"] == "7"
-    assert plan["firmware_release_tag"] == "v0.38-plutoplus-spf-gain-rssi-v2"
+    assert (
+        plan["firmware_release_tag"] == "v0.38-plutoplus-spf-gain-rssi-fingerprint-v1"
+    )
 
 
 def test_every_production_boot_waits_for_firmware_loader_by_default():

@@ -1,14 +1,19 @@
 import numpy as np
 import pytest
+import struct
 import usb1
 
 from spf.sdrpluto.direct_usb_protocol import (
     COMMAND_STOP,
+    HARDWARE_IDENTITY_BYTES,
+    HARDWARE_IDENTITY_MAGIC,
+    HARDWARE_IDENTITY_VERSION,
     FIRST_CHANGE_UNAVAILABLE,
     HEADER_BYTES,
     CapabilityFlags,
     GadgetCapabilitiesV1,
     GainMetadataV1,
+    HardwareIdentityFlags,
     MetadataFeatures,
     MetadataFlags,
     ProtocolError,
@@ -59,6 +64,9 @@ class _FakeHandle:
 
     def controlWrite(self, *args, **kwargs):
         self.control_writes.append((args, kwargs))
+
+    def controlRead(self, *args, **kwargs):
+        return self.wire
 
     def bulkRead(self, endpoint, size, timeout):
         self.bulk_read_sizes.append((endpoint, size, timeout))
@@ -129,6 +137,51 @@ def test_capture_requests_a_complete_framed_transfer_and_stops():
     assert len(capture.frames) == 1
     assert handle.bulk_read_sizes[0][1] == HEADER_BYTES + 8 * 8
     assert len(handle.control_writes) == 2
+
+
+def test_hardware_identity_query_is_read_only_and_does_not_start_streaming():
+    payload = struct.pack(
+        "<IHHIIQ40s",
+        HARDWARE_IDENTITY_MAGIC,
+        HARDWARE_IDENTITY_BYTES,
+        HARDWARE_IDENTITY_VERSION,
+        int(
+            HardwareIdentityFlags.FPGA_DEVICE_DNA_VALID
+            | HardwareIdentityFlags.GADGET_BUILD_ID_VALID
+        ),
+        0,
+        0x123456789ABCD,
+        b"c" * 40,
+    )
+    handle = _FakeHandle(payload)
+    receiver = PlutoDirectUsbReceiver(serial="test")
+    receiver._handle = handle
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    receiver._capabilities = GadgetCapabilitiesV1(
+        protocol_min=1,
+        protocol_max=2,
+        supported_features=MetadataFeatures(0x37),
+        max_samples_per_channel=1024,
+        max_finite_frames=16,
+        capability_flags=(
+            CapabilityFlags.FINITE_RX | CapabilityFlags.HARDWARE_IDENTITY
+        ),
+    )
+
+    identity = receiver.query_hardware_identity()
+
+    assert identity.fpga_device_dna == 0x123456789ABCD
+    assert identity.gadget_build_id == "c" * 40
+    assert handle.control_writes == []
+    assert handle.bulk_read_sizes == []
 
 
 class _FakeTransfer:

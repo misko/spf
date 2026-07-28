@@ -226,6 +226,12 @@ class CalibrationV7Writer:
             raise RuntimeError(
                 f"{identity.serial}: V7 calibration requires boot-verified firmware"
             )
+        if not isinstance(self.receiver.attrs.get("hardware_fingerprint_v1"), dict):
+            self.zarr.store.close()
+            raise RuntimeError(
+                f"{identity.serial}: V7 calibration requires a matching "
+                "post-firmware hardware fingerprint"
+            )
         _create_calibration_arrays(self.receiver, len(schedule))
         self._initialize_schedule()
 

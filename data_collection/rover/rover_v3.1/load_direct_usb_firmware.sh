@@ -5,9 +5,9 @@
 
 set -euo pipefail
 
-readonly RELEASE_TAG="${SPF_FIRMWARE_RELEASE_TAG:-v0.38-plutoplus-spf-gain-rssi-v2}"
-readonly ASSET_NAME="${SPF_FIRMWARE_ASSET_NAME:-plutoplus-spf-direct-usb-gain-rssi-v2-pluto.dfu}"
-readonly IMAGE_SHA256="${SPF_FIRMWARE_IMAGE_SHA256:-f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4}"
+readonly RELEASE_TAG="${SPF_FIRMWARE_RELEASE_TAG:-v0.38-plutoplus-spf-gain-rssi-fingerprint-v1}"
+readonly ASSET_NAME="${SPF_FIRMWARE_ASSET_NAME:-plutoplus-spf-direct-usb-gain-rssi-fingerprint-v1-pluto.dfu}"
+readonly IMAGE_SHA256="${SPF_FIRMWARE_IMAGE_SHA256:-0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9}"
 readonly IMAGE_URL="${SPF_FIRMWARE_IMAGE_URL:-https://github.com/misko/plutosdr-fw/releases/download/${RELEASE_TAG}/${ASSET_NAME}}"
 readonly PLUTO_RUNTIME_ID="0456:b673"
 readonly PLUTO_DFU_ID="0456:b674"
@@ -21,7 +21,8 @@ readonly IMAGE_PATH="${CACHE_ROOT}/${ASSET_NAME}"
 readonly SSH_HOST="${SPF_PLUTO_SSH_HOST:-192.168.2.1}"
 readonly SSH_PASSWORD="${SPF_PLUTO_SSH_PASSWORD:-analog}"
 readonly SSH_CONFIG="${SCRIPT_DIR}/ssh_config"
-readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
+readonly REPO_ROOT
 readonly MULTI_LOADER="${REPO_ROOT}/spf/scripts/pluto_multi_firmware.py"
 
 usage() {
