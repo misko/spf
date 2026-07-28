@@ -9,6 +9,10 @@ committed report records SHA-256 hashes of the exact inputs it used.
 
 | Report | Scope | Status |
 |---|---|---|
+| [Replacement-radio cross-band pilot](pilot_cross_band_20260728_new_radios_v2/README.md) | Two new radios, 12 frequencies, complete 3×3 ordered gain grid, three randomized epochs | 648/648 frames complete; all 72 observed-tone preflights passed; extreme 63 dB mismatch explicitly unsupported |
+| [Replacement Radio `…beca79`](pilot_cross_band_20260728_new_radios_v2/104473b80a16000de6ff2000f8a6beca79/REPORT.md) | Per-frequency data-versus-fit figures and protocol-v2 metadata audit | 221/324 phase-valid; additive held-out MAE 1.45° |
+| [Replacement Radio `…5222f`](pilot_cross_band_20260728_new_radios_v2/104000b299050013f4ff0700255e35222f/REPORT.md) | Per-frequency data-versus-fit figures and protocol-v2 metadata audit | 249/324 phase-valid; additive held-out MAE 1.03° |
+| [Replacement-radio comparison](pilot_cross_band_20260728_new_radios_v2/comparison/CROSS_RADIO_REPORT.md) | Board-specific frequency baselines and descriptive delay fits | One global path-delay explanation rejected by 14.77° residual MAE |
 | [Dense model matrix](survey_cross_band_20260727_v1/MODEL_MATRIX_REPORT.md) | Two radios, 12 frequencies, complete 17×17 ordered gain grid, three randomized epochs | Capture structurally complete; 20,409/20,808 frames quality-valid |
 | [Completed cross-band scout](FREQUENCY_SCOUT_20260727.md) | Two radios, 47 frequencies, three gains per receiver, three randomized epochs | Structurally complete; weak cells remain explicitly unsupported |
 | [Plotted Radio A model](frequency_scout_cross_band_20260727_v1/104000f6ad020002fdff3a00bba2f096a1/REPORT.md) | 47 per-frequency data-versus-fit figures plus overview plots | Complete three-epoch model |
@@ -47,6 +51,10 @@ gain-frequency structure.
 A strict universal per-frequency additive lookup gives 5.30° known-cell MAE.
 When trained on one radio and applied unchanged to the other, it gives 10.51°
 MAE. Radio identity and serial-specific calibration therefore remain material.
+The replacement-radio pilot independently reaches the same conclusion: its
+two radios have 1.03–1.45° serial-specific additive-model MAE, while their
+cross-radio frequency-baseline difference cannot be represented by one path
+delay without 14.77° residual MAE.
 
 Both radios also exhibited a severe RX2 RF-DC correction failure at high gain.
 It was present in fresh TX2-off captures, so current TX2 transmission was not

@@ -1,0 +1,1101 @@
+{
+  "cells": [
+    {
+      "frequency_hz": 868000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.7934302556321098,
+      "phase_mean_rad": -0.0806076040766024
+    },
+    {
+      "frequency_hz": 868000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.7700846736669771,
+      "phase_mean_rad": -0.1725199185526433
+    },
+    {
+      "frequency_hz": 868000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 868000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.618798961939949,
+      "phase_mean_rad": -0.07060152140779362
+    },
+    {
+      "frequency_hz": 868000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.1075660357634458,
+      "phase_mean_rad": -0.11128037119567488
+    },
+    {
+      "frequency_hz": 868000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.9529645586815907,
+      "phase_mean_rad": 0.010818573484635968
+    },
+    {
+      "frequency_hz": 868000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 868000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.6910795398687266,
+      "phase_mean_rad": -0.15533529061455914
+    },
+    {
+      "frequency_hz": 868000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.814136726560389,
+      "phase_mean_rad": 0.0022154378196829905
+    },
+    {
+      "frequency_hz": 915000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.1073615801016824,
+      "phase_mean_rad": -0.19563779975782988
+    },
+    {
+      "frequency_hz": 915000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.1306679526156337,
+      "phase_mean_rad": -0.23920635367539742
+    },
+    {
+      "frequency_hz": 915000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 915000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.35478671430589315,
+      "phase_mean_rad": -0.13651021865700233
+    },
+    {
+      "frequency_hz": 915000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.013743143776883326,
+      "phase_mean_rad": -0.1952104059219967
+    },
+    {
+      "frequency_hz": 915000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.8899206872090093,
+      "phase_mean_rad": -0.06898136687194173
+    },
+    {
+      "frequency_hz": 915000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 915000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.4089240105124465,
+      "phase_mean_rad": -0.15637679418286834
+    },
+    {
+      "frequency_hz": 915000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.3239897556273024,
+      "phase_mean_rad": -0.04595936635620466
+    },
+    {
+      "frequency_hz": 1280000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.025278854457584172,
+      "phase_mean_rad": -0.042579725393850326
+    },
+    {
+      "frequency_hz": 1280000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.8267074006863124,
+      "phase_mean_rad": -0.10144244580432854
+    },
+    {
+      "frequency_hz": 1280000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 1280000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.4311246708105981,
+      "phase_mean_rad": 0.03400118968467854
+    },
+    {
+      "frequency_hz": 1280000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.011517741690113385,
+      "phase_mean_rad": -0.037487792952594176
+    },
+    {
+      "frequency_hz": 1280000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.5647702753741953,
+      "phase_mean_rad": 0.1787898278777203
+    },
+    {
+      "frequency_hz": 1280000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 1280000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.5470488827388925,
+      "phase_mean_rad": -0.15652352764846394
+    },
+    {
+      "frequency_hz": 1280000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.4914343604134186,
+      "phase_mean_rad": 0.05045345429851896
+    },
+    {
+      "frequency_hz": 1320000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.5381633106379942,
+      "phase_mean_rad": -0.1501644441328846
+    },
+    {
+      "frequency_hz": 1320000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.11448170108700045,
+      "phase_mean_rad": -0.26845188607262505
+    },
+    {
+      "frequency_hz": 1320000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 1320000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.25497085224590904,
+      "phase_mean_rad": -0.07154426513532541
+    },
+    {
+      "frequency_hz": 1320000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.07949209247820381,
+      "phase_mean_rad": -0.1633555647478374
+    },
+    {
+      "frequency_hz": 1320000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.6538727455219917,
+      "phase_mean_rad": -0.023845380960568673
+    },
+    {
+      "frequency_hz": 1320000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 1320000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.5695357213523787,
+      "phase_mean_rad": -0.17552698983473208
+    },
+    {
+      "frequency_hz": 1320000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.17424297917887666,
+      "phase_mean_rad": -0.03681571444409687
+    },
+    {
+      "frequency_hz": 2412000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.3642144027257239,
+      "phase_mean_rad": 0.06185169836796229
+    },
+    {
+      "frequency_hz": 2412000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.24396951362964578,
+      "phase_mean_rad": -0.09818160320638737
+    },
+    {
+      "frequency_hz": 2412000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 2412000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.4155466189240786,
+      "phase_mean_rad": 0.23722966994197703
+    },
+    {
+      "frequency_hz": 2412000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.21137467798894324,
+      "phase_mean_rad": 0.08353304831676052
+    },
+    {
+      "frequency_hz": 2412000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.3155932395477017,
+      "phase_mean_rad": 0.41946465808968475
+    },
+    {
+      "frequency_hz": 2412000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 2412000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.6646377741688683,
+      "phase_mean_rad": -0.10921105970495286
+    },
+    {
+      "frequency_hz": 2412000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.06923010990208772,
+      "phase_mean_rad": 0.1995448459985972
+    },
+    {
+      "frequency_hz": 2467000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.11289256148148527,
+      "phase_mean_rad": 0.007489607118977064
+    },
+    {
+      "frequency_hz": 2467000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.11832863382211656,
+      "phase_mean_rad": -0.15675181496956858
+    },
+    {
+      "frequency_hz": 2467000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 2467000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.3365130307373318,
+      "phase_mean_rad": 0.19410380700679675
+    },
+    {
+      "frequency_hz": 2467000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.050774392029628426,
+      "phase_mean_rad": 0.025349052558948218
+    },
+    {
+      "frequency_hz": 2467000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.0818578247835866,
+      "phase_mean_rad": 0.3527696545270397
+    },
+    {
+      "frequency_hz": 2467000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 2467000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 2,
+      "pass": true,
+      "phase_circular_std_deg": 0.6033450088325153,
+      "phase_mean_rad": -0.21398722770826367
+    },
+    {
+      "frequency_hz": 2467000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.3016960912376316,
+      "phase_mean_rad": 0.15331315402003967
+    },
+    {
+      "frequency_hz": 3990000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 3.436192500161498,
+      "phase_mean_rad": -0.407506161875694
+    },
+    {
+      "frequency_hz": 3990000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.5687367509553707,
+      "phase_mean_rad": -0.6134177884937682
+    },
+    {
+      "frequency_hz": 3990000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 3990000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 3.5916235729556933,
+      "phase_mean_rad": -0.11977913008434707
+    },
+    {
+      "frequency_hz": 3990000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.1814556250205115,
+      "phase_mean_rad": -0.3373366023385933
+    },
+    {
+      "frequency_hz": 3990000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 3990000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 3990000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 3990000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.7775978944705582,
+      "phase_mean_rad": -0.35883726478955563
+    },
+    {
+      "frequency_hz": 4010000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.3368396400956897,
+      "phase_mean_rad": -0.3706305234898676
+    },
+    {
+      "frequency_hz": 4010000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.4655117811301435,
+      "phase_mean_rad": -0.7367548628726225
+    },
+    {
+      "frequency_hz": 4010000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 4010000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.095696053372791,
+      "phase_mean_rad": -0.04519519313288885
+    },
+    {
+      "frequency_hz": 4010000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.536841132187639,
+      "phase_mean_rad": -0.40235817129532786
+    },
+    {
+      "frequency_hz": 4010000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.065977832937006,
+      "phase_mean_rad": -0.1999037623397821
+    },
+    {
+      "frequency_hz": 4010000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 4010000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.4770724611176368,
+      "phase_mean_rad": -0.5786622474240776
+    },
+    {
+      "frequency_hz": 4010000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.5309414530169992,
+      "phase_mean_rad": -0.36857401699968384
+    },
+    {
+      "frequency_hz": 5766000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.033216110850351,
+      "phase_mean_rad": -0.19272688697199572
+    },
+    {
+      "frequency_hz": 5766000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.8257629488355454,
+      "phase_mean_rad": -0.4514616172073277
+    },
+    {
+      "frequency_hz": 5766000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5766000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.7515251031647674,
+      "phase_mean_rad": 0.03701919520016053
+    },
+    {
+      "frequency_hz": 5766000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.1022717438286211,
+      "phase_mean_rad": -0.22736251024007886
+    },
+    {
+      "frequency_hz": 5766000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5766000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5766000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5766000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.2435818958300735,
+      "phase_mean_rad": -0.13800939882262284
+    },
+    {
+      "frequency_hz": 5804000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.505832634615731,
+      "phase_mean_rad": -0.20072715146647205
+    },
+    {
+      "frequency_hz": 5804000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.64222171178719,
+      "phase_mean_rad": -0.44632066361911715
+    },
+    {
+      "frequency_hz": 5804000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5804000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.1944414239705177,
+      "phase_mean_rad": 0.012440276543991022
+    },
+    {
+      "frequency_hz": 5804000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.8891684106667395,
+      "phase_mean_rad": -0.2308813385592621
+    },
+    {
+      "frequency_hz": 5804000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5804000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5804000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5804000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.3620279027732525,
+      "phase_mean_rad": -0.13901320323982172
+    },
+    {
+      "frequency_hz": 5838000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.0764489460140307,
+      "phase_mean_rad": -0.1582190051508729
+    },
+    {
+      "frequency_hz": 5838000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.445364440720134,
+      "phase_mean_rad": -0.39109055288965977
+    },
+    {
+      "frequency_hz": 5838000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5838000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.7713990006008292,
+      "phase_mean_rad": 0.009236902266573322
+    },
+    {
+      "frequency_hz": 5838000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.3999291764477366,
+      "phase_mean_rad": -0.17266976483316643
+    },
+    {
+      "frequency_hz": 5838000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5838000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5838000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5838000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 2.0261453422081512,
+      "phase_mean_rad": -0.10119355564253268
+    },
+    {
+      "frequency_hz": 5866000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.3494476237907778,
+      "phase_mean_rad": -0.18867150388344306
+    },
+    {
+      "frequency_hz": 5866000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.7303716242591234,
+      "phase_mean_rad": -0.3939829696264301
+    },
+    {
+      "frequency_hz": 5866000000,
+      "gain_rx1_db": -1,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5866000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.665166415729871,
+      "phase_mean_rad": 0.003271470728256592
+    },
+    {
+      "frequency_hz": 5866000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 0.7340319255940703,
+      "phase_mean_rad": -0.17005812794500536
+    },
+    {
+      "frequency_hz": 5866000000,
+      "gain_rx1_db": 26,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5866000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": -1,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5866000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 26,
+      "n_complete": 3,
+      "n_quality_valid": 0,
+      "pass": false,
+      "phase_circular_std_deg": null,
+      "phase_mean_rad": null
+    },
+    {
+      "frequency_hz": 5866000000,
+      "gain_rx1_db": 62,
+      "gain_rx2_db": 62,
+      "n_complete": 3,
+      "n_quality_valid": 3,
+      "pass": true,
+      "phase_circular_std_deg": 1.3273449861226132,
+      "phase_mean_rad": -0.08255228620181974
+    }
+  ],
+  "completed_frames": 324,
+  "expected_cells": 108,
+  "expected_frames": 324,
+  "passing_cells": 74,
+  "quality_reason_counts": {
+    "cross_channel_coherence_low": 87,
+    "rx1_tone_snr_low": 51,
+    "rx1_tone_too_weak": 51,
+    "rx2_tone_snr_low": 52,
+    "rx2_tone_too_weak": 51,
+    "within_capture_phase_unstable": 93
+  },
+  "quality_valid_frames": 221,
+  "schema": "spf.calibration.dual_rx_gain_frequency.validation",
+  "schema_version": 1,
+  "serial": "104473b80a16000de6ff2000f8a6beca79",
+  "status": "fail_quality"
+}

@@ -1,0 +1,1378 @@
+{
+  "cross_validation_metrics": {
+    "circular_mae_deg": 1.0349501393003864,
+    "circular_max_deg": 5.286253065866229,
+    "circular_p95_deg": 3.482613016083,
+    "circular_rmse_deg": 1.4859789280616613
+  },
+  "frequency_intercept_delay_model": {
+    "descriptive_delay_seconds": 4.88788377796459e-11,
+    "equivalent_free_space_path_m": 0.014653506922143306,
+    "fit_residual_metrics": {
+      "circular_mae_deg": 13.228498187581074,
+      "circular_max_deg": 33.72087527302399,
+      "circular_p95_deg": 33.54587675304034,
+      "circular_rmse_deg": 16.81872857997358
+    },
+    "frequency_points": [
+      {
+        "fitted_phase_rad_unwrapped": 0.1529910622121604,
+        "frequency_hz": 868000000,
+        "phase_rad_unwrapped": -0.037139454137261385,
+        "residual_rad": -0.1901305163494218
+      },
+      {
+        "fitted_phase_rad_unwrapped": 0.13855666682981338,
+        "frequency_hz": 915000000,
+        "phase_rad_unwrapped": -0.09935019504115328,
+        "residual_rad": -0.23790686187096677
+      },
+      {
+        "fitted_phase_rad_unwrapped": 0.026459766520097183,
+        "frequency_hz": 1280000000,
+        "phase_rad_unwrapped": -0.017332847177068178,
+        "residual_rad": -0.04379261369716536
+      },
+      {
+        "fitted_phase_rad_unwrapped": 0.014175174705333693,
+        "frequency_hz": 1320000000,
+        "phase_rad_unwrapped": -0.11172946259602057,
+        "residual_rad": -0.12590463730135415
+      },
+      {
+        "fitted_phase_rad_unwrapped": -0.32119418183770776,
+        "frequency_hz": 2412000000,
+        "phase_rad_unwrapped": -0.1620081279713408,
+        "residual_rad": 0.15918605386636697
+      },
+      {
+        "fitted_phase_rad_unwrapped": -0.3380854955830075,
+        "frequency_hz": 2467000000,
+        "phase_rad_unwrapped": -0.28351378560072993,
+        "residual_rad": 0.05457170998227756
+      },
+      {
+        "fitted_phase_rad_unwrapped": -0.8058213289301248,
+        "frequency_hz": 3990000000,
+        "phase_rad_unwrapped": -0.21728102876151434,
+        "residual_rad": 0.5885403001686105
+      },
+      {
+        "fitted_phase_rad_unwrapped": -0.8119636248375066,
+        "frequency_hz": 4010000000,
+        "phase_rad_unwrapped": -0.2289765980504086,
+        "residual_rad": 0.582987026787098
+      },
+      {
+        "fitted_phase_rad_unwrapped": -1.351257205505621,
+        "frequency_hz": 5766000000,
+        "phase_rad_unwrapped": -1.3767633126893446,
+        "residual_rad": -0.025506107183723703
+      },
+      {
+        "fitted_phase_rad_unwrapped": -1.3629275677296462,
+        "frequency_hz": 5804000000,
+        "phase_rad_unwrapped": -1.5261447435418347,
+        "residual_rad": -0.1632171758121883
+      },
+      {
+        "fitted_phase_rad_unwrapped": -1.373369470772195,
+        "frequency_hz": 5838000000,
+        "phase_rad_unwrapped": -1.6386809019833153,
+        "residual_rad": -0.2653114312111202
+      },
+      {
+        "fitted_phase_rad_unwrapped": -1.3819686850425295,
+        "frequency_hz": 5866000000,
+        "phase_rad_unwrapped": -1.715484432420942,
+        "residual_rad": -0.3335157473784127
+      }
+    ],
+    "interpretation": "Effective RX1-minus-RX2 electrical group delay at the common reference gain.",
+    "phase_at_reference_rad_unwrapped": -0.6178670741642445,
+    "phase_unwrap_assumption": "Adjacent measured frequencies differ by less than 180 degrees of true unwrapped phase.",
+    "reference_frequency_hz": 3378000000.0,
+    "reference_gain_db": 26,
+    "slope_rad_per_hz": -3.071147953690856e-10,
+    "warning": "Descriptive only: cables, PCB and analogue paths, LO retunes, and calibration state can all contribute. It is not asserted to be literal cable length."
+  },
+  "frequency_models": [
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 1.3340176610161305,
+        "circular_max_deg": 4.793290274173751,
+        "circular_p95_deg": 4.039646274489378,
+        "circular_rmse_deg": 1.9446628215617616
+      },
+      "frequency_hz": 868000000,
+      "interaction_residual_rad": [
+        [
+          -0.015668999412949643,
+          0.015662688860077642,
+          NaN
+        ],
+        [
+          0.015669403378454305,
+          -0.018490399809261013,
+          0.0028156736203569614
+        ],
+        [
+          NaN,
+          0.0028161773265394318,
+          -0.0028156687317134003
+        ]
+      ],
+      "intercept_rad": -0.037139454137261385,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.04378426775106892,
+        0.0,
+        -0.05651540841396496
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.029336137722375533,
+        0.0,
+        -0.0341815259691125
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.978038933155144,
+        "circular_max_deg": 3.866448620653404,
+        "circular_p95_deg": 3.1924295048923352,
+        "circular_rmse_deg": 1.447617531706969
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 1.2478970318426,
+        "circular_max_deg": 4.624635937403023,
+        "circular_p95_deg": 4.077044544229563,
+        "circular_rmse_deg": 1.7561629721565297
+      },
+      "frequency_hz": 915000000,
+      "interaction_residual_rad": [
+        [
+          -0.0021115300813829155,
+          0.0021093150688143735,
+          NaN
+        ],
+        [
+          0.002109500149242854,
+          -0.005885256154391194,
+          0.003777154586219825
+        ],
+        [
+          NaN,
+          0.003775954526682995,
+          -0.003776339167181558
+        ]
+      ],
+      "intercept_rad": -0.09935019504115328,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.050809538330123694,
+        0.0,
+        0.051213117819687515
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.046280223682677146,
+        0.0,
+        -0.15657448433570842
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.8746760020396054,
+        "circular_max_deg": 3.3539896338794004,
+        "circular_p95_deg": 3.048527133761246,
+        "circular_rmse_deg": 1.2517543479224542
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 1.4240478943377584,
+        "circular_max_deg": 4.646077076205175,
+        "circular_p95_deg": 3.5494158844459336,
+        "circular_rmse_deg": 1.8915357574828084
+      },
+      "frequency_hz": 1280000000,
+      "interaction_residual_rad": [
+        [
+          0.008043575358079444,
+          -0.008044966259612867,
+          NaN
+        ],
+        [
+          -0.008044448401934514,
+          0.011681731529276752,
+          -0.0036404832652003386
+        ],
+        [
+          NaN,
+          -0.0036401154913778466,
+          0.0036381115329702928
+        ]
+      ],
+      "intercept_rad": -0.017332847177068178,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.09873323752885099,
+        0.0,
+        -0.13890651267685206
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.07925331854410844,
+        0.0,
+        0.054453626654253906
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 1.0688269227411087,
+        "circular_max_deg": 3.189964820501014,
+        "circular_p95_deg": 2.5809982696605496,
+        "circular_rmse_deg": 1.3714701761423518
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 0.7687599955523388,
+        "circular_max_deg": 3.0728580164241968,
+        "circular_p95_deg": 1.706405441937721,
+        "circular_rmse_deg": 1.0433794573553692
+      },
+      "frequency_hz": 1320000000,
+      "interaction_residual_rad": [
+        [
+          -0.007407266952609832,
+          0.007407209026298266,
+          NaN
+        ],
+        [
+          0.007407613887148196,
+          -0.0009097605176113574,
+          -0.006497663433752582
+        ],
+        [
+          NaN,
+          -0.0064991859991040705,
+          0.006497682058956853
+        ]
+      ],
+      "intercept_rad": -0.11172946259602057,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.09939846091330784,
+        0.0,
+        -0.038374761012392344
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.09996397421511682,
+        0.0,
+        -0.06986379021480049
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.5560707582251434,
+        "circular_max_deg": 2.270243158758563,
+        "circular_p95_deg": 1.2785910772491826,
+        "circular_rmse_deg": 0.7650680511740682
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 0.8433026337064484,
+        "circular_max_deg": 2.6278673871047022,
+        "circular_p95_deg": 2.0268115883363453,
+        "circular_rmse_deg": 1.1277618105182765
+      },
+      "frequency_hz": 2412000000,
+      "interaction_residual_rad": [
+        [
+          -0.0015204972647680944,
+          0.001520497195210477,
+          NaN
+        ],
+        [
+          0.0015207128882322534,
+          -0.008374433268894641,
+          0.0068563311925777725
+        ],
+        [
+          NaN,
+          0.006854523781775475,
+          -0.006853897643017671
+        ]
+      ],
+      "intercept_rad": -0.1620081279713408,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.17400611194034932,
+        0.0,
+        -0.3220526895224083
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.16849582254429496,
+        0.0,
+        0.2655450674068591
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.6275288867735668,
+        "circular_max_deg": 1.77207001376204,
+        "circular_p95_deg": 1.5137773798665521,
+        "circular_rmse_deg": 0.8162744522256917
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 1.4073969607684251,
+        "circular_max_deg": 5.286253065866229,
+        "circular_p95_deg": 3.4842577379083552,
+        "circular_rmse_deg": 1.9311312782250747
+      },
+      "frequency_hz": 2467000000,
+      "interaction_residual_rad": [
+        [
+          -0.00657772319925684,
+          0.006585380135025491,
+          NaN
+        ],
+        [
+          0.0065822815468425,
+          -0.011289783289556054,
+          0.0047107703373352695
+        ],
+        [
+          NaN,
+          0.0047113804975001455,
+          -0.004710942910459631
+        ]
+      ],
+      "intercept_rad": -0.28351378560072993,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.20073586142557565,
+        0.0,
+        -0.21595274049137192
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.196302491796585,
+        0.0,
+        0.1670309149868543
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 1.038318472865127,
+        "circular_max_deg": 4.148828437473585,
+        "circular_p95_deg": 2.7225512252443576,
+        "circular_rmse_deg": 1.464884311348636
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 1.3599856659960687,
+        "circular_max_deg": 4.592132538780062,
+        "circular_p95_deg": 3.5701429431055742,
+        "circular_rmse_deg": 1.8625454618740183
+      },
+      "frequency_hz": 3990000000,
+      "interaction_residual_rad": [
+        [
+          -0.004111174228454812,
+          0.00411310178214969,
+          NaN
+        ],
+        [
+          0.004110131453234906,
+          -0.004111038866981656,
+          1.3473854506658534e-16
+        ],
+        [
+          NaN,
+          NaN,
+          1.6407611717850883e-17
+        ]
+      ],
+      "intercept_rad": -0.21728102876151434,
+      "n_observations": 18,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          0,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.2783683323847974,
+        0.0,
+        -0.4289659625381885
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        3
+      ],
+      "rx2_effect_rad": [
+        0.2974807917609805,
+        0.0,
+        0.4324829220027917
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        6,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          false,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.9220275926194142,
+        "circular_max_deg": 2.874496210605381,
+        "circular_p95_deg": 2.364818919558541,
+        "circular_rmse_deg": 1.257835472055919
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 0.37967594264722165,
+        "circular_max_deg": 1.4300611621932506,
+        "circular_p95_deg": 0.7620307334614964,
+        "circular_rmse_deg": 0.49438121976223276
+      },
+      "frequency_hz": 4010000000,
+      "interaction_residual_rad": [
+        [
+          0.0007165539106340335,
+          -0.00071655817087612,
+          NaN
+        ],
+        [
+          -0.0007165665723057849,
+          0.0019533174226344773,
+          -0.0012367995274511912
+        ],
+        [
+          NaN,
+          -0.0012368695123544807,
+          0.0012367648856031813
+        ]
+      ],
+      "intercept_rad": -0.2289765980504086,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.07262130920354881,
+        0.0,
+        -0.2068988648079384
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.11623783143351263,
+        0.0,
+        0.20518405184266397
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.2692645368577803,
+        "circular_max_deg": 1.1324176780808701,
+        "circular_p95_deg": 0.6870477895095574,
+        "circular_rmse_deg": 0.37951893367182016
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 0.8302293881673,
+        "circular_max_deg": 3.9271051300438105,
+        "circular_p95_deg": 3.4801459333449674,
+        "circular_rmse_deg": 1.2897479684594007
+      },
+      "frequency_hz": 5766000000,
+      "interaction_residual_rad": [
+        [
+          0.007431681995328533,
+          -0.007431555810373307,
+          NaN
+        ],
+        [
+          -0.007431972566756365,
+          0.0027012635829680503,
+          0.004733893228460997
+        ],
+        [
+          NaN,
+          0.004730343439115473,
+          -0.004730406421871426
+        ]
+      ],
+      "intercept_rad": -1.3767633126893446,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.14338228490267513,
+        0.0,
+        -0.18903379607989113
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.24823924491028793,
+        0.0,
+        0.1875226347275607
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.6176613065449683,
+        "circular_max_deg": 2.9879093307838382,
+        "circular_p95_deg": 2.5189124750002385,
+        "circular_rmse_deg": 0.9781334116774778
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 0.835472503001579,
+        "circular_max_deg": 2.1446805140697207,
+        "circular_p95_deg": 2.0980178343906517,
+        "circular_rmse_deg": 1.0281067599178222
+      },
+      "frequency_hz": 5804000000,
+      "interaction_residual_rad": [
+        [
+          0.011039509860763451,
+          -0.011039578869038967,
+          NaN
+        ],
+        [
+          -0.011039889786924956,
+          0.010241438668217077,
+          0.0007981177296052291
+        ],
+        [
+          NaN,
+          0.0007980975660037136,
+          -0.0007979762874868587
+        ]
+      ],
+      "intercept_rad": -1.5261447435418347,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.10858504795199453,
+        0.0,
+        -0.17465989064923315
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.2834049791493216,
+        0.0,
+        0.17225896542474395
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.6572452532428452,
+        "circular_max_deg": 1.4348769422978522,
+        "circular_p95_deg": 1.393634362662781,
+        "circular_rmse_deg": 0.7744579587516137
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 0.7686060481310667,
+        "circular_max_deg": 2.8762000382920068,
+        "circular_p95_deg": 1.956112584431478,
+        "circular_rmse_deg": 1.020613032341849
+      },
+      "frequency_hz": 5838000000,
+      "interaction_residual_rad": [
+        [
+          0.010565079029124716,
+          -0.010565052084787465,
+          NaN
+        ],
+        [
+          -0.010565069754704852,
+          0.007725849126019902,
+          0.0028402129224413836
+        ],
+        [
+          NaN,
+          0.0028396135877412254,
+          -0.00283914305696676
+        ]
+      ],
+      "intercept_rad": -1.6386809019833153,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.08768117506415773,
+        0.0,
+        -0.18051685172898368
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.2976711389698594,
+        0.0,
+        0.16270812955233138
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.688013058196628,
+        "circular_max_deg": 2.3165897563052495,
+        "circular_p95_deg": 1.632408818721649,
+        "circular_rmse_deg": 0.8578371788923093
+      }
+    },
+    {
+      "cross_validation_metrics": {
+        "circular_mae_deg": 1.2664435931085092,
+        "circular_max_deg": 3.7868405652593906,
+        "circular_p95_deg": 3.4078956679609993,
+        "circular_rmse_deg": 1.6336026487681516
+      },
+      "frequency_hz": 5866000000,
+      "interaction_residual_rad": [
+        [
+          -0.004664114349576356,
+          0.004663276931957334,
+          NaN
+        ],
+        [
+          0.0046625130659485245,
+          -0.015540001882190822,
+          0.01087470214065632
+        ],
+        [
+          NaN,
+          0.01087319776971423,
+          -0.010873369668829793
+        ]
+      ],
+      "intercept_rad": -1.715484432420942,
+      "n_observations": 21,
+      "quality_valid_observation_count_by_gain_pair": [
+        [
+          3,
+          3,
+          0
+        ],
+        [
+          3,
+          3,
+          3
+        ],
+        [
+          0,
+          3,
+          3
+        ]
+      ],
+      "reference_gain_db": 26,
+      "rx1_effect_rad": [
+        -0.08207654310440438,
+        0.0,
+        -0.1960664289108851
+      ],
+      "rx1_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "rx2_effect_rad": [
+        0.29866239540408834,
+        0.0,
+        0.18184730712444352
+      ],
+      "rx2_observation_count_by_gain": [
+        6,
+        9,
+        6
+      ],
+      "status": "fit",
+      "supported_gain_pair": [
+        [
+          true,
+          true,
+          false
+        ],
+        [
+          true,
+          true,
+          true
+        ],
+        [
+          false,
+          true,
+          true
+        ]
+      ],
+      "training_metrics": {
+        "circular_mae_deg": 0.9479879925583677,
+        "circular_max_deg": 2.753272046966379,
+        "circular_p95_deg": 2.612171636925972,
+        "circular_rmse_deg": 1.1937300647162863
+      }
+    }
+  ],
+  "gain_values_db": [
+    -1,
+    26,
+    62
+  ],
+  "model_comparisons": {
+    "additive": {
+      "circular_mae_deg": 1.0349501393003864,
+      "circular_max_deg": 5.286253065866229,
+      "circular_p95_deg": 3.482613016083,
+      "circular_rmse_deg": 1.4859789280616613,
+      "n_observations": 249
+    },
+    "additive_vs_cell_interaction": {
+      "additive": {
+        "circular_mae_deg": 1.0349501393003864,
+        "circular_max_deg": 5.286253065866229,
+        "circular_p95_deg": 3.482613016083,
+        "circular_rmse_deg": 1.4859789280616613
+      },
+      "additive_plus_cell_interaction": {
+        "circular_mae_deg": 1.0110750941818702,
+        "circular_max_deg": 5.656478993957786,
+        "circular_p95_deg": 3.51788096368532,
+        "circular_rmse_deg": 1.5188451456867247
+      },
+      "delta_mae_deg_second_minus_first": -0.023875045118516125,
+      "evaluation": "paired leave-one-epoch-out",
+      "mae_equivalence_margin_deg": 0.1,
+      "n_observations": 249,
+      "recommendation_reason": "MAE difference is inside the predeclared practical-equivalence margin",
+      "recommended_model": "additive",
+      "winner_by_mae": "additive_plus_cell_interaction"
+    },
+    "additive_vs_gain_difference_only": {
+      "additive": {
+        "circular_mae_deg": 1.0349501393003864,
+        "circular_max_deg": 5.286253065866229,
+        "circular_p95_deg": 3.482613016083,
+        "circular_rmse_deg": 1.4859789280616613
+      },
+      "delta_mae_deg_second_minus_first": 0.8783910504303274,
+      "evaluation": "paired leave-one-epoch-out",
+      "gain_difference_only": {
+        "circular_mae_deg": 1.9133411897307138,
+        "circular_max_deg": 10.691966303825701,
+        "circular_p95_deg": 5.4335170348359245,
+        "circular_rmse_deg": 2.67826776600033
+      },
+      "mae_equivalence_margin_deg": 0.1,
+      "n_observations": 249,
+      "recommendation_reason": "lower held-out MAE outside equivalence margin",
+      "recommended_model": "additive",
+      "winner_by_mae": "additive"
+    },
+    "anchor_gain_db": 26,
+    "anchor_policy": "One held-out equal-gain frame per frequency/epoch; anchor frame excluded from scoring.",
+    "confidence_tiers": [
+      {
+        "additive": {
+          "circular_mae_deg": 1.0349501393003864,
+          "circular_max_deg": 5.286253065866229,
+          "circular_p95_deg": 3.482613016083,
+          "circular_rmse_deg": 1.4859789280616613,
+          "n_observations": 249
+        },
+        "eligible_observations": 249,
+        "minimum_both_channel_tone_snr_db": -10.0
+      },
+      {
+        "additive": {
+          "circular_mae_deg": 0.91458417419022,
+          "circular_max_deg": 5.482066254877786,
+          "circular_p95_deg": 3.414578340288443,
+          "circular_rmse_deg": 1.4133562370939758,
+          "n_observations": 182
+        },
+        "eligible_observations": 182,
+        "minimum_both_channel_tone_snr_db": 0.0
+      },
+      {
+        "additive": {
+          "circular_mae_deg": 0.8507424590475027,
+          "circular_max_deg": 4.804388197513646,
+          "circular_p95_deg": 3.0119606949022115,
+          "circular_rmse_deg": 1.329949576892163,
+          "n_observations": 118
+        },
+        "eligible_observations": 118,
+        "minimum_both_channel_tone_snr_db": 10.0
+      }
+    ],
+    "eligible_observations": 249,
+    "frequency_specific_vs_gain_table_shared_gain_curves": {
+      "boundary_membership": "start < frequency <= end; 1.3 GHz is low-table and 4.0 GHz is middle-table",
+      "delta_mae_deg_second_minus_first": 1.3425397828911827,
+      "evaluation": "paired leave-one-epoch-out",
+      "frequency_specific_gain_curves": {
+        "circular_mae_deg": 1.0349501393003864,
+        "circular_max_deg": 5.286253065866229,
+        "circular_p95_deg": 3.482613016083,
+        "circular_rmse_deg": 1.4859789280616613
+      },
+      "gain_table_boundaries_hz": [
+        1300000000,
+        4000000000
+      ],
+      "gain_table_shared_gain_curves": {
+        "circular_mae_deg": 2.377489922191569,
+        "circular_max_deg": 13.861170564463444,
+        "circular_p95_deg": 7.620834406329623,
+        "circular_rmse_deg": 3.5816779250427206
+      },
+      "mae_equivalence_margin_deg": 0.1,
+      "n_observations": 249,
+      "nominal_parameter_counts": {
+        "frequency_specific_gain_curves": 60,
+        "gain_table_shared_gain_curves": 24
+      },
+      "recommendation_reason": "lower held-out MAE outside equivalence margin",
+      "recommended_model": "frequency_specific_gain_curves",
+      "winner_by_mae": "frequency_specific_gain_curves"
+    },
+    "frequency_specific_vs_linear_delay_intercept": {
+      "delta_mae_deg_second_minus_first": 11.97902683925263,
+      "evaluation": "paired leave-one-epoch-out",
+      "frequency_specific_intercepts": {
+        "circular_mae_deg": 1.0349501393003864,
+        "circular_max_deg": 5.286253065866229,
+        "circular_p95_deg": 3.482613016083,
+        "circular_rmse_deg": 1.4859789280616613
+      },
+      "linear_delay_intercept": {
+        "circular_mae_deg": 13.013976978553016,
+        "circular_max_deg": 36.61398458430076,
+        "circular_p95_deg": 33.84745858227425,
+        "circular_rmse_deg": 16.56897907382716
+      },
+      "mae_equivalence_margin_deg": 0.1,
+      "n_observations": 249,
+      "recommendation_reason": "lower held-out MAE outside equivalence margin",
+      "recommended_model": "frequency_specific_intercepts",
+      "winner_by_mae": "frequency_specific_intercepts"
+    },
+    "frequency_specific_vs_shared_gain_curves": {
+      "delta_mae_deg_second_minus_first": 2.5746805988194224,
+      "evaluation": "paired leave-one-epoch-out",
+      "frequency_shared_gain_curves": {
+        "circular_mae_deg": 3.609630738119809,
+        "circular_max_deg": 16.101008402240332,
+        "circular_p95_deg": 10.051710732672992,
+        "circular_rmse_deg": 4.867350466591852
+      },
+      "frequency_specific_gain_curves": {
+        "circular_mae_deg": 1.0349501393003864,
+        "circular_max_deg": 5.286253065866229,
+        "circular_p95_deg": 3.482613016083,
+        "circular_rmse_deg": 1.4859789280616613
+      },
+      "mae_equivalence_margin_deg": 0.1,
+      "n_observations": 249,
+      "recommendation_reason": "lower held-out MAE outside equivalence margin",
+      "recommended_model": "frequency_specific_gain_curves",
+      "winner_by_mae": "frequency_specific_gain_curves"
+    },
+    "unanchored_vs_one_frame_anchor": {
+      "delta_mae_deg_second_minus_first": 0.21112314813063837,
+      "evaluation": "paired leave-one-epoch-out",
+      "mae_equivalence_margin_deg": 0.1,
+      "n_observations": 213,
+      "one_frame_anchored": {
+        "circular_mae_deg": 1.2837398459242433,
+        "circular_max_deg": 5.59568325450815,
+        "circular_p95_deg": 3.8341117798603,
+        "circular_rmse_deg": 1.7482755967118704
+      },
+      "recommendation_reason": "lower held-out MAE outside equivalence margin",
+      "recommended_model": "unanchored",
+      "unanchored": {
+        "circular_mae_deg": 1.072616697793605,
+        "circular_max_deg": 5.286253065866229,
+        "circular_p95_deg": 3.5098279560115353,
+        "circular_rmse_deg": 1.515579581984691
+      },
+      "winner_by_mae": "unanchored"
+    }
+  },
+  "phase_convention": "angle(rx1) - angle(rx2)",
+  "prediction_support_policy": {
+    "interpolation_or_extrapolation": false,
+    "maximum_repeat_circular_std_deg": 5,
+    "minimum_quality_valid_epochs": 2
+  },
+  "quality_valid_observations": 249,
+  "schema": "spf.calibration.dual_rx_gain_frequency.model",
+  "schema_version": 2,
+  "serial": "104000b299050013f4ff0700255e35222f"
+}

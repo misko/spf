@@ -1,0 +1,114 @@
+{
+  "common_frequency_count": 12,
+  "global_difference_fit": {
+    "effective_delay_seconds": -4.4313254944498945e-11,
+    "free_space_equivalent_path_m": -0.013284779621791993,
+    "frequency_count": 12,
+    "maximum_frequency_hz": 5866000000,
+    "minimum_frequency_hz": 868000000,
+    "phase_at_reference_rad_unwrapped": 0.45342893800601547,
+    "reference_frequency_hz": 3378000000.0,
+    "residual_metrics": {
+      "circular_mae_deg": 14.773438016428372,
+      "circular_max_deg": 46.18599593506078,
+      "circular_p95_deg": 44.13374586070751,
+      "circular_rmse_deg": 20.62989699028987
+    },
+    "slope_rad_per_hz": 2.784283923805789e-10
+  },
+  "individual_descriptive_delay": {
+    "radio_a": {
+      "descriptive_delay_seconds": 4.565582835146961e-12,
+      "free_space_equivalent_path_m": 0.0013687273003513162,
+      "residual_metrics": {
+        "circular_mae_deg": 5.443598237637495,
+        "circular_max_deg": 12.85873563932579,
+        "circular_p95_deg": 12.817245921800506,
+        "circular_rmse_deg": 6.888931451425527
+      }
+    },
+    "radio_b": {
+      "descriptive_delay_seconds": 4.88788377796459e-11,
+      "free_space_equivalent_path_m": 0.014653506922143306,
+      "residual_metrics": {
+        "circular_mae_deg": 13.228498187581074,
+        "circular_max_deg": 33.72087527302399,
+        "circular_p95_deg": 33.54587675304034,
+        "circular_rmse_deg": 16.81872857997358
+      }
+    }
+  },
+  "interpretation": "A stable physical differential-path mismatch would produce a consistent delay across regions. Band-dependent sign or magnitude changes indicate that gain tables, analogue filtering, LO retunes, calibration state, or external cables also contribute.",
+  "phase_delta_convention": "radio_a intercept minus radio_b intercept",
+  "radio_a_serial": "104473b80a16000de6ff2000f8a6beca79",
+  "radio_b_serial": "104000b299050013f4ff0700255e35222f",
+  "region_difference_fits": {
+    "high_full_gain_table": {
+      "effective_delay_seconds": -1.3620954600969838e-10,
+      "free_space_equivalent_path_m": -0.04083459460131157,
+      "frequency_count": 5,
+      "maximum_frequency_hz": 5866000000,
+      "minimum_frequency_hz": 4010000000,
+      "phase_at_reference_rad_unwrapped": 1.0519019151330329,
+      "reference_frequency_hz": 5456800000.0,
+      "residual_metrics": {
+        "circular_mae_deg": 5.043465752835103,
+        "circular_max_deg": 9.49461367433206,
+        "circular_p95_deg": 9.146389207619405,
+        "circular_rmse_deg": 5.979862286624102
+      },
+      "slope_rad_per_hz": 8.558298181857387e-10
+    },
+    "low_full_gain_table": {
+      "effective_delay_seconds": -3.037844744739138e-11,
+      "free_space_equivalent_path_m": -0.009107229430477287,
+      "frequency_count": 3,
+      "maximum_frequency_hz": 1280000000,
+      "minimum_frequency_hz": 868000000,
+      "phase_at_reference_rad_unwrapped": -0.0656393883039586,
+      "reference_frequency_hz": 1021000000.0,
+      "residual_metrics": {
+        "circular_mae_deg": 0.14515047254158103,
+        "circular_max_deg": 0.21772570881238426,
+        "circular_p95_deg": 0.21524194465845492,
+        "circular_rmse_deg": 0.16854989292139058
+      },
+      "slope_rad_per_hz": 1.908734146563767e-10
+    },
+    "middle_full_gain_table": {
+      "effective_delay_seconds": 6.93564079135266e-12,
+      "free_space_equivalent_path_m": 0.002079252800644679,
+      "frequency_count": 4,
+      "maximum_frequency_hz": 3990000000,
+      "minimum_frequency_hz": 1320000000,
+      "phase_at_reference_rad_unwrapped": 0.09463896132972449,
+      "reference_frequency_hz": 2547250000.0,
+      "residual_metrics": {
+        "circular_mae_deg": 10.135462371881154,
+        "circular_max_deg": 11.738842775394305,
+        "circular_p95_deg": 11.736586455505567,
+        "circular_rmse_deg": 10.260332406040304
+      },
+      "slope_rad_per_hz": -4.357791631610243e-11
+    },
+    "vtx_5_7_to_5_9_ghz": {
+      "effective_delay_seconds": -6.299182719163762e-10,
+      "free_space_equivalent_path_m": -0.1888447470769228,
+      "frequency_count": 4,
+      "maximum_frequency_hz": 5866000000,
+      "minimum_frequency_hz": 5766000000,
+      "phase_at_reference_rad_unwrapped": 1.3590528977635379,
+      "reference_frequency_hz": 5818500000.0,
+      "residual_metrics": {
+        "circular_mae_deg": 0.48817525224075775,
+        "circular_max_deg": 0.9763505044815283,
+        "circular_p95_deg": 0.9125877455959825,
+        "circular_rmse_deg": 0.595232313572818
+      },
+      "slope_rad_per_hz": 3.957893230828931e-09
+    }
+  },
+  "schema": "spf.calibration.dual_rx_gain_frequency.cross_radio",
+  "schema_version": 1,
+  "warning": "Effective delays and free-space-equivalent lengths are descriptive slopes, not measurements of literal PCB trace length."
+}
