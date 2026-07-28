@@ -14,6 +14,7 @@ serial and stored V7 hardware fingerprint.
 | Pluto serial | Historical IP | Calibration dataset roots | Notes |
 | --- | --- | --- | --- |
 | `1040007c4a94000211000b009186843ef2` | `192.168.1.18` | Pending | First inventoried alone on 2026-07-28 before SPF RAM loading. Persistent `ad9361`/`2r2t` verification passed. |
+| `104000bac4950008230026001b440a003a` | `192.168.1.17` | Pending | Identified as the newly attached radio on 2026-07-28 before SPF RAM loading. Persistent `ad9361`/`2r2t` verification passed. |
 
 ## Initial read-only inventory
 
@@ -39,9 +40,28 @@ evidence and are not stable identifiers.
 | `iiod` | Running |
 | `sdr_usb_gadget` | Absent before RAM loading |
 
+The second special radio was then attached alongside the already identified
+`.18` radio. Subtracting the known serial from the two-device inventory made
+the new mapping unambiguous:
+
+| Field | `.17` radio | `.18` radio at second inventory |
+| --- | --- | --- |
+| Inventory date | 2026-07-28 | 2026-07-28 |
+| Pluto serial | `104000bac4950008230026001b440a003a` | `1040007c4a94000211000b009186843ef2` |
+| Historical IP | `192.168.1.17` | `192.168.1.18` |
+| USB sysfs path | `1-1.1` | `1-1.2` |
+| USB bus/device at inventory | `001/073` | `001/074` |
+| USB-IIO URI before RAM loading | `usb:1.73.5` | `usb:1.74.5` |
+| USB product before RAM loading | `PlutoSDR (ADALM-PLUTO)` | `PlutoSDR (ADALM-PLUTO)` |
+| USB device release | `0510` | `0510` |
+| Approved QSPI/runtime firmware | `v0.37-dirty` | `v0.37-dirty` |
+| Persistent radio configuration | PASS: `ad9361`, `2r2t` | PASS: `ad9361`, `2r2t` |
+| Standard USB-IIO | Present | Present |
+| SPF vendor direct-USB interface 6 | Absent before RAM loading | Absent before RAM loading |
+
 ## Updating this registry
 
-When collecting from this radio:
+When collecting from a registered radio:
 
 1. Match the attached device to the exact serial above.
 2. Complete the normal post-firmware readiness and fingerprint checks.
