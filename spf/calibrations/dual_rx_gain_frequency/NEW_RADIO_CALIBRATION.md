@@ -106,6 +106,12 @@ RAM loading. The V7 pipeline uses the Pluto serial as the durable identity and
 also records the physical USB path, firmware provenance, and passive hardware
 fingerprint.
 
+If the radio has a historical label, former IP address, or other operator note,
+add it to [RADIO_NOTES.md](RADIO_NOTES.md) only after reading the immutable
+serial from the sole attached radio. Historical IP addresses are provenance,
+not connection targets. Add the resulting pilot and dense dataset roots to the
+same registry row after collection.
+
 Pass:
 
 - the attached count is exactly the intended cohort size;

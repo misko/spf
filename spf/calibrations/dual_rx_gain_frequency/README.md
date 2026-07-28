@@ -15,6 +15,9 @@ from its stored IQ, and fits a circular additive gain model.
   analysis checklist: validate stored IQ, fit each physical radio, compare the
   model ladder without data leakage, evaluate low-cost onboarding, and publish
   reproducible reports.
+- [Physical radio notes](RADIO_NOTES.md) maps immutable Pluto serials to
+  historical human labels such as former IP addresses and the calibration
+  dataset roots collected from that physical radio.
 - [Rover v3.1 pre-field checklist](../../../data_collection/rover/rover_v3.1/PRE_FIELD_CHECKLIST.md)
   covers the wider Rover, fake-drone, SITL, and field-deployment checks.
 
