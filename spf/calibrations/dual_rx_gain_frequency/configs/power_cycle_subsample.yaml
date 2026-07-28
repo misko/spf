@@ -1,0 +1,64 @@
+# Compact before/after cold-power-cycle reproducibility survey.
+#
+# This is a strict subset of survey_cross_band.yaml: five gains spanning the
+# measured stage regions, all 25 ordered RX1/RX2 pairs, all 12 operating
+# frequencies, and three randomized epochs. It records 900 frames/radio
+# instead of 10,404 while retaining the existing V7 writer and validator.
+data-version: 7
+
+pluto-firmware:
+  release-tag: v0.38-plutoplus-spf-gain-rssi-fingerprint-v1
+  asset-name: plutoplus-spf-direct-usb-gain-rssi-fingerprint-v1-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-rssi-fingerprint-v1/plutoplus-spf-direct-usb-gain-rssi-fingerprint-v1-pluto.dfu
+  image-sha256: 0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9
+  firmware-git-sha: 7b02276519a802aed83d47b6672c46e578ce4de0
+  gadget-git-sha: a1e6417d07188bd72be70692e28c5d6ae9a5ec62
+  boot-mode: ram
+
+calibration:
+  frequencies-hz:
+    - 868000000
+    - 915000000
+    - 1280000000
+    - 1320000000
+    - 2412000000
+    - 2467000000
+    - 3990000000
+    - 4010000000
+    - 5766000000
+    - 5804000000
+    - 5838000000
+    - 5866000000
+  gains-db: [0, 16, 26, 41, 52]
+  repetitions: 3
+  sample-rate-hz: 30000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000
+  tone-search-width-hz: 25000
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
+  random-seed: 20260729
+  tx-source: fpga_dds
+  tx-gain-db: 0
+  tx-gain-policy: adaptive_max_rx_gain
+  tx-reference-rx-gain-db: 26
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 16384
+  min-quality-valid-per-cell: 2
+  max-across-repeat-phase-std-deg: 5
+  setup-label: two-pluto-power-cycle-subsample-tx2-30db-split-rx1-rx2
+  notes: Preserve RF cabling; remove Pluto USB power for at least 10 seconds
+  quality:
+    min-tone-snr-db: -10
+    min-tone-dbfs: -75
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5

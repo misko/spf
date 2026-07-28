@@ -23,6 +23,7 @@ from .dc_report import write_rf_dc_evidence_report
 from .low_cost_calibration import write_low_cost_bundle
 from .model import fit_dataset, write_model
 from .model_matrix import write_model_matrix_bundle
+from .power_cycle import PowerCycleThresholds, write_power_cycle_bundle
 from .report import write_analysis_bundle
 from .runner import load_calibration_document, probe_loopback, run_calibration
 from .validate import validate_dataset, write_validation_report
@@ -282,6 +283,37 @@ def _report_rf_dc(args) -> int:
     return 0 if result["conclusions"]["rf_dc_recovery_passed"] else 1
 
 
+def _compare_power_cycles(args) -> int:
+    result = write_power_cycle_bundle(
+        before_root=args.before_root,
+        after_root=args.after_root,
+        output_dir=args.output_dir,
+        reference_gain_db=args.reference_gain_db,
+        global_anchor_frequency_hz=args.global_anchor_frequency_hz,
+        thresholds=PowerCycleThresholds(
+            maximum_mae_deg=args.maximum_mae_deg,
+            maximum_p95_deg=args.maximum_p95_deg,
+            minimum_common_cell_fraction=args.minimum_common_cell_fraction,
+        ),
+    )
+    print(
+        json.dumps(
+            {
+                "schema": result["schema"],
+                "schema_version": result["schema_version"],
+                "overall_verdict": result["overall_verdict"],
+                "all_radios_reproducible_without_calibration": result[
+                    "all_radios_reproducible_without_calibration"
+                ],
+                "output_dir": str(args.output_dir),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0 if not result["overall_verdict"].startswith("inconclusive") else 1
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -505,6 +537,27 @@ def parse_args():
     rf_dc_report_parser.add_argument("--after", type=Path, required=True)
     rf_dc_report_parser.add_argument("--output-dir", type=Path, required=True)
     rf_dc_report_parser.set_defaults(function=_report_rf_dc)
+
+    power_cycle_parser = subparsers.add_parser(
+        "compare-power-cycles",
+        help=(
+            "compare complete before/after subsamples and classify whether "
+            "session anchors or gain-dependent recalibration are required"
+        ),
+    )
+    power_cycle_parser.add_argument("--before-root", type=Path, required=True)
+    power_cycle_parser.add_argument("--after-root", type=Path, required=True)
+    power_cycle_parser.add_argument("--output-dir", type=Path, required=True)
+    power_cycle_parser.add_argument("--reference-gain-db", type=int, default=26)
+    power_cycle_parser.add_argument(
+        "--global-anchor-frequency-hz", type=int, default=2_412_000_000
+    )
+    power_cycle_parser.add_argument("--maximum-mae-deg", type=float, default=2.0)
+    power_cycle_parser.add_argument("--maximum-p95-deg", type=float, default=5.0)
+    power_cycle_parser.add_argument(
+        "--minimum-common-cell-fraction", type=float, default=0.8
+    )
+    power_cycle_parser.set_defaults(function=_compare_power_cycles)
     return parser.parse_args()
 
 
