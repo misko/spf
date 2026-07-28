@@ -122,7 +122,7 @@ def test_backfill_dry_run_then_apply_preserves_all_arrays_and_provenance(tmp_pat
 
     assert report["summary"]["backfilled"] == 1
     after = inspect_store(store)
-    assert before["logical_array_sha256"] == after["logical_array_sha256"]
+    assert before["stored_array_sha256"] == after["stored_array_sha256"]
     assert before["signal_matrix_shape"] == after["signal_matrix_shape"]
     assert before["completed_frames"] == after["completed_frames"]
     assert after["receiver_attrs"]["firmware_git_sha"] == ("old-acquisition-firmware")

@@ -21,7 +21,6 @@ from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 CALIBRATION_SCHEMA = "spf.calibration.dual_rx_gain_frequency"
 BACKFILL_REPORT_SCHEMA = "spf.calibration.hardware_fingerprint_backfill"
 BACKFILL_REPORT_VERSION = 1
-LOGICAL_HASH_BLOCK_BYTES = 8 * 1024 * 1024
 
 
 class BackfillError(RuntimeError):
@@ -44,50 +43,25 @@ def discover_calibration_stores(roots: Iterable[Path]) -> list[Path]:
     return sorted(stores)
 
 
-def _iter_arrays(group, prefix: str = ""):
-    for name in sorted(group.array_keys()):
-        path = f"{prefix}/{name}" if prefix else name
-        yield path, group[name]
-    for name in sorted(group.group_keys()):
-        path = f"{prefix}/{name}" if prefix else name
-        yield from _iter_arrays(group[name], path)
+def stored_array_sha256(store) -> str:
+    """Hash stored Zarr schemas/chunks while excluding mutable attributes.
 
-
-def logical_array_sha256(zarr_group) -> str:
-    """Hash logical array names, schemas and values, excluding all attributes."""
+    Calibration stores can preallocate hundreds of gigabytes of logical zero
+    frames while physically containing only completed chunks. Hashing raw
+    store entries proves that the encoded array schemas and every materialized
+    chunk remain byte-identical without synthesizing those unwritten zeros.
+    """
 
     digest = hashlib.sha256()
-    for path, array in _iter_arrays(zarr_group):
-        header = {
-            "path": path,
-            "shape": list(array.shape),
-            "dtype": array.dtype.str,
-            "order": "C",
-        }
-        digest.update(
-            json.dumps(header, sort_keys=True, separators=(",", ":")).encode()
-        )
-        if array.dtype.hasobject:
-            digest.update(
-                json.dumps(
-                    np.asarray(array[:]).tolist(),
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    default=str,
-                ).encode()
-            )
+    for key in sorted(store.keys()):
+        if key == ".zattrs" or key.endswith("/.zattrs"):
             continue
-        if array.ndim == 0:
-            digest.update(np.asarray(array[...]).tobytes(order="C"))
-            continue
-        bytes_per_first_axis = max(
-            1,
-            int(np.prod(array.shape[1:], dtype=np.int64)) * array.dtype.itemsize,
-        )
-        rows = max(1, LOGICAL_HASH_BLOCK_BYTES // bytes_per_first_axis)
-        for start in range(0, array.shape[0], rows):
-            block = np.asarray(array[start : start + rows])
-            digest.update(block.tobytes(order="C"))
+        encoded_key = key.encode("utf-8")
+        value = store[key]
+        digest.update(len(encoded_key).to_bytes(8, "little"))
+        digest.update(encoded_key)
+        digest.update(len(value).to_bytes(8, "little"))
+        digest.update(value)
     return digest.hexdigest()
 
 
@@ -176,7 +150,7 @@ def inspect_store(path: Path) -> dict[str, Any]:
             "serial": serial,
             "root_attrs": dict(zarr.attrs),
             "receiver_attrs": dict(receiver.attrs),
-            "logical_array_sha256": logical_array_sha256(zarr),
+            "stored_array_sha256": stored_array_sha256(zarr.store),
             "signal_matrix_shape": list(receiver["signal_matrix"].shape),
             "completed_frames": (
                 int(np.count_nonzero(receiver["sweep_completed"][:]))
@@ -207,8 +181,8 @@ def backfill_store(
                 "path": str(path),
                 "serial": inventory["serial"],
                 "status": "already_current",
-                "logical_array_sha256_before": inventory["logical_array_sha256"],
-                "logical_array_sha256_after": inventory["logical_array_sha256"],
+                "stored_array_sha256_before": inventory["stored_array_sha256"],
+                "stored_array_sha256_after": inventory["stored_array_sha256"],
             }
         raise BackfillError(f"{path}: conflicting hardware fingerprint already exists")
     if not apply:
@@ -216,7 +190,7 @@ def backfill_store(
             "path": str(path),
             "serial": inventory["serial"],
             "status": "would_backfill",
-            "logical_array_sha256_before": inventory["logical_array_sha256"],
+            "stored_array_sha256_before": inventory["stored_array_sha256"],
         }
 
     zarr = zarr_open_from_lmdb_store(str(path), mode="rw")
@@ -234,8 +208,8 @@ def backfill_store(
         zarr.store.close()
 
     verified = inspect_store(path)
-    if verified["logical_array_sha256"] != inventory["logical_array_sha256"]:
-        raise BackfillError(f"{path}: logical array content changed during backfill")
+    if verified["stored_array_sha256"] != inventory["stored_array_sha256"]:
+        raise BackfillError(f"{path}: stored array content changed during backfill")
     if (
         verified["signal_matrix_shape"] != inventory["signal_matrix_shape"]
         or verified["completed_frames"] != inventory["completed_frames"]
@@ -247,8 +221,8 @@ def backfill_store(
         "path": str(path),
         "serial": inventory["serial"],
         "status": "backfilled",
-        "logical_array_sha256_before": inventory["logical_array_sha256"],
-        "logical_array_sha256_after": verified["logical_array_sha256"],
+        "stored_array_sha256_before": inventory["stored_array_sha256"],
+        "stored_array_sha256_after": verified["stored_array_sha256"],
     }
 
 
@@ -297,7 +271,7 @@ def run_backfill(
                     "path": str(path),
                     "serial": inventory["serial"],
                     "status": "preflight_passed",
-                    "logical_array_sha256_before": inventory["logical_array_sha256"],
+                    "stored_array_sha256_before": inventory["stored_array_sha256"],
                     "original_root_attrs": inventory["root_attrs"],
                     "original_receiver_attrs": inventory["receiver_attrs"],
                 }

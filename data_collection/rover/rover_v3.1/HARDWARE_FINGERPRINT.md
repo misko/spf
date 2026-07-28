@@ -145,8 +145,10 @@ acquisition_binding = false
 matched_by = "pluto_serial"
 ```
 
-The utility hashes every logical array before and after mutation, checks shape
-and completed-frame counts, preserves the original acquisition firmware
+The utility hashes every physically stored Zarr array schema and materialized
+chunk before and after mutation while excluding only attributes. This avoids
+expanding unwritten preallocated zero frames. It also checks shape and
+completed-frame counts, preserves the original acquisition firmware
 attributes, refuses ambiguous serials or conflicting fingerprints, and is
 idempotent. The report contains the original root/receiver attributes for each
 mutated store.
