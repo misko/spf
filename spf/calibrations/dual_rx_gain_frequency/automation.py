@@ -175,7 +175,10 @@ def run_automated_calibration(
     preparation_config_path = Path(preparation_config_path).resolve()
     output_dir = Path(output_dir).resolve()
     ready_manifest_path = Path(ready_manifest_path).resolve()
-    python = Path(sys.executable if python is None else python).resolve()
+    # Do not resolve this path: a virtualenv interpreter is normally a symlink
+    # to the system Python binary, but its original path selects the venv's
+    # installed packages when executed.
+    python = Path(sys.executable if python is None else python).expanduser().absolute()
     if expected_radios <= 0:
         raise ValueError("expected_radios must be positive")
     if output_dir.exists() and not resume:

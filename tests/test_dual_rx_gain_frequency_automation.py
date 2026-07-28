@@ -150,3 +150,26 @@ def test_boot_preparation_accepts_explicit_rover_id_and_ready_path():
     ).read_text()
     assert 'if [[ -n "${SPF_ROVER_ID:-}" ]]' in script
     assert "SPF_DIRECT_USB_READY_FILE:-/run/spf/direct_usb_ready.json" in script
+
+
+def test_prepare_preserves_virtualenv_interpreter_path(tmp_path, monkeypatch):
+    calls = []
+    virtualenv_python = tmp_path / "venv/bin/python"
+    monkeypatch.setattr(automation.os, "geteuid", lambda: 1000)
+    monkeypatch.setattr(
+        automation.subprocess,
+        "run",
+        lambda command, **kwargs: calls.append((command, kwargs)),
+    )
+
+    automation._prepare_radios(
+        preparation_config_path=PREPARATION_CONFIG,
+        rover_id=1,
+        python=virtualenv_python,
+        ready_manifest_path=tmp_path / "ready.json",
+    )
+
+    command, kwargs = calls[0]
+    assert f"SPF_PYTHON={virtualenv_python}" in command
+    assert command[:2] == ["sudo", "env"]
+    assert kwargs["check"] is True
