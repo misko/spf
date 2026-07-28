@@ -1,0 +1,383 @@
+{
+  "can_predict_unseen_frequency": true,
+  "coefficients_rad": {
+    "intercept": -0.5909289292978691
+  },
+  "evaluation": {
+    "leave_one_epoch_out_all_radios": {
+      "circular_bias_deg": 0.8420652960738255,
+      "circular_mae_deg": 20.249829423565174,
+      "circular_max_deg": 95.21780161167732,
+      "circular_p95_deg": 51.25045847236854,
+      "circular_rmse_deg": 25.189813131702213,
+      "coverage_fraction": 1.0,
+      "evaluated_observations": 60875,
+      "expected_observations": 60875,
+      "per_radio": {
+        "0": {
+          "circular_bias_deg": 0.3091617567898716,
+          "circular_mae_deg": 15.549870755989948,
+          "circular_max_deg": 64.5127001877184,
+          "circular_p95_deg": 37.39117759219157,
+          "circular_rmse_deg": 19.04804039192338,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10209,
+          "expected_observations": 10209
+        },
+        "1": {
+          "circular_bias_deg": 1.5367601501621297,
+          "circular_mae_deg": 26.312705964600944,
+          "circular_max_deg": 90.9316591845659,
+          "circular_p95_deg": 60.80854946275672,
+          "circular_rmse_deg": 30.78660885474776,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10200,
+          "expected_observations": 10200
+        },
+        "2": {
+          "circular_bias_deg": 2.418988734910529,
+          "circular_mae_deg": 33.53055444187829,
+          "circular_max_deg": 95.21780161167732,
+          "circular_p95_deg": 66.02289706676197,
+          "circular_rmse_deg": 37.31596927093765,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10184,
+          "expected_observations": 10184
+        },
+        "3": {
+          "circular_bias_deg": 0.04969130128502643,
+          "circular_mae_deg": 9.288411567411144,
+          "circular_max_deg": 42.90017586161632,
+          "circular_p95_deg": 26.003867044788834,
+          "circular_rmse_deg": 12.27670127854843,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 9917,
+          "expected_observations": 9917
+        },
+        "4": {
+          "circular_bias_deg": 0.4830086026205391,
+          "circular_mae_deg": 17.52725051099897,
+          "circular_max_deg": 67.95601887731813,
+          "circular_p95_deg": 41.951101587178776,
+          "circular_rmse_deg": 20.956023402378396,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10180,
+          "expected_observations": 10180
+        },
+        "5": {
+          "circular_bias_deg": 0.5482432758175875,
+          "circular_mae_deg": 19.00386653123459,
+          "circular_max_deg": 70.17195837153719,
+          "circular_p95_deg": 43.12655292311896,
+          "circular_rmse_deg": 22.396202402199606,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10185,
+          "expected_observations": 10185
+        }
+      },
+      "per_split": {
+        "0": {
+          "circular_bias_deg": 0.8880800703659567,
+          "circular_mae_deg": 20.140342104576778,
+          "circular_max_deg": 92.85727757926863,
+          "circular_p95_deg": 50.83532446085131,
+          "circular_rmse_deg": 25.04826532483,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 20291,
+          "expected_observations": 20291
+        },
+        "1": {
+          "circular_bias_deg": 0.9005968069301163,
+          "circular_mae_deg": 20.345342157852674,
+          "circular_max_deg": 94.2537853082346,
+          "circular_p95_deg": 51.23602805726453,
+          "circular_rmse_deg": 25.278678948122888,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 20293,
+          "expected_observations": 20293
+        },
+        "2": {
+          "circular_bias_deg": 0.7374610653978443,
+          "circular_mae_deg": 20.263794593970626,
+          "circular_max_deg": 95.21780161167732,
+          "circular_p95_deg": 51.62367930668786,
+          "circular_rmse_deg": 25.24187809225935,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 20291,
+          "expected_observations": 20291
+        }
+      }
+    },
+    "leave_one_frequency_out_all_radios": {
+      "circular_bias_deg": 1.0950761223846412,
+      "circular_mae_deg": 21.90500456215851,
+      "circular_max_deg": 100.42589831924879,
+      "circular_p95_deg": 55.31287697528944,
+      "circular_rmse_deg": 27.150410912774955,
+      "coverage_fraction": 1.0,
+      "evaluated_observations": 60875,
+      "expected_observations": 60875,
+      "per_radio": {
+        "0": {
+          "circular_bias_deg": 0.3907009329893474,
+          "circular_mae_deg": 16.721043284750255,
+          "circular_max_deg": 67.0978642519226,
+          "circular_p95_deg": 39.33743570773301,
+          "circular_rmse_deg": 20.335575307198937,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10209,
+          "expected_observations": 10209
+        },
+        "1": {
+          "circular_bias_deg": 2.019398315523569,
+          "circular_mae_deg": 28.615621552738755,
+          "circular_max_deg": 96.13509945143316,
+          "circular_p95_deg": 65.79903337546278,
+          "circular_rmse_deg": 33.30656991279466,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10200,
+          "expected_observations": 10200
+        },
+        "2": {
+          "circular_bias_deg": 3.2082782883882963,
+          "circular_mae_deg": 36.54873545480207,
+          "circular_max_deg": 100.42589831924879,
+          "circular_p95_deg": 70.91176778825853,
+          "circular_rmse_deg": 40.4601060645702,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10184,
+          "expected_observations": 10184
+        },
+        "3": {
+          "circular_bias_deg": 0.0704049477415855,
+          "circular_mae_deg": 9.70142971634786,
+          "circular_max_deg": 44.03072944069172,
+          "circular_p95_deg": 26.626056163891242,
+          "circular_rmse_deg": 12.765345653233123,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 9917,
+          "expected_observations": 9917
+        },
+        "4": {
+          "circular_bias_deg": 0.6311338738028088,
+          "circular_mae_deg": 18.947125887042912,
+          "circular_max_deg": 70.97465228071498,
+          "circular_p95_deg": 44.41586401047532,
+          "circular_rmse_deg": 22.476694538798995,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10180,
+          "expected_observations": 10180
+        },
+        "5": {
+          "circular_bias_deg": 0.7197002174200045,
+          "circular_mae_deg": 20.577274432069295,
+          "circular_max_deg": 73.57123692491157,
+          "circular_p95_deg": 46.129508740734266,
+          "circular_rmse_deg": 24.081315030552208,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10185,
+          "expected_observations": 10185
+        }
+      },
+      "per_split": {
+        "0": {
+          "circular_bias_deg": 20.161186748324116,
+          "circular_mae_deg": 20.25578654698621,
+          "circular_max_deg": 40.36972818206205,
+          "circular_p95_deg": 34.67348540437976,
+          "circular_rmse_deg": 22.424366196097594,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 5201,
+          "expected_observations": 5201
+        },
+        "1": {
+          "circular_bias_deg": 18.097338192876723,
+          "circular_mae_deg": 18.73190126470989,
+          "circular_max_deg": 40.97539444758015,
+          "circular_p95_deg": 32.873951717478,
+          "circular_rmse_deg": 20.846609589444846,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 5202,
+          "expected_observations": 5202
+        },
+        "10": {
+          "circular_bias_deg": -35.56535333074378,
+          "circular_mae_deg": 36.64637597795037,
+          "circular_max_deg": 96.40445850359781,
+          "circular_p95_deg": 68.7969738263812,
+          "circular_rmse_deg": 41.7828269408836,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 4928,
+          "expected_observations": 4928
+        },
+        "11": {
+          "circular_bias_deg": -41.20426336965322,
+          "circular_mae_deg": 42.325160636730814,
+          "circular_max_deg": 100.42589831924879,
+          "circular_p95_deg": 78.64783002027359,
+          "circular_rmse_deg": 47.957600044010576,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 4910,
+          "expected_observations": 4910
+        },
+        "2": {
+          "circular_bias_deg": 18.898237218554183,
+          "circular_mae_deg": 18.915556427548786,
+          "circular_max_deg": 43.04266879313549,
+          "circular_p95_deg": 35.87535975885357,
+          "circular_rmse_deg": 20.902853105259826,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 5202,
+          "expected_observations": 5202
+        },
+        "3": {
+          "circular_bias_deg": 12.732314392144632,
+          "circular_mae_deg": 13.21039865440956,
+          "circular_max_deg": 41.07922005466517,
+          "circular_p95_deg": 31.760212270026432,
+          "circular_rmse_deg": 16.360455359252363,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 5202,
+          "expected_observations": 5202
+        },
+        "4": {
+          "circular_bias_deg": 17.559730690384068,
+          "circular_mae_deg": 17.854683115351715,
+          "circular_max_deg": 45.64181885703178,
+          "circular_p95_deg": 33.5827068116324,
+          "circular_rmse_deg": 20.06053670523269,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 5115,
+          "expected_observations": 5115
+        },
+        "5": {
+          "circular_bias_deg": 14.62788978414448,
+          "circular_mae_deg": 14.884339333361316,
+          "circular_max_deg": 39.4744458463853,
+          "circular_p95_deg": 29.435895173992108,
+          "circular_rmse_deg": 16.98730189914649,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 5111,
+          "expected_observations": 5111
+        },
+        "6": {
+          "circular_bias_deg": 8.790716342002495,
+          "circular_mae_deg": 15.008627654964503,
+          "circular_max_deg": 47.05512758833826,
+          "circular_p95_deg": 34.25025019198723,
+          "circular_rmse_deg": 18.009066395688027,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 4974,
+          "expected_observations": 4974
+        },
+        "7": {
+          "circular_bias_deg": 9.118456660398218,
+          "circular_mae_deg": 15.412044240270685,
+          "circular_max_deg": 48.91949927664761,
+          "circular_p95_deg": 35.02307357837642,
+          "circular_rmse_deg": 18.620450541304674,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 5129,
+          "expected_observations": 5129
+        },
+        "8": {
+          "circular_bias_deg": -20.165984254382828,
+          "circular_mae_deg": 21.87778303750266,
+          "circular_max_deg": 79.48156860534971,
+          "circular_p95_deg": 53.99767414507374,
+          "circular_rmse_deg": 27.089070657201024,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 4958,
+          "expected_observations": 4958
+        },
+        "9": {
+          "circular_bias_deg": -28.12205487125433,
+          "circular_mae_deg": 29.450224357182773,
+          "circular_max_deg": 89.5496329529826,
+          "circular_p95_deg": 61.634271990471554,
+          "circular_rmse_deg": 34.47036038941409,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 4943,
+          "expected_observations": 4943
+        }
+      }
+    },
+    "training_metrics_all_radios": {
+      "circular_bias_deg": 0.8420325759953331,
+      "circular_mae_deg": 20.249495841298828,
+      "circular_max_deg": 95.25389856668502,
+      "circular_p95_deg": 51.23913907634292,
+      "circular_rmse_deg": 25.189215539423778,
+      "coverage_fraction": 1.0,
+      "evaluated_observations": 60875,
+      "expected_observations": 60875
+    }
+  },
+  "formula": "phase = radio_intercept",
+  "frequencies_hz": [
+    868000000,
+    915000000,
+    1280000000,
+    1320000000,
+    2412000000,
+    2467000000,
+    3990000000,
+    4010000000,
+    5766000000,
+    5804000000,
+    5838000000,
+    5866000000
+  ],
+  "gains_db": [
+    -1,
+    0,
+    3,
+    5,
+    6,
+    15,
+    16,
+    17,
+    23,
+    25,
+    26,
+    27,
+    33,
+    34,
+    41,
+    52,
+    62
+  ],
+  "kind": "constant",
+  "label": "Constant per radio",
+  "model_name": "constant_per_radio",
+  "parameter_count": 1,
+  "phase_convention": "RX1 minus RX2",
+  "radio_serial": "104000b299050013f4ff0700255e35222f",
+  "reference_frequency_hz": 3378000000.0,
+  "reference_gain_db": 26,
+  "schema": "spf.calibration.phase_offset_model",
+  "schema_version": 1,
+  "scope": "per_radio",
+  "source": {
+    "analysis_input_sha256": "90c4162a8428392d9e41162e491e0678707a1c7bcc6dd6572d3656597aff654e",
+    "dataset_path": "artifacts/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104000b299050013f4ff0700255e35222f/calibration.v7.zarr",
+    "firmware": {
+      "calibration_run_signature": "f6fdf218e8fa9ea0916b8f7f83fa05e4887af8f0e7a3ac9758b895e82c97d2e7",
+      "calibration_software_git_sha": "68dd200a858b832cc3413acb7636a09b7cfb7488",
+      "firmware_gadget_git_sha": "a1e6417d07188bd72be70692e28c5d6ae9a5ec62",
+      "firmware_git_sha": "7b02276519a802aed83d47b6672c46e578ce4de0",
+      "firmware_image_sha256": "0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9",
+      "firmware_release_tag": "v0.38-plutoplus-spf-gain-rssi-fingerprint-v1",
+      "gain_metadata_protocol_version": 2,
+      "phase_convention": "angle(rx1) - angle(rx2)",
+      "sdr_serial": "104000b299050013f4ff0700255e35222f"
+    },
+    "model_matrix_path": "spf/calibrations/dual_rx_gain_frequency/reports/six_radio_dense_20260729_v1/model_matrix.json",
+    "model_matrix_sha256": "06520e885905815eca085a33603c339938d47f75505e030167e7a4cc783fd1cf"
+  },
+  "support_profile": {
+    "path": "../radio_support/104000b299050013f4ff0700255e35222f.json",
+    "sha256": "0382236d522dd6b1c4342c2f0c5ba6d2cafb304445b1432b2f7916be549dbb70",
+    "strict_prediction_default": true
+  }
+}

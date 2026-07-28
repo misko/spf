@@ -9,6 +9,7 @@ committed report records SHA-256 hashes of the exact inputs it used.
 
 | Report | Scope | Status |
 |---|---|---|
+| [Six-radio dense model matrix](six_radio_dense_20260729_v1/MODEL_MATRIX_REPORT.md) | Six physical radios, complete 12-frequency 17×17 ordered gain grid, three randomized epochs; source for the runtime model registry | 62,424/62,424 frames complete; per-radio/per-frequency additive LUT has 0.904° held-out MAE overall |
 | [Historical-IP special-radio automated pilot](pilot_cross_band_20260728_special_17_18_v1/README.md) | Radios historically labeled `.17` and `.18`; full automated 2R2T check, RAM firmware load, fingerprint, TX2 probe, 12-frequency 3×3 pilot, and stored-IQ validation | 648/648 frames complete with valid gain/RSSI metadata and no capture errors; 488/648 quality-valid |
 | [Four-radio dense calibration and low-cost transfer](four_radio_dense_20260728_v1/README.md) ([model detail](four_radio_dense_20260728_v1/PER_FREQUENCY_ADDITIVE_GAIN_LUT.md)) | Four physical radios, complete 12-frequency 17×17 ordered gain grid; universal LUT transfer with zero, one, and two target-radio values; independent repeat for both replacement radios | Per-radio/per-frequency additive LUT: 0.903° held-out MAE; one equal-gain value at the operating frequency plus universal LUT: 3.385° leave-one-radio-out MAE |
 | [Replacement-radio cross-band pilot](pilot_cross_band_20260728_new_radios_v2/README.md) | Two new radios, 12 frequencies, complete 3×3 ordered gain grid, three randomized epochs | 648/648 frames complete; all 72 observed-tone preflights passed; extreme 63 dB mismatch explicitly unsupported |
@@ -25,9 +26,10 @@ committed report records SHA-256 hashes of the exact inputs it used.
 
 ## Combined findings
 
-The completed dense run contains 20,808/20,808 scheduled frames. Of those,
-20,409 pass the stored-IQ quality gates and enter the model matrix. The best
-known-cell correction is a radio-specific, per-frequency additive lookup:
+The six-radio dense checkpoint contains 62,424/62,424 scheduled frames. Of
+those, 60,875 pass the stored-IQ quality gates and enter the combined model
+matrix. The best known-cell correction remains a radio-specific,
+per-frequency additive lookup:
 
 ```text
 phase = intercept[radio, frequency]
@@ -35,12 +37,16 @@ phase = intercept[radio, frequency]
       + RX2_effect[radio, frequency, gain2]
 ```
 
-Its leave-one-epoch-out MAE is 0.830° on
-`…0095f2dbee49` and 0.917° on `…00bba2f096a1`, with an aggregate p95 of
-3.053°. A full frequency-by-RX1-by-RX2 cell table uses 6,936 parameters and is
-slightly worse at 0.912° MAE, so the data do not justify a gain-pair
-interaction table. Frequency-independent gain lookup and linear-gain models
-are inadequate at 20.4–20.9° MAE.
+Its leave-one-epoch-out MAE is 0.904° across all six radios, with individual
+radio MAEs from 0.761° to 1.052° and an aggregate p95 of 3.083°. A full
+frequency-by-RX1-by-RX2 cell table remains slightly worse, so the data do not
+justify a gain-pair interaction table. Frequency-independent gain lookup and
+linear-gain models remain inadequate.
+
+The exact fitted configurations for every evaluated model and radio are
+exported under [`spf/calibrations/models`](../../models/README.md). The runtime
+loader requires the exact serial and, by default, an exact quality-approved
+frequency/gain cell.
 
 A gain-dependent differential-delay model improves the unseen-frequency
 baseline from 22.7° to 10.9° MAE, but remains far worse than explicit

@@ -1,0 +1,203 @@
+{
+  "can_predict_unseen_frequency": false,
+  "coefficients_rad": {
+    "frequency_intercept[0]": -0.024525464832775387,
+    "frequency_intercept[10]": -0.8227132897479709,
+    "frequency_intercept[11]": -0.9123100255539752,
+    "frequency_intercept[1]": -0.03221885374014298,
+    "frequency_intercept[2]": -0.03296785686816592,
+    "frequency_intercept[3]": -0.08709604176268014,
+    "frequency_intercept[4]": -0.07356970010048465,
+    "frequency_intercept[5]": -0.053655294325335265,
+    "frequency_intercept[6]": -0.0935948537981256,
+    "frequency_intercept[7]": -0.09586570553818487,
+    "frequency_intercept[8]": -0.5056695919292279,
+    "frequency_intercept[9]": -0.7031172763958826,
+    "rx1_rad_per_20db": -0.03777530376211822,
+    "rx2_rad_per_20db": 0.03681804735181031
+  },
+  "evaluation": {
+    "leave_one_epoch_out_all_radios": {
+      "circular_bias_deg": 0.0002822692150236104,
+      "circular_mae_deg": 6.767231620581026,
+      "circular_max_deg": 35.45121543986621,
+      "circular_p95_deg": 18.892404947436322,
+      "circular_rmse_deg": 9.058890624247942,
+      "coverage_fraction": 1.0,
+      "evaluated_observations": 60875,
+      "expected_observations": 60875,
+      "per_radio": {
+        "0": {
+          "circular_bias_deg": 0.0023647037634310706,
+          "circular_mae_deg": 7.1237990923916525,
+          "circular_max_deg": 34.6706096402868,
+          "circular_p95_deg": 19.484351352334148,
+          "circular_rmse_deg": 9.37653902873512,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10209,
+          "expected_observations": 10209
+        },
+        "1": {
+          "circular_bias_deg": -0.0011123310951697994,
+          "circular_mae_deg": 6.760682927872278,
+          "circular_max_deg": 33.710427128026055,
+          "circular_p95_deg": 18.384966748696193,
+          "circular_rmse_deg": 9.000344212659124,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10200,
+          "expected_observations": 10200
+        },
+        "2": {
+          "circular_bias_deg": 0.0021569057344515453,
+          "circular_mae_deg": 6.829253669083642,
+          "circular_max_deg": 35.45121543986621,
+          "circular_p95_deg": 20.066587429100693,
+          "circular_rmse_deg": 9.22647128042505,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10184,
+          "expected_observations": 10184
+        },
+        "3": {
+          "circular_bias_deg": 0.0008585089333792553,
+          "circular_mae_deg": 6.703989287744415,
+          "circular_max_deg": 30.900334525324187,
+          "circular_p95_deg": 19.76905156757319,
+          "circular_rmse_deg": 9.175675465790505,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 9917,
+          "expected_observations": 9917
+        },
+        "4": {
+          "circular_bias_deg": -0.0005217853399575517,
+          "circular_mae_deg": 6.647711746617304,
+          "circular_max_deg": 33.46716266513538,
+          "circular_p95_deg": 18.272232527331845,
+          "circular_rmse_deg": 8.877155993223958,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10180,
+          "expected_observations": 10180
+        },
+        "5": {
+          "circular_bias_deg": -0.002034415660424676,
+          "circular_mae_deg": 6.535405733065588,
+          "circular_max_deg": 30.61354360239402,
+          "circular_p95_deg": 17.202334170653806,
+          "circular_rmse_deg": 8.681769297349012,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 10185,
+          "expected_observations": 10185
+        }
+      },
+      "per_split": {
+        "0": {
+          "circular_bias_deg": 0.05734242950061426,
+          "circular_mae_deg": 6.763768540553609,
+          "circular_max_deg": 34.6706096402868,
+          "circular_p95_deg": 18.91324416943209,
+          "circular_rmse_deg": 9.054700819303838,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 20291,
+          "expected_observations": 20291
+        },
+        "1": {
+          "circular_bias_deg": 0.06385511459642244,
+          "circular_mae_deg": 6.734995678593503,
+          "circular_max_deg": 35.45121543986621,
+          "circular_p95_deg": 18.815173783693048,
+          "circular_rmse_deg": 9.031007387498516,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 20293,
+          "expected_observations": 20293
+        },
+        "2": {
+          "circular_bias_deg": -0.12037314148317528,
+          "circular_mae_deg": 6.802933819959527,
+          "circular_max_deg": 33.77438911719422,
+          "circular_p95_deg": 18.95004738705522,
+          "circular_rmse_deg": 9.090866096429671,
+          "coverage_fraction": 1.0,
+          "evaluated_observations": 20291,
+          "expected_observations": 20291
+        }
+      }
+    },
+    "leave_one_frequency_out_all_radios": null,
+    "training_metrics_all_radios": {
+      "circular_bias_deg": 0.00033855996528494914,
+      "circular_mae_deg": 6.7530405870525785,
+      "circular_max_deg": 35.346109141276216,
+      "circular_p95_deg": 18.833828226748615,
+      "circular_rmse_deg": 9.044706359018324,
+      "coverage_fraction": 1.0,
+      "evaluated_observations": 60875,
+      "expected_observations": 60875
+    }
+  },
+  "formula": "phase = frequency_intercept[f] + beta1*g1 + beta2*g2",
+  "frequencies_hz": [
+    868000000,
+    915000000,
+    1280000000,
+    1320000000,
+    2412000000,
+    2467000000,
+    3990000000,
+    4010000000,
+    5766000000,
+    5804000000,
+    5838000000,
+    5866000000
+  ],
+  "gains_db": [
+    -1,
+    0,
+    3,
+    5,
+    6,
+    15,
+    16,
+    17,
+    23,
+    25,
+    26,
+    27,
+    33,
+    34,
+    41,
+    52,
+    62
+  ],
+  "kind": "frequency_lut_gain_linear",
+  "label": "Frequency LUT + linear gains per radio",
+  "model_name": "frequency_lut_linear_gain_per_radio",
+  "parameter_count": 14,
+  "phase_convention": "RX1 minus RX2",
+  "radio_serial": "1040007c4a94000211000b009186843ef2",
+  "reference_frequency_hz": 3378000000.0,
+  "reference_gain_db": 26,
+  "schema": "spf.calibration.phase_offset_model",
+  "schema_version": 1,
+  "scope": "per_radio",
+  "source": {
+    "analysis_input_sha256": "d41f58f7319716597aaa8900afc674246bfa57e3d73f6183680d99ab8aae4646",
+    "dataset_path": "artifacts/dual_rx_gain_frequency/survey_cross_band_20260728_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+    "firmware": {
+      "calibration_run_signature": "740877b7377c7fedd14f75090553b5290ed1edc62421593729a16b6b55c0d61a",
+      "calibration_software_git_sha": "28ba8ceb812be3b903d89aa1c4a6254e77c485a5",
+      "firmware_gadget_git_sha": "a1e6417d07188bd72be70692e28c5d6ae9a5ec62",
+      "firmware_git_sha": "7b02276519a802aed83d47b6672c46e578ce4de0",
+      "firmware_image_sha256": "0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9",
+      "firmware_release_tag": "v0.38-plutoplus-spf-gain-rssi-fingerprint-v1",
+      "gain_metadata_protocol_version": 2,
+      "phase_convention": "angle(rx1) - angle(rx2)",
+      "sdr_serial": "1040007c4a94000211000b009186843ef2"
+    },
+    "model_matrix_path": "spf/calibrations/dual_rx_gain_frequency/reports/six_radio_dense_20260729_v1/model_matrix.json",
+    "model_matrix_sha256": "06520e885905815eca085a33603c339938d47f75505e030167e7a4cc783fd1cf"
+  },
+  "support_profile": {
+    "path": "../radio_support/1040007c4a94000211000b009186843ef2.json",
+    "sha256": "84b3191637e7fa91cc623d39f7900c8d52315b228be489ca3feacad98ffa0b7e",
+    "strict_prediction_default": true
+  }
+}

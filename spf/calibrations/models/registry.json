@@ -1,0 +1,144 @@
+{
+  "models": {
+    "branch_gain_delay_lut_per_radio": {
+      "can_predict_unseen_frequency": true,
+      "configs_by_serial": {
+        "104000707f0700120f001a0095f2dbee49": "branch_gain_delay_lut_per_radio/104000707f0700120f001a0095f2dbee49.json",
+        "1040007c4a94000211000b009186843ef2": "branch_gain_delay_lut_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000b299050013f4ff0700255e35222f": "branch_gain_delay_lut_per_radio/104000b299050013f4ff0700255e35222f.json",
+        "104000bac4950008230026001b440a003a": "branch_gain_delay_lut_per_radio/104000bac4950008230026001b440a003a.json",
+        "104000f6ad020002fdff3a00bba2f096a1": "branch_gain_delay_lut_per_radio/104000f6ad020002fdff3a00bba2f096a1.json",
+        "104473b80a16000de6ff2000f8a6beca79": "branch_gain_delay_lut_per_radio/104473b80a16000de6ff2000f8a6beca79.json"
+      },
+      "formula": "phase = intercept + RX1_phase[g1] + RX2_phase[g2] - 2*pi*(f-f_ref)*(delay0 + RX1_delay[g1] + RX2_delay[g2])",
+      "kind": "branch_gain_delay",
+      "label": "Gain-dependent branch-delay LUT per radio"
+    },
+    "constant_per_radio": {
+      "can_predict_unseen_frequency": true,
+      "configs_by_serial": {
+        "104000707f0700120f001a0095f2dbee49": "constant_per_radio/104000707f0700120f001a0095f2dbee49.json",
+        "1040007c4a94000211000b009186843ef2": "constant_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000b299050013f4ff0700255e35222f": "constant_per_radio/104000b299050013f4ff0700255e35222f.json",
+        "104000bac4950008230026001b440a003a": "constant_per_radio/104000bac4950008230026001b440a003a.json",
+        "104000f6ad020002fdff3a00bba2f096a1": "constant_per_radio/104000f6ad020002fdff3a00bba2f096a1.json",
+        "104473b80a16000de6ff2000f8a6beca79": "constant_per_radio/104473b80a16000de6ff2000f8a6beca79.json"
+      },
+      "formula": "phase = radio_intercept",
+      "kind": "constant",
+      "label": "Constant per radio"
+    },
+    "delay_additive_gain_per_radio": {
+      "can_predict_unseen_frequency": true,
+      "configs_by_serial": {
+        "104000707f0700120f001a0095f2dbee49": "delay_additive_gain_per_radio/104000707f0700120f001a0095f2dbee49.json",
+        "1040007c4a94000211000b009186843ef2": "delay_additive_gain_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000b299050013f4ff0700255e35222f": "delay_additive_gain_per_radio/104000b299050013f4ff0700255e35222f.json",
+        "104000bac4950008230026001b440a003a": "delay_additive_gain_per_radio/104000bac4950008230026001b440a003a.json",
+        "104000f6ad020002fdff3a00bba2f096a1": "delay_additive_gain_per_radio/104000f6ad020002fdff3a00bba2f096a1.json",
+        "104473b80a16000de6ff2000f8a6beca79": "delay_additive_gain_per_radio/104473b80a16000de6ff2000f8a6beca79.json"
+      },
+      "formula": "phase = intercept - 2*pi*(f-f_ref)*delay + RX1[g1] + RX2[g2]",
+      "kind": "delay_gain_additive",
+      "label": "One delay + additive gain LUT per radio"
+    },
+    "frequency_lut_additive_gain_per_radio": {
+      "can_predict_unseen_frequency": false,
+      "configs_by_serial": {
+        "104000707f0700120f001a0095f2dbee49": "frequency_lut_additive_gain_per_radio/104000707f0700120f001a0095f2dbee49.json",
+        "1040007c4a94000211000b009186843ef2": "frequency_lut_additive_gain_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000b299050013f4ff0700255e35222f": "frequency_lut_additive_gain_per_radio/104000b299050013f4ff0700255e35222f.json",
+        "104000bac4950008230026001b440a003a": "frequency_lut_additive_gain_per_radio/104000bac4950008230026001b440a003a.json",
+        "104000f6ad020002fdff3a00bba2f096a1": "frequency_lut_additive_gain_per_radio/104000f6ad020002fdff3a00bba2f096a1.json",
+        "104473b80a16000de6ff2000f8a6beca79": "frequency_lut_additive_gain_per_radio/104473b80a16000de6ff2000f8a6beca79.json"
+      },
+      "formula": "phase = frequency_intercept[f] + RX1[g1] + RX2[g2]",
+      "kind": "frequency_lut_gain_additive",
+      "label": "Frequency LUT + additive gain LUT per radio"
+    },
+    "frequency_lut_linear_gain_per_radio": {
+      "can_predict_unseen_frequency": false,
+      "configs_by_serial": {
+        "104000707f0700120f001a0095f2dbee49": "frequency_lut_linear_gain_per_radio/104000707f0700120f001a0095f2dbee49.json",
+        "1040007c4a94000211000b009186843ef2": "frequency_lut_linear_gain_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000b299050013f4ff0700255e35222f": "frequency_lut_linear_gain_per_radio/104000b299050013f4ff0700255e35222f.json",
+        "104000bac4950008230026001b440a003a": "frequency_lut_linear_gain_per_radio/104000bac4950008230026001b440a003a.json",
+        "104000f6ad020002fdff3a00bba2f096a1": "frequency_lut_linear_gain_per_radio/104000f6ad020002fdff3a00bba2f096a1.json",
+        "104473b80a16000de6ff2000f8a6beca79": "frequency_lut_linear_gain_per_radio/104473b80a16000de6ff2000f8a6beca79.json"
+      },
+      "formula": "phase = frequency_intercept[f] + beta1*g1 + beta2*g2",
+      "kind": "frequency_lut_gain_linear",
+      "label": "Frequency LUT + linear gains per radio"
+    },
+    "frequency_specific_additive_gain_per_radio": {
+      "can_predict_unseen_frequency": false,
+      "configs_by_serial": {
+        "104000707f0700120f001a0095f2dbee49": "frequency_specific_additive_gain_per_radio/104000707f0700120f001a0095f2dbee49.json",
+        "1040007c4a94000211000b009186843ef2": "frequency_specific_additive_gain_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000b299050013f4ff0700255e35222f": "frequency_specific_additive_gain_per_radio/104000b299050013f4ff0700255e35222f.json",
+        "104000bac4950008230026001b440a003a": "frequency_specific_additive_gain_per_radio/104000bac4950008230026001b440a003a.json",
+        "104000f6ad020002fdff3a00bba2f096a1": "frequency_specific_additive_gain_per_radio/104000f6ad020002fdff3a00bba2f096a1.json",
+        "104473b80a16000de6ff2000f8a6beca79": "frequency_specific_additive_gain_per_radio/104473b80a16000de6ff2000f8a6beca79.json"
+      },
+      "formula": "phase = intercept[f] + RX1[f,g1] + RX2[f,g2]",
+      "kind": "frequency_specific_gain_additive",
+      "label": "Per-frequency additive gain LUT per radio"
+    },
+    "full_cell_lut_per_radio": {
+      "can_predict_unseen_frequency": false,
+      "configs_by_serial": {
+        "104000707f0700120f001a0095f2dbee49": "full_cell_lut_per_radio/104000707f0700120f001a0095f2dbee49.json",
+        "1040007c4a94000211000b009186843ef2": "full_cell_lut_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000b299050013f4ff0700255e35222f": "full_cell_lut_per_radio/104000b299050013f4ff0700255e35222f.json",
+        "104000bac4950008230026001b440a003a": "full_cell_lut_per_radio/104000bac4950008230026001b440a003a.json",
+        "104000f6ad020002fdff3a00bba2f096a1": "full_cell_lut_per_radio/104000f6ad020002fdff3a00bba2f096a1.json",
+        "104473b80a16000de6ff2000f8a6beca79": "full_cell_lut_per_radio/104473b80a16000de6ff2000f8a6beca79.json"
+      },
+      "formula": "phase = cell[f,g1,g2]",
+      "kind": "full_cell",
+      "label": "Full frequency/gain-pair LUT per radio"
+    },
+    "gain_additive_lut_per_radio": {
+      "can_predict_unseen_frequency": true,
+      "configs_by_serial": {
+        "104000707f0700120f001a0095f2dbee49": "gain_additive_lut_per_radio/104000707f0700120f001a0095f2dbee49.json",
+        "1040007c4a94000211000b009186843ef2": "gain_additive_lut_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000b299050013f4ff0700255e35222f": "gain_additive_lut_per_radio/104000b299050013f4ff0700255e35222f.json",
+        "104000bac4950008230026001b440a003a": "gain_additive_lut_per_radio/104000bac4950008230026001b440a003a.json",
+        "104000f6ad020002fdff3a00bba2f096a1": "gain_additive_lut_per_radio/104000f6ad020002fdff3a00bba2f096a1.json",
+        "104473b80a16000de6ff2000f8a6beca79": "gain_additive_lut_per_radio/104473b80a16000de6ff2000f8a6beca79.json"
+      },
+      "formula": "phase = intercept + RX1[g1] + RX2[g2]",
+      "kind": "gain_additive",
+      "label": "Additive gain LUT per radio"
+    },
+    "gain_linear_per_radio": {
+      "can_predict_unseen_frequency": true,
+      "configs_by_serial": {
+        "104000707f0700120f001a0095f2dbee49": "gain_linear_per_radio/104000707f0700120f001a0095f2dbee49.json",
+        "1040007c4a94000211000b009186843ef2": "gain_linear_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000b299050013f4ff0700255e35222f": "gain_linear_per_radio/104000b299050013f4ff0700255e35222f.json",
+        "104000bac4950008230026001b440a003a": "gain_linear_per_radio/104000bac4950008230026001b440a003a.json",
+        "104000f6ad020002fdff3a00bba2f096a1": "gain_linear_per_radio/104000f6ad020002fdff3a00bba2f096a1.json",
+        "104473b80a16000de6ff2000f8a6beca79": "gain_linear_per_radio/104473b80a16000de6ff2000f8a6beca79.json"
+      },
+      "formula": "phase = intercept + beta1*g1 + beta2*g2",
+      "kind": "gain_linear",
+      "label": "Linear gains per radio"
+    }
+  },
+  "phase_convention": "RX1 minus RX2",
+  "radio_serials": [
+    "104000707f0700120f001a0095f2dbee49",
+    "1040007c4a94000211000b009186843ef2",
+    "104000b299050013f4ff0700255e35222f",
+    "104000bac4950008230026001b440a003a",
+    "104000f6ad020002fdff3a00bba2f096a1",
+    "104473b80a16000de6ff2000f8a6beca79"
+  ],
+  "recommended_model": "frequency_specific_additive_gain_per_radio",
+  "schema": "spf.calibration.phase_model_registry",
+  "schema_version": 1,
+  "source_model_matrix_path": "spf/calibrations/dual_rx_gain_frequency/reports/six_radio_dense_20260729_v1/model_matrix.json",
+  "source_model_matrix_sha256": "06520e885905815eca085a33603c339938d47f75505e030167e7a4cc783fd1cf"
+}
