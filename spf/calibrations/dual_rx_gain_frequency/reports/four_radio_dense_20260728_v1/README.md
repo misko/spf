@@ -12,7 +12,7 @@ phase(f, g1, g2)
 ```
 
 The per-radio, per-frequency additive LUT is the best parsimonious model on
-known frequency/gain cells. Its leave-one-epoch-out error across 40,410
+known frequency/gain cells. Its leave-one-epoch-out error across 40,510
 quality-valid observations is:
 
 | MAE | RMSE | P95 | Maximum |
@@ -155,6 +155,7 @@ already validated. Do not extrapolate an anchor to a different LO frequency.
 
 ## Reproduction and artifacts
 
+- [Per-frequency additive gain LUT model and reduced fitting procedure](PER_FREQUENCY_ADDITIVE_GAIN_LUT.md)
 - [Full model ladder](MODEL_MATRIX_REPORT.md)
 - [Low-cost calibration analysis](LOW_COST_CALIBRATION_REPORT.md)
 - [Machine-readable model matrix](model_matrix.json)
