@@ -9,6 +9,11 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from .automation import (
+    DEFAULT_PREPARATION_CONFIG,
+    DEFAULT_READY_MANIFEST,
+    run_automated_calibration,
+)
 from .comparative_analysis import write_comparative_bundle
 from .config import build_schedule, group_schedule_by_frequency
 from .cross_radio import write_cross_radio_bundle
@@ -56,6 +61,20 @@ def _run(args) -> int:
         )
     finally:
         progress_bar.close()
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result["status"] == "complete" else 1
+
+
+def _automate(args) -> int:
+    result = run_automated_calibration(
+        config_path=args.config,
+        output_dir=args.output,
+        expected_radios=args.expected_radios,
+        preparation_config_path=args.preparation_config,
+        rover_id=args.rover_id,
+        ready_manifest_path=args.ready_manifest,
+        resume=args.resume,
+    )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["status"] == "complete" else 1
 
@@ -283,6 +302,31 @@ def parse_args():
         help="progress estimate when serials come from the ready manifest",
     )
     run_parser.set_defaults(function=_run)
+
+    automate_parser = subparsers.add_parser(
+        "automate",
+        help="RAM-load firmware, probe radios, collect V7 IQ, and validate",
+    )
+    automate_parser.add_argument("--config", type=Path, required=True)
+    automate_parser.add_argument("--output", type=Path, required=True)
+    automate_parser.add_argument("--expected-radios", type=int, default=2)
+    automate_parser.add_argument(
+        "--preparation-config",
+        type=Path,
+        default=DEFAULT_PREPARATION_CONFIG,
+    )
+    automate_parser.add_argument("--rover-id", type=int, default=1)
+    automate_parser.add_argument(
+        "--ready-manifest",
+        type=Path,
+        default=DEFAULT_READY_MANIFEST,
+    )
+    automate_parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="resume only when the immutable automation plan matches",
+    )
+    automate_parser.set_defaults(function=_automate)
 
     validate_parser = subparsers.add_parser(
         "validate", help="strictly validate one serial-specific V7 dataset"

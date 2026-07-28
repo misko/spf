@@ -9,8 +9,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LOADER="${SCRIPT_DIR}/load_direct_usb_firmware.sh"
 readonly MAPPING_SCRIPT="${SCRIPT_DIR}/device_mapping.sh"
-readonly READY_DIR="/run/spf"
-readonly READY_FILE="${READY_DIR}/direct_usb_ready.json"
+readonly READY_FILE="${SPF_DIRECT_USB_READY_FILE:-/run/spf/direct_usb_ready.json}"
+readonly READY_DIR="$(dirname -- "$READY_FILE")"
 
 FIRMWARE_CACHE="${SPF_FIRMWARE_CACHE_DIR:-/home/pi/.cache/spf/firmware}"
 FIRMWARE_STATE="${SPF_FIRMWARE_STATE_DIR:-/var/lib/spf/pluto-firmware}"
@@ -44,8 +44,13 @@ if is_true "$DISABLE_DIRECT_USB"; then
     exit 0
 fi
 
-[[ -f /home/pi/rover_id ]] || die "Missing /home/pi/rover_id."
-rover_id="$(tr -d '[:space:]' </home/pi/rover_id)"
+if [[ -n "${SPF_ROVER_ID:-}" ]]; then
+    rover_id="${SPF_ROVER_ID}"
+else
+    [[ -f /home/pi/rover_id ]] || die \
+        "Missing /home/pi/rover_id and SPF_ROVER_ID was not provided."
+    rover_id="$(tr -d '[:space:]' </home/pi/rover_id)"
+fi
 [[ "$rover_id" =~ ^[1-3]$ ]] || die "Unsupported rover_id: ${rover_id}"
 
 resolver_args=(

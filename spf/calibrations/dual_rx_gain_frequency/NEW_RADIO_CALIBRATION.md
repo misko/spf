@@ -181,6 +181,34 @@ SHA256:  0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9
 mode:    RAM only
 ```
 
+For the standard two-radio calibration bench, the recommended entry point
+automates preparation, per-serial probing, V7 capture, and stored-IQ
+validation:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency automate \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/pilot_cross_band.yaml \
+  --output \
+    artifacts/dual_rx_gain_frequency/pilot_cross_band_UNIQUE_RUN_ID \
+  --expected-radios 2
+```
+
+This is the normal new-radio command. It fails before mutation if the
+calibration and Rover preparation configs pin different firmware. It then
+checks persistent 2R2T state, RAM-loads and verifies every attached radio,
+regenerates device mapping and the readiness/fingerprint manifest, probes TX2
+on every serial, collects one serial-specific Zarr, and recomputes validation
+metrics from stored IQ. It writes `automation_plan.json` and
+`automation_result.json` at the run root.
+
+An interrupted run can be resumed only with the exact same command plus
+`--resume`. The stored automation plan must match the configs, firmware,
+expected radio count, and serial cohort. A new physical cohort or independent
+repeat always gets a new output root.
+
+The lower-level preparation commands below remain available for diagnosis.
+
 For a configured Rover with a valid `/home/pi/rover_id`, the canonical
 one-command preparation is:
 
