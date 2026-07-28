@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import spf.scripts.pluto_multi_firmware as firmware_module
 from spf.scripts.pluto_multi_firmware import (
     FirmwareError,
     MultiPlutoFirmwareManager,
@@ -160,6 +161,29 @@ def _device(serial="SERIAL_A", path="1-1.1"):
         port_path=path.removeprefix("1-"),
         direct_usb=False,
     )
+
+
+def test_wait_product_tolerates_sysfs_disappearing_during_reenumeration(
+    tmp_path, monkeypatch
+):
+    manager = _manager(tmp_path)
+    reads = iter(
+        [
+            OSError(19, "No such device"),
+            "b674",
+        ]
+    )
+
+    def flaky_read(_path):
+        result = next(reads)
+        if isinstance(result, OSError):
+            raise result
+        return result
+
+    monkeypatch.setattr(firmware_module, "_read", flaky_read)
+    monkeypatch.setattr(firmware_module.time, "sleep", lambda _seconds: None)
+
+    manager._wait_product("1-1.1", "b674", timeout=1)
 
 
 def test_provision_dry_run_identifies_only_incorrect_radio(tmp_path, monkeypatch):

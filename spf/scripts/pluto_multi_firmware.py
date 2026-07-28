@@ -63,6 +63,18 @@ def _read(path: Path) -> str:
     return path.read_text().strip()
 
 
+def _read_optional(path: Path) -> str | None:
+    """Read a transient sysfs value, returning absent across re-enumeration."""
+
+    try:
+        return _read(path)
+    except OSError:
+        # A USB sysfs node can disappear after is_file()/exists() succeeds
+        # while the device changes from runtime to DFU (or back). Treat that
+        # normal re-enumeration window as absence and keep polling.
+        return None
+
+
 def _run(
     command: list[str],
     *,
@@ -539,12 +551,15 @@ class MultiPlutoFirmwareManager:
         deadline = time.monotonic() + timeout
         product_path = Path("/sys/bus/usb/devices") / sysfs_name / "idProduct"
         while time.monotonic() < deadline:
-            if product_path.is_file() and _read(product_path).lower() == product:
+            actual = _read_optional(product_path)
+            if actual is not None and actual.lower() == product:
                 return
             time.sleep(0.25)
-        actual = _read(product_path) if product_path.is_file() else "absent"
+        actual = _read_optional(product_path)
+        actual_description = actual if actual is not None else "absent"
         raise FirmwareError(
-            f"{sysfs_name}: expected USB product {product}, found {actual}"
+            f"{sysfs_name}: expected USB product {product}, "
+            f"found {actual_description}"
         )
 
     def _wait_absent(self, sysfs_name: str, timeout: float) -> None:
