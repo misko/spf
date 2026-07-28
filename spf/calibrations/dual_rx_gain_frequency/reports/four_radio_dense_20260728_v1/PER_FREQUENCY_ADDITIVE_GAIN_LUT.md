@@ -29,36 +29,36 @@ separate interaction value for every ordered gain pair.
 
 ## Formulation
 
-For physical radio \(r\), measured frequency \(f\), RX1 gain \(g_1\), and RX2
-gain \(g_2\), the model is:
+For physical radio $r$, measured frequency $f$, RX1 gain $g_1$, and RX2
+gain $g_2$, the model is:
 
-\[
+```math
 \widehat{\phi}_r(f,g_1,g_2)
 =
 \operatorname{wrap}\left(
 C_r(f) + A_r(f,g_1) + B_r(f,g_2)
 \right)
-\]
+```
 
 where:
 
-- \(\widehat{\phi}\) is the predicted systematic RX1-minus-RX2 phase;
-- \(C_r(f)\) is the radio- and frequency-specific baseline;
-- \(A_r(f,g_1)\) is the RX1 gain contribution;
-- \(B_r(f,g_2)\) is the RX2 gain contribution; and
+- $\widehat{\phi}$ is the predicted systematic RX1-minus-RX2 phase;
+- $C_r(f)$ is the radio- and frequency-specific baseline;
+- $A_r(f,g_1)$ is the RX1 gain contribution;
+- $B_r(f,g_2)$ is the RX2 gain contribution; and
 - `wrap` maps phase onto the circular principal interval.
 
 The calibration uses 26 dB as the reference gain:
 
-\[
+```math
 A_r(f,26)=0,\qquad B_r(f,26)=0.
-\]
+```
 
 Consequently:
 
-\[
+```math
 C_r(f)=\widehat{\phi}_r(f,26,26).
-\]
+```
 
 For example:
 
@@ -73,24 +73,24 @@ predicted_phase(r, 2.412 GHz, 41 dB, 15 dB)
 
 A measured phase is corrected by subtracting the predicted calibration bias:
 
-\[
+```math
 \phi_{\mathrm{corrected}}
 =
 \operatorname{wrap}\left(
 \phi_{\mathrm{measured}}-\widehat{\phi}_r(f,g_1,g_2)
 \right).
-\]
+```
 
 ## Meaning of “additive”
 
 At a fixed radio and frequency, the model assumes that the effect of changing
 RX1 gain does not depend materially on the selected RX2 gain, and vice versa:
 
-\[
+```math
 \widehat{\phi}=C+A(g_1)+B(g_2).
-\]
+```
 
-It deliberately omits an interaction term \(I(f,g_1,g_2)\). The dense
+It deliberately omits an interaction term $I(f,g_1,g_2)$. The dense
 Cartesian survey tested this assumption rather than merely imposing it: a
 full cell LUT containing the interaction freedom did not improve held-out
 prediction.
@@ -124,7 +124,7 @@ parameters. Therefore:
 | All 12 frequencies on one radio | 396 |
 | All 12 frequencies on four radios | 1,584 |
 
-For comparison, a full cell LUT uses \(17\times17=289\) values per frequency,
+For comparison, a full cell LUT uses $17\times17=289$ values per frequency,
 or 3,468 per radio and 13,872 across four radios.
 
 ## How the parameters are fitted
@@ -132,7 +132,7 @@ or 3,468 per radio and 13,872 across four radios.
 The committed implementation builds a sparse design matrix with one active
 baseline column, at most one RX1 gain column, and at most one RX2 gain column
 for every observation. It solves least squares, repeatedly moves every target
-onto the nearest \(2\pi\) branch around the current prediction, and refits.
+onto the nearest $2\pi$ branch around the current prediction, and refits.
 The final prediction and errors are wrapped circularly.
 
 Only quality-valid observations enter the fit. The reported accuracy uses
@@ -141,7 +141,7 @@ table and the third repetition is unseen.
 
 The direct, cross-sweep interpretation of the parameters is:
 
-\[
+```math
 \begin{aligned}
 C_r(f) &\approx \operatorname{circmean}\phi_r(f,26,26),\\
 A_r(f,g) &\approx
@@ -153,9 +153,9 @@ B_r(f,g) &\approx
   \operatorname{circmean}\phi_r(f,26,g)-C_r(f)
   \right).
 \end{aligned}
-\]
+```
 
-The current dense fit is statistically stronger because all \(17\times17\)
+The current dense fit is statistically stronger because all $17\times17$
 gain pairs help estimate the additive terms. The equations above show why a
 much smaller cross-shaped survey is sufficient to identify the same model.
 
@@ -182,9 +182,9 @@ compared using absolute circular differences:
 
 | Parameter family | Pairwise mean | Median | P95 | Maximum |
 |---|---:|---:|---:|---:|
-| Frequency baseline \(C_r(f)\) | **18.525°** | 9.041° | 71.679° | 91.214° |
-| RX1 gain effect \(A_r(f,g)\) | 2.499° | 0.746° | 11.402° | 19.381° |
-| RX2 gain effect \(B_r(f,g)\) | 2.777° | 0.827° | 12.379° | 21.802° |
+| Frequency baseline $C_r(f)$ | **18.525°** | 9.041° | 71.679° | 91.214° |
+| RX1 gain effect $A_r(f,g)$ | 2.499° | 0.746° | 11.402° | 19.381° |
+| RX2 gain effect $B_r(f,g)$ | 2.777° | 0.827° | 12.379° | 21.802° |
 | Complete predicted gain surface | 18.537° | 9.106° | 70.998° | 98.771° |
 
 The main board-to-board difference is therefore the frequency baseline, not
@@ -289,15 +289,15 @@ therefore:
 
 The adapted model is:
 
-\[
+```math
 \widehat{\phi}_r(f,g_1,g_2)
 =
 \operatorname{wrap}\left(
 C_U(f)+A_U(f,g_1)+B_U(f,g_2)+\Delta_r(f)
 \right),
-\]
+```
 
-where \(\Delta_r(f)\) is the one measured target-radio value.
+where $\Delta_r(f)$ is the one measured target-radio value.
 
 | Strategy | Frames at one operating frequency | Frames for all 12 frequencies | Four-radio leave-one-radio-out MAE |
 |---|---:|---:|---:|
@@ -335,7 +335,7 @@ field-test ETA.
 - The gains are the tested dB gain settings from the calibration grid.
 - The correction is supported only at measured frequencies and gains.
 - Phase is circular; ordinary arithmetic means and unwrapped residuals are
-  inappropriate at the \(-180°/180°\) boundary.
+  inappropriate at the $-180°/180°$ boundary.
 - The model corrects systematic phase bias. It cannot make a buffer
   phase-safe if gain changes occurred during that buffer.
 - A board-specific fit should be invalidated or rechecked after hardware-path,
