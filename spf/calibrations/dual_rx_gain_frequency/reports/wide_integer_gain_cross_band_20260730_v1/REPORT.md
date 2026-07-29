@@ -31,10 +31,17 @@ frequency are excluded from additive fitting:
 | `104000bac4950008230026001b440a003a` (`.17`) | 1.31° / 3.20° | 1.52° / 3.90° |
 | `1040007c4a94000211000b009186843ef2` (`.18`) | 1.36° / 3.21° | 1.60° / 4.33° |
 
-The independent RX1/RX2 curves are the accuracy recommendation for a
-fully calibrated radio. The antisymmetric curve is a useful lower-parameter
-transfer model, but the wider frequency survey shows a measurable penalty
-that was not visible in the original two-frequency experiment.
+The shared physical-response curve is now the default parsimonious hypothesis:
+
+```text
+phase = C(r,f) + H(r,f,g1) - H(r,f,g2)
+```
+
+Every analysis must also fit independent RX1/RX2 curves and report the
+symmetric-minus-independent error gap. Independent A/B remains the empirical
+accuracy reference for a fully calibrated radio; the wider survey shows a
+measurable penalty for imposing symmetry that was not visible in the original
+two-frequency experiment.
 
 ## Experiment
 
@@ -104,9 +111,14 @@ additive-cross result above is the genuine unseen-gain-pair test.
 | Model | Parameters | Epoch MAE | Epoch p95 | Unseen-frequency MAE | Unseen-radio MAE |
 |---|---:|---:|---:|---:|---:|
 | Per-radio, per-frequency additive gain LUT | 13,462 | **0.713°** | **2.528°** | n/a | n/a |
+| Per-radio, per-frequency antisymmetric gain LUT | 6,784 | 0.912° | 2.963° | n/a | n/a |
 | Per-radio full observed-cell LUT | 18,535 | 0.723° | 2.597° | n/a | n/a |
+| Per-radio frequency intercept + gain-table-specific frequency-scaled symmetric LUT | 484 | 2.665° | 10.368° | n/a | n/a |
+| Per-radio frequency intercept + gain-table-specific symmetric LUT | 484 | 2.991° | 10.845° | n/a | n/a |
 | Universal per-frequency additive gain LUT | 6,731 | 3.239° | 16.051° | n/a | 6.213° |
 | Universal full observed-cell LUT | 9,268 | 3.245° | 16.050° | n/a | 6.217° |
+| Per-radio frequency intercept + frequency-scaled symmetric LUT | 232 | 4.517° | 11.923° | n/a | n/a |
+| Per-radio frequency intercept + symmetric LUT | 232 | 4.828° | 13.502° | n/a | n/a |
 | Per-radio frequency intercept + global gain LUT | 358 | 4.827° | 13.448° | n/a | n/a |
 | Per-radio frequency intercept + linear gains | 110 | 6.268° | 16.239° | n/a | n/a |
 | Universal frequency intercept + global gain LUT | 179 | 6.303° | 19.590° | n/a | 8.552° |
@@ -127,6 +139,116 @@ The best model is balanced across the two radios:
 |---|---:|---:|---:|
 | `.17` | 0.719° | 2.531° | 11.772° |
 | `.18` | 0.706° | 2.525° | 9.097° |
+
+### Symmetric default versus independent accuracy reference
+
+The symmetric physical-response model replaces the separate RX1 and RX2
+curves with one curve whose phase contribution changes sign:
+
+```text
+independent:   phase = C(r,f) + A(r,f,g1) + B(r,f,g2)
+antisymmetric: phase = C(r,f) + H(r,f,g1) - H(r,f,g2)
+```
+
+At each radio/frequency, 26 dB is the reference gain and its LUT coefficient
+is fixed to zero:
+
+| Part | Independent model | Antisymmetric model |
+|---|---:|---:|
+| Frequency intercept `C(r,f)` | 1 | 1 |
+| RX1 curve `A(r,f,g)` | 63 | — |
+| RX2 curve `B(r,f,g)` | 63 | — |
+| Shared curve `H(r,f,g)` | — | 63 |
+| **Total per radio/frequency** | **127** | **64** |
+| **Total per radio over 53 frequencies** | **6,731** | **3,392** |
+| **Total over two radios** | **13,462** | **6,784** |
+
+The constraint removes 6,678 coefficients (49.6%) while adding 0.200° MAE
+and 0.435° p95 in leave-one-epoch-out prediction. The fully independent model
+remains the accuracy winner, but the antisymmetric model is a strong
+parameter-efficient alternative.
+
+This comparison is now a required model-ladder output rather than an optional
+diagnostic.
+
+### Can one gain LUT be scaled across frequency?
+
+We tested the effective-delay approximation:
+
+```text
+phase = C(r,f) + (f/GHz) * [G(r,g1) - G(r,g2)]
+```
+
+`C(r,f)` remains an exact-frequency equal-gain anchor. A separate scalar `k`
+and a learned `G` are not identifiable, so the scale coefficient is absorbed
+into `G`.
+
+The decisive test fits only the additive-cross axes and predicts 15,216
+quality-valid observations from the 48 RX1/RX2 gain pairs excluded from
+fitting:
+
+| Gain model | Parameters | Held-out MAE | Held-out p95 |
+|---|---:|---:|---:|
+| One frequency-independent symmetric LUT | 232 | 4.995° | 14.830° |
+| One symmetric LUT scaled by frequency | 232 | 4.551° | 12.931° |
+| One symmetric LUT per AD936x gain-table band | 484 | 2.743° | 9.656° |
+| One frequency-scaled LUT per gain-table band | 484 | **2.496°** | **8.744°** |
+| Exact-frequency symmetric LUT | 6,784 | 1.074° | 3.485° |
+| Exact-frequency independent RX1/RX2 LUTs | 13,462 | **0.805°** | **2.699°** |
+
+![Frequency-scaled gain model comparison](frequency_scaled_gain_model_comparison.png)
+
+Frequency scaling helps a global LUT by 0.444° MAE. Separating the three
+AD936x full gain-table bands helps much more, and frequency scaling then
+provides another 0.246° improvement. A scalar multiplier can change a curve's
+magnitude, but it cannot move gain-stage discontinuities or represent
+frequency-dependent analogue dispersion.
+
+The exact fitted LUTs give the same conclusion when treated as a matrix over
+frequency and gain:
+
+| Frequency scope | Forced proportional-to-f scaling | Best rank 1 | Best rank 2 |
+|---|---:|---:|---:|
+| All frequencies | 57.3% | 70.3% | 89.4% |
+| Low table, ≤1.3 GHz | 28.0% | 76.8% | 96.2% |
+| Middle table, 1.3–4.0 GHz | 79.3% | 87.3% | 99.1% |
+| High table, >4.0 GHz | 84.6% | 86.8% | 99.4% |
+
+![Gain LUT low-rank structure](gain_lut_low_rank_structure.png)
+
+One frequency-scaled LUT per hardware gain-table band is therefore a useful
+compact fallback, but not a sub-degree correction. Exact-frequency `H`
+remains the parsimonious precision default, and independent `A/B` remains the
+accuracy reference. Rank two is a promising compressed representation, but
+must pass held-out phase-prediction tests before deployment.
+
+### What H(r,f,g) looks like
+
+`H` is a phase-correction LUT, in degrees or radians, indexed by integer
+hardware gain. It is not RF gain itself. Each fixed `(radio, frequency)` curve
+is normalized to:
+
+```text
+H(r,f,26 dB) = 0
+```
+
+Across both radios, all 53 frequencies, and every adjacent 1 dB gain step:
+
+- median absolute step: 0.304°;
+- 90th percentile: 1.655°;
+- 95th percentile: 4.189°;
+- 99th percentile: 14.444°; and
+- maximum: 26.473°.
+
+The curve is therefore best understood as a hardware staircase: long
+plateaus or gentle local variation separated by a few gain-stage transitions.
+Its broad structure is highly repeatable between these two radios, while the
+step locations and directions change with the active frequency-dependent gain
+table. For example, the dominant transition is near 49→50 dB around 2.4 and
+4.0 GHz, but moves near 40→41 dB immediately above 4.0 GHz and in the
+5.8 GHz band.
+
+![Symmetric H LUT slices](symmetric_gain_lut_slices.png)
 
 ## Exact historical frequencies
 
@@ -311,7 +433,9 @@ python -m spf.calibrations.dual_rx_gain_frequency model-matrix \
 | `.17` additive-cross analysis | `51068d7a4cf6b8049f591817f2fb7eed423b9ae362aaccf37b8b20612b68840c` |
 | `.18` additive-cross analysis | `a8193d0a8739e46af4eeb15323602abbf03ac1518ffa46f325c62c41ca32c612` |
 | Additive-cross comparison | `1ab17bfdc6ace6ea92ff59e6ff238eea620ebe96f51113597fb8d12da468828a` |
-| Model matrix | `faba6165add6cc3529267367f2634af5f452043e067af4bc1739f38395ec00fa` |
+| Model matrix | `dd8e3c3f2f1cb64c8f67d2d9be275d7291170a68c2806339f2a8c1faeb7c6878` |
+| Frequency-scaled model comparison plot | `b4bb3713b5e0bd3056a93e1a5f31696aab50bdf2f33f0ad91506733b48012967` |
+| Gain-LUT low-rank structure plot | `78c0c1486472f1e43d3b326a6bd02878aac4d90a8423c9fcccadc35bcb97c8a6` |
 
 The analysis-input hashes cover coordinate, completion, quality, phase, and
 timestamp arrays plus acquisition provenance attributes. They do not hash the

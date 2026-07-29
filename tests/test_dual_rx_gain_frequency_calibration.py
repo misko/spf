@@ -55,11 +55,17 @@ from spf.calibrations.dual_rx_gain_frequency.model import (
     predict_phase_offset,
 )
 from spf.calibrations.dual_rx_gain_frequency.model_matrix import (
+    INDEPENDENT_GAIN_MODEL,
     MODEL_SPECS,
+    SYMMETRIC_GAIN_MODEL,
     _fit,
     _fit_summary,
+    _frequency_scaling_structure,
+    _held_out_gain_pair_comparison,
     _predict,
     _radio_arrays_from_paths,
+    _symmetric_curve_rad,
+    _symmetric_model_comparison,
 )
 from spf.calibrations.dual_rx_gain_frequency.report import (
     build_analysis_summary,
@@ -580,6 +586,355 @@ def test_gain_dependent_branch_delay_model_predicts_unseen_frequency():
     base_slope = fitted.beta[fitted.feature_names.index("frequency_rad_per_ghz")]
     fitted_base_delay = -base_slope / (2 * np.pi * 1e9)
     assert fitted_base_delay == pytest.approx(base_delay_seconds, abs=1e-16)
+
+
+def test_model_matrix_frequency_specific_antisymmetric_gain_lut():
+    gain_values = np.asarray([-1, 26, 62], dtype=np.int64)
+    frequency_values = np.asarray([2_412_000_000, 2_467_100_000], dtype=np.int64)
+    intercept = np.asarray([0.2, -0.3])
+    gain_effect = np.asarray(
+        [
+            [-0.11, 0.0, 0.17],
+            [0.08, 0.0, -0.14],
+        ]
+    )
+    rows = []
+    for frequency_index, frequency_hz in enumerate(frequency_values):
+        for gain1_index, gain1_db in enumerate(gain_values):
+            for gain2_index, gain2_db in enumerate(gain_values):
+                rows.append(
+                    (
+                        frequency_index,
+                        frequency_hz,
+                        gain1_index,
+                        gain2_index,
+                        gain1_db,
+                        gain2_db,
+                        intercept[frequency_index]
+                        + gain_effect[frequency_index, gain1_index]
+                        - gain_effect[frequency_index, gain2_index],
+                    )
+                )
+    values = np.asarray(rows)
+    data = {
+        "radio": np.zeros(len(rows), dtype=np.int64),
+        "epoch": np.zeros(len(rows), dtype=np.int64),
+        "frequency": values[:, 0].astype(np.int64),
+        "frequency_hz": values[:, 1].astype(np.int64),
+        "gain1": values[:, 2].astype(np.int64),
+        "gain2": values[:, 3].astype(np.int64),
+        "gain1_db": values[:, 4].astype(np.int64),
+        "gain2_db": values[:, 5].astype(np.int64),
+        "phase": values[:, 6],
+    }
+    spec = next(
+        model
+        for model in MODEL_SPECS
+        if model.name == "frequency_specific_antisymmetric_gain_per_radio"
+    )
+    fitted = _fit(
+        spec,
+        data,
+        gain_count=3,
+        frequency_count=2,
+        reference_gain=1,
+        reference_frequency_hz=float(np.mean(frequency_values)),
+    )
+    prediction, supported = _predict(
+        fitted,
+        data,
+        gain_count=3,
+        frequency_count=2,
+        reference_gain=1,
+    )
+
+    assert supported.all()
+    assert fitted.feature_names == [
+        "frequency[0].intercept",
+        "frequency[0].gain_phase[0]",
+        "frequency[0].gain_phase[2]",
+        "frequency[1].intercept",
+        "frequency[1].gain_phase[0]",
+        "frequency[1].gain_phase[2]",
+    ]
+    assert np.max(np.abs(wrap_phase(data["phase"] - prediction))) < 1e-9
+    summary = _fit_summary(
+        spec,
+        data,
+        radio_count=1,
+        gain_count=3,
+        frequency_count=2,
+        reference_gain=1,
+        reference_frequency_hz=float(np.mean(frequency_values)),
+    )
+    assert summary["total_parameter_count"] == 2 * 3
+    recovered_curve = _symmetric_curve_rad(
+        summary["fits"][0],
+        frequency_index=0,
+        gain_count=3,
+        reference_gain=1,
+    )
+    np.testing.assert_allclose(
+        recovered_curve,
+        gain_effect[0] - gain_effect[0, 1],
+        atol=1e-9,
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "model_name",
+        "frequency_values",
+        "table_gain_effect",
+        "frequency_scaled",
+        "parameter_count",
+    ),
+    (
+        (
+            "frequency_lut_symmetric_gain_per_radio",
+            (915_000_000, 2_412_000_000),
+            ((-0.11, 0.0, 0.17),),
+            False,
+            2,
+        ),
+        (
+            "frequency_lut_frequency_scaled_symmetric_gain_per_radio",
+            (915_000_000, 2_412_000_000),
+            ((-0.11, 0.0, 0.17),),
+            True,
+            2,
+        ),
+        (
+            "frequency_lut_gain_table_symmetric_gain_per_radio",
+            (915_000_000, 2_412_000_000, 5_804_000_000),
+            (
+                (-0.11, 0.0, 0.17),
+                (0.08, 0.0, -0.14),
+                (-0.04, 0.0, 0.21),
+            ),
+            False,
+            6,
+        ),
+        (
+            "frequency_lut_gain_table_frequency_scaled_symmetric_gain_per_radio",
+            (915_000_000, 2_412_000_000, 5_804_000_000),
+            (
+                (-0.11, 0.0, 0.17),
+                (0.08, 0.0, -0.14),
+                (-0.04, 0.0, 0.21),
+            ),
+            True,
+            6,
+        ),
+    ),
+)
+def test_model_matrix_frequency_scaled_symmetric_gain_lut(
+    model_name,
+    frequency_values,
+    table_gain_effect,
+    frequency_scaled,
+    parameter_count,
+):
+    gain_values = np.asarray([-1, 26, 62], dtype=np.int64)
+    frequency_values = np.asarray(frequency_values, dtype=np.int64)
+    table_gain_effect = np.asarray(table_gain_effect)
+    intercept = np.linspace(-0.2, 0.3, frequency_values.size)
+    rows = []
+    for frequency_index, frequency_hz in enumerate(frequency_values):
+        table = (
+            0
+            if frequency_hz <= 1_300_000_000
+            else (1 if frequency_hz <= 4_000_000_000 else 2)
+        )
+        effect = table_gain_effect[min(table, table_gain_effect.shape[0] - 1)]
+        frequency_scale = frequency_hz / 1e9 if frequency_scaled else 1.0
+        for gain1_index, gain1_db in enumerate(gain_values):
+            for gain2_index, gain2_db in enumerate(gain_values):
+                rows.append(
+                    (
+                        frequency_index,
+                        frequency_hz,
+                        gain1_index,
+                        gain2_index,
+                        gain1_db,
+                        gain2_db,
+                        intercept[frequency_index]
+                        + frequency_scale
+                        * (effect[gain1_index] - effect[gain2_index]),
+                    )
+                )
+    values = np.asarray(rows)
+    data = {
+        "radio": np.zeros(len(rows), dtype=np.int64),
+        "epoch": np.zeros(len(rows), dtype=np.int64),
+        "frequency": values[:, 0].astype(np.int64),
+        "frequency_hz": values[:, 1].astype(np.int64),
+        "gain1": values[:, 2].astype(np.int64),
+        "gain2": values[:, 3].astype(np.int64),
+        "gain1_db": values[:, 4].astype(np.int64),
+        "gain2_db": values[:, 5].astype(np.int64),
+        "phase": values[:, 6],
+    }
+    spec = next(model for model in MODEL_SPECS if model.name == model_name)
+    fitted = _fit(
+        spec,
+        data,
+        gain_count=3,
+        frequency_count=frequency_values.size,
+        reference_gain=1,
+        reference_frequency_hz=float(np.mean(frequency_values)),
+    )
+    prediction, supported = _predict(
+        fitted,
+        data,
+        gain_count=3,
+        frequency_count=frequency_values.size,
+        reference_gain=1,
+    )
+
+    assert supported.all()
+    assert np.max(np.abs(wrap_phase(data["phase"] - prediction))) < 1e-9
+    assert fitted.beta.size == frequency_values.size + parameter_count
+
+
+def test_frequency_scaled_lut_analysis_scores_held_out_pairs_and_rank():
+    gain_values = np.asarray([-1, 26, 62], dtype=np.int64)
+    frequency_values = np.asarray(
+        [915_000_000, 2_412_000_000, 3_900_000_000, 5_804_000_000],
+        dtype=np.int64,
+    )
+    gain_delay = np.asarray([-0.08, 0.0, 0.13])
+    rows = []
+    for frequency_index, frequency_hz in enumerate(frequency_values):
+        frequency_ghz = frequency_hz / 1e9
+        for gain1_index, gain1_db in enumerate(gain_values):
+            for gain2_index, gain2_db in enumerate(gain_values):
+                rows.append(
+                    (
+                        frequency_index,
+                        frequency_hz,
+                        gain1_index,
+                        gain2_index,
+                        gain1_db,
+                        gain2_db,
+                        0.1 * frequency_index
+                        + frequency_ghz
+                        * (gain_delay[gain1_index] - gain_delay[gain2_index]),
+                    )
+                )
+    values = np.asarray(rows)
+    data = {
+        "radio": np.zeros(len(rows), dtype=np.int64),
+        "epoch": np.zeros(len(rows), dtype=np.int64),
+        "frequency": values[:, 0].astype(np.int64),
+        "frequency_hz": values[:, 1].astype(np.int64),
+        "gain1": values[:, 2].astype(np.int64),
+        "gain2": values[:, 3].astype(np.int64),
+        "gain1_db": values[:, 4].astype(np.int64),
+        "gain2_db": values[:, 5].astype(np.int64),
+        "phase": values[:, 6],
+    }
+    common = {
+        "radio_count": 1,
+        "gain_count": 3,
+        "frequency_count": 4,
+        "reference_gain": 1,
+        "reference_frequency_hz": float(np.mean(frequency_values)),
+    }
+    model_metadata = {
+        spec.name: {
+            "label": spec.label,
+            "total_parameter_count": 1,
+        }
+        for spec in MODEL_SPECS
+        if spec.name
+        in {
+            "frequency_lut_symmetric_gain_per_radio",
+            "frequency_lut_frequency_scaled_symmetric_gain_per_radio",
+            "frequency_lut_gain_table_symmetric_gain_per_radio",
+            "frequency_lut_gain_table_frequency_scaled_symmetric_gain_per_radio",
+            SYMMETRIC_GAIN_MODEL,
+            INDEPENDENT_GAIN_MODEL,
+        }
+    }
+    held_out = _held_out_gain_pair_comparison(
+        data=data,
+        held_out_gain_pairs=((-1, 62), (62, -1)),
+        models=model_metadata,
+        **common,
+    )
+
+    assert held_out["available"] is True
+    assert held_out["quality_valid_observations"] == 8
+    scaled = held_out["models"][
+        "frequency_lut_frequency_scaled_symmetric_gain_per_radio"
+    ]
+    assert scaled["circular_mae_deg"] < 1e-8
+
+    symmetric_spec = next(
+        spec for spec in MODEL_SPECS if spec.name == SYMMETRIC_GAIN_MODEL
+    )
+    symmetric_summary = _fit_summary(symmetric_spec, data, **common)
+    structure = _frequency_scaling_structure(
+        models={SYMMETRIC_GAIN_MODEL: symmetric_summary},
+        provenance=[{"radio_index": 0, "serial": "TEST-SERIAL"}],
+        frequencies_hz=frequency_values.tolist(),
+        gains_db=gain_values.tolist(),
+        reference_gain_db=26,
+    )
+    assert (
+        structure["mean_across_radios"]["all"][
+            "forced_frequency_energy_fraction"
+        ]
+        == pytest.approx(1.0)
+    )
+    assert (
+        structure["mean_across_radios"]["all"]["best_rank1_energy_fraction"]
+        == pytest.approx(1.0)
+    )
+
+
+def test_symmetric_model_comparison_always_reports_independent_gap():
+    def metric(mae, rmse, p95, maximum):
+        return {
+            "circular_mae_deg": mae,
+            "circular_rmse_deg": rmse,
+            "circular_p95_deg": p95,
+            "circular_max_deg": maximum,
+        }
+
+    symmetric = metric(0.9, 1.4, 3.0, 13.0)
+    independent = metric(0.7, 1.1, 2.5, 12.0)
+    symmetric["per_radio"] = {"0": metric(0.8, 1.3, 2.8, 11.0)}
+    independent["per_radio"] = {"0": metric(0.6, 1.0, 2.3, 10.0)}
+    result = _symmetric_model_comparison(
+        {
+            SYMMETRIC_GAIN_MODEL: {
+                "total_parameter_count": 64,
+                "leave_one_epoch_out": symmetric,
+            },
+            INDEPENDENT_GAIN_MODEL: {
+                "total_parameter_count": 127,
+                "leave_one_epoch_out": independent,
+            },
+        },
+        [{"radio_index": 0, "serial": "TEST-SERIAL"}],
+    )
+
+    assert result["default_parsimonious_model"] == SYMMETRIC_GAIN_MODEL
+    assert result["accuracy_reference_model"] == INDEPENDENT_GAIN_MODEL
+    assert result["parameter_count"] == {
+        "symmetric": 64,
+        "independent": 127,
+        "reduction": 63,
+        "reduction_fraction": pytest.approx(63 / 127),
+    }
+    assert result["leave_one_epoch_out"]["symmetric_minus_independent"] == {
+        "circular_mae_deg": pytest.approx(0.2),
+        "circular_rmse_deg": pytest.approx(0.3),
+        "circular_p95_deg": pytest.approx(0.5),
+        "circular_max_deg": pytest.approx(1.0),
+    }
 
 
 def test_compact_stage_boundaries_are_reproducibly_derived_from_gain_table():
