@@ -1,4 +1,6 @@
 import json
+import csv
+import gzip
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +15,9 @@ from spf.calibrations.dual_rx_gain_frequency.additive_cross import (
 from spf.calibrations.models import (
     UnsupportedPhaseModelInput,
     load_model,
+)
+from spf.calibrations.models.external_wall_validation import (
+    validate_snapshot_export,
 )
 
 
@@ -258,3 +263,82 @@ def test_complete_additive_cross_export_supports_full_gain_product(tmp_path):
         gain_rx2_db=-1,
         allow_float32_frequency_alias=True,
     ) == pytest.approx(0.55)
+
+
+def test_external_wall_validation_rederives_geometry_and_subtracts_model(tmp_path):
+    serial = "104000bac4950008230026001b440a003a"
+    frequency_hz = 2_467_100_000
+    model = load_model(
+        COMPLETE_2P4_MODEL_NAME,
+        serial,
+        registry_root=REGISTRY_ROOT,
+    )
+    fieldnames = [
+        "capture",
+        "receiver",
+        "serial",
+        "lo_hz",
+        "gain_rx1_db",
+        "gain_rx2_db",
+        "phase_meas_rad",
+        "phase_gt_rad",
+        "theta_gt_rad",
+        "tx_pos_x_mm",
+        "tx_pos_y_mm",
+        "rx_pos_x_mm",
+        "rx_pos_y_mm",
+        "rx_theta_in_pis",
+        "rx_heading_in_pis",
+        "d_over_lambda",
+    ]
+    rows = []
+    for capture in ("capture-a", "capture-b"):
+        for gain1, gain2, theta in ((26, 26, 0.2), (26, 41, -0.3)):
+            phase_gt = float(wrap_phase(-np.sin(theta) * 0.5 * 2.0 * np.pi))
+            prediction = model.predict_phase_offset(
+                frequency_hz=frequency_hz,
+                gain_rx1_db=gain1,
+                gain_rx2_db=gain2,
+            )
+            rows.append(
+                {
+                    "capture": capture,
+                    "receiver": "r0",
+                    "serial": serial,
+                    "lo_hz": frequency_hz,
+                    "gain_rx1_db": gain1,
+                    "gain_rx2_db": gain2,
+                    "phase_meas_rad": float(wrap_phase(phase_gt + prediction)),
+                    "phase_gt_rad": phase_gt,
+                    "theta_gt_rad": theta,
+                    "tx_pos_x_mm": np.sin(theta) * 1000.0,
+                    "tx_pos_y_mm": np.cos(theta) * 1000.0,
+                    "rx_pos_x_mm": 0.0,
+                    "rx_pos_y_mm": 0.0,
+                    "rx_theta_in_pis": 0.0,
+                    "rx_heading_in_pis": 0.0,
+                    "d_over_lambda": 0.5,
+                }
+            )
+    export_path = tmp_path / "snapshots.csv.gz"
+    with gzip.open(export_path, "wt", newline="") as target:
+        writer = csv.DictWriter(target, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    result = validate_snapshot_export(
+        csv_gz_path=export_path,
+        receiver="r0",
+        serial=serial,
+        frequency_hz=frequency_hz,
+        registry_root=REGISTRY_ROOT,
+    )
+
+    assert result["integrity"]["selected_rows"] == 4
+    assert result["integrity"]["coverage_fraction"] == 1.0
+    assert result["integrity"]["maximum_theta_error_rad"] < 1e-12
+    assert result["integrity"]["maximum_phase_error_rad"] < 1e-12
+    assert result["summary"]["subtract_bias_deg"] == pytest.approx(0.0, abs=1e-12)
+    assert result["summary"]["median_subtract_circstd_rad"] == pytest.approx(
+        0.0, abs=1e-12
+    )

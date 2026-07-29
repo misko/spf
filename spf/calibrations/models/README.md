@@ -99,6 +99,14 @@ This only recognizes the exact float32 representation of a fitted LO. It does
 not enable a frequency tolerance, nearest-frequency selection, or
 interpolation. The default remains fail closed.
 
+The phase model calibrates the radio plus its recorded bench fixture. A field
+installation can add a further differential phase through antenna feeds,
+connectors, antennas, and mounting. For precision deployment, estimate an
+anchor after applying the radio model, keyed by installation, radio serial,
+exact frequency, phase convention, and validated session. The independent
+2467.100 MHz wall-array result is documented in the
+[external validation report](../dual_rx_gain_frequency/reports/EXTERNAL_WALL_VALIDATION_2467P1_20260729.md).
+
 ## Command line
 
 ```bash

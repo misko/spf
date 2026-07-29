@@ -102,8 +102,10 @@ By exact frequency:
 
 The 2467.100 MHz calibration is the stronger external-validation target
 identified by the model consumer. Applying the correction to the independent
-98-capture wall set remains a consumer-side validation, not part of this
-bench result.
+wall set subsequently confirmed the gain-dependent term at 100 percent model
+coverage. The absolute bench intercept did not transfer unchanged to that
+installation. See
+[`EXTERNAL_WALL_VALIDATION_2467P1_20260729.md`](EXTERNAL_WALL_VALIDATION_2467P1_20260729.md).
 
 ## Runtime usage
 
