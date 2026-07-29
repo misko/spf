@@ -150,8 +150,11 @@ def _compare_additive_cross(args) -> int:
                 "held_out_frequency_specific_radio_shared_curve_metrics": result[
                     "held_out_frequency_specific_radio_shared_curve_metrics"
                 ],
-                "held_out_one_curve_for_2p4_band_metrics": result[
-                    "held_out_one_curve_for_2p4_band_metrics"
+                "held_out_one_curve_all_frequencies_metrics": result[
+                    "held_out_one_curve_all_frequencies_metrics"
+                ],
+                "held_out_directional_cross_radio_transfers": result[
+                    "held_out_directional_cross_radio_transfers"
                 ],
                 "output_dir": str(args.output_dir),
             },

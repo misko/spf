@@ -9,6 +9,7 @@ committed report records SHA-256 hashes of the exact inputs it used.
 
 | Report | Scope | Status |
 |---|---|---|
+| [Wide integer-gain cross-band model ladder](wide_integer_gain_cross_band_20260730_v1/REPORT.md) | Radios `.17` and `.18`; 53 exact LOs from 433 MHz to 5.9 GHz; complete common -1…62 dB gain axes, 48 off-axis held-out pairs/frequency, and 13 competing model families | 55,650/55,650 frames complete; per-radio/per-frequency additive LUT wins at 0.713° epoch-held-out MAE; genuine off-axis MAE is 1.31–1.36° |
 | [External wall-array validation at 2467.100 MHz](EXTERNAL_WALL_VALIDATION_2467P1_20260729.md) | 1.73 million independently exported historical snapshots; exact `.17` runtime model plus diagnostic `.18` evaluation | `.17` gain term confirmed: circstd improves in 96/102 captures at 100% coverage; absolute deployment anchor remains necessary |
 | [Exact historical 2.4 GHz LOs](HISTORICAL_EXACT_LO_CROSS_2P4_20260729.md) | Radios `.17` and `.18`, every integer gain from -3 through 71 dB on both axes at 2411.950/2467.100 MHz; extends the runtime models without replacing 2412/2467 MHz | 2,460/2,460 frames complete; all 596 fitted-axis cells pass; 1.92–1.96° shared-curve held-out MAE |
 | [Complete 2.4 GHz gain model](ALL_GAIN_CROSS_2P4_20260729.md) | Two radios, every integer gain from -3 through 71 dB measured on both receiver axes at 2412/2467 MHz, with off-axis held-out validation and deployable runtime models | 2,460/2,460 frames complete; all 596 fitted-axis cells pass; complete 75×75 prediction domain; 1.95–2.03° held-out MAE |
@@ -29,6 +30,16 @@ committed report records SHA-256 hashes of the exact inputs it used.
 | [RF-DC recovery: …0095f2dbee49](rx2_rf_dc_20260727_104000707f0700120f001a0095f2dbee49/REPORT.md) | 5866 MHz, RX2 45–52 dB | Recovery passed, 15/15 post-recovery TX-on frames valid |
 
 ## Combined findings
+
+The 2026-07-30 wide integer-gain survey extends the exact integer LUT result
+from two 2.4 GHz frequencies to 53 LOs from 433 MHz through 5.9 GHz. On radios
+`.17` and `.18`, every one of the 13,462 training-axis cells passes. The
+radio-specific, per-frequency additive model has 0.713° leave-one-epoch-out
+MAE; its genuinely unseen off-axis gain-pair MAE is 1.31–1.36°. A full
+gain-pair LUT is slightly worse, frequency-independent and delay-only models
+remain inadequate, and directional gain-shape transfer between the two boards
+is 1.25–1.27° MAE when the target supplies three equal-gain anchor frames per
+frequency.
 
 The six-radio dense checkpoint contains 62,424/62,424 scheduled frames. Of
 those, 60,875 pass the stored-IQ quality gates and enter the combined model

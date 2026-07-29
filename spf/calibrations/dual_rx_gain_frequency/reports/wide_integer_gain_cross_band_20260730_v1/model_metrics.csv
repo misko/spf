@@ -1,0 +1,14 @@
+model,label,scope,parameter_count,loeo_mae_deg,loeo_rmse_deg,loeo_p95_deg,lofo_mae_deg,loro_mae_deg
+constant_per_radio,Constant per radio,per_radio,2,14.80971931401916,21.16560230931964,49.75433102577895,15.029352712446112,
+gain_linear_per_radio,Linear gains per radio,per_radio,6,14.779359083722175,20.915577738814285,49.05087389723058,15.009450315253481,
+gain_additive_lut_per_radio,Additive gain LUT per radio,per_radio,254,13.957541245806219,20.291161664501953,48.4928942951843,14.225039414871715,
+frequency_lut_linear_gain_per_radio,Frequency LUT + linear gains per radio,per_radio,110,6.268447888687348,8.229803707267903,16.238795312727447,,
+frequency_lut_additive_gain_per_radio,Frequency LUT + additive gain LUT per radio,per_radio,358,4.826570582608656,6.479842474062084,13.448303363897343,,
+frequency_specific_additive_gain_per_radio,Per-frequency additive gain LUT per radio,per_radio,13462,0.7127543788715449,1.1180228207226717,2.5277292301653858,,
+full_cell_lut_per_radio,Full frequency/gain-pair LUT per radio,per_radio,18535,0.7227687383991744,1.1510705417994096,2.59712811439253,,
+delay_additive_gain_per_radio,One delay + additive gain LUT per radio,per_radio,256,11.221566738809,17.26879580833391,38.25385273564738,11.724160952877341,
+branch_gain_delay_lut_per_radio,Gain-dependent branch-delay LUT per radio,per_radio,508,10.899045096748134,16.87589762794098,37.1597828691288,11.430328983043168,
+frequency_lut_additive_gain_universal,Strict universal frequency + gain LUT,universal,179,6.303171568828388,9.302967544612862,19.590199312412768,,8.5517204051746
+frequency_specific_additive_gain_universal,Strict universal per-frequency additive LUT,universal,6731,3.238859793852346,6.7961700865881935,16.05102426616969,,6.21269135221758
+full_cell_lut_universal,Strict universal full cell LUT,universal,9268,3.24498153655902,6.799216691087152,16.04980010653101,,6.2173529468602045
+branch_gain_delay_lut_universal,Strict universal gain-dependent delay LUT,universal,254,11.022665030354315,17.303623845301832,34.97827890892204,11.52645601879951,11.680575492392203

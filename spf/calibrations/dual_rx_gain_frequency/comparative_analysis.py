@@ -374,7 +374,11 @@ def _load_radio(dataset_path: Path, *, config: CalibrationConfig) -> dict[str, A
     completed = np.asarray(arrays["sweep_completed"], dtype=bool)
     epoch = np.asarray(arrays["sweep_epoch"], dtype=np.int64)
     frequency_index = np.asarray(arrays["sweep_frequency_index"], dtype=np.int64)
-    expected_per_block = len(config.gains_db) ** 2
+    # A complete block is the configured schedule, which may be either the
+    # full Cartesian gain grid or the much smaller additive-cross design.
+    # Treating every schedule as Cartesian silently excluded every observation
+    # from additive-cross datasets.
+    expected_per_block = len(config.gain_pairs)
     full_blocks: list[dict[str, int]] = []
     analysis_mask = np.zeros(completed.shape, dtype=bool)
     for epoch_value in range(config.repetitions):

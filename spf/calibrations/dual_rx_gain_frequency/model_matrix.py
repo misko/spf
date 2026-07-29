@@ -5,6 +5,11 @@ frequency/gain cell remains represented in training by the other repeats.
 Models that can predict an unseen frequency are also evaluated with
 leave-one-frequency-out. Universal models are additionally evaluated by
 training on one Pluto and predicting the other.
+
+Both Cartesian and additive-cross schedules are supported. For an
+additive-cross schedule, leave-one-epoch-out evaluates repeatability on the
+requested cells; the separate additive-cross analysis remains the decisive
+test on off-axis cells excluded from fitting.
 """
 
 from __future__ import annotations
@@ -202,7 +207,7 @@ def _radio_arrays_from_paths(
     config_path: Path,
     dataset_paths: Iterable[Path],
 ) -> tuple[Any, dict[str, np.ndarray], list[dict[str, Any]]]:
-    """Load one dense dataset per physical radio from explicit paths."""
+    """Load one complete calibration dataset per physical radio."""
 
     _, config = load_calibration_document(config_path)
     paths = [Path(path) for path in dataset_paths]
@@ -246,15 +251,24 @@ def _radio_arrays_from_paths(
         pieces["epoch"].append(radio["epoch"][selected].astype(np.int64))
         pieces["frequency_hz"].append(frequency_hz)
         pieces["frequency"].append(
-            np.asarray([frequency_lookup[int(value)] for value in frequency_hz])
+            np.asarray(
+                [frequency_lookup[int(value)] for value in frequency_hz],
+                dtype=np.int64,
+            )
         )
         pieces["gain1_db"].append(gain1_db)
         pieces["gain2_db"].append(gain2_db)
         pieces["gain1"].append(
-            np.asarray([gain_lookup[int(value)] for value in gain1_db])
+            np.asarray(
+                [gain_lookup[int(value)] for value in gain1_db],
+                dtype=np.int64,
+            )
         )
         pieces["gain2"].append(
-            np.asarray([gain_lookup[int(value)] for value in gain2_db])
+            np.asarray(
+                [gain_lookup[int(value)] for value in gain2_db],
+                dtype=np.int64,
+            )
         )
         pieces["phase"].append(radio["phase"][selected].astype(np.float64))
         validation_path = dataset_path.parent / "validation.json"
@@ -692,8 +706,18 @@ def _fit_summary(
             reference_gain=reference_gain,
         )
         residuals.extend(wrap_phase(local["phase"][support] - prediction).tolist())
+        coefficient_indices = np.arange(fit.beta.size, dtype=np.int64)
+        if spec.kind == "full_cell":
+            # Additive-cross schedules intentionally observe only a subset of
+            # the Cartesian gain-pair cube. Do not report the all-zero,
+            # structurally unidentifiable columns as trained parameters.
+            coefficient_indices = np.unique(
+                (local["frequency"] * gain_count + local["gain1"]) * gain_count
+                + local["gain2"]
+            )
         coefficients = {
-            name: float(value) for name, value in zip(fit.feature_names, fit.beta)
+            fit.feature_names[int(index)]: float(fit.beta[int(index)])
+            for index in coefficient_indices
         }
         delay = {}
         if "frequency_rad_per_ghz" in coefficients:
@@ -840,7 +864,7 @@ def _format_metric(value: float | None) -> str:
 
 def render_model_matrix_report(result: dict[str, Any]) -> str:
     lines = [
-        "# Dense dual-RX phase model matrix",
+        "# Dual-RX phase model matrix",
         "",
         "## Scope and evaluation",
         "",

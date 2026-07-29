@@ -57,7 +57,9 @@ from spf.calibrations.dual_rx_gain_frequency.model import (
 from spf.calibrations.dual_rx_gain_frequency.model_matrix import (
     MODEL_SPECS,
     _fit,
+    _fit_summary,
     _predict,
+    _radio_arrays_from_paths,
 )
 from spf.calibrations.dual_rx_gain_frequency.report import (
     build_analysis_summary,
@@ -999,6 +1001,10 @@ def test_additive_cross_fit_scores_pairs_excluded_from_training(tmp_path, monkey
     analysis = analyze_additive_cross_dataset(dataset, config=config)
     assert analysis["training_pairs_per_frequency"] == 5
     assert analysis["held_out_pairs_per_frequency"] == 2
+    assert (
+        analysis["frequency_results"][0]["reference_cell_quality_valid_observations"]
+        == config.repetitions
+    )
     metrics = analysis["overall_held_out_independent_rx_metrics"]
     assert metrics["n_observations"] == 6
     assert metrics["circular_p95_deg"] < 0.2
@@ -1014,6 +1020,35 @@ def test_additive_cross_fit_scores_pairs_excluded_from_training(tmp_path, monkey
     assert comparison["frequency_comparisons"][0]["pairwise_radio_curve_comparisons"][
         0
     ]["curve_rms_difference_deg"] == pytest.approx(0)
+    assert comparison["schema_version"] == 2
+    assert len(comparison["held_out_directional_cross_radio_transfers"]) == 2
+    assert all(
+        row["metrics"]["circular_p95_deg"] < 0.2
+        for row in comparison["held_out_directional_cross_radio_transfers"]
+    )
+
+    loaded_config, matrix_data, provenance = _radio_arrays_from_paths(
+        config_path=config_path,
+        dataset_paths=(dataset,),
+    )
+    assert loaded_config == config
+    assert len(provenance) == 1
+    assert matrix_data["phase"].size == config.measurements_per_radio
+    assert matrix_data["frequency"].dtype == np.int64
+    assert matrix_data["gain1"].dtype == np.int64
+    assert matrix_data["gain2"].dtype == np.int64
+
+    full_cell = next(spec for spec in MODEL_SPECS if spec.kind == "full_cell")
+    summary = _fit_summary(
+        full_cell,
+        matrix_data,
+        radio_count=1,
+        gain_count=len(config.gains_db),
+        frequency_count=len(config.frequencies_hz),
+        reference_gain=config.gains_db.index(config.schedule_reference_gain_db),
+        reference_frequency_hz=float(config.frequencies_hz[0]),
+    )
+    assert summary["total_parameter_count"] == len(config.gain_pairs)
 
 
 def test_rx2_dc_diagnostic_writes_matched_full_iq_without_v7_mutation(tmp_path):

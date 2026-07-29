@@ -237,6 +237,16 @@ def analyze_additive_cross_dataset(
                     }
                 )
                 continue
+            reference_cell = (
+                training
+                & (requested[:, 0] == reference_gain)
+                & (requested[:, 1] == reference_gain)
+            )
+            reference_cell_stats = circular_stats(phases[reference_cell])
+            if reference_cell_stats["mean_rad"] is None:
+                raise ValueError(
+                    f"{frequency_hz} Hz has no quality-valid reference-gain cell"
+                )
             fit = fit_additive_surface(
                 phases[training],
                 gain1_indices[training],
@@ -350,6 +360,10 @@ def analyze_additive_cross_dataset(
                         np.sqrt(np.mean(np.degrees(symmetry_error) ** 2))
                     ),
                     "intercept_rad": intercept,
+                    "reference_cell_mean_rad": reference_cell_stats["mean_rad"],
+                    "reference_cell_quality_valid_observations": int(
+                        np.count_nonzero(reference_cell)
+                    ),
                     "rx1_effect_rad": rx1_effect.tolist(),
                     "rx2_effect_rad": rx2_effect.tolist(),
                     "shared_gain_effect_rad": shared_effect.tolist(),
@@ -361,7 +375,7 @@ def analyze_additive_cross_dataset(
 
         return {
             "schema": "spf.calibration.dual_rx_gain_frequency.additive_cross",
-            "schema_version": 1,
+            "schema_version": 2,
             "serial": receiver.attrs.get("sdr_serial"),
             "phase_convention": zarr.attrs.get("phase_convention"),
             "schedule_design": config.schedule_design,
@@ -663,9 +677,67 @@ def compare_additive_cross_results(
                 }
             )
 
+    directional_transfers = []
+    for source_serial in serials:
+        for target_serial in serials:
+            if source_serial == target_serial:
+                continue
+            residuals = []
+            per_frequency = []
+            used_reference_cell_means = True
+            for frequency_hz in frequencies:
+                source_row = rows_by_serial_frequency[(source_serial, frequency_hz)]
+                target_row = rows_by_serial_frequency[(target_serial, frequency_hz)]
+                source_curve = np.asarray(
+                    source_row["shared_gain_effect_rad"],
+                    dtype=np.float64,
+                )
+                target_intercept = target_row.get("reference_cell_mean_rad")
+                if target_intercept is None:
+                    target_intercept = target_row["intercept_rad"]
+                    used_reference_cell_means = False
+                local_residuals = []
+                for cell in target_row["held_out_cells"]:
+                    if cell["observed_mean_rad"] is None:
+                        continue
+                    prediction = (
+                        float(target_intercept)
+                        + source_curve[gain_lookup[int(cell["gain_rx1_db"])]]
+                        - source_curve[gain_lookup[int(cell["gain_rx2_db"])]]
+                    )
+                    local_residuals.append(
+                        float(wrap_phase(cell["observed_mean_rad"] - prediction))
+                    )
+                residuals.extend(local_residuals)
+                per_frequency.append(
+                    {
+                        "frequency_hz": frequency_hz,
+                        "metrics": _residual_metrics(np.asarray(local_residuals)),
+                    }
+                )
+            directional_transfers.append(
+                {
+                    "source_serial": source_serial,
+                    "target_serial": target_serial,
+                    "target_intercept_semantics": (
+                        (
+                            "target-radio per-frequency circular mean of the "
+                            "quality-valid reference-gain cell"
+                        )
+                        if used_reference_cell_means
+                        else (
+                            "legacy fallback: target-radio per-frequency "
+                            "intercept fitted from its training-axis observations"
+                        )
+                    ),
+                    "metrics": _residual_metrics(np.asarray(residuals)),
+                    "per_frequency": per_frequency,
+                }
+            )
+
     return {
         "schema": "spf.calibration.dual_rx_gain_frequency.additive_cross_comparison",
-        "schema_version": 1,
+        "schema_version": 2,
         "serials": serials,
         "frequencies_hz": list(frequencies),
         "gain_values_db": list(gains),
@@ -675,6 +747,12 @@ def compare_additive_cross_results(
         "held_out_frequency_specific_radio_shared_curve_metrics": (
             _residual_metrics(np.asarray(all_frequency_shared_residuals))
         ),
+        "held_out_directional_cross_radio_transfers": directional_transfers,
+        "held_out_one_curve_all_frequencies_metrics": _residual_metrics(
+            np.asarray(band_shared_residuals)
+        ),
+        "one_curve_all_frequencies_effect_rad": one_curve_for_band.tolist(),
+        # Kept as compatibility aliases for consumers of schema v1.
         "held_out_one_curve_for_2p4_band_metrics": _residual_metrics(
             np.asarray(band_shared_residuals)
         ),
@@ -712,7 +790,7 @@ def render_additive_cross_comparison_markdown(result: dict[str, Any]) -> str:
             f"{metrics['circular_p95_deg']:.2f}° |"
         )
     per_frequency = result["held_out_frequency_specific_radio_shared_curve_metrics"]
-    one_band = result["held_out_one_curve_for_2p4_band_metrics"]
+    one_band = result["held_out_one_curve_all_frequencies_metrics"]
     lines.extend(
         [
             "",
@@ -723,7 +801,7 @@ def render_additive_cross_comparison_markdown(result: dict[str, Any]) -> str:
                 "cell means."
             ),
             (
-                "Using one curve for both 2.4 GHz frequencies gives "
+                "Using one curve across all measured frequencies gives "
                 f"{one_band['circular_mae_deg']:.2f}° MAE and "
                 f"{one_band['circular_p95_deg']:.2f}° p95."
             ),
@@ -731,15 +809,41 @@ def render_additive_cross_comparison_markdown(result: dict[str, Any]) -> str:
             "Each radio/frequency retains its own intercept in these transfer "
             "tests. Only the gain-dependent curve is shared.",
             "",
+            "## Directional transfer to the other radio",
+            "",
+            "| Source gain curve | Target radio | Held-out MAE / p95 | Maximum |",
+            "|---|---|---:|---:|",
+        ]
+    )
+    for row in result["held_out_directional_cross_radio_transfers"]:
+        metrics = row["metrics"]
+        lines.append(
+            f"| `{row['source_serial']}` | `{row['target_serial']}` | "
+            f"{metrics['circular_mae_deg']:.2f}° / "
+            f"{metrics['circular_p95_deg']:.2f}° | "
+            f"{metrics['circular_max_deg']:.2f}° |"
+        )
+    lines.extend(
+        [
+            "",
+            "This is a stricter transfer test than the averaged curve: the source "
+            "gain curve never uses the target radio. The target anchor is the "
+            "circular mean of its quality-valid `(reference, reference)` cell "
+            "at each frequency (three frames in this experiment). This directly "
+            "tests a low-cost per-frequency onboarding measurement.",
+            "",
             "## Frequency sensitivity of the gain curve",
             "",
-            "| Radio | Curve correlation | RMS difference | Maximum difference |",
-            "|---|---:|---:|---:|",
+            "| Radio | First frequency | Second frequency | Curve correlation | RMS difference | Maximum difference |",
+            "|---|---:|---:|---:|---:|---:|",
         ]
     )
     for row in result["within_radio_frequency_comparisons"]:
         lines.append(
-            f"| `{row['serial']}` | {row['curve_correlation']:.4f} | "
+            f"| `{row['serial']}` | "
+            f"{row['first_frequency_hz'] / 1e6:.3f} MHz | "
+            f"{row['second_frequency_hz'] / 1e6:.3f} MHz | "
+            f"{row['curve_correlation']:.4f} | "
             f"{row['curve_rms_difference_deg']:.2f}° | "
             f"{row['curve_maximum_difference_deg']:.2f}° |"
         )
@@ -753,9 +857,96 @@ def render_additive_cross_comparison_markdown(result: dict[str, Any]) -> str:
             "Held-out cells, not training-axis cells, determine the reported "
             "transfer error.",
             "",
+            "![Cross-radio curve transfer by frequency](curve_transfer_by_frequency.png)",
+            "",
+            "![Directional transfer by frequency](directional_transfer_by_frequency.png)",
+            "",
         ]
     )
     return "\n".join(lines)
+
+
+def _write_additive_cross_comparison_plots(
+    result: dict[str, Any],
+    output_dir: Path,
+) -> list[str]:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    frequencies_mhz = np.asarray(result["frequencies_hz"], dtype=np.float64) / 1e6
+    curve_rms = np.asarray(
+        [
+            np.mean(
+                [
+                    pair["curve_rms_difference_deg"]
+                    for pair in row["pairwise_radio_curve_comparisons"]
+                ]
+            )
+            for row in result["frequency_comparisons"]
+        ]
+    )
+    shared_mae = np.asarray(
+        [
+            row["held_out_radio_shared_curve_metrics"]["circular_mae_deg"]
+            for row in result["frequency_comparisons"]
+        ]
+    )
+    fig, axis = plt.subplots(figsize=(11, 5.5))
+    axis.plot(
+        frequencies_mhz,
+        curve_rms,
+        marker="o",
+        markersize=3,
+        linewidth=1.2,
+        label="Cross-radio gain-curve RMS difference",
+    )
+    axis.plot(
+        frequencies_mhz,
+        shared_mae,
+        marker="o",
+        markersize=3,
+        linewidth=1.2,
+        label="Radio-shared curve held-out MAE",
+    )
+    axis.set_xlabel("LO frequency (MHz)")
+    axis.set_ylabel("Degrees")
+    axis.grid(alpha=0.25)
+    axis.legend()
+    fig.tight_layout()
+    curve_path = output_dir / "curve_transfer_by_frequency.png"
+    fig.savefig(curve_path, dpi=160)
+    plt.close(fig)
+
+    fig, axis = plt.subplots(figsize=(11, 5.5))
+    for row in result["held_out_directional_cross_radio_transfers"]:
+        per_frequency = {
+            int(item["frequency_hz"]): item["metrics"] for item in row["per_frequency"]
+        }
+        mae = np.asarray(
+            [
+                per_frequency[int(frequency)]["circular_mae_deg"]
+                for frequency in result["frequencies_hz"]
+            ]
+        )
+        axis.plot(
+            frequencies_mhz,
+            mae,
+            marker="o",
+            markersize=3,
+            linewidth=1.2,
+            label=f"{row['source_serial'][-8:]} → {row['target_serial'][-8:]}",
+        )
+    axis.set_xlabel("LO frequency (MHz)")
+    axis.set_ylabel("Directional held-out MAE (degrees)")
+    axis.grid(alpha=0.25)
+    axis.legend()
+    fig.tight_layout()
+    directional_path = output_dir / "directional_transfer_by_frequency.png"
+    fig.savefig(directional_path, dpi=160)
+    plt.close(fig)
+    return [curve_path.name, directional_path.name]
 
 
 def write_additive_cross_comparison_bundle(
@@ -767,6 +958,10 @@ def write_additive_cross_comparison_bundle(
     comparison = compare_additive_cross_results(results)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    comparison["plots"] = _write_additive_cross_comparison_plots(
+        comparison,
+        output_dir,
+    )
     (output_dir / "comparison.json").write_text(
         json.dumps(comparison, indent=2, sort_keys=True) + "\n"
     )
