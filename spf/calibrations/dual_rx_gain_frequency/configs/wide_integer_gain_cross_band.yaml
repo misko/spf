@@ -1,0 +1,223 @@
+# Overnight, frequency-wide additive-cross calibration.
+#
+# This combines the 47-frequency boundary/ISM scout with exact historical
+# wall-array LOs that were previously missing. At every frequency it measures
+# every common integer gain from -1 through 62 dB in both receiver roles,
+# plus explicit off-axis holdouts, across three separated epochs.
+#
+# 53 frequencies * 175 pairs * 3 epochs = 27,825 frames per radio.
+data-version: 7
+
+pluto-firmware:
+  release-tag: v0.38-plutoplus-spf-gain-rssi-fingerprint-v1
+  asset-name: plutoplus-spf-direct-usb-gain-rssi-fingerprint-v1-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-rssi-fingerprint-v1/plutoplus-spf-direct-usb-gain-rssi-fingerprint-v1-pluto.dfu
+  image-sha256: 0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9
+  firmware-git-sha: 7b02276519a802aed83d47b6672c46e578ce4de0
+  gadget-git-sha: a1e6417d07188bd72be70692e28c5d6ae9a5ec62
+  boot-mode: ram
+
+calibration:
+  frequencies-hz:
+    - 433000000
+    - 600000000
+    - 700000000
+    - 800000000
+    - 868000000
+    - 915000000
+    - 1000000000
+    - 1100000000
+    - 1200000000
+    - 1250000000
+    - 1280000000
+    - 1290000000
+    - 1299000000
+    - 1300000000
+    - 1301000000
+    - 1310000000
+    - 1320000000
+    - 1500000000
+    - 1800000000
+    - 2100000000
+    - 2300000000
+    - 2400000000
+    - 2411000000
+    - 2411950000
+    - 2412000000
+    - 2437000000
+    - 2464000000
+    - 2467000000
+    - 2467100000
+    - 2700000000
+    - 3000000000
+    - 3300000000
+    - 3600000000
+    - 3900000000
+    - 3990000000
+    - 3999000000
+    - 4000000000
+    - 4001000000
+    - 4010000000
+    - 4200000000
+    - 4500000000
+    - 4800000000
+    - 5100000000
+    - 5400000000
+    - 5600000000
+    - 5700000000
+    - 5766000000
+    - 5770000000
+    - 5804000000
+    - 5838000000
+    - 5839000000
+    - 5866000000
+    - 5900000000
+  # Intersection of the manual-gain ranges across all AD9361 gain tables.
+  gains-db:
+    - -1
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    - 15
+    - 16
+    - 17
+    - 18
+    - 19
+    - 20
+    - 21
+    - 22
+    - 23
+    - 24
+    - 25
+    - 26
+    - 27
+    - 28
+    - 29
+    - 30
+    - 31
+    - 32
+    - 33
+    - 34
+    - 35
+    - 36
+    - 37
+    - 38
+    - 39
+    - 40
+    - 41
+    - 42
+    - 43
+    - 44
+    - 45
+    - 46
+    - 47
+    - 48
+    - 49
+    - 50
+    - 51
+    - 52
+    - 53
+    - 54
+    - 55
+    - 56
+    - 57
+    - 58
+    - 59
+    - 60
+    - 61
+    - 62
+  schedule-design: additive_cross
+  schedule-reference-gain-db: 26
+  held-out-gain-pairs:
+    - [-1, 3]
+    - [3, -1]
+    - [5, 6]
+    - [6, 5]
+    - [6, 15]
+    - [15, 6]
+    - [17, 23]
+    - [23, 17]
+    - [23, 25]
+    - [25, 23]
+    - [27, 33]
+    - [33, 27]
+    - [41, 52]
+    - [52, 41]
+    - [33, 52]
+    - [52, 33]
+    - [46, 47]
+    - [51, 52]
+    - [42, 37]
+    - [21, 22]
+    - [32, 33]
+    - [27, 23]
+    - [18, 19]
+    - [19, 24]
+    - [49, 60]
+    - [51, 37]
+    - [15, 8]
+    - [25, 12]
+    - [35, 48]
+    - [42, 53]
+    - [58, 43]
+    - [50, 59]
+    - [35, 61]
+    - [29, 12]
+    - [36, 11]
+    - [41, 21]
+    - [37, 11]
+    - [3, 25]
+    - [12, 28]
+    - [31, 50]
+    - [49, 15]
+    - [58, 18]
+    - [13, 62]
+    - [13, 55]
+    - [45, 10]
+    - [1, 43]
+    - [12, 52]
+    - [48, 12]
+  repetitions: 3
+  sample-rate-hz: 30000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000
+  tone-search-width-hz: 25000
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
+  random-seed: 20260730
+  tx-source: fpga_dds
+  tx-gain-db: 0
+  tx-gain-policy: adaptive_max_rx_gain
+  tx-reference-rx-gain-db: 26
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 16384
+  min-quality-valid-per-cell: 2
+  max-across-repeat-phase-std-deg: 5
+  setup-label: two-pluto-wide-integer-gain-cross-band-tx2-30db-split-rx1-rx2
+  notes: TX2 -> 30 dB attenuator -> two-way splitter -> RX1/RX2; 47-frequency scout plus exact missing historical wall LOs; complete common -1..62 dB axes
+  quality:
+    min-tone-snr-db: -10
+    min-tone-dbfs: -75
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5
