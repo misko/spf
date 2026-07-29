@@ -113,6 +113,36 @@ class PhaseOffsetModel:
             reference_zero=gain_index == reference_index,
         )
 
+    def canonicalize_frequency_hz(
+        self,
+        frequency_hz: int,
+        *,
+        allow_float32_alias: bool = False,
+    ) -> int:
+        """Resolve an exact model LO, optionally recovering a float32 alias.
+
+        Some historical datasets stored integer-Hz LOs in float32 fields.
+        For example, 2,467,100,000 Hz becomes 2,467,099,904 when represented
+        as float32. Alias recovery only accepts that exact representation of a
+        fitted frequency; it is not a frequency tolerance or interpolation.
+        """
+
+        frequency_hz = int(frequency_hz)
+        if frequency_hz in self.frequencies_hz or not allow_float32_alias:
+            return frequency_hz
+        aliases = [
+            candidate
+            for candidate in self.frequencies_hz
+            if int(np.float32(candidate)) == frequency_hz
+        ]
+        if len(aliases) == 1:
+            return aliases[0]
+        if len(aliases) > 1:
+            raise UnsupportedPhaseModelInput(
+                f"float32 frequency alias {frequency_hz} is ambiguous: {aliases}"
+            )
+        return frequency_hz
+
     def predict_phase_offset(
         self,
         *,
@@ -120,6 +150,7 @@ class PhaseOffsetModel:
         gain_rx1_db: int,
         gain_rx2_db: int,
         strict: bool = True,
+        allow_float32_frequency_alias: bool = False,
     ) -> float:
         """Predict wrapped RX1-minus-RX2 phase offset in radians.
 
@@ -129,7 +160,10 @@ class PhaseOffsetModel:
         the mathematical model support for diagnostics.
         """
 
-        frequency_hz = int(frequency_hz)
+        frequency_hz = self.canonicalize_frequency_hz(
+            frequency_hz,
+            allow_float32_alias=allow_float32_frequency_alias,
+        )
         gain_rx1_db = int(gain_rx1_db)
         gain_rx2_db = int(gain_rx2_db)
         if frequency_hz <= 0:
@@ -237,6 +271,7 @@ class PhaseOffsetModel:
         gain_rx1_db: int,
         gain_rx2_db: int,
         strict: bool = True,
+        allow_float32_frequency_alias: bool = False,
     ) -> float:
         """Subtract the predicted system offset from a measured phase."""
 
@@ -245,6 +280,7 @@ class PhaseOffsetModel:
             gain_rx1_db=gain_rx1_db,
             gain_rx2_db=gain_rx2_db,
             strict=strict,
+            allow_float32_frequency_alias=allow_float32_frequency_alias,
         )
         return float(wrap_phase(float(measured_phase_rad) - offset))
 

@@ -1322,6 +1322,26 @@ def test_committed_all_gain_cross_covers_complete_midband_gain_axis():
     assert config.measurements_per_radio == 1_230
 
 
+def test_historical_exact_lo_cross_preserves_integer_centres():
+    config_path = (
+        Path(__file__).parents[1]
+        / "spf"
+        / "calibrations"
+        / "dual_rx_gain_frequency"
+        / "configs"
+        / "historical_exact_lo_cross_2p4.yaml"
+    )
+    _, config = load_calibration_document(config_path)
+
+    assert config.frequencies_hz == (2_411_950_000, 2_467_100_000)
+    assert config.gains_db == tuple(range(-3, 72))
+    assert config.schedule_design == "additive_cross"
+    assert config.schedule_reference_gain_db == 26
+    assert len(config.training_gain_pairs) == 149
+    assert len(config.held_out_gain_pairs) == 56
+    assert config.measurements_per_radio == 1_230
+
+
 def test_frequency_scout_densely_covers_gain_table_boundaries():
     config_path = (
         Path(__file__).parents[1]

@@ -40,6 +40,7 @@ def _predict(args) -> int:
         gain_rx1_db=args.gain_rx1_db,
         gain_rx2_db=args.gain_rx2_db,
         strict=not args.allow_unsupported_cell,
+        allow_float32_frequency_alias=args.allow_float32_frequency_alias,
     )
     print(
         json.dumps(
@@ -52,6 +53,7 @@ def _predict(args) -> int:
                 "phase_offset_rad": offset,
                 "phase_offset_deg": offset * 180.0 / 3.141592653589793,
                 "strict": not args.allow_unsupported_cell,
+                "float32_frequency_alias_allowed": (args.allow_float32_frequency_alias),
             },
             indent=2,
             sort_keys=True,
@@ -88,6 +90,14 @@ def parse_args():
         "--allow-unsupported-cell",
         action="store_true",
         help="diagnostic only: bypass the strict passing-cell support gate",
+    )
+    predict_parser.add_argument(
+        "--allow-float32-frequency-alias",
+        action="store_true",
+        help=(
+            "recover an exact fitted LO from its integerized float32 "
+            "representation; this does not enable interpolation"
+        ),
     )
     predict_parser.set_defaults(function=_predict)
     return parser.parse_args()

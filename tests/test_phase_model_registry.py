@@ -139,7 +139,7 @@ def test_phase_correction_subtracts_and_wraps_prediction():
 def test_complete_additive_cross_export_supports_full_gain_product(tmp_path):
     serial = "TEST-SERIAL"
     gains = [-1, 0, 1]
-    frequencies = [2_412_000_000, 2_467_000_000]
+    frequencies = [2_411_950_000, 2_467_100_000]
     frequency_results = []
     for frequency_index, frequency_hz in enumerate(frequencies):
         frequency_results.append(
@@ -159,25 +159,9 @@ def test_complete_additive_cross_export_supports_full_gain_product(tmp_path):
                 "quality_valid_held_out_observations": 6,
             }
         )
-    analysis = {
-        "serial": serial,
-        "schedule_design": "additive_cross",
-        "phase_convention": "RX1 minus RX2",
-        "reference_gain_db": 0,
-        "gain_values_db": gains,
-        "training_pairs_per_frequency": 5,
-        "overall_held_out_shared_gain_curve_metrics": {
-            "n_observations": 12,
-            "circular_mae_deg": 1.0,
-            "circular_rmse_deg": 1.2,
-            "circular_p95_deg": 2.0,
-            "circular_max_deg": 2.5,
-        },
-        "frequency_results": frequency_results,
-    }
-    validation_cells = []
+    validation_cells_by_frequency = {}
     for frequency_hz in frequencies:
-        validation_cells.extend(
+        validation_cells = list(
             {
                 "frequency_hz": frequency_hz,
                 "gain_rx1_db": gain1,
@@ -202,19 +186,44 @@ def test_complete_additive_cross_export_supports_full_gain_product(tmp_path):
                 "pass": True,
             }
         )
-    validation = {
-        "serial": serial,
-        "status": "pass",
-        "cells": validation_cells,
-    }
-    analysis_path = tmp_path / "analysis.json"
-    validation_path = tmp_path / "validation.json"
-    analysis_path.write_text(json.dumps(analysis))
-    validation_path.write_text(json.dumps(validation))
+        validation_cells_by_frequency[frequency_hz] = validation_cells
+
+    analysis_paths = []
+    validation_paths = []
+    for source_index, (frequency_hz, frequency_result) in enumerate(
+        zip(frequencies, frequency_results)
+    ):
+        analysis = {
+            "serial": serial,
+            "schedule_design": "additive_cross",
+            "phase_convention": "RX1 minus RX2",
+            "reference_gain_db": 0,
+            "gain_values_db": gains,
+            "training_pairs_per_frequency": 5,
+            "overall_held_out_shared_gain_curve_metrics": {
+                "n_observations": 6,
+                "circular_mae_deg": 1.0,
+                "circular_rmse_deg": 1.2,
+                "circular_p95_deg": 2.0,
+                "circular_max_deg": 2.5,
+            },
+            "frequency_results": [frequency_result],
+        }
+        validation = {
+            "serial": serial,
+            "status": "pass",
+            "cells": validation_cells_by_frequency[frequency_hz],
+        }
+        analysis_path = tmp_path / f"analysis-{source_index}.json"
+        validation_path = tmp_path / f"validation-{source_index}.json"
+        analysis_path.write_text(json.dumps(analysis))
+        validation_path.write_text(json.dumps(validation))
+        analysis_paths.append(analysis_path)
+        validation_paths.append(validation_path)
 
     exported = export_complete_2p4_model(
-        analysis_path=analysis_path,
-        validation_path=validation_path,
+        analysis_path=analysis_paths,
+        validation_path=validation_paths,
         output_root=tmp_path / "models",
     )
     assert exported["supported_cell_count"] == 18
@@ -225,7 +234,7 @@ def test_complete_additive_cross_export_supports_full_gain_product(tmp_path):
     )
     assert len(model.supported_cells) == 18
     assert model.predict_phase_offset(
-        frequency_hz=2_412_000_000,
+        frequency_hz=2_411_950_000,
         gain_rx1_db=1,
         gain_rx2_db=-1,
     ) == pytest.approx(0.45)
@@ -235,3 +244,17 @@ def test_complete_additive_cross_export_supports_full_gain_product(tmp_path):
             gain_rx1_db=1,
             gain_rx2_db=-1,
         )
+    float32_alias = int(np.float32(2_467_100_000))
+    assert float32_alias == 2_467_099_904
+    with pytest.raises(UnsupportedPhaseModelInput):
+        model.predict_phase_offset(
+            frequency_hz=float32_alias,
+            gain_rx1_db=1,
+            gain_rx2_db=-1,
+        )
+    assert model.predict_phase_offset(
+        frequency_hz=float32_alias,
+        gain_rx1_db=1,
+        gain_rx2_db=-1,
+        allow_float32_frequency_alias=True,
+    ) == pytest.approx(0.55)

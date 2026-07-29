@@ -463,8 +463,23 @@ def parse_args():
         "export-complete-2p4",
         help="export a complete integer-gain runtime model from an axis-cross fit",
     )
-    complete_export_parser.add_argument("--analysis", type=Path, required=True)
-    complete_export_parser.add_argument("--validation", type=Path, required=True)
+    complete_export_parser.add_argument(
+        "--analysis",
+        type=Path,
+        action="append",
+        required=True,
+        help=(
+            "additive-cross analysis.json; repeat to merge disjoint exact "
+            "frequencies for one radio"
+        ),
+    )
+    complete_export_parser.add_argument(
+        "--validation",
+        type=Path,
+        action="append",
+        required=True,
+        help=("matching validation.json; repeat in the same order as --analysis"),
+    )
     complete_export_parser.add_argument("--output-root", type=Path, required=True)
     complete_export_parser.add_argument(
         "--maximum-held-out-p95-deg",

@@ -181,6 +181,13 @@ receiver axes at exactly 2.412 and 2.467 GHz. It contains 149 additive-axis
 training pairs and 56 off-axis held-out pairs per frequency, repeated in three
 separated epochs: 1,230 frames per physical radio.
 
+The companion
+`configs/historical_exact_lo_cross_2p4.yaml` repeats the same experiment at
+the intended historical wall-array centres 2.411950 and 2.467100 GHz. The
+runtime exporter accepts repeated analysis/validation arguments to merge
+disjoint exact-frequency runs for the same serial and gain axis. See
+[`reports/HISTORICAL_EXACT_LO_CROSS_2P4_20260729.md`](reports/HISTORICAL_EXACT_LO_CROSS_2P4_20260729.md).
+
 The fitted correction is conditioned on the realized per-frame RX1/RX2 gains,
 not on the gain controller that selected them. Manual, slow-attack,
 fast-attack, and hybrid control therefore do not receive separate model

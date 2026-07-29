@@ -59,7 +59,14 @@ interpolate or return zero.
 
 For the two radios historically labelled `.17` and `.18`, use
 `complete_2p4_shared_gain_lut_per_radio`. It covers every ordered pair of
-integer RX gains from -3 through 71 dB at the exact LOs 2412 and 2467 MHz:
+integer RX gains from -3 through 71 dB at these exact integer-Hz LOs:
+
+```text
+2411950000
+2412000000
+2467000000
+2467100000
+```
 
 ```python
 model = load_model(
@@ -70,10 +77,27 @@ model = load_model(
 
 This family is fitted from both complete one-dimensional receiver axes and
 validated on off-axis pairs excluded from fitting. Its strict support is the
-validated cartesian model domain, not a claim that all 5,625 ordered pairs
-were directly captured. It rejects other gains and frequencies. The gain
-controller mode is not an input: AGC and manual captures use the same model
-when they report the same realized dB states.
+validated cartesian model domain, not a claim that all 5,625 ordered pairs per
+frequency were directly captured. It rejects other gains and frequencies.
+The gain controller mode is not an input: AGC and manual captures use the same
+model when they report the same realized dB states.
+
+Historical float32 fields may expose `2467100000` as `2467099904`, or
+`2411950000` as `2411950080`. Prefer the original integer configuration value.
+If only the float32 representation is available, opt in explicitly:
+
+```python
+offset_rad = model.predict_phase_offset(
+    frequency_hz=2_467_099_904,
+    gain_rx1_db=26,
+    gain_rx2_db=41,
+    allow_float32_frequency_alias=True,
+)
+```
+
+This only recognizes the exact float32 representation of a fitted LO. It does
+not enable a frequency tolerance, nearest-frequency selection, or
+interpolation. The default remains fail closed.
 
 ## Command line
 

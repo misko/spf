@@ -778,76 +778,187 @@ def write_additive_cross_comparison_bundle(
 
 def export_complete_2p4_model(
     *,
-    analysis_path: Path,
-    validation_path: Path,
+    analysis_path: Path | list[Path],
+    validation_path: Path | list[Path],
     output_root: Path,
     maximum_held_out_p95_deg: float = 5.0,
 ) -> dict[str, Any]:
-    """Export one complete integer-gain model from a validated axis-cross fit.
+    """Export complete integer-gain models from validated axis-cross fits.
 
+    All inputs must belong to one physical radio and use the same gain axis.
     Every individual gain must pass on both fitted axes. Off-axis held-out
     observations validate the additive factorization. The resulting support
-    domain is the full ordered cartesian product at the exact fitted LOs.
+    domain is the full ordered cartesian product at every exact fitted LO.
     """
 
-    analysis_path = Path(analysis_path).resolve()
-    validation_path = Path(validation_path).resolve()
+    analysis_paths = (
+        [Path(path).resolve() for path in analysis_path]
+        if isinstance(analysis_path, list)
+        else [Path(analysis_path).resolve()]
+    )
+    validation_paths = (
+        [Path(path).resolve() for path in validation_path]
+        if isinstance(validation_path, list)
+        else [Path(validation_path).resolve()]
+    )
+    if len(analysis_paths) != len(validation_paths):
+        raise ValueError("each analysis must have one matching validation")
+    if not analysis_paths:
+        raise ValueError("at least one complete calibration source is required")
     output_root = Path(output_root).resolve()
-    analysis = json.loads(analysis_path.read_text())
-    validation = json.loads(validation_path.read_text())
-    serial = str(analysis["serial"])
-    if validation.get("serial") != serial:
-        raise ValueError("analysis and validation belong to different radios")
-    if analysis.get("schedule_design") != "additive_cross":
-        raise ValueError("complete model requires an additive-cross analysis")
-    if validation.get("status") == "partial":
-        raise ValueError("partial capture cannot define a complete model")
+    serial = None
+    gains_db = None
+    reference_gain_db = None
+    phase_convention = None
+    frequency_data: dict[int, dict[str, Any]] = {}
+    failed_held_out_cells = []
+    measured_training_cell_count = 0
+    passing_training_cell_count = 0
+    measured_held_out_cell_count = 0
+    passing_held_out_cell_count = 0
+    source_rows = []
+    overall_metrics_by_source = []
+    for current_analysis_path, current_validation_path in zip(
+        analysis_paths, validation_paths
+    ):
+        analysis = json.loads(current_analysis_path.read_text())
+        validation = json.loads(current_validation_path.read_text())
+        current_serial = str(analysis["serial"])
+        if validation.get("serial") != current_serial:
+            raise ValueError("analysis and validation belong to different radios")
+        if serial is None:
+            serial = current_serial
+        elif current_serial != serial:
+            raise ValueError("complete-model sources belong to different radios")
+        if analysis.get("schedule_design") != "additive_cross":
+            raise ValueError("complete model requires an additive-cross analysis")
+        if validation.get("status") == "partial":
+            raise ValueError("partial capture cannot define a complete model")
 
-    gains_db = [int(value) for value in analysis["gain_values_db"]]
-    if gains_db != list(range(gains_db[0], gains_db[-1] + 1)):
-        raise ValueError("complete model requires a contiguous integer gain axis")
-    reference_gain_db = int(analysis["reference_gain_db"])
-    reference_index = gains_db.index(reference_gain_db)
-    frequency_rows = [
-        row for row in analysis["frequency_results"] if row.get("status") == "fit"
-    ]
-    if len(frequency_rows) != len(analysis["frequency_results"]):
-        raise ValueError("every requested frequency must have a fitted model")
-    frequencies_hz = [int(row["frequency_hz"]) for row in frequency_rows]
+        current_gains = [int(value) for value in analysis["gain_values_db"]]
+        if current_gains != list(range(current_gains[0], current_gains[-1] + 1)):
+            raise ValueError("complete model requires a contiguous integer gain axis")
+        current_reference_gain = int(analysis["reference_gain_db"])
+        current_phase_convention = str(analysis["phase_convention"])
+        if gains_db is None:
+            gains_db = current_gains
+            reference_gain_db = current_reference_gain
+            phase_convention = current_phase_convention
+        elif (
+            current_gains != gains_db
+            or current_reference_gain != reference_gain_db
+            or current_phase_convention != phase_convention
+        ):
+            raise ValueError("complete-model source axes or conventions differ")
+        assert gains_db is not None
+        assert reference_gain_db is not None
+        reference_index = gains_db.index(reference_gain_db)
 
-    training_cells = [
-        row for row in validation["cells"] if row.get("role") == "training"
-    ]
-    failed_training = [row for row in training_cells if not row.get("pass")]
-    if failed_training:
-        raise ValueError(
-            f"{len(failed_training)} fitted-axis cells failed the quality gate"
+        frequency_rows = [
+            row for row in analysis["frequency_results"] if row.get("status") == "fit"
+        ]
+        if len(frequency_rows) != len(analysis["frequency_results"]):
+            raise ValueError("every requested frequency must have a fitted model")
+        source_frequencies = {int(row["frequency_hz"]) for row in frequency_rows}
+        validation_frequencies = {
+            int(row["frequency_hz"]) for row in validation["cells"]
+        }
+        if validation_frequencies != source_frequencies:
+            raise ValueError("analysis and validation frequency sets do not match")
+        training_cells = [
+            row for row in validation["cells"] if row.get("role") == "training"
+        ]
+        failed_training = [row for row in training_cells if not row.get("pass")]
+        if failed_training:
+            raise ValueError(
+                f"{len(failed_training)} fitted-axis cells failed the quality gate"
+            )
+        expected_axis_pairs = 2 * len(gains_db) - 1
+        if int(analysis["training_pairs_per_frequency"]) != expected_axis_pairs:
+            raise ValueError("training schedule does not cover both complete gain axes")
+
+        held_out_cells = [
+            row for row in validation["cells"] if row.get("role") == "held_out"
+        ]
+        measured_training_cell_count += len(training_cells)
+        passing_training_cell_count += sum(bool(row["pass"]) for row in training_cells)
+        measured_held_out_cell_count += len(held_out_cells)
+        passing_held_out_cell_count += sum(bool(row["pass"]) for row in held_out_cells)
+        failed_held_out_cells.extend(
+            [
+                int(row["frequency_hz"]),
+                int(row["gain_rx1_db"]),
+                int(row["gain_rx2_db"]),
+            ]
+            for row in held_out_cells
+            if not row["pass"]
         )
-    expected_axis_pairs = 2 * len(gains_db) - 1
-    if int(analysis["training_pairs_per_frequency"]) != expected_axis_pairs:
-        raise ValueError("training schedule does not cover both complete gain axes")
 
+        for row in frequency_rows:
+            frequency_hz = int(row["frequency_hz"])
+            if frequency_hz in frequency_data:
+                raise ValueError(f"duplicate complete-model frequency {frequency_hz}")
+            shared_effect = np.asarray(row["shared_gain_effect_rad"], dtype=np.float64)
+            if shared_effect.shape != (len(gains_db),):
+                raise ValueError("gain-effect length does not match complete gain axis")
+            shared_effect = wrap_phase(shared_effect - shared_effect[reference_index])
+            metrics = row["held_out_shared_gain_curve_metrics"]
+            if (
+                metrics is None
+                or not metrics["n_observations"]
+                or metrics["circular_p95_deg"] > maximum_held_out_p95_deg
+            ):
+                raise ValueError(
+                    f"{frequency_hz} Hz held-out p95 does not pass "
+                    f"{maximum_held_out_p95_deg:.1f} degrees"
+                )
+            frequency_data[frequency_hz] = {
+                "intercept_rad": float(row["intercept_rad"]),
+                "shared_effect_rad": shared_effect,
+                "evaluation": {
+                    "frequency_hz": frequency_hz,
+                    "held_out_metrics": metrics,
+                    "quality_valid_training_observations": int(
+                        row["quality_valid_training_observations"]
+                    ),
+                    "quality_valid_held_out_observations": int(
+                        row["quality_valid_held_out_observations"]
+                    ),
+                },
+            }
+
+        source_row = {
+            "analysis_path": _portable_path(current_analysis_path),
+            "analysis_sha256": _sha256(current_analysis_path),
+            "validation_path": _portable_path(current_validation_path),
+            "validation_sha256": _sha256(current_validation_path),
+            "validation_status": validation["status"],
+            "frequencies_hz": sorted(
+                int(row["frequency_hz"]) for row in frequency_rows
+            ),
+        }
+        source_rows.append(source_row)
+        overall_metrics_by_source.append(
+            {
+                **source_row,
+                "held_out_metrics": analysis[
+                    "overall_held_out_shared_gain_curve_metrics"
+                ],
+            }
+        )
+
+    assert serial is not None
+    assert gains_db is not None
+    assert reference_gain_db is not None
+    assert phase_convention is not None
+    reference_index = gains_db.index(reference_gain_db)
+    frequencies_hz = sorted(frequency_data)
     coefficients: dict[str, float] = {}
     frequency_evaluation = []
-    for frequency_index, row in enumerate(frequency_rows):
-        shared_effect = np.asarray(row["shared_gain_effect_rad"], dtype=np.float64)
-        if shared_effect.shape != (len(gains_db),):
-            raise ValueError("gain-effect length does not match complete gain axis")
-        shared_effect = wrap_phase(shared_effect - shared_effect[reference_index])
-        metrics = row["held_out_shared_gain_curve_metrics"]
-        if (
-            metrics is None
-            or not metrics["n_observations"]
-            or metrics["circular_p95_deg"] > maximum_held_out_p95_deg
-        ):
-            raise ValueError(
-                f"{row['frequency_hz']} Hz held-out p95 does not pass "
-                f"{maximum_held_out_p95_deg:.1f} degrees"
-            )
-        coefficients[f"frequency[{frequency_index}].intercept"] = float(
-            row["intercept_rad"]
-        )
-        for gain_index, effect in enumerate(shared_effect):
+    for frequency_index, frequency_hz in enumerate(frequencies_hz):
+        row = frequency_data[frequency_hz]
+        coefficients[f"frequency[{frequency_index}].intercept"] = row["intercept_rad"]
+        for gain_index, effect in enumerate(row["shared_effect_rad"]):
             if gain_index == reference_index:
                 continue
             coefficients[
@@ -856,29 +967,15 @@ def export_complete_2p4_model(
             coefficients[
                 f"frequency[{frequency_index}].rx2_phase[{gain_index}]"
             ] = float(-effect)
-        frequency_evaluation.append(
-            {
-                "frequency_hz": int(row["frequency_hz"]),
-                "held_out_metrics": metrics,
-                "quality_valid_training_observations": int(
-                    row["quality_valid_training_observations"]
-                ),
-                "quality_valid_held_out_observations": int(
-                    row["quality_valid_held_out_observations"]
-                ),
-            }
-        )
+        frequency_evaluation.append(row["evaluation"])
 
-    held_out_cells = [
-        row for row in validation["cells"] if row.get("role") == "held_out"
-    ]
     full_cell_count = len(frequencies_hz) * len(gains_db) * len(gains_db)
     support_path = output_root / f"{COMPLETE_2P4_MODEL_NAME}_support" / f"{serial}.json"
     support = {
         "schema": SUPPORT_SCHEMA,
         "schema_version": SUPPORT_SCHEMA_VERSION,
         "radio_serial": serial,
-        "phase_convention": analysis["phase_convention"],
+        "phase_convention": phase_convention,
         "frequencies_hz": frequencies_hz,
         "gains_db": gains_db,
         "support_kind": "cartesian_product",
@@ -887,26 +984,12 @@ def export_complete_2p4_model(
             "complete RX1 and RX2 integer-gain axes with off-axis held-out "
             "validation of the additive factorization"
         ),
-        "measured_training_cell_count": len(training_cells),
-        "passing_training_cell_count": sum(bool(row["pass"]) for row in training_cells),
-        "measured_held_out_cell_count": len(held_out_cells),
-        "passing_held_out_cell_count": sum(bool(row["pass"]) for row in held_out_cells),
-        "failed_held_out_cells": [
-            [
-                int(row["frequency_hz"]),
-                int(row["gain_rx1_db"]),
-                int(row["gain_rx2_db"]),
-            ]
-            for row in held_out_cells
-            if not row["pass"]
-        ],
-        "source": {
-            "analysis_path": _portable_path(analysis_path),
-            "analysis_sha256": _sha256(analysis_path),
-            "validation_path": _portable_path(validation_path),
-            "validation_sha256": _sha256(validation_path),
-            "validation_status": validation["status"],
-        },
+        "measured_training_cell_count": measured_training_cell_count,
+        "passing_training_cell_count": passing_training_cell_count,
+        "measured_held_out_cell_count": measured_held_out_cell_count,
+        "passing_held_out_cell_count": passing_held_out_cell_count,
+        "failed_held_out_cells": sorted(failed_held_out_cells),
+        "sources": source_rows,
     }
     _write_json(support_path, support)
 
@@ -921,7 +1004,7 @@ def export_complete_2p4_model(
         "formula": (
             "offset(f,g1,g2) = intercept[radio,f] + H[radio,f,g1] " "- H[radio,f,g2]"
         ),
-        "phase_convention": analysis["phase_convention"],
+        "phase_convention": phase_convention,
         "radio_serial": serial,
         "reference_frequency_hz": float(frequencies_hz[0]),
         "reference_gain_db": reference_gain_db,
@@ -940,17 +1023,10 @@ def export_complete_2p4_model(
         "evaluation": {
             "unit": "held-out off-axis frame",
             "maximum_accepted_held_out_p95_deg": maximum_held_out_p95_deg,
-            "overall_held_out_metrics": analysis[
-                "overall_held_out_shared_gain_curve_metrics"
-            ],
+            "overall_held_out_metrics_by_source": overall_metrics_by_source,
             "by_frequency": frequency_evaluation,
         },
-        "source": {
-            "analysis_path": _portable_path(analysis_path),
-            "analysis_sha256": _sha256(analysis_path),
-            "validation_path": _portable_path(validation_path),
-            "validation_sha256": _sha256(validation_path),
-        },
+        "sources": source_rows,
     }
     _write_json(model_path, model)
     registry_path = output_root / "registry.json"
@@ -976,5 +1052,5 @@ def export_complete_2p4_model(
         "frequencies_hz": frequencies_hz,
         "gains_db": gains_db,
         "supported_cell_count": full_cell_count,
-        "overall_held_out_metrics": model["evaluation"]["overall_held_out_metrics"],
+        "overall_held_out_metrics_by_source": overall_metrics_by_source,
     }
