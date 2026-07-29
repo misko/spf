@@ -58,6 +58,11 @@ def load_calibration_document(path: Path) -> tuple[dict[str, Any], CalibrationCo
     )
     if "gains_db" in normalized:
         normalized["gains_db"] = tuple(int(value) for value in normalized["gains_db"])
+    if "held_out_gain_pairs" in normalized:
+        normalized["held_out_gain_pairs"] = tuple(
+            tuple(int(gain) for gain in pair)
+            for pair in normalized["held_out_gain_pairs"]
+        )
     unknown = set(normalized) - _dataclass_keys(CalibrationConfig)
     if unknown:
         raise ValueError(f"unknown calibration settings: {sorted(unknown)}")
@@ -117,6 +122,16 @@ def _analyze(frame, config: CalibrationConfig) -> dict[str, Any]:
     )
 
 
+def _capture_after_discard(radio, frame_count: int):
+    """Use one finite direct-USB request when the adapter supports batching."""
+
+    capture_after_discard = getattr(radio, "capture_after_discard", None)
+    if capture_after_discard is not None:
+        return capture_after_discard(frame_count)
+    radio.discard(frame_count)
+    return radio.capture()
+
+
 def _preflight_tone(radio, config: CalibrationConfig) -> dict[str, Any]:
     """Require a clean reference-gain direct frame before recording a block."""
 
@@ -124,8 +139,7 @@ def _preflight_tone(radio, config: CalibrationConfig) -> dict[str, Any]:
     radio.set_gains(reference_gain, reference_gain)
     radio.set_tx_gain(config.tx_gain_for(reference_gain, reference_gain))
     time.sleep(config.settle_seconds)
-    radio.discard(config.discard_frames_after_gain)
-    frame = radio.capture()
+    frame = _capture_after_discard(radio, config.discard_frames_after_gain)
     requested = np.asarray([reference_gain, reference_gain], dtype=np.float32)
     if not frame.gain_metadata_valid or not frame.rssi_metadata_valid:
         raise RuntimeError("preflight metadata is invalid")
@@ -307,8 +321,9 @@ def run_calibration(
                                 )
                                 radio.set_tx_gain(tx_gain_db)
                                 time.sleep(config.settle_seconds)
-                                radio.discard(config.discard_frames_after_gain)
-                                frame = radio.capture()
+                                frame = _capture_after_discard(
+                                    radio, config.discard_frames_after_gain
+                                )
                                 _validate_frame_gain(frame, entry)
                                 analysis = _analyze(frame, config)
                                 writer.write(

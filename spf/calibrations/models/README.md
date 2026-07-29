@@ -55,6 +55,26 @@ gain pair must have passed the source dataset's three-epoch cell-quality gate.
 Unsupported cells raise `UnsupportedPhaseModelInput`; they never silently
 interpolate or return zero.
 
+## Complete 2.4 GHz integer-gain model
+
+For the two radios historically labelled `.17` and `.18`, use
+`complete_2p4_shared_gain_lut_per_radio`. It covers every ordered pair of
+integer RX gains from -3 through 71 dB at the exact LOs 2412 and 2467 MHz:
+
+```python
+model = load_model(
+    "complete_2p4_shared_gain_lut_per_radio",
+    "104000bac4950008230026001b440a003a",
+)
+```
+
+This family is fitted from both complete one-dimensional receiver axes and
+validated on off-axis pairs excluded from fitting. Its strict support is the
+validated cartesian model domain, not a claim that all 5,625 ordered pairs
+were directly captured. It rejects other gains and frequencies. The gain
+controller mode is not an input: AGC and manual captures use the same model
+when they report the same realized dB states.
+
 ## Command line
 
 ```bash

@@ -118,6 +118,80 @@ sampling: every configured frequency receives the complete configured
 RX1-by-RX2 Cartesian grid, which keeps missing-cell and repeatability tests
 well-defined.
 
+To test the more economical additive-gain hypothesis at every integer gain,
+use the committed 2.4 GHz additive-cross design:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency schedule \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/integer_gain_cross_2p4.yaml
+
+python -m spf.calibrations.dual_rx_gain_frequency run \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/integer_gain_cross_2p4.yaml \
+  --output artifacts/dual_rx_gain_frequency/integer_gain_cross_2p4_RUN_NAME
+```
+
+At each of 2.412 and 2.467 GHz, it measures all integer gains from -1 through
+62 dB against a 26 dB reference on each receiver. It also records 48 explicit
+off-axis pairs. Those pairs are excluded from fitting and therefore directly
+test whether the two one-dimensional gain curves predict a previously unseen
+RX1/RX2 combination:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency fit-additive-cross \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/integer_gain_cross_2p4.yaml \
+  --dataset artifacts/dual_rx_gain_frequency/RUN/SERIAL/calibration.v7.zarr \
+  --output-dir artifacts/dual_rx_gain_frequency/RUN/SERIAL/additive_cross
+```
+
+After fitting every radio, compare whether the gain-dependent curve transfers
+while retaining a radio/frequency-specific intercept:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency compare-additive-cross \
+  --analysis artifacts/dual_rx_gain_frequency/RUN/SERIAL_A/additive_cross/analysis.json \
+  --analysis artifacts/dual_rx_gain_frequency/RUN/SERIAL_B/additive_cross/analysis.json \
+  --output-dir artifacts/dual_rx_gain_frequency/RUN/comparison
+```
+
+The per-radio report also evaluates the old 17-gain stage grid against the
+same held-out cells using linear interpolation and nearest-neighbour snapping.
+This makes any off-grid policy an evidence-based result of the dense integer
+experiment rather than an assumption made by a model consumer.
+
+The historical integer experiment deliberately covered the cross-band common
+range `-1..62` dB. For a complete model of the AD9361 1.3–4.0 GHz full gain
+table, use the separate all-gain design:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency schedule \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/all_gain_cross_2p4.yaml
+
+python -m spf.calibrations.dual_rx_gain_frequency run \
+  --config \
+    spf/calibrations/dual_rx_gain_frequency/configs/all_gain_cross_2p4.yaml \
+  --output artifacts/dual_rx_gain_frequency/all_gain_cross_2p4_RUN_NAME
+```
+
+This design measures every integer dB state from `-3` through `71` on both
+receiver axes at exactly 2.412 and 2.467 GHz. It contains 149 additive-axis
+training pairs and 56 off-axis held-out pairs per frequency, repeated in three
+separated epochs: 1,230 frames per physical radio.
+
+The fitted correction is conditioned on the realized per-frame RX1/RX2 gains,
+not on the gain controller that selected them. Manual, slow-attack,
+fast-attack, and hybrid control therefore do not receive separate model
+families. A frame remains usable only when its direct-USB endpoint metadata is
+valid and the reported dB values are supported by the exact-LO model.
+
+The ordinary Cartesian schedule remains the default. An additive-cross
+configuration is explicit in the YAML and carries its reference gain and
+held-out pairs in the dataset provenance/signature, so it cannot be resumed
+against a different experimental design.
+
 The committed dense design contains 10,404 frames per radio: 12 frequencies,
 289 ordered gain pairs per frequency, and three separated epochs. Its
 adaptive-TX reference is 0 dB, the safe level established by the broad scout.

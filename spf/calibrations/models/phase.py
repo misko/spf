@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import math
 from dataclasses import dataclass
@@ -287,12 +288,26 @@ def load_phase_model(path: Path | str) -> PhaseOffsetModel:
         raise ValueError(f"{path}: support frequencies do not match model")
     if tuple(support.get("gains_db", ())) != tuple(document.get("gains_db", ())):
         raise ValueError(f"{path}: support gains do not match model")
-    supported_cells = frozenset(
-        (int(row[0]), int(row[1]), int(row[2]))
-        for row in support.get("supported_cells", ())
-    )
-    if len(supported_cells) != len(support.get("supported_cells", ())):
-        raise ValueError(f"{path}: duplicate supported cells")
+    support_kind = support.get("support_kind", "explicit_cells")
+    if support_kind == "explicit_cells":
+        supported_rows = support.get("supported_cells", ())
+        supported_cells = frozenset(
+            (int(row[0]), int(row[1]), int(row[2])) for row in supported_rows
+        )
+        if len(supported_cells) != len(supported_rows):
+            raise ValueError(f"{path}: duplicate supported cells")
+    elif support_kind == "cartesian_product":
+        supported_cells = frozenset(
+            itertools.product(
+                (int(value) for value in support["frequencies_hz"]),
+                (int(value) for value in support["gains_db"]),
+                (int(value) for value in support["gains_db"]),
+            )
+        )
+        if int(support.get("supported_cell_count", -1)) != len(supported_cells):
+            raise ValueError(f"{path}: cartesian support count mismatch")
+    else:
+        raise ValueError(f"{path}: unsupported support kind {support_kind!r}")
     model = PhaseOffsetModel(
         path=path,
         document=document,

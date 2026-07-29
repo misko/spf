@@ -36,6 +36,9 @@ class CalibrationConfig:
     # The normal AD9361 full table above 4 GHz exposes [-10 1 62]. Configs
     # targeting other bands must provide their own explicit common gain set.
     gains_db: tuple[int, ...] = tuple(range(-10, 63))
+    schedule_design: str = "cartesian"
+    schedule_reference_gain_db: int | None = None
+    held_out_gain_pairs: tuple[tuple[int, int], ...] = ()
     repetitions: int = 3
     sample_rate_hz: int = 30_000_000
     bandwidth_hz: int = 3_000_000
@@ -74,6 +77,33 @@ class CalibrationConfig:
             raise ValueError("at least one gain is required")
         if len(set(self.gains_db)) != len(self.gains_db):
             raise ValueError("gains must be unique")
+        if self.schedule_design not in ("cartesian", "additive_cross"):
+            raise ValueError(f"unsupported schedule design: {self.schedule_design}")
+        if self.schedule_design == "cartesian":
+            if self.schedule_reference_gain_db is not None:
+                raise ValueError(
+                    "Cartesian schedules cannot set a schedule reference gain"
+                )
+            if self.held_out_gain_pairs:
+                raise ValueError(
+                    "Cartesian schedules cannot contain held-out gain pairs"
+                )
+        else:
+            if self.schedule_reference_gain_db not in self.gains_db:
+                raise ValueError(
+                    "additive-cross reference gain must be in the configured gains"
+                )
+            if len(set(self.held_out_gain_pairs)) != len(self.held_out_gain_pairs):
+                raise ValueError("held-out gain pairs must be unique")
+            for pair in self.held_out_gain_pairs:
+                if len(pair) != 2 or any(gain not in self.gains_db for gain in pair):
+                    raise ValueError(
+                        f"held-out gain pair is outside the configured gains: {pair}"
+                    )
+                if self.schedule_reference_gain_db in pair:
+                    raise ValueError(
+                        "held-out pairs must not overlap the additive training cross"
+                    )
         if self.repetitions != 3:
             raise ValueError("this calibration requires exactly three epochs")
         if self.sample_rate_hz <= 0 or self.bandwidth_hz <= 0:
@@ -115,12 +145,39 @@ class CalibrationConfig:
 
     @property
     def measurements_per_radio(self) -> int:
-        return self.repetitions * len(self.frequencies_hz) * len(self.gains_db) ** 2
+        return self.repetitions * len(self.frequencies_hz) * len(self.gain_pairs)
+
+    @property
+    def training_gain_pairs(self) -> tuple[tuple[int, int], ...]:
+        """Ordered gain pairs used to fit the configured model."""
+
+        if self.schedule_design == "cartesian":
+            return tuple(
+                (gain1, gain2) for gain1 in self.gains_db for gain2 in self.gains_db
+            )
+        reference = self.schedule_reference_gain_db
+        assert reference is not None
+        return tuple(
+            [(gain, reference) for gain in self.gains_db]
+            + [(reference, gain) for gain in self.gains_db if gain != reference]
+        )
+
+    @property
+    def gain_pairs(self) -> tuple[tuple[int, int], ...]:
+        """All ordered gain pairs captured at each frequency and epoch."""
+
+        return self.training_gain_pairs + self.held_out_gain_pairs
+
+    def is_held_out_pair(self, gain_rx1_db: int, gain_rx2_db: int) -> bool:
+        return (gain_rx1_db, gain_rx2_db) in set(self.held_out_gain_pairs)
 
     def as_json(self) -> dict:
         result = asdict(self)
         result["frequencies_hz"] = list(self.frequencies_hz)
         result["gains_db"] = list(self.gains_db)
+        result["held_out_gain_pairs"] = [
+            list(pair) for pair in self.held_out_gain_pairs
+        ]
         return result
 
     def tx_gain_for(self, gain_rx1_db: int, gain_rx2_db: int) -> float:
@@ -163,13 +220,12 @@ def _pair_seed(seed: int, epoch: int, frequency_index: int) -> int:
 
 
 def build_schedule(config: CalibrationConfig) -> list[ScheduleEntry]:
-    """Build three separated epochs of complete frequency/gain Cartesian scans."""
+    """Build three separated epochs of the configured frequency/gain design."""
 
     config.validate()
     schedule: list[ScheduleEntry] = []
     previous_last_frequency = None
-    gains = tuple(config.gains_db)
-    base_pairs = [(gain1, gain2) for gain1 in gains for gain2 in gains]
+    base_pairs = list(config.gain_pairs)
     for epoch in range(config.repetitions):
         frequency_order = _frequency_order(
             config.frequencies_hz,

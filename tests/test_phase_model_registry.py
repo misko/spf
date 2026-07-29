@@ -6,6 +6,10 @@ import pytest
 
 from spf.bench.dual_rx_phase import wrap_phase
 from spf.calibrations.dual_rx_gain_frequency.model_matrix import _design
+from spf.calibrations.dual_rx_gain_frequency.additive_cross import (
+    COMPLETE_2P4_MODEL_NAME,
+    export_complete_2p4_model,
+)
 from spf.calibrations.models import (
     UnsupportedPhaseModelInput,
     load_model,
@@ -59,15 +63,18 @@ def test_all_exported_models_load_and_match_source_matrix():
     assert registry["recommended_model"] == (
         "frequency_specific_additive_gain_per_radio"
     )
-    assert len(registry["models"]) == 9
+    assert registry["complete_2p4_model"] == COMPLETE_2P4_MODEL_NAME
+    assert len(registry["models"]) == 10
     assert len(registry["radio_serials"]) == 6
 
     provenance_by_serial = {
         row["serial"]: row["radio_index"] for row in matrix["provenance"]
     }
     for model_name, model_row in registry["models"].items():
-        assert len(model_row["configs_by_serial"]) == 6
-        for serial in registry["radio_serials"]:
+        expected_serials = set(model_row["configs_by_serial"])
+        if model_name in matrix["models"]:
+            assert expected_serials == set(registry["radio_serials"])
+        for serial in expected_serials:
             model = load_model(model_name, serial, registry_root=REGISTRY_ROOT)
             coordinate = sorted(model.supported_cells)[0]
             actual = model.predict_phase_offset(
@@ -75,6 +82,9 @@ def test_all_exported_models_load_and_match_source_matrix():
                 gain_rx1_db=coordinate[1],
                 gain_rx2_db=coordinate[2],
             )
+            if model_name not in matrix["models"]:
+                assert np.isfinite(actual)
+                continue
             expected = _source_prediction(
                 matrix,
                 model_name,
@@ -124,3 +134,104 @@ def test_phase_correction_subtracts_and_wraps_prediction():
         gain_rx2_db=coordinate[2],
     )
     assert corrected == pytest.approx(float(wrap_phase(3.1 - offset)))
+
+
+def test_complete_additive_cross_export_supports_full_gain_product(tmp_path):
+    serial = "TEST-SERIAL"
+    gains = [-1, 0, 1]
+    frequencies = [2_412_000_000, 2_467_000_000]
+    frequency_results = []
+    for frequency_index, frequency_hz in enumerate(frequencies):
+        frequency_results.append(
+            {
+                "frequency_hz": frequency_hz,
+                "status": "fit",
+                "intercept_rad": 0.2 + 0.1 * frequency_index,
+                "shared_gain_effect_rad": [-0.1, 0.0, 0.15],
+                "held_out_shared_gain_curve_metrics": {
+                    "n_observations": 6,
+                    "circular_mae_deg": 1.0,
+                    "circular_rmse_deg": 1.2,
+                    "circular_p95_deg": 2.0,
+                    "circular_max_deg": 2.5,
+                },
+                "quality_valid_training_observations": 15,
+                "quality_valid_held_out_observations": 6,
+            }
+        )
+    analysis = {
+        "serial": serial,
+        "schedule_design": "additive_cross",
+        "phase_convention": "RX1 minus RX2",
+        "reference_gain_db": 0,
+        "gain_values_db": gains,
+        "training_pairs_per_frequency": 5,
+        "overall_held_out_shared_gain_curve_metrics": {
+            "n_observations": 12,
+            "circular_mae_deg": 1.0,
+            "circular_rmse_deg": 1.2,
+            "circular_p95_deg": 2.0,
+            "circular_max_deg": 2.5,
+        },
+        "frequency_results": frequency_results,
+    }
+    validation_cells = []
+    for frequency_hz in frequencies:
+        validation_cells.extend(
+            {
+                "frequency_hz": frequency_hz,
+                "gain_rx1_db": gain1,
+                "gain_rx2_db": gain2,
+                "role": "training",
+                "pass": True,
+            }
+            for gain1, gain2 in (
+                (-1, 0),
+                (0, -1),
+                (0, 0),
+                (1, 0),
+                (0, 1),
+            )
+        )
+        validation_cells.append(
+            {
+                "frequency_hz": frequency_hz,
+                "gain_rx1_db": -1,
+                "gain_rx2_db": 1,
+                "role": "held_out",
+                "pass": True,
+            }
+        )
+    validation = {
+        "serial": serial,
+        "status": "pass",
+        "cells": validation_cells,
+    }
+    analysis_path = tmp_path / "analysis.json"
+    validation_path = tmp_path / "validation.json"
+    analysis_path.write_text(json.dumps(analysis))
+    validation_path.write_text(json.dumps(validation))
+
+    exported = export_complete_2p4_model(
+        analysis_path=analysis_path,
+        validation_path=validation_path,
+        output_root=tmp_path / "models",
+    )
+    assert exported["supported_cell_count"] == 18
+    model = load_model(
+        COMPLETE_2P4_MODEL_NAME,
+        serial,
+        registry_root=tmp_path / "models",
+    )
+    assert len(model.supported_cells) == 18
+    assert model.predict_phase_offset(
+        frequency_hz=2_412_000_000,
+        gain_rx1_db=1,
+        gain_rx2_db=-1,
+    ) == pytest.approx(0.45)
+    with pytest.raises(UnsupportedPhaseModelInput):
+        model.predict_phase_offset(
+            frequency_hz=2_400_000_000,
+            gain_rx1_db=1,
+            gain_rx2_db=-1,
+        )

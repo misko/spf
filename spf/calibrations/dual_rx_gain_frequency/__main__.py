@@ -9,6 +9,11 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from .additive_cross import (
+    export_complete_2p4_model,
+    write_additive_cross_bundle,
+    write_additive_cross_comparison_bundle,
+)
 from .automation import (
     DEFAULT_PREPARATION_CONFIG,
     DEFAULT_READY_MANIFEST,
@@ -113,6 +118,59 @@ def _fit(args) -> int:
         )
     )
     return 0 if model["quality_valid_observations"] else 1
+
+
+def _fit_additive_cross(args) -> int:
+    _, config = load_calibration_document(args.config)
+    result = write_additive_cross_bundle(
+        dataset_path=args.dataset,
+        config=config,
+        output_dir=args.output_dir,
+    )
+    print(
+        json.dumps(
+            {key: value for key, value in result.items() if key != "frequency_results"},
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    metrics = result.get("overall_held_out_independent_rx_metrics")
+    return 0 if metrics and metrics["n_observations"] else 1
+
+
+def _compare_additive_cross(args) -> int:
+    result = write_additive_cross_comparison_bundle(
+        analysis_paths=args.analysis,
+        output_dir=args.output_dir,
+    )
+    print(
+        json.dumps(
+            {
+                "serials": result["serials"],
+                "held_out_frequency_specific_radio_shared_curve_metrics": result[
+                    "held_out_frequency_specific_radio_shared_curve_metrics"
+                ],
+                "held_out_one_curve_for_2p4_band_metrics": result[
+                    "held_out_one_curve_for_2p4_band_metrics"
+                ],
+                "output_dir": str(args.output_dir),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _export_complete_2p4(args) -> int:
+    result = export_complete_2p4_model(
+        analysis_path=args.analysis,
+        validation_path=args.validation,
+        output_root=args.output_root,
+        maximum_held_out_p95_deg=args.maximum_held_out_p95_deg,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
 
 
 def _report(args) -> int:
@@ -377,6 +435,43 @@ def parse_args():
     fit_parser.add_argument("--dataset", type=Path, required=True)
     fit_parser.add_argument("--output", type=Path)
     fit_parser.set_defaults(function=_fit)
+
+    cross_fit_parser = subparsers.add_parser(
+        "fit-additive-cross",
+        help="fit axis-only gain curves and score explicit off-axis holdouts",
+    )
+    cross_fit_parser.add_argument("--config", type=Path, required=True)
+    cross_fit_parser.add_argument("--dataset", type=Path, required=True)
+    cross_fit_parser.add_argument("--output-dir", type=Path, required=True)
+    cross_fit_parser.set_defaults(function=_fit_additive_cross)
+
+    cross_compare_parser = subparsers.add_parser(
+        "compare-additive-cross",
+        help="compare dense gain curves and test radio-shared gain shapes",
+    )
+    cross_compare_parser.add_argument(
+        "--analysis",
+        type=Path,
+        action="append",
+        required=True,
+        help="additive-cross analysis.json; repeat once per radio",
+    )
+    cross_compare_parser.add_argument("--output-dir", type=Path, required=True)
+    cross_compare_parser.set_defaults(function=_compare_additive_cross)
+
+    complete_export_parser = subparsers.add_parser(
+        "export-complete-2p4",
+        help="export a complete integer-gain runtime model from an axis-cross fit",
+    )
+    complete_export_parser.add_argument("--analysis", type=Path, required=True)
+    complete_export_parser.add_argument("--validation", type=Path, required=True)
+    complete_export_parser.add_argument("--output-root", type=Path, required=True)
+    complete_export_parser.add_argument(
+        "--maximum-held-out-p95-deg",
+        type=float,
+        default=5.0,
+    )
+    complete_export_parser.set_defaults(function=_export_complete_2p4)
 
     matrix_parser = subparsers.add_parser(
         "model-matrix",

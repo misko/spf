@@ -276,11 +276,12 @@ class DirectUsbLoopbackRadio:
                 self._active_tx_gain = None
 
     def discard(self, frame_count: int) -> None:
-        for _ in range(frame_count):
-            self.direct.capture(
-                samples_per_channel=self.config.buffer_size,
-                frame_count=1,
-            )
+        if frame_count <= 0:
+            return
+        self.direct.capture(
+            samples_per_channel=self.config.buffer_size,
+            frame_count=frame_count,
+        )
 
     def capture(self) -> PlutoRxBuffer:
         capture = self.direct.capture(
@@ -289,7 +290,26 @@ class DirectUsbLoopbackRadio:
         )
         if len(capture.frames) != 1:
             raise RuntimeError("direct USB did not return exactly one frame")
-        wire_frame = capture.frames[0]
+        return self._convert_wire_frame(capture.frames[0])
+
+    def capture_after_discard(self, discard_frame_count: int) -> PlutoRxBuffer:
+        """Capture discarded and recorded frames in one finite USB request."""
+
+        if discard_frame_count < 0:
+            raise ValueError("discard frame count cannot be negative")
+        frame_count = discard_frame_count + 1
+        capture = self.direct.capture(
+            samples_per_channel=self.config.buffer_size,
+            frame_count=frame_count,
+        )
+        if len(capture.frames) != frame_count:
+            raise RuntimeError(
+                f"direct USB returned {len(capture.frames)} frames, "
+                f"expected {frame_count}"
+            )
+        return self._convert_wire_frame(capture.frames[-1])
+
+    def _convert_wire_frame(self, wire_frame) -> PlutoRxBuffer:
         metadata = wire_frame.metadata
         if not isinstance(metadata, RadioMetadataV2):
             raise RuntimeError("V7 calibration requires radio metadata V2")

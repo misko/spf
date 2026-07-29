@@ -7,6 +7,10 @@ import pytest
 import yaml
 
 from spf.bench.dual_rx_phase import ToneQualityThresholds, wrap_phase
+from spf.calibrations.dual_rx_gain_frequency.additive_cross import (
+    analyze_additive_cross_dataset,
+    compare_additive_cross_results,
+)
 from spf.calibrations.dual_rx_gain_frequency.comparative_analysis import (
     DEFAULT_STAGE_BOUNDARIES_DB,
     HIGH_BAND_GAIN_MIN_DB,
@@ -61,6 +65,7 @@ from spf.calibrations.dual_rx_gain_frequency.report import (
     write_analysis_bundle,
 )
 from spf.calibrations.dual_rx_gain_frequency.runner import (
+    _capture_after_discard,
     load_calibration_document,
     run_calibration,
 )
@@ -342,6 +347,44 @@ class FakeLoopbackRadio:
         self.stop_tone()
 
 
+def test_capture_after_discard_prefers_one_batched_request():
+    class BatchedRadio:
+        def __init__(self):
+            self.calls = []
+
+        def capture_after_discard(self, frame_count):
+            self.calls.append(("batch", frame_count))
+            return "recorded-frame"
+
+        def discard(self, frame_count):
+            self.calls.append(("discard", frame_count))
+
+        def capture(self):
+            self.calls.append(("capture",))
+            return "legacy-frame"
+
+    radio = BatchedRadio()
+    assert _capture_after_discard(radio, 2) == "recorded-frame"
+    assert radio.calls == [("batch", 2)]
+
+
+def test_capture_after_discard_preserves_legacy_adapter_fallback():
+    class LegacyRadio:
+        def __init__(self):
+            self.calls = []
+
+        def discard(self, frame_count):
+            self.calls.append(("discard", frame_count))
+
+        def capture(self):
+            self.calls.append(("capture",))
+            return "legacy-frame"
+
+    radio = LegacyRadio()
+    assert _capture_after_discard(radio, 2) == "legacy-frame"
+    assert radio.calls == [("discard", 2), ("capture",)]
+
+
 class FakeNegotiatingLoopbackRadio(FakeLoopbackRadio):
     active_contexts = 0
     max_active_contexts = 0
@@ -394,6 +437,34 @@ def test_schedule_has_complete_separated_epochs_and_deterministic_pair_orders():
         }
     assert blocks[1][0].lo_frequency_hz != blocks[2][0].lo_frequency_hz
     assert blocks[3][0].lo_frequency_hz != blocks[4][0].lo_frequency_hz
+
+
+def test_additive_cross_schedule_separates_training_and_held_out_pairs():
+    config = small_config(
+        frequencies_hz=(2_400_000_000,),
+        gains_db=(0, 10, 20),
+        schedule_design="additive_cross",
+        schedule_reference_gain_db=10,
+        held_out_gain_pairs=((0, 20), (20, 0)),
+    )
+
+    assert config.training_gain_pairs == (
+        (0, 10),
+        (10, 10),
+        (20, 10),
+        (10, 0),
+        (10, 20),
+    )
+    assert config.gain_pairs == config.training_gain_pairs + ((0, 20), (20, 0))
+    assert config.measurements_per_radio == 3 * 7
+    blocks = group_schedule_by_frequency(build_schedule(config))
+    assert len(blocks) == 3
+    assert all(
+        {(entry.gain_rx1_db, entry.gain_rx2_db) for entry in block}
+        == set(config.gain_pairs)
+        for block in blocks
+    )
+    assert build_schedule(config) == build_schedule(config)
 
 
 def test_cyclic_tone_ends_on_an_integer_period():
@@ -897,6 +968,54 @@ def test_two_radio_runner_writes_valid_v7_and_fits_model(tmp_path, monkeypatch):
     assert "New (“unseen”) radio" in comparative_report
 
 
+def test_additive_cross_fit_scores_pairs_excluded_from_training(tmp_path, monkeypatch):
+    config = small_config(
+        frequencies_hz=(2_400_000_000,),
+        gains_db=(0, 10, 20),
+        schedule_design="additive_cross",
+        schedule_reference_gain_db=10,
+        held_out_gain_pairs=((0, 20), (20, 0)),
+    )
+    config_path = tmp_path / "config.yaml"
+    write_config(config_path, config)
+    ready_path = tmp_path / "ready.json"
+    write_ready_manifest(ready_path, ("SERIAL-A",))
+    monkeypatch.setenv("SPF_DIRECT_USB_READY_FILE", str(ready_path))
+
+    result = run_calibration(
+        config_path=config_path,
+        output_dir=tmp_path / "output",
+        ready_manifest_path=ready_path,
+        serials=("SERIAL-A",),
+        radio_factory=FakeLoopbackRadio,
+    )
+    assert result["status"] == "complete"
+    dataset = tmp_path / "output" / "SERIAL-A" / "calibration.v7.zarr"
+    validation = validate_dataset(dataset, config=config, expected_serial="SERIAL-A")
+    assert validation["status"] == "pass"
+    assert validation["expected_cells"] == 7
+    assert sum(cell["role"] == "held_out" for cell in validation["cells"]) == 2
+
+    analysis = analyze_additive_cross_dataset(dataset, config=config)
+    assert analysis["training_pairs_per_frequency"] == 5
+    assert analysis["held_out_pairs_per_frequency"] == 2
+    metrics = analysis["overall_held_out_independent_rx_metrics"]
+    assert metrics["n_observations"] == 6
+    assert metrics["circular_p95_deg"] < 0.2
+    second = json.loads(json.dumps(analysis))
+    second["serial"] = "SERIAL-B"
+    comparison = compare_additive_cross_results([analysis, second])
+    assert (
+        comparison["held_out_frequency_specific_radio_shared_curve_metrics"][
+            "circular_p95_deg"
+        ]
+        < 0.2
+    )
+    assert comparison["frequency_comparisons"][0]["pairwise_radio_curve_comparisons"][
+        0
+    ]["curve_rms_difference_deg"] == pytest.approx(0)
+
+
 def test_rx2_dc_diagnostic_writes_matched_full_iq_without_v7_mutation(tmp_path):
     config = small_config(
         frequencies_hz=(2_400_000_000,),
@@ -1181,6 +1300,26 @@ def test_committed_cross_band_configs_cover_three_gain_tables():
             }
             for block in blocks
         )
+
+
+def test_committed_all_gain_cross_covers_complete_midband_gain_axis():
+    config_path = (
+        Path(__file__).parents[1]
+        / "spf"
+        / "calibrations"
+        / "dual_rx_gain_frequency"
+        / "configs"
+        / "all_gain_cross_2p4.yaml"
+    )
+    _, config = load_calibration_document(config_path)
+
+    assert config.frequencies_hz == (2_412_000_000, 2_467_000_000)
+    assert config.gains_db == tuple(range(-3, 72))
+    assert config.schedule_design == "additive_cross"
+    assert config.schedule_reference_gain_db == 26
+    assert len(config.training_gain_pairs) == 149
+    assert len(config.held_out_gain_pairs) == 56
+    assert config.measurements_per_radio == 1_230
 
 
 def test_frequency_scout_densely_covers_gain_table_boundaries():

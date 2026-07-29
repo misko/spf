@@ -1,0 +1,143 @@
+{
+  "failed_held_out_cells": [
+    [
+      2412000000,
+      -3,
+      71
+    ],
+    [
+      2412000000,
+      71,
+      -3
+    ],
+    [
+      2412000000,
+      -2,
+      63
+    ],
+    [
+      2412000000,
+      63,
+      -2
+    ],
+    [
+      2467000000,
+      -3,
+      71
+    ],
+    [
+      2467000000,
+      71,
+      -3
+    ],
+    [
+      2467000000,
+      -2,
+      63
+    ],
+    [
+      2467000000,
+      63,
+      -2
+    ]
+  ],
+  "frequencies_hz": [
+    2412000000,
+    2467000000
+  ],
+  "gains_db": [
+    -3,
+    -2,
+    -1,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71
+  ],
+  "measured_held_out_cell_count": 112,
+  "measured_training_cell_count": 298,
+  "passing_held_out_cell_count": 104,
+  "passing_training_cell_count": 298,
+  "phase_convention": "angle(rx1) - angle(rx2)",
+  "radio_serial": "1040007c4a94000211000b009186843ef2",
+  "schema": "spf.calibration.phase_offset_support",
+  "schema_version": 1,
+  "source": {
+    "analysis_path": "artifacts/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/additive_cross/analysis.json",
+    "analysis_sha256": "d9b28600bc606545d42193dd11eb136c823a8c55b4c3c09a6744624ce3061bde",
+    "validation_path": "artifacts/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/validation.json",
+    "validation_sha256": "efe13d6ce220d89c44bdb1b11151ce91d29f752bd4d9ea36f39022a99e21d217",
+    "validation_status": "fail_quality"
+  },
+  "support_kind": "cartesian_product",
+  "supported_cell_count": 11250,
+  "validation_basis": "complete RX1 and RX2 integer-gain axes with off-axis held-out validation of the additive factorization"
+}

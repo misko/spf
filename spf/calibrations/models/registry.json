@@ -1,4 +1,5 @@
 {
+  "complete_2p4_model": "complete_2p4_shared_gain_lut_per_radio",
   "models": {
     "branch_gain_delay_lut_per_radio": {
       "can_predict_unseen_frequency": true,
@@ -13,6 +14,16 @@
       "formula": "phase = intercept + RX1_phase[g1] + RX2_phase[g2] - 2*pi*(f-f_ref)*(delay0 + RX1_delay[g1] + RX2_delay[g2])",
       "kind": "branch_gain_delay",
       "label": "Gain-dependent branch-delay LUT per radio"
+    },
+    "complete_2p4_shared_gain_lut_per_radio": {
+      "can_predict_unseen_frequency": false,
+      "configs_by_serial": {
+        "1040007c4a94000211000b009186843ef2": "complete_2p4_shared_gain_lut_per_radio/1040007c4a94000211000b009186843ef2.json",
+        "104000bac4950008230026001b440a003a": "complete_2p4_shared_gain_lut_per_radio/104000bac4950008230026001b440a003a.json"
+      },
+      "formula": "phase = intercept[radio,f] + H[radio,f,g1] - H[radio,f,g2]",
+      "kind": "frequency_specific_gain_additive",
+      "label": "Complete 2.4 GHz shared gain LUT with per-radio intercept"
     },
     "constant_per_radio": {
       "can_predict_unseen_frequency": true,

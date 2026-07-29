@@ -79,6 +79,7 @@ def validate_dataset(
         quality_valid = np.asarray(receiver.sweep_quality_valid[:], dtype=bool)
         grouped: dict[tuple[int, int, int], list[dict[str, Any]]] = defaultdict(list)
         quality_reasons = Counter()
+        capture_sequence_modes = set()
         for entry in schedule:
             index = entry.record_index
             expected_gain = np.asarray(
@@ -115,10 +116,24 @@ def validate_dataset(
                 raise ValueError(f"invalid RSSI start at record {index}")
             if not np.isfinite(receiver.rssi_db_end[index]).all():
                 raise ValueError(f"invalid RSSI end at record {index}")
-            if int(receiver.buffer_sequence[index]) != 0:
-                raise ValueError(f"finite stream does not begin at buffer 0: {index}")
-            if int(receiver.sample_sequence[index]) != 0:
-                raise ValueError(f"finite stream does not begin at sample 0: {index}")
+            actual_sequence = (
+                int(receiver.buffer_sequence[index]),
+                int(receiver.sample_sequence[index]),
+            )
+            legacy_sequence = (0, 0)
+            batched_sequence = (
+                config.discard_frames_after_gain,
+                config.discard_frames_after_gain * config.buffer_size,
+            )
+            if actual_sequence == legacy_sequence:
+                capture_sequence_modes.add("separate_discard_and_capture")
+            elif actual_sequence == batched_sequence:
+                capture_sequence_modes.add("batched_discard_and_capture")
+            else:
+                raise ValueError(
+                    f"unexpected finite stream sequence {actual_sequence} "
+                    f"at record {index}"
+                )
             if int(receiver.rx_lo[index]) != entry.lo_frequency_hz:
                 raise ValueError(f"V7 RX LO mismatch at record {index}")
 
@@ -167,44 +182,54 @@ def validate_dataset(
                 }
             )
 
-        expected_cells = len(config.frequencies_hz) * len(config.gains_db) ** 2
+        expected_cells = len(config.frequencies_hz) * len(config.gain_pairs)
         cell_rows = []
         for frequency_index, frequency in enumerate(config.frequencies_hz):
-            for gain1 in config.gains_db:
-                for gain2 in config.gains_db:
-                    observations = grouped.get((frequency_index, gain1, gain2), [])
-                    valid = [
-                        observation
-                        for observation in observations
-                        if observation["quality_valid"]
-                    ]
-                    stats = circular_stats(
-                        observation["phase"] for observation in valid
-                    )
-                    circular_std_deg = (
-                        math.degrees(stats["circular_std_rad"])
-                        if stats["circular_std_rad"] is not None
-                        else None
-                    )
-                    passing = bool(
-                        len(valid) >= config.min_quality_valid_per_cell
-                        and circular_std_deg is not None
-                        and circular_std_deg <= config.max_across_repeat_phase_std_deg
-                    )
-                    cell_rows.append(
-                        {
-                            "frequency_hz": frequency,
-                            "gain_rx1_db": gain1,
-                            "gain_rx2_db": gain2,
-                            "n_complete": len(observations),
-                            "n_quality_valid": len(valid),
-                            "phase_mean_rad": stats["mean_rad"],
-                            "phase_circular_std_deg": circular_std_deg,
-                            "pass": passing,
-                        }
-                    )
+            for gain1, gain2 in config.gain_pairs:
+                observations = grouped.get((frequency_index, gain1, gain2), [])
+                valid = [
+                    observation
+                    for observation in observations
+                    if observation["quality_valid"]
+                ]
+                stats = circular_stats(observation["phase"] for observation in valid)
+                circular_std_deg = (
+                    math.degrees(stats["circular_std_rad"])
+                    if stats["circular_std_rad"] is not None
+                    else None
+                )
+                passing = bool(
+                    len(valid) >= config.min_quality_valid_per_cell
+                    and circular_std_deg is not None
+                    and circular_std_deg <= config.max_across_repeat_phase_std_deg
+                )
+                cell_rows.append(
+                    {
+                        "frequency_hz": frequency,
+                        "gain_rx1_db": gain1,
+                        "gain_rx2_db": gain2,
+                        "role": (
+                            "held_out"
+                            if config.is_held_out_pair(gain1, gain2)
+                            else "training"
+                        ),
+                        "n_complete": len(observations),
+                        "n_quality_valid": len(valid),
+                        "phase_mean_rad": stats["mean_rad"],
+                        "phase_circular_std_deg": circular_std_deg,
+                        "pass": passing,
+                    }
+                )
         passing_cells = sum(row["pass"] for row in cell_rows)
+        training_cells = [row for row in cell_rows if row["role"] == "training"]
+        held_out_cells = [row for row in cell_rows if row["role"] == "held_out"]
+        passing_training_cells = sum(row["pass"] for row in training_cells)
+        passing_held_out_cells = sum(row["pass"] for row in held_out_cells)
         complete_count = int(np.count_nonzero(completed))
+        if len(capture_sequence_modes) > 1:
+            raise ValueError(
+                "dataset mixes separate and batched discard/capture sequencing"
+            )
         if complete_count != len(schedule):
             status = "partial"
         elif passing_cells != expected_cells:
@@ -221,6 +246,13 @@ def validate_dataset(
             "quality_valid_frames": int(np.count_nonzero(completed & quality_valid)),
             "expected_cells": expected_cells,
             "passing_cells": passing_cells,
+            "expected_training_cells": len(training_cells),
+            "passing_training_cells": passing_training_cells,
+            "expected_held_out_cells": len(held_out_cells),
+            "passing_held_out_cells": passing_held_out_cells,
+            "capture_sequence_mode": (
+                next(iter(capture_sequence_modes)) if capture_sequence_modes else None
+            ),
             "quality_reason_counts": dict(quality_reasons),
             "cells": cell_rows,
         }
