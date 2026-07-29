@@ -28,7 +28,30 @@ Youtube (mission) [link](https://youtu.be/8VCVYs3H9HY)
 
 ## Construction
 
-A is the right side when looking at the front of rover (?)
+### Antenna labels and physical alignment
+
+Each radio drives a 2-element linear array; the elements are labelled by radio
+letter + element index:
+
+| Label | Radio | Element | Physical position |
+|---|---|---|---|
+| **A0** | A (USB2) | 0 | **starboard** |
+| **A1** | A (USB2) | 1 | **port** |
+| **B0** | B (USB1) | 0 | **bow** (forward) |
+| **B1** | B (USB1) | 1 | **stern** (aft) |
+
+So **array A lies athwartships** (starboard→port) and **array B lies fore-aft**
+(bow→stern) — the two arrays are mounted 90° apart, which is exactly the
+`theta-in-pis: 0` (radio A) / `theta-in-pis: 0.5` (radio B) pair in the capture
+configs. Fusing the two differently-oriented arrays is what resolves the
+front/back ambiguity of a 2-element array.
+
+When cabling, element index = the Pluto RX channel (0 → RX1, 1 → RX2), so
+A0/B0 go to RX1 and A1/B1 go to RX2 on their respective radio. Getting this
+swapped flips the sign of the measured phase difference (an apparent mirror of
+the bearing) without producing any obvious error at capture time — check it
+against the labels above during the
+[pre-field checklist](./PRE_FIELD_CHECKLIST.md) cabling step.
 
 ### GPS cable routing
 
