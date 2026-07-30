@@ -312,13 +312,13 @@ python uploader.py ardurover.apj | tee > ardurover_flash.log; sleep 5
 | — | CH6 (S2 pot) | `RC6_OPTION 300` (Scripting1) — **inert**, no Lua script in-tree | FC (no-op) |
 | Reboot FC | **CH7 (SD)** | >1500 force-reboot FC; 1000–1500 soft reboot **+ kills the collector** (`sys.exit(1)`) | Pi |
 | Flight mode | **CH8 (SA)** | 3-pos → MODE slots 1/4/6 = **Manual(0) / RTL(11) / Guided(15)** | FC (`MODE_CH 8`) |
-| Shutdown | **CH9 (SH)** | momentary → `sudo shutdown 0` (powers off the Pi; MC-1: no debounce) | Pi |
+| Shutdown | **CH9 (SH)** | release once, then hold >1500 for 2 s while disarmed and motors inactive → power off the Pi | Pi |
 | Mag cal | **CH10 (SC)** | start compass/mag calibration | Pi |
 | Ultrasonic | **CH12** (switch id not recorded in-tree) | >1000 disable / ≤1000 enable obstacle stop | Pi |
 
 > ⚠ **CH8 mode order.** The order above — **Manual / RTL / Guided** — is what the boot-enforced `rover3_base_parameters.params` sets (`MODE4=11`, `MODE6=15`) and what the operator field guide shows. The README's older "[Manual, Guided, RTL]" and the Jun-2024 `rover3_idX_parameters.params` dumps (`MODE4=15`, `MODE6=11`) have Guided/RTL **swapped**, and `spf/ardupilot/ardupilot_setup.md` predates both (`MODE4=10` = Auto). Since the boot param gate is non-fatal (§13.4), verify on the bench after any FC/param change: flip SA to mid and confirm the mode reads **RTL** (not Guided) before trusting the switch in the field.
 
-> The in-code RC handler `handle_RC_CHANNELS` reads raw channels 7/9/10/12: ch9>1500 → `sudo shutdown 0`; ch7>1500 → force reboot, 1000<ch7≤1500 → reboot + `sys.exit(1)`; ch10>1500 → compass cal; ch12>1000 → disable ultrasonic. CH5/CH8 are FC-consumed (all other `RCx_OPTION` are 0) — the Pi only observes their effects via HEARTBEAT. Confirm the transmitter mapping matches these before powering on (see Safety §10).
+> The in-code RC handler `handle_RC_CHANNELS` reads raw channels 7/9/10/12. CH9 is fail-closed: the handler must first observe the switch released, then receive at least three continuous high samples spanning 2 seconds while the rover is disarmed and its motors are inactive; it latches after one shutdown request until release. CH7>1500 → force reboot, 1000<CH7≤1500 → reboot + `sys.exit(1)`; CH10>1500 → compass cal; CH12>1000 → disable ultrasonic. CH5/CH8 are FC-consumed (all other `RCx_OPTION` are 0) — the Pi only observes their effects via HEARTBEAT. Confirm the transmitter mapping matches these before powering on (see Safety §10).
 
 ### 3.6 ArduPilot calibration sequence
 
@@ -924,7 +924,7 @@ lsusb | grep ADALM | wc -l                                                      
 
 ### Controller safety catalog (MC / MP)
 
-- **MC-1 / KI#18 [DRIVE-CRITICAL]** `handle_RC_CHANNELS` runs on the MAVLink message thread with **no debounce**: ch9>1500 → `sudo shutdown 0` (powers off the Pi mid-run), ch7>1500 → force reboot, 1000<ch7≤1500 → reboot+`sys.exit(1)`, ch10>1500 → compass cal, ch12>1000 → disables ultrasonic avoidance. A single noisy RC reading can kill the rover. (:897–917)
+- **MC-1 / KI#18 [DRIVE-CRITICAL]** CH9 shutdown now requires a release, a continuous 2-second hold with at least three samples, and a disarmed/inactive rover; it triggers only once until release. CH7 reboot and CH10 compass-calibration actions still have no equivalent hold interlock, so treat their transmitter mappings as safety-critical.
 - **MC-2** `is_planner_in_control` reads a lazy attr → AttributeError if called before `set_and_start_planner`; current order is safe.
 - **MC-3 / KI#44 [DRIVE-CRITICAL]** `move_to_point` loops `while distance>tolerance` with **no timeout/abort** — an unreachable/blocked target hangs the planner thread forever. (:436)
 - **MC-4 / KI#40 [DRIVE-CRITICAL, silently-wrong]** `healthy_ekf_flag` ORs `EKF_POS_HORIZ_REL` twice and **omits `EKF_POS_HORIZ_ABS`** — the arm/ready gate accepts a relative-only EKF, so the rover can arm and drive absolute lat/long waypoints before the absolute fix converges. Verify absolute GPS/EKF health out-of-band. (:264–268)
@@ -1240,11 +1240,11 @@ The Pi's `handle_RC_CHANNELS` (L897-917) only acts on **CH7/9/10/12** (companion
 | CH8 | (RC) | **Flight mode** Manual/RTL/Guided (slots 1/4/6, §3.5) | ArduPilot FC (Pi reads `mav_mode`) |
 | CH7 | `>1500` | Force-reboot the **FC** (`MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN` p1=1) | Pi (L902-905) |
 | CH7 | `>1000 & ≤1500` | Soft-reboot FC then **`sys.exit(1)`** (kills the Pi collector) | Pi (L906-909) |
-| CH9 | `>1500` | **Power off the Pi** (`sudo shutdown 0`) | Pi (L898-899) |
+| CH9 | release, then `>1500` continuously for ≥2 s while disarmed and motors inactive | **Power off the Pi** (`sudo shutdown 0`), once until release | Pi |
 | CH10 | `>1500` | Start **compass/mag calibration** (`MAV_CMD_DO_START_MAG_CAL`) | Pi (L900-901) |
 | CH12 | `>1000` disable / `≤1000` enable | Toggle **ultrasonic** avoidance (`disable_distance_finder`) | Pi (L910-917) |
 
-⚠ These run on the MAVLink **message thread with no debounce** — a single noisy reading on CH9 powers off the Pi mid-run (MC-1 / §10).
+⚠ These run on the MAVLink message thread. CH9 has the release/hold/safe-state interlock described above; CH7 and CH10 do not yet have the same protection (MC-1 / §10).
 
 ### 14.5 Ultrasonic safety stop
 

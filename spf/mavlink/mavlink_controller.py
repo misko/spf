@@ -173,6 +173,76 @@ tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
 
 LOG_ERASE = 121
 
+RC_SHUTDOWN_THRESHOLD = 1500
+RC_SHUTDOWN_HOLD_SECONDS = 2.0
+RC_SHUTDOWN_MAX_SAMPLE_GAP_SECONDS = 1.5
+RC_SHUTDOWN_MIN_HIGH_SAMPLES = 3
+
+
+class _RCHoldInterlock:
+    """Debounce a destructive RC action and require an intentional release."""
+
+    def __init__(
+        self,
+        *,
+        threshold,
+        hold_seconds,
+        max_sample_gap_seconds,
+        min_high_samples,
+    ):
+        self.threshold = threshold
+        self.hold_seconds = hold_seconds
+        self.max_sample_gap_seconds = max_sample_gap_seconds
+        self.min_high_samples = min_high_samples
+        self._released_seen = False
+        self._high_since = None
+        self._last_high_at = None
+        self._high_samples = 0
+        self._latched = False
+
+    def _reset_hold(self):
+        self._high_since = None
+        self._last_high_at = None
+        self._high_samples = 0
+
+    def update(self, *, value, now, permitted):
+        if value <= self.threshold:
+            self._released_seen = True
+            self._latched = False
+            self._reset_hold()
+            return False, 0.0
+
+        if self._latched or not self._released_seen:
+            return False, 0.0
+
+        if not permitted:
+            # A switch held while the rover is unsafe must be released before
+            # it can begin a later shutdown request.
+            self._released_seen = False
+            self._reset_hold()
+            return False, 0.0
+
+        if (
+            self._last_high_at is None
+            or now - self._last_high_at > self.max_sample_gap_seconds
+        ):
+            self._high_since = now
+            self._high_samples = 1
+        else:
+            self._high_samples += 1
+
+        self._last_high_at = now
+        held_seconds = now - self._high_since
+        if (
+            held_seconds >= self.hold_seconds
+            and self._high_samples >= self.min_high_samples
+        ):
+            self._latched = True
+            self._reset_hold()
+            return True, held_seconds
+
+        return False, held_seconds
+
 
 # Mean earth radius, matching the `haversine` library used by
 # distance_to_target/move_to_point — so a rest offset expressed in metres
@@ -336,6 +406,12 @@ class Drone:
         )
 
         self.motor_active = False
+        self._rc_shutdown_interlock = _RCHoldInterlock(
+            threshold=RC_SHUTDOWN_THRESHOLD,
+            hold_seconds=RC_SHUTDOWN_HOLD_SECONDS,
+            max_sample_gap_seconds=RC_SHUTDOWN_MAX_SAMPLE_GAP_SECONDS,
+            min_high_samples=RC_SHUTDOWN_MIN_HIGH_SAMPLES,
+        )
 
         self.ekf_healthy = False
         self.disable_distance_finder = False
@@ -978,8 +1054,32 @@ class Drone:
         pass
 
     def handle_RC_CHANNELS(self, msg):
-        if msg.chan9_raw > 1500:
-            subprocess.run(["sudo", "shutdown", "0"])
+        if not hasattr(self, "_rc_shutdown_interlock"):
+            self._rc_shutdown_interlock = _RCHoldInterlock(
+                threshold=RC_SHUTDOWN_THRESHOLD,
+                hold_seconds=RC_SHUTDOWN_HOLD_SECONDS,
+                max_sample_gap_seconds=RC_SHUTDOWN_MAX_SAMPLE_GAP_SECONDS,
+                min_high_samples=RC_SHUTDOWN_MIN_HIGH_SAMPLES,
+            )
+        shutdown_requested, held_seconds = self._rc_shutdown_interlock.update(
+            value=msg.chan9_raw,
+            now=time.monotonic(),
+            permitted=not self.armed and not self.motor_active,
+        )
+        if shutdown_requested:
+            logging.warning(
+                "RC shutdown accepted: ch9_raw=%d held=%.3fs armed=%s motor_active=%s",
+                msg.chan9_raw,
+                held_seconds,
+                self.armed,
+                self.motor_active,
+            )
+            result = subprocess.run(["sudo", "shutdown", "0"], check=False)
+            if result.returncode != 0:
+                logging.error(
+                    "RC shutdown command failed with return code %d",
+                    result.returncode,
+                )
         if msg.chan10_raw > 1500:  # run compass calibration
             self.run_compass_calibration()
         if msg.chan7_raw > 1500:
