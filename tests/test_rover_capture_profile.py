@@ -134,6 +134,31 @@ def test_fresh_setup_installs_and_enables_loader_with_mavlink():
     assert "mavlink_controller.service" in enabled_block
 
 
+def test_boot_launcher_gates_collection_on_fresh_compass_policy_report():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    assert 'COMPASS_READY_FILE="/home/pi/compass_ready.json"' in launcher
+    assert "compass_policy.py" in launcher
+    assert '--save-params "$COMPASS_PARAMS_FILE"' in launcher
+    assert 'rm -f -- "$COMPASS_READY_FILE"' in launcher
+    assert '--json-output "$COMPASS_READY_FILE"' in launcher
+
+    main_body = launcher.rsplit("main() {", 1)[1]
+    production_body = main_body.split("while true; do", 1)[0]
+    assert production_body.index("sync_vehicle_configuration") < production_body.index(
+        "verify_compass_policy"
+    )
+    assert production_body.index("verify_compass_policy") < production_body.index(
+        "sync_gps_time"
+    )
+
+    validation_block = production_body.split(
+        'if is_true "$BOOT_VALIDATE_ONLY"; then', 1
+    )[1].split("fi", 1)[0]
+    assert validation_block.index("read_only_vehicle_gate") < validation_block.index(
+        "verify_compass_policy"
+    )
+
+
 def test_stock_firmware_restore_is_an_explicit_opt_out():
     configure = (ROVER_ROOT / "configure_direct_usb_boot.sh").read_text()
     assert "production-default" in configure
