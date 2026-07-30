@@ -7,7 +7,6 @@ import time
 from datetime import datetime
 
 import yaml
-from pymavlink import mavutil
 
 from spf.data_collector import (
     DroneDataCollectorRaw,
@@ -24,9 +23,14 @@ from spf.distance_finder.distance_finder_controller import DistanceFinderControl
 from spf.gps.boundaries import boundaries  # crissy_boundary_convex
 from spf.gps.boundaries import find_closest_boundary
 from spf.mavlink.mavlink_controller import (
+    DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+    DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
+    DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
     Drone,
+    connect_with_heartbeat,
     drone_get_planner,
-    get_ardupilot_serial,
+    mavlink_connection_factory,
+    resolve_ardupilot_serial,
 )
 from spf.scripts.train_utils import load_config_from_fn
 from spf.utils import (
@@ -231,17 +235,27 @@ if __name__ == "__main__":
     logging.info("MavRadioCollection: Starting data collector...")
     if not args.fake_drone:
         if yaml_config["drone-uri"] == "serial":
-            serial = get_ardupilot_serial()
-            if serial is None:
-                print("Failed to get serial")
-                sys.exit(1)
-            yaml_config["drone-uri"] = serial
-            connection = mavutil.mavlink_connection(serial, baud=115200)
+            endpoint = resolve_ardupilot_serial()
+            yaml_config["drone-uri"] = endpoint
         else:
-            connection = mavutil.mavlink_connection(yaml_config["drone-uri"])
-        drone = Drone(
-            connection, distance_finder=distance_finder, ignore_mode=args.ignore_mode
+            endpoint = yaml_config["drone-uri"]
+        connection_factory = mavlink_connection_factory(endpoint)
+        connection, initial_heartbeat = connect_with_heartbeat(
+            connection_factory,
+            attempts=DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
+            heartbeat_timeout=DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+            retry_backoff=DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
         )
+        drone = Drone(
+            connection,
+            distance_finder=distance_finder,
+            ignore_mode=args.ignore_mode,
+            connection_factory=connection_factory,
+            reconnect_attempts=DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
+            reconnect_backoff=DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
+            reconnect_heartbeat_timeout=DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+        )
+        drone.process_message(initial_heartbeat)
         drone.start()
     else:
         drone = Drone(
@@ -252,6 +266,7 @@ if __name__ == "__main__":
         )
 
     while not args.fake_drone and not drone.drone_ready:
+        drone.raise_if_connection_failed()
         logging.info(
             f"Drone startup wait for drone ready: gps:{str(drone.gps)} , ekf:{str(drone.ekf_healthy)}"
         )
@@ -338,6 +353,8 @@ if __name__ == "__main__":
     data_collector.radios_to_online()  # blocking
 
     def check_exit():
+        if not args.fake_drone:
+            drone.raise_if_connection_failed()
         if args.run_for_seconds > 0 and time.time() - start_time > args.run_for_seconds:
             sys.exit(0)
 

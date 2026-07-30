@@ -6,6 +6,7 @@ import pytest
 from spf.mavlink.mavlink_controller import (
     Drone,
     MavlinkConnectionError,
+    connect_with_heartbeat,
     resolve_ardupilot_serial,
 )
 
@@ -58,9 +59,11 @@ class ReconnectConnection:
 class ParameterConnection:
     def __init__(self):
         self.fetches = 0
+        self.starting_sizes = []
         self.drone = None
 
     def param_fetch_all(self):
+        self.starting_sizes.append(len(self.drone.params))
         self.fetches += 1
         count = 3
         values = [("A", 1.0), ("B", 2.0)]
@@ -143,7 +146,34 @@ def test_incomplete_parameter_fetch_is_restarted_from_scratch():
         retry_backoff=0,
     )
     assert connection.fetches == 2
+    assert connection.starting_sizes == [0, 0]
     assert set(drone.params) == {"A", "B", "C"}
+
+
+def test_initial_connection_retries_are_bounded_and_require_heartbeat():
+    connections = [
+        ReconnectConnection(reconnect_heartbeat=None),
+        ReconnectConnection(reconnect_heartbeat=None),
+        ReconnectConnection(reconnect_heartbeat=heartbeat()),
+    ]
+    calls = []
+
+    def factory():
+        calls.append(True)
+        return connections[len(calls) - 1]
+
+    with pytest.raises(MavlinkConnectionError, match="after 2 attempts"):
+        connect_with_heartbeat(
+            factory,
+            attempts=2,
+            heartbeat_timeout=0.01,
+            retry_backoff=0,
+        )
+
+    assert len(calls) == 2
+    assert connections[0].closed
+    assert connections[1].closed
+    assert not connections[2].closed
 
 
 def test_tty_name_is_promoted_to_matching_stable_by_id(monkeypatch):

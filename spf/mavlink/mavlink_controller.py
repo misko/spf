@@ -1,5 +1,6 @@
 # Import mavutil
 import argparse
+import fcntl
 import glob
 import json
 import logging
@@ -7,6 +8,7 @@ import math
 import os
 import subprocess
 import sys
+import termios
 import threading
 import time
 from datetime import datetime
@@ -180,6 +182,138 @@ LOG_ERASE = 121
 # equatorial radius 6378137 would make a requested 2 m read as 1.9978 m.)
 EARTH_RADIUS_M = 6371008.8
 
+DEFAULT_MAVLINK_RECONNECT_ATTEMPTS = 3
+DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS = 1.0
+DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS = 10.0
+
+
+class MavlinkConnectionError(RuntimeError):
+    """The vehicle link could not be established or recovered safely."""
+
+
+class MavlinkParameterError(MavlinkConnectionError):
+    """The complete vehicle parameter set could not be read."""
+
+
+def resolve_ardupilot_serial(configured="", available_pilots=None):
+    """Return a stable ArduPilot ``/dev/serial/by-id`` endpoint when possible.
+
+    Linux ``ttyACM`` numbers are allocation-order identifiers and can change
+    after a flight-controller reboot.  A caller may still provide a tty name,
+    but it is promoted to the by-id symlink that resolves to the same device.
+    """
+    if available_pilots is None:
+        available_pilots = sorted(glob.glob("/dev/serial/by-id/usb-ArduPilot*"))
+    else:
+        available_pilots = sorted(available_pilots)
+
+    if configured in ("", "serial", None):
+        if len(available_pilots) != 1:
+            raise MavlinkConnectionError(
+                "Expected exactly one ArduPilot serial device; "
+                f"found {len(available_pilots)}: {available_pilots}"
+            )
+        return available_pilots[0]
+
+    if configured in available_pilots or configured.startswith("/dev/serial/by-id/"):
+        return configured
+
+    configured_realpath = os.path.realpath(configured)
+    matches = [
+        candidate
+        for candidate in available_pilots
+        if os.path.realpath(candidate) == configured_realpath
+    ]
+    if len(matches) == 1:
+        logging.info(
+            "Promoted unstable MAVLink endpoint %s to %s",
+            configured,
+            matches[0],
+        )
+        return matches[0]
+    if len(matches) > 1:
+        raise MavlinkConnectionError(
+            f"Serial endpoint {configured} maps to multiple by-id devices: {matches}"
+        )
+
+    logging.warning(
+        "No stable /dev/serial/by-id identity found for %s; reconnects may "
+        "select the wrong tty after re-enumeration",
+        configured,
+    )
+    return configured
+
+
+def _claim_serial_exclusive(connection, endpoint):
+    """Ask the kernel to reject a second opener of this serial port."""
+    if ":" in endpoint or not hasattr(connection, "port"):
+        return
+    try:
+        fd = connection.port.fileno()
+        fcntl.ioctl(fd, termios.TIOCEXCL)
+    except Exception as error:
+        try:
+            connection.close()
+        except Exception:
+            pass
+        raise MavlinkConnectionError(
+            f"Could not claim exclusive MAVLink ownership of {endpoint}: {error}. "
+            "Stop mavproxy/QGroundControl serial access and retry."
+        ) from error
+
+
+def open_mavlink_connection(endpoint, baud=115200):
+    """Open one MAVLink endpoint with exclusive local-serial ownership."""
+    connection = mavutil.mavlink_connection(endpoint, baud=baud)
+    _claim_serial_exclusive(connection, endpoint)
+    return connection
+
+
+def mavlink_connection_factory(endpoint, baud=115200):
+    return lambda: open_mavlink_connection(endpoint, baud=baud)
+
+
+def connect_with_heartbeat(
+    connection_factory,
+    *,
+    attempts=DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
+    heartbeat_timeout=DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+    retry_backoff=DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
+):
+    """Open a link and require a real heartbeat, with a bounded retry count."""
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        connection = None
+        try:
+            connection = connection_factory()
+            heartbeat = connection.wait_heartbeat(
+                blocking=True,
+                timeout=heartbeat_timeout,
+            )
+            if heartbeat is None:
+                raise MavlinkConnectionError(
+                    f"no heartbeat within {heartbeat_timeout:.1f}s"
+                )
+            return connection, heartbeat
+        except Exception as error:
+            last_error = error
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+            logging.warning(
+                "MAVLink connection attempt %d/%d failed: %s",
+                attempt,
+                attempts,
+                error,
+            )
+            if attempt < attempts:
+                time.sleep(retry_backoff)
+    raise MavlinkConnectionError(
+        f"MAVLink unavailable after {attempts} attempts: {last_error}"
+    ) from last_error
+
 
 def meters_to_degrees(east_m, north_m, latitude_deg):
     """Convert an (East, North) metre offset to (dlong, dlat) degrees.
@@ -307,15 +441,26 @@ class Drone:
         tolerance_in_m=5,
         distance_finder=None,
         fake=False,
-        ignore_mode=False
+        ignore_mode=False,
+        connection_factory=None,
+        reconnect_attempts=DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
+        reconnect_backoff=DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
+        reconnect_heartbeat_timeout=DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
     ):
         self.connection = connection
+        self.connection_factory = connection_factory
+        self.reconnect_attempts = reconnect_attempts
+        self.reconnect_backoff = reconnect_backoff
+        self.reconnect_heartbeat_timeout = reconnect_heartbeat_timeout
+        self.connection_failure = None
+        self._connection_healthy = threading.Event()
+        self._connection_lock = threading.RLock()
         self.param_count = 0
         self.heading = 0
         self.gps_time = 0
         self.time_since_boot = 0
         self.distance_finder = distance_finder
-        self.ignore_mode=ignore_mode
+        self.ignore_mode = ignore_mode
         if self.distance_finder is not None:
             self.distance_finder.run_in_new_thread()
 
@@ -410,6 +555,69 @@ class Drone:
         # self.mission_item_condition = threading.Condition()
         # self.mission_item_reached = False
 
+    @property
+    def connection_healthy(self):
+        return self._connection_healthy.is_set()
+
+    def _mark_connection_unhealthy(self, error):
+        logging.error("MAVLink connection lost: %s", error)
+        self._connection_healthy.clear()
+        self.connection_failure = None
+        # Never preserve an armed/ready assumption across a broken link.
+        self.armed = False
+        self.drone_ready = False
+        self.planner_in_control = False
+
+    def _require_healthy_connection(self):
+        if self.connection_factory is not None and not self.connection_healthy:
+            raise MavlinkConnectionError(
+                "MAVLink connection is not healthy; refusing vehicle command"
+            )
+        return self.connection
+
+    def raise_if_connection_failed(self):
+        if self.connection_failure is not None:
+            raise MavlinkConnectionError(str(self.connection_failure))
+
+    def _recover_connection(self, cause):
+        self._mark_connection_unhealthy(cause)
+        if self.connection_factory is None:
+            self.connection_failure = MavlinkConnectionError(
+                f"MAVLink receive loop stopped: {cause}"
+            )
+            return False
+
+        with self._connection_lock:
+            stale_connection = self.connection
+            try:
+                stale_connection.close()
+            except Exception:
+                pass
+
+            try:
+                connection, heartbeat = connect_with_heartbeat(
+                    self.connection_factory,
+                    attempts=self.reconnect_attempts,
+                    heartbeat_timeout=self.reconnect_heartbeat_timeout,
+                    retry_backoff=self.reconnect_backoff,
+                )
+            except MavlinkConnectionError as error:
+                self.connection_failure = error
+                logging.critical("MAVLink reconnect exhausted: %s", error)
+                return False
+
+            self.connection = connection
+            if not self.fake:
+                self.mav_mode_mapping_name2num = connection.mode_mapping()
+                self.mav_mode_mapping_num2name = mavutil.mode_mapping_bynumber(
+                    connection.sysid_state[connection.sysid].mav_type
+                )
+            self.process_message(heartbeat)
+            logging.info(
+                "MAVLink reconnected after a fresh flight-controller heartbeat"
+            )
+            return True
+
     def set_and_start_planner(self, planner):
         self.planner = planner
         self.planner_in_control = False
@@ -435,26 +643,81 @@ class Drone:
     def reset_params(self):
         self.params = MAVParmDict()
 
-    def update_all_parameters(self, timeout=50):
-        self.connection.param_fetch_all()
-        start_time = time.time()
-        params_read = len(self.params)
-        while self.param_count == 0 or params_read < self.param_count:
-            if time.time() - start_time > timeout:
-                logging.error(
-                    f"Failed to pull parameters! timeout, have {params_read} , need {self.param_count}"
+    def update_all_parameters(
+        self,
+        timeout=50,
+        max_attempts=3,
+        retry_backoff=1.0,
+    ):
+        """Fetch a complete, internally consistent parameter set.
+
+        A stalled partial download is discarded and restarted from zero. This
+        prevents parameters received before a flight-controller reset from
+        being combined with a later boot's parameter stream.
+        """
+        for attempt in range(1, max_attempts + 1):
+            self.raise_if_connection_failed()
+            self.reset_params()
+            self.param_count = 0
+            with self._connection_lock:
+                connection = self._require_healthy_connection()
+                try:
+                    connection.param_fetch_all()
+                except Exception as error:
+                    logging.warning(
+                        "Parameter fetch attempt %d/%d could not start: %s",
+                        attempt,
+                        max_attempts,
+                        error,
+                    )
+                    if attempt < max_attempts:
+                        time.sleep(retry_backoff)
+                        continue
+                    raise MavlinkParameterError(
+                        f"Could not start parameter fetch: {error}"
+                    ) from error
+
+            progress_deadline = time.monotonic() + timeout
+            params_read = 0
+            while self.param_count == 0 or params_read < self.param_count:
+                self.raise_if_connection_failed()
+                current_count = len(self.params)
+                if current_count != params_read:
+                    params_read = current_count
+                    progress_deadline = time.monotonic() + timeout
+                if self.param_count > 0 and params_read == self.param_count:
+                    break
+                if time.monotonic() >= progress_deadline:
+                    break
+                time.sleep(min(0.1, max(timeout / 10.0, 0.001)))
+
+            if self.param_count > 0 and len(self.params) == self.param_count:
+                logging.info(
+                    "Done loading drone parameters: have %d, wanted %d "
+                    "(attempt %d/%d)",
+                    len(self.params),
+                    self.param_count,
+                    attempt,
+                    max_attempts,
                 )
-                sys.exit(1)
-            if len(self.params) != params_read:  # if we got an update reset the clock
-                start_time = time.time()
-            params_read = len(self.params)
-            if params_read > 0 and params_read == self.param_count:
-                break
-            time.sleep(0.1)
-        logging.info(
-            f"Done loading drone parameters: have {len(self.params)} , wanted {self.param_count}"
+                return True
+
+            logging.warning(
+                "Incomplete parameter fetch attempt %d/%d: have %d, expected %d; "
+                "discarding partial set and retrying",
+                attempt,
+                max_attempts,
+                len(self.params),
+                self.param_count,
+            )
+            if attempt < max_attempts:
+                time.sleep(retry_backoff)
+
+        raise MavlinkParameterError(
+            "Failed to read a complete parameter set after "
+            f"{max_attempts} attempts (last attempt had {len(self.params)}/"
+            f"{self.param_count})"
         )
-        return len(self.params) == self.param_count
 
     # motion interface
     def start(self):
@@ -602,7 +865,7 @@ class Drone:
                     self.move_to_point(point)
                 self.planner_in_control = True
                 # time.sleep(2)
-                
+
         self.planner_in_control = False
 
     def get_cmd(self, cmd):
@@ -645,9 +908,10 @@ class Drone:
         """
         # According to the custom_mode_mapping, mode 11 is ROVER_MODE_RTL.
         # We can use the underlying MAV_CMD_DO_SET_MODE command to switch modes.
-        self.connection.mav.command_long_send(
-            self.connection.target_system,
-            self.connection.target_component,
+        connection = self._require_healthy_connection()
+        connection.mav.command_long_send(
+            connection.target_system,
+            connection.target_component,
             self.get_cmd("MAV_CMD_DO_SET_MODE"),
             0,  # Confirmation
             mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,  # Base mode flags
@@ -710,9 +974,10 @@ class Drone:
         these longitudes — larger than the per-rover rest offsets themselves.
         This mirrors reposition(), which already uses command_int_send.
         """
-        self.connection.mav.command_int_send(
-            self.connection.target_system,
-            self.connection.target_component,
+        connection = self._require_healthy_connection()
+        connection.mav.command_int_send(
+            connection.target_system,
+            connection.target_component,
             mavutil.mavlink.MAV_FRAME_GLOBAL,
             self.get_cmd("MAV_CMD_DO_SET_HOME"),
             0,  # current
@@ -775,9 +1040,10 @@ class Drone:
         # self.ack("COMMAND_ACK")
 
     def arm(self, force=False):
-        self.connection.mav.command_long_send(
-            self.connection.target_system,
-            self.connection.target_component,
+        connection = self._require_healthy_connection()
+        connection.mav.command_long_send(
+            connection.target_system,
+            connection.target_component,
             self.get_cmd("MAV_CMD_COMPONENT_ARM_DISARM"),
             0,
             1,
@@ -805,9 +1071,10 @@ class Drone:
         #    0.0,  # altitude
         # )
         # self.mission_item_reached = False
-        self.connection.mav.command_int_send(
-            self.connection.target_system,
-            self.connection.target_component,
+        connection = self._require_healthy_connection()
+        connection.mav.command_int_send(
+            connection.target_system,
+            connection.target_component,
             0,  # frame
             self.get_cmd("MAV_CMD_DO_REPOSITION"),  # cmd
             0,  # not used
@@ -870,7 +1137,23 @@ class Drone:
                         self.single_condition.notify_all()
                     while not self.message_loop:
                         self.message_condition.wait()
-                msg = self.connection.recv_match(blocking=True, timeout=0.5)
+                try:
+                    with self._connection_lock:
+                        connection = self.connection
+                    msg = connection.recv_match(blocking=True, timeout=0.5)
+                    if (
+                        self.connection_healthy
+                        and self.last_heartbeat > 0
+                        and time.time() - self.last_heartbeat
+                        > self.reconnect_heartbeat_timeout
+                    ):
+                        raise MavlinkConnectionError(
+                            "flight-controller heartbeat timed out"
+                        )
+                except Exception as error:
+                    if not self._recover_connection(error):
+                        return
+                    continue
                 self.process_message(msg)
 
     def handle_HOME_POSITION(self, msg):
@@ -917,6 +1200,8 @@ class Drone:
 
     def handle_HEARTBEAT(self, msg, log_interval=5):
         self.last_heartbeat = time.time()
+        self.connection_failure = None
+        self._connection_healthy.set()
         self.mav_states = lookup_exact(msg.system_status, mav_states_list)
         self.mav_mode = custom_mode_mapping[
             msg.custom_mode
@@ -1031,15 +1316,15 @@ class Drone:
             self.message_handlers[msg_type](self, msg)
 
     def set_mode(self, mode):
-        self.connection.set_mode(mode)
+        self._require_healthy_connection().set_mode(mode)
 
 
 def get_ardupilot_serial():
-    available_pilots = glob.glob("/dev/serial/by-id/usb-ArduPilot*")
-    if len(available_pilots) != 1:
-        logging.error(f"Strange number of autopilots found {len(available_pilots)}")
+    try:
+        return resolve_ardupilot_serial()
+    except MavlinkConnectionError as error:
+        logging.error("%s", error)
         return None
-    return available_pilots[0]
 
 
 def get_mavlink_controller_parser():
@@ -1107,6 +1392,24 @@ def get_mavlink_controller_parser():
         default=None,
     )
     parser.add_argument("--skip-heartbeat", action=argparse.BooleanOptionalAction)
+    parser.add_argument(
+        "--connect-attempts",
+        type=int,
+        default=DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
+        help="bounded initial/reconnect attempt count",
+    )
+    parser.add_argument(
+        "--heartbeat-timeout",
+        type=float,
+        default=DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+        help="seconds to wait for a fresh flight-controller heartbeat",
+    )
+    parser.add_argument(
+        "--reconnect-backoff",
+        type=float,
+        default=DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
+        help="seconds between bounded reconnect attempts",
+    )
     parser.add_argument("--reboot", action=argparse.BooleanOptionalAction)
     parser.add_argument(
         "--time-since-boot",
@@ -1127,26 +1430,28 @@ def get_mavlink_controller_parser():
 
 def mavlink_controller_run(args):
     if args.serial == "" and args.ip == "":
-        args.serial = get_ardupilot_serial()
-        if args.serial is None:
-            sys.exit(1)
+        args.serial = resolve_ardupilot_serial()
 
     logging.info("Connecting to mavlink (drone)...")
     if args.serial != "":
-        connection = mavutil.mavlink_connection(args.serial, baud=115200)
+        endpoint = resolve_ardupilot_serial(args.serial)
     elif args.ip != "":
-        connection = mavutil.mavlink_connection(
-            f"{args.proto}:{args.ip}:{args.port}"
-        )  # tcp is 5670
-        # connection = mavutil.mavlink_connection(f"udpout:{args.ip}:14550")
+        endpoint = f"{args.proto}:{args.ip}:{args.port}"
     else:
-        logging.error("need ip or serial")
-        exit(1)
+        raise MavlinkConnectionError("need ip or serial")
 
-    logging.info("Waiting for heartbeat...")
-    while not args.skip_heartbeat:
-        if connection.wait_heartbeat(blocking=True, timeout=1):
-            break
+    connection_factory = mavlink_connection_factory(endpoint)
+    initial_heartbeat = None
+    if args.skip_heartbeat:
+        connection = connection_factory()
+    else:
+        logging.info("Waiting for heartbeat...")
+        connection, initial_heartbeat = connect_with_heartbeat(
+            connection_factory,
+            attempts=args.connect_attempts,
+            heartbeat_timeout=args.heartbeat_timeout,
+            retry_backoff=args.reconnect_backoff,
+        )
 
     if args.buzzer is not None:
         assert not args.skip_heartbeat
@@ -1156,16 +1461,16 @@ def mavlink_controller_run(args):
             tone_bytes = args.buzzer.replace(" ", "").encode()
         drone = Drone(
             connection=connection,
+            connection_factory=connection_factory,
+            reconnect_attempts=args.connect_attempts,
+            reconnect_backoff=args.reconnect_backoff,
+            reconnect_heartbeat_timeout=args.heartbeat_timeout,
         )
+        drone.process_message(initial_heartbeat)
         drone.buzzer(tone_bytes)
         sys.exit(0)
 
     logging.info("Listening...")
-
-    # get rid of the top?
-    msg = connection.recv_match(blocking=True, timeout=0.5)
-    while msg is None or msg.get_type() == "BAD_DATA":
-        msg = connection.recv_match(blocking=True, timeout=0.5)
 
     boundary = franklin_safe
 
@@ -1175,7 +1480,13 @@ def mavlink_controller_run(args):
 
     drone = Drone(
         connection,
+        connection_factory=connection_factory,
+        reconnect_attempts=args.connect_attempts,
+        reconnect_backoff=args.reconnect_backoff,
+        reconnect_heartbeat_timeout=args.heartbeat_timeout,
     )
+    if initial_heartbeat is not None:
+        drone.process_message(initial_heartbeat)
 
     logging.info("Drone start()")
     drone.start()
@@ -1272,13 +1583,15 @@ def mavlink_controller_run(args):
         sys.exit(0)
 
     if args.mode is not None:
-        return_code=set_drone_mode(drone,args.mode)
+        return_code = set_drone_mode(drone, args.mode)
         sys.exit(return_code)
 
     while True:
-        time.sleep(200)
+        drone.raise_if_connection_failed()
+        time.sleep(1)
 
-def set_drone_mode(drone,mode):
+
+def set_drone_mode(drone, mode):
     target_mode = mode.upper()
     if target_mode not in switchable_modes:
         logging.error("Not a valid switchable mode")
