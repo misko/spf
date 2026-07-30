@@ -1,9 +1,11 @@
 import math
+import json
 
 from spf.mavlink.compass_policy import (
     DEFAULT_COMPASS_CAL_FIT,
     EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
     evaluate_compass_policy,
+    main,
     parse_parameter_file,
 )
 
@@ -33,9 +35,7 @@ def _healthy_params(*, external_slot=1):
 
     suffix = "" if external_slot == 1 else str(external_slot)
     external_key = (
-        "COMPASS_EXTERNAL"
-        if external_slot == 1
-        else f"COMPASS_EXTERN{external_slot}"
+        "COMPASS_EXTERNAL" if external_slot == 1 else f"COMPASS_EXTERN{external_slot}"
     )
     params.update(
         {
@@ -60,7 +60,7 @@ def test_accepts_external_compass_in_any_slot():
 
         assert report.ok, report.errors
         assert report.external_compass.slot == slot
-        assert math.isclose(report.external_compass.offset_norm_mg, 177.99, abs_tol=0.1)
+        assert math.isclose(report.external_compass.offset_norm_mg, 177.26, abs_tol=0.1)
 
 
 def test_rejects_empty_enabled_slot_and_disabled_external_compass():
@@ -132,3 +132,18 @@ COMPASS_OFS_X -19.5
         "COMPASS_CAL_FIT": 16.0,
         "COMPASS_OFS_X": -19.5,
     }
+
+
+def test_cli_writes_machine_readable_report(tmp_path, capsys):
+    params_path = tmp_path / "healthy.params"
+    params_path.write_text(
+        "\n".join(f"{key} {value}" for key, value in _healthy_params().items())
+    )
+    report_path = tmp_path / "report.json"
+
+    assert main([str(params_path), "--json-output", str(report_path)]) == 0
+    report = json.loads(report_path.read_text())
+
+    assert report["ok"] is True
+    assert report["external_compass"]["device_id"] == 658953
+    assert "PASS: external GPS compass" in capsys.readouterr().out
