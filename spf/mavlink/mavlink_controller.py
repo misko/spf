@@ -567,6 +567,13 @@ class Drone:
         self.armed = False
         self.drone_ready = False
         self.planner_in_control = False
+        self.mav_mode = None
+        self.mav_states = []
+        self.gps = np.zeros(2)
+        self.gps_satellites = -1
+        self.gps_fix_type = "NOT_SET_YET"
+        self.ekf_healthy = False
+        self.sensors_health = []
 
     def _require_healthy_connection(self):
         if self.connection_factory is not None and not self.connection_healthy:

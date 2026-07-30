@@ -105,13 +105,21 @@ def test_transient_serial_read_failure_reopens_and_requires_new_heartbeat():
         reconnect_attempts=1,
         reconnect_backoff=0,
         reconnect_heartbeat_timeout=0.01,
-    ).start()
+    )
+    drone.gps[:] = [1.0, 2.0]
+    drone.ekf_healthy = True
+    drone.sensors_health = ["MAV_SYS_STATUS_SENSOR_GPS"]
+    drone.drone_ready = True
+    drone.start()
 
     assert wait_until(lambda: drone.connection is reconnected)
     assert factory_calls == [True]
     assert disconnected.closed
     assert drone.connection_healthy
     assert drone.last_heartbeat > 0
+    assert not drone.drone_ready
+    assert not drone.ekf_healthy
+    assert drone.sensors_health == []
 
 
 def test_failed_reconnect_fails_closed_for_arming():
