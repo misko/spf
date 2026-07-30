@@ -1344,6 +1344,19 @@ sudo systemctl stop mavlink_controller.service && source ~/spf-virtualenv/bin/ac
 
 Stopping the service first is **required** — the collector owns the FC serial while it runs (§12.1). Wait for mavproxy to print heartbeat/param lines before moving on. `--master` is omitted (autodetect, as in the history); if it grabs a Pluto console instead of the FC (garbage output, no heartbeat), pin it with `--master=/dev/ttyACM0`.
 
+To run the same ArduPilot pre-arm diagnostics non-interactively, with no arm
+attempt and no changes to `ARMING_CHECK`, stop mavproxy and run:
+
+```bash
+data_collection/rover/rover_v3.1/check_ardupilot_prearm.sh
+```
+
+The checker requests `MAV_CMD_RUN_PREARM_CHECKS`, prints the individual
+`PreArm:` messages, and verifies the authoritative pre-arm health bit in
+`SYS_STATUS`. It exits `0` on pass, `1` on a confirmed check failure, and `2`
+when the result is inconclusive or the MAVLink connection cannot be opened.
+The wrapper refuses to run while `mavlink_controller.service` is active.
+
 **Step 3 — QGroundControl on the Mac.** With `14550` in the fan-out, **QGC connects by itself** — its built-in "UDP auto-connect" listens on 14550. Just launch QGC; the vehicle appears within a few seconds.
 
 If it doesn't appear:
