@@ -13,6 +13,13 @@ The common acquisition contract is
 Resolved stage configs are generated inside the chosen output root and are
 hashed before any capture starts.
 
+The completed 2026-07-30 campaign, its model ladders, figures, decision ledger,
+and exact reproduction command are in the
+[final spectroscopy report](reports/spectroscopy_campaign_20260730_v1/README.md).
+The final analysis preserves the B/C/D quality waivers and explicitly reports
+the failed high-band A→D restoration; it does not relabel those stages as
+passes.
+
 ## Design and exact counts
 
 Every science stage uses the additive-cross schedule. For `N` gains this
