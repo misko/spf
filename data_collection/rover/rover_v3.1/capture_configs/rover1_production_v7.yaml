@@ -30,6 +30,7 @@ receivers:
     antenna-spacing-m: 0.035
     nelements: 2
     array-type: linear
+    # Intentional: avoid persistent fast-attack gain-lock states seen on bursty digital video.
     rx-gain-mode: slow_attack
     rx-buffers: 4
     rx-gain: -3
@@ -44,6 +45,7 @@ receivers:
     antenna-spacing-m: 0.035
     nelements: 2
     array-type: linear
+    # Intentional: avoid persistent fast-attack gain-lock states seen on bursty digital video.
     rx-gain-mode: slow_attack
     rx-buffers: 4
     rx-gain: -3
