@@ -144,10 +144,11 @@ def test_boot_launcher_gates_collection_on_fresh_compass_policy_report():
 
     main_body = launcher.rsplit("main() {", 1)[1]
     production_body = main_body.split("while true; do", 1)[0]
-    assert production_body.index("sync_vehicle_configuration") < production_body.index(
+    post_validation = production_body.rsplit("    fi\n", 1)[1]
+    assert post_validation.index("sync_vehicle_configuration") < post_validation.index(
         "verify_compass_policy"
     )
-    assert production_body.index("verify_compass_policy") < production_body.index(
+    assert post_validation.index("verify_compass_policy") < post_validation.index(
         "sync_gps_time"
     )
 

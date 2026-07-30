@@ -408,6 +408,13 @@ slot. Recalibrate outdoors with the assembled vehicle away from steel,
 magnets, high-current wiring, SDRs, and the Pi. Then rerun this gate and the
 normal ArduPilot pre-arm check.
 
+The production boot launcher repeats this read-only gate from a freshly
+downloaded full parameter set after managed parameter synchronization and
+before GPS-time synchronization, capture, arming, or motion. It invalidates
+`/home/pi/compass_ready.json` before every check and refuses to continue on
+failure. `SPF_BOOT_VALIDATE_ONLY=1` also runs the gate, but still performs no
+parameter writes, capture, arming, or motion.
+
 For offline diagnosis, evaluate a saved MAVProxy/Mission Planner parameter
 export without opening the vehicle:
 

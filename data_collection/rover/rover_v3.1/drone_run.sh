@@ -13,8 +13,11 @@ readonly PROFILE_ENV="/etc/spf/rover_collection.env"
 readonly READY_FILE="/run/spf/direct_usb_ready.json"
 readonly DEVICE_MAPPING="/home/pi/device_mapping"
 readonly MAVLINK_CONTROLLER="${REPO_ROOT}/spf/mavlink/mavlink_controller.py"
+readonly COMPASS_POLICY_CHECKER="${REPO_ROOT}/spf/mavlink/compass_policy.py"
 readonly BOOT_UNIT_RECONCILER="${SCRIPT_DIR}/reconcile_rover_boot_units.sh"
 readonly PARAMS_FILE="/home/pi/this_rover.params"
+readonly COMPASS_PARAMS_FILE="/home/pi/this_rover_full.params"
+readonly COMPASS_READY_FILE="/home/pi/compass_ready.json"
 readonly TIME_FILE="/home/pi/time"
 
 die() {
@@ -217,6 +220,17 @@ sync_vehicle_configuration() {
     fi
 }
 
+verify_compass_policy() {
+    # A prior boot's report must never authorize this boot. Download the full
+    # live parameter set after any managed parameter writes, then fail closed.
+    rm -f -- "$COMPASS_READY_FILE"
+    "$PYTHON" "$MAVLINK_CONTROLLER" --save-params "$COMPASS_PARAMS_FILE"
+    if ! "$PYTHON" "$COMPASS_POLICY_CHECKER" "$COMPASS_PARAMS_FILE" \
+        --json-output "$COMPASS_READY_FILE"; then
+        die "Compass policy verification failed; refusing collection and motion."
+    fi
+}
+
 sync_gps_time() {
     "$PYTHON" "$MAVLINK_CONTROLLER" --get-time "$TIME_FILE"
     sudo date -s "$(cat "$TIME_FILE")"
@@ -262,11 +276,13 @@ main() {
 
     if is_true "$BOOT_VALIDATE_ONLY"; then
         read_only_vehicle_gate
+        verify_compass_policy
         printf 'PASS: boot validation stopped before parameter writes or collection.\n'
         return 0
     fi
 
     sync_vehicle_configuration
+    verify_compass_policy
     sync_gps_time
     printf 'performance\n' | sudo tee \
         /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null
