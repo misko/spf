@@ -55,9 +55,7 @@ def test_disconnect_preserves_primary_error_and_finalizes_partial_zarr(
     collector = _DisconnectedCollector(partial_path, primary_error)
     collector.receiver_pplus = {"usb:1.4.5": radio}
     collector.read_threads = []
-    collector.collector_thread = threading.Thread(
-        target=collector.run_collector_thread
-    )
+    collector.collector_thread = threading.Thread(target=collector.run_collector_thread)
 
     with caplog.at_level(logging.ERROR):
         collector.start()
@@ -74,9 +72,9 @@ def test_disconnect_preserves_primary_error_and_finalizes_partial_zarr(
     try:
         assert partial.attrs["capture_status"] == "incomplete"
         assert partial.attrs["capture_error_type"] == "OSError"
-        assert "Pluto disappeared during bulk RX" in partial.attrs[
-            "capture_error_message"
-        ]
+        assert (
+            "Pluto disappeared during bulk RX" in partial.attrs["capture_error_message"]
+        )
         assert any(
             "TX mute failed because Pluto is gone" in failure
             for failure in partial.attrs["capture_cleanup_errors"]
