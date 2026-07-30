@@ -3,6 +3,13 @@
 Data-collection platform: Raspberry Pi + ArduPilot flight controller (FMUv3) + PlutoSDR radios.
 On-Rover repo root: `/home/pi/spf`. Active hardware generation: **rover v3.1**.
 
+Mac QGroundControl MAVLink fan-out, run on the rover after stopping
+`mavlink_controller.service`:
+
+```bash
+mavproxy.py --out 192.168.1.155:14550 --out 192.168.1.155:14551
+```
+
 > Scope / provenance note: every command and fact below is traced to files in this repo. A handful of field-lore items (Pluto v0.38 brick, DFU jumper, faulty power switches, low-voltage cutoff thresholds, emitter-height tuning) are operational knowledge included at the maintainer's direction; where a detail is not directly verifiable in-tree it is flagged **[field note]**. Where the ground truth is genuinely ambiguous it is called out inline rather than guessed.
 
 ---
