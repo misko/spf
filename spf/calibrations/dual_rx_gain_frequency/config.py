@@ -52,6 +52,7 @@ class CalibrationConfig:
     discard_frames_after_gain: int = 1
     max_retries: int = 1
     rf_dc_calibration_policy: str = "before_each_frequency_block"
+    require_preflight_tone: bool = True
     random_seed: int = 20260727
     tx_source: str = "fpga_dds"
     tx_gain_db: float = -30.0
@@ -104,8 +105,8 @@ class CalibrationConfig:
                     raise ValueError(
                         "held-out pairs must not overlap the additive training cross"
                     )
-        if self.repetitions != 3:
-            raise ValueError("this calibration requires exactly three epochs")
+        if self.repetitions <= 0:
+            raise ValueError("calibration repetitions must be positive")
         if self.sample_rate_hz <= 0 or self.bandwidth_hz <= 0:
             raise ValueError("sample rate and bandwidth must be positive")
         if self.buffer_size <= 0 or self.transient_samples < 0:
