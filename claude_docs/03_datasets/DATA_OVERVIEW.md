@@ -4,6 +4,7 @@
 organised, and how it scores on quality.
 
 - Metric definitions, formulas and gate thresholds: **[`QC_METRICS.md`](./QC_METRICS.md)**
+- What each data version's fields *mean*, per version: **[`formats/`](./formats/README.md)**
 - Train/val partitions and split experiments: **[`../04_training_inference/TRAIN_VAL_SPLITS.md`](../04_training_inference/TRAIN_VAL_SPLITS.md)**
 - Design rationale and root-cause investigations: `data_quality_plan.md` *(design record; its scan
   counts are stale — read numbers here)*
