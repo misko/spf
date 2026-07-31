@@ -138,7 +138,6 @@ def test_boot_launcher_gates_collection_on_fresh_compass_policy_report():
     launcher = (ROVER_ROOT / "drone_run.sh").read_text()
     assert 'COMPASS_READY_FILE="/home/pi/compass_ready.json"' in launcher
     assert "compass_policy.py" in launcher
-    assert '--save-params "$COMPASS_PARAMS_FILE"' in launcher
     assert 'rm -f -- "$COMPASS_READY_FILE"' in launcher
     assert '--json-output "$COMPASS_READY_FILE"' in launcher
 
@@ -146,9 +145,6 @@ def test_boot_launcher_gates_collection_on_fresh_compass_policy_report():
     production_body = main_body.split("while true; do", 1)[0]
     post_validation = production_body.rsplit("    fi\n", 1)[1]
     assert post_validation.index("sync_vehicle_configuration") < post_validation.index(
-        "verify_compass_policy"
-    )
-    assert post_validation.index("verify_compass_policy") < post_validation.index(
         "sync_gps_time"
     )
 
@@ -156,8 +152,21 @@ def test_boot_launcher_gates_collection_on_fresh_compass_policy_report():
         'if is_true "$BOOT_VALIDATE_ONLY"; then', 1
     )[1].split("fi", 1)[0]
     assert validation_block.index("read_only_vehicle_gate") < validation_block.index(
-        "verify_compass_policy"
+        "verify_compass_policy_read_only"
     )
+
+
+def test_production_parameter_sync_uses_one_combined_mavlink_session():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    sync_body = launcher.split("sync_vehicle_configuration() {", 1)[1].split(
+        "\n}", 1
+    )[0]
+
+    assert "--prepare-vehicle-params" in sync_body
+    assert '--compass-policy-json "$COMPASS_READY_FILE"' in sync_body
+    assert "--load-params" not in sync_body
+    assert "--diff-params" not in sync_body
+    assert "--save-params" not in sync_body
 
 
 def test_stock_firmware_restore_is_an_explicit_opt_out():
