@@ -148,11 +148,13 @@ reconcile_boot_units_or_reboot() {
 
 maybe_self_update() {
     is_true "$SKIP_SELF_UPDATE" && return 0
-    sleep 10
+    # Probe internet first. In the field (no route to 8.8.8.8) this returns in
+    # ~2s instead of paying an unconditional 10s sleep on every offline boot.
     if ! ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
         printf 'No internet connectivity; continuing with checked-out code.\n'
         return 0
     fi
+    sleep 3  # brief settle before apt/git, only when actually online
 
     "$PYTHON" "$MAVLINK_CONTROLLER" --buzzer git
     printf 'Checking for repository updates.\n'
@@ -182,7 +184,7 @@ wait_for_radios() {
         printf 'Expected %s Pluto radios but found %s; retrying.\n' \
             "$expected_radios" "$found_radios"
         "$PYTHON" "$MAVLINK_CONTROLLER" --buzzer failure || true
-        sleep 15
+        sleep 5
     done
     die "Timed out waiting for ${expected_radios} Pluto radios."
 }
@@ -211,6 +213,12 @@ sync_vehicle_configuration() {
             "${SCRIPT_DIR}/rover3_base_parameters.params" \
             "${SCRIPT_DIR}/rover3_rc_servo_parameters.params") \
         >"$PARAMS_FILE"
+    # Verify-first: the committed params already match on a normal boot, so skip
+    # the write (and its full ~1300-param FC fetch over 115200 serial) when the
+    # diff is already clean. --diff-params exits with the diff count (0 == match).
+    if "$PYTHON" "$MAVLINK_CONTROLLER" --diff-params "$PARAMS_FILE"; then
+        return 0
+    fi
     "$PYTHON" "$MAVLINK_CONTROLLER" --load-params "$PARAMS_FILE"
     if ! "$PYTHON" "$MAVLINK_CONTROLLER" --diff-params "$PARAMS_FILE"; then
         die "Vehicle parameter verification failed after loading parameters."
@@ -218,8 +226,25 @@ sync_vehicle_configuration() {
 }
 
 sync_gps_time() {
-    "$PYTHON" "$MAVLINK_CONTROLLER" --get-time "$TIME_FILE"
-    sudo date -s "$(cat "$TIME_FILE")"
+    # --get-time blocks until the FC has GPS UTC time. Bound the first attempt so
+    # a no-sky / cold-TTFF boot cannot hang forever before the governor and
+    # capture loop; the loop below keeps re-syncing and sets the clock the moment
+    # GPS locks. Time comes from GPS via MAVLink (no internet/NTP).
+    if timeout "${SPF_GPS_TIME_TIMEOUT:-180}" \
+        "$PYTHON" "$MAVLINK_CONTROLLER" --get-time "$TIME_FILE"; then
+        gps_time="$(cat "$TIME_FILE")"
+        # --get-time can return a 1970 timestamp if it exits on a 3D fix before
+        # UTC arrives; never set the system clock to epoch-0 (it would corrupt
+        # every subsequent data/log filename until the next successful sync).
+        if [[ "$gps_time" == 1970-* ]]; then
+            printf 'GPS reported a 1970 time (fix without UTC yet); not setting clock.\n'
+        else
+            sudo date -s "$gps_time"
+        fi
+    else
+        printf 'No GPS time within %ss; continuing (capture loop keeps retrying --get-time).\n' \
+            "${SPF_GPS_TIME_TIMEOUT:-180}"
+    fi
 }
 
 read_only_vehicle_gate() {

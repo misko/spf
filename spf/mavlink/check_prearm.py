@@ -61,6 +61,7 @@ def run_prearm_checks(connection, timeout_s: float = 8.0) -> PrearmResult:
         0,
         0,
         0,
+        0,
     )
 
     command_result = None
