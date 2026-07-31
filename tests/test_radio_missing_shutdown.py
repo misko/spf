@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 import subprocess
 
+from spf.mavlink.mavlink_controller import tones
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROVER_ROOT = REPO_ROOT / "data_collection/rover/rover_v3.1"
@@ -57,13 +59,10 @@ def test_boot_preparation_only_shuts_down_when_radio_count_is_low():
     high_count_branch = source.split(
         'elif [[ "$attached_radios" -gt "$configured_radios" ]]', 1
     )[1].split("fi", 1)[0]
-    assert "radio_missing_shutdown" in low_count_branch
-    assert "radio_missing_shutdown" not in high_count_branch
+    assert '"$RADIO_MISSING_HANDLER"' in low_count_branch
+    assert '"$RADIO_MISSING_HANDLER"' not in high_count_branch
 
 
 def test_radio_missing_tone_is_named_and_distinct():
-    source = (REPO_ROOT / "spf/mavlink/mavlink_controller.py").read_text()
-    tones = source.split("tones = {", 1)[1].split("}", 1)[0]
-
-    assert '"radio-missing"' in tones
-    assert '"radio-missing"' not in {'"failure"', '"gps-time"'}
+    assert "radio-missing" in tones
+    assert tones["radio-missing"] not in {tones["failure"], tones["gps-time"]}

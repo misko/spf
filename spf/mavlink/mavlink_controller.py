@@ -168,6 +168,10 @@ tones = {
     "wait": "MFT240L8 G P4 < G P4 < G P4 > > G P4 < G P4 < G",
     "ready": "MFT240L8 G P8 < G P8 < G P8 > > G P8 < G P8 < G",
     "failure": "MFT240L8 D D D P4 D D D P4 L8dddddc",
+    # A short, unobtrusive double chirp for the 15-second readiness watchdog.
+    "readiness-wait": "MFT240L8 G P8 G",
+    # Three long descending notes, deliberately unlike the GPS/check tones.
+    "radio-missing": "MFT180L4 A F D P2",
 }
 tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
 
