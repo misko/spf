@@ -1128,7 +1128,7 @@ power-on ▶ spf-rover-update.service                 │
            ├─ verify persistent 2R2T + firmware over USB-IIO
            ├─ RAM-load only when required; re-enumerate
            ├─ write device_mapping + ready manifest
-           └─ missing radio: alarm three times + poweroff
+           └─ missing radio: alarm for 45s → operator cancel or poweroff
                          │
                          ▼
            mavlink_controller.service → drone_run.sh

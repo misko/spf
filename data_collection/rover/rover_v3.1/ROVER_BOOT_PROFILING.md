@@ -77,8 +77,10 @@ The disable file does not suppress critical missing-radio alarms. If bounded
 USB discovery finds fewer Plutos than the production YAML configures, boot:
 
 1. logs the expected and observed counts;
-2. plays the distinct descending `radio-missing` alarm exactly three times;
-3. requests a clean, non-blocking system poweroff.
+2. repeats the distinct descending `radio-missing` alarm for 45 seconds;
+3. permits an SSH operator to cancel during that grace period with
+   `sudo touch /run/spf/cancel_radio_missing_shutdown`;
+4. requests a clean, non-blocking system poweroff if not cancelled.
 
 The radios are externally powered, so restarting only the collector cannot
 recover a missing radio. The operator must restore the radio connection and
