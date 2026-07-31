@@ -117,10 +117,11 @@ done
 [[ "$attached_radios" -eq "$configured_radios" ]] ||
     die "Config has ${configured_radios} receivers but ${attached_radios} Plutos are attached."
 
-# Boot must not rewrite U-Boot. Verify the persistent AD9361/2r2t settings
-# established during Rover provisioning without treating the active runtime
-# version as QSPI identity.
-run_loader check-config-all "$attached_radios"
+# The persistent AD9361/2r2t configuration is established once during Rover
+# provisioning (check_and_set_pluto.sh); it is NOT re-checked per boot. That
+# check needs ssh to the Pluto's shared 192.168.2.1 and raced dropbear at boot
+# (the radios may not be ssh-ready yet). A wrong config is still caught below by
+# verify-all's dual-RX check, which is ssh-free.
 
 if is_true "$RAM_LOAD"; then
     # Legacy: RAM-load the exact configured image every boot (volatile, ~30s/radio).
@@ -129,12 +130,19 @@ else
     # Default: ensure the gain/RSSI image is persistently in QSPI. Downloads/verifies
     # the pinned image into the local cache (no network if already cached), then
     # flashes pluto.frm (mtd3 only) to any radio whose running firmware != expected.
-    # Radios already on the expected build are skipped -- no DFU dance, no reboot.
+    # Radios are addressed by USB serial via their mass-storage device -- no ssh,
+    # no shared 192.168.2.1 -- so radios already on the expected build are skipped
+    # with no DFU dance and no reboot.
     run_loader download
     SPF_PLUTO_EXPECTED_DEVICE_FW="$EXPECTED_DEVICE_FW" \
     SPF_FIRMWARE_DFU="${FIRMWARE_CACHE}/${firmware_asset_name}" \
     SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
         bash "${SCRIPT_DIR}/ensure_pluto_qspi.sh" "$attached_radios"
+    # Keep the per-boot verify below ssh-free too: interface-6 + USB-IIO + dual-RX
+    # (all by USB serial) already prove the radio is collector-ready; the ssh
+    # daemon-pid check is a provisioning-time concern and would reintroduce the
+    # shared-IP ssh race.
+    export SPF_PLUTO_SKIP_SSH_VERIFY=1
 fi
 
 # USB-IIO URIs contain the post-enumeration USB device address, so mapping must

@@ -704,6 +704,16 @@ class MultiPlutoFirmwareManager:
         if not self._iio_has_serial(serial):
             raise FirmwareError(f"{serial}: standard USB-IIO context is absent")
         self._verify_dual_rx(serial)
+        if _env_is_true("SPF_PLUTO_SKIP_SSH_VERIFY"):
+            # ssh-free per-boot verify: interface-6 (vendor gadget), the USB-IIO
+            # context, and dual-RX are all confirmed above by USB serial without
+            # touching the shared 192.168.2.1. Skip the ssh daemon-pid check.
+            print(
+                f"{serial}: interface-6 + USB-IIO + dual-RX present "
+                f"(ssh daemon check skipped)",
+                flush=True,
+            )
+            return
         result = self._ssh(
             serial,
             "pidof iiod >/dev/null && pidof sdr_usb_gadget >/dev/null",
