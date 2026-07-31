@@ -409,17 +409,28 @@ def test_direct_firmware_is_reloaded_instead_of_only_trusted(tmp_path, monkeypat
     assert ("verify", "SERIAL_A") in calls
 
 
-def test_boot_preparation_always_checks_config_then_loads_exact_ram_image():
+def test_boot_preparation_flashes_qspi_by_default_ram_load_behind_flag():
     boot_script = (
         Path(__file__).resolve().parents[1]
         / "data_collection/rover/rover_v3.1/prepare_direct_usb_boot.sh"
     ).read_text()
-    check = 'run_loader check-config-all "$attached_radios"'
+    # Default path is the version-conditional persistent QSPI flash, not RAM load.
+    ensure = "ensure_pluto_qspi.sh"
+    ram_gate = 'if is_true "$RAM_LOAD"; then'
     load = 'run_loader load-all "$attached_radios"'
 
-    assert check in boot_script
+    assert ensure in boot_script
+    assert ram_gate in boot_script
+    # The legacy RAM load remains available, but only inside the flag branch,
+    # which precedes the default flash branch in the source.
     assert load in boot_script
-    assert boot_script.index(check) < boot_script.index(load)
+    assert boot_script.index(ram_gate) < boot_script.index(load) < boot_script.index(
+        ensure
+    )
+    # The per-boot ssh check-config-all was removed (it raced the shared-IP ssh);
+    # a wrong AD9361/2r2t config is still caught by verify-all's dual-RX check.
+    assert "run_loader check-config-all" not in boot_script
+    # Readiness is still invalidated before config resolution.
     invalidate = 'rm -f -- "$READY_FILE"'
     resolver = "resolver_args=("
     assert invalidate in boot_script
