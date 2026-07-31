@@ -177,6 +177,23 @@ echo export PATH=${PATH}:/home/pi/arduino/bin >> ~/.bashrc
 /home/pi/arduino/bin/arduino-cli config init
 /home/pi/arduino/bin/arduino-cli config add board_manager.additional_urls https://files.seeedstudio.com/arduino/package_seeeduino_boards_index.json
 /home/pi/arduino/bin/arduino-cli core update-index
+
+# Trim stock services that add boot time and, in ModemManager's case, actively
+# destabilize USB enumeration on a headless field rover. All safe: the rover has
+# no cellular modem or Bluetooth peripheral, must never auto-update its boot
+# EEPROM (and can't, offline), and its rootfs is not LVM (e2scrub). Masking
+# NetworkManager-wait-online keeps network-online.target off the boot critical
+# path without deconfiguring the static eth0 (SSH/LAN unaffected). These are also
+# safe to run by hand on an already-provisioned rover.
+# - ModemManager AT-probes the ArduPilot /dev/ttyACM* and the Pluto CDC gadget
+#   during the exact window the RAM-load re-enumerates -> a plausible contributor
+#   to intermittent "expected N Plutos, found N-1" failures.
+sudo systemctl disable --now ModemManager.service 2>/dev/null || true
+sudo systemctl disable --now bluetooth.service 2>/dev/null || true
+sudo systemctl disable --now rpi-eeprom-update.service 2>/dev/null || true
+sudo systemctl disable --now e2scrub_reap.service 2>/dev/null || true
+sudo systemctl mask NetworkManager-wait-online.service 2>/dev/null || true
+
 #will come back up with new static IP
 sudo reboot
 

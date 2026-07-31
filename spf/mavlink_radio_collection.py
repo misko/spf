@@ -255,7 +255,7 @@ if __name__ == "__main__":
         logging.info(
             f"Drone startup wait for drone ready: gps:{str(drone.gps)} , ekf:{str(drone.ekf_healthy)}"
         )
-        time.sleep(10)
+        time.sleep(2)
 
     boundary_name = yaml_config.get("boundary", "franklin_safe")
     if boundary_name == "auto":
