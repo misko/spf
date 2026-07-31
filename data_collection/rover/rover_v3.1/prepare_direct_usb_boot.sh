@@ -16,6 +16,15 @@ FIRMWARE_CACHE="${SPF_FIRMWARE_CACHE_DIR:-/home/pi/.cache/spf/firmware}"
 FIRMWARE_STATE="${SPF_FIRMWARE_STATE_DIR:-/var/lib/spf/pluto-firmware}"
 DISABLE_DIRECT_USB="${SPF_DIRECT_USB_DISABLE:-0}"
 PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
+# Firmware delivery: default is to persistently flash the gain/RSSI image to the
+# Pluto QSPI once and, on every boot, only re-flash when the running version does
+# not match EXPECTED_DEVICE_FW (fast steady-state boot -- no per-boot RAM load).
+# Set SPF_PLUTO_RAM_LOAD=1 to fall back to the legacy volatile RAM load.
+RAM_LOAD="${SPF_PLUTO_RAM_LOAD:-0}"
+# Expected running /opt/VERSIONS device-fw for the pinned direct-USB image. Tied
+# to the image the loader downloads; bump both together (overridable via
+# /etc/spf/*.env).
+EXPECTED_DEVICE_FW="${SPF_PLUTO_EXPECTED_DEVICE_FW:-v0.38_plutoplus_with_timestamping-9-g7b02}"
 
 die() {
     printf 'ERROR: %s\n' "$*" >&2
@@ -108,13 +117,25 @@ done
 [[ "$attached_radios" -eq "$configured_radios" ]] ||
     die "Config has ${configured_radios} receivers but ${attached_radios} Plutos are attached."
 
-# Boot must not rewrite U-Boot. Verify the persistent settings established
-# during Rover provisioning without treating the active runtime version as
-# QSPI identity. Then always load the exact configured image into RAM, including
-# after a Pi-only reboot that left an older RAM image powered.
+# Boot must not rewrite U-Boot. Verify the persistent AD9361/2r2t settings
+# established during Rover provisioning without treating the active runtime
+# version as QSPI identity.
 run_loader check-config-all "$attached_radios"
 
-run_loader load-all "$attached_radios"
+if is_true "$RAM_LOAD"; then
+    # Legacy: RAM-load the exact configured image every boot (volatile, ~30s/radio).
+    run_loader load-all "$attached_radios"
+else
+    # Default: ensure the gain/RSSI image is persistently in QSPI. Downloads/verifies
+    # the pinned image into the local cache (no network if already cached), then
+    # flashes pluto.frm (mtd3 only) to any radio whose running firmware != expected.
+    # Radios already on the expected build are skipped -- no DFU dance, no reboot.
+    run_loader download
+    SPF_PLUTO_EXPECTED_DEVICE_FW="$EXPECTED_DEVICE_FW" \
+    SPF_FIRMWARE_DFU="${FIRMWARE_CACHE}/${firmware_asset_name}" \
+    SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
+        bash "${SCRIPT_DIR}/ensure_pluto_qspi.sh" "$attached_radios"
+fi
 
 # USB-IIO URIs contain the post-enumeration USB device address, so mapping must
 # be regenerated only after every radio reaches its final RAM-booted state.
