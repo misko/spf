@@ -29,6 +29,10 @@ EXPECTED_FW="${SPF_PLUTO_EXPECTED_DEVICE_FW:?SPF_PLUTO_EXPECTED_DEVICE_FW is req
 DFU="${SPF_FIRMWARE_DFU:?SPF_FIRMWARE_DFU is required}"
 FRM="${SPF_PLUTO_FRM:-/home/pi/.cache/spf/firmware/pluto.frm}"
 FLASH_TIMEOUT="${SPF_PLUTO_FLASH_TIMEOUT:-180}"
+# How long to wait for a radio's mass-storage FAT to become mountable. The Pluto
+# exposes its updater volume a second or two AFTER the USB device enumerates, so
+# a naive mount right at boot fails even on a perfectly healthy radio.
+MSD_READY_TIMEOUT="${SPF_PLUTO_MSD_TIMEOUT:-45}"
 EXPECTED_COUNT="${1:?expected Pluto count required}"
 MNT="/run/spf-pluto-msd"
 
@@ -63,16 +67,33 @@ blkdev_for_serial() {  # $1=serial -> /dev/sdX (or fail)
     return 1
 }
 
+# Mount a radio's mass-storage FAT at $MNT, retrying until the volume is ready
+# (present + info.html readable) or MSD_READY_TIMEOUT elapses. $2 = "ro"|"rw".
+mount_msd() {  # $1=/dev/sdX ; $2 mode ; 0 mounted, 1 never became ready
+    local d="$1" mode="${2:-ro}" deadline=$((SECONDS + MSD_READY_TIMEOUT))
+    mkdir -p "$MNT"
+    while (( SECONDS < deadline )); do
+        if [[ -b "${d}1" ]] && mount -o "$mode" "${d}1" "$MNT" 2>/dev/null; then
+            if [[ -f "$MNT/info.html" ]]; then
+                return 0
+            fi
+            umount "$MNT" 2>/dev/null || true
+        fi
+        sleep 1
+    done
+    return 1
+}
+
 # A radio is "on expected" iff its mass-storage info page -- regenerated on every
 # Pluto boot with the running device-fw -- CONTAINS the exact expected device-fw
 # string. A substring presence test is more robust than parsing: info.html also
 # lists u-boot, IIO and template versions, so picking "the version" by position
 # is unreliable (that read the template "v0.15" instead of the build).
-radio_on_expected() {  # $1=/dev/sdX ; returns 0 if running the expected firmware
+# Returns: 0 = on expected, 1 = readable but wrong firmware, 2 = not readable
+# (radio not enumerating stably) -- the caller must NOT treat 2 as "flash it".
+radio_on_expected() {  # $1=/dev/sdX
     local d="$1" rc=1
-    [[ -b "${d}1" ]] || return 1
-    mkdir -p "$MNT"
-    mount -o ro "${d}1" "$MNT" 2>/dev/null || return 1
+    mount_msd "$d" ro || return 2
     grep -qF "$EXPECTED_FW" "$MNT/info.html" 2>/dev/null && rc=0
     umount "$MNT" 2>/dev/null || true
     return "$rc"
@@ -89,8 +110,7 @@ build_frm() {
 flash_radio() {  # $1=serial $2=/dev/sdX ; writes pluto.frm to mtd3, waits for reboot
     local ser="$1" dev="$2" deadline back
     printf '%s: flashing pluto.frm to QSPI (mtd3) via %s\n' "$ser" "$dev" >&2
-    mkdir -p "$MNT"
-    mount "${dev}1" "$MNT"
+    mount_msd "$dev" rw || die "${ser}: mass-storage did not become mountable to flash"
     cp -- "$FRM" "$MNT/pluto.frm"
     sync
     umount "$MNT" 2>/dev/null || true
@@ -132,17 +152,31 @@ main() {
     [[ "${#serials[@]}" -eq "$EXPECTED_COUNT" ]] ||
         die "expected ${EXPECTED_COUNT} Pluto mass-storage disks, found ${#serials[@]}"
 
+    local ser d state
     for ser in "${serials[@]}"; do
         d="$(blkdev_for_serial "$ser")" || die "${ser}: block device vanished"
-        if radio_on_expected "$d"; then
-            printf '%s: already on expected firmware (%s); skip\n' "$ser" "$EXPECTED_FW"
-            continue
-        fi
+        state=0
+        radio_on_expected "$d" || state=$?
+        case "$state" in
+            0)
+                printf '%s: already on expected firmware (%s); skip\n' \
+                    "$ser" "$EXPECTED_FW"
+                continue
+                ;;
+            2)
+                die "${ser}: mass-storage not readable within ${MSD_READY_TIMEOUT}s;" \
+                    "radio is not enumerating stably (hardware) -- refusing to flash blind"
+                ;;
+        esac
+        # state 1: readable but running a different firmware -> flash it.
         printf '%s: not on expected firmware "%s" -> flashing\n' "$ser" "$EXPECTED_FW"
         flash_radio "$ser" "$d"
         d="$(blkdev_for_serial "$ser")" || die "${ser}: gone after flash"
-        radio_on_expected "$d" ||
-            die "${ser}: after flash NOT running expected firmware '${EXPECTED_FW}'"
+        state=0
+        radio_on_expected "$d" || state=$?
+        [[ "$state" -eq 0 ]] ||
+            die "${ser}: after flash still not on expected firmware" \
+                "'${EXPECTED_FW}' (state ${state})"
         printf '%s: now booting expected firmware from QSPI (%s)\n' "$ser" "$EXPECTED_FW"
     done
     printf 'PASS: %s Pluto(s) on expected QSPI firmware %s\n' "$EXPECTED_COUNT" "$EXPECTED_FW"
