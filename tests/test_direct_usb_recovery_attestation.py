@@ -18,6 +18,7 @@ from spf.sdrpluto.direct_usb_protocol import (
 from spf.sdrpluto.direct_usb_receiver import (
     DirectUsbIdentity,
     DirectUsbRecoveryAttestationError,
+    DirectUsbRecoveryError,
     PlutoDirectUsbReceiver,
     RecoveryAttestationDifference,
 )
@@ -286,6 +287,9 @@ def test_iio_configuration_mismatch_rejects_before_start(monkeypatch):
         receiver.capture(samples_per_channel=8)
 
     assert raised.value.differences == (difference,)
+    assert replacement.control_writes == []
+    with pytest.raises(DirectUsbRecoveryError, match="terminal"):
+        receiver.capture(samples_per_channel=8)
     assert replacement.control_writes == []
 
 

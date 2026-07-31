@@ -161,6 +161,7 @@ class PlutoDirectUsbReceiver:
         self._identity: DirectUsbIdentity | None = None
         self._capabilities: GadgetCapabilitiesV1 | None = None
         self._recovery_hardware_identity: HardwareIdentityV1 | None = None
+        self._terminal_recovery_error: Exception | None = None
         self._detached_kernel_driver = False
 
     @property
@@ -297,6 +298,11 @@ class PlutoDirectUsbReceiver:
         samples_per_channel: int,
         frame_count: int = 1,
     ) -> DirectUsbCapture:
+        if self._terminal_recovery_error is not None:
+            raise DirectUsbRecoveryError(
+                "direct USB receiver is terminal after failed recovery; "
+                "create a new receiver/capture"
+            ) from self._terminal_recovery_error
         try:
             return self._capture_once(
                 samples_per_channel=samples_per_channel,
@@ -311,28 +317,40 @@ class PlutoDirectUsbReceiver:
                 self.requested_port_path,
                 error,
             )
-            self._recover_connection(error)
-            self._attest_recovered_connection(failed_identity)
+            try:
+                self._recover_connection(error)
+            except DirectUsbRecoveryError as recovery_error:
+                self._mark_terminal_recovery_failure(recovery_error)
+                raise
+            try:
+                self._attest_recovered_connection(failed_identity)
+            except DirectUsbRecoveryAttestationError as attestation_error:
+                self._mark_terminal_recovery_failure(attestation_error)
+                raise
             try:
                 capture = self._capture_once(
                     samples_per_channel=samples_per_channel,
                     frame_count=frame_count,
                 )
             except (usb1.USBError, DirectUsbTransportError) as retry_error:
-                raise DirectUsbRecoveryError(
+                recovery_error = DirectUsbRecoveryError(
                     "direct USB transport failed again after rediscovery for "
                     f"serial={self.requested_serial!r} "
                     f"port_path={self.requested_port_path!r}"
-                ) from retry_error
+                )
+                self._mark_terminal_recovery_failure(recovery_error)
+                raise recovery_error from retry_error
 
             metadata = capture.frames[0].metadata
             if metadata.buffer_sequence != 0 or (
                 metadata.flags & MetadataFlags.SAMPLE_SEQUENCE_VALID
                 and metadata.first_sample_sequence != 0
             ):
-                raise ProtocolError(
+                sequence_error = ProtocolError(
                     "recovered direct USB START did not begin a new stream epoch"
                 )
+                self._mark_terminal_recovery_failure(sequence_error)
+                raise sequence_error
             logging.warning(
                 "direct USB transport recovered for serial=%s port_path=%s "
                 "address=%s->%s stream_id=%s; new stream epoch, phase "
@@ -344,6 +362,11 @@ class PlutoDirectUsbReceiver:
                 metadata.stream_id,
             )
             return capture
+
+    def _mark_terminal_recovery_failure(self, error: Exception) -> None:
+        self._terminal_recovery_error = error
+        with contextlib.suppress(usb1.USBError, AttributeError):
+            self.close()
 
     def _capture_once(
         self,
