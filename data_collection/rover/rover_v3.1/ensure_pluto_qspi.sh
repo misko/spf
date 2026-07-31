@@ -3,11 +3,16 @@
 # Version-conditional persistent QSPI firmware for the direct-USB gain/RSSI build.
 #
 # This replaces the per-boot RAM load. For each attached Pluto it reads the
-# firmware the radio is *currently running* (which, with RAM loading disabled,
-# is exactly what is in QSPI) and:
+# active firmware through the standard USB-IIO interface (which, with RAM
+# loading disabled, is exactly what booted from QSPI) and:
 #   - if it already matches the expected build  -> SKIP (the fast steady state)
 #   - otherwise                                 -> flash pluto.frm to QSPI and
 #     wait for the radio to reboot into the expected build.
+#
+# The steady-state check never mounts the Pluto updater volume.
+# Mass storage is opened only after an explicit USB-IIO mismatch, when a write
+# is actually required. The custom direct-USB build identity and capabilities
+# are verified later by the ready-manifest path before capture is authorized.
 #
 # The flash uses the on-device mass-storage updater (copy pluto.frm, eject),
 # which writes ONLY the firmware partition (/dev/mtdblock3). It never writes the
@@ -35,13 +40,20 @@ FLASH_TIMEOUT="${SPF_PLUTO_FLASH_TIMEOUT:-180}"
 MSD_READY_TIMEOUT="${SPF_PLUTO_MSD_TIMEOUT:-45}"
 EXPECTED_COUNT="${1:?expected Pluto count required}"
 MNT="/run/spf-pluto-msd"
+USB_ROOT="${SPF_PLUTO_USB_ROOT:-/sys/bus/usb/devices}"
 
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 [[ "$EXPECTED_COUNT" =~ ^[1-9][0-9]*$ ]] || die "bad expected count: ${EXPECTED_COUNT}"
-for cmd in udevadm mount umount eject sync; do
-    command -v "$cmd" >/dev/null 2>&1 || die "missing required command: ${cmd}"
-done
+command -v iio_attr >/dev/null 2>&1 || die "missing required command: iio_attr"
+
+require_flash_commands() {
+    local cmd
+    for cmd in udevadm mount umount eject sync; do
+        command -v "$cmd" >/dev/null 2>&1 ||
+            die "missing firmware-flash command: ${cmd}"
+    done
+}
 
 serial_of() {  # $1=/dev/sdX -> ID_SERIAL_SHORT
     udevadm info --query=property --name="$1" 2>/dev/null |
@@ -50,7 +62,7 @@ serial_of() {  # $1=/dev/sdX -> ID_SERIAL_SHORT
 
 pluto_usb_serials() {  # serials of attached runtime Plutos (USB 0456:b673)
     local dev v p
-    for dev in /sys/bus/usb/devices/*/; do
+    for dev in "$USB_ROOT"/*/; do
         v="$(cat "${dev}idVendor" 2>/dev/null || true)"
         p="$(cat "${dev}idProduct" 2>/dev/null || true)"
         [[ "$v" == "0456" && "$p" == "b673" ]] || continue
@@ -58,11 +70,60 @@ pluto_usb_serials() {  # serials of attached runtime Plutos (USB 0456:b673)
     done
 }
 
+runtime_device_for_serial() {  # $1=serial -> runtime sysfs directory
+    local serial="$1" dev v p candidate=""
+    for dev in "$USB_ROOT"/*/; do
+        v="$(cat "${dev}idVendor" 2>/dev/null || true)"
+        p="$(cat "${dev}idProduct" 2>/dev/null || true)"
+        [[ "$v" == "0456" && "$p" == "b673" ]] || continue
+        [[ "$(cat "${dev}serial" 2>/dev/null || true)" == "$serial" ]] || continue
+        [[ -z "$candidate" ]] || return 1
+        candidate="$dev"
+    done
+    [[ -n "$candidate" ]] || return 1
+    printf '%s' "$candidate"
+}
+
+iio_uri_for_serial() {  # $1=serial -> usb:BUS.DEV.5
+    local dev bus address
+    dev="$(runtime_device_for_serial "$1")" || return 1
+    bus="$(cat "${dev}busnum" 2>/dev/null || true)"
+    address="$(cat "${dev}devnum" 2>/dev/null || true)"
+    [[ "$bus" =~ ^[0-9]+$ && "$address" =~ ^[0-9]+$ ]] || return 1
+    printf 'usb:%s.%s.5' "$bus" "$address"
+}
+
+active_firmware_for_serial() {  # $1=serial -> active fw_version
+    local uri output version
+    uri="$(iio_uri_for_serial "$1")" || return 1
+    output="$(iio_attr -T 2000 -u "$uri" -C fw_version 2>/dev/null)" || return 1
+    version="$(
+        printf '%s\n' "$output" |
+            sed -n 's/^fw_version:[[:space:]]*//p' |
+            head -1
+    )"
+    [[ -n "$version" ]] || return 1
+    printf '%s' "$version"
+}
+
 blkdev_for_serial() {  # $1=serial -> /dev/sdX (or fail)
     local d
     for d in /dev/sd?; do
         [[ -b "$d" ]] || continue
         [[ "$(serial_of "$d")" == "$1" ]] && { printf '%s' "$d"; return 0; }
+    done
+    return 1
+}
+
+wait_blkdev_for_serial() {  # $1=serial -> settled /dev/sdX
+    local serial="$1" deadline=$((SECONDS + MSD_READY_TIMEOUT)) candidate
+    while (( SECONDS < deadline )); do
+        if candidate="$(blkdev_for_serial "$serial" 2>/dev/null)" &&
+            [[ -b "${candidate}1" ]]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+        sleep 1
     done
     return 1
 }
@@ -82,21 +143,6 @@ mount_msd() {  # $1=/dev/sdX ; $2 mode ; 0 mounted, 1 never became ready
         sleep 1
     done
     return 1
-}
-
-# A radio is "on expected" iff its mass-storage info page -- regenerated on every
-# Pluto boot with the running device-fw -- CONTAINS the exact expected device-fw
-# string. A substring presence test is more robust than parsing: info.html also
-# lists u-boot, IIO and template versions, so picking "the version" by position
-# is unreliable (that read the template "v0.15" instead of the build).
-# Returns: 0 = on expected, 1 = readable but wrong firmware, 2 = not readable
-# (radio not enumerating stably) -- the caller must NOT treat 2 as "flash it".
-radio_on_expected() {  # $1=/dev/sdX
-    local d="$1" rc=1
-    mount_msd "$d" ro || return 2
-    grep -qF "$EXPECTED_FW" "$MNT/info.html" 2>/dev/null && rc=0
-    umount "$MNT" 2>/dev/null || true
-    return "$rc"
 }
 
 build_frm() {
@@ -134,52 +180,46 @@ flash_radio() {  # $1=serial $2=/dev/sdX ; writes pluto.frm to mtd3, waits for r
 }
 
 main() {
-    build_frm
-
-    # Snapshot the attached Pluto serials up front (device nodes shuffle on reset).
-    # A block device is a Pluto MSD iff its ID_SERIAL_SHORT matches an attached
-    # runtime Pluto (0456:b673) -- the MSD's ID_MODEL is the generic
-    # "File-Stor_Gadget", so identify by USB VID/serial instead.
-    local pluto_set d ser
-    pluto_set=" $(pluto_usb_serials | tr '\n' ' ') "
+    # Enumerate by runtime USB identity. Do not require or touch updater block
+    # devices unless an explicit active-firmware mismatch requires a flash.
     local serials=()
-    for d in /dev/sd?; do
-        [[ -b "$d" ]] || continue
-        ser="$(serial_of "$d")"
-        [[ -n "$ser" && "$pluto_set" == *" $ser "* ]] || continue
-        serials+=("$ser")
-    done
+    mapfile -t serials < <(pluto_usb_serials)
     [[ "${#serials[@]}" -eq "$EXPECTED_COUNT" ]] ||
-        die "expected ${EXPECTED_COUNT} Pluto mass-storage disks, found ${#serials[@]}"
+        die "expected ${EXPECTED_COUNT} runtime Plutos, found ${#serials[@]}"
 
-    local ser d state
+    local ser d actual deadline
     for ser in "${serials[@]}"; do
-        d="$(blkdev_for_serial "$ser")" || die "${ser}: block device vanished"
-        state=0
-        radio_on_expected "$d" || state=$?
-        case "$state" in
-            0)
-                printf '%s: already on expected firmware (%s); skip\n' \
-                    "$ser" "$EXPECTED_FW"
-                continue
-                ;;
-            2)
-                die "${ser}: mass-storage not readable within ${MSD_READY_TIMEOUT}s;" \
-                    "radio is not enumerating stably (hardware) -- refusing to flash blind"
-                ;;
-        esac
-        # state 1: readable but running a different firmware -> flash it.
-        printf '%s: not on expected firmware "%s" -> flashing\n' "$ser" "$EXPECTED_FW"
+        actual="$(active_firmware_for_serial "$ser")" ||
+            die "${ser}: active firmware unavailable over USB-IIO; refusing to flash blind"
+        if [[ "$actual" == "$EXPECTED_FW" ]]; then
+            printf '%s: active firmware matches via USB-IIO; skip (%s)\n' \
+                "$ser" "$EXPECTED_FW"
+            continue
+        fi
+
+        printf '%s: active firmware %q != expected %q -> flashing QSPI\n' \
+            "$ser" "$actual" "$EXPECTED_FW"
+        require_flash_commands
+        build_frm
+        d="$(wait_blkdev_for_serial "$ser")" ||
+            die "${ser}: updater block device did not become ready after firmware mismatch"
         flash_radio "$ser" "$d"
-        d="$(blkdev_for_serial "$ser")" || die "${ser}: gone after flash"
-        state=0
-        radio_on_expected "$d" || state=$?
-        [[ "$state" -eq 0 ]] ||
-            die "${ser}: after flash still not on expected firmware" \
-                "'${EXPECTED_FW}' (state ${state})"
-        printf '%s: now booting expected firmware from QSPI (%s)\n' "$ser" "$EXPECTED_FW"
+
+        deadline=$((SECONDS + FLASH_TIMEOUT))
+        actual=""
+        while (( SECONDS < deadline )); do
+            actual="$(active_firmware_for_serial "$ser" 2>/dev/null || true)"
+            [[ "$actual" == "$EXPECTED_FW" ]] && break
+            sleep 1
+        done
+        [[ "$actual" == "$EXPECTED_FW" ]] ||
+            die "${ser}: after flash active firmware is ${actual:-unavailable};" \
+                "expected ${EXPECTED_FW}"
+        printf '%s: active expected firmware after QSPI flash (%s)\n' \
+            "$ser" "$EXPECTED_FW"
     done
-    printf 'PASS: %s Pluto(s) on expected QSPI firmware %s\n' "$EXPECTED_COUNT" "$EXPECTED_FW"
+    printf 'PASS: %s Pluto(s) on expected active firmware %s\n' \
+        "$EXPECTED_COUNT" "$EXPECTED_FW"
 }
 
 main
