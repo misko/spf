@@ -86,27 +86,32 @@ then `dfu-util -a firmware.dfu -D pluto.dfu`. Both ultimately go through U-Boot'
 After flashing, the Pluto cold-boots the gain/RSSI FIT from QSPI and
 `grep device-fw /opt/VERSIONS` reads `v0.38_plutoplus_with_timestamping-9-g7b02`.
 
-## 5. Boot flow: check version, flash only on mismatch
+## 5. Boot flow: check version over USB-IIO, flash only on mismatch
 
 Replace the unconditional per-boot RAM-load with a verify-first check. Expected
 version comes from the canonical config manifest (the release's `device-fw`
-string). Per attached Pluto:
+string). The active version is a standard libiio context attribute, so the
+normal path does not mount the updater volume and does not use the duplicate
+`192.168.2.1` USB-network address. Per attached Pluto:
 
 ```
-running=$(ssh_pluto "grep device-fw /opt/VERSIONS | cut -d' ' -f2")
+uri="usb:${bus}.${device_address}.5"   # bus/address bound to this USB serial
+running=$(iio_attr -T 2000 -u "$uri" -C fw_version |
+          sed -n 's/^fw_version:[[:space:]]*//p')
 if [ "$running" = "$EXPECTED_DEVICE_FW" ]; then
-    : # already correct — radio booted the right QSPI firmware; do nothing (fast)
+    : # correct: do not open the updater volume
 else
-    flash pluto.frm (section 4)   # one-time, or after a QSPI revert
+    mount only this serial's updater volume and flash pluto.frm (section 4)
     reset + wait for re-enumerate
-    re-verify running == EXPECTED_DEVICE_FW  (else fail closed)
+    re-verify over USB-IIO that running == EXPECTED_DEVICE_FW (else fail closed)
 fi
 ```
 
 Result: the **first** boot after provisioning flashes QSPI; **every subsequent
 boot** finds the version already correct and does nothing — no RAM-load, no DFU
-re-enumeration flap, no ~104 s. This is the mechanism the maintainer recalled
-("it used to check the version and only flash if different").
+re-enumeration flap, no updater-volume mount, and no ~104 s. The ready manifest
+then independently checks the vendor direct-USB gadget SHA, protocol, and
+metadata capabilities before collection is authorized.
 
 ## 6. Safety / recovery
 

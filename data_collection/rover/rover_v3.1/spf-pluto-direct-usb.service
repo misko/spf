@@ -1,8 +1,9 @@
 [Unit]
-Description=RAM-load and verify SPF direct-USB firmware on every Pluto
-# The RAM load needs no LAN/internet: the image is pre-cached locally and every
-# Pluto is reached over its point-to-point USB-gadget net (192.168.2.1) inside a
-# private namespace. Waiting on network-online.target only added
+Description=Ensure and verify SPF direct-USB firmware on every Pluto
+# Ensure and verify direct-USB firmware on every Pluto. Matching firmware is
+# checked over USB-IIO without mounting the updater volume; only a mismatch
+# enters the persistent QSPI update path. Neither path needs LAN/internet.
+# Waiting on network-online.target only added
 # NetworkManager-wait-online (~9.6s) to the front of the critical path. The
 # loader waits for the Plutos to USB-enumerate itself (prepare_direct_usb_boot.sh).
 After=local-fs.target
