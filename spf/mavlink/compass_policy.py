@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+"""Evaluate the Rover fleet's device-ID-aware compass policy.
+
+ArduPilot may enumerate a compass in a different numbered slot after a hardware
+or firmware change.  The policy therefore identifies the external GPS compass
+by device ID and ``COMPASS_EXTERN*`` instead of assuming it is always slot 1.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Mapping
+
+
+EXPECTED_EXTERNAL_COMPASS_DEVICE_ID = 658953
+DEFAULT_COMPASS_CAL_FIT = 16.0
+MAX_EXTERNAL_OFFSET_NORM_MG = 500.0
+
+
+@dataclass(frozen=True)
+class CompassInstance:
+    """One ArduPilot compass slot."""
+
+    slot: int
+    device_id: int
+    external: bool
+    used_for_yaw: bool
+    offset_x_mg: float
+    offset_y_mg: float
+    offset_z_mg: float
+
+    @property
+    def detected(self) -> bool:
+        return self.device_id != 0
+
+    @property
+    def offset_norm_mg(self) -> float:
+        return math.sqrt(
+            self.offset_x_mg**2 + self.offset_y_mg**2 + self.offset_z_mg**2
+        )
+
+
+@dataclass(frozen=True)
+class CompassPolicyReport:
+    """Fail-closed result of evaluating the fleet compass policy."""
+
+    errors: tuple[str, ...]
+    warnings: tuple[str, ...]
+    instances: tuple[CompassInstance, ...]
+    external_compass: CompassInstance | None
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+    def to_dict(self) -> dict:
+        return {
+            "ok": self.ok,
+            "errors": list(self.errors),
+            "warnings": list(self.warnings),
+            "external_compass": (
+                _instance_to_dict(self.external_compass)
+                if self.external_compass is not None
+                else None
+            ),
+            "instances": [_instance_to_dict(instance) for instance in self.instances],
+        }
+
+
+def _instance_to_dict(instance: CompassInstance) -> dict:
+    return {
+        "slot": instance.slot,
+        "device_id": instance.device_id,
+        "external": instance.external,
+        "used_for_yaw": instance.used_for_yaw,
+        "offset_x_mg": instance.offset_x_mg,
+        "offset_y_mg": instance.offset_y_mg,
+        "offset_z_mg": instance.offset_z_mg,
+        "offset_norm_mg": instance.offset_norm_mg,
+    }
+
+
+def _slot_suffix(slot: int) -> str:
+    return "" if slot == 1 else str(slot)
+
+
+def _external_key(slot: int) -> str:
+    return "COMPASS_EXTERNAL" if slot == 1 else f"COMPASS_EXTERN{slot}"
+
+
+def _number(params: Mapping[str, float], key: str, errors: list[str]) -> float:
+    if key not in params:
+        errors.append(f"missing required parameter {key}")
+        return 0.0
+    try:
+        return float(params[key])
+    except (TypeError, ValueError):
+        errors.append(f"parameter {key} is not numeric: {params[key]!r}")
+        return 0.0
+
+
+def _read_instances(
+    params: Mapping[str, float], errors: list[str]
+) -> tuple[CompassInstance, ...]:
+    instances = []
+    for slot in (1, 2, 3):
+        suffix = _slot_suffix(slot)
+        instances.append(
+            CompassInstance(
+                slot=slot,
+                device_id=int(_number(params, f"COMPASS_DEV_ID{suffix}", errors)),
+                external=bool(_number(params, _external_key(slot), errors)),
+                used_for_yaw=bool(_number(params, f"COMPASS_USE{suffix}", errors)),
+                offset_x_mg=_number(params, f"COMPASS_OFS{suffix}_X", errors),
+                offset_y_mg=_number(params, f"COMPASS_OFS{suffix}_Y", errors),
+                offset_z_mg=_number(params, f"COMPASS_OFS{suffix}_Z", errors),
+            )
+        )
+    return tuple(instances)
+
+
+def evaluate_compass_policy(
+    params: Mapping[str, float],
+    *,
+    expected_external_device_id: int = EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+) -> CompassPolicyReport:
+    """Evaluate a parameter snapshot without changing the flight controller."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    instances = _read_instances(params, errors)
+
+    if int(_number(params, "COMPASS_ENABLE", errors)) != 1:
+        errors.append("COMPASS_ENABLE must be 1")
+
+    calibration_fitness = _number(params, "COMPASS_CAL_FIT", errors)
+    if not math.isclose(calibration_fitness, DEFAULT_COMPASS_CAL_FIT):
+        errors.append(
+            f"COMPASS_CAL_FIT={calibration_fitness:g}; "
+            f"fleet policy requires {DEFAULT_COMPASS_CAL_FIT:g}"
+        )
+
+    disabled_driver_mask = int(_number(params, "COMPASS_DISBLMSK", errors))
+    if disabled_driver_mask != 0:
+        errors.append(
+            f"COMPASS_DISBLMSK={disabled_driver_mask}; fleet policy resolves "
+            "individual devices by ID and requires the driver mask to be 0"
+        )
+
+    external_candidates = [
+        instance
+        for instance in instances
+        if instance.device_id == expected_external_device_id and instance.external
+    ]
+    external_compass = external_candidates[0] if len(external_candidates) == 1 else None
+    if not external_candidates:
+        errors.append(
+            "expected external GPS compass "
+            f"device ID {expected_external_device_id} was not detected as external"
+        )
+    elif len(external_candidates) > 1:
+        slots = [instance.slot for instance in external_candidates]
+        errors.append(
+            "external GPS compass device ID "
+            f"{expected_external_device_id} appears in multiple slots: {slots}"
+        )
+
+    for instance in instances:
+        if not instance.detected and instance.used_for_yaw:
+            errors.append(f"empty compass slot {instance.slot} is enabled for yaw")
+        if (
+            instance.detected
+            and external_compass is not None
+            and instance.slot != external_compass.slot
+            and instance.used_for_yaw
+        ):
+            errors.append(
+                f"non-primary compass slot {instance.slot} "
+                f"(device ID {instance.device_id}) is enabled for yaw"
+            )
+
+    if external_compass is not None:
+        if not external_compass.used_for_yaw:
+            errors.append(
+                f"external compass slot {external_compass.slot} is disabled for yaw"
+            )
+        if external_compass.offset_norm_mg <= 0:
+            errors.append(
+                f"external compass slot {external_compass.slot} has no calibration"
+            )
+        elif external_compass.offset_norm_mg > MAX_EXTERNAL_OFFSET_NORM_MG:
+            errors.append(
+                f"external compass slot {external_compass.slot} offset norm "
+                f"{external_compass.offset_norm_mg:.1f} mG exceeds "
+                f"{MAX_EXTERNAL_OFFSET_NORM_MG:.1f} mG"
+            )
+        elif external_compass.offset_norm_mg > 300:
+            warnings.append(
+                f"external compass slot {external_compass.slot} offset norm "
+                f"{external_compass.offset_norm_mg:.1f} mG exceeds the "
+                "project target of 300 mG"
+            )
+
+    priorities = [
+        int(_number(params, f"COMPASS_PRIO{priority}_ID", errors))
+        for priority in (1, 2, 3)
+    ]
+    nonzero_priorities = [device_id for device_id in priorities if device_id]
+    if len(nonzero_priorities) != len(set(nonzero_priorities)):
+        errors.append(f"compass priority IDs are not unique: {priorities}")
+
+    if priorities[0] != expected_external_device_id:
+        errors.append(
+            f"compass priority 1 is device ID {priorities[0]}, expected "
+            f"external device ID {expected_external_device_id}"
+        )
+
+    detected_ids = {instance.device_id for instance in instances if instance.detected}
+    stale_priorities = [
+        device_id for device_id in nonzero_priorities if device_id not in detected_ids
+    ]
+    if stale_priorities:
+        errors.append(
+            f"compass priority list contains undetected device IDs: {stale_priorities}"
+        )
+
+    return CompassPolicyReport(
+        errors=tuple(dict.fromkeys(errors)),
+        warnings=tuple(dict.fromkeys(warnings)),
+        instances=instances,
+        external_compass=external_compass,
+    )
+
+
+def parse_parameter_file(path: str | Path) -> dict[str, float]:
+    """Parse MAVProxy whitespace or Mission Planner CSV parameter exports."""
+    params: dict[str, float] = {}
+    with Path(path).open(encoding="utf-8") as parameter_file:
+        for line_number, raw_line in enumerate(parameter_file, start=1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            fields = [field for field in re.split(r"[\s,]+", line) if field]
+            if len(fields) < 2:
+                raise ValueError(
+                    f"{path}:{line_number}: expected PARAMETER VALUE, got {line!r}"
+                )
+            try:
+                params[fields[0]] = float(fields[1])
+            except ValueError as error:
+                raise ValueError(
+                    f"{path}:{line_number}: invalid value {fields[1]!r}"
+                ) from error
+    return params
+
+
+def get_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Evaluate a saved ArduPilot parameter snapshot against the Rover "
+            "fleet's external-compass policy. This command is read-only."
+        )
+    )
+    parser.add_argument("parameter_file")
+    parser.add_argument(
+        "--json-output",
+        help="Write the complete machine-readable report to this path.",
+    )
+    parser.add_argument(
+        "--expected-device-id",
+        type=int,
+        default=EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = get_parser().parse_args(argv)
+    try:
+        params = parse_parameter_file(args.parameter_file)
+    except (OSError, ValueError) as error:
+        print(f"ERROR: {error}")
+        return 2
+
+    report = evaluate_compass_policy(
+        params,
+        expected_external_device_id=args.expected_device_id,
+    )
+    if args.json_output:
+        output_path = Path(args.json_output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    if report.external_compass is not None:
+        external = report.external_compass
+        print(
+            f"External compass: slot {external.slot}, "
+            f"device ID {external.device_id}, "
+            f"offset norm {external.offset_norm_mg:.1f} mG"
+        )
+    for warning in report.warnings:
+        print(f"WARNING: {warning}")
+    for error in report.errors:
+        print(f"FAIL: {error}")
+
+    if report.ok:
+        print("PASS: external GPS compass is the sole fleet-approved yaw source")
+        return 0
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
