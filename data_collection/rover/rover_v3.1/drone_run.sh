@@ -208,21 +208,25 @@ verify_direct_ready() {
 }
 
 sync_vehicle_configuration() {
-    is_true "$SKIP_PARAMETER_SYNC" && return 0
+    if is_true "$SKIP_PARAMETER_SYNC"; then
+        verify_compass_policy_read_only
+        return 0
+    fi
     sed "s/__ROVER_ID__/${rover_id}/g" \
         < <(cat \
             "${SCRIPT_DIR}/rover3_base_parameters.params" \
             "${SCRIPT_DIR}/rover3_rc_servo_parameters.params") \
         >"$PARAMS_FILE"
-    "$PYTHON" "$MAVLINK_CONTROLLER" --load-params "$PARAMS_FILE"
-    if ! "$PYTHON" "$MAVLINK_CONTROLLER" --diff-params "$PARAMS_FILE"; then
-        die "Vehicle parameter verification failed after loading parameters."
+    rm -f -- "$COMPASS_READY_FILE"
+    if ! "$PYTHON" "$MAVLINK_CONTROLLER" \
+        --prepare-vehicle-params "$PARAMS_FILE" \
+        --compass-policy-json "$COMPASS_READY_FILE"; then
+        die "Vehicle parameter or compass policy verification failed."
     fi
 }
 
-verify_compass_policy() {
-    # A prior boot's report must never authorize this boot. Download the full
-    # live parameter set after any managed parameter writes, then fail closed.
+verify_compass_policy_read_only() {
+    # Boot validation performs no managed parameter writes.
     rm -f -- "$COMPASS_READY_FILE"
     "$PYTHON" "$MAVLINK_CONTROLLER" --save-params "$COMPASS_PARAMS_FILE"
     if ! "$PYTHON" "$COMPASS_POLICY_CHECKER" "$COMPASS_PARAMS_FILE" \
@@ -276,13 +280,12 @@ main() {
 
     if is_true "$BOOT_VALIDATE_ONLY"; then
         read_only_vehicle_gate
-        verify_compass_policy
+        verify_compass_policy_read_only
         printf 'PASS: boot validation stopped before parameter writes or collection.\n'
         return 0
     fi
 
     sync_vehicle_configuration
-    verify_compass_policy
     sync_gps_time
     printf 'performance\n' | sudo tee \
         /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null

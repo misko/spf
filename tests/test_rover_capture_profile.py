@@ -158,15 +158,16 @@ def test_boot_launcher_gates_collection_on_fresh_compass_policy_report():
 
 def test_production_parameter_sync_uses_one_combined_mavlink_session():
     launcher = (ROVER_ROOT / "drone_run.sh").read_text()
-    sync_body = launcher.split("sync_vehicle_configuration() {", 1)[1].split(
-        "\n}", 1
-    )[0]
+    sync_body = launcher.split("sync_vehicle_configuration() {", 1)[1].split("\n}", 1)[
+        0
+    ]
 
     assert "--prepare-vehicle-params" in sync_body
     assert '--compass-policy-json "$COMPASS_READY_FILE"' in sync_body
     assert "--load-params" not in sync_body
     assert "--diff-params" not in sync_body
     assert "--save-params" not in sync_body
+    assert "verify_compass_policy_read_only" in sync_body
 
 
 def test_stock_firmware_restore_is_an_explicit_opt_out():

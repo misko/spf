@@ -108,9 +108,7 @@ def test_prepare_vehicle_uses_one_download_and_acknowledged_values(tmp_path):
 def test_prepare_vehicle_fails_closed_on_unverified_parameter(tmp_path):
     managed_path = tmp_path / "managed.params"
     managed_path.write_text("MANAGED_VALUE 2\n")
-    drone = FakeDrone(
-        FakeParameters(_healthy_parameters(), differences=1)
-    )
+    drone = FakeDrone(FakeParameters(_healthy_parameters(), differences=1))
 
     with pytest.raises(VehicleParameterVerificationError, match="1 differences"):
         prepare_vehicle_parameters(drone, managed_path)
