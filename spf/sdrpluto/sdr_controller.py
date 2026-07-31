@@ -84,6 +84,17 @@ PLUTO_USB_VENDOR_ID = 0x0456
 PLUTO_USB_PRODUCT_ID = 0xB673
 
 
+class SdrCleanupError(RuntimeError):
+    """One or more independent SDR cleanup operations failed."""
+
+    def __init__(self, failures):
+        self.failures = tuple(failures)
+        details = "; ".join(
+            f"{step}: {type(error).__name__}: {error}" for step, error in self.failures
+        )
+        super().__init__(details)
+
+
 def _find_local_pluto_usb_device(serial: str) -> tuple[int, int, tuple[int, ...]]:
     """Resolve one local Pluto serial to its capture-time USB location."""
 
@@ -1021,19 +1032,30 @@ class PPlus:
 
     def close(self):
         logging.info(f"{self.uri}: Start close PlutoPlus")
-        self.close_rx()
-        self.close_tx()
+        failures = []
+        for step, close_fn in (
+            ("RX cleanup", self.close_rx),
+            ("TX mute", self.close_tx),
+        ):
+            try:
+                close_fn()
+            except Exception as error:
+                failures.append((step, error))
+                logging.exception("%s: %s failed", self.uri, step)
         logging.info(f"{self.uri}: Done close PlutoPlus")
+        if failures:
+            raise SdrCleanupError(failures)
 
     def __del__(self):
-        # logging.debug(f"{self.uri}: Start delete PlutoPlus")
         if hasattr(self, "sdr"):
-            self.close_rx()
-            self.close_tx()
-            # self.sdr.tx_destroy_buffer()
-            # self.sdr.rx_destroy_buffer()
-            self.sdr.tx_enabled_channels = []
-        # logging.debug(f"{self.uri}: Done delete PlutoPlus")
+            try:
+                self.close()
+            except Exception:
+                # Destructors cannot participate in capture error handling. The
+                # explicit collector close path logs and records these failures.
+                logging.debug(
+                    "Best-effort Pluto destructor cleanup failed", exc_info=True
+                )
 
     """
     Setup the Rx part of the pluto
@@ -1183,21 +1205,39 @@ class PPlus:
     """
 
     def close_tx(self):
-        try:
-            self.sdr.tx_hardwaregain_chan0 = -80
-            self.sdr.tx_hardwaregain_chan1 = -80
-            self.sdr.tx_enabled_channels = []
-            self.sdr.tx_destroy_buffer()
-            self.sdr.tx_cyclic_buffer = False
-        except TypeError:
-            pass
+        failures = []
+        operations = (
+            ("mute TX1", lambda: setattr(self.sdr, "tx_hardwaregain_chan0", -80)),
+            ("mute TX2", lambda: setattr(self.sdr, "tx_hardwaregain_chan1", -80)),
+            (
+                "disable TX channels",
+                lambda: setattr(self.sdr, "tx_enabled_channels", []),
+            ),
+            ("destroy TX buffer", lambda: self.sdr.tx_destroy_buffer()),
+            ("disable cyclic TX", lambda: setattr(self.sdr, "tx_cyclic_buffer", False)),
+        )
+        for step, operation in operations:
+            try:
+                operation()
+            except (AttributeError, TypeError):
+                # Preserve compatibility with radio backends that do not expose
+                # every pyadi TX cleanup operation.
+                continue
+            except Exception as error:
+                failures.append((step, error))
         self.tx_config = None
-        # time.sleep(1.0)
+        if failures:
+            raise SdrCleanupError(failures)
 
     def close_rx(self):
-        if getattr(self, "direct_rx", None) is not None:
-            self.direct_rx.close()
-            self.direct_rx = None
+        failures = []
+        direct_rx = getattr(self, "direct_rx", None)
+        self.direct_rx = None
+        if direct_rx is not None:
+            try:
+                direct_rx.close()
+            except Exception as error:
+                failures.append(("close direct USB RX", error))
         self._last_direct_gains = None
         self._last_direct_rssis = None
         self._last_direct_metadata = None
@@ -1205,7 +1245,11 @@ class PPlus:
             self.sdr.rx_destroy_buffer()
         except (AttributeError, TypeError):
             pass
+        except Exception as error:
+            failures.append(("destroy RX buffer", error))
         self.rx_config = None
+        if failures:
+            raise SdrCleanupError(failures)
 
     def _open_direct_rx(self):
         if self.rx_config.direct_usb_protocol_version not in (1, 2):
