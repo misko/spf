@@ -7,7 +7,6 @@ import struct
 import sys
 import threading
 import time
-import traceback
 from concurrent import futures
 from typing import Any, Dict, Optional
 import concurrent.futures
@@ -342,6 +341,7 @@ class ThreadedRX:
         self.nthetas = nthetas
         self.rx_config = self.pplus.rx_config
         self.seconds_per_sample = seconds_per_sample
+        self.error = None
         assert self.pplus.rx_config.rx_pos is not None
 
     def read_forever(self):
@@ -360,8 +360,14 @@ class ThreadedRX:
             try:
                 data = self.get_data()
             except Exception as e:
-                logging.error(f"Failed to read data , aborting {e}")
-                self.read_q.put(None, timeout=5)
+                self.error = e
+                logging.exception("Failed to read data, aborting")
+                while True:
+                    try:
+                        self.read_q.put(None, timeout=0.5)
+                        break
+                    except queue.Full:
+                        continue
                 self.run = False
                 continue
             put_on_queue = False
@@ -555,7 +561,12 @@ class DataCollector:
         self.position_controller = position_controller
         self.finished_collecting = False
         self.thread_class = thread_class
+        self.collection_error = None
+        self.cleanup_errors = []
+        self.records_written_by_receiver = [0] * len(yaml_config["receivers"])
+        self._records_written_lock = threading.Lock()
         self.setup_record_matrix()
+        self._mark_capture_state("in_progress")
 
     def radios_to_online(self):
         radio_uris = []
@@ -716,6 +727,8 @@ class DataCollector:
 
     def done(self):
         self.collector_thread.join()
+        if self.collection_error is not None:
+            raise self.collection_error
 
     def is_collecting(self):
         return not self.finished_collecting
@@ -726,6 +739,36 @@ class DataCollector:
     def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
         raise NotImplementedError
 
+    def _write_record_and_track(self, thread_idx, record_idx, data):
+        self.write_to_record_matrix(thread_idx, record_idx, data)
+        with self._records_written_lock:
+            self.records_written_by_receiver[thread_idx] += 1
+
+    @staticmethod
+    def _error_summary(error):
+        return f"{type(error).__name__}: {error}"
+
+    def _mark_capture_state(self, status):
+        """Persist lifecycle state while the temporary Zarr is still writable."""
+
+        zarr = getattr(self, "zarr", None)
+        if self.data_filename is None or zarr is None:
+            return
+        zarr.attrs["capture_status"] = status
+        zarr.attrs["capture_records_written_by_receiver"] = list(
+            self.records_written_by_receiver
+        )
+        if self.collection_error is not None:
+            zarr.attrs["capture_error_type"] = type(self.collection_error).__name__
+            zarr.attrs["capture_error_message"] = str(self.collection_error)
+            error_number = getattr(self.collection_error, "errno", None)
+            if error_number is not None:
+                zarr.attrs["capture_error_errno"] = int(error_number)
+        if self.cleanup_errors:
+            zarr.attrs["capture_cleanup_errors"] = [
+                self._error_summary(error) for error in self.cleanup_errors
+            ]
+
     def run_inner_collector_thread(self):
         futures = []
         with ThreadPoolExecutorWithQueueSizeLimit(max_workers=2, maxsize=1) as executor:
@@ -733,49 +776,75 @@ class DataCollector:
                 for read_thread_idx, read_thread in enumerate(self.read_threads):
                     data = read_thread.read_q.get()
                     if data is None:
-                        return
+                        if read_thread.error is not None:
+                            raise read_thread.error
+                        raise RuntimeError(
+                            f"receiver {read_thread_idx} stopped without an error"
+                        )
                     futures.append(
                         executor.submit(
-                            self.write_to_record_matrix,
+                            self._write_record_and_track,
                             read_thread_idx,
                             record_idx=record_index,
                             data=data,
                         )
                     )
                     while len(futures) > 4:
-                        future_exception = futures.pop(0).exception()
-                        if future_exception:
-                            logging.error(
-                                "".join(
-                                    traceback.format_exception(
-                                        type(future_exception),
-                                        future_exception,
-                                        future_exception.__traceback__,
-                                    )
-                                )
-                            )
+                        futures.pop(0).result()
+            for future in futures:
+                future.result()
         return
 
     def run_collector_thread(self):
         logging.info("Collector thread is running!")
-        # https://stackoverflow.com/questions/48263704/threadpoolexecutor-how-to-limit-the-queue-maxsize
-        self.run_inner_collector_thread()
-        # read_thread.read_q.shutdown() # py 3.13
-        logging.info("Collector thread is exiting!")
-        self.finished_collecting = True
+        try:
+            # https://stackoverflow.com/questions/48263704/threadpoolexecutor-how-to-limit-the-queue-maxsize
+            self.run_inner_collector_thread()
+        except Exception as error:
+            self.collection_error = error
+            logging.exception("Collector failed")
+        finally:
+            logging.info("Collector tell threads to quit!")
+            for read_thread in self.read_threads:
+                read_thread.run = False
 
-        self.close()
+            logging.info("Collector wait for join!")
+            for read_thread in self.read_threads:
+                try:
+                    read_thread.join()
+                except Exception as error:
+                    self.cleanup_errors.append(error)
+                    logging.exception("Receiver thread cleanup failed")
 
-        # clean up lost threads
-        logging.info("Collector tell threads to quit!")
-        for read_thread_idx, read_thread in enumerate(self.read_threads):
-            read_thread.run = False
-        logging.info("Collector wait for join!")
-        for read_thread_idx, read_thread in enumerate(self.read_threads):
-            read_thread.join()
-        for pplus in self.receiver_pplus.values():
-            pplus.close()
-        logging.info("Collector clean exit!")
+            for uri, pplus in self.receiver_pplus.items():
+                try:
+                    pplus.close()
+                except Exception as error:
+                    self.cleanup_errors.append(error)
+                    logging.exception("%s: radio cleanup/TX mute failed", uri)
+
+            if self.collection_error is None and self.cleanup_errors:
+                self.collection_error = self.cleanup_errors[0]
+
+            self._mark_capture_state(
+                "complete" if self.collection_error is None else "incomplete"
+            )
+            try:
+                self.close()
+            except Exception as error:
+                self.cleanup_errors.append(error)
+                logging.exception("Capture store finalization failed")
+                if self.collection_error is None:
+                    self.collection_error = error
+
+            self.finished_collecting = True
+            if self.collection_error is None:
+                logging.info("Collector clean exit!")
+            else:
+                logging.error(
+                    "Collector exit with primary error: %s",
+                    self._error_summary(self.collection_error),
+                )
 
     def close(self):
         pass
@@ -840,8 +909,11 @@ class DroneDataCollectorRaw(DataCollector):
 
     def close(self):
         if self.data_filename is not None:
-            self.zarr.store.close()
+            zarr = getattr(self, "zarr", None)
+            if zarr is None:
+                return
             self.zarr = None
+            zarr.store.close()
             logging.info(f"Trying to shrink... {self.data_filename}")
             zarr_shrink(self.data_filename)
 
