@@ -220,7 +220,20 @@ def test_mode_wait_survives_reconnect_and_buzzes_replacement_connection():
     recovery_thread.start()
     assert factory_entered.wait(timeout=1)
 
+    with pytest.raises(MavlinkConnectionError, match="not healthy"):
+        drone.arm()
+    assert disconnected.mav.arm_commands == []
+    assert replacement.mav.arm_commands == []
+
     planner_errors = []
+    buzzer_started = threading.Event()
+    buzzer = drone.buzzer
+
+    def observed_buzzer(tone):
+        buzzer_started.set()
+        return buzzer(tone)
+
+    drone.buzzer = observed_buzzer
 
     def wait_for_manual_mode():
         try:
@@ -235,7 +248,7 @@ def test_mode_wait_survives_reconnect_and_buzzes_replacement_connection():
 
     planner_thread = threading.Thread(target=wait_for_manual_mode)
     planner_thread.start()
-    time.sleep(0.02)
+    assert buzzer_started.wait(timeout=1)
 
     # The mode-wait buzzer must not touch the closed connection while the
     # reconnect owns the connection swap.

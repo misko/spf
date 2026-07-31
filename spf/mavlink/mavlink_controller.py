@@ -11,6 +11,7 @@ import sys
 import termios
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime
 
 import numpy as np
@@ -560,20 +561,21 @@ class Drone:
         return self._connection_healthy.is_set()
 
     def _mark_connection_unhealthy(self, error):
-        logging.error("MAVLink connection lost: %s", error)
-        self._connection_healthy.clear()
-        self.connection_failure = None
-        # Never preserve an armed/ready assumption across a broken link.
-        self.armed = False
-        self.drone_ready = False
-        self.planner_in_control = False
-        self.mav_mode = None
-        self.mav_states = []
-        self.gps = np.zeros(2)
-        self.gps_satellites = -1
-        self.gps_fix_type = "NOT_SET_YET"
-        self.ekf_healthy = False
-        self.sensors_health = []
+        with self._connection_lock:
+            logging.error("MAVLink connection lost: %s", error)
+            self._connection_healthy.clear()
+            self.connection_failure = None
+            # Never preserve an armed/ready assumption across a broken link.
+            self.armed = False
+            self.drone_ready = False
+            self.planner_in_control = False
+            self.mav_mode = None
+            self.mav_states = []
+            self.gps = np.zeros(2)
+            self.gps_satellites = -1
+            self.gps_fix_type = "NOT_SET_YET"
+            self.ekf_healthy = False
+            self.sensors_health = []
 
     def _require_healthy_connection(self):
         if self.connection_factory is not None and not self.connection_healthy:
@@ -581,6 +583,30 @@ class Drone:
                 "MAVLink connection is not healthy; refusing vehicle command"
             )
         return self.connection
+
+    @contextmanager
+    def _command_connection(self, *, allow_replacement=False):
+        """Hold one verified connection stable for a runtime operation.
+
+        Vehicle commands fail closed if a reconnect begins while they are
+        waiting for the lock.  Advisory operations such as the buzzer may wait
+        for a bounded reconnect and opt into the replacement connection.
+        """
+        expected_connection = self.connection
+        if (
+            not allow_replacement
+            and self.connection_factory is not None
+            and not self.connection_healthy
+        ):
+            raise MavlinkConnectionError(
+                "MAVLink connection is not healthy; refusing vehicle command"
+            )
+        with self._connection_lock:
+            if not allow_replacement and self.connection is not expected_connection:
+                raise MavlinkConnectionError(
+                    "MAVLink connection changed; refusing stale vehicle command"
+                )
+            yield self._require_healthy_connection()
 
     def raise_if_connection_failed(self):
         if self.connection_failure is not None:
@@ -636,14 +662,26 @@ class Drone:
     def buzzer(self, tone_bytes):
         for _ in range(5):
             try:
-                self.connection.mav.play_tune_send(
-                    self.connection.target_system,
-                    self.connection.target_component,
-                    tone_bytes,
-                )
+                with self._command_connection(allow_replacement=True) as connection:
+                    connection.mav.play_tune_send(
+                        connection.target_system,
+                        connection.target_component,
+                        tone_bytes,
+                    )
                 return True
             except AttributeError:
                 pass
+            except MavlinkConnectionError as error:
+                logging.info(
+                    "Skipping buzzer while MAVLink is unavailable: %s", error
+                )
+                return False
+            except Exception as error:
+                # The buzzer is advisory.  A write failure must not kill the
+                # planner, and receive-loop recovery remains the sole owner of
+                # replacing the transport.
+                logging.warning("MAVLink buzzer command failed: %s", error)
+                return False
             time.sleep(0.1)
         return False
 
@@ -666,8 +704,7 @@ class Drone:
             self.raise_if_connection_failed()
             self.reset_params()
             self.param_count = 0
-            with self._connection_lock:
-                connection = self._require_healthy_connection()
+            with self._command_connection() as connection:
                 try:
                     connection.param_fetch_all()
                 except Exception as error:
@@ -732,9 +769,10 @@ class Drone:
         return self
 
     def send_status(self, text):
-        self.connection.mav.statustext_send(
-            mavutil.mavlink.MAV_SEVERITY_CRITICAL, text.encode()
-        )
+        with self._command_connection() as connection:
+            connection.mav.statustext_send(
+                mavutil.mavlink.MAV_SEVERITY_CRITICAL, text.encode()
+            )
 
     def is_planner_in_control(self):
         return self.planner_in_control
@@ -752,19 +790,20 @@ class Drone:
         return np.linalg.norm(target_point - self.gps)
 
     def erase_logs(self):
-        self.connection.mav.command_long_send(
-            self.connection.target_system,
-            self.connection.target_component,
-            LOG_ERASE,
-            0,  # set position
-            0,  # param1
-            0,  # param2
-            0,  # param3
-            0,  # param4
-            0,  # 37.8047122,  # lat
-            0,  # long,  # -122.4659164,  # lon
-            0,  # 0,
-        )
+        with self._command_connection() as connection:
+            connection.mav.command_long_send(
+                connection.target_system,
+                connection.target_component,
+                LOG_ERASE,
+                0,  # set position
+                0,  # param1
+                0,  # param2
+                0,  # param3
+                0,  # param4
+                0,  # 37.8047122,  # lat
+                0,  # long,  # -122.4659164,  # lon
+                0,  # 0,
+            )
 
     # point long/lat
     def move_to_point(self, point, log_interval=5):
@@ -835,15 +874,16 @@ class Drone:
                 time.sleep(1)
 
         else:
-            while self.mav_mode != "ROVER_MODE_MANUAL":
-                time.sleep(2)
-                logging.info("waiting for rover to move into manual mode...")
-                self.buzzer(tones["wait"])
-
-            while self.mav_mode != "ROVER_MODE_GUIDED":
-                time.sleep(2)
-                logging.info("waiting for rover to move into guided mode...")
-                self.buzzer(tones["ready"])
+            self._wait_for_mode(
+                "ROVER_MODE_MANUAL",
+                tones["wait"],
+                "waiting for rover to move into manual mode...",
+            )
+            self._wait_for_mode(
+                "ROVER_MODE_GUIDED",
+                tones["ready"],
+                "waiting for rover to move into guided mode...",
+            )
 
             if not self.armed:
                 self.arm()
@@ -874,6 +914,14 @@ class Drone:
                 # time.sleep(2)
 
         self.planner_in_control = False
+
+    def _wait_for_mode(self, expected_mode, tone, message, poll_interval=2.0):
+        """Wait for operator mode changes without making the buzzer critical."""
+        while self.mav_mode != expected_mode:
+            self.raise_if_connection_failed()
+            time.sleep(poll_interval)
+            logging.info(message)
+            self.buzzer(tone)
 
     def get_cmd(self, cmd):
         v = getattr(mavutil.mavlink, cmd)
@@ -915,58 +963,60 @@ class Drone:
         """
         # According to the custom_mode_mapping, mode 11 is ROVER_MODE_RTL.
         # We can use the underlying MAV_CMD_DO_SET_MODE command to switch modes.
-        connection = self._require_healthy_connection()
-        connection.mav.command_long_send(
-            connection.target_system,
-            connection.target_component,
-            self.get_cmd("MAV_CMD_DO_SET_MODE"),
-            0,  # Confirmation
-            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,  # Base mode flags
-            ROVER_MODE_RTL,  # Custom mode index for RTL
-            0,
-            0,
-            0,
-            0,
-            0,
-        )
+        with self._command_connection() as connection:
+            connection.mav.command_long_send(
+                connection.target_system,
+                connection.target_component,
+                self.get_cmd("MAV_CMD_DO_SET_MODE"),
+                0,  # Confirmation
+                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,  # Base mode flags
+                ROVER_MODE_RTL,  # Custom mode index for RTL
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
 
     def run_compass_calibration(self):
-        message = self.connection.mav.command_long_encode(
-            self.connection.target_system,  # Target system ID
-            self.connection.target_component,  # Target component ID
-            self.get_cmd("MAV_CMD_DO_START_MAG_CAL"),  # ID of command to send
-            0,
-            3,  # first two
-            0,
-            1,
-            0,
-            1,
-            0,
-            0,
-        )
-        self.connection.mav.send(message)
+        with self._command_connection() as connection:
+            message = connection.mav.command_long_encode(
+                connection.target_system,  # Target system ID
+                connection.target_component,  # Target component ID
+                self.get_cmd("MAV_CMD_DO_START_MAG_CAL"),  # ID of command to send
+                0,
+                3,  # first two
+                0,
+                1,
+                0,
+                1,
+                0,
+                0,
+            )
+            connection.mav.send(message)
 
     def request_home(self):
-        message = self.connection.mav.command_long_encode(
-            self.connection.target_system,  # Target system ID
-            self.connection.target_component,  # Target component ID
-            self.get_cmd("MAV_CMD_GET_HOME_POSITION"),  # ID of command to send
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        )
+        with self._command_connection() as connection:
+            message = connection.mav.command_long_encode(
+                connection.target_system,  # Target system ID
+                connection.target_component,  # Target component ID
+                self.get_cmd("MAV_CMD_GET_HOME_POSITION"),  # ID of command to send
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
 
-        # msg = connection.mav.command_long_encode(
-        #    0, 0, mavutil.mavlink.MAV_CMD_GET_HOME_POSITION, 0, 0, 0, 0, 0, 0, 0, 0
-        # )
+            # msg = connection.mav.command_long_encode(
+            #    0, 0, mavutil.mavlink.MAV_CMD_GET_HOME_POSITION, 0, 0, 0, 0, 0, 0, 0, 0
+            # )
 
-        # Send the COMMAND_LONG
-        self.connection.mav.send(message)
+            # Send the COMMAND_LONG
+            connection.mav.send(message)
 
     def set_home(self, lat, long):
         """Set the vehicle home (and therefore the RTL destination) to lat/long.
@@ -981,86 +1031,89 @@ class Drone:
         these longitudes — larger than the per-rover rest offsets themselves.
         This mirrors reposition(), which already uses command_int_send.
         """
-        connection = self._require_healthy_connection()
-        connection.mav.command_int_send(
-            connection.target_system,
-            connection.target_component,
-            mavutil.mavlink.MAV_FRAME_GLOBAL,
-            self.get_cmd("MAV_CMD_DO_SET_HOME"),
-            0,  # current
-            0,  # autocontinue
-            0,  # param1: 0 = use SPECIFIED location (1 would discard lat/long)
-            0,  # param2
-            0,  # param3
-            0,  # param4
-            int(lat * 1e7),
-            int(long * 1e7),
-            0,
-        )
+        with self._command_connection() as connection:
+            connection.mav.command_int_send(
+                connection.target_system,
+                connection.target_component,
+                mavutil.mavlink.MAV_FRAME_GLOBAL,
+                self.get_cmd("MAV_CMD_DO_SET_HOME"),
+                0,  # current
+                0,  # autocontinue
+                0,  # param1: 0 = use SPECIFIED location (1 would discard lat/long)
+                0,  # param2
+                0,  # param3
+                0,  # param4
+                int(lat * 1e7),
+                int(long * 1e7),
+                0,
+            )
         # self.ack("COMMAND_ACK")
         self.home = np.array([long, lat])  # Store home for later use
 
     def turn_off_hardware_safety(self):
-        self.connection.mav.set_mode_send(
-            self.connection.target_system,
-            mavutil.mavlink.MAV_MODE_FLAG_DECODE_POSITION_SAFETY,
-            0,
-        )
+        with self._command_connection() as connection:
+            connection.mav.set_mode_send(
+                connection.target_system,
+                mavutil.mavlink.MAV_MODE_FLAG_DECODE_POSITION_SAFETY,
+                0,
+            )
 
     def reboot(self, force=False, hold_in_bootloader=False):
-        if not force:
-            self.connection.reboot_autopilot()
-            return
-        if hold_in_bootloader:
-            param1 = 3
-        else:
-            param1 = 1
-        param6 = 20190226
-        self.connection.mav.command_long_send(
-            self.connection.target_system,
-            self.connection.target_component,
-            mavutil.mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
-            0,
-            param1,
-            0,
-            0,
-            0,
-            0,
-            param6,
-            0,
-        )
+        with self._command_connection() as connection:
+            if not force:
+                connection.reboot_autopilot()
+                return
+            if hold_in_bootloader:
+                param1 = 3
+            else:
+                param1 = 1
+            param6 = 20190226
+            connection.mav.command_long_send(
+                connection.target_system,
+                connection.target_component,
+                mavutil.mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
+                0,
+                param1,
+                0,
+                0,
+                0,
+                0,
+                param6,
+                0,
+            )
 
     def disarm(self, force=False):
-        self.connection.mav.command_long_send(
-            self.connection.target_system,
-            self.connection.target_component,
-            self.get_cmd("MAV_CMD_COMPONENT_ARM_DISARM"),
-            0,
-            0,
-            1 if force else 0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        )
+        with self._command_connection() as connection:
+            connection.mav.command_long_send(
+                connection.target_system,
+                connection.target_component,
+                self.get_cmd("MAV_CMD_COMPONENT_ARM_DISARM"),
+                0,
+                0,
+                1 if force else 0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
         # self.ack("COMMAND_ACK")
 
     def arm(self, force=False):
-        connection = self._require_healthy_connection()
-        connection.mav.command_long_send(
-            connection.target_system,
-            connection.target_component,
-            self.get_cmd("MAV_CMD_COMPONENT_ARM_DISARM"),
-            0,
-            1,
-            1 if force else 0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        )
+        with self._command_connection() as connection:
+            connection.mav.command_long_send(
+                connection.target_system,
+                connection.target_component,
+                self.get_cmd("MAV_CMD_COMPONENT_ARM_DISARM"),
+                0,
+                1,
+                1 if force else 0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
         # self.ack("COMMAND_ACK")
 
     def reposition(self, lat, long):
@@ -1078,43 +1131,45 @@ class Drone:
         #    0.0,  # altitude
         # )
         # self.mission_item_reached = False
-        connection = self._require_healthy_connection()
-        connection.mav.command_int_send(
-            connection.target_system,
-            connection.target_component,
-            0,  # frame
-            self.get_cmd("MAV_CMD_DO_REPOSITION"),  # cmd
-            0,  # not used
-            0,  # not used
-            -1,  # default ground speed
-            0,  # reposition flags
-            0,  # loiter radius, 0 is ignore
-            math.nan,  # yaw
-            int(lat * 1e7),
-            int(long * 1e7),
-            0.0,  # altitude
-        )
+        with self._command_connection() as connection:
+            connection.mav.command_int_send(
+                connection.target_system,
+                connection.target_component,
+                0,  # frame
+                self.get_cmd("MAV_CMD_DO_REPOSITION"),  # cmd
+                0,  # not used
+                0,  # not used
+                -1,  # default ground speed
+                0,  # reposition flags
+                0,  # loiter radius, 0 is ignore
+                math.nan,  # yaw
+                int(lat * 1e7),
+                int(long * 1e7),
+                0.0,  # altitude
+            )
 
     def do_mission(self, restart_mission=True):
-        self.connection.mav.command_long_send(
-            self.connection.target_system,
-            self.connection.target_component,
-            self.get_cmd("MAV_CMD_DO_SET_MISSION_CURRENT"),
-            0,
-            -1,
-            1 if restart_mission else 0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        )
+        with self._command_connection() as connection:
+            connection.mav.command_long_send(
+                connection.target_system,
+                connection.target_component,
+                self.get_cmd("MAV_CMD_DO_SET_MISSION_CURRENT"),
+                0,
+                -1,
+                1 if restart_mission else 0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
         # self.ack("COMMAND_ACK")
 
     def ack(self, keyword):
-        return (
-            self.connection.recv_match(type=keyword, blocking=True, timeout=5) is None
-        )
+        with self._command_connection() as connection:
+            return (
+                connection.recv_match(type=keyword, blocking=True, timeout=5) is None
+            )
 
     def single_operation_mode_on(self):
         assert not self.single_operation
@@ -1323,7 +1378,8 @@ class Drone:
             self.message_handlers[msg_type](self, msg)
 
     def set_mode(self, mode):
-        self._require_healthy_connection().set_mode(mode)
+        with self._command_connection() as connection:
+            connection.set_mode(mode)
 
 
 def get_ardupilot_serial():
@@ -1474,7 +1530,9 @@ def mavlink_controller_run(args):
             reconnect_heartbeat_timeout=args.heartbeat_timeout,
         )
         drone.process_message(initial_heartbeat)
-        drone.buzzer(tone_bytes)
+        if not drone.buzzer(tone_bytes):
+            logging.error("Could not send MAVLink buzzer command")
+            sys.exit(1)
         sys.exit(0)
 
     logging.info("Listening...")
@@ -1588,7 +1646,8 @@ def mavlink_controller_run(args):
             drone.single_operation_mode_on()
             drone.disarm()
             time.sleep(0.02)
-            count, changed = drone.params.load(args.load_params, mav=drone.connection)
+            with drone._command_connection() as connection:
+                count, changed = drone.params.load(args.load_params, mav=connection)
             drone.single_operation_mode_off()
         sys.exit(0)
 
