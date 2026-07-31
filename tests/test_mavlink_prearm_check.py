@@ -14,8 +14,35 @@ class FakeMav:
     def __init__(self):
         self.commands = []
 
-    def command_long_send(self, *args):
-        self.commands.append(args)
+    def command_long_send(
+        self,
+        target_system,
+        target_component,
+        command,
+        confirmation,
+        param1,
+        param2,
+        param3,
+        param4,
+        param5,
+        param6,
+        param7,
+    ):
+        self.commands.append(
+            (
+                target_system,
+                target_component,
+                command,
+                confirmation,
+                param1,
+                param2,
+                param3,
+                param4,
+                param5,
+                param6,
+                param7,
+            )
+        )
 
 
 class FakeConnection:
@@ -67,6 +94,7 @@ def test_prearm_pass_uses_ack_and_health_bit():
     )
     assert result.passed
     assert connection.mav.commands[0][2] == PREARM_COMMAND
+    assert connection.mav.commands[0][3:] == (0,) * 8
 
 
 def test_prearm_failure_collects_unique_failure_messages():

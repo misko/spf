@@ -562,7 +562,7 @@ class Drone:
             logging.info(
                 f"Planner wait for drone ready: gps:{str(self.gps)} , ekf:{str(self.ekf_healthy)}"
             )
-            time.sleep(10)
+            time.sleep(2)
 
         if self.ignore_mode:
             time.sleep(2)
@@ -572,12 +572,12 @@ class Drone:
 
         else:
             while self.mav_mode != "ROVER_MODE_MANUAL":
-                time.sleep(10)
+                time.sleep(2)
                 logging.info("waiting for rover to move into manual mode...")
                 self.buzzer(tones["wait"])
 
             while self.mav_mode != "ROVER_MODE_GUIDED":
-                time.sleep(10)
+                time.sleep(2)
                 logging.info("waiting for rover to move into guided mode...")
                 self.buzzer(tones["ready"])
 
@@ -1292,9 +1292,12 @@ def mavlink_controller_run(args):
             while drone.last_heartbeat == 0:
                 time.sleep(0.1)
             logging.info("GPS-time: waiting for gps time")
+            # NB: this can exit on a 3D fix while gps_time is still 0, yielding a
+            # 1970 timestamp; drone_run.sh sync_gps_time guards `date -s` against
+            # that so the system clock is never set to 1970 (poll shortened 5->1s).
             while drone.gps_time == 0 and drone.gps_fix_type != "GPS_FIX_TYPE_3D_FIX":
                 drone.buzzer(tones["gps-time"])
-                time.sleep(5)
+                time.sleep(1)
 
             gps_time = datetime.fromtimestamp(drone.gps_time).strftime(
                 "%Y-%m-%d %H:%M:%S"

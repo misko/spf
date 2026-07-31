@@ -100,7 +100,8 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
 def test_every_production_boot_waits_for_firmware_loader_by_default():
     production_unit = (ROVER_ROOT / "mavlink_controller.service").read_text()
     assert "Requires=spf-pluto-direct-usb.service" in production_unit
-    assert "After=network-online.target spf-pluto-direct-usb.service" in production_unit
+    assert "After=spf-pluto-direct-usb.service" in production_unit
+    assert "\nAfter=network-online.target" not in production_unit
     assert "EnvironmentFile=-/etc/spf/rover_collection.env" in production_unit
 
     loader_unit = (ROVER_ROOT / "spf-pluto-direct-usb.service").read_text()
