@@ -9,18 +9,10 @@ from datetime import datetime
 import yaml
 from pymavlink import mavutil
 
-from spf.data_collector import (
-    DroneDataCollectorRaw,
-    DroneDataCollectorRawV6,
-    DroneDataCollectorRawV7,
-)
 from spf.capture_schema import (
     normalize_capture_config,
     validate_transport_schema,
 )
-from spf.dataset.spf_dataset import training_only_keys, v5inferencedataset
-from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
-from spf.distance_finder.distance_finder_controller import DistanceFinderController
 from spf.gps.boundaries import boundaries  # crissy_boundary_convex
 from spf.gps.boundaries import find_closest_boundary
 from spf.mavlink.mavlink_controller import (
@@ -28,7 +20,6 @@ from spf.mavlink.mavlink_controller import (
     drone_get_planner,
     get_ardupilot_serial,
 )
-from spf.scripts.train_utils import load_config_from_fn
 from spf.utils import (
     DataVersionNotImplemented,
     filenames_from_time_in_seconds,
@@ -223,6 +214,10 @@ if __name__ == "__main__":
     # A fake-drone run must be hardware-independent.  In particular, do not
     # initialize RPi.GPIO merely because the tests happen to run on a Pi.
     if is_pi() and args.ultrasonic and not args.fake_drone:
+        from spf.distance_finder.distance_finder_controller import (
+            DistanceFinderController,
+        )
+
         distance_finder = DistanceFinderController(
             trigger=yaml_config["distance-finder"]["trigger"],
             echo=yaml_config["distance-finder"]["echo"],
@@ -257,6 +252,16 @@ if __name__ == "__main__":
         )
         time.sleep(2)
 
+    # The collector imports NumPy/Torch, Zarr, and the SDR stack. Keep them off
+    # the preflight critical path so MAVLink status and readiness monitoring
+    # begin promptly after boot. Collector construction remains in the same
+    # place below, after navigation readiness and planner setup.
+    from spf.data_collector import (
+        DroneDataCollectorRaw,
+        DroneDataCollectorRawV6,
+        DroneDataCollectorRawV7,
+    )
+
     boundary_name = yaml_config.get("boundary", "franklin_safe")
     if boundary_name == "auto":
         # find out which one is closest
@@ -280,6 +285,8 @@ if __name__ == "__main__":
 
     if args.checkpoint:
         # load model config and use that theta
+        from spf.scripts.train_utils import load_config_from_fn
+
         config = load_config_from_fn(args.checkpoint_config)
         assert args.nthetas is None, "nthetas cannot be set when loading checkpoint"
         args.nthetas = config["global"]["nthetas"]
@@ -288,6 +295,9 @@ if __name__ == "__main__":
         args.nthetas = 65
 
     if args.realtime:
+        from spf.dataset.spf_dataset import training_only_keys, v5inferencedataset
+        from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
+
         v5inf = v5inferencedataset(
             yaml_fn=temp_filenames["yaml"],
             nthetas=args.nthetas,

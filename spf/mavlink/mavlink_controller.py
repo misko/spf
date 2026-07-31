@@ -1235,7 +1235,6 @@ def mavlink_controller_run(args):
             # 1970 timestamp; drone_run.sh sync_gps_time guards `date -s` against
             # that so the system clock is never set to 1970 (poll shortened 5->1s).
             while drone.gps_time == 0 and drone.gps_fix_type != "GPS_FIX_TYPE_3D_FIX":
-                drone.buzzer(tones["gps-time"])
                 time.sleep(1)
 
             gps_time = datetime.fromtimestamp(drone.gps_time).strftime(

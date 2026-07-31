@@ -154,23 +154,25 @@ maybe_self_update() {
         printf 'No internet connectivity; continuing with checked-out code.\n'
         return 0
     fi
-    sleep 3  # brief settle before apt/git, only when actually online
-
-    "$PYTHON" "$MAVLINK_CONTROLLER" --buzzer git
     printf 'Checking for repository updates.\n'
-    bash "${SCRIPT_DIR}/install_deps.sh"
     current_hash="$(git -C "$REPO_ROOT" rev-parse --verify HEAD)"
     git -C "$REPO_ROOT" pull --ff-only
     new_hash="$(git -C "$REPO_ROOT" rev-parse --verify HEAD)"
-    if [[ "$current_hash" != "$new_hash" ]]; then
-        printf 'Repository updated; reconciling boot units before reboot.\n'
-        reconcile_boot_units_or_reboot
-        printf 'Repository changed without boot-unit drift; rebooting.\n'
-        sleep 15
-        sudo reboot
-        exit 0
+    if [[ "$current_hash" == "$new_hash" ]]; then
+        printf 'Repository is unchanged; skipping dependency reinstall.\n'
+        return 0
     fi
+
+    "$PYTHON" "$MAVLINK_CONTROLLER" --buzzer git
+    printf 'Repository updated; refreshing dependencies and editable install.\n'
+    bash "${SCRIPT_DIR}/install_deps.sh"
     "$PYTHON" -m pip install -e "$REPO_ROOT"
+    printf 'Repository updated; reconciling boot units before reboot.\n'
+    reconcile_boot_units_or_reboot
+    printf 'Repository changed without boot-unit drift; rebooting.\n'
+    sleep 15
+    sudo reboot
+    exit 0
 }
 
 wait_for_radios() {
@@ -225,7 +227,20 @@ sync_vehicle_configuration() {
     fi
 }
 
+system_clock_is_plausible() {
+    # Raspberry Pi 5 has an RTC and may also have NTP. A plausible clock is
+    # sufficient for boot filenames; GPS UTC is refreshed after a completed
+    # capture, when the vehicle necessarily has a usable navigation solution.
+    [[ "$(date +%s)" -ge 1735689600 ]]  # 2025-01-01T00:00:00Z
+}
+
 sync_gps_time() {
+    local phase="${1:-capture}"
+    if [[ "$phase" == "boot" ]] && system_clock_is_plausible; then
+        printf '%s\n' \
+            'System clock is plausible; deferring GPS UTC refresh until after capture.'
+        return 0
+    fi
     # --get-time blocks until the FC has GPS UTC time. Bound the first attempt so
     # a no-sky / cold-TTFF boot cannot hang forever before the governor and
     # capture loop; the loop below keeps re-syncing and sets the clock the moment
@@ -292,7 +307,7 @@ main() {
     fi
 
     sync_vehicle_configuration
-    sync_gps_time
+    sync_gps_time boot
     printf 'performance\n' | sudo tee \
         /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null
 
@@ -300,7 +315,7 @@ main() {
         run_capture
         is_true "$RUN_ONCE" && break
         sleep 8
-        sync_gps_time
+        sync_gps_time capture
         sleep 2
     done
 }
