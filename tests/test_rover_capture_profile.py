@@ -100,7 +100,8 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
 def test_every_production_boot_waits_for_firmware_loader_by_default():
     production_unit = (ROVER_ROOT / "mavlink_controller.service").read_text()
     assert "Requires=spf-pluto-direct-usb.service" in production_unit
-    assert "After=network-online.target spf-pluto-direct-usb.service" in production_unit
+    assert "After=spf-pluto-direct-usb.service" in production_unit
+    assert "\nAfter=network-online.target" not in production_unit
     assert "EnvironmentFile=-/etc/spf/rover_collection.env" in production_unit
 
     loader_unit = (ROVER_ROOT / "spf-pluto-direct-usb.service").read_text()
@@ -132,6 +133,42 @@ def test_fresh_setup_installs_and_enables_loader_with_mavlink():
     ]
     assert "spf-pluto-direct-usb.service" in enabled_block
     assert "mavlink_controller.service" in enabled_block
+
+
+def test_boot_launcher_gates_collection_on_fresh_compass_policy_report():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    assert 'COMPASS_READY_FILE="/home/pi/compass_ready.json"' in launcher
+    assert "compass_policy.py" in launcher
+    assert 'rm -f -- "$COMPASS_READY_FILE"' in launcher
+    assert '--json-output "$COMPASS_READY_FILE"' in launcher
+
+    main_body = launcher.rsplit("main() {", 1)[1]
+    production_body = main_body.split("while true; do", 1)[0]
+    post_validation = production_body.rsplit("    fi\n", 1)[1]
+    assert post_validation.index("sync_vehicle_configuration") < post_validation.index(
+        "sync_gps_time"
+    )
+
+    validation_block = production_body.split(
+        'if is_true "$BOOT_VALIDATE_ONLY"; then', 1
+    )[1].split("fi", 1)[0]
+    assert validation_block.index("read_only_vehicle_gate") < validation_block.index(
+        "verify_compass_policy_read_only"
+    )
+
+
+def test_production_parameter_sync_uses_one_combined_mavlink_session():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    sync_body = launcher.split("sync_vehicle_configuration() {", 1)[1].split("\n}", 1)[
+        0
+    ]
+
+    assert "--prepare-vehicle-params" in sync_body
+    assert '--compass-policy-json "$COMPASS_READY_FILE"' in sync_body
+    assert "--load-params" not in sync_body
+    assert "--diff-params" not in sync_body
+    assert "--save-params" not in sync_body
+    assert "verify_compass_policy_read_only" in sync_body
 
 
 def test_stock_firmware_restore_is_an_explicit_opt_out():

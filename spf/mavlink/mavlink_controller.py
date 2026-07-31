@@ -18,6 +18,7 @@ from pymavlink import mavutil
 from spf.gps.boundaries import boundary_to_diamond  # crissy_boundary_convex
 from spf.gps.boundaries import franklin_safe
 from spf.gps.gps_utils import swap_lat_long
+from spf.mavlink.compass_policy import evaluate_compass_policy
 from spf.mavlink.mavparm import MAVParmDict
 from spf.motion_planners.dynamics import Dynamics
 from spf.motion_planners.planner import (
@@ -33,6 +34,11 @@ logging.basicConfig(
     format="%(asctime)s:%(levelname)s: %(message)s",
 )
 logging.getLogger().addHandler(logging.StreamHandler())
+
+
+class VehicleParameterVerificationError(RuntimeError):
+    """Managed vehicle parameters were not acknowledged and verified."""
+
 
 EKF_STATUS_DEC_TO_STRING = {
     1: "EKF_ATTITUDE",
@@ -602,7 +608,7 @@ class Drone:
                     self.move_to_point(point)
                 self.planner_in_control = True
                 # time.sleep(2)
-                
+
         self.planner_in_control = False
 
     def get_cmd(self, cmd):
@@ -1042,6 +1048,44 @@ def get_ardupilot_serial():
     return available_pilots[0]
 
 
+def prepare_vehicle_parameters(drone, parameter_file):
+    """Load, verify, and evaluate one complete in-memory parameter snapshot.
+
+    The initial full download verifies every unchanged value. ``MAVParmDict``
+    updates changed values only after the flight controller echoes a matching
+    ``PARAM_VALUE`` acknowledgement. The final diff and compass policy
+    therefore reuse one authoritative session without another full download.
+    """
+    parameter_file = os.fspath(parameter_file)
+    if not os.path.isfile(parameter_file):
+        raise FileNotFoundError(f"Parameter file does not exist: {parameter_file}")
+    if not drone.update_all_parameters():
+        raise VehicleParameterVerificationError(
+            "Could not download the complete vehicle parameter set"
+        )
+
+    drone.single_operation_mode_on()
+    try:
+        drone.disarm()
+        time.sleep(0.02)
+        drone.params.load(parameter_file, mav=drone.connection)
+    finally:
+        drone.single_operation_mode_off()
+
+    differences = drone.params.diff(parameter_file)
+    if differences:
+        raise VehicleParameterVerificationError(
+            f"Managed parameter verification found {differences} differences"
+        )
+    return evaluate_compass_policy(drone.params)
+
+
+def write_compass_policy_report(report, output_path):
+    with open(output_path, "w") as output_file:
+        json.dump(report.to_dict(), output_file, indent=2, sort_keys=True)
+        output_file.write("\n")
+
+
 def get_mavlink_controller_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -1067,6 +1111,23 @@ def get_mavlink_controller_parser():
         "--diff-params",
         type=str,
         help="save params to this file",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--prepare-vehicle-params",
+        type=str,
+        help=(
+            "download parameters once, apply this managed parameter file, "
+            "verify acknowledgements, and evaluate compass policy"
+        ),
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--compass-policy-json",
+        type=str,
+        help="write the combined preparation's compass policy report",
         required=False,
         default=None,
     )
@@ -1248,10 +1309,38 @@ def mavlink_controller_run(args):
         args.save_params is not None
         or args.load_params is not None
         or args.diff_params is not None
+        or args.prepare_vehicle_params is not None
     ):
         while drone.last_heartbeat == 0:
             time.sleep(3)
         drone.buzzer(tones["check-diff"])
+
+        if args.prepare_vehicle_params is not None:
+            if args.compass_policy_json is None:
+                logging.error("--prepare-vehicle-params requires --compass-policy-json")
+                sys.exit(2)
+            try:
+                report = prepare_vehicle_parameters(
+                    drone,
+                    args.prepare_vehicle_params,
+                )
+            except (OSError, VehicleParameterVerificationError) as error:
+                logging.error("Vehicle parameter preparation failed: %s", error)
+                sys.exit(1)
+            write_compass_policy_report(report, args.compass_policy_json)
+            if report.external_compass is not None:
+                logging.info(
+                    "External compass slot %d, device ID %d, offset norm %.1f mG",
+                    report.external_compass.slot,
+                    report.external_compass.device_id,
+                    report.external_compass.offset_norm_mg,
+                )
+            for warning in report.warnings:
+                logging.warning("Compass policy: %s", warning)
+            for error in report.errors:
+                logging.error("Compass policy: %s", error)
+            sys.exit(0 if report.ok else 1)
+
         drone.update_all_parameters()
 
         if args.diff_params is not None:
@@ -1280,6 +1369,7 @@ def mavlink_controller_run(args):
 
     while True:
         time.sleep(200)
+
 
 def set_drone_mode(drone,mode):
     target_mode = mode.upper()

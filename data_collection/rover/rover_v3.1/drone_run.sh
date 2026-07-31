@@ -13,8 +13,11 @@ readonly PROFILE_ENV="/etc/spf/rover_collection.env"
 readonly READY_FILE="/run/spf/direct_usb_ready.json"
 readonly DEVICE_MAPPING="/home/pi/device_mapping"
 readonly MAVLINK_CONTROLLER="${REPO_ROOT}/spf/mavlink/mavlink_controller.py"
+readonly COMPASS_POLICY_CHECKER="${REPO_ROOT}/spf/mavlink/compass_policy.py"
 readonly BOOT_UNIT_RECONCILER="${SCRIPT_DIR}/reconcile_rover_boot_units.sh"
 readonly PARAMS_FILE="/home/pi/this_rover.params"
+readonly COMPASS_PARAMS_FILE="/home/pi/this_rover_full.params"
+readonly COMPASS_READY_FILE="/home/pi/compass_ready.json"
 readonly TIME_FILE="/home/pi/time"
 
 die() {
@@ -207,21 +210,30 @@ verify_direct_ready() {
 }
 
 sync_vehicle_configuration() {
-    is_true "$SKIP_PARAMETER_SYNC" && return 0
+    if is_true "$SKIP_PARAMETER_SYNC"; then
+        verify_compass_policy_read_only
+        return 0
+    fi
     sed "s/__ROVER_ID__/${rover_id}/g" \
         < <(cat \
             "${SCRIPT_DIR}/rover3_base_parameters.params" \
             "${SCRIPT_DIR}/rover3_rc_servo_parameters.params") \
         >"$PARAMS_FILE"
-    # Verify-first: the committed params already match on a normal boot, so skip
-    # the write (and its full ~1300-param FC fetch over 115200 serial) when the
-    # diff is already clean. --diff-params exits with the diff count (0 == match).
-    if "$PYTHON" "$MAVLINK_CONTROLLER" --diff-params "$PARAMS_FILE"; then
-        return 0
+    rm -f -- "$COMPASS_READY_FILE"
+    if ! "$PYTHON" "$MAVLINK_CONTROLLER" \
+        --prepare-vehicle-params "$PARAMS_FILE" \
+        --compass-policy-json "$COMPASS_READY_FILE"; then
+        die "Vehicle parameter or compass policy verification failed."
     fi
-    "$PYTHON" "$MAVLINK_CONTROLLER" --load-params "$PARAMS_FILE"
-    if ! "$PYTHON" "$MAVLINK_CONTROLLER" --diff-params "$PARAMS_FILE"; then
-        die "Vehicle parameter verification failed after loading parameters."
+}
+
+verify_compass_policy_read_only() {
+    # Boot validation performs no managed parameter writes.
+    rm -f -- "$COMPASS_READY_FILE"
+    "$PYTHON" "$MAVLINK_CONTROLLER" --save-params "$COMPASS_PARAMS_FILE"
+    if ! "$PYTHON" "$COMPASS_POLICY_CHECKER" "$COMPASS_PARAMS_FILE" \
+        --json-output "$COMPASS_READY_FILE"; then
+        die "Compass policy verification failed; refusing collection and motion."
     fi
 }
 
@@ -287,6 +299,7 @@ main() {
 
     if is_true "$BOOT_VALIDATE_ONLY"; then
         read_only_vehicle_gate
+        verify_compass_policy_read_only
         printf 'PASS: boot validation stopped before parameter writes or collection.\n'
         return 0
     fi

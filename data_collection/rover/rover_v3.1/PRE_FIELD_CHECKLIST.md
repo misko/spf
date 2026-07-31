@@ -408,6 +408,18 @@ slot. Recalibrate outdoors with the assembled vehicle away from steel,
 magnets, high-current wiring, SDRs, and the Pi. Then rerun this gate and the
 normal ArduPilot pre-arm check.
 
+The production boot launcher combines managed parameter synchronization,
+acknowledgement verification, and this policy gate in one MAVLink session with
+one full parameter download. Unchanged values come from that complete
+snapshot; changed values are accepted only after matching `PARAM_VALUE`
+acknowledgements; the resulting in-memory set is diffed and evaluated before
+GPS-time synchronization, capture, arming, or motion. This replaces the two
+full downloads previously used for load-plus-diff, so the policy gate adds no
+normal production boot delay. It invalidates
+`/home/pi/compass_ready.json` before every check and refuses to continue on
+failure. `SPF_BOOT_VALIDATE_ONLY=1` and `SPF_SKIP_PARAMETER_SYNC=1` use one
+read-only download and perform no managed parameter writes.
+
 For offline diagnosis, evaluate a saved MAVProxy/Mission Planner parameter
 export without opening the vehicle:
 
