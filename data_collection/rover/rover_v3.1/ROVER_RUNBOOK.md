@@ -340,11 +340,18 @@ Base ArduPilot param block (`spf/ardupilot/ardupilot_setup.md`): `RC1/2_MAX 2006
 
 ## 4. Update flow (boot-time self-update)
 
-On every production boot systemd runs `drone_run.sh` (unit
-`mavlink_controller.service`,
-`ExecStart=/home/pi/spf/data_collection/rover/rover_v3.1/drone_run.sh`,
-`Requires/After=spf-pluto-direct-usb.service`). The firmware service runs
-first as root, checksum-verifies and RAM-loads the exact configured image,
+On every production boot systemd first runs `spf-rover-update.service`. Only
+after that succeeds may `spf-pluto-direct-usb.service` run, and only after the
+firmware service succeeds may `mavlink_controller.service` start
+`drone_run.sh`. The enforced SPF order is:
+
+```text
+repository update + unit reconciliation
+    -> Pluto firmware/discovery
+    -> MAVLink configuration and collection
+```
+
+The firmware service checksum-verifies and RAM-loads the exact configured image,
 regenerates `~/device_mapping`, and writes
 `/run/spf/direct_usb_ready.json`.
 The ready manifest also carries the passive, session-bound hardware
@@ -363,9 +370,9 @@ root-managed
 `/etc/spf/rover_collection.env` contains bounded test overrides; normal
 production needs no profile switch.
 
-Before any network check, parameter write, or mission activity, the launcher
-compares the three committed Rover unit files with `/etc/systemd/system` and
-checks that the firmware loader and mission units are enabled. This
+Before any radio check, parameter write, or mission activity, the updater
+compares the four committed Rover unit files with `/etc/systemd/system` and
+checks that the updater, firmware loader, and mission units are enabled. This
 reconciliation runs even when self-update is disabled or the Rover is offline.
 Changed units are installed atomically, hash-verified, enabled, and recorded in
 `/var/lib/spf/boot-unit-reconcile-attempt` before one reboot is requested. On
@@ -374,25 +381,28 @@ desired Git commit and unit hashes are still inconsistent, the launcher fails
 closed without rebooting again. Installation, verification, `daemon-reload`,
 or enablement failures also stop without rebooting.
 
-Unless `SPF_SKIP_SELF_UPDATE=1`, the launcher then self-updates before the
-mission loop:
+Unless `SPF_SKIP_SELF_UPDATE=1`, the updater performs a bounded fetch of
+`origin/main` before any Pluto operation. The default remote budget is 12
+seconds (`SPF_UPDATE_REMOTE_WAIT_SECONDS`) with a four-second timeout per Git
+attempt (`SPF_UPDATE_GIT_TIMEOUT_SECONDS`). If the remote cannot be reached,
+boot continues from the local checkout. If `origin/main` is newer, the updater:
 
 ```bash
-sleep 10; ping -c 1 8.8.8.8                                                   # internet gate; skip whole update block if no net
-python /home/pi/spf/spf/mavlink/mavlink_controller.py --buzzer git            # chirp: entering update
-bash ${repo_root}/data_collection/.../install_deps.sh                         # reinstall apt deps
-pushd /home/pi/spf; current_hash=`git rev-parse --short HEAD`; git pull; new_hash=`git rev-parse --short HEAD`
-# if HEAD changed: reconcile+verify units; sleep 15 (operator window) -> reboot
-# else:            pip install -e ${repo_root}  and continue
+git fetch origin main                 # bounded by the updater
+git merge --ff-only <fetched-main>
+bash data_collection/rover/rover_v3.1/install_deps.sh
+python -m pip install -e /home/pi/spf
+data_collection/rover/rover_v3.1/reconcile_rover_boot_units.sh
+# reboot once; the next boot sees an unchanged checkout and proceeds to radios
 ```
 
-If the ping fails, collection continues with the checked-out code. A changed
-HEAD causes the historical 15-second interrupt window followed by a reboot.
-An update that changes the root-managed units can take two convergence reboots:
-the first enters the new checkout and the second activates its verified units.
-The third start is stable. The persistent attempt record prevents this bounded
-sequence from becoming a reboot loop. Update pulls are `--ff-only`, and vehicle
-parameter differences fail closed.
+No ping is used: a successful Git fetch is the connectivity test that matters.
+A tracked-dirty, staged, locally-ahead, or diverged checkout is never reset or
+overwritten; it fails closed with a journal error. A changed checkout or changed
+unit set requests one reboot. On the next boot the remote commit and installed
+units match, so no second update reboot occurs. The persistent reconciliation
+attempt record independently prevents unit-installation drift from creating a
+reboot loop.
 
 ### 4.1 Direct-USB qualification and production boot
 
@@ -423,6 +433,9 @@ sudo reboot
 `enable` remains an alias for `qualify`. Qualification stops/disables
 `mavlink_controller.service`, installs and enables:
 
+- `spf-rover-update.service`, a `pi` oneshot that performs the bounded,
+  fast-forward-only update and reconciles installed units before touching any
+  radio;
 - `spf-pluto-direct-usb.service`, a root oneshot that verifies both persistent
   AD9361/2r2t settings and the four dual-RX DMA scan elements, checksum-verifies
   and RAM-loads every attached/configured Pluto with the exact image,
@@ -437,7 +450,8 @@ Inspect it with:
 
 ```bash
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh status
-systemctl status spf-pluto-direct-usb.service \
+systemctl status spf-rover-update.service \
+  spf-pluto-direct-usb.service \
   spf-direct-usb-preflight.service --no-pager
 python3 -m json.tool /run/spf/direct_usb_ready.json
 ```
@@ -1035,7 +1049,7 @@ journalctl -u mavlink_controller.service | tail -n 900
 journalctl -u mavlink_controller.service | tail -n 900 | less
 journalctl -u mavlink_controller.service > ~/march8.log     # dump full log to a file
 
-# run the mission script directly, bypassing systemd (debug arg skips the self-update block, low n):
+# run the mission script directly, bypassing updater and firmware gates (debug only):
 bash /home/pi/spf/.../rover/rover_v3.1/drone_run.sh
 bash /home/pi/spf/.../rover/rover_v3.1/drone_run.sh debug
 
@@ -1100,39 +1114,29 @@ The CLI param path (`mavlink_controller.py --load-params/--diff-params`) runs **
 ### 13.1 Boot decision flowchart
 
 ```
-setup.sh <id>  (one-time provision) ── enable service ── sudo reboot        [setup.sh:164-177]
-                                                              │
-power-on ▶ systemd  (After=/Wants=network-online.target; WantedBy=multi-user.target)
-           │   ⚠ NO Restart= in the unit → if drone_run.sh ever exits, the rover stays DEAD
-           ▼
-   drone_run.sh   (ExecStart, NO args)                                       [service:11]
-           │
-   $# -eq 0 ?  ──any arg──▶  TETHERED/DEBUG: SKIP ssh-config + entire update block (lines 10-41)
-           │ yes                                                    │
-   sleep 10 ; ping -c1 8.8.8.8                              [15-16] │
-           │                                                        │
-   internet? ── no ──▶  SKIP update block (18-39) ─────────────────┤
-           │ yes                                                    │
-   buzzer "git"                                            [18]     │
-   install_deps.sh  (apt update/install)                  [21]     │
-   git pull ; compare short HEAD                           [23-25] │
-   HEAD changed? ── yes ─▶ sleep 15 (only interrupt window) ─▶ reinstall+enable service ─▶ sudo REBOOT ↺  [26-33]
-           │ no                                                     │
-   pip install -e ${repo_root}                             [38]     │
-           └────────────────────────┬───────────────────────────────┘
-                                    ▼
-   MISSION PREP  (ALWAYS — both internet and tethered paths):
-     • build this_rover.params → --load-params → --diff-params   ⚠ NON-FATAL on mismatch   [47-53]
-     • --get-time → sudo date -s      (clock from GPS via MAVLink, NOT NTP)                 [56-57]
-     • echo performance → scaling_governor                                                  [59]
-     • rover_id → routine / config / n / expected_radios                                    [61-80]
-     • RADIO-COUNT GATE: block until `lsusb|grep ADALM|wc -l` == expected  ⚠ hangs forever  [82-90]
-     • check_and_set_pluto.sh   (⚠ also blocks forever if pluto @192.168.2.1 unreachable)   [95]
-                                    ▼
-   INFINITE CAPTURE LOOP  (while true):                                                     [97-111]
-     no-args :  mavlink_radio_collection.py -c <cfg> -m device_mapping -r <routine> -t RO<id> -n <n>
-     with-arg:  …same…  -n 40 --drone-uri tcp:192.168.1.141:14590 --no-ultrasonic
-     sleep 8 ; re-`--get-time`+`date -s` ; sleep 2 ; repeat
+setup.sh <id> (one-time) ── install/enable units ── reboot
+                                                    │
+power-on ▶ spf-rover-update.service                 │
+           ├─ bounded `git fetch origin main`       │
+           ├─ offline: use local checkout           │
+           ├─ update: fast-forward + deps + units ──┴─ reboot once
+           └─ dirty/diverged/install error: FAIL CLOSED
+                         │
+                         ▼
+           spf-pluto-direct-usb.service
+           ├─ verify configured radio count and identity
+           ├─ verify persistent 2R2T + firmware over USB-IIO
+           ├─ RAM-load only when required; re-enumerate
+           ├─ write device_mapping + ready manifest
+           └─ missing radio: alarm for 45s → operator cancel or poweroff
+                         │
+                         ▼
+           mavlink_controller.service → drone_run.sh
+           ├─ resolve canonical per-rover V7 plan
+           ├─ verify ready manifest
+           ├─ verify/write ArduPilot parameters
+           ├─ defer GPS UTC when system clock is plausible
+           └─ run the configured capture loop
 ```
 
 ### 13.2 Per-rover selection (production `drone_run.sh:61-80`)
@@ -1149,8 +1153,14 @@ power-on ▶ systemd  (After=/Wants=network-online.target; WantedBy=multi-user.t
 ### 13.3 The five sequences
 
 - **first-boot-after-provision** — `setup.sh <id>` flashes ArduPilot (Rover 4.5.0 fmuv3), copies+`enable`s the unit (`setup.sh:164-166`), then `sudo reboot` (`:177`). The next boot auto-runs `drone_run.sh` (no args) → one of the two production sequences below.
-- **production-boot-with-internet** — the full flowchart left branch: `buzzer git` → `install_deps` → `git pull` → **if HEAD changed: `sleep 15` then `sudo reboot`** (converges on next boot since the pull is now a no-op); else `pip install -e` → mission prep → capture loop.
-- **production-boot-no-internet** — `ping` fails → the entire update block (18-39) is skipped (no buzzer/apt/pull/reboot/pip) → straight to mission prep → capture loop. The rover needs no internet to run (clock comes from GPS, not NTP).
+- **production-boot-with-internet** — `spf-rover-update.service` fetches
+  `origin/main` before radio preparation. If `HEAD` changes it refreshes
+  dependencies, reconciles units, and requests one reboot; otherwise it skips
+  installation and immediately releases the Pluto prerequisite.
+- **production-boot-no-internet** — the bounded Git fetch expires, logs that
+  local code is being used, reconciles local units, and releases the Pluto
+  prerequisite. The rover needs no internet to run (clock comes from GPS, not
+  NTP).
 - **debug-run** — `debug_drone_run.sh`: single `--fake-drone -n 50 --temp /dev/shm/` run, no update/params/GPS/radio-gate/pluto, no MAVLink vehicle. (Or `drone_run.sh <arg>` → skips only update, still enforces params/radio-gate/pluto, then the tethered loop.)
 - **tethered-manual-run** — `drone_run.sh <arg>`: update skipped; still loads params, sets GPS time, **enforces the radio-count gate and pluto config**, then loops `-n 40 --drone-uri tcp:192.168.1.141:14590 --no-ultrasonic`. The tether URI/port is **hard-coded** — a GCS at a different address silently fails to connect.
 
@@ -1265,7 +1275,7 @@ The tone strings live in `spf/mavlink/mavlink_controller.py:162-170` (`tones` di
 
 | Tone | WAV | MML | When you hear it |
 |---|---|---|---|
-| `git` | [git.wav](./tones/git.wav) | `MFT240L4 <F P2 F P4 L8dcdc` | **Once at boot, only with internet** — right before the apt/git self-update block (`drone_run.sh:18`). Offline boots are silent here. |
+| `git` | [git.wav](./tones/git.wav) | `MFT240L4 <F P2 F P4 L8dcdc` | Defined for manual diagnostics. The early updater is intentionally independent of MAVLink/FC hardware and does not play a tune. Follow `spf-rover-update.service` in the journal instead. |
 | `check-diff` | [check-diff.wav](./tones/check-diff.wav) | `MFT240L8 A B P4 A B P4 L8dcdc` | Start of any param save/load/diff (`mavlink_controller.py:1142`) after first heartbeat — a production boot plays it **twice** (`--load-params`, then `--diff-params`). |
 | `gps-time` | [gps-time.wav](./tones/gps-time.wav) | `MFT240L8 C C C P4 C C C P4 L8dcdcdcdc` | Once when `--get-time` starts, then **repeats every 5 s while there is no GPS time / no 3D fix** (L1120-1127). A looping gps-time means the boot is stalled waiting for GPS. |
 | `failure` | [failure.wav](./tones/failure.wav) | `MFT240L8 D D D P4 D D D P4 L8dddddc` | **Every 15 s while the radio-count gate is unsatisfied** (`drone_run.sh:88`) — a Pluto is missing/unenumerated and boot is blocked (§13.4). |
@@ -1273,7 +1283,7 @@ The tone strings live in `spf/mavlink/mavlink_controller.py:162-170` (`tones` di
 | `ready` | [ready.wav](./tones/ready.wav) | `MFT240L8 G P8 <G P8 <G P8 >>G P8 <G P8 <G` | Every 10 s while waiting for **MANUAL → GUIDED** (S3, L506). Same descending G-G-G motif as `wait` but with eighth rests instead of quarter — the **snappier** cascade (1.4 s vs 2.0 s) means "flip to GUIDED now". |
 | `planner` | [planner.wav](./tones/planner.wav) | `MFT240L8 G G F F P4 G G F F P4 L8dc` | **Defined but never played** anywhere in-tree (vestigial). |
 
-**Field diagnosis by ear:** `git` = boot found internet → expect a possible self-update reboot within ~30 s (§13.1's 15 s window). `check-diff` ×2 = params stage running. Looping `gps-time` = no GPS fix — move for sky view. Looping `failure` = check Pluto USB/power (§11). `wait` = rover is healthy and wants **MANUAL**; `ready` = wants **GUIDED**; after `ready` stops, the rover arms and drives (§14.3).
+**Field diagnosis by ear:** repository update is silent and precedes access to the flight controller. `check-diff` ×2 = params stage running. Looping `gps-time` = no GPS fix — move for sky view. Looping `failure` = check Pluto USB/power (§11). `wait` = rover is healthy and wants **MANUAL**; `ready` = wants **GUIDED**; after `ready` stops, the rover arms and drives (§14.3).
 
 Play any tone by hand against a connected FC: `python spf/mavlink/mavlink_controller.py --ip <fc-ip> --port 14591 --proto tcp --buzzer <name>` — the CLI also accepts a **raw MML string** in place of a name (`mavlink_controller.py:1061-1070`). Regenerate the WAVs with `python3 make_tones.py` (no dependencies).
 

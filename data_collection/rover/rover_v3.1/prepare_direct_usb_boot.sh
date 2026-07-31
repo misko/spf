@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Root-only boot preparation for the recoverable multi-Pluto direct-USB path.
-# This script never writes Pluto QSPI.
+# The normal matching path is read-only. An explicit active-firmware mismatch
+# may update only the Pluto firmware partition in QSPI via pluto.frm.
 
 set -euo pipefail
 
@@ -9,6 +10,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LOADER="${SCRIPT_DIR}/load_direct_usb_firmware.sh"
 readonly MAPPING_SCRIPT="${SCRIPT_DIR}/device_mapping.sh"
+readonly RADIO_MISSING_HANDLER="${SCRIPT_DIR}/radio_missing_shutdown.sh"
 readonly READY_FILE="${SPF_DIRECT_USB_READY_FILE:-/run/spf/direct_usb_ready.json}"
 readonly READY_DIR="$(dirname -- "$READY_FILE")"
 
@@ -113,9 +115,12 @@ while true; do
         "$attached_radios" "$configured_radios"
     sleep 1
 done
-[[ "$attached_radios" -gt 0 ]] || die "No runtime Pluto radios are attached."
-[[ "$attached_radios" -eq "$configured_radios" ]] ||
+if [[ "$attached_radios" -lt "$configured_radios" ]]; then
+    "$RADIO_MISSING_HANDLER" "$configured_radios" "$attached_radios"
+    die "Config has ${configured_radios} receivers but only ${attached_radios} Plutos are attached."
+elif [[ "$attached_radios" -gt "$configured_radios" ]]; then
     die "Config has ${configured_radios} receivers but ${attached_radios} Plutos are attached."
+fi
 
 # The persistent AD9361/2r2t configuration is established once during Rover
 # provisioning (check_and_set_pluto.sh); it is NOT re-checked per boot. That
@@ -129,10 +134,9 @@ if is_true "$RAM_LOAD"; then
 else
     # Default: ensure the gain/RSSI image is persistently in QSPI. Downloads/verifies
     # the pinned image into the local cache (no network if already cached), then
-    # flashes pluto.frm (mtd3 only) to any radio whose running firmware != expected.
-    # Radios are addressed by USB serial via their mass-storage device -- no ssh,
-    # no shared 192.168.2.1 -- so radios already on the expected build are skipped
-    # with no DFU dance and no reboot.
+    # reads each active version over USB-IIO. A matching radio never mounts its
+    # updater volume. Only an explicit mismatch opens that serial's mass-storage
+    # device to flash pluto.frm (mtd3 only). No ssh/shared-192.168.2.1 race.
     run_loader download
     SPF_PLUTO_EXPECTED_DEVICE_FW="$EXPECTED_DEVICE_FW" \
     SPF_FIRMWARE_DFU="${FIRMWARE_CACHE}/${firmware_asset_name}" \

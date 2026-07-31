@@ -171,6 +171,10 @@ tones = {
     "wait": "MFT240L8 G P4 < G P4 < G P4 > > G P4 < G P4 < G",
     "ready": "MFT240L8 G P8 < G P8 < G P8 > > G P8 < G P8 < G",
     "failure": "MFT240L8 D D D P4 D D D P4 L8dddddc",
+    # A short, unobtrusive double chirp for the 15-second readiness watchdog.
+    "readiness-wait": "MFT240L8 G P8 G",
+    # Three long descending notes, deliberately unlike the GPS/check tones.
+    "radio-missing": "MFT180L4 A F D P2",
 }
 tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
 
@@ -1611,7 +1615,6 @@ def mavlink_controller_run(args):
             # 1970 timestamp; drone_run.sh sync_gps_time guards `date -s` against
             # that so the system clock is never set to 1970 (poll shortened 5->1s).
             while drone.gps_time == 0 and drone.gps_fix_type != "GPS_FIX_TYPE_3D_FIX":
-                drone.buzzer(tones["gps-time"])
                 time.sleep(1)
 
             gps_time = datetime.fromtimestamp(drone.gps_time).strftime(
