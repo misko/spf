@@ -63,14 +63,19 @@ blkdev_for_serial() {  # $1=serial -> /dev/sdX (or fail)
     return 1
 }
 
-read_version() {  # $1=/dev/sdX -> running device-fw string (from the MSD info page)
-    local d="$1" v=""
+# A radio is "on expected" iff its mass-storage info page -- regenerated on every
+# Pluto boot with the running device-fw -- CONTAINS the exact expected device-fw
+# string. A substring presence test is more robust than parsing: info.html also
+# lists u-boot, IIO and template versions, so picking "the version" by position
+# is unreliable (that read the template "v0.15" instead of the build).
+radio_on_expected() {  # $1=/dev/sdX ; returns 0 if running the expected firmware
+    local d="$1" rc=1
     [[ -b "${d}1" ]] || return 1
     mkdir -p "$MNT"
     mount -o ro "${d}1" "$MNT" 2>/dev/null || return 1
-    v="$(grep -oE 'v[0-9]+\.[0-9]+[A-Za-z0-9._-]*' "$MNT/info.html" 2>/dev/null | head -1)"
+    grep -qF "$EXPECTED_FW" "$MNT/info.html" 2>/dev/null && rc=0
     umount "$MNT" 2>/dev/null || true
-    printf '%s' "$v"
+    return "$rc"
 }
 
 build_frm() {
@@ -129,19 +134,16 @@ main() {
 
     for ser in "${serials[@]}"; do
         d="$(blkdev_for_serial "$ser")" || die "${ser}: block device vanished"
-        local ver; ver="$(read_version "$d" || true)"
-        if [[ "$ver" == "$EXPECTED_FW" ]]; then
-            printf '%s: already on expected firmware (%s); skip\n' "$ser" "$ver"
+        if radio_on_expected "$d"; then
+            printf '%s: already on expected firmware (%s); skip\n' "$ser" "$EXPECTED_FW"
             continue
         fi
-        printf '%s: running "%s", expected "%s" -> flashing\n' \
-            "$ser" "${ver:-unknown}" "$EXPECTED_FW"
+        printf '%s: not on expected firmware "%s" -> flashing\n' "$ser" "$EXPECTED_FW"
         flash_radio "$ser" "$d"
         d="$(blkdev_for_serial "$ser")" || die "${ser}: gone after flash"
-        ver="$(read_version "$d" || true)"
-        [[ "$ver" == "$EXPECTED_FW" ]] ||
-            die "${ser}: after flash running '${ver:-unknown}', expected '${EXPECTED_FW}'"
-        printf '%s: now booting expected firmware from QSPI (%s)\n' "$ser" "$ver"
+        radio_on_expected "$d" ||
+            die "${ser}: after flash NOT running expected firmware '${EXPECTED_FW}'"
+        printf '%s: now booting expected firmware from QSPI (%s)\n' "$ser" "$EXPECTED_FW"
     done
     printf 'PASS: %s Pluto(s) on expected QSPI firmware %s\n' "$EXPECTED_COUNT" "$EXPECTED_FW"
 }
