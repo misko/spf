@@ -86,9 +86,24 @@ run_loader() {
         bash "$LOADER" "$@"
 }
 
-attached_radios="$(run_loader discover-count)"
-[[ "$attached_radios" =~ ^[0-9]+$ ]] ||
-    die "Could not determine the attached Pluto count: ${attached_radios}"
+# Wait (bounded) for every configured Pluto to USB-enumerate before counting.
+# Previously the unit's network-online.target dependency incidentally delayed
+# this step until the USB tree had settled; now that the loader no longer waits
+# on the network, poll for the radios directly so a slightly-late enumeration
+# does not fail the whole boot. No LAN/internet involved (USB only).
+PLUTO_DISCOVER_TIMEOUT="${SPF_PLUTO_DISCOVER_TIMEOUT:-30}"
+attached_radios=0
+discover_deadline=$((SECONDS + PLUTO_DISCOVER_TIMEOUT))
+while true; do
+    attached_radios="$(run_loader discover-count)"
+    [[ "$attached_radios" =~ ^[0-9]+$ ]] ||
+        die "Could not determine the attached Pluto count: ${attached_radios}"
+    [[ "$attached_radios" -eq "$configured_radios" ]] && break
+    (( SECONDS < discover_deadline )) || break
+    printf 'Waiting for Plutos to enumerate: found %s of %s.\n' \
+        "$attached_radios" "$configured_radios"
+    sleep 1
+done
 [[ "$attached_radios" -gt 0 ]] || die "No runtime Pluto radios are attached."
 [[ "$attached_radios" -eq "$configured_radios" ]] ||
     die "Config has ${configured_radios} receivers but ${attached_radios} Plutos are attached."
