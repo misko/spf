@@ -1,5 +1,6 @@
 [Unit]
 Description=Ensure and verify SPF direct-USB firmware on every Pluto
+Requires=spf-rover-update.service
 # Ensure and verify direct-USB firmware on every Pluto. Matching firmware is
 # checked over USB-IIO without mounting the updater volume; only a mismatch
 # enters the persistent QSPI update path. Neither path needs LAN/internet.
@@ -7,6 +8,7 @@ Description=Ensure and verify SPF direct-USB firmware on every Pluto
 # NetworkManager-wait-online (~9.6s) to the front of the critical path. The
 # loader waits for the Plutos to USB-enumerate itself (prepare_direct_usb_boot.sh).
 After=local-fs.target
+After=spf-rover-update.service
 Before=spf-direct-usb-preflight.service
 
 [Service]

@@ -157,15 +157,17 @@ sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
 ```
 
 The boot qualification workflow is deliberately separate from the
-motion-capable `mavlink_controller.service`. Enabling it installs two units:
+motion-capable `mavlink_controller.service`. Enabling it installs three units:
 
-1. `spf-pluto-direct-usb.service` verifies the persistent AD9361/2r2t
+1. `spf-rover-update.service` performs a bounded, fast-forward-only update of
+   `origin/main` and reconciles installed boot units before any radio access.
+2. `spf-pluto-direct-usb.service` verifies the persistent AD9361/2r2t
    configuration and four dual-RX DMA scan elements, checksum-verifies and
    RAM-loads every attached/configured Pluto,
    regenerates `~/device_mapping` after final USB enumeration, and writes
    `/run/spf/direct_usb_ready.json` only after each radio has returned a valid,
    passive hardware fingerprint.
-2. `spf-direct-usb-preflight.service` requires that ready stamp, runs exactly
+3. `spf-direct-usb-preflight.service` requires that ready stamp, runs exactly
    100 motion-free fake-drone frames per receiver, reopens the final v7 Zarr,
    validates it, and writes `PASS` plus `validation.json`.
 
@@ -184,7 +186,8 @@ loop. After reboot:
 
 ```bash
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh status
-systemctl status spf-pluto-direct-usb.service \
+systemctl status spf-rover-update.service \
+  spf-pluto-direct-usb.service \
   spf-direct-usb-preflight.service --no-pager
 python3 -m json.tool /run/spf/direct_usb_ready.json
 find /home/pi/preflight/boot_direct_usb -maxdepth 2 \

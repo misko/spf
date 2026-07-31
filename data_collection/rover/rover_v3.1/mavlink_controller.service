@@ -2,9 +2,8 @@
 Description=Run mavlink controller
 Requires=spf-pluto-direct-usb.service
 # The collector talks to the FC over USB serial and the Plutos over USB; it
-# needs no LAN/internet (the only internet use, self-update, is ping-guarded and
-# skips offline). Dropping network-online.target keeps it off the boot critical
-# path so it can start as soon as the Pluto loader finishes.
+# needs no LAN/internet. Repository update is an earlier, separately bounded
+# prerequisite. This unit can start as soon as the Pluto loader finishes.
 After=spf-pluto-direct-usb.service
 
 [Service]

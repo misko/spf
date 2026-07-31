@@ -100,10 +100,12 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
 def test_every_production_boot_waits_for_firmware_loader_by_default():
     production_unit = (ROVER_ROOT / "mavlink_controller.service").read_text()
     assert "Requires=spf-pluto-direct-usb.service" in production_unit
-    assert "After=network-online.target spf-pluto-direct-usb.service" in production_unit
+    assert "After=spf-pluto-direct-usb.service" in production_unit
     assert "EnvironmentFile=-/etc/spf/rover_collection.env" in production_unit
 
     loader_unit = (ROVER_ROOT / "spf-pluto-direct-usb.service").read_text()
+    assert "Requires=spf-rover-update.service" in loader_unit
+    assert "After=spf-rover-update.service" in loader_unit
     assert "ConditionPathExists=" not in loader_unit
     assert "EnvironmentFile=-/etc/spf/direct_usb_boot.env" in loader_unit
     assert "EnvironmentFile=-/etc/spf/rover_collection.env" in loader_unit
@@ -115,22 +117,19 @@ def test_fresh_setup_installs_and_enables_loader_with_mavlink():
     assert "configure_direct_usb_boot.sh" in setup
     assert "production-default" in setup
     configure = (ROVER_ROOT / "configure_direct_usb_boot.sh").read_text()
+    assert "spf-rover-update.service" in configure
     assert "spf-pluto-direct-usb.service" in configure
     assert "cache_firmware_image" in configure
-    assert 'systemctl enable "$LOADER_UNIT" "$PRODUCTION_UNIT"' in configure
-    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
-    assert "reconcile_rover_boot_units.sh" in launcher
-    main_body = launcher.rsplit("main() {", 1)[1]
-    assert main_body.index("reconcile_boot_units_or_reboot") < main_body.index(
-        "maybe_self_update"
-    )
+    assert 'systemctl enable "$UPDATE_UNIT" "$LOADER_UNIT" "$PRODUCTION_UNIT"' in configure
     reconciler = (ROVER_ROOT / "reconcile_rover_boot_units.sh").read_text()
+    assert "spf-rover-update.service" in reconciler
     assert "spf-pluto-direct-usb.service" in reconciler
     assert "mavlink_controller.service" in reconciler
     enabled_block = reconciler.split("readonly -a ENABLED_UNITS=(", 1)[1].split(")", 1)[
         0
     ]
     assert "spf-pluto-direct-usb.service" in enabled_block
+    assert "spf-rover-update.service" in enabled_block
     assert "mavlink_controller.service" in enabled_block
 
 

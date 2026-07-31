@@ -38,16 +38,19 @@ first readiness message.
 
 The normal boot path now:
 
-1. Performs the repository update check.
-2. Skips `apt` and `pip install -e` when `HEAD` is unchanged.
-3. Performs the full dependency refresh, editable install, unit reconciliation,
+1. Runs `spf-rover-update.service` before Pluto enumeration or firmware work.
+2. Performs a bounded fetch of `origin/main`; an unavailable remote continues
+   from local code, while a dirty or non-fast-forward checkout fails closed.
+3. Reconciles the root-managed systemd units from that checkout.
+4. Skips `apt` and `pip install -e` when `HEAD` is unchanged.
+5. Performs the full dependency refresh, editable install, unit reconciliation,
    and reboot when an update actually changes `HEAD`.
-4. Verifies all committed vehicle parameters exactly as before.
-5. Uses a plausible RTC/NTP system time for boot filenames and defers GPS UTC
+6. Verifies all committed vehicle parameters exactly as before.
+7. Uses a plausible RTC/NTP system time for boot filenames and defers GPS UTC
    refresh until after a successful capture.
-6. Starts MAVLink readiness reporting before importing the heavy collector,
+8. Starts MAVLink readiness reporting before importing the heavy collector,
    Torch, Zarr, and SDR modules.
-7. Emits the GPS-time tune once when that helper is explicitly needed, rather
+9. Emits the GPS-time tune once when that helper is explicitly needed, rather
    than once per polling iteration.
 
 No firmware, radio, parameter, update, GPS-time, or collection function is
@@ -125,6 +128,7 @@ Show the current boot milestones:
 
 ```bash
 sudo journalctl -b \
+  -u spf-rover-update.service \
   -u spf-pluto-direct-usb.service \
   -u mavlink_controller.service \
   --no-pager -o short-monotonic
@@ -134,6 +138,7 @@ Show the current state:
 
 ```bash
 systemctl is-active \
+  spf-rover-update.service \
   spf-pluto-direct-usb.service \
   mavlink_controller.service
 ```

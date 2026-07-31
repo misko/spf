@@ -6,19 +6,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ROVER_ROOT = REPO_ROOT / "data_collection/rover/rover_v3.1"
 
 
-def test_unchanged_checkout_skips_dependency_reinstall():
-    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
-    update_body = launcher.split("maybe_self_update() {", 1)[1].split(
-        "\n}\n", 1
-    )[0]
-
-    unchanged_guard = 'if [[ "$current_hash" == "$new_hash" ]]'
-    assert unchanged_guard in update_body
-    assert update_body.index(unchanged_guard) < update_body.index("install_deps.sh")
-    guard_body = update_body.split(unchanged_guard, 1)[1].split("fi", 1)[0]
-    assert "return 0" in guard_body
-
-
 def test_plausible_clock_defers_blocking_gps_time_sync_at_boot():
     launcher = (ROVER_ROOT / "drone_run.sh").read_text()
 

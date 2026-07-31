@@ -20,6 +20,7 @@ readonly SYSTEMD_DIR="/etc/systemd/system"
 readonly DROPIN_DIR="${SYSTEMD_DIR}/${PRODUCTION_UNIT}.d"
 readonly DROPIN="${DROPIN_DIR}/10-direct-usb.conf"
 readonly READY_FILE="/run/spf/direct_usb_ready.json"
+readonly UPDATE_UNIT="spf-rover-update.service"
 
 die() {
     printf 'ERROR: %s\n' "$*" >&2
@@ -74,6 +75,10 @@ show_status() {
     printf 'capture_config=%s\n' "$(collection_config)"
     printf 'ram_load_disabled=%s\n' "$(ram_load_setting)"
     printf '%-34s enabled=%-10s active=%s\n' \
+        "$UPDATE_UNIT" \
+        "$(unit_state is-enabled "$UPDATE_UNIT")" \
+        "$(unit_state is-active "$UPDATE_UNIT")"
+    printf '%-34s enabled=%-10s active=%s\n' \
         "$PRODUCTION_UNIT" \
         "$(unit_state is-enabled "$PRODUCTION_UNIT")" \
         "$(unit_state is-active "$PRODUCTION_UNIT")"
@@ -99,7 +104,7 @@ install_units_and_environments() {
         die "Missing environment template: ${DIRECT_ENV_SOURCE}"
     [[ -f "$COLLECTION_ENV_SOURCE" ]] ||
         die "Missing environment template: ${COLLECTION_ENV_SOURCE}"
-    for unit in "$LOADER_UNIT" "$PREFLIGHT_UNIT" "$PRODUCTION_UNIT"; do
+    for unit in "$UPDATE_UNIT" "$LOADER_UNIT" "$PREFLIGHT_UNIT" "$PRODUCTION_UNIT"; do
         [[ -f "${SCRIPT_DIR}/${unit}" ]] ||
             die "Missing unit source: ${SCRIPT_DIR}/${unit}"
     done
@@ -117,6 +122,8 @@ install_units_and_environments() {
     else
         printf 'Preserving existing environment: %s\n' "$COLLECTION_ENV_DEST"
     fi
+    install -m 0644 "${SCRIPT_DIR}/${UPDATE_UNIT}" \
+        "${SYSTEMD_DIR}/${UPDATE_UNIT}"
     install -m 0644 "${SCRIPT_DIR}/${LOADER_UNIT}" \
         "${SYSTEMD_DIR}/${LOADER_UNIT}"
     install -m 0644 "${SCRIPT_DIR}/${PREFLIGHT_UNIT}" \
@@ -170,7 +177,7 @@ use_canonical_config() {
 
 stop_all() {
     local unit
-    for unit in "$PRODUCTION_UNIT" "$PREFLIGHT_UNIT" "$LOADER_UNIT"; do
+    for unit in "$PRODUCTION_UNIT" "$PREFLIGHT_UNIT" "$LOADER_UNIT" "$UPDATE_UNIT"; do
         systemctl stop "$unit" 2>/dev/null || true
     done
 }
@@ -186,7 +193,7 @@ enable_qualification() {
     rm -f -- "$DROPIN"
     systemctl daemon-reload
     systemctl disable "$PRODUCTION_UNIT"
-    systemctl enable "$LOADER_UNIT" "$PREFLIGHT_UNIT"
+    systemctl enable "$UPDATE_UNIT" "$LOADER_UNIT" "$PREFLIGHT_UNIT"
     printf '%s\n' \
         "PASS: 100-frame motion-free direct-USB qualification is enabled." \
         "Production collection remains disabled."
@@ -204,7 +211,7 @@ enable_default_production() {
     rm -f -- "$DROPIN"
     systemctl daemon-reload
     systemctl disable "$PREFLIGHT_UNIT"
-    systemctl enable "$LOADER_UNIT" "$PRODUCTION_UNIT"
+    systemctl enable "$UPDATE_UNIT" "$LOADER_UNIT" "$PRODUCTION_UNIT"
     printf '%s\n' \
         "PASS: RAM firmware preparation before MAVLink is enabled." \
         "The canonical Rover V7 capture config is selected by rover_id." \
@@ -223,7 +230,7 @@ enable_production() {
     rm -f -- "$DROPIN"
     systemctl daemon-reload
     systemctl disable "$PREFLIGHT_UNIT"
-    systemctl enable "$LOADER_UNIT" "$PRODUCTION_UNIT"
+    systemctl enable "$UPDATE_UNIT" "$LOADER_UNIT" "$PRODUCTION_UNIT"
     printf '%s\n' \
         "PASS: canonical V7 production boot is enabled." \
         "No service was started. Review ${COLLECTION_ENV_DEST}; use" \
@@ -241,7 +248,7 @@ restore_legacy() {
     systemctl daemon-reload
     systemctl disable "$PREFLIGHT_UNIT"
     systemctl disable "$PRODUCTION_UNIT"
-    systemctl enable "$LOADER_UNIT"
+    systemctl enable "$UPDATE_UNIT" "$LOADER_UNIT"
     printf '%s\n' \
         "PASS: explicit stock-QSPI recovery policy is enabled." \
         "The firmware prerequisite still runs before MAVLink but exits without" \
