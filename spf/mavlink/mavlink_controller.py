@@ -1366,12 +1366,19 @@ class Drone:
                 self.armed,
                 self.motor_active,
             )
-            result = subprocess.run(["sudo", "shutdown", "0"], check=False)
-            if result.returncode != 0:
-                logging.error(
-                    "RC shutdown command failed with return code %d",
-                    result.returncode,
-                )
+            try:
+                result = subprocess.run(["sudo", "shutdown", "0"], check=False)
+            except (OSError, subprocess.SubprocessError) as error:
+                logging.exception("RC shutdown command failed: %s", error)
+            else:
+                if result.returncode != 0:
+                    logging.error(
+                        "RC shutdown command failed with return code %d",
+                        result.returncode,
+                    )
+            # An accepted shutdown owns this RC message. Do not combine it
+            # with reboot, compass-calibration, or distance-finder actions.
+            return
         if msg.chan10_raw > 1500:  # run compass calibration
             self.run_compass_calibration()
         if msg.chan7_raw > 1500:
