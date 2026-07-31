@@ -355,6 +355,10 @@ Also verify:
 - [ ] Rover 1/3 show two Plutos; Rover 2 shows one.
 - [ ] USB physical ports agree with `device_mapping` and the receiver-port
       assignments.
+- [ ] Confirm the 15-second GPS/EKF readiness chirp is audible, or deliberately
+      create `~/disable_annoying_tones` when quiet operation is required.
+- [ ] Confirm operators know that three descending missing-radio alarms are
+      followed by a clean shutdown and require a physical power cycle.
 - [ ] Both channels and antenna cables are connected to every receiver.
 - [ ] YAML antenna spacing equals the measured physical spacing.
 - [ ] Pi Wi-Fi is disabled.

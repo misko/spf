@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LOADER="${SCRIPT_DIR}/load_direct_usb_firmware.sh"
 readonly MAPPING_SCRIPT="${SCRIPT_DIR}/device_mapping.sh"
+readonly RADIO_MISSING_HANDLER="${SCRIPT_DIR}/radio_missing_shutdown.sh"
 readonly READY_FILE="${SPF_DIRECT_USB_READY_FILE:-/run/spf/direct_usb_ready.json}"
 readonly READY_DIR="$(dirname -- "$READY_FILE")"
 
@@ -113,9 +114,12 @@ while true; do
         "$attached_radios" "$configured_radios"
     sleep 1
 done
-[[ "$attached_radios" -gt 0 ]] || die "No runtime Pluto radios are attached."
-[[ "$attached_radios" -eq "$configured_radios" ]] ||
+if [[ "$attached_radios" -lt "$configured_radios" ]]; then
+    "$RADIO_MISSING_HANDLER" "$configured_radios" "$attached_radios"
+    die "Config has ${configured_radios} receivers but only ${attached_radios} Plutos are attached."
+elif [[ "$attached_radios" -gt "$configured_radios" ]]; then
     die "Config has ${configured_radios} receivers but ${attached_radios} Plutos are attached."
+fi
 
 # The persistent AD9361/2r2t configuration is established once during Rover
 # provisioning (check_and_set_pluto.sh); it is NOT re-checked per boot. That

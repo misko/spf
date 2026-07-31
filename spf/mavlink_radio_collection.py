@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 
 import yaml
 from pymavlink import mavutil
@@ -19,6 +20,7 @@ from spf.mavlink.mavlink_controller import (
     Drone,
     drone_get_planner,
     get_ardupilot_serial,
+    tones,
 )
 from spf.utils import (
     DataVersionNotImplemented,
@@ -26,6 +28,27 @@ from spf.utils import (
     is_pi,
     load_config,
 )
+
+
+READINESS_TONE_INTERVAL_SECONDS = 15.0
+ANNOYING_TONES_DISABLE_PATH = Path.home() / "disable_annoying_tones"
+
+
+def maybe_play_readiness_wait_tone(
+    drone,
+    *,
+    now: float,
+    next_tone_at: float,
+    disable_path: Path = ANNOYING_TONES_DISABLE_PATH,
+) -> float:
+    """Play one low-duty readiness chirp unless the operator disabled it."""
+    if now < next_tone_at:
+        return next_tone_at
+    while next_tone_at <= now:
+        next_tone_at += READINESS_TONE_INTERVAL_SECONDS
+    if not disable_path.exists():
+        drone.buzzer(tones["readiness-wait"])
+    return next_tone_at
 
 
 def yaml_defaults(yaml_config, device_mapping_fn):
@@ -246,9 +269,15 @@ if __name__ == "__main__":
             ignore_mode=args.ignore_mode,
         )
 
+    next_readiness_tone_at = time.monotonic() + READINESS_TONE_INTERVAL_SECONDS
     while not args.fake_drone and not drone.drone_ready:
         logging.info(
             f"Drone startup wait for drone ready: gps:{str(drone.gps)} , ekf:{str(drone.ekf_healthy)}"
+        )
+        next_readiness_tone_at = maybe_play_readiness_wait_tone(
+            drone,
+            now=time.monotonic(),
+            next_tone_at=next_readiness_tone_at,
         )
         time.sleep(2)
 

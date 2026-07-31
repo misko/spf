@@ -53,6 +53,35 @@ The normal boot path now:
 No firmware, radio, parameter, update, GPS-time, or collection function is
 removed.
 
+## Audible readiness and missing-radio policy
+
+While the collector is waiting for GPS/EKF readiness, it emits one short
+double chirp every 15 seconds. This is a low-duty field indication that the
+rover is alive but not navigation-ready. Disable these periodic readiness
+chirps dynamically with:
+
+```bash
+touch ~/disable_annoying_tones
+```
+
+Remove the file to re-enable them:
+
+```bash
+rm ~/disable_annoying_tones
+```
+
+The disable file does not suppress critical missing-radio alarms. If bounded
+USB discovery finds fewer Plutos than the production YAML configures, boot:
+
+1. logs the expected and observed counts;
+2. plays the distinct descending `radio-missing` alarm exactly three times;
+3. requests a clean, non-blocking system poweroff.
+
+The radios are externally powered, so restarting only the collector cannot
+recover a missing radio. The operator must restore the radio connection and
+power-cycle the rover. An excess-radio count remains a fail-closed
+configuration error and is not misreported as a missing-radio condition.
+
 ## Rover 2 result
 
 On commit `920bc6380a03ebf88b70166866aa415d676b0206`, a complete Rover 2
