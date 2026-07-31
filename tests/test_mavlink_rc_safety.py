@@ -1,5 +1,9 @@
+import logging
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import Mock
+
+import pytest
 
 from spf.mavlink.mavlink_controller import Drone
 
@@ -14,12 +18,12 @@ def _drone():
     return drone
 
 
-def _rc_message(*, ch9_raw):
+def _rc_message(*, ch9_raw, ch7_raw=0, ch10_raw=0, ch12_raw=0):
     return SimpleNamespace(
-        chan7_raw=0,
+        chan7_raw=ch7_raw,
         chan9_raw=ch9_raw,
-        chan10_raw=0,
-        chan12_raw=0,
+        chan10_raw=ch10_raw,
+        chan12_raw=ch12_raw,
     )
 
 
@@ -28,6 +32,15 @@ def _set_monotonic(monkeypatch, values):
     monkeypatch.setattr(
         "spf.mavlink.mavlink_controller.time.monotonic",
         lambda: next(clock),
+    )
+
+
+def _complete_shutdown_hold(drone, *, final_message=None):
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000))
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
+    drone.handle_RC_CHANNELS(
+        final_message if final_message is not None else _rc_message(ch9_raw=1800)
     )
 
 
@@ -118,3 +131,114 @@ def test_shutdown_hold_resets_after_rc_message_gap(monkeypatch):
     drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
 
     shutdown.assert_not_called()
+
+
+def test_nonzero_shutdown_command_is_logged_and_latched(monkeypatch, caplog):
+    shutdown = Mock(return_value=SimpleNamespace(returncode=7))
+    monkeypatch.setattr(
+        "spf.mavlink.mavlink_controller.subprocess.run",
+        shutdown,
+    )
+    _set_monotonic(monkeypatch, [0.0, 0.1, 1.1, 2.1, 3.1])
+    drone = _drone()
+    caplog.set_level(logging.ERROR)
+
+    _complete_shutdown_hold(drone)
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
+
+    shutdown.assert_called_once_with(["sudo", "shutdown", "0"], check=False)
+    assert "RC shutdown command failed with return code 7" in caplog.messages
+
+
+@pytest.mark.parametrize(
+    "command_error",
+    [
+        pytest.param(OSError("shutdown executable unavailable"), id="oserror"),
+        pytest.param(
+            subprocess.SubprocessError("shutdown execution failed"),
+            id="subprocess-error",
+        ),
+    ],
+)
+def test_shutdown_command_exception_is_contained_and_owns_message(
+    monkeypatch,
+    caplog,
+    command_error,
+):
+    shutdown = Mock(side_effect=command_error)
+    monkeypatch.setattr(
+        "spf.mavlink.mavlink_controller.subprocess.run",
+        shutdown,
+    )
+    _set_monotonic(monkeypatch, [0.0, 0.1, 1.1, 2.1, 2.2])
+    drone = _drone()
+    caplog.set_level(logging.ERROR)
+
+    _complete_shutdown_hold(
+        drone,
+        final_message=_rc_message(
+            ch9_raw=1800,
+            ch7_raw=1800,
+            ch10_raw=1800,
+            ch12_raw=1800,
+        ),
+    )
+
+    shutdown.assert_called_once_with(["sudo", "shutdown", "0"], check=False)
+    drone.run_compass_calibration.assert_not_called()
+    drone.reboot.assert_not_called()
+    assert drone.disable_distance_finder is False
+    assert any(
+        message.startswith("RC shutdown command failed:")
+        for message in caplog.messages
+    )
+
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000, ch12_raw=1800))
+
+    assert drone.disable_distance_finder is True
+
+
+def test_shutdown_command_is_not_repeated_while_latched(monkeypatch):
+    shutdown = Mock(return_value=SimpleNamespace(returncode=0))
+    monkeypatch.setattr(
+        "spf.mavlink.mavlink_controller.subprocess.run",
+        shutdown,
+    )
+    _set_monotonic(monkeypatch, [0.0, 0.1, 1.1, 2.1, 3.1, 4.1])
+    drone = _drone()
+
+    _complete_shutdown_hold(drone)
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
+
+    shutdown.assert_called_once_with(["sudo", "shutdown", "0"], check=False)
+
+
+def test_shutdown_retry_requires_release_and_new_valid_hold(monkeypatch):
+    shutdown = Mock(
+        side_effect=[
+            OSError("shutdown executable unavailable"),
+            SimpleNamespace(returncode=0),
+        ]
+    )
+    monkeypatch.setattr(
+        "spf.mavlink.mavlink_controller.subprocess.run",
+        shutdown,
+    )
+    _set_monotonic(
+        monkeypatch,
+        [0.0, 0.1, 1.1, 2.1, 3.1, 3.2, 3.3, 4.3, 5.3],
+    )
+    drone = _drone()
+
+    _complete_shutdown_hold(drone)
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000))
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
+
+    assert shutdown.call_count == 1
+
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1800))
+
+    assert shutdown.call_count == 2
