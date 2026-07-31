@@ -9,6 +9,7 @@ USB-IIO and DFU continue to use the original physical USB path.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import dataclasses
 import hashlib
 import json
@@ -57,6 +58,10 @@ class InterfaceState:
     address: str | None
     prefixlen: int | None
     route_metric: int | None
+
+
+def _env_is_true(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _read(path: Path) -> str:
@@ -709,23 +714,90 @@ class MultiPlutoFirmwareManager:
                 f"{serial}: iiod and sdr_usb_gadget are not both running"
             )
 
-    def _load_device(self, device: UsbPluto) -> None:
-        self._back_up(device.serial)
-        print(
-            f"{device.serial}: requesting exact volatile RAM boot at "
-            f"{device.sysfs_name}",
-            flush=True,
+    # Number of times to (re)try the full RAM-load of a single radio. A first
+    # attempt that flaps during runtime re-enumeration (the observed
+    # "expected N runtime Plutos; found N-1" boot failure) then self-heals on the
+    # retry instead of failing the whole service and stranding the rover until a
+    # power cycle. Bounded so the worst case stays inside the unit's
+    # TimeoutStartSec.
+    _LOAD_ATTEMPTS = 2
+
+    def _current_product(self, sysfs_name: str) -> str | None:
+        product = _read_optional(
+            Path("/sys/bus/usb/devices") / sysfs_name / "idProduct"
         )
+        return product.lower() if product is not None else None
+
+    def _load_device(self, device: UsbPluto) -> None:
+        """RAM-load one radio, retrying the whole sequence on a transient flap."""
+        last_error: BaseException | None = None
+        for attempt in range(1, self._LOAD_ATTEMPTS + 1):
+            try:
+                self._load_device_once(device)
+                return
+            except (FirmwareError, subprocess.SubprocessError, OSError) as error:
+                last_error = error
+                print(
+                    f"{device.serial}: RAM-load attempt "
+                    f"{attempt}/{self._LOAD_ATTEMPTS} failed: {error}",
+                    flush=True,
+                )
+                if attempt < self._LOAD_ATTEMPTS:
+                    self._settle_before_retry(device)
+        raise FirmwareError(
+            f"{device.serial}: RAM load failed after {self._LOAD_ATTEMPTS} "
+            f"attempts: {last_error}"
+        )
+
+    def _settle_before_retry(self, device: UsbPluto) -> None:
+        """Best-effort return to a re-loadable state before another attempt."""
         try:
-            self._ssh(
-                device.serial,
-                "/usr/sbin/device_reboot ram",
-                check=False,
-                timeout=10,
+            if self._current_product(device.sysfs_name) == PLUTO_DFU_PRODUCT:
+                # Stuck in DFU: execute/detach so it re-enumerates to runtime.
+                _run(
+                    [
+                        "dfu-util",
+                        "-p",
+                        device.sysfs_name,
+                        "-d",
+                        f"{PLUTO_VENDOR}:{PLUTO_RUNTIME_PRODUCT},"
+                        f"{PLUTO_VENDOR}:{PLUTO_DFU_PRODUCT}",
+                        "-a",
+                        "firmware.dfu",
+                        "-e",
+                    ],
+                    check=False,
+                )
+            time.sleep(2)
+        except (subprocess.SubprocessError, OSError) as error:  # noqa: BLE001
+            print(f"{device.serial}: settle-before-retry note: {error}", flush=True)
+
+    def _load_device_once(self, device: UsbPluto) -> None:
+        # Tolerate a radio already parked in DFU (e.g. a retry after a partial
+        # first attempt): skip the runtime backup/reboot and load directly.
+        if self._current_product(device.sysfs_name) != PLUTO_DFU_PRODUCT:
+            self._back_up(device.serial)
+            print(
+                f"{device.serial}: requesting exact volatile RAM boot at "
+                f"{device.sysfs_name}",
+                flush=True,
             )
-        except subprocess.TimeoutExpired:
-            pass
-        self._wait_product(device.sysfs_name, PLUTO_DFU_PRODUCT, 30)
+            try:
+                self._ssh(
+                    device.serial,
+                    "/usr/sbin/device_reboot ram",
+                    check=False,
+                    timeout=10,
+                )
+            except subprocess.TimeoutExpired:
+                pass
+            self._wait_product(device.sysfs_name, PLUTO_DFU_PRODUCT, 30)
+        else:
+            print(
+                f"{device.serial}: already in DFU at {device.sysfs_name}; "
+                f"loading image directly",
+                flush=True,
+            )
 
         print(f"{device.serial}: loading verified image into RAM", flush=True)
         common = [
@@ -741,7 +813,9 @@ class MultiPlutoFirmwareManager:
         _run([*common, "-D", str(self.image)])
         _run([*common, "-e"])
 
-        self._wait_product(device.sysfs_name, PLUTO_RUNTIME_PRODUCT, 60)
+        # Runtime re-enumeration is a full embedded-Linux boot; allow more time
+        # than the old 60 s to reduce spurious "found N-1" failures.
+        self._wait_product(device.sysfs_name, PLUTO_RUNTIME_PRODUCT, 90)
         self._wait_for_ssh(device.serial)
         self._verify_device(device.serial)
         print(f"{device.serial}: PASS", flush=True)
@@ -763,9 +837,44 @@ class MultiPlutoFirmwareManager:
             raise FirmwareError(
                 f"refusing to start with existing DFU devices: {dfu_devices}"
             )
-        for device in devices:
-            self._load_device(device)
+        self._load_devices(devices)
         self.verify_all()
+
+    def _load_devices(self, devices: list[UsbPluto]) -> None:
+        """Load every radio's RAM image.
+
+        The two dominant boot-time costs are the two sequential embedded-Linux
+        reboots each radio performs. Each radio is fully isolated — DFU is
+        targeted by physical USB path (``dfu-util -p <sysfs>``) and every SSH
+        runs in its own network namespace — so the loads run concurrently by
+        default, roughly halving the wall-clock on a 2-radio rover. Set
+        ``SPF_PLUTO_SEQUENTIAL_LOAD=1`` to fall back to serial loading if
+        simultaneous USB re-enumeration is ever seen to interfere.
+        """
+        if len(devices) < 2 or _env_is_true("SPF_PLUTO_SEQUENTIAL_LOAD"):
+            for device in devices:
+                self._load_device(device)
+            return
+
+        errors: dict[str, BaseException] = {}
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=len(devices)
+        ) as pool:
+            futures = {
+                pool.submit(self._load_device, device): device
+                for device in devices
+            }
+            for future in concurrent.futures.as_completed(futures):
+                device = futures[future]
+                try:
+                    future.result()
+                except BaseException as error:  # noqa: BLE001
+                    errors[device.serial] = error
+        if errors:
+            raise FirmwareError(
+                "parallel RAM load failed: "
+                + "; ".join(f"{serial}: {error}" for serial, error in errors.items())
+            )
 
     def verify_all(self) -> None:
         self._check_root()
