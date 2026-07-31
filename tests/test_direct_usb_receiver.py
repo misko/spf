@@ -154,7 +154,12 @@ def test_capture_requests_a_complete_framed_transfer_and_stops():
 
 def test_capture_rediscovers_same_radio_after_usb_address_changes(monkeypatch):
     disconnected = _DisconnectedHandle(b"")
-    receiver = PlutoDirectUsbReceiver(serial="test", port_path=(1,))
+    attest_calls = []
+    receiver = PlutoDirectUsbReceiver(
+        serial="test",
+        port_path=(1,),
+        reconnect_attestor=lambda: attest_calls.append(True),
+    )
     receiver._handle = disconnected
     receiver._identity = DirectUsbIdentity(
         serial="test",
@@ -210,6 +215,7 @@ def test_capture_rediscovers_same_radio_after_usb_address_changes(monkeypatch):
     capture = receiver.capture(samples_per_channel=8)
 
     assert len(open_calls) == 1
+    assert len(attest_calls) == 1
     assert capture.identity.serial == "test"
     assert capture.identity.port_path == (1,)
     assert capture.identity.address == 9

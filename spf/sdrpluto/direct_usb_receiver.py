@@ -7,7 +7,8 @@ import dataclasses
 import gc
 import logging
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any
 
 import numpy as np
 import usb1
@@ -28,6 +29,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     DirectUsbRxFrame,
     GadgetCapabilitiesV1,
     HardwareIdentityV1,
+    HardwareIdentityFlags,
     MetadataFeatures,
     MetadataFlags,
     ProtocolError,
@@ -58,6 +60,30 @@ class DirectUsbTransportError(RuntimeError):
 
 class DirectUsbRecoveryError(RuntimeError):
     """Bounded recovery could not restore one valid finite RX request."""
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RecoveryAttestationDifference:
+    """One fail-closed mismatch observed before a recovered stream START."""
+
+    field: str
+    expected: Any
+    observed: Any
+
+
+class DirectUsbRecoveryAttestationError(DirectUsbRecoveryError):
+    """The re-enumerated device cannot be proven equivalent to the original."""
+
+    def __init__(self, differences: Iterable[RecoveryAttestationDifference]):
+        self.differences = tuple(differences)
+        if not self.differences:
+            raise ValueError("at least one recovery attestation difference is required")
+        details = "; ".join(
+            f"{difference.field}: expected={difference.expected!r}, "
+            f"observed={difference.observed!r}"
+            for difference in self.differences
+        )
+        super().__init__(f"direct USB recovery attestation failed: {details}")
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -111,6 +137,7 @@ class PlutoDirectUsbReceiver:
         protocol_version: int = VERSION_V1,
         reconnect_attempts: int = DEFAULT_RECONNECT_ATTEMPTS,
         reconnect_delay_seconds: float = DEFAULT_RECONNECT_DELAY_SECONDS,
+        reconnect_attestor: Callable[[], None] | None = None,
     ) -> None:
         if not serial and not port_path:
             raise ValueError("serial or physical USB port_path is required")
@@ -128,10 +155,12 @@ class PlutoDirectUsbReceiver:
         self.protocol_version = protocol_version
         self.reconnect_attempts = reconnect_attempts
         self.reconnect_delay_seconds = reconnect_delay_seconds
+        self.reconnect_attestor = reconnect_attestor
         self._context: usb1.USBContext | None = None
         self._handle: usb1.USBDeviceHandle | None = None
         self._identity: DirectUsbIdentity | None = None
         self._capabilities: GadgetCapabilitiesV1 | None = None
+        self._recovery_hardware_identity: HardwareIdentityV1 | None = None
         self._detached_kernel_driver = False
 
     @property
@@ -283,6 +312,7 @@ class PlutoDirectUsbReceiver:
                 error,
             )
             self._recover_connection(error)
+            self._attest_recovered_connection(failed_identity)
             try:
                 capture = self._capture_once(
                     samples_per_channel=samples_per_channel,
@@ -305,7 +335,8 @@ class PlutoDirectUsbReceiver:
                 )
             logging.warning(
                 "direct USB transport recovered for serial=%s port_path=%s "
-                "address=%s->%s stream_id=%s",
+                "address=%s->%s stream_id=%s; new stream epoch, phase "
+                "continuity is not retained",
                 capture.identity.serial,
                 capture.identity.port_path,
                 None if failed_identity is None else failed_identity.address,
@@ -442,6 +473,123 @@ class PlutoDirectUsbReceiver:
             f"serial={self.requested_serial!r} "
             f"port_path={self.requested_port_path!r}"
         ) from last_error
+
+    def pin_recovery_hardware_identity(self) -> HardwareIdentityV1 | None:
+        """Pin valid passive identity fields for subsequent reconnects.
+
+        Older gadgets do not expose this capability. In that case USB serial
+        and physical port remain the durable identity boundary.
+        """
+
+        if not (self.capabilities.capability_flags & CapabilityFlags.HARDWARE_IDENTITY):
+            self._recovery_hardware_identity = None
+            return None
+        identity = self.query_hardware_identity()
+        self._recovery_hardware_identity = identity
+        return identity
+
+    def _attest_recovered_connection(
+        self, failed_identity: DirectUsbIdentity | None
+    ) -> None:
+        differences: list[RecoveryAttestationDifference] = []
+        recovered_identity = self.identity
+        if failed_identity is None:
+            differences.append(
+                RecoveryAttestationDifference(
+                    field="usb_identity",
+                    expected="identity pinned before transport loss",
+                    observed=None,
+                )
+            )
+        else:
+            if recovered_identity.serial != failed_identity.serial:
+                differences.append(
+                    RecoveryAttestationDifference(
+                        field="usb_serial",
+                        expected=failed_identity.serial,
+                        observed=recovered_identity.serial,
+                    )
+                )
+            if recovered_identity.port_path != failed_identity.port_path:
+                differences.append(
+                    RecoveryAttestationDifference(
+                        field="usb_port_path",
+                        expected=failed_identity.port_path,
+                        observed=recovered_identity.port_path,
+                    )
+                )
+
+        expected_hardware = self._recovery_hardware_identity
+        if expected_hardware is not None:
+            try:
+                observed_hardware = self.query_hardware_identity()
+            except Exception as error:
+                differences.append(
+                    RecoveryAttestationDifference(
+                        field="hardware_identity",
+                        expected="readable passive identity",
+                        observed=f"{type(error).__name__}: {error}",
+                    )
+                )
+            else:
+                fields = (
+                    (
+                        HardwareIdentityFlags.FPGA_DEVICE_DNA_VALID,
+                        "fpga_device_dna",
+                    ),
+                    (
+                        HardwareIdentityFlags.GADGET_BUILD_ID_VALID,
+                        "gadget_build_id",
+                    ),
+                )
+                for flag, field in fields:
+                    if not expected_hardware.flags & flag:
+                        continue
+                    expected = getattr(expected_hardware, field)
+                    observed = (
+                        getattr(observed_hardware, field)
+                        if observed_hardware.flags & flag
+                        else None
+                    )
+                    if observed != expected:
+                        differences.append(
+                            RecoveryAttestationDifference(
+                                field=field,
+                                expected=expected,
+                                observed=observed,
+                            )
+                        )
+
+        if differences:
+            raise DirectUsbRecoveryAttestationError(iter(differences))
+        if self.reconnect_attestor is None:
+            raise DirectUsbRecoveryAttestationError(
+                iter(
+                    (
+                        RecoveryAttestationDifference(
+                            field="iio_rx_configuration",
+                            expected="configured reconnect attestor",
+                            observed=None,
+                        ),
+                    )
+                )
+            )
+        try:
+            self.reconnect_attestor()
+        except DirectUsbRecoveryAttestationError:
+            raise
+        except Exception as error:
+            raise DirectUsbRecoveryAttestationError(
+                iter(
+                    (
+                        RecoveryAttestationDifference(
+                            field="iio_rx_configuration",
+                            expected="readable matching configuration",
+                            observed=f"{type(error).__name__}: {error}",
+                        ),
+                    )
+                )
+            ) from error
 
     def query_hardware_identity(self) -> HardwareIdentityV1:
         """Read passive identity data without starting RX or TX."""
