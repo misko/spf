@@ -16,6 +16,10 @@ readonly CASES="${SPF_INTERRUPT_CASES:-sigterm:2 sigint:10 sigkill:25 sigterm:10
 readonly CLEAN_RECORDS="${SPF_INTERRUPT_CLEAN_RECORDS:-100}"
 readonly FIRMWARE_CACHE="${SPF_FIRMWARE_CACHE_DIR:-/home/pi/.cache/spf/firmware}"
 readonly FIRMWARE_STATE="${SPF_FIRMWARE_STATE_DIR:-/var/lib/spf/pluto-firmware}"
+readonly PREPARE_SCRIPT="${SPF_PREPARE_DIRECT_USB_BOOT:-${SCRIPT_DIR}/prepare_direct_usb_boot.sh}"
+readonly DEVICE_MAPPING="${SPF_DEVICE_MAPPING:-/home/pi/device_mapping}"
+readonly DMESG_BIN="${SPF_DMESG_BIN:-dmesg}"
+readonly SUDO_BIN="${SPF_SUDO:-sudo}"
 
 die() {
     printf 'ERROR: %s\n' "$*" >&2
@@ -24,6 +28,9 @@ die() {
 
 [[ "${EUID}" -ne 0 ]] || die "run as the rover user; sudo is used only for boot preparation"
 [[ -x "$PYTHON" ]] || die "Python is unavailable: ${PYTHON}"
+[[ -x "$PREPARE_SCRIPT" ]] || die "boot preparation is unavailable: ${PREPARE_SCRIPT}"
+command -v "$DMESG_BIN" >/dev/null || die "dmesg command is unavailable: ${DMESG_BIN}"
+command -v "$SUDO_BIN" >/dev/null || die "sudo command is unavailable: ${SUDO_BIN}"
 [[ "$ROVER_ID" =~ ^[1-3]$ ]] || die "unsupported rover ID: ${ROVER_ID}"
 [[ "$CLEAN_RECORDS" =~ ^[1-9][0-9]*$ ]] || die "clean record count must be positive"
 
@@ -44,7 +51,7 @@ run_root="${OUTPUT_ROOT}/${run_id}"
 ready_file="${run_root}/ready.json"
 mkdir -p "$run_root"
 
-sudo env \
+"$SUDO_BIN" env \
     PYTHONPATH="$REPO_ROOT" \
     SPF_ROVER_ID="$ROVER_ID" \
     SPF_CAPTURE_CONFIG="$RESOLVED_CONFIG" \
@@ -52,7 +59,7 @@ sudo env \
     SPF_PYTHON="$PYTHON" \
     SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
     SPF_FIRMWARE_STATE_DIR="$FIRMWARE_STATE" \
-    bash "${SCRIPT_DIR}/prepare_direct_usb_boot.sh" \
+    bash "$PREPARE_SCRIPT" \
     >"${run_root}/prepare.log" 2>&1
 [[ -s "$ready_file" ]] || die "boot preparation returned without a readiness manifest"
 
@@ -68,9 +75,11 @@ for specification in $CASES; do
 
     case_root="${run_root}/case-$(printf '%02d' "$case_index")-${interrupt_signal}-${minimum_records}"
     mkdir -p "$case_root/reports"
-    dmesg >"${case_root}/dmesg-before.txt"
+    "$DMESG_BIN" >"${case_root}/dmesg-before.txt" ||
+        die "could not snapshot kernel log before case ${specification}"
     before_lines="$(wc -l <"${case_root}/dmesg-before.txt")"
 
+    set +e
     PYTHONPATH="$REPO_ROOT" "$PYTHON" -m pytest -q \
         "${REPO_ROOT}/tests/radio_hardware/test_interrupted_collection_hardware.py" \
         --radio-hardware \
@@ -79,19 +88,44 @@ for specification in $CASES; do
         --radio-interrupt-min-records="$minimum_records" \
         --radio-expected-count="$EXPECTED_RADIOS" \
         --radio-capture-config="$RESOLVED_CONFIG" \
-        --radio-device-mapping=/home/pi/device_mapping \
+        --radio-device-mapping="$DEVICE_MAPPING" \
         --radio-ready-manifest="$ready_file" \
         --radio-report-dir="${case_root}/reports" \
         --basetemp="${case_root}/pytest-temp" \
         --junitxml="${case_root}/junit.xml" \
         >"${case_root}/pytest.log" 2>&1
+    pytest_status=$?
 
-    dmesg >"${case_root}/dmesg-after.txt"
-    tail -n "+$((before_lines + 1))" "${case_root}/dmesg-after.txt" \
-        >"${case_root}/dmesg-delta.txt"
-    if grep -Eqi 'USB disconnect|error -71|device descriptor read|xhci.*error|I/O error' \
-        "${case_root}/dmesg-delta.txt"; then
+    "$DMESG_BIN" >"${case_root}/dmesg-after.txt"
+    dmesg_status=$?
+    set -e
+    kernel_usb_error=0
+    if (( dmesg_status == 0 )); then
+        tail -n "+$((before_lines + 1))" "${case_root}/dmesg-after.txt" \
+            >"${case_root}/dmesg-delta.txt"
+        if grep -Eqi 'USB disconnect|error -71|device descriptor read|xhci.*error|I/O error' \
+            "${case_root}/dmesg-delta.txt"; then
+            kernel_usb_error=1
+        fi
+    else
+        : >"${case_root}/dmesg-delta.txt"
+    fi
+    printf '%s\n' \
+        "pytest_status=${pytest_status}" \
+        "dmesg_status=${dmesg_status}" \
+        "kernel_usb_error=${kernel_usb_error}" \
+        >"${case_root}/case-status.env"
+
+    if (( dmesg_status != 0 )); then
+        die "could not snapshot kernel log after case ${specification}"
+    fi
+    if (( kernel_usb_error != 0 )); then
         die "kernel USB error appeared during interruption case ${specification}"
+    fi
+    if (( pytest_status != 0 )); then
+        printf 'ERROR: interruption case %s failed with status %s\n' \
+            "$specification" "$pytest_status" >&2
+        exit "$pytest_status"
     fi
 done
 
@@ -103,7 +137,7 @@ PYTHONPATH="$REPO_ROOT" SPF_DIRECT_USB_READY_FILE="$ready_file" \
     "$PYTHON" "${REPO_ROOT}/spf/mavlink_radio_collection.py" \
     --fake-drone --no-ultrasonic \
     --yaml-config "$RESOLVED_CONFIG" \
-    --device-mapping /home/pi/device_mapping \
+    --device-mapping "$DEVICE_MAPPING" \
     --routine "$ROUTINE" \
     --records-per-receiver "$CLEAN_RECORDS" \
     --temp "$clean_root" \
