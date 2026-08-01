@@ -21,9 +21,16 @@ Everything below is traced to the plutosdr-fw Makefile and the on-device
 
 **The gain/RSSI features live entirely in the FIT (`mtd3`).** The bootloader
 (`mtd0`) is what bricks PlutoPlus units when a bad v0.38 build is written to it.
-The device runs **`device-fw v0.38_plutoplus_with_timestamping-9-g7b02`** loaded
-into RAM **on top of the v0.37 QSPI bootloader today** — i.e. the v0.38 FIT is
-already proven to boot under the v0.37 U-Boot on every rover.
+The production devices run
+**`device-fw v0.38_plutoplus_with_timestamping-9-g7b02`** from `mtd3` while
+retaining the v0.37 QSPI bootloader in `mtd0`. This exact v0.38 FIT has passed
+normal-reset/direct-USB qualification on the two-radio development bench.
+
+Canonical production V7 configs declare `pluto-firmware.boot-mode: qspi`.
+Boot preparation follows that setting, verifies the active version over
+USB-IIO, and writes only on mismatch. `SPF_PLUTO_RAM_LOAD=1` is the explicit
+volatile recovery/qualification override; it must not be set in the normal
+Rover environment.
 
 ## 2. Why the historical flash bricked, and the safe path
 

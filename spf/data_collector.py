@@ -415,8 +415,10 @@ class ThreadedRX:
             # A direct-USB retry creates a new stream generation and would
             # conceal the failed frame. Fail the collection instead.
             max_retries = 1
-        tries = 0
-        while tries < max_retries:
+        if max_retries < 1:
+            raise ValueError("max_retries must be positive")
+        last_error = None
+        for tries in range(max_retries):
             try:
                 signal_matrix = self.pplus.rx()
                 return {
@@ -428,12 +430,11 @@ class ThreadedRX:
                 logging.error(
                     f"Failed to receive RX data! : retry {tries} {e}",
                 )
-                time.sleep(0.1)
-                tries += 1
-                if tries > max_retries:
-                    logging.error("GIVE UP")
-                    sys.exit(1)
-        return None
+                last_error = e
+                if tries + 1 < max_retries:
+                    time.sleep(0.1)
+        assert last_error is not None
+        raise last_error
 
     def get_data(self):
         sdr_rx = self.get_rx()
@@ -528,15 +529,19 @@ class ThreadedRXRawV6(ThreadedRXRaw):
 
         if self.pplus.rx_config.rx_transport == "direct_usb":
             max_retries = 1
-        tries = 0
-        while tries < max_retries:
+        if max_retries < 1:
+            raise ValueError("max_retries must be positive")
+        last_error = None
+        for tries in range(max_retries):
             try:
                 return asdict(self.pplus.rx_with_metadata())
             except Exception as e:
                 logging.error("Failed to receive RX data! : retry %s %s", tries, e)
-                time.sleep(0.1)
-                tries += 1
-        return None
+                last_error = e
+                if tries + 1 < max_retries:
+                    time.sleep(0.1)
+        assert last_error is not None
+        raise last_error
 
 
 class ThreadedRXRawV7(ThreadedRXRawV6):

@@ -115,8 +115,10 @@ def validate_production_config(config: dict, path: Path | None = None) -> None:
         raise ValueError(
             f"{label}: pluto-firmware is missing required fields: {missing}"
         )
-    if firmware["boot-mode"] != "ram":
-        raise ValueError(f"{label}: pluto-firmware.boot-mode must be 'ram'")
+    if firmware["boot-mode"] not in {"ram", "qspi"}:
+        raise ValueError(
+            f"{label}: pluto-firmware.boot-mode must be 'ram' or 'qspi'"
+        )
     for key in ("image-sha256", "firmware-git-sha", "gadget-git-sha"):
         value = firmware[key]
         expected_length = 64 if key == "image-sha256" else 40

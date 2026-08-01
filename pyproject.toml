@@ -42,3 +42,9 @@ requires-python = ">=3.10"
 description = "Signal Processing Fun"
 readme = "README.md"
 
+[tool.pytest.ini_options]
+markers = [
+  "radio_hardware: requires explicitly enabled attached Pluto radio hardware",
+  "radio_zarr: writes and reopens a short hardware-backed V7 Zarr artifact",
+  "radio_soak: long-running attached-radio stability test",
+]

@@ -18,11 +18,10 @@ FIRMWARE_CACHE="${SPF_FIRMWARE_CACHE_DIR:-/home/pi/.cache/spf/firmware}"
 FIRMWARE_STATE="${SPF_FIRMWARE_STATE_DIR:-/var/lib/spf/pluto-firmware}"
 DISABLE_DIRECT_USB="${SPF_DIRECT_USB_DISABLE:-0}"
 PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
-# Firmware delivery: default is to persistently flash the gain/RSSI image to the
-# Pluto QSPI once and, on every boot, only re-flash when the running version does
-# not match EXPECTED_DEVICE_FW (fast steady-state boot -- no per-boot RAM load).
-# Set SPF_PLUTO_RAM_LOAD=1 to fall back to the legacy volatile RAM load.
-RAM_LOAD="${SPF_PLUTO_RAM_LOAD:-0}"
+# Firmware delivery is selected by pluto-firmware.boot-mode in the canonical
+# capture config. SPF_PLUTO_RAM_LOAD remains an explicit operational override:
+# 1 forces a volatile RAM load, while 0 forces persistent QSPI verification.
+RAM_LOAD_OVERRIDE="${SPF_PLUTO_RAM_LOAD:-}"
 # Expected running /opt/VERSIONS device-fw for the pinned direct-USB image. Tied
 # to the image the loader downloads; bump both together (overridable via
 # /etc/spf/*.env).
@@ -37,7 +36,7 @@ is_true() {
     case "${1,,}" in
         1|true|yes|on) return 0 ;;
         0|false|no|off|"") return 1 ;;
-        *) die "Invalid SPF_DIRECT_USB_DISABLE value: $1" ;;
+        *) die "Invalid boolean value: $1" ;;
     esac
 }
 
@@ -50,7 +49,7 @@ rm -f -- "$READY_FILE"
 
 if is_true "$DISABLE_DIRECT_USB"; then
     printf '%s\n' \
-        "Direct-USB RAM loading was explicitly disabled by" \
+        "Direct-USB firmware preparation was explicitly disabled by" \
         "SPF_DIRECT_USB_DISABLE=${DISABLE_DIRECT_USB}."
     exit 0
 fi
@@ -81,6 +80,21 @@ firmware_release_tag="${config_values[8]}"
 firmware_asset_name="${config_values[9]}"
 firmware_image_url="${config_values[10]}"
 firmware_image_sha256="${config_values[11]}"
+firmware_boot_mode="${config_values[14]}"
+
+if [[ -n "$RAM_LOAD_OVERRIDE" ]]; then
+    if is_true "$RAM_LOAD_OVERRIDE"; then
+        ram_load=1
+    else
+        ram_load=0
+    fi
+elif [[ "$firmware_boot_mode" == "ram" ]]; then
+    ram_load=1
+elif [[ "$firmware_boot_mode" == "qspi" ]]; then
+    ram_load=0
+else
+    die "Unsupported configured firmware boot mode: ${firmware_boot_mode}"
+fi
 
 for command in bash iio_info "$PYTHON"; do
     command -v "$command" >/dev/null 2>&1 ||
@@ -128,7 +142,7 @@ fi
 # (the radios may not be ssh-ready yet). A wrong config is still caught below by
 # verify-all's dual-RX check, which is ssh-free.
 
-if is_true "$RAM_LOAD"; then
+if is_true "$ram_load"; then
     # Legacy: RAM-load the exact configured image every boot (volatile, ~30s/radio).
     run_loader load-all "$attached_radios"
 else

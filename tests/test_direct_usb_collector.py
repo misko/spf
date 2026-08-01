@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from spf.data_collector import ThreadedRXRawV6, ThreadedRXRawV7
 from spf.sdrpluto.sdr_controller import (
@@ -110,7 +111,8 @@ def test_direct_collector_does_not_hide_a_failed_frame_with_retry():
         nthetas=65,
     )
 
-    assert reader.get_rx() is None
+    with pytest.raises(RuntimeError, match="synthetic USB sequence failure"):
+        reader.get_rx()
     assert pplus.calls == 1
 
 

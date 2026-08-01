@@ -409,20 +409,24 @@ def test_direct_firmware_is_reloaded_instead_of_only_trusted(tmp_path, monkeypat
     assert ("verify", "SERIAL_A") in calls
 
 
-def test_boot_preparation_flashes_qspi_by_default_ram_load_behind_flag():
+def test_boot_preparation_uses_configured_boot_mode_with_environment_override():
     boot_script = (
         Path(__file__).resolve().parents[1]
         / "data_collection/rover/rover_v3.1/prepare_direct_usb_boot.sh"
     ).read_text()
-    # Default path is the version-conditional persistent QSPI flash, not RAM load.
+    # The canonical config selects QSPI or RAM; an explicit environment override
+    # is retained for field recovery.
     ensure = "ensure_pluto_qspi.sh"
-    ram_gate = 'if is_true "$RAM_LOAD"; then'
+    config_mode = 'firmware_boot_mode="${config_values[14]}"'
+    override = 'RAM_LOAD_OVERRIDE="${SPF_PLUTO_RAM_LOAD:-}"'
+    ram_gate = 'if is_true "$ram_load"; then'
     load = 'run_loader load-all "$attached_radios"'
 
     assert ensure in boot_script
+    assert config_mode in boot_script
+    assert override in boot_script
     assert ram_gate in boot_script
-    # The legacy RAM load remains available, but only inside the flag branch,
-    # which precedes the default flash branch in the source.
+    # The volatile path remains isolated from persistent QSPI preparation.
     assert load in boot_script
     assert boot_script.index(ram_gate) < boot_script.index(load) < boot_script.index(
         ensure
@@ -435,6 +439,16 @@ def test_boot_preparation_flashes_qspi_by_default_ram_load_behind_flag():
     resolver = "resolver_args=("
     assert invalidate in boot_script
     assert boot_script.index(invalidate) < boot_script.index(resolver)
+
+
+@pytest.mark.parametrize("rover_id", (1, 2, 3))
+def test_canonical_v7_rover_config_declares_persistent_qspi(rover_id):
+    from spf.scripts.rover_capture_config import resolve_capture_plan
+
+    plan = resolve_capture_plan(rover_id)
+
+    assert plan.data_version == 7
+    assert plan.firmware_boot_mode == "qspi"
 
 
 @pytest.mark.parametrize(
