@@ -52,6 +52,7 @@ def _make_round(root: Path, signal_name="sigkill", threshold=4):
             "committed_after_interrupt": [threshold],
             "exit_seconds": 0.2,
             "serials": ["radio-a"],
+            "release_probe_sessions": {"radio-a": 1},
         },
     )
     (case / "dmesg-delta.txt").write_text("")
@@ -80,6 +81,36 @@ def test_validate_soak_summarizes_complete_round(tmp_path):
     assert result["interruption_committed_frames"] == 4
     assert result["clean_recovery_frames"] == 100
     assert result["serials"] == ["radio-a"]
+    assert result["maximum_release_probe_sessions"] == 1
+
+
+@pytest.mark.parametrize(
+    "release_probe_sessions",
+    (
+        None,
+        {},
+        {"different-radio": 1},
+        {"radio-a": 0},
+        {"radio-a": 4},
+        {"radio-a": True},
+    ),
+)
+def test_validate_soak_rejects_invalid_release_probe_evidence(
+    tmp_path, release_probe_sessions
+):
+    _make_round(tmp_path)
+    report_path = next(tmp_path.glob("round-*/**/reports/*.json"))
+    report = json.loads(report_path.read_text())
+    if release_probe_sessions is None:
+        report.pop("release_probe_sessions")
+    else:
+        report["release_probe_sessions"] = release_probe_sessions
+    _write_json(report_path, report)
+
+    with pytest.raises(ValueError, match="release probe"):
+        validate_soak(
+            tmp_path, expected_receivers=1, minimum_rounds=1, require_complete=False
+        )
 
 
 def test_validate_soak_rejects_kernel_usb_error(tmp_path):

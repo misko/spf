@@ -61,6 +61,7 @@ def validate_soak(
     interruption_frames = 0
     clean_frames = 0
     maximum_exit_seconds = 0.0
+    maximum_release_probe_sessions = 0
     completed_rounds = []
 
     for expected_round, row in enumerate(rows, start=1):
@@ -113,6 +114,21 @@ def validate_soak(
             case_serials = set(report.get("serials", []))
             if len(case_serials) != expected_receivers:
                 raise ValueError(f"radio identity count mismatch: {case_root}")
+            release_probe_sessions = report.get("release_probe_sessions")
+            if not isinstance(release_probe_sessions, dict) or set(
+                release_probe_sessions
+            ) != case_serials:
+                raise ValueError(f"release probe identity mismatch: {case_root}")
+            for sessions in release_probe_sessions.values():
+                if (
+                    isinstance(sessions, bool)
+                    or not isinstance(sessions, int)
+                    or not 1 <= sessions <= 3
+                ):
+                    raise ValueError(f"invalid release probe sessions: {case_root}")
+                maximum_release_probe_sessions = max(
+                    maximum_release_probe_sessions, sessions
+                )
             if round_serials is None:
                 round_serials = case_serials
             elif case_serials != round_serials:
@@ -163,6 +179,7 @@ def validate_soak(
         "interruption_committed_frames": interruption_frames,
         "clean_recovery_frames": clean_frames,
         "maximum_signal_exit_seconds": maximum_exit_seconds,
+        "maximum_release_probe_sessions": maximum_release_probe_sessions,
         "serials": sorted(serials),
         "completed_rounds": completed_rounds,
     }
