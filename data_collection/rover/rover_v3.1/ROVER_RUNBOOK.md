@@ -280,32 +280,27 @@ sudo /home/pi/spf/data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
   check-config-all 2
 ```
 
-Normal boots perform only the final read-only check; they never repair U-Boot.
-That check validates the persistent `compatible=ad9361` and `mode=2r2t`
-settings but does not gate on `/opt/VERSIONS`, because a Pi-only reboot can
-leave a volatile RAM image running. The boot service then checksum-verifies and
-RAM-loads the configured image on every boot, even when direct USB is already
-present. The stock-QSPI version allowlist remains enforced by the separate
-explicit provisioning path before it can write persistent U-Boot values.
+Normal boots do not repair the persistent U-Boot environment. The one-time
+provisioning step above establishes `compatible=ad9361` and `mode=2r2t`; the
+boot path proves the four dual-RX scan elements over USB without relying on the
+Plutos' duplicate USB-network addresses.
 
-**[field note] Do NOT persistently flash v0.38 — it bricks some PlutoPlus
-units.** Keep production QSPI on **v0.37**. The experimental direct-USB
-gain/RSSI image is a separate, volatile RAM-boot workflow:
+Production V7 configs select `pluto-firmware.boot-mode: qspi` and pin the exact
+direct-USB gain/RSSI image and SHA-256. On every boot, the firmware service reads
+each radio's active version over its serial-bound USB-IIO URI. A match is a
+read-only fast path. A mismatch copies only a generated `pluto.frm` to that
+radio's updater volume, which updates the FIT in `mtd3`, then verifies the
+active version after re-enumeration. It never writes `boot.frm`, `mtd0`, or the
+v0.37 FSBL/U-Boot. This distinction is essential: the historical brick risk was
+from replacing the bootloader, not from this firmware-partition-only path. See
+[`PLUTO_QSPI_FLASH.md`](./PLUTO_QSPI_FLASH.md) for the partition-level safety
+analysis and recovery procedure.
 
-```bash
-cd /home/pi/spf
-data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh download
-sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
-  check-config-all 2
-sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh load-all 2
-```
-
-The multi-radio path accepts only the published SHA-256-pinned image, requires
-the exact expected radio count, selects each attached Pluto by serial and
-physical path, saves its current version/environment, and never writes QSPI.
-Use `verify-all 2` before a Rover 1/3 capture and `rollback-all 2` (or a full
-power cycle) to return to v0.37. Single-radio commands remain available for
-isolated development. Full pass/fail criteria are in
+The multi-radio path requires the exact configured radio count and binds every
+operation to USB serial and physical path. `SPF_PLUTO_RAM_LOAD=1` remains an
+explicit volatile bench/recovery override, not the production default.
+Single-radio commands remain available for isolated development. Full
+pass/fail criteria are in
 [`PRE_FIELD_CHECKLIST.md`](./PRE_FIELD_CHECKLIST.md).
 
 If a Pluto is bricked or won't mount, recover via **DFU**: move the boot jumper
@@ -382,17 +377,19 @@ repository update + unit reconciliation
     -> MAVLink configuration and collection
 ```
 
-The firmware service checksum-verifies and RAM-loads the exact configured image,
-regenerates `~/device_mapping`, and writes
+The firmware service checksum-verifies the exact configured image, verifies or
+updates each radio's firmware according to the YAML `boot-mode`, regenerates
+`~/device_mapping`, and writes
 `/run/spf/direct_usb_ready.json`.
 The ready manifest also carries the passive, session-bound hardware
 compatibility fingerprint copied into every new V7 receiver group. See
 [HARDWARE_FINGERPRINT.md](HARDWARE_FINGERPRINT.md) for its boot ordering,
 privacy boundary, fail-closed checks, Zarr semantics, and historical
 calibration backfill procedure.
-`/etc/spf/direct_usb_boot.env` is optional; RAM loading is enabled by default
-and every attached Pluto must map one-to-one to the `receivers` in the canonical
-Rover YAML selected from `/home/pi/rover_id`. The
+`/etc/spf/direct_usb_boot.env` is optional; the canonical Rover YAML selected
+from `/home/pi/rover_id` chooses the firmware mode, and every attached Pluto
+must map one-to-one to its `receivers`. Production V7 currently chooses
+version-conditional persistent QSPI. The
 provisioning script downloads and checksum-verifies the image into
 `/home/pi/.cache/spf/firmware`, so ordinary boots do not require GitHub access.
 If the cache is deliberately removed, the loader requires network access to
@@ -437,8 +434,8 @@ reboot loop.
 
 ### 4.1 Direct-USB qualification and production boot
 
-RAM firmware preparation is the default prerequisite for every production
-boot. The canonical `data-version: 7` contract implies direct USB, wire protocol
+Firmware preparation is the default prerequisite for every production boot.
+The canonical `data-version: 7` contract implies direct USB, wire protocol
 V2, required gain/RSSI metadata, and a V7 Zarr. Transport/protocol are negotiated
 and verified at runtime rather than repeated under every receiver. The
 motion-free qualification workflow remains mutually exclusive with production.
@@ -469,7 +466,8 @@ sudo reboot
   radio;
 - `spf-pluto-direct-usb.service`, a root oneshot that verifies both persistent
   AD9361/2r2t settings and the four dual-RX DMA scan elements, checksum-verifies
-  and RAM-loads every attached/configured Pluto with the exact image,
+  and version-checks every attached/configured Pluto, updates only mismatched
+  firmware using the configured mode,
   regenerates `~/device_mapping`, verifies standard IIO and direct USB, and
   writes `/run/spf/direct_usb_ready.json`;
 - `spf-direct-usb-preflight.service`, a `pi` oneshot that requires the loader,
@@ -521,28 +519,28 @@ Rover is physically safe to move, set `SPF_BOOT_VALIDATE_ONLY=0`. The next boot
 uses the original Rover routine, record count, real serial MAVLink source, and
 infinite repeat cadence.
 
-The loader deliberately reloads the exact checksum-pinned image even when a
-direct interface is already present; interface presence alone cannot prove the
-build identity. A full Rover power cycle returns each Pluto to its unchanged
-QSPI image.
+The loader deliberately reads and compares the active firmware identity even
+when a direct interface is already present; interface presence alone cannot
+prove the build identity. A matching radio is not reflashed. Because production
+stores the pinned image in QSPI, a full power cycle boots the same direct-USB
+image.
 
-To run the original stock QSPI firmware explicitly, stop the qualification
-units, run the
-serial/path-aware `rollback-all` command, verify `direct_usb=false` for every
-radio, then select the explicit RAM-load opt-out:
+To disable automatic direct-USB preparation and production collection for a
+manual legacy/recovery session, use:
 
 ```bash
 sudo systemctl stop spf-direct-usb-preflight.service \
   spf-pluto-direct-usb.service
-sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
-  rollback-all 2
-sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh status-all 2
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
   restore-legacy
 ```
 
 `restore-legacy` writes `SPF_DIRECT_USB_DISABLE=1` and disables automatic
-production collection. It is a recovery state, not a second production mode.
+production collection. It does not replace the firmware already stored in
+QSPI. Restoring a different QSPI FIT is an explicit firmware recovery operation
+and must follow [`PLUTO_QSPI_FLASH.md`](./PLUTO_QSPI_FLASH.md); never copy a zip
+or `boot.frm` merely to change the firmware partition. This is a recovery state,
+not a second production mode.
 Return to the default with `production-v7`.
 
 Rover 1 passed two-radio 100-frame v4 and v7 captures, profile rollback,
@@ -1157,7 +1155,7 @@ power-on ▶ spf-rover-update.service                 │
            spf-pluto-direct-usb.service
            ├─ verify configured radio count and identity
            ├─ verify persistent 2R2T + firmware over USB-IIO
-           ├─ RAM-load only when required; re-enumerate
+           ├─ matching QSPI: read-only; mismatch: update mtd3 + re-enumerate
            ├─ write device_mapping + ready manifest
            └─ missing radio: alarm for 45s → operator cancel or poweroff
                          │

@@ -59,7 +59,7 @@ collection_config() {
     fi
 }
 
-ram_load_setting() {
+direct_usb_disabled_setting() {
     local value
     if [[ -f "$DIRECT_ENV_DEST" ]]; then
         value="$(
@@ -73,7 +73,7 @@ ram_load_setting() {
 
 show_status() {
     printf 'capture_config=%s\n' "$(collection_config)"
-    printf 'ram_load_disabled=%s\n' "$(ram_load_setting)"
+    printf 'direct_usb_disabled=%s\n' "$(direct_usb_disabled_setting)"
     printf '%-34s enabled=%-10s active=%s\n' \
         "$UPDATE_UNIT" \
         "$(unit_state is-enabled "$UPDATE_UNIT")" \
@@ -213,7 +213,7 @@ enable_default_production() {
     systemctl disable "$PREFLIGHT_UNIT"
     systemctl enable "$UPDATE_UNIT" "$LOADER_UNIT" "$PRODUCTION_UNIT"
     printf '%s\n' \
-        "PASS: RAM firmware preparation before MAVLink is enabled." \
+        "PASS: config-selected firmware preparation before MAVLink is enabled." \
         "The canonical Rover V7 capture config is selected by rover_id." \
         "No service was started."
     show_status
@@ -266,10 +266,11 @@ Usage: sudo $(basename "$0") COMMAND
 Commands:
   qualify        Enable loader + one 100-frame fake-drone qualification.
   production-default
-                 RAM-load before MAVLink and use canonical Rover V7 config.
+                 Prepare the YAML-selected firmware before MAVLink and use the
+                 canonical Rover V7 config (currently persistent QSPI).
   production-v7 Alias for production-default.
   restore-legacy
-                 Explicitly opt out of RAM loading and use legacy IIO/v4.
+                 Explicitly opt out of direct-USB preparation for legacy recovery.
   status         Show profile, unit exclusivity, ordering, and ready stamp.
 
 The historical 'enable' command remains an alias for 'qualify'.

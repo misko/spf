@@ -162,8 +162,9 @@ sleep 5
 
 # Production services and the firmware asset are installed from the canonical
 # Rover V7 config selected by /home/pi/rover_id.
-# Persistent AD9361/2R2T provisioning is explicit and happens only here, after
-# the checksum-verified v0.37 QSPI installation. Ordinary boots are read-only.
+# Persistent AD9361/2R2T provisioning is explicit and happens only here. On an
+# ordinary boot, firmware preparation reads the active version and is read-only
+# when it matches; only an explicit mismatch enters the QSPI update path.
 sudo /home/pi/spf/data_collection/rover/rover_v3.1/check_and_set_pluto.sh \
     --apply
 sudo /home/pi/spf/data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
