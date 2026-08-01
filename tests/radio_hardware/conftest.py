@@ -76,6 +76,29 @@ def pytest_addoption(parser):
         help="frames per receiver in the hardware-backed V7 Zarr test",
     )
     group.addoption(
+        "--radio-interrupt",
+        action="store_true",
+        help="enable the real collector SIGTERM/finalization test",
+    )
+    group.addoption(
+        "--radio-capture-config",
+        type=Path,
+        default=None,
+        help="production V7 YAML for --radio-interrupt",
+    )
+    group.addoption(
+        "--radio-device-mapping",
+        type=Path,
+        default=Path("/home/pi/device_mapping"),
+        help="receiver-port mapping for --radio-interrupt",
+    )
+    group.addoption(
+        "--radio-ready-manifest",
+        type=Path,
+        default=Path("/run/spf/direct_usb_ready.json"),
+        help="boot readiness manifest for --radio-interrupt",
+    )
+    group.addoption(
         "--radio-soak",
         action="store_true",
         help="enable long-running attached-radio tests",
@@ -91,17 +114,21 @@ def pytest_addoption(parser):
 def pytest_collection_modifyitems(config, items):
     hardware_enabled = config.getoption("--radio-hardware")
     zarr_enabled = config.getoption("--radio-zarr")
+    interrupt_enabled = config.getoption("--radio-interrupt")
     soak_enabled = config.getoption("--radio-soak")
     hardware_skip = pytest.mark.skip(
         reason="requires explicit --radio-hardware and attached Pluto hardware"
     )
     zarr_skip = pytest.mark.skip(reason="requires explicit --radio-zarr")
+    interrupt_skip = pytest.mark.skip(reason="requires explicit --radio-interrupt")
     soak_skip = pytest.mark.skip(reason="requires explicit --radio-soak")
     for item in items:
         if "radio_hardware" in item.keywords and not hardware_enabled:
             item.add_marker(hardware_skip)
         if "radio_zarr" in item.keywords and not zarr_enabled:
             item.add_marker(zarr_skip)
+        if "radio_interrupt" in item.keywords and not interrupt_enabled:
+            item.add_marker(interrupt_skip)
         if "radio_soak" in item.keywords and not soak_enabled:
             item.add_marker(soak_skip)
 

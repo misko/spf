@@ -44,3 +44,21 @@ pytest tests/radio_hardware \
 This surgical Zarr test is not a substitute for the production-YAML,
 fake-drone capture in the Rover pre-field checklist; that remains the final
 collector acceptance gate.
+
+Exercise graceful SIGTERM against the real production collector, verify its
+partial LMDB-Zarr, and immediately reclaim both radios:
+
+```bash
+pytest tests/radio_hardware/test_interrupted_collection_hardware.py \
+  --radio-hardware \
+  --radio-interrupt \
+  --radio-expected-count=2 \
+  --radio-capture-config=data_collection/rover/rover_v3.1/capture_configs/rover3_production_v7.yaml \
+  --radio-device-mapping=/home/pi/device_mapping \
+  --radio-ready-manifest=/run/spf/direct_usb_ready.json
+```
+
+The subprocess is terminated only after every configured receiver has at
+least two fully committed records. Passing requires an `incomplete` temporary
+store with `CaptureInterrupted`, monotonically safe progress counts, no final
+`.zarr`, and a successful new direct-USB request on every serial.

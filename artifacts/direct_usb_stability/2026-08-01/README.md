@@ -126,15 +126,52 @@ provenance smoke capture round-tripped that value into both receiver groups.
 ## Current disposition
 
 - Both radios' persistent QSPI contains the published fingerprint-v1 image.
-- Both radios currently run that published persistent image after normal reset.
+- `.18` currently runs that published persistent image after normal reset and
+  passes the interruption/reclaim gate.
+- `.17` suffered a real kernel-observed USB disconnect during the first
+  two-radio interruption run (`usb 1-1.1: USB disconnect` at 05:59:23). It did
+  not re-enumerate after a targeted USB hub-port cycle because its power is
+  external. It requires an operator power cycle before the exact-count-two
+  gate can be repeated.
 - The candidate is not yet a release and must not be made persistent until its
   commits/image are published and the Rover config manifest is updated.
 
 Remaining gates:
 
-1. Exercise an intentionally interrupted capture and verify its incomplete
-   state and primary-error provenance.
+1. Repeat the passing interrupted-capture/reclaim gate with both radios after
+   `.17` is externally power-cycled.
 2. Run a longer lifecycle/dual-radio soak and inspect device/host memory and
    kernel log deltas.
 3. Publish and pin the candidate, then repeat a cold-boot two-radio acceptance
    before considering persistent rollout.
+
+## Interrupted-capture development
+
+Interruption handling now has two layers of opt-in testing.
+
+The deterministic subprocess tests cover SIGTERM and SIGKILL without radio
+hardware. A complete record advances a persisted per-receiver count only after
+its write finishes. SIGTERM cooperatively stops RX, preserves the first error,
+marks the temporary store `incomplete`, closes LMDB and exits non-zero. SIGKILL
+cannot run cleanup, so the store deliberately remains `in_progress`; it is
+still readable and is never promoted to a final `.zarr`.
+
+The attached-radio test runs the ordinary production fake-drone collector,
+waits for two committed records on every configured receiver, sends SIGTERM,
+validates the partial V7 store, and then claims every serial for a fresh frame.
+It also rejects stale device mappings or readiness manifests before starting,
+so USB address changes cannot be mistaken for a collector failure.
+
+One-radio result on `.18`:
+
+- production frame size: 524,288 complex samples per channel;
+- completed records before SIGTERM: at least two;
+- pytest result: `1 passed` in 21.23 seconds;
+- partial state: `incomplete`, `CaptureInterrupted`, SIGTERM recorded;
+- final `.zarr`: absent;
+- immediate direct-USB reclaim and one-frame receive: pass.
+
+Focused regression result: 161 software tests passed across capture
+finalization and the direct-USB collector, receiver and protocol modules. The
+existing MAVLink fake-drone smoke also passed; ordinary hardware invocation
+correctly skipped all six opt-in radio tests.

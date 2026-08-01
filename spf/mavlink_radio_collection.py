@@ -301,9 +301,11 @@ if __name__ == "__main__":
     # begin promptly after boot. Collector construction remains in the same
     # place below, after navigation readiness and planner setup.
     from spf.data_collector import (
+        CaptureInterrupted,
         DroneDataCollectorRaw,
         DroneDataCollectorRawV6,
         DroneDataCollectorRawV7,
+        capture_signal_handlers,
     )
 
     boundary_name = yaml_config.get("boundary", "franklin_safe")
@@ -416,20 +418,41 @@ if __name__ == "__main__":
         f"MavRadioCollection: Current system time: {system_time} current gps time {gps_time}"
     )
 
-    data_collector.start()
-    while data_collector.is_collecting():
-        # if args.realtime:
-        #     for x in nn_ds: # x[1]['paired'].shape  / torch.Size([1, 65])
-        #         pass
-        check_exit()
-        time.sleep(5)
+    capture_interruption = None
+    try:
+        with capture_signal_handlers(data_collector):
+            data_collector.start()
+            while data_collector.is_collecting():
+                # if args.realtime:
+                #     for x in nn_ds: # x[1]['paired'].shape  / torch.Size([1, 65])
+                #         pass
+                check_exit()
+                time.sleep(0.5)
 
-    data_collector.done()
+            data_collector.done()
+    except CaptureInterrupted as error:
+        # DataCollector has already stopped RX, muted TX, persisted the exact
+        # incomplete state and closed LMDB before done() re-raises. The pinned
+        # libiio build can retain a native libusb_event thread even after its
+        # context is destroyed, hanging Python finalization indefinitely.
+        # Record the handled interruption and use a conventional signal exit
+        # code after the explicit cleanup instead of invoking C destructors.
+        capture_interruption = error
+    finally:
+        # Failure and signal paths must release the planner just like a clean
+        # collection. This is especially important when the caller supervises
+        # and waits for the process to exit before recovery.
+        drone.planner_should_move = False
+    if capture_interruption is not None:
+        logging.error("Capture stopped cleanly after %s", capture_interruption)
+        logging.shutdown()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(128 + capture_interruption.signal_number)
 
     if args.realtime:
         v5inf.close()  # make sure to close this outside of context manager!
 
-    drone.planner_should_move = False
     # we finished lets move files out to final positions
 
     logging.info("MavRadioCollection: Moving files to final location ...")

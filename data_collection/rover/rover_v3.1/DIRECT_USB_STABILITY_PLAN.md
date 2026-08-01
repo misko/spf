@@ -16,10 +16,10 @@ Execution status on 2026-08-01:
 | Gate | Status | Evidence |
 |---|---|---|
 | 0 baseline | Pass | Two serial-selected radios; production-size lifecycle, sequence and simultaneous tests |
-| 1 Python observability | Partial | Original RX exception now propagates; incomplete-capture fault injection remains |
+| 1 Python observability | Pass for software and one radio | SIGTERM/SIGKILL tests pass; real production collector SIGTERM finalizes and immediately releases `.18`; dual-radio rerun awaits `.17` power cycle |
 | 2 allocation/logging candidate | Partial | Native tests, ARM cross-build and full DFU build pass; cleanup/counter extensions remain |
 | 3 RAM candidate | Pass for quick gate | Candidate/control comparison and 50-cycle candidate test pass |
-| 4 V7 integrity | Pass for clean path | 10-, 100- and QSPI-provenance captures pass; interrupted path remains |
+| 4 V7 integrity | Pass for clean and interrupted one-radio paths | 10-, 100- and QSPI-provenance captures pass; SIGTERM partial V7 store is readable and fail-closed |
 | 5 soak/fault injection | Pending | Deliberately not started by the quick suite |
 | 6 Rover rollout | Pending | Candidate is not published or persistent |
 
@@ -96,6 +96,20 @@ Pass:
   error reaches the collector and incomplete-store attributes.
 - Cleanup runs exactly once and a subsequent process can immediately reopen
   the same radio.
+
+Executed evidence:
+
+- Synthetic subprocess SIGTERM produces a readable `incomplete` LMDB-Zarr
+  with `CaptureInterrupted`; SIGKILL leaves `in_progress`, never a falsely
+  complete store. Both retain only monotonically safe committed-record counts.
+- The real production-size Rover 2 V7 collector was stopped after two complete
+  records. It exited with status 143 in 21 seconds end to end, left no final
+  `.zarr`, and a fresh direct-USB request immediately reclaimed the same serial.
+- A two-radio attempt exposed a real host-kernel USB disconnect on physical
+  path `1-1.1`. That radio did not re-enumerate after a hub-port cycle because
+  it is externally powered; this is a hardware recovery result, not a passing
+  dual-radio interruption gate. Repeat the exact-count-two gate after an
+  external power cycle.
 
 Fail:
 

@@ -1,9 +1,23 @@
 import logging
+import os
+from pathlib import Path
+import queue
+import select
+import signal
+import subprocess
+import sys
 import threading
+import time
+from types import SimpleNamespace
 
 import pytest
 
-from spf.data_collector import DataCollector
+from spf.data_collector import (
+    CaptureInterrupted,
+    DataCollector,
+    ThreadedRX,
+    capture_signal_handlers,
+)
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 from spf.sdrpluto.sdr_controller import PPlus
 
@@ -107,3 +121,183 @@ def test_pluto_close_attempts_tx_mute_after_rx_cleanup_failure():
     assert calls == ["rx", "tx"]
     assert "RX transport is gone" in str(raised.value)
     assert "TX mute failed" in str(raised.value)
+
+
+def test_pluto_close_explicitly_releases_iio_context():
+    class FakeContext:
+        def __init__(self):
+            self._context = object()
+            self.destroy_calls = 0
+
+        def __del__(self):
+            if self._context is not None:
+                self.destroy_calls += 1
+
+    class FakeSdr:
+        def __init__(self):
+            self._ctx = FakeContext()
+            self.tx_enabled_channels = [0, 1]
+            self.tx_cyclic_buffer = True
+
+        def tx_destroy_buffer(self):
+            pass
+
+        def rx_destroy_buffer(self):
+            pass
+
+    radio = object.__new__(PPlus)
+    radio.uri = "usb:1.2.5"
+    radio.sdr = FakeSdr()
+    original_sdr = radio.sdr
+    original_context = original_sdr._ctx
+    radio.direct_rx = None
+    radio.rx_config = None
+    radio.tx_config = None
+    radio._last_direct_gains = None
+    radio._last_direct_rssis = None
+    radio._last_direct_metadata = None
+
+    radio.close()
+    radio.close()
+
+    assert radio.sdr is None
+    assert original_sdr._ctx is None
+    assert original_context._context is None
+    assert original_context.destroy_calls == 1
+
+
+def test_signal_handler_requests_stop_and_restores_process_handlers(tmp_path):
+    collector = _DisconnectedCollector(
+        tmp_path / "capture.zarr.tmp", RuntimeError("unused")
+    )
+    collector.collection_error = None
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+
+    with capture_signal_handlers(collector):
+        os.kill(os.getpid(), signal.SIGTERM)
+        assert collector.stop_requested.wait(timeout=1)
+        assert isinstance(collector.collection_error, CaptureInterrupted)
+        assert "SIGTERM" in str(collector.collection_error)
+
+    assert signal.getsignal(signal.SIGTERM) is previous_sigterm
+    collector.close()
+
+
+def test_stop_request_preserves_a_receiver_error_that_won_the_race(tmp_path):
+    collector = _DisconnectedCollector(
+        tmp_path / "capture.zarr.tmp", RuntimeError("unused")
+    )
+    collector.collection_error = None
+    usb_error = OSError(19, "radio disappeared before SIGTERM")
+    collector.read_threads = [SimpleNamespace(error=usb_error, run=True)]
+
+    collector.request_stop(CaptureInterrupted(signal.SIGTERM))
+
+    assert collector.collection_error is usb_error
+    assert collector.read_threads[0].run is False
+    collector.close()
+
+
+def test_reader_error_never_blocks_behind_a_full_result_queue(monkeypatch):
+    reader = object.__new__(ThreadedRX)
+    reader.pplus = SimpleNamespace(soft_reset_radio=lambda: None)
+    reader.rx_config = SimpleNamespace(
+        uri="test://radio", rx_pos=[[0.0, 0.0], [0.04, 0.0]], lo=2.4e9
+    )
+    reader.nthetas = 65
+    reader.read_q = queue.Queue(maxsize=1)
+    reader.read_q.put(object())
+    reader.run = True
+    reader.error = None
+    reader.get_data = lambda: (_ for _ in ()).throw(OSError(19, "radio gone"))
+    monkeypatch.setattr(
+        "spf.data_collector.precompute_steering_vectors", lambda **_kwargs: None
+    )
+
+    reader.read_forever()
+
+    assert isinstance(reader.error, OSError)
+    assert reader.run is False
+    assert reader.read_q.full()
+
+
+def _start_interrupt_worker(path, repo_root):
+    command = [
+        sys.executable,
+        str(repo_root / "tests/helpers/run_interruptible_capture.py"),
+        str(path),
+    ]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join(
+        [str(repo_root), environment.get("PYTHONPATH", "")]
+    )
+    process = subprocess.Popen(
+        command,
+        cwd=repo_root,
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    readable, _, _ = select.select([process.stdout], [], [], 10)
+    if not readable:
+        process.kill()
+        stdout, stderr = process.communicate(timeout=10)
+        pytest.fail(f"interrupt worker did not become ready: {stdout=} {stderr=}")
+    assert process.stdout.readline().strip() == "READY"
+    return process
+
+
+def _wait_for_committed_progress(path, minimum=2):
+    deadline = time.monotonic() + 10
+    last_error = None
+    while time.monotonic() < deadline:
+        try:
+            capture = zarr_open_from_lmdb_store(str(path), mode="r")
+            try:
+                counts = capture.attrs["capture_records_written_by_receiver"]
+                if counts[0] >= minimum:
+                    return counts[0]
+            finally:
+                capture.store.close()
+        except Exception as error:
+            last_error = error
+        time.sleep(0.05)
+    raise AssertionError(f"capture made no committed progress: {last_error}")
+
+
+@pytest.mark.parametrize(
+    ("terminate", "expected_status", "expected_error_type"),
+    [
+        ("terminate", "incomplete", "CaptureInterrupted"),
+        ("kill", "in_progress", None),
+    ],
+)
+def test_subprocess_interruption_is_fail_closed_and_partial_lmdb_is_readable(
+    tmp_path, terminate, expected_status, expected_error_type
+):
+    repo_root = Path(__file__).resolve().parents[1]
+    partial_path = tmp_path / f"{terminate}.zarr.tmp"
+    process = _start_interrupt_worker(partial_path, repo_root)
+    committed_before_interrupt = _wait_for_committed_progress(partial_path)
+
+    getattr(process, terminate)()
+    stdout, stderr = process.communicate(timeout=15)
+    assert process.returncode != 0, (stdout, stderr)
+    assert partial_path.is_dir()
+    assert not (tmp_path / f"{terminate}.zarr").exists()
+
+    partial = zarr_open_from_lmdb_store(str(partial_path), mode="r")
+    try:
+        assert partial.attrs["capture_status"] == expected_status
+        committed_after_interrupt = partial.attrs[
+            "capture_records_written_by_receiver"
+        ][0]
+        assert committed_after_interrupt >= committed_before_interrupt
+        if expected_error_type is not None:
+            assert partial.attrs["capture_error_type"] == expected_error_type
+            assert "SIGTERM" in partial.attrs["capture_error_message"]
+        else:
+            assert "capture_error_type" not in partial.attrs
+    finally:
+        partial.store.close()

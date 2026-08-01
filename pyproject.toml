@@ -46,5 +46,6 @@ readme = "README.md"
 markers = [
   "radio_hardware: requires explicitly enabled attached Pluto radio hardware",
   "radio_zarr: writes and reopens a short hardware-backed V7 Zarr artifact",
+  "radio_interrupt: terminates a real attached-radio collector subprocess",
   "radio_soak: long-running attached-radio stability test",
 ]

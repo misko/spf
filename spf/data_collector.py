@@ -3,6 +3,7 @@ import multiprocessing
 import os
 from pathlib import Path
 import queue
+import signal
 import struct
 import sys
 import threading
@@ -362,13 +363,14 @@ class ThreadedRX:
             except Exception as e:
                 self.error = e
                 logging.exception("Failed to read data, aborting")
-                while True:
-                    try:
-                        self.read_q.put(None, timeout=0.5)
-                        break
-                    except queue.Full:
-                        continue
                 self.run = False
+                # The collector polls ``error`` directly. The sentinel is only
+                # a wake-up hint: never block trying to enqueue it behind a
+                # frame the collector intentionally stopped consuming.
+                try:
+                    self.read_q.put_nowait(None)
+                except queue.Full:
+                    pass
                 continue
             put_on_queue = False
             while self.run and not put_on_queue:
@@ -570,6 +572,7 @@ class DataCollector:
         self.cleanup_errors = []
         self.records_written_by_receiver = [0] * len(yaml_config["receivers"])
         self._records_written_lock = threading.Lock()
+        self.stop_requested = threading.Event()
         self.setup_record_matrix()
         self._mark_capture_state("in_progress")
 
@@ -735,6 +738,23 @@ class DataCollector:
         if self.collection_error is not None:
             raise self.collection_error
 
+    def request_stop(self, error):
+        """Request cooperative cleanup without replacing an earlier failure."""
+
+        if self.collection_error is None:
+            latent_read_error = next(
+                (
+                    read_thread.error
+                    for read_thread in getattr(self, "read_threads", ())
+                    if read_thread.error is not None
+                ),
+                None,
+            )
+            self.collection_error = latent_read_error or error
+        self.stop_requested.set()
+        for read_thread in getattr(self, "read_threads", ()):
+            read_thread.run = False
+
     def is_collecting(self):
         return not self.finished_collecting
 
@@ -748,6 +768,14 @@ class DataCollector:
         self.write_to_record_matrix(thread_idx, record_idx, data)
         with self._records_written_lock:
             self.records_written_by_receiver[thread_idx] += 1
+            # Commit progress only after the full record. An abrupt death may
+            # under-count the record currently being committed, but it can
+            # never claim that an unwritten record is safe to consume.
+            zarr = getattr(self, "zarr", None)
+            if self.data_filename is not None and zarr is not None:
+                zarr.attrs["capture_records_written_by_receiver"] = list(
+                    self.records_written_by_receiver
+                )
 
     @staticmethod
     def _error_summary(error):
@@ -779,7 +807,18 @@ class DataCollector:
         with ThreadPoolExecutorWithQueueSizeLimit(max_workers=2, maxsize=1) as executor:
             for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
                 for read_thread_idx, read_thread in enumerate(self.read_threads):
-                    data = read_thread.read_q.get()
+                    while True:
+                        if read_thread.error is not None:
+                            raise read_thread.error
+                        if self.stop_requested.is_set():
+                            assert self.collection_error is not None
+                            raise self.collection_error
+                        try:
+                            data = read_thread.read_q.get(timeout=0.5)
+                            break
+                        except queue.Empty:
+                            if read_thread.error is not None:
+                                raise read_thread.error
                     if data is None:
                         if read_thread.error is not None:
                             raise read_thread.error
@@ -806,7 +845,8 @@ class DataCollector:
             # https://stackoverflow.com/questions/48263704/threadpoolexecutor-how-to-limit-the-queue-maxsize
             self.run_inner_collector_thread()
         except Exception as error:
-            self.collection_error = error
+            if self.collection_error is None:
+                self.collection_error = error
             logging.exception("Collector failed")
         finally:
             logging.info("Collector tell threads to quit!")
@@ -853,6 +893,47 @@ class DataCollector:
 
     def close(self):
         pass
+
+
+class CaptureInterrupted(RuntimeError):
+    """A collection was stopped by a process-control signal."""
+
+    def __init__(self, signal_number):
+        self.signal_number = int(signal_number)
+        try:
+            signal_name = signal.Signals(self.signal_number).name
+        except ValueError:
+            signal_name = str(self.signal_number)
+        super().__init__(f"capture interrupted by {signal_name}")
+
+
+class capture_signal_handlers:
+    """Route SIGINT/SIGTERM through collector and Zarr cleanup."""
+
+    def __init__(self, collector):
+        self.collector = collector
+        self.previous = {}
+
+    def __enter__(self):
+        if threading.current_thread() is not threading.main_thread():
+            raise RuntimeError("capture signal handlers require the main thread")
+
+        def request_stop(signal_number, _frame):
+            logging.error(
+                "Capture interruption requested by %s",
+                signal.Signals(signal_number).name,
+            )
+            self.collector.request_stop(CaptureInterrupted(signal_number))
+
+        for signal_number in (signal.SIGINT, signal.SIGTERM):
+            self.previous[signal_number] = signal.getsignal(signal_number)
+            signal.signal(signal_number, request_stop)
+        return self
+
+    def __exit__(self, _error_type, _error, _traceback):
+        for signal_number, previous_handler in self.previous.items():
+            signal.signal(signal_number, previous_handler)
+        self.previous.clear()
 
 
 # V4 data format

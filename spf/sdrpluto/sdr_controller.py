@@ -1,5 +1,6 @@
 import argparse
 import dataclasses
+import gc
 import logging
 import sys
 import time
@@ -1042,12 +1043,42 @@ class PPlus:
             except Exception as error:
                 failures.append((step, error))
                 logging.exception("%s: %s failed", self.uri, step)
+        try:
+            self._close_iio_context()
+        except Exception as error:
+            failures.append(("IIO context cleanup", error))
+            logging.exception("%s: IIO context cleanup failed", self.uri)
         logging.info(f"{self.uri}: Done close PlutoPlus")
         if failures:
             raise SdrCleanupError(failures)
 
+    def _close_iio_context(self):
+        """Destroy pyadi/libiio explicitly so its USB event thread cannot linger."""
+
+        sdr = getattr(self, "sdr", None)
+        self.sdr = None
+        if sdr is None:
+            return
+        context = getattr(sdr, "_ctx", None)
+        # Break pyadi's ownership before dropping both objects. iio.Context's
+        # destructor calls iio_context_destroy(), which joins libusb_event.
+        sdr._ctx = None
+        if context is not None:
+            # Pinned pylibiio exposes destruction only through __del__, not a
+            # public close(). Other pyadi device wrappers can retain the
+            # Context object, so reference dropping alone leaves libusb_event
+            # alive through interpreter shutdown. Destroy the native context
+            # now and clear its pointer to make a later __del__ idempotent.
+            context.__del__()
+            if hasattr(context, "_context"):
+                context._context = None
+        del sdr
+        if context is not None:
+            del context
+        gc.collect()
+
     def __del__(self):
-        if hasattr(self, "sdr"):
+        if getattr(self, "sdr", None) is not None:
             try:
                 self.close()
             except Exception:
