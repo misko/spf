@@ -32,8 +32,11 @@ from spf.mavlink.check_prearm import (
 )
 from spf.mavlink.compass_policy import (
     EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+    UnsafeCompassRepairError,
     evaluate_compass_policy,
+    format_compass_inventory,
     parse_parameter_file,
+    plan_external_compass_repairs,
 )
 
 
@@ -371,6 +374,8 @@ def _print_compass(report: dict[str, Any]) -> None:
     for key, value in report["parameters"].items():
         print(f"{key:<20} {value:g}")
     policy = report["policy"]
+    for line in report.get("inventory", []):
+        print(line)
     external = policy["external_compass"]
     if external is not None:
         print(
@@ -382,12 +387,76 @@ def _print_compass(report: dict[str, Any]) -> None:
         print(f"WARNING: {warning}")
     for error in policy["errors"]:
         print(f"FAIL: {error}")
-    if policy["ok"]:
+    repair = report.get("repair")
+    runtime_verification_pending = bool(
+        repair is not None and repair.get("reboot_required")
+    )
+    if policy["ok"] and not runtime_verification_pending:
         print("PASS: external GPS compass is the sole fleet-approved yaw source")
+    elif policy["ok"]:
+        print("PENDING: stored policy is correct; reboot and re-run compass check")
+    if repair is not None:
+        if repair["changes"]:
+            print("Applied compass priority/use repairs:")
+            for key, change in repair["changes"].items():
+                print(f"  {key}: {change['before']:g} -> {change['after']:g}")
+            if repair["reboot_required"]:
+                print("REBOOT REQUIRED: priority changes take effect after FC reboot")
+            else:
+                print("PASS: yaw-use changes were acknowledged by ArduPilot")
+        else:
+            print("No compass priority/use repair was necessary")
+
+
+def apply_parameter_changes(
+    connection, params: dict[str, float], changes: dict[str, int]
+) -> dict[str, dict[str, float]]:
+    """Write and acknowledge a small, prevalidated set of ArduPilot parameters."""
+    applied: dict[str, dict[str, float]] = {}
+    for name, desired_value in changes.items():
+        before = float(params[name])
+        acknowledged_value = None
+        for _attempt in range(3):
+            connection.param_set_send(name.upper(), float(desired_value))
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                remaining = max(0.0, deadline - time.monotonic())
+                ack = connection.recv_match(
+                    type="PARAM_VALUE",
+                    blocking=True,
+                    timeout=min(0.25, remaining),
+                )
+                if (
+                    ack is None
+                    or _decode_param_id(ack.param_id).upper() != name.upper()
+                ):
+                    continue
+                acknowledged_value = float(ack.param_value)
+                break
+            if (
+                acknowledged_value is not None
+                and abs(acknowledged_value - float(desired_value)) <= 1e-6
+            ):
+                break
+        if (
+            acknowledged_value is None
+            or abs(acknowledged_value - float(desired_value)) > 1e-6
+        ):
+            raise CliError(f"ArduPilot did not acknowledge {name}={desired_value}")
+        params[name] = acknowledged_value
+        applied[name] = {"before": before, "after": acknowledged_value}
+    return applied
 
 
 def command_compass(args: argparse.Namespace) -> int:
+    if args.repair and not args.yes:
+        raise CliError(
+            "compass --repair writes persistent priority/use parameters; "
+            "repeat with --yes after making the disarmed rover safe"
+        )
     if args.params:
+        if args.repair:
+            raise CliError("--repair requires a live vehicle, not --params")
         try:
             params = parse_parameter_file(args.params)
         except (OSError, ValueError) as error:
@@ -395,17 +464,50 @@ def command_compass(args: argparse.Namespace) -> int:
         complete = True
         master = None
     else:
-        connection, _heartbeat, master = _connect(args)
+        connection, heartbeat, master = _connect(args)
         params, complete = download_parameters(connection, args.parameter_timeout)
         if not params:
             raise CliError("no ArduPilot parameters were received")
 
+    repair = None
+    if args.repair:
+        if not complete:
+            raise CliError("cannot repair from an incomplete parameter snapshot")
+        if _armed(heartbeat):
+            raise CliError("vehicle is armed; refusing compass repair")
+        try:
+            planned_changes = plan_external_compass_repairs(
+                params,
+                expected_external_device_id=args.expected_device_id,
+            )
+        except UnsafeCompassRepairError as error:
+            raise CliError(f"compass repair is unsafe: {error}") from error
+        applied_changes = apply_parameter_changes(connection, params, planned_changes)
+        reboot_required = any(key.startswith("COMPASS_PRIO") for key in applied_changes)
+        repair = {
+            "changes": applied_changes,
+            "reboot_required": reboot_required,
+            "verification": (
+                "parameter writes acknowledged; "
+                + (
+                    "reboot and live re-read required"
+                    if reboot_required
+                    else "live values acknowledged"
+                )
+            ),
+        }
+
     report = _compass_report(params, args.expected_device_id)
+    policy_object = evaluate_compass_policy(
+        params, expected_external_device_id=args.expected_device_id
+    )
     report.update(
         {
             "master": master,
             "parameter_download_complete": complete,
             "parameter_count": len(params),
+            "inventory": list(format_compass_inventory(policy_object)),
+            "repair": repair,
         }
     )
     if args.json or args.json_output:
@@ -639,6 +741,19 @@ def get_parser() -> argparse.ArgumentParser:
         "--expected-device-id",
         type=int,
         default=EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+    )
+    compass.add_argument(
+        "--repair",
+        action="store_true",
+        help=(
+            "repair priority order and COMPASS_USE* only when exactly one "
+            "known external compass is identified"
+        ),
+    )
+    compass.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm persistent writes requested by --repair.",
     )
     compass.set_defaults(handler=command_compass)
 

@@ -1,12 +1,18 @@
 import math
 import json
 
+import pytest
+
 from spf.mavlink.compass_policy import (
     DEFAULT_COMPASS_CAL_FIT,
     EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+    UnsafeCompassRepairError,
+    decode_compass_device_id,
     evaluate_compass_policy,
+    format_compass_inventory,
     main,
     parse_parameter_file,
+    plan_external_compass_repairs,
 )
 
 
@@ -102,6 +108,60 @@ def test_rejects_permissive_calibration_and_duplicate_priorities():
     assert not report.ok
     assert any("COMPASS_CAL_FIT=100" in error for error in report.errors)
     assert any("priority IDs are not unique" in error for error in report.errors)
+
+
+def test_rejects_duplicate_detected_full_device_ids():
+    params = _healthy_params()
+    params["COMPASS_DEV_ID2"] = EXPECTED_EXTERNAL_COMPASS_DEVICE_ID
+
+    report = evaluate_compass_policy(params)
+
+    assert not report.ok
+    assert any("appears in multiple slots: [1, 2]" in error for error in report.errors)
+
+
+def test_device_id_decode_and_inventory_include_bus_and_priorities():
+    assert decode_compass_device_id(658953) == {
+        "bus_type": 1,
+        "bus": 1,
+        "address": 14,
+        "device_type": 10,
+    }
+    report = evaluate_compass_policy(_healthy_params())
+
+    inventory = format_compass_inventory(report)
+
+    assert inventory[0] == "Compass priorities: PRIO1=658953 PRIO2=131594 PRIO3=0"
+    assert "device_id=658953" in inventory[1]
+    assert "external=True use_for_yaw=True" in inventory[1]
+    assert "bus_type=1 bus=1 address=14 device_type=10" in inventory[1]
+
+
+def test_repair_plan_prioritizes_and_exclusively_uses_external_compass():
+    params = _healthy_params(external_slot=2)
+    params.update(
+        {
+            "COMPASS_PRIO1_ID": 131594,
+            "COMPASS_PRIO2_ID": EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+            "COMPASS_USE": 1,
+            "COMPASS_USE2": 0,
+        }
+    )
+
+    assert plan_external_compass_repairs(params) == {
+        "COMPASS_PRIO1_ID": EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+        "COMPASS_PRIO2_ID": 131594,
+        "COMPASS_USE": 0,
+        "COMPASS_USE2": 1,
+    }
+
+
+def test_repair_plan_refuses_duplicate_detected_ids():
+    params = _healthy_params()
+    params["COMPASS_DEV_ID2"] = EXPECTED_EXTERNAL_COMPASS_DEVICE_ID
+
+    with pytest.raises(UnsafeCompassRepairError, match="duplicate detected"):
+        plan_external_compass_repairs(params)
 
 
 def test_rejects_driver_mask_and_wrong_primary_priority():

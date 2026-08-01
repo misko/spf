@@ -122,7 +122,9 @@ def test_fresh_setup_installs_and_enables_loader_with_mavlink():
     assert "spf-rover-update.service" in configure
     assert "spf-pluto-direct-usb.service" in configure
     assert "cache_firmware_image" in configure
-    assert 'systemctl enable "$UPDATE_UNIT" "$LOADER_UNIT" "$PRODUCTION_UNIT"' in configure
+    assert (
+        'systemctl enable "$UPDATE_UNIT" "$LOADER_UNIT" "$PRODUCTION_UNIT"' in configure
+    )
     reconciler = (ROVER_ROOT / "reconcile_rover_boot_units.sh").read_text()
     assert "spf-rover-update.service" in reconciler
     assert "spf-pluto-direct-usb.service" in reconciler
@@ -133,6 +135,28 @@ def test_fresh_setup_installs_and_enables_loader_with_mavlink():
     assert "spf-pluto-direct-usb.service" in enabled_block
     assert "spf-rover-update.service" in enabled_block
     assert "mavlink_controller.service" in enabled_block
+
+
+def test_boot_reuses_parameter_snapshot_for_compass_inventory_and_policy():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    assert 'COMPASS_READY_FILE="/home/pi/compass_ready.json"' in launcher
+    sync_body = launcher.split("sync_vehicle_configuration() {", 1)[1].split("\n}", 1)[
+        0
+    ]
+    assert "--prepare-vehicle-params" in sync_body
+    assert '--compass-policy-json "$COMPASS_READY_FILE"' in sync_body
+    assert "--load-params" not in sync_body
+    assert "--diff-params" not in sync_body
+    assert "--save-params" not in sync_body
+    assert "verify_compass_policy_read_only" in sync_body
+
+    main_body = launcher.rsplit("main() {", 1)[1]
+    validation_body = main_body.split('if is_true "$BOOT_VALIDATE_ONLY"; then', 1)[
+        1
+    ].split("fi", 1)[0]
+    assert validation_body.index("read_only_vehicle_gate") < validation_body.index(
+        "verify_compass_policy_read_only"
+    )
 
 
 def test_stock_firmware_restore_is_an_explicit_opt_out():

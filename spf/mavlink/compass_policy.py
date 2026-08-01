@@ -14,12 +14,19 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from collections import Counter
 from typing import Mapping
 
 
 EXPECTED_EXTERNAL_COMPASS_DEVICE_ID = 658953
 DEFAULT_COMPASS_CAL_FIT = 16.0
 MAX_EXTERNAL_OFFSET_NORM_MG = 500.0
+CONFIGURED_COMPASS_SLOTS = (1, 2, 3)
+EXTRA_COMPASS_SLOTS = (4, 5, 6, 7, 8)
+
+
+class UnsafeCompassRepairError(ValueError):
+    """The live inventory cannot identify one external compass safely."""
 
 
 @dataclass(frozen=True)
@@ -53,6 +60,8 @@ class CompassPolicyReport:
     warnings: tuple[str, ...]
     instances: tuple[CompassInstance, ...]
     external_compass: CompassInstance | None
+    priorities: tuple[int, int, int]
+    extra_devices: tuple[tuple[int, int], ...]
 
     @property
     def ok(self) -> bool:
@@ -69,6 +78,15 @@ class CompassPolicyReport:
                 else None
             ),
             "instances": [_instance_to_dict(instance) for instance in self.instances],
+            "priorities": list(self.priorities),
+            "extra_devices": [
+                {
+                    "slot": slot,
+                    "device_id": device_id,
+                    **decode_compass_device_id(device_id),
+                }
+                for slot, device_id in self.extra_devices
+            ],
         }
 
 
@@ -82,6 +100,24 @@ def _instance_to_dict(instance: CompassInstance) -> dict:
         "offset_y_mg": instance.offset_y_mg,
         "offset_z_mg": instance.offset_z_mg,
         "offset_norm_mg": instance.offset_norm_mg,
+        **decode_compass_device_id(instance.device_id),
+    }
+
+
+def decode_compass_device_id(device_id: int) -> dict[str, int | None]:
+    """Decode ArduPilot's bus-aware 24-bit device identifier."""
+    if not device_id:
+        return {
+            "bus_type": None,
+            "bus": None,
+            "address": None,
+            "device_type": None,
+        }
+    return {
+        "bus_type": device_id & 0x07,
+        "bus": (device_id >> 3) & 0x1F,
+        "address": (device_id >> 8) & 0xFF,
+        "device_type": (device_id >> 16) & 0xFF,
     }
 
 
@@ -108,7 +144,7 @@ def _read_instances(
     params: Mapping[str, float], errors: list[str]
 ) -> tuple[CompassInstance, ...]:
     instances = []
-    for slot in (1, 2, 3):
+    for slot in CONFIGURED_COMPASS_SLOTS:
         suffix = _slot_suffix(slot)
         instances.append(
             CompassInstance(
@@ -133,6 +169,34 @@ def evaluate_compass_policy(
     errors: list[str] = []
     warnings: list[str] = []
     instances = _read_instances(params, errors)
+    extra_devices = tuple(
+        (slot, int(float(params.get(f"COMPASS_DEV_ID{slot}", 0))))
+        for slot in EXTRA_COMPASS_SLOTS
+        if int(float(params.get(f"COMPASS_DEV_ID{slot}", 0))) != 0
+    )
+
+    detected_slots: list[tuple[int, int]] = [
+        (instance.slot, instance.device_id)
+        for instance in instances
+        if instance.detected
+    ] + list(extra_devices)
+    detected_counts = Counter(device_id for _slot, device_id in detected_slots)
+    for device_id, count in detected_counts.items():
+        if count <= 1:
+            continue
+        slots = [
+            slot for slot, candidate_id in detected_slots if candidate_id == device_id
+        ]
+        errors.append(
+            f"detected compass device ID {device_id} appears in multiple slots: "
+            f"{slots}; ArduPilot priority cannot distinguish duplicate full IDs"
+        )
+
+    if extra_devices:
+        warnings.append(
+            "additional unconfigured compass devices were detected in slots "
+            f"{[slot for slot, _device_id in extra_devices]}"
+        )
 
     if int(_number(params, "COMPASS_ENABLE", errors)) != 1:
         errors.append("COMPASS_ENABLE must be 1")
@@ -156,6 +220,13 @@ def evaluate_compass_policy(
         for instance in instances
         if instance.device_id == expected_external_device_id and instance.external
     ]
+    unexpected_external = [
+        instance
+        for instance in instances
+        if instance.detected
+        and instance.external
+        and instance.device_id != expected_external_device_id
+    ]
     external_compass = external_candidates[0] if len(external_candidates) == 1 else None
     if not external_candidates:
         errors.append(
@@ -167,6 +238,11 @@ def evaluate_compass_policy(
         errors.append(
             "external GPS compass device ID "
             f"{expected_external_device_id} appears in multiple slots: {slots}"
+        )
+    if unexpected_external:
+        errors.append(
+            "unexpected compass slots are marked external: "
+            f"{[(instance.slot, instance.device_id) for instance in unexpected_external]}"
         )
 
     for instance in instances:
@@ -205,10 +281,10 @@ def evaluate_compass_policy(
                 "project target of 300 mG"
             )
 
-    priorities = [
+    priorities = tuple(
         int(_number(params, f"COMPASS_PRIO{priority}_ID", errors))
-        for priority in (1, 2, 3)
-    ]
+        for priority in CONFIGURED_COMPASS_SLOTS
+    )
     nonzero_priorities = [device_id for device_id in priorities if device_id]
     if len(nonzero_priorities) != len(set(nonzero_priorities)):
         errors.append(f"compass priority IDs are not unique: {priorities}")
@@ -219,7 +295,7 @@ def evaluate_compass_policy(
             f"external device ID {expected_external_device_id}"
         )
 
-    detected_ids = {instance.device_id for instance in instances if instance.detected}
+    detected_ids = {device_id for _slot, device_id in detected_slots}
     stale_priorities = [
         device_id for device_id in nonzero_priorities if device_id not in detected_ids
     ]
@@ -233,7 +309,129 @@ def evaluate_compass_policy(
         warnings=tuple(dict.fromkeys(warnings)),
         instances=instances,
         external_compass=external_compass,
+        priorities=priorities,
+        extra_devices=extra_devices,
     )
+
+
+def format_compass_inventory(report: CompassPolicyReport) -> tuple[str, ...]:
+    """Return compact lines suitable for both CLI and systemd journal logs."""
+    lines = [
+        "Compass priorities: "
+        + " ".join(
+            f"PRIO{index}={device_id}"
+            for index, device_id in enumerate(report.priorities, start=1)
+        )
+    ]
+    for instance in report.instances:
+        decoded = decode_compass_device_id(instance.device_id)
+        lines.append(
+            f"Compass slot {instance.slot}: device_id={instance.device_id} "
+            f"detected={instance.detected} external={instance.external} "
+            f"use_for_yaw={instance.used_for_yaw} "
+            f"bus_type={decoded['bus_type']} bus={decoded['bus']} "
+            f"address={decoded['address']} device_type={decoded['device_type']}"
+        )
+    for slot, device_id in report.extra_devices:
+        decoded = decode_compass_device_id(device_id)
+        lines.append(
+            f"Compass extra slot {slot}: device_id={device_id} detected=True "
+            f"bus_type={decoded['bus_type']} bus={decoded['bus']} "
+            f"address={decoded['address']} device_type={decoded['device_type']}"
+        )
+    return tuple(lines)
+
+
+def plan_external_compass_repairs(
+    params: Mapping[str, float],
+    *,
+    expected_external_device_id: int = EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+) -> dict[str, int]:
+    """Plan only unambiguous priority and yaw-use repairs.
+
+    Detection, external classification, and calibration are deliberately never
+    guessed or rewritten. Exact duplicate device IDs are not repairable because
+    ArduPilot's priority list is itself keyed by that full ID.
+    """
+    read_errors: list[str] = []
+    instances = _read_instances(params, read_errors)
+    if read_errors:
+        raise UnsafeCompassRepairError("; ".join(dict.fromkeys(read_errors)))
+
+    extra_devices = [
+        (slot, int(float(params.get(f"COMPASS_DEV_ID{slot}", 0))))
+        for slot in EXTRA_COMPASS_SLOTS
+        if int(float(params.get(f"COMPASS_DEV_ID{slot}", 0))) != 0
+    ]
+    if extra_devices:
+        raise UnsafeCompassRepairError(
+            "additional unconfigured compass devices are present in slots "
+            f"{[slot for slot, _device_id in extra_devices]}"
+        )
+
+    detected = [instance for instance in instances if instance.detected]
+    counts = Counter(instance.device_id for instance in detected)
+    duplicates = {
+        device_id: [
+            instance.slot for instance in detected if instance.device_id == device_id
+        ]
+        for device_id, count in counts.items()
+        if count > 1
+    }
+    if duplicates:
+        raise UnsafeCompassRepairError(
+            f"duplicate detected compass device IDs cannot be repaired: {duplicates}"
+        )
+
+    external = [instance for instance in detected if instance.external]
+    if len(external) != 1:
+        raise UnsafeCompassRepairError(
+            "expected exactly one detected compass marked external, found "
+            f"{[(instance.slot, instance.device_id) for instance in external]}"
+        )
+    external_compass = external[0]
+    if external_compass.device_id != expected_external_device_id:
+        raise UnsafeCompassRepairError(
+            f"external compass device ID is {external_compass.device_id}, expected "
+            f"fleet device ID {expected_external_device_id}"
+        )
+
+    priority_errors: list[str] = []
+    current_priorities = [
+        int(_number(params, f"COMPASS_PRIO{index}_ID", priority_errors))
+        for index in CONFIGURED_COMPASS_SLOTS
+    ]
+    if priority_errors:
+        raise UnsafeCompassRepairError("; ".join(dict.fromkeys(priority_errors)))
+    detected_ids = {instance.device_id for instance in detected}
+    remaining_ids: list[int] = []
+    for device_id in current_priorities + [instance.device_id for instance in detected]:
+        if (
+            device_id
+            and device_id != external_compass.device_id
+            and device_id in detected_ids
+            and device_id not in remaining_ids
+        ):
+            remaining_ids.append(device_id)
+    desired_priorities = [external_compass.device_id, *remaining_ids][:3]
+    desired_priorities.extend([0] * (3 - len(desired_priorities)))
+
+    desired: dict[str, int] = {
+        f"COMPASS_PRIO{index}_ID": desired_priorities[index - 1]
+        for index in CONFIGURED_COMPASS_SLOTS
+    }
+    # Enable the external source before disabling any other yaw source so a
+    # mid-command transport failure cannot leave the vehicle with no compass.
+    desired[f"COMPASS_USE{_slot_suffix(external_compass.slot)}"] = 1
+    for instance in instances:
+        if instance.slot != external_compass.slot:
+            desired[f"COMPASS_USE{_slot_suffix(instance.slot)}"] = 0
+
+    return {
+        key: value
+        for key, value in desired.items()
+        if not math.isclose(float(params[key]), float(value))
+    }
 
 
 def parse_parameter_file(path: str | Path) -> dict[str, float]:

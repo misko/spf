@@ -1406,6 +1406,32 @@ is available under `magcal`, but mutation requires `--yes`, a disarmed vehicle,
 and exclusive ownership of the MAVLink link. Full usage and safety instructions
 are in [`spf/ardupilot/README.md`](../../../spf/ardupilot/README.md).
 
+Every production boot also writes a compact compass inventory to the journal:
+
+```bash
+journalctl -u mavlink_controller.service -b --no-pager | grep -E 'Compass|compass'
+```
+
+The inventory includes `COMPASS_PRIO1_ID` through `PRIO3`, every configured
+slot's full bus-aware device ID, external flag, and yaw-use flag. Boot writes
+the machine-readable verdict to `/home/pi/compass_ready.json` and fails closed
+before collection or motion when the external-compass policy fails. Exact
+duplicate detected device IDs are an unrepairable identity ambiguity.
+
+For an unambiguous priority/use mismatch on a disarmed rover, after stopping
+the production service as above:
+
+```bash
+python -m spf.ardupilot.ardu_cli compass --repair --yes --parameter-timeout 60
+python spf/mavlink/mavlink_controller.py --reboot
+sleep 15
+python -m spf.ardupilot.ardu_cli compass --parameter-timeout 60
+python -m spf.ardupilot.ardu_cli prearm
+```
+
+Repair does not guess missing hardware, external classification, orientation,
+or calibration. Do not restart production until both post-reboot checks pass.
+
 To run the same ArduPilot pre-arm diagnostics non-interactively, with no arm
 attempt and no changes to `ARMING_CHECK`, stop mavproxy and run:
 

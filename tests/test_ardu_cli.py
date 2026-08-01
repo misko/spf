@@ -217,6 +217,160 @@ def test_offline_compass_command_emits_policy_json(tmp_path, capsys):
     assert report["parameter_download_complete"] is True
 
 
+def test_compass_repair_requires_confirmation_before_connect(monkeypatch, capsys):
+    monkeypatch.setattr(
+        ardu_cli,
+        "_connect",
+        lambda args: pytest.fail("repair without --yes must not connect"),
+    )
+
+    assert ardu_cli.main(["compass", "--repair"]) == 2
+    assert "repeat with --yes" in capsys.readouterr().err
+
+
+def test_compass_repair_writes_acknowledged_priority_and_use_changes(
+    monkeypatch, capsys
+):
+    params = healthy_compass_params()
+    params.update(
+        {
+            "COMPASS_PRIO1_ID": 131594,
+            "COMPASS_PRIO2_ID": 658953,
+            "COMPASS_USE": 0,
+            "COMPASS_USE2": 1,
+        }
+    )
+    connection = FakeConnection()
+    applied = {}
+    monkeypatch.setattr(
+        ardu_cli,
+        "_connect",
+        lambda args: (connection, heartbeat(), "fake"),
+    )
+    monkeypatch.setattr(
+        ardu_cli,
+        "download_parameters",
+        lambda connection, timeout: (params.copy(), True),
+    )
+
+    def fake_apply(_connection, mutable_params, changes):
+        for key, value in changes.items():
+            applied[key] = {"before": mutable_params[key], "after": value}
+            mutable_params[key] = value
+        return applied
+
+    monkeypatch.setattr(ardu_cli, "apply_parameter_changes", fake_apply)
+
+    assert ardu_cli.main(["compass", "--repair", "--yes"]) == 0
+    output = capsys.readouterr().out
+    assert applied == {
+        "COMPASS_PRIO1_ID": {"before": 131594, "after": 658953},
+        "COMPASS_PRIO2_ID": {"before": 658953, "after": 131594},
+        "COMPASS_USE": {"before": 0, "after": 1},
+        "COMPASS_USE2": {"before": 1, "after": 0},
+    }
+    assert "PENDING: stored policy is correct" in output
+    assert "REBOOT REQUIRED" in output
+
+
+def test_compass_repair_refuses_duplicate_device_ids(monkeypatch, capsys):
+    params = healthy_compass_params()
+    params["COMPASS_DEV_ID2"] = params["COMPASS_DEV_ID"]
+    monkeypatch.setattr(
+        ardu_cli,
+        "_connect",
+        lambda args: (FakeConnection(), heartbeat(), "fake"),
+    )
+    monkeypatch.setattr(
+        ardu_cli,
+        "download_parameters",
+        lambda connection, timeout: (params, True),
+    )
+
+    assert ardu_cli.main(["compass", "--repair", "--yes"]) == 2
+    assert "duplicate detected" in capsys.readouterr().err
+
+
+def test_compass_repair_refuses_armed_vehicle(monkeypatch, capsys):
+    monkeypatch.setattr(
+        ardu_cli,
+        "_connect",
+        lambda args: (FakeConnection(), heartbeat(armed=True), "fake"),
+    )
+    monkeypatch.setattr(
+        ardu_cli,
+        "download_parameters",
+        lambda connection, timeout: (healthy_compass_params(), True),
+    )
+
+    assert ardu_cli.main(["compass", "--repair", "--yes"]) == 2
+    assert "vehicle is armed" in capsys.readouterr().err
+
+
+def test_apply_parameter_changes_waits_for_matching_acknowledgements():
+    class AckConnection:
+        def __init__(self):
+            self.pending = None
+            self.writes = []
+
+        def param_set_send(self, name, value):
+            self.writes.append((name, value))
+            self.pending = FakeMessage(
+                message_type="PARAM_VALUE", param_id=name, param_value=value
+            )
+
+        def recv_match(self, *, type, blocking, timeout):
+            message, self.pending = self.pending, None
+            return message
+
+    connection = AckConnection()
+    params = {"COMPASS_PRIO1_ID": 131594.0, "COMPASS_USE": 0.0}
+
+    applied = ardu_cli.apply_parameter_changes(
+        connection,
+        params,
+        {"COMPASS_PRIO1_ID": 658953, "COMPASS_USE": 1},
+    )
+
+    assert connection.writes == [
+        ("COMPASS_PRIO1_ID", 658953.0),
+        ("COMPASS_USE", 1.0),
+    ]
+    assert params == {"COMPASS_PRIO1_ID": 658953.0, "COMPASS_USE": 1.0}
+    assert applied["COMPASS_PRIO1_ID"] == {
+        "before": 131594.0,
+        "after": 658953.0,
+    }
+
+
+def test_apply_parameter_changes_rejects_coerced_acknowledgement():
+    class RejectingConnection:
+        def __init__(self):
+            self.writes = 0
+            self.pending = None
+
+        def param_set_send(self, name, value):
+            self.writes += 1
+            self.pending = FakeMessage(
+                message_type="PARAM_VALUE", param_id=name, param_value=0
+            )
+
+        def recv_match(self, *, type, blocking, timeout):
+            message, self.pending = self.pending, None
+            return message
+
+    connection = RejectingConnection()
+
+    with pytest.raises(ardu_cli.CliError, match="did not acknowledge"):
+        ardu_cli.apply_parameter_changes(
+            connection,
+            {"COMPASS_PRIO1_ID": 131594.0},
+            {"COMPASS_PRIO1_ID": 658953},
+        )
+
+    assert connection.writes == 3
+
+
 @pytest.mark.parametrize("action", ["start", "accept", "cancel"])
 def test_magcal_mutations_require_explicit_confirmation(action, capsys):
     assert ardu_cli.main(["magcal", action]) == 2
