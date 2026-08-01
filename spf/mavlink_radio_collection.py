@@ -13,6 +13,7 @@ from spf.capture_schema import (
     normalize_capture_config,
     validate_transport_schema,
 )
+from spf.capture_status import CaptureStatusWriter
 from spf.gps.boundaries import boundaries  # crissy_boundary_convex
 from spf.gps.boundaries import find_closest_boundary
 from spf.mavlink.mavlink_controller import (
@@ -127,6 +128,12 @@ def parse_args():
         "--temp", type=str, help="temp dirname", required=False, default="./temp"
     )
     parser.add_argument(
+        "--status-file",
+        type=str,
+        help="atomically updated durable capture status JSON",
+        default=None,
+    )
+    parser.add_argument(
         "-s",
         "--run-for-seconds",
         type=int,
@@ -219,6 +226,19 @@ if __name__ == "__main__":
         craft="rover",
         tag=args.tag,
     )
+    status_writer = None
+    if args.status_file is not None:
+        status_writer = CaptureStatusWriter(
+            args.status_file,
+            capture_name=Path(temp_filenames["data"]).name,
+            expected_records_per_receiver=yaml_config["n-records-per-receiver"],
+            receiver_count=len(yaml_config["receivers"]),
+        )
+        status_writer.publish(
+            "starting",
+            [0] * len(yaml_config["receivers"]),
+            force=True,
+        )
 
     logger = logging.getLogger(__name__)
 
@@ -372,6 +392,7 @@ if __name__ == "__main__":
             data_filename=temp_filenames["data"] if args.write_to_disk else None,
             yaml_config=yaml_config,
             position_controller=drone,
+            status_writer=status_writer,
         )
     elif yaml_config["data-version"] == 6:
         data_collector = DroneDataCollectorRawV6(
@@ -379,6 +400,7 @@ if __name__ == "__main__":
             data_filename=temp_filenames["data"] if args.write_to_disk else None,
             yaml_config=yaml_config,
             position_controller=drone,
+            status_writer=status_writer,
         )
     elif yaml_config["data-version"] == 7:
         data_collector = DroneDataCollectorRawV7(
@@ -386,6 +408,7 @@ if __name__ == "__main__":
             data_filename=temp_filenames["data"] if args.write_to_disk else None,
             yaml_config=yaml_config,
             position_controller=drone,
+            status_writer=status_writer,
         )
     else:
         raise DataVersionNotImplemented
@@ -458,6 +481,11 @@ if __name__ == "__main__":
     logging.info("MavRadioCollection: Moving files to final location ...")
     for k in temp_filenames:
         os.rename(temp_filenames[k], final_filenames[k])
+    data_collector.publish_operator_status(
+        "complete",
+        artifact=final_filenames["data"],
+        force=True,
+    )
 
     # wait for it to release control back, that happens when this goes false
     seconds_to_wait = 60

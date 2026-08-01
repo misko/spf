@@ -40,6 +40,7 @@ SKIP_PARAMETER_SYNC="${SPF_SKIP_PARAMETER_SYNC:-0}"
 BOOT_VALIDATE_ONLY="${SPF_BOOT_VALIDATE_ONLY:-0}"
 RUN_ONCE="${SPF_RUN_ONCE:-0}"
 OUTPUT_ROOT="${SPF_OUTPUT_ROOT:-/home/pi/temp}"
+CAPTURE_STATUS_FILE="${SPF_CAPTURE_STATUS_FILE:-/home/pi/preflight/capture_status.json}"
 RADIO_WAIT_SECONDS="${SPF_RADIO_WAIT_SECONDS:-600}"
 ROVER_ID_FILE="${SPF_ROVER_ID_FILE:-/home/pi/rover_id}"
 
@@ -92,7 +93,8 @@ print_plan() {
         "firmware_image_sha256=${firmware_image_sha256}" \
         "boot_validate_only=${BOOT_VALIDATE_ONLY}" \
         "run_once=${RUN_ONCE}" \
-        "output_root=${OUTPUT_ROOT}"
+        "output_root=${OUTPUT_ROOT}" \
+        "capture_status_file=${CAPTURE_STATUS_FILE}"
 }
 
 case "${1:-}" in
@@ -221,12 +223,27 @@ read_only_vehicle_gate() {
 }
 
 run_capture() {
-    mkdir -p "$OUTPUT_ROOT"
+    local capture_status
+    mkdir -p "$OUTPUT_ROOT" "$(dirname "$CAPTURE_STATUS_FILE")"
+    set +e
     "$PYTHON" "${REPO_ROOT}/spf/mavlink_radio_collection.py" \
         --yaml-config "$config" \
         --device-mapping "$DEVICE_MAPPING" \
         --tag "RO${rover_id}" \
-        --temp "$OUTPUT_ROOT"
+        --temp "$OUTPUT_ROOT" \
+        --status-file "$CAPTURE_STATUS_FILE"
+    capture_status=$?
+    set -e
+    if [[ "$capture_status" -ne 0 ]]; then
+        "$PYTHON" -m spf.capture_status mark-failed \
+            --path "$CAPTURE_STATUS_FILE" \
+            --exit-code "$capture_status" || true
+        for _attempt in 1 2 3; do
+            "$PYTHON" "$MAVLINK_CONTROLLER" --buzzer failure || true
+            sleep 1
+        done
+        return "$capture_status"
+    fi
 }
 
 main() {

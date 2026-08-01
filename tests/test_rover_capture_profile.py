@@ -92,6 +92,7 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
     assert plan["expected_radios"] == "2"
     assert plan["rx_transport"] == "direct_usb"
     assert plan["data_version"] == "7"
+    assert plan["capture_status_file"] == "/home/pi/preflight/capture_status.json"
     assert (
         plan["firmware_release_tag"] == "v0.38-plutoplus-spf-gain-rssi-fingerprint-v1"
     )

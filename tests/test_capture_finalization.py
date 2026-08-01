@@ -23,13 +23,14 @@ from spf.sdrpluto.sdr_controller import PPlus
 
 
 class _DisconnectedCollector(DataCollector):
-    def __init__(self, data_filename, primary_error):
+    def __init__(self, data_filename, primary_error, status_writer=None):
         self.primary_error = primary_error
         super().__init__(
             yaml_config={"receivers": []},
             data_filename=str(data_filename),
             position_controller=None,
             thread_class=None,
+            status_writer=status_writer,
         )
 
     def setup_record_matrix(self):
@@ -55,6 +56,15 @@ class _CleanupAlsoDisconnects:
     def close(self):
         self.close_calls += 1
         raise self.cleanup_error
+
+
+class _StatusSpy:
+    def __init__(self):
+        self.events = []
+
+    def publish(self, state, counts, **kwargs):
+        self.events.append((state, list(counts), kwargs))
+        return True
 
 
 class _QueuedReadThread:
@@ -175,6 +185,29 @@ def test_disconnect_preserves_primary_error_and_finalizes_partial_zarr(
         )
     finally:
         partial.store.close()
+
+
+def test_disconnect_publishes_durable_failed_state_with_primary_error(tmp_path):
+    primary_error = OSError(19, "Pluto disappeared during bulk RX")
+    status = _StatusSpy()
+    collector = _DisconnectedCollector(
+        tmp_path / "capture.zarr.tmp", primary_error, status_writer=status
+    )
+    collector.receiver_pplus = {}
+    collector.read_threads = []
+    collector.collector_thread = threading.Thread(target=collector.run_collector_thread)
+
+    collector.start()
+    with pytest.raises(OSError) as raised:
+        collector.done()
+
+    assert raised.value is primary_error
+    assert [event[0] for event in status.events] == [
+        "preparing",
+        "collecting",
+        "failed",
+    ]
+    assert status.events[-1][2]["error"] is primary_error
 
 
 def test_pluto_close_attempts_tx_mute_after_rx_cleanup_failure():

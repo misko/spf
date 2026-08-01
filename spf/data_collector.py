@@ -561,6 +561,7 @@ class DataCollector:
         position_controller,
         thread_class,
         tag="",
+        status_writer=None,
     ):
         self.yaml_config = yaml_config
         self.data_filename = data_filename
@@ -571,11 +572,13 @@ class DataCollector:
         self.thread_class = thread_class
         self.collection_error = None
         self.cleanup_errors = []
+        self.status_writer = status_writer
         self.records_written_by_receiver = [0] * len(yaml_config["receivers"])
         self._records_written_lock = threading.Lock()
         self.stop_requested = threading.Event()
         self.setup_record_matrix()
         self._mark_capture_state("in_progress")
+        self.publish_operator_status("preparing", force=True)
 
     def radios_to_online(self):
         radio_uris = []
@@ -732,6 +735,7 @@ class DataCollector:
         )
 
     def start(self):
+        self.publish_operator_status("collecting", force=True)
         self.collector_thread.start()
 
     def done(self):
@@ -777,6 +781,7 @@ class DataCollector:
                 zarr.attrs["capture_records_written_by_receiver"] = list(
                     self.records_written_by_receiver
                 )
+            self.publish_operator_status("collecting")
 
     @staticmethod
     def _error_summary(error):
@@ -802,6 +807,25 @@ class DataCollector:
             zarr.attrs["capture_cleanup_errors"] = [
                 self._error_summary(error) for error in self.cleanup_errors
             ]
+
+    def publish_operator_status(
+        self, state, *, error=None, artifact=None, force=False
+    ):
+        """Best-effort durable status; observability must not corrupt IQ capture."""
+
+        if self.status_writer is None:
+            return False
+        try:
+            return self.status_writer.publish(
+                state,
+                self.records_written_by_receiver,
+                error=error,
+                artifact=artifact,
+                force=force,
+            )
+        except Exception:
+            logging.exception("Failed to publish durable capture status")
+            return False
 
     def run_inner_collector_thread(self):
         futures = []
@@ -892,6 +916,12 @@ class DataCollector:
                 logging.exception("Capture store finalization failed")
                 if self.collection_error is None:
                     self.collection_error = error
+
+            self.publish_operator_status(
+                "failed" if self.collection_error is not None else "finalizing",
+                error=self.collection_error,
+                force=True,
+            )
 
             self.finished_collecting = True
             if self.collection_error is None:

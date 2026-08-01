@@ -28,6 +28,17 @@ def test_gps_time_wait_notifies_once_instead_of_beeping_each_poll():
     assert get_time_body.count('drone.buzzer(tones["gps-time"])') == 1
 
 
+def test_capture_failure_is_durable_and_plays_three_operator_tones():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    run_capture = launcher.split("run_capture() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert '--status-file "$CAPTURE_STATUS_FILE"' in run_capture
+    assert "spf.capture_status mark-failed" in run_capture
+    assert "for _attempt in 1 2 3" in run_capture
+    assert '"$MAVLINK_CONTROLLER" --buzzer failure' in run_capture
+    assert 'return "$capture_status"' in run_capture
+
+
 def test_heavy_collection_imports_are_deferred_until_after_drone_ready_wait():
     path = REPO_ROOT / "spf/mavlink_radio_collection.py"
     source = path.read_text()
