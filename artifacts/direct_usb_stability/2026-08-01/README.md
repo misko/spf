@@ -378,3 +378,37 @@ The exact SIGKILL-at-40 red/green is preserved at
 `/tmp/spf-sigkill40-fresh-session-green-20260801`. It passed in 40.41 seconds,
 exited `-9` in 0.064 seconds, retained 40 valid committed frames, reclaimed the
 radio on the first fresh session and produced an empty kernel delta.
+
+## One-hour checkpoint of the immutable v4 soak
+
+The current 12-hour campaign runs from immutable source revision
+`85d4e8d6a77b774d43b73e701cdcdc6e30c48a22` under
+`/tmp/spf-interrupted-capture-soak-12h-v4/20260801T095933Z`. At the formal
+3,611-second checkpoint it remained active and had completed eight whole
+rounds:
+
+- 32 interruptions: 12 SIGTERM, 10 SIGINT and 10 SIGKILL;
+- 2,502 strictly committed frames in interrupted temporary stores;
+- eight post-fault 100-frame V7 recovery captures, or 800 clean frames;
+- maximum cooperative/forced signal exit time of 1.269 seconds;
+- every raw radio release probe succeeded on its first fresh session;
+- zero non-empty kernel-log deltas;
+- peak cgroup anonymous memory of 581.79 MiB;
+- minimum host-available memory of 587.28 MiB; and
+- post-peak anonymous-memory recovery below 384 MiB in every round.
+
+The current strict validator was also run independently over the first seven
+complete recovery Zarrs. All 700 frames passed full-IQ shape, finite/nonzero,
+nonconstant and RX1/RX2-distinctness checks, plus gain/RSSI metadata, sequence,
+firmware provenance, hardware-fingerprint binding and serial/path identity.
+
+The soak continues unattended for the full 12 hours. A detached validator at
+revision `e8dc40bf5f47b8426f7468309126eb33739333eb` waits for campaign and
+resource-monitor completion, then revalidates every clean recovery Zarr with
+the current strict rules and reruns the per-round resource-recovery gate. It
+writes `ENHANCED_PASS` only if both final validations pass.
+
+This checkpoint covers `.18`, serial
+`1040007c4a94000211000b009186843ef2`, at physical path `1-1.2`. The exact
+two-radio gate remains blocked solely because `.17` is not physically
+enumerated and requires an external power cycle.
