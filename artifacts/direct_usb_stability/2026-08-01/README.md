@@ -291,3 +291,30 @@ per-receiver active counts and recorded indices prove each radio remains
 single-writer and FIFO. The focused finalization file passed all 11 tests. This
 is software evidence for the dual-radio writer topology; it does not replace
 the pending exact-count-two hardware campaign.
+
+## Extended interruption-boundary campaign
+
+The first unattended boundary sweep is preserved at
+`/tmp/spf-interrupted-capture-soak-12h/20260801T084031Z`. Round 1 passed
+`sigterm:1`, `sigint:8`, `sigkill:32`, `sigterm:128`, and its strict 100-frame
+clean recovery. Round 2 then failed its `sigkill:192` harness gate after 90
+seconds. The collector itself remained healthy at approximately 1.9 Hz and had
+committed 137 records; no USB error occurred. The requested 192-frame boundary
+cannot be reached in 90 seconds at that measured production rate, so this was
+a test deadline defect rather than a radio or firmware failure.
+
+Commit `0a3d221` derives the deadline from the requested boundary, preserving
+the historical 90-second floor for early cases while allowing a conservative
+1 Hz plus 30 seconds of setup overhead for later cases. Focused timing tests
+cover the 192- and 256-frame boundaries. The exact real-radio red/green rerun
+at `/tmp/spf-interrupt-192-redgreen-20260801` reached 192 committed frames,
+sent `SIGKILL`, preserved the correct `in_progress` store, exited `-9` in
+0.114 seconds, and reclaimed `.18`. The test passed in 119.05 seconds with a
+222-second bound.
+
+The corrected 12-hour campaign is isolated under
+`/tmp/spf-interrupted-capture-soak-12h-v2/20260801T085617Z`. A separate
+aggregate validator checks every ledger row against its individual report,
+expected signal status/return code, committed receiver prefix, serial identity,
+kernel delta and clean V7 recovery. It writes `aggregate-final.json` only after
+the soak root itself has an exact `PASS` marker.
