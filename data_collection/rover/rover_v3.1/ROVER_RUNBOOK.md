@@ -3,6 +3,37 @@
 Data-collection platform: Raspberry Pi + ArduPilot flight controller (FMUv3) + PlutoSDR radios.
 On-Rover repo root: `/home/pi/spf`. Active hardware generation: **rover v3.1**.
 
+Current capture state, progress, rate, ETA and primary failure:
+
+```bash
+cd /home/pi/spf
+/home/pi/spf-virtualenv/bin/python3 -m spf.capture_status show
+```
+
+Production atomically updates `/home/pi/preflight/capture_status.json` at a
+bounded cadence. A failed collector leaves `state=failed`, its per-radio safe
+record counts and the primary error, plays the failure tune three times, and
+causes `mavlink_controller.service` to remain failed rather than resembling an
+active capture. `late=true` means projected duration exceeds 120% of the
+1.8-frame/s production expectation after the 30-second grace period.
+
+Recover an interrupted V7 store without changing it:
+
+```bash
+python3 -m spf.scripts.recover_interrupted_v7 \
+  /path/original.zarr.tmp \
+  /path/new.recovered.zarr \
+  --reason 'operator-confirmed power loss during capture'
+```
+
+The command accepts only `incomplete`/`in_progress` protocol-v2 V7 sources,
+independently validates each receiver's contiguous IQ/metadata/sequence prefix,
+uses the aligned common prefix, and writes a distinct
+`capture_status=recovered_incomplete` store plus `.recovery.json`. It hashes
+the immutable source before and after with a sparse-LMDB-aware algorithm and
+strictly validates the new store before its final rename. Never rename an
+interrupted `.zarr.tmp` directly.
+
 Mac QGroundControl MAVLink fan-out, run on the rover after stopping
 `mavlink_controller.service`:
 

@@ -412,3 +412,32 @@ This checkpoint covers `.18`, serial
 `1040007c4a94000211000b009186843ef2`, at physical path `1-1.2`. The exact
 two-radio gate remains blocked solely because `.17` is not physically
 enumerated and requires an external power cycle.
+
+## Operator-state and immutable recovery P0s
+
+Production capture now writes `/home/pi/preflight/capture_status.json`
+atomically at a bounded cadence. It contains the capture name and lifecycle
+state, exact per-receiver committed counts, common progress, observed frame
+rate, elapsed time, ETA, late-watchdog result and primary failure. A nonzero
+collector exit updates the durable state, plays the failure tune three times
+and leaves systemd failed. The normal completion state is published only after
+all temporary artifacts have been renamed successfully.
+
+`spf.scripts.recover_interrupted_v7` provides read-only-first partial recovery.
+It independently finds each receiver's contiguous valid V7 prefix, selects the
+aligned minimum, copies it into a new `recovered_incomplete` artifact, records
+source path/status/hash and reason, and runs the full strict validator before
+rename. It never modifies or directly promotes the source.
+
+Real-artifact evidence:
+
+| Source | Logical/allocated LMDB | Recovered | Result |
+|---|---:|---:|---|
+| Round-1 SIGTERM at 1 | shrunk / 3.7 MiB store | 1 frame | strict pass |
+| Round-2 SIGKILL at 2 | 128 GiB / 5.6 MiB | 2 frames | strict pass in 6.83 s |
+
+The SIGKILL source's logical size, allocated block count and mtime were
+unchanged. A versioned sparse-extent SHA-256 hashes allocated content plus
+logical layout without reading the 128-GiB hole. Synthetic tests cover safe
+prefix truncation, duplicated-channel rejection, immutable source hashes and
+separate recovered output.
