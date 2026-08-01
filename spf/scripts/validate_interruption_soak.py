@@ -47,13 +47,14 @@ def validate_soak(
         raise ValueError(
             f"only {len(rows)} completed rounds; require at least {minimum_rounds}"
         )
+    if (root / "FAILED").exists():
+        raise ValueError(f"soak recorded failure: {(root / 'FAILED').read_text().strip()}")
     if require_complete:
-        if (root / "PASS").read_text() != "PASS\n":
+        pass_marker = root / "PASS"
+        if not pass_marker.is_file() or pass_marker.read_text() != "PASS\n":
             raise ValueError("soak root lacks its exact PASS marker")
         if not (root / "result.env").is_file():
             raise ValueError("soak root lacks result.env")
-    if (root / "FAILED").exists():
-        raise ValueError(f"soak recorded failure: {(root / 'FAILED').read_text().strip()}")
 
     signals = {name: 0 for name in EXPECTED_CAPTURE_STATUS}
     serials: set[str] = set()

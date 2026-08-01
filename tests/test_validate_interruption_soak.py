@@ -91,3 +91,22 @@ def test_validate_soak_rejects_kernel_usb_error(tmp_path):
         validate_soak(
             tmp_path, expected_receivers=1, minimum_rounds=1, require_complete=False
         )
+
+
+def test_validate_soak_reports_preserved_failure_before_missing_pass(tmp_path):
+    _make_round(tmp_path)
+    (tmp_path / "FAILED").write_text("ROUND_FAILED: round=2 status=1\n")
+
+    with pytest.raises(ValueError, match="ROUND_FAILED: round=2 status=1"):
+        validate_soak(
+            tmp_path, expected_receivers=1, minimum_rounds=1, require_complete=True
+        )
+
+
+def test_validate_soak_reports_missing_pass_cleanly(tmp_path):
+    _make_round(tmp_path)
+
+    with pytest.raises(ValueError, match="lacks its exact PASS marker"):
+        validate_soak(
+            tmp_path, expected_receivers=1, minimum_rounds=1, require_complete=True
+        )
