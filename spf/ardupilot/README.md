@@ -3,6 +3,12 @@
 `ardu_cli.py` is the guarded command-line front end for ArduPilot inspection
 and compass calibration on an SPF rover.
 
+Run it without arguments for the authoritative on-rover command cheatsheet:
+
+```bash
+python -m spf.ardupilot.ardu_cli
+```
+
 The flight-controller USB serial link has one owner. Stop production before a
 direct-serial command and restore it afterward:
 
@@ -60,10 +66,14 @@ rover on a safe support, verify it is disarmed, move away from steel, magnets,
 high-current wiring, SDRs, and the Pi, and then run:
 
 ```bash
-python -m spf.ardupilot.ardu_cli magcal start --yes --monitor-seconds 120
+python -m spf.ardupilot.ardu_cli magcal start \
+  --yes --mask 1 --retry --monitor-seconds 300
 # Successful calibration is autosaved by default. To abort an active run:
-python -m spf.ardupilot.ardu_cli magcal cancel --yes
+python -m spf.ardupilot.ardu_cli magcal cancel --yes --mask 1
 ```
+
+Progress is printed as it arrives. `--monitor-seconds` is a maximum; the CLI
+returns early when ArduPilot sends the terminal calibration report.
 
 Use `--no-autosave` on `magcal start` only for a deliberate review-before-save
 workflow; after reviewing the reports, save it with `magcal accept --yes`.

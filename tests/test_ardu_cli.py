@@ -93,6 +93,18 @@ def healthy_compass_params():
     return params
 
 
+def test_no_arguments_prints_operational_cheatsheet(capsys):
+    assert ardu_cli.main([]) == 0
+
+    output = capsys.readouterr().out
+    assert "quick reference:" in output
+    assert "sudo systemctl stop mavlink_controller.service" in output
+    assert "compass --repair --yes --parameter-timeout 60" in output
+    assert "magcal start --yes --mask 1 --retry --monitor-seconds 300" in output
+    assert "sudo systemctl restart mavlink_controller.service" in output
+    assert "exit codes:" in output
+
+
 def test_direct_serial_refuses_active_production_service(monkeypatch):
     monkeypatch.setattr(ardu_cli, "_service_is_active", lambda: True)
     args = SimpleNamespace(

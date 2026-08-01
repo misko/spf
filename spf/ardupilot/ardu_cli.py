@@ -81,6 +81,34 @@ MAGCAL_COMMANDS = {
     "cancel": mavutil.mavlink.MAV_CMD_DO_CANCEL_MAG_CAL,
 }
 
+CLI_CHEATSHEET = """quick reference:
+  # Direct serial has one owner; stop production before using this CLI.
+  sudo systemctl stop mavlink_controller.service
+
+  # Read-only inspection.
+  python -m spf.ardupilot.ardu_cli status
+  python -m spf.ardupilot.ardu_cli compass --parameter-timeout 60
+  python -m spf.ardupilot.ardu_cli prearm
+
+  # Repair only unambiguous compass priority/yaw-use settings.
+  python -m spf.ardupilot.ardu_cli compass --repair --yes --parameter-timeout 60
+
+  # Calibrate the fleet external compass in slot 1. Progress prints live;
+  # 300 seconds is a ceiling and a terminal report exits early.
+  python -m spf.ardupilot.ardu_cli magcal start --yes --mask 1 --retry --monitor-seconds 300
+  python -m spf.ardupilot.ardu_cli magcal monitor --timeout 10
+  python -m spf.ardupilot.ardu_cli magcal cancel --yes --mask 1
+
+  # Restore production only after compass/prearm checks pass.
+  sudo systemctl restart mavlink_controller.service
+  journalctl -fu mavlink_controller.service
+
+exit codes:
+  0  completed and healthy/passed
+  1  completed with an unhealthy/failed result
+  2  usage, transport, ownership, timeout, or safety failure
+"""
+
 
 class CliError(RuntimeError):
     """Expected operational error that should produce exit status 2."""
@@ -750,7 +778,9 @@ def _add_connection_options(parser: argparse.ArgumentParser) -> None:
 
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Inspect an SPF rover's ArduPilot and manage compass calibration."
+        description="Inspect an SPF rover's ArduPilot and manage compass calibration.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=CLI_CHEATSHEET,
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -840,7 +870,12 @@ def get_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = get_parser().parse_args(argv)
+    parser = get_parser()
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if not arguments:
+        parser.print_help()
+        return 0
+    args = parser.parse_args(arguments)
     try:
         return int(args.handler(args))
     except CliError as error:
