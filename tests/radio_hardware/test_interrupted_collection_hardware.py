@@ -18,7 +18,10 @@ from spf.scripts.interrupted_capture_timing import (
     interruption_progress_timeout_seconds,
 )
 from spf.scripts.pluto_ready_manifest import load_manifest
-from spf.sdrpluto.direct_usb_receiver import PlutoDirectUsbReceiver
+from spf.sdrpluto.direct_usb_receiver import (
+    DirectUsbRecoveryAttestationError,
+    PlutoDirectUsbReceiver,
+)
 
 
 pytestmark = [pytest.mark.radio_hardware, pytest.mark.radio_interrupt]
@@ -65,6 +68,41 @@ def _assert_committed_prefix_is_valid(capture, counts, attached_plutos):
         assert receiver.gain_metadata_valid[:committed].all()
         assert receiver.rssi_metadata_valid[:committed].all()
     assert recorded_serials == attached_serials
+
+
+def _capture_from_fresh_probe_session(radio, *, maximum_sessions=3):
+    """Prove post-interruption RX without weakening reconnect attestation.
+
+    A raw direct-USB probe has no PPlus/ReceiverConfig from which to construct
+    the mandatory read-only IIO reconnect attestor. If its first transfer sees
+    a transient endpoint error after SIGKILL, the receiver must therefore fail
+    closed. Close that probe session and retry from a wholly new one; unlike an
+    in-capture reconnect, this starts a new caller-authorized stream epoch.
+    """
+
+    failures = []
+    for attempt in range(1, maximum_sessions + 1):
+        try:
+            with PlutoDirectUsbReceiver(
+                serial=radio.serial, protocol_version=2
+            ) as receiver:
+                assert receiver.identity.serial == radio.serial
+                assert receiver.identity.port_path == radio.port_path
+                capture = receiver.capture(
+                    samples_per_channel=16_384, frame_count=1
+                )
+                assert len(capture.frames) == 1
+                return attempt
+        except DirectUsbRecoveryAttestationError as error:
+            fields = tuple(difference.field for difference in error.differences)
+            if fields != ("iio_rx_configuration",):
+                raise
+            failures.append(str(error))
+
+    pytest.fail(
+        "post-interruption direct-USB probe did not capture from a fresh "
+        f"session after {maximum_sessions} attempts: {failures!r}"
+    )
 
 
 def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios(
@@ -237,12 +275,10 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
 
     # Cleanup must release every claimed vendor interface immediately. A new
     # one-frame request by serial is the practical field-recovery assertion.
-    for radio in attached_plutos:
-        with PlutoDirectUsbReceiver(
-            serial=radio.serial, protocol_version=2
-        ) as receiver:
-            capture = receiver.capture(samples_per_channel=16_384, frame_count=1)
-            assert len(capture.frames) == 1
+    release_probe_sessions = {
+        radio.serial: _capture_from_fresh_probe_session(radio)
+        for radio in attached_plutos
+    }
 
     report = {
         "status": "pass",
@@ -256,6 +292,7 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
         "progress_timeout_seconds": progress_timeout_seconds,
         "partial_zarr": str(partial_path),
         "serials": [radio.serial for radio in attached_plutos],
+        "release_probe_sessions": release_probe_sessions,
     }
     report_path = radio_report_dir / (
         f"interruption-{interrupt_name}-{minimum_records}-records.json"

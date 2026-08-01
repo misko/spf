@@ -350,3 +350,31 @@ All kernel deltas were empty. Its post-fault 100-frame V7 capture passed at
 1.964 Hz median with 100 unique streams and the same stable fingerprint. The
 fresh 12-hour run incorporating both red/green fixes is under
 `/tmp/spf-interrupted-capture-soak-12h-v3/20260801T092924Z`.
+
+That v3 run completed three full matrices before preserving a round-4 failure:
+
+- 12 interrupted captures passed (four each of SIGTERM, SIGINT and SIGKILL);
+- 790 interrupted frames had a strictly valid committed prefix;
+- three clean 100-frame V7 recovery captures passed;
+- all kernel deltas were empty;
+- 31 cgroup samples covered 903 seconds, with 585.81 MiB peak anonymous
+  memory and 811.51 MiB minimum host-available memory.
+
+The failure was not data corruption. The SIGKILL-at-40 store was readable and
+correctly remained `in_progress`. Its immediate raw one-frame release probe
+then received one transient libusb transfer error. That probe deliberately has
+no PPlus `ReceiverConfig`, so its internal reconnect correctly failed closed
+with `iio_rx_configuration: expected configured reconnect attestor`. The
+production receiver does have the complete read-only IIO attestor.
+
+The hardware harness now closes such a fail-closed raw probe and retries from
+at most three wholly new caller-authorized probe sessions. It retries only the
+specific missing-configuration-attestor result; identity, firmware or actual
+configuration mismatches still fail immediately. Passing still requires a real
+IQ frame, and the report records the number of sessions used. Two focused unit
+tests cover the allowed retry and the non-retry identity case.
+
+The exact SIGKILL-at-40 red/green is preserved at
+`/tmp/spf-sigkill40-fresh-session-green-20260801`. It passed in 40.41 seconds,
+exited `-9` in 0.064 seconds, retained 40 valid committed frames, reclaimed the
+radio on the first fresh session and produced an empty kernel delta.
