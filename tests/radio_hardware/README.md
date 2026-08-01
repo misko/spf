@@ -109,6 +109,12 @@ an independent artifact directory and the root `rounds.tsv` is append-only,
 so evidence before a failure remains usable. The runner is receive-only because
 all underlying collectors use `--fake-drone`.
 
+Every case preserves `dmesg-before.txt`, `dmesg-after.txt`, `dmesg-delta.txt`
+and `case-status.env`, even when pytest fails. The status file records the
+pytest exit status, kernel-snapshot status and kernel-USB-error decision. This
+keeps the original test exit code while retaining the evidence needed to tell
+a collector failure from a host USB failure.
+
 After the soak finishes, independently audit every ledger row, signal report,
 committed prefix, kernel delta, clean-recovery identity, and V7 validation with:
 
@@ -120,3 +126,20 @@ python -m spf.scripts.validate_interruption_soak SOAK_ROOT \
 
 Omit `--require-complete` to audit only fully completed rounds while a soak is
 still running. In-progress rounds are deliberately absent from `rounds.tsv`.
+The aggregate audit requires every expected serial's post-interruption IQ probe
+to succeed within the bounded one-to-three fresh-session policy.
+
+Resource safety is audited independently:
+
+```bash
+python -m spf.scripts.validate_soak_resources SOAK_ROOT/resources.csv \
+  --rounds SOAK_ROOT/rounds.tsv \
+  --maximum-anon-mib 1024 \
+  --minimum-available-mib 256 \
+  --recovery-anon-mib 384 \
+  --output SOAK_ROOT/resources-final.json
+```
+
+Passing requires bounded anonymous memory and host-available memory across the
+whole run, plus a sample below the recovery threshold inside every completed
+round. A single low-memory sample elsewhere cannot hide round-local growth.
