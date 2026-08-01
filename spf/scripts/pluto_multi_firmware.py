@@ -441,6 +441,11 @@ awk '$1 == "uboot" { print "uboot_version=" $2; found=1; exit } END { if (!found
         state_root=Path("/run/spf/passive-fingerprint-unused"),
         expected_count=1,
     )
+    # USB-IIO and the direct gadget can enumerate several seconds before
+    # Dropbear accepts connections after an embedded reboot. Fingerprinting is
+    # still bound to this serial, but must wait through that normal bounded
+    # readiness gap rather than making boot success timing-dependent.
+    manager._wait_for_ssh(serial, timeout=60)
     result = manager._ssh(serial, remote_command, timeout=timeout)
     return parse_passive_device_facts(result.stdout)
 
@@ -867,12 +872,9 @@ class MultiPlutoFirmwareManager:
             return
 
         errors: dict[str, BaseException] = {}
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=len(devices)
-        ) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(devices)) as pool:
             futures = {
-                pool.submit(self._load_device, device): device
-                for device in devices
+                pool.submit(self._load_device, device): device for device in devices
             }
             for future in concurrent.futures.as_completed(futures):
                 device = futures[future]
@@ -1047,6 +1049,63 @@ class MultiPlutoFirmwareManager:
             print(f"{device.serial}: PASS QSPI rollback", flush=True)
         print("PASS: all Plutos are running their installed QSPI firmware", flush=True)
 
+    def restart_all(self) -> None:
+        """Restart every direct-USB Pluto and prove durable identity on return."""
+
+        self._check_root()
+        _require_commands(("iio_info", "ip", "ssh", "sshpass", "udevadm"))
+        devices = self._devices()
+        for original in devices:
+            if not original.direct_usb:
+                raise FirmwareError(
+                    f"{original.serial}: refuse restart soak without the "
+                    "direct-USB interface"
+                )
+            print(
+                f"{original.serial}: restarting {original.sysfs_name} "
+                f"path={original.port_path}",
+                flush=True,
+            )
+            try:
+                self._ssh(
+                    original.serial,
+                    "sync; /usr/sbin/device_reboot reset",
+                    check=False,
+                    timeout=10,
+                )
+            except subprocess.TimeoutExpired:
+                # A disappearing SSH transport is the expected successful
+                # response to device_reboot. The USB absence/presence gates
+                # below determine whether the restart actually happened.
+                pass
+            self._wait_absent(original.sysfs_name, 30)
+            self._wait_product(original.sysfs_name, PLUTO_RUNTIME_PRODUCT, 90)
+            self._wait_for_ssh(original.serial, 60)
+
+            returned = self._device(original.serial)
+            if (
+                returned.bus != original.bus
+                or returned.port_path != original.port_path
+                or returned.sysfs_name != original.sysfs_name
+            ):
+                raise FirmwareError(
+                    f"{original.serial}: returned on unexpected USB identity "
+                    f"{returned.sysfs_name}/bus={returned.bus}/path={returned.port_path}; "
+                    f"expected {original.sysfs_name}/bus={original.bus}/"
+                    f"path={original.port_path}"
+                )
+            if not returned.direct_usb:
+                raise FirmwareError(
+                    f"{original.serial}: direct-USB interface is absent after restart"
+                )
+            self._verify_device(original.serial)
+            print(
+                f"{original.serial}: PASS restart address "
+                f"{original.address}->{returned.address}",
+                flush=True,
+            )
+        print(f"PASS: restarted and verified {len(devices)} Plutos", flush=True)
+
     def status_all(self) -> None:
         devices = discover_runtime_plutos()
         for device in devices:
@@ -1069,6 +1128,7 @@ def _parse_args() -> argparse.Namespace:
             "check-config-all",
             "provision-config-all",
             "rollback-all",
+            "restart-all",
             "status-all",
         ),
     )

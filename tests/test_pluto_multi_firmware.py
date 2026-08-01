@@ -12,6 +12,7 @@ from spf.scripts.pluto_multi_firmware import (
     parse_passive_device_facts,
     parse_device_fw_version,
     parse_uboot_environment,
+    read_passive_device_facts,
 )
 
 
@@ -140,6 +141,49 @@ def test_parse_passive_device_facts_uses_strict_allowlist():
 def test_parse_passive_device_facts_rejects_missing_field():
     with pytest.raises(FirmwareError, match="incomplete"):
         parse_passive_device_facts("uboot_mode=2r2t\n")
+
+
+def test_passive_fingerprint_waits_for_serial_specific_ssh_readiness(
+    tmp_path, monkeypatch
+):
+    calls = []
+    output = "\n".join(
+        [
+            "device_tree_model=Analog Devices PlutoSDR Rev.C",
+            "memory_total_kib=506000",
+            "mtd0_size_bytes=1048576",
+            "mtd1_size_bytes=32768000",
+            "sd_present=true",
+            "uboot_attr_name=compatible",
+            "uboot_attr_val=ad9361",
+            "uboot_compatible=ad9361",
+            "uboot_mode=2r2t",
+            "device_fw=v0.38",
+            "linux_version=5.15",
+            "uboot_version=2022.01",
+        ]
+    )
+    monkeypatch.setattr(
+        MultiPlutoFirmwareManager,
+        "_wait_for_ssh",
+        lambda self, serial, timeout: calls.append(("wait", serial, timeout)),
+    )
+    monkeypatch.setattr(
+        MultiPlutoFirmwareManager,
+        "_ssh",
+        lambda self, serial, command, timeout: (
+            calls.append(("read", serial, timeout)) or SimpleNamespace(stdout=output)
+        ),
+    )
+
+    facts = read_passive_device_facts(
+        "SERIAL_A",
+        ssh_config=tmp_path / "ssh_config",
+        ssh_password="analog",
+    )
+
+    assert facts["uboot_mode"] == "2r2t"
+    assert calls == [("wait", "SERIAL_A", 60), ("read", "SERIAL_A", 15)]
 
 
 def _manager(tmp_path, expected_count=1):
@@ -282,6 +326,85 @@ def test_provision_writes_reboots_and_verifies_incorrect_radio(tmp_path, monkeyp
     assert "fw_setenv mode 2r2t" in write[2]
     assert any(call[0] == "ssh" and "device_reboot reset" in call[2] for call in calls)
     assert ("verify", "SERIAL_A") in calls
+
+
+def test_restart_all_requires_absence_and_preserves_each_radio_identity(
+    tmp_path, monkeypatch
+):
+    manager = _manager(tmp_path, expected_count=2)
+    originals = [
+        UsbPluto("SERIAL_A", "1-1.1", 1, "1.1", True, 8),
+        UsbPluto("SERIAL_B", "1-1.2", 1, "1.2", True, 9),
+    ]
+    returned = {
+        "SERIAL_A": UsbPluto("SERIAL_A", "1-1.1", 1, "1.1", True, 18),
+        "SERIAL_B": UsbPluto("SERIAL_B", "1-1.2", 1, "1.2", True, 19),
+    }
+    calls = []
+    monkeypatch.setattr(manager, "_check_root", lambda: None)
+    monkeypatch.setattr(firmware_module, "_require_commands", lambda commands: None)
+    monkeypatch.setattr(manager, "_devices", lambda: originals)
+    monkeypatch.setattr(manager, "_device", lambda serial: returned[serial])
+    monkeypatch.setattr(
+        manager,
+        "_ssh",
+        lambda serial, command, **kwargs: calls.append(("ssh", serial, command)),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_wait_absent",
+        lambda path, timeout: calls.append(("absent", path, timeout)),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_wait_product",
+        lambda path, product, timeout: calls.append(
+            ("product", path, product, timeout)
+        ),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_wait_for_ssh",
+        lambda serial, timeout: calls.append(("wait-ssh", serial, timeout)),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_verify_device",
+        lambda serial: calls.append(("verify", serial)),
+    )
+
+    manager.restart_all()
+
+    for radio in originals:
+        serial = radio.serial
+        assert ("ssh", serial, "sync; /usr/sbin/device_reboot reset") in calls
+        assert ("absent", radio.sysfs_name, 30) in calls
+        assert ("wait-ssh", serial, 60) in calls
+        assert ("verify", serial) in calls
+
+
+def test_restart_all_fails_closed_if_radio_returns_on_another_port(
+    tmp_path, monkeypatch
+):
+    manager = _manager(tmp_path)
+    original = UsbPluto("SERIAL_A", "1-1.1", 1, "1.1", True, 8)
+    wrong_port = UsbPluto("SERIAL_A", "1-1.2", 1, "1.2", True, 18)
+    monkeypatch.setattr(manager, "_check_root", lambda: None)
+    monkeypatch.setattr(firmware_module, "_require_commands", lambda commands: None)
+    monkeypatch.setattr(manager, "_devices", lambda: [original])
+    monkeypatch.setattr(manager, "_device", lambda serial: wrong_port)
+    monkeypatch.setattr(manager, "_ssh", lambda *args, **kwargs: None)
+    monkeypatch.setattr(manager, "_wait_absent", lambda *args: None)
+    monkeypatch.setattr(manager, "_wait_product", lambda *args: None)
+    monkeypatch.setattr(manager, "_wait_for_ssh", lambda *args: None)
+    monkeypatch.setattr(
+        manager,
+        "_verify_device",
+        lambda serial: pytest.fail("wrong physical port must reject before verify"),
+    )
+
+    with pytest.raises(FirmwareError, match="unexpected USB identity"):
+        manager.restart_all()
 
 
 def test_provision_rejects_unapproved_qspi_before_write(tmp_path, monkeypatch):
@@ -428,8 +551,10 @@ def test_boot_preparation_uses_configured_boot_mode_with_environment_override():
     assert ram_gate in boot_script
     # The volatile path remains isolated from persistent QSPI preparation.
     assert load in boot_script
-    assert boot_script.index(ram_gate) < boot_script.index(load) < boot_script.index(
-        ensure
+    assert (
+        boot_script.index(ram_gate)
+        < boot_script.index(load)
+        < boot_script.index(ensure)
     )
     # The per-boot ssh check-config-all was removed (it raced the shared-IP ssh);
     # a wrong AD9361/2r2t config is still caught by verify-all's dual-RX check.
