@@ -97,6 +97,18 @@ def validate(
             for row in samples
             if item["started_unix"] <= row["timestamp_unix"] <= item["finished_unix"]
         ]
+        minimum_round_anon_mib = (
+            min(row["rss_anon_kib"] for row in selected) / 1024.0
+            if selected
+            else None
+        )
+        if not selected:
+            failures.append(f"round {item['round']} has no resource samples")
+        elif minimum_round_anon_mib > recovery_anon_mib:
+            failures.append(
+                f"round {item['round']} anonymous RSS never recovered below "
+                f"{recovery_anon_mib:.1f} MiB"
+            )
         round_summaries.append(
             {
                 "round": item["round"],
@@ -106,6 +118,7 @@ def validate(
                     if selected
                     else None
                 ),
+                "minimum_anon_mib": minimum_round_anon_mib,
                 "minimum_available_mib": (
                     min(row["available_kib"] for row in selected) / 1024.0
                     if selected
