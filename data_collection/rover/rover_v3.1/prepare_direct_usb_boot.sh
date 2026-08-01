@@ -44,7 +44,7 @@ is_true() {
 
 # Readiness is session-bound. Invalidate it before any operation that can fail,
 # including configuration parsing, so stale firmware/fingerprint state can
-# never authorize capture after a reboot or interrupted RAM load.
+# never authorize capture after a reboot or interrupted firmware operation.
 rm -f -- "$READY_FILE"
 
 if is_true "$DISABLE_DIRECT_USB"; then
@@ -164,7 +164,7 @@ else
 fi
 
 # USB-IIO URIs contain the post-enumeration USB device address, so mapping must
-# be regenerated only after every radio reaches its final RAM-booted state.
+# be regenerated only after every radio reaches its final booted state.
 mapping_tmp="$(mktemp /run/spf-device-mapping.XXXXXX)"
 trap 'rm -f -- "${mapping_tmp:-}"' EXIT
 bash "$MAPPING_SCRIPT" >"$mapping_tmp"

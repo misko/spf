@@ -252,9 +252,8 @@ restore_legacy() {
     printf '%s\n' \
         "PASS: explicit stock-QSPI recovery policy is enabled." \
         "The firmware prerequisite still runs before MAVLink but exits without" \
-        "RAM-loading because SPF_DIRECT_USB_DISABLE=1." \
-        "Reset each Pluto into QSPI with rollback-all (or a full power cycle)" \
-        "before manual legacy-IIO collection; this command does not reset radios." \
+        "direct-USB preparation because SPF_DIRECT_USB_DISABLE=1." \
+        "This command does not reset radios or replace the QSPI firmware." \
         "Automatic production collection is disabled."
     show_status
 }
