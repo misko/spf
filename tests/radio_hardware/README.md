@@ -142,4 +142,5 @@ python -m spf.scripts.validate_soak_resources SOAK_ROOT/resources.csv \
 
 Passing requires bounded anonymous memory and host-available memory across the
 whole run, plus a sample below the recovery threshold inside every completed
-round. A single low-memory sample elsewhere cannot hide round-local growth.
+round after that round's peak. A low-memory sample before the peak or in a
+different round cannot hide failure to reclaim lifecycle allocations.

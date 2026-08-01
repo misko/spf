@@ -70,6 +70,7 @@ def test_soak_resources_accept_bounded_lifecycle_churn(tmp_path):
     assert result["completed_rounds"] == 1
     assert result["rounds"][0]["sample_count"] == 5
     assert result["rounds"][0]["minimum_anon_mib"] == 10_000 / 1024
+    assert result["rounds"][0]["post_peak_minimum_anon_mib"] == 20_000 / 1024
 
 
 def test_soak_resources_reject_memory_pressure_and_no_recovery(tmp_path):
@@ -93,8 +94,8 @@ def test_soak_resources_requires_recovery_in_every_completed_round(tmp_path):
     rounds = tmp_path / "rounds.tsv"
     _write_resources(
         resources,
-        [10_000, 500_000, 200_000, 500_000, 450_000],
-        timestamps=[110, 120, 130, 210, 220],
+        [10_000, 500_000, 200_000, 10_000, 500_000, 450_000],
+        timestamps=[110, 120, 130, 205, 210, 220],
     )
     _write_rounds(rounds, windows=((1, 100, 200), (2, 201, 300)))
 
@@ -102,7 +103,8 @@ def test_soak_resources_requires_recovery_in_every_completed_round(tmp_path):
 
     assert result["status"] == "fail"
     assert result["failures"] == [
-        "round 2 anonymous RSS never recovered below 384.0 MiB"
+        "round 2 anonymous RSS never recovered below 384.0 MiB after its peak"
     ]
     assert result["rounds"][0]["minimum_anon_mib"] < 384
-    assert result["rounds"][1]["minimum_anon_mib"] > 384
+    assert result["rounds"][1]["minimum_anon_mib"] < 384
+    assert result["rounds"][1]["post_peak_minimum_anon_mib"] > 384

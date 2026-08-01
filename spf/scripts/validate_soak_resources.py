@@ -102,12 +102,25 @@ def validate(
             if selected
             else None
         )
+        peak_index = (
+            max(
+                range(len(selected)),
+                key=lambda index: selected[index]["rss_anon_kib"],
+            )
+            if selected
+            else None
+        )
+        post_peak_minimum_anon_mib = (
+            min(row["rss_anon_kib"] for row in selected[peak_index:]) / 1024.0
+            if peak_index is not None
+            else None
+        )
         if not selected:
             failures.append(f"round {item['round']} has no resource samples")
-        elif minimum_round_anon_mib > recovery_anon_mib:
+        elif post_peak_minimum_anon_mib > recovery_anon_mib:
             failures.append(
                 f"round {item['round']} anonymous RSS never recovered below "
-                f"{recovery_anon_mib:.1f} MiB"
+                f"{recovery_anon_mib:.1f} MiB after its peak"
             )
         round_summaries.append(
             {
@@ -119,6 +132,7 @@ def validate(
                     else None
                 ),
                 "minimum_anon_mib": minimum_round_anon_mib,
+                "post_peak_minimum_anon_mib": post_peak_minimum_anon_mib,
                 "minimum_available_mib": (
                     min(row["available_kib"] for row in selected) / 1024.0
                     if selected
