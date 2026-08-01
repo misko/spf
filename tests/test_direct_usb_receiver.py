@@ -22,7 +22,10 @@ from spf.sdrpluto.direct_usb_protocol import (
 from spf.sdrpluto.direct_usb_receiver import (
     DirectUsbNotFoundError,
     DirectUsbRecoveryError,
+    DirectUsbTransportError,
     DirectUsbIdentity,
+    MAX_ORPHAN_DRAIN_BYTES,
+    MAX_ORPHAN_DRAIN_TRANSFERS,
     PlutoDirectUsbReceiver,
     iq_payload_to_complex64,
 )
@@ -85,6 +88,75 @@ class _DisconnectedHandle(_FakeHandle):
 
     def close(self):
         pass
+
+
+class _OrphanedEndpointHandle:
+    def __init__(self, stale_transfers):
+        self.stale_transfers = list(stale_transfers)
+        self.events = []
+
+    def controlWrite(self, *args, **kwargs):
+        self.events.append(("stop", args, kwargs))
+
+    def bulkRead(self, endpoint, size, timeout):
+        self.events.append(("drain", endpoint, size, timeout))
+        if not self.stale_transfers:
+            raise usb1.USBErrorTimeout()
+        return self.stale_transfers.pop(0)
+
+    def clearHalt(self, endpoint):
+        self.events.append(("clear", endpoint))
+
+
+def _finite_capabilities(maximum_frames=16):
+    return GadgetCapabilitiesV1(
+        protocol_min=1,
+        protocol_max=2,
+        supported_features=MetadataFeatures(0),
+        max_samples_per_channel=524288,
+        max_finite_frames=maximum_frames,
+        capability_flags=CapabilityFlags.FINITE_RX,
+    )
+
+
+def test_open_quiesce_stops_and_drains_orphaned_bulk_data():
+    handle = _OrphanedEndpointHandle([b"old-frame", b"old-tail"])
+
+    PlutoDirectUsbReceiver._quiesce_rx_endpoint(
+        handle=handle,
+        interface=6,
+        bulk_in_endpoint=0x89,
+        capabilities=_finite_capabilities(),
+    )
+
+    assert [event[0] for event in handle.events] == [
+        "stop",
+        "drain",
+        "drain",
+        "drain",
+        "clear",
+    ]
+    assert handle.events[0][1][1] == COMMAND_STOP
+    assert handle.events[1][2] == MAX_ORPHAN_DRAIN_BYTES
+
+
+def test_open_quiesce_fails_if_orphaned_backlog_does_not_end():
+    handle = _OrphanedEndpointHandle([b"stale"] * MAX_ORPHAN_DRAIN_TRANSFERS)
+
+    with pytest.raises(DirectUsbTransportError, match="remained non-empty"):
+        PlutoDirectUsbReceiver._quiesce_rx_endpoint(
+            handle=handle,
+            interface=6,
+            bulk_in_endpoint=0x89,
+            capabilities=_finite_capabilities(
+                maximum_frames=MAX_ORPHAN_DRAIN_TRANSFERS
+            ),
+        )
+
+    assert [event[0] for event in handle.events].count("drain") == (
+        MAX_ORPHAN_DRAIN_TRANSFERS
+    )
+    assert handle.events[-1] == ("clear", 0x89)
 
 
 def _valid_wire_frame(samples=8, sequence=0):

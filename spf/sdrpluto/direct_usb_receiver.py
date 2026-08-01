@@ -48,6 +48,12 @@ USB_BULK_TIMEOUT_MS = 10_000
 DEFAULT_BULK_CHUNK_BYTES = 1024 * 1024
 DEFAULT_RECONNECT_ATTEMPTS = 20
 DEFAULT_RECONNECT_DELAY_SECONDS = 0.25
+ORPHAN_DRAIN_TIMEOUT_MS = 50
+MAX_ORPHAN_DRAIN_TRANSFERS = 32
+# The wire capability is deliberately UINT32-wide, not an allocation promise.
+# Eight MiB covers Rover's 4,194,400-byte production frame while remaining one
+# bounded transfer under the Pi's default 16 MiB usbfs budget.
+MAX_ORPHAN_DRAIN_BYTES = 8 * 1024 * 1024
 
 
 class DirectUsbNotFoundError(RuntimeError):
@@ -232,7 +238,13 @@ class PlutoDirectUsbReceiver:
                             timeout=USB_CONTROL_TIMEOUT_MS,
                         )
                         capabilities = GadgetCapabilitiesV1.unpack(payload)
-                    except (usb1.USBError, ProtocolError):
+                        self._quiesce_rx_endpoint(
+                            handle=handle,
+                            interface=interface,
+                            bulk_in_endpoint=bulk_in,
+                            capabilities=capabilities,
+                        )
+                    except (usb1.USBError, ProtocolError, DirectUsbTransportError):
                         if claimed:
                             with contextlib.suppress(usb1.USBError):
                                 handle.releaseInterface(interface)
@@ -269,6 +281,72 @@ class PlutoDirectUsbReceiver:
             "matching SPF direct-USB gadget was not found for "
             f"serial={self.requested_serial!r} "
             f"port_path={self.requested_port_path!r}"
+        )
+
+    @staticmethod
+    def _quiesce_rx_endpoint(
+        *,
+        handle,
+        interface: int,
+        bulk_in_endpoint: int,
+        capabilities: GadgetCapabilitiesV1,
+    ) -> None:
+        """Stop an orphaned producer and discard its bounded endpoint backlog.
+
+        A host killed between START and STOP releases its interface, but a
+        completed FunctionFS AIO write can remain queued on bulk-IN. The next
+        process would otherwise splice that old transfer into its first frame.
+        Interface claiming excludes a live competing host, so draining here
+        can only discard data whose owner no longer exists.
+        """
+
+        handle.controlWrite(
+            usb1.ENDPOINT_OUT | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
+            COMMAND_STOP,
+            COMMAND_TARGET_RX,
+            interface,
+            b"",
+            timeout=USB_CONTROL_TIMEOUT_MS,
+        )
+        maximum_frame_bytes = min(
+            MAX_ORPHAN_DRAIN_BYTES,
+            HEADER_BYTES_V2 + capabilities.max_samples_per_channel * 8,
+        )
+        drain_limit = min(
+            MAX_ORPHAN_DRAIN_TRANSFERS,
+            max(1, capabilities.max_finite_frames + 1),
+        )
+        drained = []
+        try:
+            for _attempt in range(drain_limit):
+                try:
+                    stale = handle.bulkRead(
+                        bulk_in_endpoint,
+                        maximum_frame_bytes,
+                        timeout=ORPHAN_DRAIN_TIMEOUT_MS,
+                    )
+                except usb1.USBErrorTimeout:
+                    if drained:
+                        logging.warning(
+                            "discarded %s orphaned direct-USB RX transfer(s), "
+                            "%s bytes total before opening a new stream",
+                            len(drained),
+                            sum(drained),
+                        )
+                    return
+                except usb1.USBErrorOverflow:
+                    # The bounded buffer consumed/discarded the head of an
+                    # unexpectedly large orphaned write. Continue until a
+                    # timeout proves that its endpoint tail is empty.
+                    drained.append(maximum_frame_bytes)
+                    continue
+                drained.append(len(stale))
+        finally:
+            with contextlib.suppress(usb1.USBError, AttributeError):
+                handle.clearHalt(bulk_in_endpoint)
+        raise DirectUsbTransportError(
+            "direct USB bulk-IN remained non-empty after discarding "
+            f"{drain_limit} orphaned transfers"
         )
 
     def close(self) -> None:

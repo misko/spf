@@ -20,7 +20,7 @@ Execution status on 2026-08-01:
 | 2 allocation/logging candidate | Partial | Native tests, ARM cross-build and full DFU build pass; cleanup/counter extensions remain |
 | 3 RAM candidate | Pass for quick gate | Candidate/control comparison and 50-cycle candidate test pass |
 | 4 V7 integrity | Pass for clean and interrupted one-radio paths | 10-, 100- and QSPI-provenance captures pass; SIGTERM partial V7 store is readable and fail-closed |
-| 5 soak/fault injection | Pending | Deliberately not started by the quick suite |
+| 5 soak/fault injection | In progress | Restart-separated production soak and automated interruption matrix are running on `.18`; exact-count-two rerun awaits `.17` external power cycle |
 | 6 Rover rollout | Pending | Candidate is not published or persistent |
 
 ## Current production baseline
@@ -178,6 +178,11 @@ Actions:
 4. Repeat at 100 frames per receiver.
 5. Interrupt a separate capture deliberately and validate `incomplete` plus
    its error/progress attributes.
+6. Run the automated interruption matrix at multiple durable-record boundaries:
+   graceful `SIGINT`, graceful `SIGTERM`, and uncatchable `SIGKILL`.
+7. After every interruption, claim each serial for a fresh direct-USB frame;
+   after the complete matrix, write and strictly validate a clean 100-record
+   production V7 Zarr.
 
 Pass:
 
@@ -185,6 +190,11 @@ Pass:
 - Serial and firmware identity match the radio that produced each receiver
   group.
 - An interrupted/failed run is readable but never marked complete.
+- Graceful signals exit with their conventional status and record
+  `CaptureInterrupted`; `SIGKILL` remains `in_progress` with no invented error
+  or completion state.
+- Every safely committed prefix has monotonic timestamps and valid gain/RSSI
+  metadata, and no interruption strands a vendor interface.
 
 Fail:
 
@@ -249,6 +259,30 @@ pytest tests/radio_hardware \
 The longer soak and V7 artifact gates use separate explicit options documented
 next to their tests. CI should collect these tests but skip them unless a
 dedicated radio runner opts in.
+
+Run the bounded production interruption campaign with:
+
+```bash
+data_collection/rover/rover_v3.1/run_interrupted_capture_campaign.sh
+```
+
+It performs `sigterm:2`, `sigint:10`, `sigkill:25`, and `sigterm:100` by
+default. Every partial artifact, pytest result, and kernel-log delta is kept
+under `/home/pi/preflight/interrupted_capture`; a final `PASS` marker is
+written only after the post-interruption production capture validates. The
+matrix can be overridden without editing code through `SPF_INTERRUPT_CASES`.
+
+Run the restart-separated duration gate with:
+
+```bash
+data_collection/rover/rover_v3.1/run_direct_usb_restart_soak.sh
+```
+
+The default requires at least two independently fingerprinted sessions and at
+least 3,600 seconds of aggregate recorded time. It restarts every configured
+radio between sessions, re-attests identity/configuration/firmware, records
+host-resource samples and kernel-log deltas, validates each Zarr, and stops
+fail-closed on any mismatch.
 
 ## Decision order
 

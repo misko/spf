@@ -45,8 +45,8 @@ This surgical Zarr test is not a substitute for the production-YAML,
 fake-drone capture in the Rover pre-field checklist; that remains the final
 collector acceptance gate.
 
-Exercise graceful SIGTERM against the real production collector, verify its
-partial LMDB-Zarr, and immediately reclaim both radios:
+Exercise a single graceful SIGTERM against the real production collector,
+verify its partial LMDB-Zarr, and immediately reclaim both radios:
 
 ```bash
 pytest tests/radio_hardware/test_interrupted_collection_hardware.py \
@@ -62,3 +62,34 @@ The subprocess is terminated only after every configured receiver has at
 least two fully committed records. Passing requires an `incomplete` temporary
 store with `CaptureInterrupted`, monotonically safe progress counts, no final
 `.zarr`, and a successful new direct-USB request on every serial.
+
+The signal and interruption point can be selected explicitly:
+
+```bash
+pytest tests/radio_hardware/test_interrupted_collection_hardware.py \
+  --radio-hardware --radio-interrupt \
+  --radio-interrupt-signal=sigkill \
+  --radio-interrupt-min-records=25 \
+  --radio-expected-count=2 \
+  --radio-capture-config=data_collection/rover/rover_v3.1/capture_configs/rover3_production_v7.yaml \
+  --radio-device-mapping=/home/pi/device_mapping \
+  --radio-ready-manifest=/run/spf/direct_usb_ready.json
+```
+
+`SIGINT` and `SIGTERM` must finalize a readable `incomplete` store and exit
+with the conventional signal status. `SIGKILL` cannot run cleanup, so its
+store must remain `in_progress`; it must never be promoted or represented as
+complete. All modes validate every safely committed prefix and then reclaim
+each radio immediately.
+
+For the reproducible pre-field matrix, use:
+
+```bash
+data_collection/rover/rover_v3.1/run_interrupted_capture_campaign.sh
+```
+
+By default this interrupts production V7 collection with `SIGTERM` after 2
+records, `SIGINT` after 10, `SIGKILL` after 25, and `SIGTERM` after 100. It
+preserves each partial store and report, rejects new kernel USB errors, and
+finishes with a strict 100-record production capture. Override the matrix with
+`SPF_INTERRUPT_CASES`, for example `SPF_INTERRUPT_CASES='sigkill:2 sigterm:50'`.

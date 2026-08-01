@@ -1,4 +1,4 @@
-"""Subprocess worker used to exercise real SIGTERM/SIGKILL capture semantics."""
+"""Subprocess worker used to exercise SIGINT/SIGTERM/SIGKILL semantics."""
 
 from __future__ import annotations
 

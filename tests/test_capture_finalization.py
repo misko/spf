@@ -57,6 +57,59 @@ class _CleanupAlsoDisconnects:
         raise self.cleanup_error
 
 
+class _QueuedReadThread:
+    def __init__(self, records):
+        self.read_q = queue.Queue()
+        for record in records:
+            self.read_q.put(record)
+        self.error = None
+
+
+class _WriterConcurrencyProbe(DataCollector):
+    def __init__(self, records):
+        self._probe_lock = threading.Lock()
+        self.active_by_receiver = [0]
+        self.max_active_by_receiver = [0]
+        self.write_order = []
+        super().__init__(
+            yaml_config={
+                "receivers": [{}],
+                "n-records-per-receiver": len(records),
+            },
+            data_filename=None,
+            position_controller=None,
+            thread_class=None,
+        )
+        self.read_threads = [_QueuedReadThread(records)]
+
+    def setup_record_matrix(self):
+        pass
+
+    def write_to_record_matrix(self, thread_idx, record_idx, data):
+        with self._probe_lock:
+            self.active_by_receiver[thread_idx] += 1
+            self.max_active_by_receiver[thread_idx] = max(
+                self.max_active_by_receiver[thread_idx],
+                self.active_by_receiver[thread_idx],
+            )
+        # Make overlap deterministic with the old shared two-worker executor.
+        time.sleep(0.02)
+        with self._probe_lock:
+            self.write_order.append((thread_idx, record_idx, data))
+            self.active_by_receiver[thread_idx] -= 1
+
+
+def test_records_for_one_receiver_are_written_serially_in_fifo_order():
+    records = list(range(20))
+    collector = _WriterConcurrencyProbe(records)
+
+    collector.run_inner_collector_thread()
+
+    assert collector.max_active_by_receiver == [1]
+    assert collector.write_order == [(0, index, index) for index in records]
+    assert collector.records_written_by_receiver == [len(records)]
+
+
 def test_disconnect_preserves_primary_error_and_finalizes_partial_zarr(
     tmp_path, caplog
 ):
@@ -269,6 +322,7 @@ def _wait_for_committed_progress(path, minimum=2):
 @pytest.mark.parametrize(
     ("terminate", "expected_status", "expected_error_type"),
     [
+        ("interrupt", "incomplete", "CaptureInterrupted"),
         ("terminate", "incomplete", "CaptureInterrupted"),
         ("kill", "in_progress", None),
     ],
@@ -281,7 +335,10 @@ def test_subprocess_interruption_is_fail_closed_and_partial_lmdb_is_readable(
     process = _start_interrupt_worker(partial_path, repo_root)
     committed_before_interrupt = _wait_for_committed_progress(partial_path)
 
-    getattr(process, terminate)()
+    if terminate == "interrupt":
+        process.send_signal(signal.SIGINT)
+    else:
+        getattr(process, terminate)()
     stdout, stderr = process.communicate(timeout=15)
     assert process.returncode != 0, (stdout, stderr)
     assert partial_path.is_dir()
@@ -296,7 +353,8 @@ def test_subprocess_interruption_is_fail_closed_and_partial_lmdb_is_readable(
         assert committed_after_interrupt >= committed_before_interrupt
         if expected_error_type is not None:
             assert partial.attrs["capture_error_type"] == expected_error_type
-            assert "SIGTERM" in partial.attrs["capture_error_message"]
+            expected_signal = "SIGINT" if terminate == "interrupt" else "SIGTERM"
+            assert expected_signal in partial.attrs["capture_error_message"]
         else:
             assert "capture_error_type" not in partial.attrs
     finally:

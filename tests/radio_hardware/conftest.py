@@ -78,7 +78,19 @@ def pytest_addoption(parser):
     group.addoption(
         "--radio-interrupt",
         action="store_true",
-        help="enable the real collector SIGTERM/finalization test",
+        help="enable the real collector interruption/finalization test",
+    )
+    group.addoption(
+        "--radio-interrupt-signal",
+        choices=("sigint", "sigterm", "sigkill"),
+        default="sigterm",
+        help="signal used by the real collector interruption test",
+    )
+    group.addoption(
+        "--radio-interrupt-min-records",
+        type=int,
+        default=2,
+        help="minimum committed records per receiver before interruption",
     )
     group.addoption(
         "--radio-capture-config",

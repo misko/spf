@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 from concurrent import futures
+from contextlib import ExitStack
 from typing import Any, Dict, Optional
 import concurrent.futures
 import numpy as np
@@ -804,7 +805,17 @@ class DataCollector:
 
     def run_inner_collector_thread(self):
         futures = []
-        with ThreadPoolExecutorWithQueueSizeLimit(max_workers=2, maxsize=1) as executor:
+        # Each receiver owns one FIFO writer. Zarr metadata arrays use a whole
+        # capture as one chunk, so concurrent read/modify/write assignments for
+        # two records of the same receiver can silently overwrite one another.
+        # Independent receiver groups may still compress/write in parallel.
+        with ExitStack() as stack:
+            executors = [
+                stack.enter_context(
+                    ThreadPoolExecutorWithQueueSizeLimit(max_workers=1, maxsize=1)
+                )
+                for _read_thread in self.read_threads
+            ]
             for record_index in tqdm(range(self.yaml_config["n-records-per-receiver"])):
                 for read_thread_idx, read_thread in enumerate(self.read_threads):
                     while True:
@@ -826,7 +837,7 @@ class DataCollector:
                             f"receiver {read_thread_idx} stopped without an error"
                         )
                     futures.append(
-                        executor.submit(
+                        executors[read_thread_idx].submit(
                             self._write_record_and_track,
                             read_thread_idx,
                             record_idx=record_index,
