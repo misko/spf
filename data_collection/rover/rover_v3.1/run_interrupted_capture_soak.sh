@@ -7,6 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
+readonly REPO_ROOT="${SPF_INTERRUPT_REPO_ROOT:-$(cd -- "${SCRIPT_DIR}/../../.." && pwd)}"
 readonly CAMPAIGN="${SPF_INTERRUPT_CAMPAIGN:-${SCRIPT_DIR}/run_interrupted_capture_campaign.sh}"
 readonly DURATION_SECONDS="${SPF_INTERRUPT_SOAK_SECONDS:-43200}"
 readonly MAX_ROUNDS="${SPF_INTERRUPT_SOAK_MAX_ROUNDS:-1000}"
@@ -28,6 +29,12 @@ done
 [[ "$DRY_RUN" == 0 || "$DRY_RUN" == 1 ]] ||
     die "SPF_INTERRUPT_SOAK_DRY_RUN must be 0 or 1"
 [[ -x "$CAMPAIGN" ]] || die "interruption campaign is not executable: ${CAMPAIGN}"
+git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
+    die "source root is not a Git worktree: ${REPO_ROOT}"
+command -v sha256sum >/dev/null || die "sha256sum is unavailable"
+
+source_head="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+source_diff_sha256="$({ git -C "$REPO_ROOT" diff --binary HEAD -- .; } | sha256sum | awk '{print $1}')"
 
 run_id="$(date -u +%Y%m%dT%H%M%SZ)"
 run_root="${OUTPUT_ROOT}/${run_id}"
@@ -41,7 +48,27 @@ printf '%s\n' \
     "minimum_free_gib=${MIN_FREE_GIB}" \
     "clean_records=${CLEAN_RECORDS}" \
     "stop_file=${stop_file}" \
-    "dry_run=${DRY_RUN}" >"${run_root}/settings.env"
+    "dry_run=${DRY_RUN}" \
+    "source_head=${source_head}" \
+    "source_diff_sha256=${source_diff_sha256}" \
+    >"${run_root}/settings.env"
+
+assert_source_revision() {
+    local current_head current_diff_sha256
+    current_head="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+    current_diff_sha256="$({ git -C "$REPO_ROOT" diff --binary HEAD -- .; } | sha256sum | awk '{print $1}')"
+    if [[ "$current_head" != "$source_head" ||
+          "$current_diff_sha256" != "$source_diff_sha256" ]]; then
+        printf '%s\n' \
+            "SOURCE_CHANGED" \
+            "expected_head=${source_head}" \
+            "observed_head=${current_head}" \
+            "expected_diff_sha256=${source_diff_sha256}" \
+            "observed_diff_sha256=${current_diff_sha256}" \
+            >"${run_root}/FAILED"
+        die "source revision changed during interruption soak"
+    fi
+}
 
 on_signal() {
     printf 'STOPPED_BY_SIGNAL\n' >"${run_root}/STOPPED"
@@ -60,6 +87,7 @@ started_epoch="$(date +%s)"
 deadline_epoch=$((started_epoch + DURATION_SECONDS))
 round=0
 while (( round < MAX_ROUNDS )); do
+    assert_source_revision
     now="$(date +%s)"
     if (( round > 0 && now >= deadline_epoch )); then
         break
@@ -95,6 +123,8 @@ while (( round < MAX_ROUNDS )); do
         status=$?
         set -e
     fi
+
+    assert_source_revision
 
     round_finished="$(date +%s)"
     artifact_kib="$(du -sk "$round_root" | awk '{print $1}')"
