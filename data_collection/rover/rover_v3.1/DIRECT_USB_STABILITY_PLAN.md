@@ -16,11 +16,11 @@ Execution status on 2026-08-01:
 | Gate | Status | Evidence |
 |---|---|---|
 | 0 baseline | Pass | Two serial-selected radios; production-size lifecycle, sequence and simultaneous tests |
-| 1 Python observability | Pass for software and one radio | SIGTERM/SIGKILL tests pass; real production collector SIGTERM finalizes and immediately releases `.18`; dual-radio rerun awaits `.17` power cycle |
+| 1 Python observability | Pass for software and one radio | SIGINT/SIGTERM/SIGKILL matrix passes; abrupt death drains the orphaned endpoint and immediately releases `.18`; dual-radio rerun awaits `.17` power cycle |
 | 2 allocation/logging candidate | Partial | Native tests, ARM cross-build and full DFU build pass; cleanup/counter extensions remain |
 | 3 RAM candidate | Pass for quick gate | Candidate/control comparison and 50-cycle candidate test pass |
-| 4 V7 integrity | Pass for clean and interrupted one-radio paths | 10-, 100- and QSPI-provenance captures pass; SIGTERM partial V7 store is readable and fail-closed |
-| 5 soak/fault injection | In progress | Restart-separated production soak and automated interruption matrix are running on `.18`; exact-count-two rerun awaits `.17` external power cycle |
+| 4 V7 integrity | Pass for clean and interrupted one-radio paths | Writer lost-update race fixed; 100-frame recovery and two exhaustive 3,500-frame V7 validations pass |
+| 5 soak/fault injection | Pass for one radio; dual-radio pending | 3,624.746 accepted seconds across two verified restarts plus SIGINT/SIGTERM/SIGKILL matrix pass on `.18`; exact-count-two rerun awaits `.17` external power cycle |
 | 6 Rover rollout | Pending | Candidate is not published or persistent |
 
 ## Current production baseline
