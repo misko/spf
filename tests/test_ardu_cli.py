@@ -407,3 +407,95 @@ def test_magcal_start_wire_parameters_match_guarded_options():
         0,
     )
     assert command[4:] == (3, 1, 0, 0, 0, 0, 0)
+
+
+def test_monitor_magcal_streams_progress_and_exits_on_terminal_report():
+    progress = FakeMessage(
+        message_type="MAG_CAL_PROGRESS",
+        compass_id=0,
+        cal_status=2,
+        completion_pct=37,
+    )
+    report = FakeMessage(
+        message_type="MAG_CAL_REPORT",
+        compass_id=0,
+        cal_status=4,
+        fitness=5.25,
+        autosaved=1,
+    )
+    event_after_terminal_report = FakeMessage(
+        message_type="MAG_CAL_PROGRESS",
+        compass_id=0,
+        cal_status=2,
+        completion_pct=99,
+    )
+    connection = FakeConnection([progress, report, event_after_terminal_report])
+    streamed = []
+
+    events = ardu_cli.monitor_magcal(
+        connection,
+        timeout_s=300,
+        on_event=streamed.append,
+    )
+
+    assert [event["message_type"] for event in events] == [
+        "MAG_CAL_PROGRESS",
+        "MAG_CAL_REPORT",
+    ]
+    assert streamed == events
+    assert connection.messages == [event_after_terminal_report]
+
+
+def test_magcal_command_prints_ack_and_events_without_waiting_for_timeout(
+    monkeypatch, capsys
+):
+    connection = FakeConnection(
+        [
+            FakeMessage(
+                message_type="MAG_CAL_PROGRESS",
+                compass_id=0,
+                cal_status=2,
+                completion_pct=51,
+            ),
+            FakeMessage(
+                message_type="MAG_CAL_REPORT",
+                compass_id=0,
+                cal_status=4,
+                fitness=4.5,
+                autosaved=1,
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        ardu_cli,
+        "_connect",
+        lambda args: (connection, heartbeat(), "fake"),
+    )
+    monkeypatch.setattr(
+        ardu_cli,
+        "_wait_command_ack",
+        lambda connection, command, timeout: FakeMessage(
+            message_type="COMMAND_ACK",
+            command=command,
+            result=mavutil.mavlink.MAV_RESULT_ACCEPTED,
+        ),
+    )
+
+    assert (
+        ardu_cli.main(
+            [
+                "magcal",
+                "start",
+                "--yes",
+                "--mask",
+                "1",
+                "--monitor-seconds",
+                "300",
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert output.count("magcal start: MAV_RESULT_ACCEPTED") == 1
+    assert "Compass 0: MAG_CAL_RUNNING_STEP_ONE, 51%" in output
+    assert "Compass 0: MAG_CAL_SUCCESS, fitness=4.5 autosaved=1" in output

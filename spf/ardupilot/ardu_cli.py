@@ -598,7 +598,20 @@ def send_magcal_command(
     )
 
 
-def monitor_magcal(connection, timeout_s: float) -> list[dict[str, Any]]:
+def monitor_magcal(
+    connection,
+    timeout_s: float,
+    *,
+    on_event=None,
+    exit_on_report: bool = True,
+) -> list[dict[str, Any]]:
+    """Monitor calibration, optionally streaming events as they arrive.
+
+    ``timeout_s`` is a safety ceiling, not a minimum runtime.  A
+    ``MAG_CAL_REPORT`` is ArduPilot's terminal calibration result, so the
+    normal CLI path returns immediately after receiving it instead of making
+    an operator wait for the remainder of a long monitoring window.
+    """
     events: list[dict[str, Any]] = []
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -617,22 +630,32 @@ def monitor_magcal(connection, timeout_s: float) -> list[dict[str, Any]]:
                 "MAG_CAL_STATUS", int(event["cal_status"])
             )
         events.append(event)
+        if on_event is not None:
+            on_event(event)
+        if exit_on_report and event["message_type"] == "MAG_CAL_REPORT":
+            break
     return events
+
+
+def _print_magcal_event(event: dict[str, Any]) -> None:
+    status = event.get("cal_status_name", event.get("cal_status", "unknown"))
+    if event["message_type"] == "MAG_CAL_PROGRESS":
+        print(
+            f"Compass {event.get('compass_id')}: {status}, "
+            f"{event.get('completion_pct')}%",
+            flush=True,
+        )
+    else:
+        print(
+            f"Compass {event.get('compass_id')}: {status}, "
+            f"fitness={event.get('fitness')} autosaved={event.get('autosaved')}",
+            flush=True,
+        )
 
 
 def _print_magcal_events(events: Iterable[dict[str, Any]]) -> None:
     for event in events:
-        status = event.get("cal_status_name", event.get("cal_status", "unknown"))
-        if event["message_type"] == "MAG_CAL_PROGRESS":
-            print(
-                f"Compass {event.get('compass_id')}: {status}, "
-                f"{event.get('completion_pct')}%"
-            )
-        else:
-            print(
-                f"Compass {event.get('compass_id')}: {status}, "
-                f"fitness={event.get('fitness')} autosaved={event.get('autosaved')}"
-            )
+        _print_magcal_event(event)
 
 
 def command_magcal(args: argparse.Namespace) -> int:
@@ -683,15 +706,24 @@ def command_magcal(args: argparse.Namespace) -> int:
                 print(f"magcal {action}: {ack_report['result_name']}")
             return 1
 
+    emit_json = bool(args.json or args.json_output)
+    if ack_report is not None and not emit_json:
+        print(f"magcal {action}: {ack_report['result_name']}", flush=True)
+
     monitor_seconds = args.timeout if action == "monitor" else args.monitor_seconds
-    events = monitor_magcal(connection, monitor_seconds) if monitor_seconds > 0 else []
+    events = (
+        monitor_magcal(
+            connection,
+            monitor_seconds,
+            on_event=None if emit_json else _print_magcal_event,
+        )
+        if monitor_seconds > 0
+        else []
+    )
     report = {"action": action, "master": master, "ack": ack_report, "events": events}
-    if args.json or args.json_output:
+    if emit_json:
         _write_json(report, args.json_output)
     else:
-        if ack_report is not None:
-            print(f"magcal {action}: {ack_report['result_name']}")
-        _print_magcal_events(events)
         if action == "monitor" and not events:
             print("No magnetometer calibration progress/report messages observed")
     return 0 if (action != "monitor" or events) else 1
@@ -776,7 +808,15 @@ def get_parser() -> argparse.ArgumentParser:
             "--mask", type=lambda value: int(value, 0), default=0
         )
         action_parser.add_argument("--command-timeout", type=float, default=8.0)
-        action_parser.add_argument("--monitor-seconds", type=float, default=0.0)
+        action_parser.add_argument(
+            "--monitor-seconds",
+            type=float,
+            default=0.0,
+            help=(
+                "maximum time to monitor; progress prints live and a terminal "
+                "MAG_CAL_REPORT ends monitoring early"
+            ),
+        )
         if action == "start":
             action_parser.add_argument("--retry", action="store_true")
             action_parser.add_argument(
@@ -786,7 +826,15 @@ def get_parser() -> argparse.ArgumentParser:
         action_parser.set_defaults(handler=command_magcal)
     monitor = magcal_subparsers.add_parser("monitor")
     _add_connection_options(monitor)
-    monitor.add_argument("--timeout", type=float, default=30.0)
+    monitor.add_argument(
+        "--timeout",
+        type=float,
+        default=30.0,
+        help=(
+            "maximum time to monitor; progress prints live and a terminal "
+            "MAG_CAL_REPORT ends monitoring early"
+        ),
+    )
     monitor.set_defaults(handler=command_magcal)
     return parser
 
