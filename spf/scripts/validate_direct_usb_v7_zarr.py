@@ -38,6 +38,13 @@ def _validate_receiver(receiver, expected_frames: int) -> dict:
             raise ValueError(f"frame {frame_index} contains non-finite IQ")
         if not np.any(frame[0]) or not np.any(frame[1]):
             raise ValueError(f"frame {frame_index} has an all-zero channel")
+        for channel_index in range(2):
+            if np.all(frame[channel_index] == frame[channel_index, 0]):
+                raise ValueError(
+                    f"frame {frame_index} channel {channel_index} is constant"
+                )
+        if np.array_equal(frame[0], frame[1]):
+            raise ValueError(f"frame {frame_index} has duplicated RX channels")
 
     gain_valid = receiver.gain_metadata_valid[:]
     rssi_valid = receiver.rssi_metadata_valid[:]
