@@ -276,3 +276,11 @@ enumerated and requires an external power cycle; software cannot restore an
 externally powered radio after its host link has disappeared. The one-radio
 P0 and greater-than-one-hour restart gates pass, but this report does not claim
 the unavailable second radio was tested.
+
+The required post-soak quick test then ran without rebooting `.18`. Identity
+and capabilities, contiguous three-frame ordering and 20 production-sized
+START/STOP lifecycle cycles passed in 9.39 seconds. Host RSS grew 20,624 KiB,
+below the 64 MiB bound, and the final channel RMS values were 13.65 and 13.39.
+The simultaneous-radio case was the sole skip because the fixture required
+exactly one attached radio for this run. Evidence is under
+`/tmp/spf-p0-post-soak-quick-20260801`.
