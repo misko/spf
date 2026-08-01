@@ -6,8 +6,7 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
 readonly DEFAULT_PYTHON="/home/pi/spf-virtualenv/bin/python"
 readonly PYTHON_BIN="${SPF_PYTHON:-${DEFAULT_PYTHON}}"
-readonly MAVLINK_CONTROLLER="${REPO_ROOT}/spf/mavlink/mavlink_controller.py"
-readonly POLICY_CHECKER="${REPO_ROOT}/spf/mavlink/compass_policy.py"
+readonly ARDU_CLI="${REPO_ROOT}/spf/ardupilot/ardu_cli.py"
 
 usage() {
     cat <<'EOF'
@@ -38,7 +37,8 @@ if [[ "${1:-}" == "--params" ]]; then
     }
     readonly PARAMETER_FILE="$2"
     shift 2
-    exec "${PYTHON_BIN}" "${POLICY_CHECKER}" "${PARAMETER_FILE}" "$@"
+    exec "${PYTHON_BIN}" "${ARDU_CLI}" compass \
+        --params "${PARAMETER_FILE}" "$@"
 fi
 
 if systemctl is-active --quiet "${SERVICE_NAME}"; then
@@ -47,11 +47,4 @@ if systemctl is-active --quiet "${SERVICE_NAME}"; then
     exit 2
 fi
 
-parameter_file="$(mktemp /tmp/spf-compass-params.XXXXXX)"
-cleanup() {
-    rm -f -- "${parameter_file}"
-}
-trap cleanup EXIT
-
-"${PYTHON_BIN}" "${MAVLINK_CONTROLLER}" --save-params "${parameter_file}"
-"${PYTHON_BIN}" "${POLICY_CHECKER}" "${parameter_file}" "$@"
+exec "${PYTHON_BIN}" "${ARDU_CLI}" compass "$@"

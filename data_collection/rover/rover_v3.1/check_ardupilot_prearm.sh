@@ -6,6 +6,7 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
 readonly DEFAULT_PYTHON="/home/pi/spf-virtualenv/bin/python"
 readonly PYTHON_BIN="${SPF_PYTHON:-${DEFAULT_PYTHON}}"
+readonly ARDU_CLI="${REPO_ROOT}/spf/ardupilot/ardu_cli.py"
 
 if systemctl is-active --quiet "${SERVICE_NAME}"; then
     echo "ERROR: ${SERVICE_NAME} is active and may own the ArduPilot link." >&2
@@ -19,4 +20,4 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
     exit 2
 fi
 
-exec "${PYTHON_BIN}" "${REPO_ROOT}/spf/mavlink/check_prearm.py" "$@"
+exec "${PYTHON_BIN}" "${ARDU_CLI}" prearm "$@"

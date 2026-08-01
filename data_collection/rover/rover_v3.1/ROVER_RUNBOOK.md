@@ -1390,6 +1390,22 @@ sudo systemctl stop mavlink_controller.service && source ~/spf-virtualenv/bin/ac
 
 Stopping the service first is **required** — the collector owns the FC serial while it runs (§12.1). Wait for mavproxy to print heartbeat/param lines before moving on. `--master` is omitted (autodetect, as in the history); if it grabs a Pluto console instead of the FC (garbage output, no heartbeat), pin it with `--master=/dev/ttyACM0`.
 
+For a concise, guarded command-line view without MAVProxy, use the unified
+ArduPilot CLI after stopping the service:
+
+```bash
+python -m spf.ardupilot.ardu_cli status
+python -m spf.ardupilot.ardu_cli compass
+python -m spf.ardupilot.ardu_cli prearm
+```
+
+These report arm/mode state, GPS, EKF, sensor health, the complete
+`COMPASS_*` parameter set, the fleet compass-policy verdict, and ArduPilot's
+pre-arm failures. All support `--json` and `--json-output`. Compass calibration
+is available under `magcal`, but mutation requires `--yes`, a disarmed vehicle,
+and exclusive ownership of the MAVLink link. Full usage and safety instructions
+are in [`spf/ardupilot/README.md`](../../../spf/ardupilot/README.md).
+
 To run the same ArduPilot pre-arm diagnostics non-interactively, with no arm
 attempt and no changes to `ARMING_CHECK`, stop mavproxy and run:
 
