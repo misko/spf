@@ -27,12 +27,23 @@ def _load_json(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+def _strict_validate_clean_capture(
+    path: Path, *, expected_frames: int, expected_receivers: int
+) -> dict:
+    """Load the strict IQ validator only when revalidation is requested."""
+
+    from spf.scripts.validate_direct_usb_v7_zarr import validate_capture
+
+    return validate_capture(path, expected_frames, expected_receivers)
+
+
 def validate_soak(
     root: Path,
     *,
     expected_receivers: int,
     minimum_rounds: int,
     require_complete: bool,
+    revalidate_clean_zarrs: bool = False,
 ) -> dict:
     if expected_receivers < 1:
         raise ValueError("expected_receivers must be positive")
@@ -62,6 +73,7 @@ def validate_soak(
     clean_frames = 0
     maximum_exit_seconds = 0.0
     maximum_release_probe_sessions = 0
+    strictly_revalidated_clean_captures = 0
     completed_rounds = []
 
     for expected_round, row in enumerate(rows, start=1):
@@ -158,6 +170,27 @@ def validate_soak(
         validation_serials = {receiver["serial"] for receiver in receivers.values()}
         if validation_serials != round_serials:
             raise ValueError(f"clean recovery changed radio identity in round {round_number}")
+        if revalidate_clean_zarrs:
+            clean_zarrs = sorted((campaign / "clean-recovery").glob("*.zarr"))
+            if len(clean_zarrs) != 1:
+                raise ValueError(
+                    f"round {round_number} has {len(clean_zarrs)} clean V7 stores"
+                )
+            strict_validation = _strict_validate_clean_capture(
+                clean_zarrs[0],
+                expected_frames=100,
+                expected_receivers=expected_receivers,
+            )
+            strict_receivers = strict_validation.get("receivers", {})
+            strict_serials = {
+                receiver["serial"] for receiver in strict_receivers.values()
+            }
+            if strict_serials != round_serials:
+                raise ValueError(
+                    f"strict clean recovery changed radio identity in round "
+                    f"{round_number}"
+                )
+            strictly_revalidated_clean_captures += 1
         round_clean_frames = sum(receiver["frames"] for receiver in receivers.values())
         clean_frames += round_clean_frames
         serials.update(validation_serials)
@@ -180,6 +213,7 @@ def validate_soak(
         "clean_recovery_frames": clean_frames,
         "maximum_signal_exit_seconds": maximum_exit_seconds,
         "maximum_release_probe_sessions": maximum_release_probe_sessions,
+        "strictly_revalidated_clean_captures": strictly_revalidated_clean_captures,
         "serials": sorted(serials),
         "completed_rounds": completed_rounds,
     }
@@ -191,6 +225,14 @@ def main() -> int:
     parser.add_argument("--expected-receivers", type=int, required=True)
     parser.add_argument("--minimum-rounds", type=int, default=1)
     parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument(
+        "--revalidate-clean-zarrs",
+        action="store_true",
+        help=(
+            "re-read every clean recovery with the current strict V7 IQ, metadata, "
+            "sequence, provenance and channel-distinctness validator"
+        ),
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     result = validate_soak(
@@ -198,6 +240,7 @@ def main() -> int:
         expected_receivers=args.expected_receivers,
         minimum_rounds=args.minimum_rounds,
         require_complete=args.require_complete,
+        revalidate_clean_zarrs=args.revalidate_clean_zarrs,
     )
     rendered = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output is not None:

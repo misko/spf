@@ -82,6 +82,42 @@ def test_validate_soak_summarizes_complete_round(tmp_path):
     assert result["clean_recovery_frames"] == 100
     assert result["serials"] == ["radio-a"]
     assert result["maximum_release_probe_sessions"] == 1
+    assert result["strictly_revalidated_clean_captures"] == 0
+
+
+def test_validate_soak_strictly_revalidates_every_clean_capture(
+    tmp_path, monkeypatch
+):
+    _make_round(tmp_path)
+    (tmp_path / "PASS").write_text("PASS\n")
+    (tmp_path / "result.env").write_text("rounds_completed=1\n")
+    clean_root = next(tmp_path.glob("round-001/*_rover*/clean-recovery"))
+    clean_zarr = clean_root / "capture.zarr"
+    clean_zarr.mkdir()
+    calls = []
+
+    def strict_validate(path, *, expected_frames, expected_receivers):
+        calls.append((path, expected_frames, expected_receivers))
+        return {
+            "status": "pass",
+            "receivers": {"r0": {"serial": "radio-a"}},
+        }
+
+    monkeypatch.setattr(
+        "spf.scripts.validate_interruption_soak._strict_validate_clean_capture",
+        strict_validate,
+    )
+
+    result = validate_soak(
+        tmp_path,
+        expected_receivers=1,
+        minimum_rounds=1,
+        require_complete=True,
+        revalidate_clean_zarrs=True,
+    )
+
+    assert calls == [(clean_zarr, 100, 1)]
+    assert result["strictly_revalidated_clean_captures"] == 1
 
 
 @pytest.mark.parametrize(
