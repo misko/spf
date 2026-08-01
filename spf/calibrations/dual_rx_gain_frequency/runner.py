@@ -148,7 +148,7 @@ def _preflight_tone(radio, config: CalibrationConfig) -> dict[str, Any]:
     ):
         raise RuntimeError("preflight gain metadata does not match reference gain")
     analysis = _analyze(frame, config)
-    if not analysis["quality_valid"]:
+    if config.require_preflight_tone and not analysis["quality_valid"]:
         raise RuntimeError(
             "direct-USB tone preflight failed: "
             + ", ".join(analysis["quality_reasons"])

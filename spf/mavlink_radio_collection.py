@@ -5,36 +5,54 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 
 import yaml
-from pymavlink import mavutil
 
-from spf.data_collector import (
-    DroneDataCollectorRaw,
-    DroneDataCollectorRawV6,
-    DroneDataCollectorRawV7,
-)
 from spf.capture_schema import (
     normalize_capture_config,
     validate_transport_schema,
 )
-from spf.dataset.spf_dataset import training_only_keys, v5inferencedataset
-from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
-from spf.distance_finder.distance_finder_controller import DistanceFinderController
 from spf.gps.boundaries import boundaries  # crissy_boundary_convex
 from spf.gps.boundaries import find_closest_boundary
 from spf.mavlink.mavlink_controller import (
+    DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+    DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
+    DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
     Drone,
+    connect_with_heartbeat,
     drone_get_planner,
-    get_ardupilot_serial,
+    mavlink_connection_factory,
+    resolve_ardupilot_serial,
+    tones,
 )
-from spf.scripts.train_utils import load_config_from_fn
 from spf.utils import (
     DataVersionNotImplemented,
     filenames_from_time_in_seconds,
     is_pi,
     load_config,
 )
+
+
+READINESS_TONE_INTERVAL_SECONDS = 15.0
+ANNOYING_TONES_DISABLE_PATH = Path.home() / "disable_annoying_tones"
+
+
+def maybe_play_readiness_wait_tone(
+    drone,
+    *,
+    now: float,
+    next_tone_at: float,
+    disable_path: Path = ANNOYING_TONES_DISABLE_PATH,
+) -> float:
+    """Play one low-duty readiness chirp unless the operator disabled it."""
+    if now < next_tone_at:
+        return next_tone_at
+    while next_tone_at <= now:
+        next_tone_at += READINESS_TONE_INTERVAL_SECONDS
+    if not disable_path.exists():
+        drone.buzzer(tones["readiness-wait"])
+    return next_tone_at
 
 
 def yaml_defaults(yaml_config, device_mapping_fn):
@@ -223,6 +241,10 @@ if __name__ == "__main__":
     # A fake-drone run must be hardware-independent.  In particular, do not
     # initialize RPi.GPIO merely because the tests happen to run on a Pi.
     if is_pi() and args.ultrasonic and not args.fake_drone:
+        from spf.distance_finder.distance_finder_controller import (
+            DistanceFinderController,
+        )
+
         distance_finder = DistanceFinderController(
             trigger=yaml_config["distance-finder"]["trigger"],
             echo=yaml_config["distance-finder"]["echo"],
@@ -231,17 +253,27 @@ if __name__ == "__main__":
     logging.info("MavRadioCollection: Starting data collector...")
     if not args.fake_drone:
         if yaml_config["drone-uri"] == "serial":
-            serial = get_ardupilot_serial()
-            if serial is None:
-                print("Failed to get serial")
-                sys.exit(1)
-            yaml_config["drone-uri"] = serial
-            connection = mavutil.mavlink_connection(serial, baud=115200)
+            endpoint = resolve_ardupilot_serial()
+            yaml_config["drone-uri"] = endpoint
         else:
-            connection = mavutil.mavlink_connection(yaml_config["drone-uri"])
-        drone = Drone(
-            connection, distance_finder=distance_finder, ignore_mode=args.ignore_mode
+            endpoint = yaml_config["drone-uri"]
+        connection_factory = mavlink_connection_factory(endpoint)
+        connection, initial_heartbeat = connect_with_heartbeat(
+            connection_factory,
+            attempts=DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
+            heartbeat_timeout=DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+            retry_backoff=DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
         )
+        drone = Drone(
+            connection,
+            distance_finder=distance_finder,
+            ignore_mode=args.ignore_mode,
+            connection_factory=connection_factory,
+            reconnect_attempts=DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
+            reconnect_backoff=DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
+            reconnect_heartbeat_timeout=DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+        )
+        drone.process_message(initial_heartbeat)
         drone.start()
     else:
         drone = Drone(
@@ -251,11 +283,28 @@ if __name__ == "__main__":
             ignore_mode=args.ignore_mode,
         )
 
+    next_readiness_tone_at = time.monotonic() + READINESS_TONE_INTERVAL_SECONDS
     while not args.fake_drone and not drone.drone_ready:
+        drone.raise_if_connection_failed()
         logging.info(
             f"Drone startup wait for drone ready: gps:{str(drone.gps)} , ekf:{str(drone.ekf_healthy)}"
         )
-        time.sleep(10)
+        next_readiness_tone_at = maybe_play_readiness_wait_tone(
+            drone,
+            now=time.monotonic(),
+            next_tone_at=next_readiness_tone_at,
+        )
+        time.sleep(2)
+
+    # The collector imports NumPy/Torch, Zarr, and the SDR stack. Keep them off
+    # the preflight critical path so MAVLink status and readiness monitoring
+    # begin promptly after boot. Collector construction remains in the same
+    # place below, after navigation readiness and planner setup.
+    from spf.data_collector import (
+        DroneDataCollectorRaw,
+        DroneDataCollectorRawV6,
+        DroneDataCollectorRawV7,
+    )
 
     boundary_name = yaml_config.get("boundary", "franklin_safe")
     if boundary_name == "auto":
@@ -280,6 +329,8 @@ if __name__ == "__main__":
 
     if args.checkpoint:
         # load model config and use that theta
+        from spf.scripts.train_utils import load_config_from_fn
+
         config = load_config_from_fn(args.checkpoint_config)
         assert args.nthetas is None, "nthetas cannot be set when loading checkpoint"
         args.nthetas = config["global"]["nthetas"]
@@ -288,6 +339,9 @@ if __name__ == "__main__":
         args.nthetas = 65
 
     if args.realtime:
+        from spf.dataset.spf_dataset import training_only_keys, v5inferencedataset
+        from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
+
         v5inf = v5inferencedataset(
             yaml_fn=temp_filenames["yaml"],
             nthetas=args.nthetas,
@@ -338,6 +392,8 @@ if __name__ == "__main__":
     data_collector.radios_to_online()  # blocking
 
     def check_exit():
+        if not args.fake_drone:
+            drone.raise_if_connection_failed()
         if args.run_for_seconds > 0 and time.time() - start_time > args.run_for_seconds:
             sys.exit(0)
 

@@ -13,7 +13,6 @@ readonly PROFILE_ENV="/etc/spf/rover_collection.env"
 readonly READY_FILE="/run/spf/direct_usb_ready.json"
 readonly DEVICE_MAPPING="/home/pi/device_mapping"
 readonly MAVLINK_CONTROLLER="${REPO_ROOT}/spf/mavlink/mavlink_controller.py"
-readonly BOOT_UNIT_RECONCILER="${SCRIPT_DIR}/reconcile_rover_boot_units.sh"
 readonly PARAMS_FILE="/home/pi/this_rover.params"
 readonly TIME_FILE="/home/pi/time"
 
@@ -37,7 +36,6 @@ if [[ -f "$PROFILE_ENV" ]]; then
 fi
 
 PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
-SKIP_SELF_UPDATE="${SPF_SKIP_SELF_UPDATE:-0}"
 SKIP_PARAMETER_SYNC="${SPF_SKIP_PARAMETER_SYNC:-0}"
 BOOT_VALIDATE_ONLY="${SPF_BOOT_VALIDATE_ONLY:-0}"
 RUN_ONCE="${SPF_RUN_ONCE:-0}"
@@ -121,56 +119,6 @@ esac
 export PYTHONPATH="$REPO_ROOT"
 export PYTHONBREAKPOINT=0
 
-reconcile_boot_units_or_reboot() {
-    local reconcile_rc
-    reconcile_rc=0
-    "$BOOT_UNIT_RECONCILER" || reconcile_rc=$?
-    case "$reconcile_rc" in
-        0)
-            return 0
-            ;;
-        10)
-            printf '%s\n' \
-                "Verified root-managed boot-unit changes require a reboot." \
-                "Rebooting in 15 seconds; this desired state gets one attempt."
-            sleep 15
-            sudo reboot
-            exit 0
-            ;;
-        75)
-            die "Boot-unit reconciliation reboot limit reached; refusing a reboot loop."
-            ;;
-        *)
-            die "Boot-unit reconciliation failed (status ${reconcile_rc}); not rebooting."
-            ;;
-    esac
-}
-
-maybe_self_update() {
-    is_true "$SKIP_SELF_UPDATE" && return 0
-    sleep 10
-    if ! ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
-        printf 'No internet connectivity; continuing with checked-out code.\n'
-        return 0
-    fi
-
-    "$PYTHON" "$MAVLINK_CONTROLLER" --buzzer git
-    printf 'Checking for repository updates.\n'
-    bash "${SCRIPT_DIR}/install_deps.sh"
-    current_hash="$(git -C "$REPO_ROOT" rev-parse --verify HEAD)"
-    git -C "$REPO_ROOT" pull --ff-only
-    new_hash="$(git -C "$REPO_ROOT" rev-parse --verify HEAD)"
-    if [[ "$current_hash" != "$new_hash" ]]; then
-        printf 'Repository updated; reconciling boot units before reboot.\n'
-        reconcile_boot_units_or_reboot
-        printf 'Repository changed without boot-unit drift; rebooting.\n'
-        sleep 15
-        sudo reboot
-        exit 0
-    fi
-    "$PYTHON" -m pip install -e "$REPO_ROOT"
-}
-
 wait_for_radios() {
     local deadline found_radios
     deadline=$((SECONDS + RADIO_WAIT_SECONDS))
@@ -182,7 +130,7 @@ wait_for_radios() {
         printf 'Expected %s Pluto radios but found %s; retrying.\n' \
             "$expected_radios" "$found_radios"
         "$PYTHON" "$MAVLINK_CONTROLLER" --buzzer failure || true
-        sleep 15
+        sleep 5
     done
     die "Timed out waiting for ${expected_radios} Pluto radios."
 }
@@ -211,15 +159,51 @@ sync_vehicle_configuration() {
             "${SCRIPT_DIR}/rover3_base_parameters.params" \
             "${SCRIPT_DIR}/rover3_rc_servo_parameters.params") \
         >"$PARAMS_FILE"
+    # Verify-first: the committed params already match on a normal boot, so skip
+    # the write (and its full ~1300-param FC fetch over 115200 serial) when the
+    # diff is already clean. --diff-params exits with the diff count (0 == match).
+    if "$PYTHON" "$MAVLINK_CONTROLLER" --diff-params "$PARAMS_FILE"; then
+        return 0
+    fi
     "$PYTHON" "$MAVLINK_CONTROLLER" --load-params "$PARAMS_FILE"
     if ! "$PYTHON" "$MAVLINK_CONTROLLER" --diff-params "$PARAMS_FILE"; then
         die "Vehicle parameter verification failed after loading parameters."
     fi
 }
 
+system_clock_is_plausible() {
+    # Raspberry Pi 5 has an RTC and may also have NTP. A plausible clock is
+    # sufficient for boot filenames; GPS UTC is refreshed after a completed
+    # capture, when the vehicle necessarily has a usable navigation solution.
+    [[ "$(date +%s)" -ge 1735689600 ]]  # 2025-01-01T00:00:00Z
+}
+
 sync_gps_time() {
-    "$PYTHON" "$MAVLINK_CONTROLLER" --get-time "$TIME_FILE"
-    sudo date -s "$(cat "$TIME_FILE")"
+    local phase="${1:-capture}"
+    if [[ "$phase" == "boot" ]] && system_clock_is_plausible; then
+        printf '%s\n' \
+            'System clock is plausible; deferring GPS UTC refresh until after capture.'
+        return 0
+    fi
+    # --get-time blocks until the FC has GPS UTC time. Bound the first attempt so
+    # a no-sky / cold-TTFF boot cannot hang forever before the governor and
+    # capture loop; the loop below keeps re-syncing and sets the clock the moment
+    # GPS locks. Time comes from GPS via MAVLink (no internet/NTP).
+    if timeout "${SPF_GPS_TIME_TIMEOUT:-180}" \
+        "$PYTHON" "$MAVLINK_CONTROLLER" --get-time "$TIME_FILE"; then
+        gps_time="$(cat "$TIME_FILE")"
+        # --get-time can return a 1970 timestamp if it exits on a 3D fix before
+        # UTC arrives; never set the system clock to epoch-0 (it would corrupt
+        # every subsequent data/log filename until the next successful sync).
+        if [[ "$gps_time" == 1970-* ]]; then
+            printf 'GPS reported a 1970 time (fix without UTC yet); not setting clock.\n'
+        else
+            sudo date -s "$gps_time"
+        fi
+    else
+        printf 'No GPS time within %ss; continuing (capture loop keeps retrying --get-time).\n' \
+            "${SPF_GPS_TIME_TIMEOUT:-180}"
+    fi
 }
 
 read_only_vehicle_gate() {
@@ -247,8 +231,6 @@ run_capture() {
 
 main() {
     print_plan
-    reconcile_boot_units_or_reboot
-    maybe_self_update
     wait_for_radios
 
     if [[ "$rx_transport" == "direct_usb" ]]; then
@@ -267,7 +249,7 @@ main() {
     fi
 
     sync_vehicle_configuration
-    sync_gps_time
+    sync_gps_time boot
     printf 'performance\n' | sudo tee \
         /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null
 
@@ -275,7 +257,7 @@ main() {
         run_capture
         is_true "$RUN_ONCE" && break
         sleep 8
-        sync_gps_time
+        sync_gps_time capture
         sleep 2
     done
 }

@@ -157,15 +157,17 @@ sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
 ```
 
 The boot qualification workflow is deliberately separate from the
-motion-capable `mavlink_controller.service`. Enabling it installs two units:
+motion-capable `mavlink_controller.service`. Enabling it installs three units:
 
-1. `spf-pluto-direct-usb.service` verifies the persistent AD9361/2r2t
+1. `spf-rover-update.service` performs a bounded, fast-forward-only update of
+   `origin/main` and reconciles installed boot units before any radio access.
+2. `spf-pluto-direct-usb.service` verifies the persistent AD9361/2r2t
    configuration and four dual-RX DMA scan elements, checksum-verifies and
    RAM-loads every attached/configured Pluto,
    regenerates `~/device_mapping` after final USB enumeration, and writes
    `/run/spf/direct_usb_ready.json` only after each radio has returned a valid,
    passive hardware fingerprint.
-2. `spf-direct-usb-preflight.service` requires that ready stamp, runs exactly
+3. `spf-direct-usb-preflight.service` requires that ready stamp, runs exactly
    100 motion-free fake-drone frames per receiver, reopens the final v7 Zarr,
    validates it, and writes `PASS` plus `validation.json`.
 
@@ -184,7 +186,8 @@ loop. After reboot:
 
 ```bash
 sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh status
-systemctl status spf-pluto-direct-usb.service \
+systemctl status spf-rover-update.service \
+  spf-pluto-direct-usb.service \
   spf-direct-usb-preflight.service --no-pager
 python3 -m json.tool /run/spf/direct_usb_ready.json
 find /home/pi/preflight/boot_direct_usb -maxdepth 2 \
@@ -355,6 +358,10 @@ Also verify:
 - [ ] Rover 1/3 show two Plutos; Rover 2 shows one.
 - [ ] USB physical ports agree with `device_mapping` and the receiver-port
       assignments.
+- [ ] Confirm the 15-second GPS/EKF readiness chirp is audible, or deliberately
+      create `~/disable_annoying_tones` when quiet operation is required.
+- [ ] Confirm operators know that three descending missing-radio alarms are
+      followed by a clean shutdown and require a physical power cycle.
 - [ ] Both channels and antenna cables are connected to every receiver.
 - [ ] YAML antenna spacing equals the measured physical spacing.
 - [ ] Pi Wi-Fi is disabled.
@@ -372,6 +379,48 @@ sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh \
   check-config-all 2
 bash data_collection/rover/rover_v3.1/device_mapping.sh > ~/device_mapping
 cat ~/device_mapping
+```
+
+### 3.1 External-compass policy gate
+
+SPF identifies the GPS-mounted external IST8310 by ArduPilot device ID
+`658953`; it does not assume that the compass remains in slot 1. Stop the
+collection service and run the read-only checker against a fresh parameter
+snapshot:
+
+```bash
+sudo systemctl stop mavlink_controller.service
+data_collection/rover/rover_v3.1/check_compass_policy.sh \
+  --json-output /tmp/spf-compass-policy.json
+python3 -m json.tool /tmp/spf-compass-policy.json
+```
+
+Pass:
+
+- exactly one external compass has device ID `658953`;
+- that external compass is the sole compass enabled for yaw;
+- `COMPASS_PRIO1_ID` is `658953`, and all nonzero priorities are unique and
+  refer to currently detected devices;
+- no empty compass slot is enabled;
+- `COMPASS_CAL_FIT` is the ArduPilot default `16`;
+- `COMPASS_DISBLMSK` is zero, because a driver-wide mask can disable both the
+  internal and external IST8310 on some fleet members;
+- the external offset norm is at most ArduPilot's 500 mG pre-arm limit.
+
+An offset norm from 300 through 500 mG passes ArduPilot's hard limit but emits
+an SPF warning; the project target is below 300 mG. A failure means the Rover
+is not field-ready. Do not make an indoor calibration pass by loosening
+`COMPASS_CAL_FIT`, disabling arming checks, or blindly enabling a numbered
+slot. Recalibrate outdoors with the assembled vehicle away from steel,
+magnets, high-current wiring, SDRs, and the Pi. Then rerun this gate and the
+normal ArduPilot pre-arm check.
+
+For offline diagnosis, evaluate a saved MAVProxy/Mission Planner parameter
+export without opening the vehicle:
+
+```bash
+data_collection/rover/rover_v3.1/check_compass_policy.sh \
+  --params rover.params
 ```
 
 If this fails, do not repair a radio during collection boot. In a controlled

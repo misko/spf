@@ -1,8 +1,10 @@
 [Unit]
 Description=Run mavlink controller
 Requires=spf-pluto-direct-usb.service
-After=network-online.target spf-pluto-direct-usb.service
-Wants=network-online.target
+# The collector talks to the FC over USB serial and the Plutos over USB; it
+# needs no LAN/internet. Repository update is an earlier, separately bounded
+# prerequisite. This unit can start as soon as the Pluto loader finishes.
+After=spf-pluto-direct-usb.service
 
 [Service]
 WorkingDirectory=/home/pi/

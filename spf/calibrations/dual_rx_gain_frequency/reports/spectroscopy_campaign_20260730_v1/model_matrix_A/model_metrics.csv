@@ -1,0 +1,19 @@
+model,label,scope,parameter_count,loeo_mae_deg,loeo_rmse_deg,loeo_p95_deg,lofo_mae_deg,loro_mae_deg
+constant_per_radio,Constant per radio,per_radio,2,14.302168778164223,22.691938961558396,50.78366002007755,14.396043304273421,
+gain_linear_per_radio,Linear gains per radio,per_radio,6,14.120648914479812,22.65637265242618,50.53690982288204,14.22691194229871,
+gain_additive_lut_per_radio,Additive gain LUT per radio,per_radio,10,13.877487578203214,22.094805142065443,50.407227368705605,14.001009476399124,
+frequency_lut_linear_gain_per_radio,Frequency LUT + linear gains per radio,per_radio,230,6.486806256151195,9.039937450505525,18.97236933012137,,
+frequency_lut_additive_gain_per_radio,Frequency LUT + additive gain LUT per radio,per_radio,234,5.254689276965749,7.539486543563587,15.77440267827586,,
+frequency_lut_symmetric_gain_per_radio,Frequency LUT + symmetric gain LUT per radio,per_radio,230,5.252278293044752,7.542152425445377,15.725941329842506,,
+frequency_lut_frequency_scaled_symmetric_gain_per_radio,Frequency LUT + f-scaled symmetric gain LUT per radio,per_radio,230,4.377700288532378,6.585470882414505,14.800410243055342,,
+frequency_lut_gain_table_symmetric_gain_per_radio,Frequency LUT + gain-table-specific symmetric gain LUT per radio,per_radio,238,3.319266868376058,4.957102236544696,11.454589148909262,,
+frequency_lut_gain_table_frequency_scaled_symmetric_gain_per_radio,Frequency LUT + gain-table-specific f-scaled symmetric gain LUT per radio,per_radio,238,3.2004129645869397,5.007056983682691,11.681713305296103,,
+frequency_specific_additive_gain_per_radio,Per-frequency additive gain LUT per radio,per_radio,1130,0.6324452194746801,1.0729797179958547,2.42412357346446,,
+frequency_specific_antisymmetric_gain_per_radio,Per-frequency antisymmetric gain LUT per radio,per_radio,678,1.0022701776528389,1.5941883804946992,3.2336558023839306,,
+full_cell_lut_per_radio,Full frequency/gain-pair LUT per radio,per_radio,1130,0.6324452194746937,1.0729797179958716,2.424123573464445,,
+delay_additive_gain_per_radio,One delay + additive gain LUT per radio,per_radio,12,12.886159024839058,20.966539422612623,44.09519793769712,13.130547827176327,
+branch_gain_delay_lut_per_radio,Gain-dependent branch-delay LUT per radio,per_radio,20,12.51701340928327,20.49435319255911,42.612213724332065,12.783048714265043,
+frequency_lut_additive_gain_universal,Strict universal frequency + gain LUT,universal,117,9.649950646814503,18.408805933220492,34.6864330166863,,15.446846286759717
+frequency_specific_additive_gain_universal,Strict universal per-frequency additive LUT,universal,565,6.795066243454114,16.91254973641162,33.27549178244501,,13.262280041392513
+full_cell_lut_universal,Strict universal full cell LUT,universal,565,6.795066243454126,16.912549736411624,33.27549178245385,,13.262280041392492
+branch_gain_delay_lut_universal,Strict universal gain-dependent delay LUT,universal,10,12.677885329518118,22.544360093015317,52.8259902239185,12.850097241766392,16.697724267209534

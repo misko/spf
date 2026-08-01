@@ -1,0 +1,277 @@
+schema: spf.calibration.dual_rx_gain_frequency.spectroscopy_campaign
+schema-version: 1
+base-config: spectroscopy_campaign_base.yaml
+expected-radios: 2
+
+rate-gate:
+  stage: rate_pilot
+  maximum-seconds-per-recorded-frame: 1.3
+  action-on-fail: stop-before-a
+
+gain-table-audit:
+  firmware-git-sha: 7b02276519a802aed83d47b6672c46e578ce4de0
+  gadget-git-sha: a1e6417d07188bd72be70692e28c5d6ae9a5ec62
+  image-sha256: 0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9
+  bands:
+    - name: low
+      probe-frequency-hz: 1300000000
+      expected-start-hz: 0
+      expected-end-hz: 1300000000
+      expected-type: FULL
+      expected-rows: 77
+      expected-table-sha256: b3a66c34e11db2fd1aa25fa4910d56fb644b5a355d3fac39d027edb698d77b00
+    - name: middle
+      probe-frequency-hz: 1301000000
+      expected-start-hz: 1300000000
+      expected-end-hz: 4000000000
+      expected-type: FULL
+      expected-rows: 77
+      expected-table-sha256: 8644770dc52f4fbef2b6c6bc5e2677f3678ea00d5c7abb51495b705820faaa74
+    - name: high
+      probe-frequency-hz: 4001000000
+      expected-start-hz: 4000000000
+      expected-end-hz: 6000000000
+      expected-type: FULL
+      expected-rows: 77
+      expected-table-sha256: 90d34d61e8612277529dccfc3323f6c684c2bc36b7670dff078e009eb84a1143
+
+frequency-sets:
+  rate-pilot:
+    values-hz:
+      - 400000000
+      - 1000000000
+      - 1300000000
+      - 1301000000
+      - 2400000000
+      - 4000000000
+      - 4001000000
+      - 5100000000
+      - 5766000000
+      - 5900000000
+  spectroscopy:
+    range-hz:
+      start: 400000000
+      stop-inclusive: 5900000000
+      step: 50000000
+    add-hz: [1301000000, 4001000000]
+  level: [5100000000, 5766000000]
+  thermal-anchor: [5766000000]
+  operating: [868000000, 915000000, 1280000000, 2412000000, 5766000000, 5866000000]
+
+gain-sets:
+  baseline: [5, 26, 45]
+  level:
+    range-db: {start: 27, stop-inclusive: 40, step: 1}
+  low-and-tia:
+    # Common full-table range across all operating bands. The first F attempt
+    # established frequency-dependent floors of -1 dB at 868/915/1280 MHz,
+    # -3 dB at 2412 MHz, and -10 dB at 5766/5866 MHz. Its valid extended-range
+    # cells are preserved separately as F_unsupported_negative_gain_attempt_20260730.
+    values-db: [-1, 0, 5, 10, 11, 12, 13, 14, 15, 16, 17, 26]
+  thermal-anchor: [33]
+
+stages:
+  - id: rate_pilot
+    description: Ten-LO one-epoch additive-cross timing and parser pilot.
+    frequency-set: rate-pilot
+    gain-set: baseline
+    repetitions: 1
+    schedule-reference-gain-db: 26
+    min-quality-valid-per-cell: 1
+    setup-label: rate_pilot_original_harness
+    operator-checkpoint: Confirm original 30 dB attenuator and splitter harness on both radios.
+
+  - id: A
+    description: Spectroscopy baseline with the original harness.
+    requires: [rate_pilot]
+    frequency-set: spectroscopy
+    gain-set: baseline
+    schedule-reference-gain-db: 26
+    setup-label: A_spectroscopy_baseline
+    operator-checkpoint: Confirm original harness, connector torque, and no RX1 pad or jumper.
+
+  - id: B
+    description: Add the nominal 11 dB pad stack to treated radio .17 RX1 only; leave control radio .18 unchanged.
+    requires: [A]
+    frequency-set: spectroscopy
+    gain-set: baseline
+    schedule-reference-gain-db: 26
+    setup-label: B_pad11dB_rx1_treated_only
+    operator-checkpoint: Record the 2+3+6 dB pad stack and connector torque on .17 RX1; .17 RX2 and both .18 paths must remain untouched.
+
+  - id: C
+    description: Remove the pad stack and add the nominal uncharacterized 30 cm jumper to treated radio .17 RX1 only.
+    requires: [B]
+    frequency-set: spectroscopy
+    gain-set: baseline
+    schedule-reference-gain-db: 26
+    setup-label: C_plus30cm_rx1
+    operator-checkpoint: Record jumper part ID, nominal physical length, and torque on .17 RX1; .17 RX2 and both .18 paths must remain untouched.
+
+  - id: D
+    description: Restore the original harness for connector-repeatability control.
+    requires: [C]
+    frequency-set: spectroscopy
+    gain-set: baseline
+    schedule-reference-gain-db: 26
+    setup-label: D_restored_baseline
+    operator-checkpoint: Confirm pad and jumper removed and original harness restored at recorded torque.
+
+  - id: E_anchor_before
+    description: Thermal control immediately before the fixed-level sequence.
+    requires: [D]
+    frequency-set: thermal-anchor
+    gain-set: thermal-anchor
+    repetitions: 1
+    schedule-reference-gain-db: 33
+    min-quality-valid-per-cell: 1
+    tx-gain-policy: fixed
+    tx-gain-db: 0
+    setup-label: E_thermal_anchor_before
+
+  - id: E_tx_0
+    description: Fixed TX level experiment at 0 dB.
+    requires: [E_anchor_before]
+    frequency-set: level
+    gain-set: level
+    schedule-reference-gain-db: 33
+    tx-gain-policy: fixed
+    tx-gain-db: 0
+    setup-label: E_level_0dB
+  - id: E_anchor_after_0
+    description: Thermal control after the 0 dB treatment.
+    requires: [E_tx_0]
+    frequency-set: thermal-anchor
+    gain-set: thermal-anchor
+    repetitions: 1
+    schedule-reference-gain-db: 33
+    min-quality-valid-per-cell: 1
+    tx-gain-policy: fixed
+    tx-gain-db: 0
+    setup-label: E_thermal_anchor_after_0
+
+  - id: E_tx_n7
+    description: Fixed TX level experiment at -7 dB.
+    requires: [E_anchor_after_0]
+    frequency-set: level
+    gain-set: level
+    schedule-reference-gain-db: 33
+    tx-gain-policy: fixed
+    tx-gain-db: -7
+    setup-label: E_level_n7dB
+  - id: E_anchor_after_n7
+    description: Thermal control after the -7 dB treatment.
+    requires: [E_tx_n7]
+    frequency-set: thermal-anchor
+    gain-set: thermal-anchor
+    repetitions: 1
+    schedule-reference-gain-db: 33
+    min-quality-valid-per-cell: 1
+    tx-gain-policy: fixed
+    tx-gain-db: 0
+    setup-label: E_thermal_anchor_after_n7
+
+  - id: E_tx_n14
+    description: Fixed TX level experiment at -14 dB.
+    requires: [E_anchor_after_n7]
+    frequency-set: level
+    gain-set: level
+    schedule-reference-gain-db: 33
+    tx-gain-policy: fixed
+    tx-gain-db: -14
+    setup-label: E_level_n14dB
+  - id: E_anchor_after_n14
+    description: Thermal control after the -14 dB treatment.
+    requires: [E_tx_n14]
+    frequency-set: thermal-anchor
+    gain-set: thermal-anchor
+    repetitions: 1
+    schedule-reference-gain-db: 33
+    min-quality-valid-per-cell: 1
+    tx-gain-policy: fixed
+    tx-gain-db: 0
+    setup-label: E_thermal_anchor_after_n14
+
+  - id: E_tx_n21
+    description: Fixed TX level experiment at -21 dB.
+    requires: [E_anchor_after_n14]
+    frequency-set: level
+    gain-set: level
+    schedule-reference-gain-db: 33
+    tx-gain-policy: fixed
+    tx-gain-db: -21
+    setup-label: E_level_n21dB
+  - id: E_anchor_after_n21
+    description: Thermal control after the -21 dB treatment.
+    requires: [E_tx_n21]
+    frequency-set: thermal-anchor
+    gain-set: thermal-anchor
+    repetitions: 1
+    schedule-reference-gain-db: 33
+    min-quality-valid-per-cell: 1
+    tx-gain-policy: fixed
+    tx-gain-db: 0
+    setup-label: E_thermal_anchor_after_n21
+
+  - id: E_tx_n28
+    description: Fixed TX level experiment at -28 dB.
+    requires: [E_anchor_after_n21]
+    frequency-set: level
+    gain-set: level
+    schedule-reference-gain-db: 33
+    tx-gain-policy: fixed
+    tx-gain-db: -28
+    setup-label: E_level_n28dB
+  - id: E_anchor_after_n28
+    description: Thermal control after the -28 dB treatment.
+    requires: [E_tx_n28]
+    frequency-set: thermal-anchor
+    gain-set: thermal-anchor
+    repetitions: 1
+    schedule-reference-gain-db: 33
+    min-quality-valid-per-cell: 1
+    tx-gain-policy: fixed
+    tx-gain-db: 0
+    setup-label: E_thermal_anchor_after_n28
+
+  - id: E_tx_n80
+    description: Muted TX spur-floor control; poor tone quality is expected.
+    requires: [E_anchor_after_n28]
+    frequency-set: level
+    gain-set: level
+    schedule-reference-gain-db: 33
+    tx-gain-policy: fixed
+    tx-gain-db: -80
+    require-preflight-tone: false
+    allow-quality-failure: true
+    setup-label: E_level_n80dB_spur_floor
+
+  - id: E_anchor_after_n80
+    description: Thermal control after the muted spur-floor treatment.
+    requires: [E_tx_n80]
+    frequency-set: thermal-anchor
+    gain-set: thermal-anchor
+    repetitions: 1
+    schedule-reference-gain-db: 33
+    min-quality-valid-per-cell: 1
+    tx-gain-policy: fixed
+    tx-gain-db: 0
+    setup-label: E_thermal_anchor_after_n80
+
+  - id: F
+    description: Common supported low-gain coverage plus the 11-17 dB TIA boundary.
+    requires: [E_anchor_after_n80]
+    frequency-set: operating
+    gain-set: low-and-tia
+    schedule-reference-gain-db: 5
+    setup-label: F_lowgain_and_tia
+
+  - id: G
+    description: Hot repeat of the original spectroscopy baseline.
+    requires: [F]
+    minimum-hours-after-stage-start: {stage: A, hours: 8}
+    frequency-set: spectroscopy
+    gain-set: baseline
+    schedule-reference-gain-db: 26
+    setup-label: G_thermal_hot
+    operator-checkpoint: Confirm the original harness remains unchanged since D.

@@ -20,11 +20,13 @@ SYSTEMCTL="systemctl"
 USE_SUDO=1
 
 readonly -a MANAGED_UNITS=(
+    spf-rover-update.service
     spf-pluto-direct-usb.service
     spf-direct-usb-preflight.service
     mavlink_controller.service
 )
 readonly -a ENABLED_UNITS=(
+    spf-rover-update.service
     spf-pluto-direct-usb.service
     mavlink_controller.service
 )

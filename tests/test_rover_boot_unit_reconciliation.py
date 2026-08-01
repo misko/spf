@@ -8,11 +8,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ROVER_ROOT = REPO_ROOT / "data_collection/rover/rover_v3.1"
 RECONCILER = ROVER_ROOT / "reconcile_rover_boot_units.sh"
 MANAGED_UNITS = (
+    "spf-rover-update.service",
     "spf-pluto-direct-usb.service",
     "spf-direct-usb-preflight.service",
     "mavlink_controller.service",
 )
 ENABLED_UNITS = (
+    "spf-rover-update.service",
     "spf-pluto-direct-usb.service",
     "mavlink_controller.service",
 )

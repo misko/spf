@@ -112,7 +112,7 @@ edge(ax, (0.22, 0.245), (0.32, 0.44), POW, label="5 V", lx=0.01, ly=0.02)
 # ------------------------------------------------------------------ compute
 pi = box(ax, 0.88, 0.36, 0.26, 0.27, "Raspberry Pi 4",
          ["eth0 192.168.1.4x (bench)", "Wi-Fi DISABLED (2.4 GHz)",
-          "boot: git self-update → params", "→ GPS time → capture loop",
+          "boot: update → Pluto prep", "→ params → capture loop",
           "USB2 = Radio A | USB1 = Radio B"], fc="#eafaf0")
 us = box(ax, 0.88, 0.21, 0.26, 0.09, "Ultrasonic ranger",
          ["GPIO 2/3 obstacle stop"], fc="#eafaf0")
@@ -143,7 +143,7 @@ ax.text(1.555, 0.68, "RF", color=RF, fontsize=9, rotation=90)
 # roles footnote
 ax.text(0.02, 0.012,
         "Roles: rover1 = RX dual 35mm 'bounce' | rover2 = TX + single RX 'circle' | rover3 = RX dual 43mm 'bounce'."
-        "  Boot chain: mavlink_controller.service → drone_run.sh (infinite mission loop, GPS time resync)."
+        "  Boot chain: update → Pluto firmware → mavlink_controller → capture loop."
         "  ⚠ = review findings 2026-07-13.",
         fontsize=8.2, color="#333")
 

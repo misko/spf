@@ -18,6 +18,9 @@ from its stored IQ, and fits a circular additive gain model.
 - [Power-cycle reproducibility](POWER_CYCLE_REPRODUCIBILITY.md) is the compact
   before/after test for deciding whether a stored calibration survives cold
   power removal or requires session anchors.
+- [Controlled A–G spectroscopy campaign](SPECTROSCOPY_CAMPAIGN.md) is the
+  automated, rate-gated pad/jumper/level/low-gain/thermal experiment with
+  immutable generated configs and explicit operator cable checkpoints.
 - [Physical radio notes](RADIO_NOTES.md) maps immutable Pluto serials to
   historical human labels such as former IP addresses and the calibration
   dataset roots collected from that physical radio.
