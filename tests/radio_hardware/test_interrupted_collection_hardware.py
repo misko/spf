@@ -14,6 +14,9 @@ import time
 import pytest
 
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
+from spf.scripts.interrupted_capture_timing import (
+    interruption_progress_timeout_seconds,
+)
 from spf.scripts.pluto_ready_manifest import load_manifest
 from spf.sdrpluto.direct_usb_receiver import PlutoDirectUsbReceiver
 
@@ -143,9 +146,11 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
             text=True,
         )
 
-    deadline = time.monotonic() + 90
+    progress_timeout_seconds = interruption_progress_timeout_seconds(minimum_records)
+    deadline = time.monotonic() + progress_timeout_seconds
     partial_path = None
     committed_before_interrupt = None
+    last_counts = []
     while time.monotonic() < deadline:
         if process.poll() is not None:
             pytest.fail(
@@ -159,6 +164,7 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
                 counts = _committed_counts(partial_path)
             except Exception:
                 counts = []
+            last_counts = counts
             if (
                 len(counts) == len(attached_plutos)
                 and min(counts) >= minimum_records
@@ -170,7 +176,9 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
         process.kill()
         process.wait(timeout=10)
         pytest.fail(
-            f"collector made no interruptible progress:\n{log_path.read_text()}"
+            "collector did not reach the requested interruption boundary "
+            f"within {progress_timeout_seconds:.1f}s; "
+            f"last committed counts={last_counts!r}:\n{log_path.read_text()}"
         )
 
     started_wait = time.monotonic()
@@ -245,6 +253,7 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
         "capture_status": expected_status,
         "return_code": return_code,
         "exit_seconds": exit_seconds,
+        "progress_timeout_seconds": progress_timeout_seconds,
         "partial_zarr": str(partial_path),
         "serials": [radio.serial for radio in attached_plutos],
     }
