@@ -93,3 +93,18 @@ records, `SIGINT` after 10, `SIGKILL` after 25, and `SIGTERM` after 100. It
 preserves each partial store and report, rejects new kernel USB errors, and
 finishes with a strict 100-record production capture. Override the matrix with
 `SPF_INTERRUPT_CASES`, for example `SPF_INTERRUPT_CASES='sigkill:2 sigterm:50'`.
+
+For an unattended, bounded repetition of the complete campaign, use:
+
+```bash
+SPF_INTERRUPT_SOAK_SECONDS=43200 \
+  data_collection/rover/rover_v3.1/run_interrupted_capture_soak.sh
+```
+
+The soak rotates four deterministic early/middle/late signal matrices and runs
+the campaign's clean V7 recovery capture after every matrix. It stops on the
+first failed case, when free space drops below 25 GiB, at the wall-clock
+deadline, or when its printed `STOP` file is created. Each completed round has
+an independent artifact directory and the root `rounds.tsv` is append-only,
+so evidence before a failure remains usable. The runner is receive-only because
+all underlying collectors use `--fake-drone`.
