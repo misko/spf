@@ -318,3 +318,35 @@ aggregate validator checks every ledger row against its individual report,
 expected signal status/return code, committed receiver prefix, serial identity,
 kernel delta and clean V7 recovery. It writes `aggregate-final.json` only after
 the soak root itself has an exact `PASS` marker.
+
+That run completed three full matrices (12 interruptions and 300 clean frames)
+before its fourth boot-preparation call exposed another P0 race. USB-IIO,
+direct USB and dual RX had passed, but the passive-fingerprint SSH step briefly
+reported no serial-matched USB-network interface. `eth1` was present again by
+the time the failure was inspected, and no USB disconnect occurred. The
+fingerprint path first probes SSH in one temporary namespace, restores the
+interface to the root namespace, and then opens a second namespace for the
+actual fact read. Netlink can expose the restored link fractionally before
+udev properties used for serial matching are visible.
+
+Commit `0c964de` adds a bounded five-second wait for exactly one serial-matched
+interface at namespace entry. Zero matches are treated as transient during the
+bound; multiple matches remain an immediate identity failure. Two focused
+tests cover recovery and ambiguity, and all 32 firmware/manifest tests pass.
+The exact hardware preparation path then passed 10/10 consecutive manifest
+builds and verifications under `/tmp/spf-network-restore-redgreen-20260801`.
+
+The previously skipped fourth matrix passed end to end at
+`/tmp/spf-round4-network-redgreen/20260801T092045Z_rover2`:
+
+| Signal | Boundary | Store state | Exit/reclaim | Result |
+|---|---:|---|---:|---|
+| `SIGTERM` | 5 | `incomplete` | 0.717 s | Pass |
+| `SIGKILL` | 40 | `in_progress` | 0.064 s | Pass |
+| `SIGINT` | 160 | `incomplete` | 0.967 s | Pass |
+| `SIGTERM` | 256 | `incomplete` | 0.917 s | Pass |
+
+All kernel deltas were empty. Its post-fault 100-frame V7 capture passed at
+1.964 Hz median with 100 unique streams and the same stable fingerprint. The
+fresh 12-hour run incorporating both red/green fixes is under
+`/tmp/spf-interrupted-capture-soak-12h-v3/20260801T092924Z`.
