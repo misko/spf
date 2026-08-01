@@ -67,6 +67,7 @@ def healthy_compass_params():
         "COMPASS_ENABLE": 1,
         "COMPASS_CAL_FIT": 16,
         "COMPASS_DISBLMSK": 0,
+        "COMPASS_OFFS_MAX": 1800,
         "COMPASS_PRIO1_ID": 658953,
         "COMPASS_PRIO2_ID": 131594,
         "COMPASS_PRIO3_ID": 0,

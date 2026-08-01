@@ -21,6 +21,7 @@ def _healthy_params(*, external_slot=1):
         "COMPASS_ENABLE": 1,
         "COMPASS_CAL_FIT": DEFAULT_COMPASS_CAL_FIT,
         "COMPASS_DISBLMSK": 0,
+        "COMPASS_OFFS_MAX": 1800,
         "COMPASS_PRIO1_ID": EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
         "COMPASS_PRIO2_ID": 131594,
         "COMPASS_PRIO3_ID": 0,
@@ -81,7 +82,7 @@ def test_rejects_empty_enabled_slot_and_disabled_external_compass():
     assert "external compass slot 3 is disabled for yaw" in report.errors
 
 
-def test_rejects_large_external_offsets():
+def test_warns_for_large_external_offsets_within_configured_limit():
     params = _healthy_params()
     params.update(
         {
@@ -93,9 +94,38 @@ def test_rejects_large_external_offsets():
 
     report = evaluate_compass_policy(params)
 
-    assert not report.ok
+    assert report.ok, report.errors
     assert report.external_compass.offset_norm_mg > 800
-    assert any("exceeds 500.0 mG" in error for error in report.errors)
+    assert report.external_offset_limit_mg == 1800
+    assert any("exceeds the preferred 500.0 mG" in warning for warning in report.warnings)
+
+
+def test_rejects_external_offsets_above_configured_limit():
+    params = _healthy_params()
+    params.update(
+        {
+            "COMPASS_OFFS_MAX": 1000,
+            "COMPASS_OFS_X": 800,
+            "COMPASS_OFS_Y": 700,
+            "COMPASS_OFS_Z": 600,
+        }
+    )
+
+    report = evaluate_compass_policy(params)
+
+    assert not report.ok
+    assert any("exceeds configured COMPASS_OFFS_MAX=1000.0 mG" in error for error in report.errors)
+
+
+@pytest.mark.parametrize("configured_limit", [499, 3001])
+def test_rejects_invalid_configured_offset_limit(configured_limit):
+    params = _healthy_params()
+    params["COMPASS_OFFS_MAX"] = configured_limit
+
+    report = evaluate_compass_policy(params)
+
+    assert not report.ok
+    assert any("expected an ArduPilot limit from 500 to 3000 mG" in error for error in report.errors)
 
 
 def test_rejects_permissive_calibration_and_duplicate_priorities():

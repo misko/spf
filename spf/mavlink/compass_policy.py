@@ -20,7 +20,10 @@ from typing import Mapping
 
 EXPECTED_EXTERNAL_COMPASS_DEVICE_ID = 658953
 DEFAULT_COMPASS_CAL_FIT = 16.0
-MAX_EXTERNAL_OFFSET_NORM_MG = 500.0
+PROJECT_TARGET_EXTERNAL_OFFSET_NORM_MG = 300.0
+PREFERRED_MAX_EXTERNAL_OFFSET_NORM_MG = 500.0
+MIN_CONFIGURED_OFFSET_LIMIT_MG = 500.0
+MAX_CONFIGURED_OFFSET_LIMIT_MG = 3000.0
 CONFIGURED_COMPASS_SLOTS = (1, 2, 3)
 EXTRA_COMPASS_SLOTS = (4, 5, 6, 7, 8)
 
@@ -60,6 +63,7 @@ class CompassPolicyReport:
     warnings: tuple[str, ...]
     instances: tuple[CompassInstance, ...]
     external_compass: CompassInstance | None
+    external_offset_limit_mg: float
     priorities: tuple[int, int, int]
     extra_devices: tuple[tuple[int, int], ...]
 
@@ -77,6 +81,7 @@ class CompassPolicyReport:
                 if self.external_compass is not None
                 else None
             ),
+            "external_offset_limit_mg": self.external_offset_limit_mg,
             "instances": [_instance_to_dict(instance) for instance in self.instances],
             "priorities": list(self.priorities),
             "extra_devices": [
@@ -215,6 +220,18 @@ def evaluate_compass_policy(
             "individual devices by ID and requires the driver mask to be 0"
         )
 
+    external_offset_limit_mg = _number(params, "COMPASS_OFFS_MAX", errors)
+    if not (
+        MIN_CONFIGURED_OFFSET_LIMIT_MG
+        <= external_offset_limit_mg
+        <= MAX_CONFIGURED_OFFSET_LIMIT_MG
+    ):
+        errors.append(
+            f"COMPASS_OFFS_MAX={external_offset_limit_mg:g}; expected an "
+            f"ArduPilot limit from {MIN_CONFIGURED_OFFSET_LIMIT_MG:g} to "
+            f"{MAX_CONFIGURED_OFFSET_LIMIT_MG:g} mG"
+        )
+
     external_candidates = [
         instance
         for instance in instances
@@ -268,17 +285,27 @@ def evaluate_compass_policy(
             errors.append(
                 f"external compass slot {external_compass.slot} has no calibration"
             )
-        elif external_compass.offset_norm_mg > MAX_EXTERNAL_OFFSET_NORM_MG:
+        elif external_compass.offset_norm_mg > external_offset_limit_mg:
             errors.append(
                 f"external compass slot {external_compass.slot} offset norm "
                 f"{external_compass.offset_norm_mg:.1f} mG exceeds "
-                f"{MAX_EXTERNAL_OFFSET_NORM_MG:.1f} mG"
+                f"configured COMPASS_OFFS_MAX={external_offset_limit_mg:.1f} mG"
             )
-        elif external_compass.offset_norm_mg > 300:
+        elif (
+            external_compass.offset_norm_mg
+            > PREFERRED_MAX_EXTERNAL_OFFSET_NORM_MG
+        ):
+            warnings.append(
+                f"external compass slot {external_compass.slot} offset norm "
+                f"{external_compass.offset_norm_mg:.1f} mG exceeds the preferred "
+                f"{PREFERRED_MAX_EXTERNAL_OFFSET_NORM_MG:.1f} mG limit but is "
+                f"within configured COMPASS_OFFS_MAX={external_offset_limit_mg:.1f} mG"
+            )
+        elif external_compass.offset_norm_mg > PROJECT_TARGET_EXTERNAL_OFFSET_NORM_MG:
             warnings.append(
                 f"external compass slot {external_compass.slot} offset norm "
                 f"{external_compass.offset_norm_mg:.1f} mG exceeds the "
-                "project target of 300 mG"
+                f"project target of {PROJECT_TARGET_EXTERNAL_OFFSET_NORM_MG:g} mG"
             )
 
     priorities = tuple(
@@ -309,6 +336,7 @@ def evaluate_compass_policy(
         warnings=tuple(dict.fromkeys(warnings)),
         instances=instances,
         external_compass=external_compass,
+        external_offset_limit_mg=external_offset_limit_mg,
         priorities=priorities,
         extra_devices=extra_devices,
     )

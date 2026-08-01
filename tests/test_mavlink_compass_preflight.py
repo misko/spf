@@ -20,6 +20,7 @@ def healthy_parameters():
         "COMPASS_ENABLE": 1,
         "COMPASS_CAL_FIT": 16,
         "COMPASS_DISBLMSK": 0,
+        "COMPASS_OFFS_MAX": 1800,
         "COMPASS_PRIO1_ID": EXTERNAL_COMPASS_DEVICE_ID,
         "COMPASS_PRIO2_ID": 658945,
         "COMPASS_PRIO3_ID": 0,
