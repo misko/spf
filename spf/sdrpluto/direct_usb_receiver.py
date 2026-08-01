@@ -5,8 +5,10 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import gc
+import logging
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any
 
 import numpy as np
 import usb1
@@ -27,7 +29,9 @@ from spf.sdrpluto.direct_usb_protocol import (
     DirectUsbRxFrame,
     GadgetCapabilitiesV1,
     HardwareIdentityV1,
+    HardwareIdentityFlags,
     MetadataFeatures,
+    MetadataFlags,
     ProtocolError,
     RxFrameParser,
     pack_start_request_v1,
@@ -42,6 +46,44 @@ USB_TRANSFER_TYPE_MASK = 0x03
 USB_CONTROL_TIMEOUT_MS = 1_000
 USB_BULK_TIMEOUT_MS = 10_000
 DEFAULT_BULK_CHUNK_BYTES = 1024 * 1024
+DEFAULT_RECONNECT_ATTEMPTS = 20
+DEFAULT_RECONNECT_DELAY_SECONDS = 0.25
+
+
+class DirectUsbNotFoundError(RuntimeError):
+    """The selected direct-USB gadget is not currently enumerated."""
+
+
+class DirectUsbTransportError(RuntimeError):
+    """A claimed direct-USB connection failed below the framing layer."""
+
+
+class DirectUsbRecoveryError(RuntimeError):
+    """Bounded recovery could not restore one valid finite RX request."""
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RecoveryAttestationDifference:
+    """One fail-closed mismatch observed before a recovered stream START."""
+
+    field: str
+    expected: Any
+    observed: Any
+
+
+class DirectUsbRecoveryAttestationError(DirectUsbRecoveryError):
+    """The re-enumerated device cannot be proven equivalent to the original."""
+
+    def __init__(self, differences: Iterable[RecoveryAttestationDifference]):
+        self.differences = tuple(differences)
+        if not self.differences:
+            raise ValueError("at least one recovery attestation difference is required")
+        details = "; ".join(
+            f"{difference.field}: expected={difference.expected!r}, "
+            f"observed={difference.observed!r}"
+            for difference in self.differences
+        )
+        super().__init__(f"direct USB recovery attestation failed: {details}")
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -93,6 +135,9 @@ class PlutoDirectUsbReceiver:
         port_path: tuple[int, ...] | None = None,
         bulk_chunk_bytes: int = DEFAULT_BULK_CHUNK_BYTES,
         protocol_version: int = VERSION_V1,
+        reconnect_attempts: int = DEFAULT_RECONNECT_ATTEMPTS,
+        reconnect_delay_seconds: float = DEFAULT_RECONNECT_DELAY_SECONDS,
+        reconnect_attestor: Callable[[], None] | None = None,
     ) -> None:
         if not serial and not port_path:
             raise ValueError("serial or physical USB port_path is required")
@@ -100,14 +145,23 @@ class PlutoDirectUsbReceiver:
             raise ValueError("bulk_chunk_bytes must be positive")
         if protocol_version not in (VERSION_V1, VERSION_V2):
             raise ValueError(f"unsupported direct USB protocol {protocol_version}")
+        if reconnect_attempts <= 0:
+            raise ValueError("reconnect_attempts must be positive")
+        if reconnect_delay_seconds < 0:
+            raise ValueError("reconnect_delay_seconds must be non-negative")
         self.requested_serial = serial
         self.requested_port_path = port_path
         self.bulk_chunk_bytes = bulk_chunk_bytes
         self.protocol_version = protocol_version
+        self.reconnect_attempts = reconnect_attempts
+        self.reconnect_delay_seconds = reconnect_delay_seconds
+        self.reconnect_attestor = reconnect_attestor
         self._context: usb1.USBContext | None = None
         self._handle: usb1.USBDeviceHandle | None = None
         self._identity: DirectUsbIdentity | None = None
         self._capabilities: GadgetCapabilitiesV1 | None = None
+        self._recovery_hardware_identity: HardwareIdentityV1 | None = None
+        self._terminal_recovery_error: Exception | None = None
         self._detached_kernel_driver = False
 
     @property
@@ -201,12 +255,21 @@ class PlutoDirectUsbReceiver:
                         bulk_in_endpoint=bulk_in,
                         bulk_out_endpoint=bulk_out,
                     )
+                    # Bus/address are transient. Pin both durable identities after
+                    # the first successful open so a reconnect cannot claim a
+                    # different Pluto that happens to enumerate first.
+                    self.requested_serial = candidate_serial
+                    self.requested_port_path = candidate_port_path
                     return
         except Exception:
             context.close()
             raise
         context.close()
-        raise RuntimeError("matching SPF direct-USB gadget was not found")
+        raise DirectUsbNotFoundError(
+            "matching SPF direct-USB gadget was not found for "
+            f"serial={self.requested_serial!r} "
+            f"port_path={self.requested_port_path!r}"
+        )
 
     def close(self) -> None:
         handle = self._handle
@@ -234,6 +297,89 @@ class PlutoDirectUsbReceiver:
         *,
         samples_per_channel: int,
         frame_count: int = 1,
+    ) -> DirectUsbCapture:
+        if self._terminal_recovery_error is not None:
+            raise DirectUsbRecoveryError(
+                "direct USB receiver is terminal after failed recovery; "
+                "create a new receiver/capture"
+            ) from self._terminal_recovery_error
+        try:
+            return self._capture_once(
+                samples_per_channel=samples_per_channel,
+                frame_count=frame_count,
+            )
+        except (usb1.USBError, DirectUsbTransportError) as error:
+            failed_identity = self._identity
+            logging.warning(
+                "direct USB transport lost for serial=%s port_path=%s: %s; "
+                "starting bounded rediscovery",
+                self.requested_serial,
+                self.requested_port_path,
+                error,
+            )
+            try:
+                self._recover_connection(error)
+            except DirectUsbRecoveryError as recovery_error:
+                self._mark_terminal_recovery_failure(recovery_error)
+                raise
+            try:
+                self._attest_recovered_connection(failed_identity)
+            except DirectUsbRecoveryAttestationError as attestation_error:
+                self._mark_terminal_recovery_failure(attestation_error)
+                raise
+            try:
+                capture = self._capture_once(
+                    samples_per_channel=samples_per_channel,
+                    frame_count=frame_count,
+                )
+            except ProtocolError as protocol_error:
+                # A newly rediscovered device that returns invalid framing or
+                # sequence state is not safe to reuse in this capture. The
+                # parser can reject sequence zero before the explicit check
+                # below, so latch both paths terminally.
+                self._mark_terminal_recovery_failure(protocol_error)
+                raise
+            except (usb1.USBError, DirectUsbTransportError) as retry_error:
+                recovery_error = DirectUsbRecoveryError(
+                    "direct USB transport failed again after rediscovery for "
+                    f"serial={self.requested_serial!r} "
+                    f"port_path={self.requested_port_path!r}"
+                )
+                self._mark_terminal_recovery_failure(recovery_error)
+                raise recovery_error from retry_error
+
+            metadata = capture.frames[0].metadata
+            if metadata.buffer_sequence != 0 or (
+                metadata.flags & MetadataFlags.SAMPLE_SEQUENCE_VALID
+                and metadata.first_sample_sequence != 0
+            ):
+                sequence_error = ProtocolError(
+                    "recovered direct USB START did not begin a new stream epoch"
+                )
+                self._mark_terminal_recovery_failure(sequence_error)
+                raise sequence_error
+            logging.warning(
+                "direct USB transport recovered for serial=%s port_path=%s "
+                "address=%s->%s stream_id=%s; new stream epoch, phase "
+                "continuity is not retained",
+                capture.identity.serial,
+                capture.identity.port_path,
+                None if failed_identity is None else failed_identity.address,
+                capture.identity.address,
+                metadata.stream_id,
+            )
+            return capture
+
+    def _mark_terminal_recovery_failure(self, error: Exception) -> None:
+        self._terminal_recovery_error = error
+        with contextlib.suppress(usb1.USBError, AttributeError):
+            self.close()
+
+    def _capture_once(
+        self,
+        *,
+        samples_per_channel: int,
+        frame_count: int,
     ) -> DirectUsbCapture:
         handle = self._require_handle()
         identity = self.identity
@@ -327,6 +473,154 @@ class PlutoDirectUsbReceiver:
             elapsed_seconds=time.monotonic() - start,
         )
 
+    def _recover_connection(self, original_error: Exception) -> None:
+        with contextlib.suppress(usb1.USBError, AttributeError):
+            self.close()
+
+        last_error: Exception = original_error
+        for attempt in range(1, self.reconnect_attempts + 1):
+            if self.reconnect_delay_seconds:
+                time.sleep(self.reconnect_delay_seconds)
+            try:
+                self.open()
+            except (DirectUsbNotFoundError, usb1.USBError) as error:
+                last_error = error
+                logging.warning(
+                    "direct USB rediscovery %s/%s failed for serial=%s "
+                    "port_path=%s: %s",
+                    attempt,
+                    self.reconnect_attempts,
+                    self.requested_serial,
+                    self.requested_port_path,
+                    error,
+                )
+                continue
+            return
+
+        raise DirectUsbRecoveryError(
+            "direct USB gadget did not reappear after "
+            f"{self.reconnect_attempts} bounded attempts for "
+            f"serial={self.requested_serial!r} "
+            f"port_path={self.requested_port_path!r}"
+        ) from last_error
+
+    def pin_recovery_hardware_identity(self) -> HardwareIdentityV1 | None:
+        """Pin valid passive identity fields for subsequent reconnects.
+
+        Older gadgets do not expose this capability. In that case USB serial
+        and physical port remain the durable identity boundary.
+        """
+
+        if not (self.capabilities.capability_flags & CapabilityFlags.HARDWARE_IDENTITY):
+            self._recovery_hardware_identity = None
+            return None
+        identity = self.query_hardware_identity()
+        self._recovery_hardware_identity = identity
+        return identity
+
+    def _attest_recovered_connection(
+        self, failed_identity: DirectUsbIdentity | None
+    ) -> None:
+        differences: list[RecoveryAttestationDifference] = []
+        recovered_identity = self.identity
+        if failed_identity is None:
+            differences.append(
+                RecoveryAttestationDifference(
+                    field="usb_identity",
+                    expected="identity pinned before transport loss",
+                    observed=None,
+                )
+            )
+        else:
+            if recovered_identity.serial != failed_identity.serial:
+                differences.append(
+                    RecoveryAttestationDifference(
+                        field="usb_serial",
+                        expected=failed_identity.serial,
+                        observed=recovered_identity.serial,
+                    )
+                )
+            if recovered_identity.port_path != failed_identity.port_path:
+                differences.append(
+                    RecoveryAttestationDifference(
+                        field="usb_port_path",
+                        expected=failed_identity.port_path,
+                        observed=recovered_identity.port_path,
+                    )
+                )
+
+        expected_hardware = self._recovery_hardware_identity
+        if expected_hardware is not None:
+            try:
+                observed_hardware = self.query_hardware_identity()
+            except Exception as error:
+                differences.append(
+                    RecoveryAttestationDifference(
+                        field="hardware_identity",
+                        expected="readable passive identity",
+                        observed=f"{type(error).__name__}: {error}",
+                    )
+                )
+            else:
+                fields = (
+                    (
+                        HardwareIdentityFlags.FPGA_DEVICE_DNA_VALID,
+                        "fpga_device_dna",
+                    ),
+                    (
+                        HardwareIdentityFlags.GADGET_BUILD_ID_VALID,
+                        "gadget_build_id",
+                    ),
+                )
+                for flag, field in fields:
+                    if not expected_hardware.flags & flag:
+                        continue
+                    expected = getattr(expected_hardware, field)
+                    observed = (
+                        getattr(observed_hardware, field)
+                        if observed_hardware.flags & flag
+                        else None
+                    )
+                    if observed != expected:
+                        differences.append(
+                            RecoveryAttestationDifference(
+                                field=field,
+                                expected=expected,
+                                observed=observed,
+                            )
+                        )
+
+        if differences:
+            raise DirectUsbRecoveryAttestationError(iter(differences))
+        if self.reconnect_attestor is None:
+            raise DirectUsbRecoveryAttestationError(
+                iter(
+                    (
+                        RecoveryAttestationDifference(
+                            field="iio_rx_configuration",
+                            expected="configured reconnect attestor",
+                            observed=None,
+                        ),
+                    )
+                )
+            )
+        try:
+            self.reconnect_attestor()
+        except DirectUsbRecoveryAttestationError:
+            raise
+        except Exception as error:
+            raise DirectUsbRecoveryAttestationError(
+                iter(
+                    (
+                        RecoveryAttestationDifference(
+                            field="iio_rx_configuration",
+                            expected="readable matching configuration",
+                            observed=f"{type(error).__name__}: {error}",
+                        ),
+                    )
+                )
+            ) from error
+
     def query_hardware_identity(self) -> HardwareIdentityV1:
         """Read passive identity data without starting RX or TX."""
 
@@ -393,7 +687,8 @@ class PlutoDirectUsbReceiver:
 
         chunks: list[bytes | None] = [None] * frame_count
         pending: set[int] = set()
-        errors: list[str] = []
+        protocol_errors: list[str] = []
+        transport_errors: list[str] = []
         transfers = []
 
         def completed(transfer) -> None:
@@ -402,14 +697,14 @@ class PlutoDirectUsbReceiver:
             if status == usb1.TRANSFER_COMPLETED:
                 actual = transfer.getActualLength()
                 if actual != frame_bytes:
-                    errors.append(
+                    protocol_errors.append(
                         f"bulk transfer {index} completed with {actual} bytes, "
                         f"expected {frame_bytes}"
                     )
                 else:
                     chunks[index] = bytes(transfer.getBuffer()[:actual])
             else:
-                errors.append(
+                transport_errors.append(
                     f"bulk transfer {index} failed with libusb status {status}"
                 )
             pending.discard(index)
@@ -442,10 +737,10 @@ class PlutoDirectUsbReceiver:
                 timeout=USB_CONTROL_TIMEOUT_MS,
             )
             deadline = time.monotonic() + USB_BULK_TIMEOUT_MS / 1000.0 + 1.0
-            while pending and not errors:
+            while pending and not protocol_errors and not transport_errors:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    errors.append(
+                    protocol_errors.append(
                         f"timed out with {len(pending)} queued transfers pending"
                     )
                     break
@@ -474,8 +769,10 @@ class PlutoDirectUsbReceiver:
             # frame buffers are reclaimed deterministically.
             gc.collect(0)
 
-        if errors:
-            raise ProtocolError("; ".join(errors))
+        if transport_errors:
+            raise DirectUsbTransportError("; ".join(transport_errors))
+        if protocol_errors:
+            raise ProtocolError("; ".join(protocol_errors))
         if pending or any(chunk is None for chunk in chunks):
             raise ProtocolError("queued direct USB transfer cleanup was incomplete")
         return [chunk for chunk in chunks if chunk is not None]

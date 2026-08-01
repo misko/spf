@@ -11,7 +11,6 @@ import yaml
 import spf
 from spf.dataset.v4_data import v4rx_f64_keys
 from spf.dataset.v6_data import v6rx_2x_keys, v6rx_scalar_keys
-from spf.dataset.v7_data import v7rx_2x_keys, v7rx_scalar_keys
 from spf.capture_schema import normalize_capture_config
 from spf.mavlink_radio_collection import validate_transport_schema
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
@@ -133,7 +132,7 @@ def test_v7_infers_direct_usb_protocol_v2_and_rejects_conflicts():
         )
 
 
-def test_mavlink_radio_collect_v7_iio_schema():
+def test_mavlink_radio_collect_v7_requires_boot_verified_firmware():
     with tempfile.TemporaryDirectory() as tmpdirname:
         with open(f"{root_dir}/tests/test_config.yaml") as source:
             config = yaml.safe_load(source)
@@ -143,31 +142,19 @@ def test_mavlink_radio_collect_v7_iio_schema():
         with open(config_path, "w") as destination:
             yaml.safe_dump(config, destination)
 
-        subprocess.check_output(
-            f"python3 {root_dir}/spf/mavlink_radio_collection.py --fake-drone --exit -c "
-            + f"{config_path} -m {root_dir}/tests/test_device_mapping "
-            + f"-r center -n 2 --temp {tmpdirname}",
-            timeout=180,
-            shell=True,
-            env=get_env(),
-            stderr=subprocess.STDOUT,
-        ).decode()
+        with pytest.raises(subprocess.CalledProcessError) as raised:
+            subprocess.check_output(
+                f"python3 {root_dir}/spf/mavlink_radio_collection.py "
+                "--fake-drone --exit -c "
+                + f"{config_path} -m {root_dir}/tests/test_device_mapping "
+                + f"-r center -n 2 --temp {tmpdirname}",
+                timeout=180,
+                shell=True,
+                env=get_env(),
+                stderr=subprocess.STDOUT,
+            )
 
-        zarr_fn = glob.glob(f"{tmpdirname}/*.zarr")[0]
-        z = zarr_open_from_lmdb_store(zarr_fn)
-        try:
-            assert z.attrs["radio_metadata_schema_version"] == 2
-            for receiver_idx in range(2):
-                receiver = z[f"receivers/r{receiver_idx}"]
-                assert receiver.signal_matrix.shape == (2, 2, 4096)
-                for key in v7rx_scalar_keys:
-                    assert key in receiver
-                for key in v7rx_2x_keys:
-                    assert key in receiver
-                assert not receiver.gain_metadata_valid[:].any()
-                assert not receiver.rssi_metadata_valid[:].any()
-        finally:
-            z.store.close()
+        assert b"V7 capture requires boot-verified firmware" in raised.value.output
 
 
 # def test_mavlink_radio_collect_direct():

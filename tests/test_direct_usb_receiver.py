@@ -20,6 +20,8 @@ from spf.sdrpluto.direct_usb_protocol import (
     SampleFormat,
 )
 from spf.sdrpluto.direct_usb_receiver import (
+    DirectUsbNotFoundError,
+    DirectUsbRecoveryError,
     DirectUsbIdentity,
     PlutoDirectUsbReceiver,
     iq_payload_to_complex64,
@@ -72,6 +74,17 @@ class _FakeHandle:
         self.bulk_read_sizes.append((endpoint, size, timeout))
         wire, self.wire = self.wire, b""
         return wire
+
+
+class _DisconnectedHandle(_FakeHandle):
+    def controlWrite(self, *args, **kwargs):
+        raise usb1.USBErrorNoDevice()
+
+    def releaseInterface(self, interface):
+        pass
+
+    def close(self):
+        pass
 
 
 def _valid_wire_frame(samples=8, sequence=0):
@@ -137,6 +150,155 @@ def test_capture_requests_a_complete_framed_transfer_and_stops():
     assert len(capture.frames) == 1
     assert handle.bulk_read_sizes[0][1] == HEADER_BYTES + 8 * 8
     assert len(handle.control_writes) == 2
+
+
+def test_capture_rediscovers_same_radio_after_usb_address_changes(monkeypatch):
+    disconnected = _DisconnectedHandle(b"")
+    attest_calls = []
+    receiver = PlutoDirectUsbReceiver(
+        serial="test",
+        port_path=(1,),
+        reconnect_attestor=lambda: attest_calls.append(True),
+    )
+    receiver._handle = disconnected
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    receiver._capabilities = GadgetCapabilitiesV1(
+        protocol_min=1,
+        protocol_max=1,
+        supported_features=(
+            MetadataFeatures.GAIN_ENDPOINT_SNAPSHOTS
+            | MetadataFeatures.HEADER_CRC32
+            | MetadataFeatures.SAMPLE_SEQUENCE
+        ),
+        max_samples_per_channel=1024,
+        max_finite_frames=16,
+        capability_flags=CapabilityFlags.FINITE_RX,
+    )
+    replacement = _FakeHandle(_valid_wire_frame())
+    open_calls = []
+
+    def reopen():
+        open_calls.append(True)
+        receiver._handle = replacement
+        receiver._identity = DirectUsbIdentity(
+            serial="test",
+            bus=1,
+            address=9,
+            port_path=(1,),
+            interface=6,
+            bulk_in_endpoint=0x89,
+            bulk_out_endpoint=0x07,
+        )
+        receiver._capabilities = GadgetCapabilitiesV1(
+            protocol_min=1,
+            protocol_max=1,
+            supported_features=(
+                MetadataFeatures.GAIN_ENDPOINT_SNAPSHOTS
+                | MetadataFeatures.HEADER_CRC32
+                | MetadataFeatures.SAMPLE_SEQUENCE
+            ),
+            max_samples_per_channel=1024,
+            max_finite_frames=16,
+            capability_flags=CapabilityFlags.FINITE_RX,
+        )
+
+    monkeypatch.setattr(receiver, "open", reopen)
+
+    capture = receiver.capture(samples_per_channel=8)
+
+    assert len(open_calls) == 1
+    assert len(attest_calls) == 1
+    assert capture.identity.serial == "test"
+    assert capture.identity.port_path == (1,)
+    assert capture.identity.address == 9
+    assert capture.frames[0].metadata.buffer_sequence == 0
+    assert capture.frames[0].metadata.first_sample_sequence == 0
+
+
+def test_capture_rediscovery_is_bounded(monkeypatch):
+    disconnected = _DisconnectedHandle(b"")
+    receiver = PlutoDirectUsbReceiver(
+        serial="test",
+        port_path=(1,),
+        reconnect_attempts=3,
+        reconnect_delay_seconds=0,
+    )
+    receiver._handle = disconnected
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    receiver._capabilities = GadgetCapabilitiesV1(
+        protocol_min=1,
+        protocol_max=1,
+        supported_features=(
+            MetadataFeatures.GAIN_ENDPOINT_SNAPSHOTS
+            | MetadataFeatures.HEADER_CRC32
+            | MetadataFeatures.SAMPLE_SEQUENCE
+        ),
+        max_samples_per_channel=1024,
+        max_finite_frames=16,
+        capability_flags=CapabilityFlags.FINITE_RX,
+    )
+    open_calls = []
+
+    def missing():
+        open_calls.append(True)
+        raise DirectUsbNotFoundError("still disconnected")
+
+    monkeypatch.setattr(receiver, "open", missing)
+
+    with pytest.raises(DirectUsbRecoveryError, match="3 bounded attempts"):
+        receiver.capture(samples_per_channel=8)
+
+    assert len(open_calls) == 3
+
+
+def test_protocol_error_fails_closed_without_transport_rediscovery(monkeypatch):
+    handle = _FakeHandle(b"\x00" * (HEADER_BYTES + 8 * 8))
+    receiver = PlutoDirectUsbReceiver(serial="test", port_path=(1,))
+    receiver._handle = handle
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    receiver._capabilities = GadgetCapabilitiesV1(
+        protocol_min=1,
+        protocol_max=1,
+        supported_features=(
+            MetadataFeatures.GAIN_ENDPOINT_SNAPSHOTS
+            | MetadataFeatures.HEADER_CRC32
+            | MetadataFeatures.SAMPLE_SEQUENCE
+        ),
+        max_samples_per_channel=1024,
+        max_finite_frames=16,
+        capability_flags=CapabilityFlags.FINITE_RX,
+    )
+    open_calls = []
+    monkeypatch.setattr(receiver, "open", lambda: open_calls.append(True))
+
+    with pytest.raises(ProtocolError, match="magic"):
+        receiver.capture(samples_per_channel=8)
+
+    assert open_calls == []
 
 
 def test_hardware_identity_query_is_read_only_and_does_not_start_streaming():

@@ -247,6 +247,10 @@ class ReceiverConfig(Config):
         self.motor_channel = motor_channel
         self.rx_buffers = rx_buffers
         self.filter_fir_en = filter_fir_en
+        # These two mitigations are part of SPF's observable RX contract even
+        # though field configs do not expose them as user-selectable knobs.
+        self.phase_inversion_debug_attr = 1
+        self.phase_inversion_register_bit = 1
         if rx_transport not in ("iio", "direct_usb"):
             raise ValueError(f"unsupported RX transport: {rx_transport}")
         self.rx_transport = rx_transport
@@ -1057,6 +1061,12 @@ class PPlus:
 
         sdr = getattr(self, "sdr", None)
         self.sdr = None
+        self._destroy_iio_sdr(sdr)
+
+    @staticmethod
+    def _destroy_iio_sdr(sdr):
+        """Destroy one pyadi wrapper without relying on interpreter shutdown."""
+
         if sdr is None:
             return
         context = getattr(sdr, "_ctx", None)
@@ -1069,7 +1079,9 @@ class PPlus:
             # Context object, so reference dropping alone leaves libusb_event
             # alive through interpreter shutdown. Destroy the native context
             # now and clear its pointer to make a later __del__ idempotent.
-            context.__del__()
+            destructor = getattr(context, "__del__", None)
+            if destructor is not None:
+                destructor()
             if hasattr(context, "_context"):
                 context._context = None
         del sdr
@@ -1105,18 +1117,24 @@ class PPlus:
         self.sdr.rx_destroy_buffer()
 
         # Fix the phase inversion on channel RX1
-        self.sdr._ctrl.debug_attrs["adi,rx1-rx2-phase-inversion-enable"].value = "1"
-        assert (
-            self.sdr._ctrl.debug_attrs["adi,rx1-rx2-phase-inversion-enable"].value
-            == "1"
+        self.sdr._ctrl.debug_attrs["adi,rx1-rx2-phase-inversion-enable"].value = str(
+            self.rx_config.phase_inversion_debug_attr
         )
+        assert self.sdr._ctrl.debug_attrs[
+            "adi,rx1-rx2-phase-inversion-enable"
+        ].value == str(self.rx_config.phase_inversion_debug_attr)
 
         # https://www.analog.com/media/cn/technical-documentation/user-guides/ad9364_register_map_reference_manual_ug-672.pdf
         reg22_value = self.sdr._ctrl.reg_read(0x22)
         # https://github.com/analogdevicesinc/linux/blob/88946d52e61d5b898c061d820caf27fd1c3730d7/drivers/iio/adc/ad9361_regs.h#L780
-        self.sdr._ctrl.reg_write(0x22, reg22_value | (1 << 6))
+        self.sdr._ctrl.reg_write(
+            0x22,
+            reg22_value | (self.rx_config.phase_inversion_register_bit << 6),
+        )
         reg22_value = self.sdr._ctrl.reg_read(0x22)
-        assert (reg22_value & (1 << 6)) != 0
+        assert bool(reg22_value & (1 << 6)) == bool(
+            self.rx_config.phase_inversion_register_bit
+        )
 
         # self.sdr._ctrl.reg_write(0x22, reg22_value & (~(1 << 6)))
         # reg22_value = self.sdr._ctrl.reg_read(0x22)
@@ -1315,6 +1333,7 @@ class PPlus:
             serial=serial,
             port_path=port_path,
             protocol_version=self.rx_config.direct_usb_protocol_version,
+            reconnect_attestor=self._attest_direct_usb_reconnect,
         )
         self.direct_rx.open()
         if iio_serial is not None and self.direct_rx.identity.serial != iio_serial:
@@ -1325,12 +1344,187 @@ class PPlus:
                 "opened direct USB radio does not match the USB-IIO radio: "
                 f"{direct_serial} != {iio_serial}"
             )
+        try:
+            self.direct_rx.pin_recovery_hardware_identity()
+        except Exception:
+            self.direct_rx.close()
+            self.direct_rx = None
+            raise
         logging.info(
             "%s: direct USB RX open as serial=%s port_path=%s",
             self.uri,
             self.direct_rx.identity.serial,
             self.direct_rx.identity.port_path,
         )
+
+    def _attest_direct_usb_reconnect(self):
+        """Verify a re-enumerated radio without writing any radio setting."""
+
+        from spf.sdrpluto.direct_usb_receiver import (
+            DirectUsbRecoveryAttestationError,
+            RecoveryAttestationDifference,
+        )
+
+        if self.rx_config is None or self.direct_rx is None:
+            raise DirectUsbRecoveryAttestationError(
+                iter(
+                    (
+                        RecoveryAttestationDifference(
+                            field="pplus_rx_configuration",
+                            expected="active direct USB ReceiverConfig",
+                            observed=None,
+                        ),
+                    )
+                )
+            )
+
+        expected = {
+            "iio_serial": self.direct_rx.identity.serial,
+            "rx_lo": int(self.rx_config.lo),
+            "sample_rate": int(self.rx_config.sample_rate),
+            "rx_rf_bandwidth": int(self.rx_config.rf_bandwidth),
+            "gain_control_mode_rx1": str(self.rx_config.gain_control_modes[0]),
+            "gain_control_mode_rx2": str(self.rx_config.gain_control_modes[1]),
+            "filter_fir_en_rx1": int(self.rx_config.filter_fir_en),
+            "filter_fir_en_rx2": int(self.rx_config.filter_fir_en),
+            "phase_inversion_debug_attr": int(
+                self.rx_config.phase_inversion_debug_attr
+            ),
+            "phase_inversion_register_bit": int(
+                self.rx_config.phase_inversion_register_bit
+            ),
+        }
+        if self.rx_config.gain_control_modes[0] == "manual":
+            expected["manual_gain_rx1_db"] = float(self.rx_config.gains[0])
+        if self.rx_config.gain_control_modes[1] == "manual":
+            expected["manual_gain_rx2_db"] = float(self.rx_config.gains[1])
+
+        recovered_uri = self._resolve_recovered_iio_uri()
+        try:
+            fresh_sdr = adi.ad9361(uri=recovered_uri)
+        except Exception as error:
+            raise DirectUsbRecoveryAttestationError(
+                iter(
+                    (
+                        RecoveryAttestationDifference(
+                            field="iio_context",
+                            expected=f"readable context at {recovered_uri}",
+                            observed=f"{type(error).__name__}: {error}",
+                        ),
+                    )
+                )
+            ) from error
+
+        adopted = False
+        try:
+
+            def iio_serial():
+                attr = fresh_sdr._ctx.attrs["hw_serial"]
+                return str(getattr(attr, "value", attr))
+
+            rx1 = fresh_sdr._ctrl.find_channel("voltage0", is_output=False)
+            rx2 = fresh_sdr._ctrl.find_channel("voltage1", is_output=False)
+            readers = {
+                "iio_serial": iio_serial,
+                "rx_lo": lambda: int(fresh_sdr.rx_lo),
+                "sample_rate": lambda: int(fresh_sdr.sample_rate),
+                "rx_rf_bandwidth": lambda: int(fresh_sdr.rx_rf_bandwidth),
+                "gain_control_mode_rx1": lambda: str(fresh_sdr.gain_control_mode_chan0),
+                "gain_control_mode_rx2": lambda: str(fresh_sdr.gain_control_mode_chan1),
+                "filter_fir_en_rx1": lambda: int(rx1.attrs["filter_fir_en"].value),
+                "filter_fir_en_rx2": lambda: int(rx2.attrs["filter_fir_en"].value),
+                "phase_inversion_debug_attr": lambda: int(
+                    fresh_sdr._ctrl.debug_attrs[
+                        "adi,rx1-rx2-phase-inversion-enable"
+                    ].value
+                ),
+                "phase_inversion_register_bit": lambda: int(
+                    bool(fresh_sdr._ctrl.reg_read(0x22) & (1 << 6))
+                ),
+            }
+            if "manual_gain_rx1_db" in expected:
+                readers["manual_gain_rx1_db"] = lambda: float(
+                    fresh_sdr.rx_hardwaregain_chan0
+                )
+            if "manual_gain_rx2_db" in expected:
+                readers["manual_gain_rx2_db"] = lambda: float(
+                    fresh_sdr.rx_hardwaregain_chan1
+                )
+
+            differences = []
+            for field, expected_value in expected.items():
+                try:
+                    observed_value = readers[field]()
+                except Exception as error:
+                    observed_value = f"{type(error).__name__}: {error}"
+                matches = observed_value == expected_value
+                if field == "rx_lo" and isinstance(observed_value, int):
+                    matches = abs(observed_value - expected_value) < 10
+                if not matches:
+                    differences.append(
+                        RecoveryAttestationDifference(
+                            field=field,
+                            expected=expected_value,
+                            observed=observed_value,
+                        )
+                    )
+
+            if differences:
+                raise DirectUsbRecoveryAttestationError(iter(differences))
+
+            # The old libiio wrapper points at the vanished USB address. Destroy
+            # it before adopting the freshly attested context so no native
+            # libusb event thread survives the recovery epoch.
+            self._close_iio_context()
+            self.sdr = fresh_sdr
+            self.uri = recovered_uri
+            adopted = True
+        finally:
+            if not adopted:
+                self._destroy_iio_sdr(fresh_sdr)
+
+    @staticmethod
+    def _scan_iio_contexts():
+        import iio
+
+        return iio.scan_contexts()
+
+    def _resolve_recovered_iio_uri(self):
+        """Find the standard USB-IIO function paired with recovered direct USB."""
+
+        from spf.sdrpluto.direct_usb_receiver import (
+            DirectUsbRecoveryAttestationError,
+            RecoveryAttestationDifference,
+        )
+
+        identity = self.direct_rx.identity
+        try:
+            contexts = self._scan_iio_contexts()
+        except Exception as error:
+            contexts = {}
+            observed = f"{type(error).__name__}: {error}"
+        else:
+            observed = sorted(contexts)
+        prefix = f"usb:{identity.bus}.{identity.address}."
+        matches = [
+            uri
+            for uri, description in contexts.items()
+            if uri.startswith(prefix) and f"serial={identity.serial}" in description
+        ]
+        if len(matches) != 1:
+            raise DirectUsbRecoveryAttestationError(
+                (
+                    RecoveryAttestationDifference(
+                        field="iio_uri",
+                        expected=(
+                            "exactly one USB-IIO context for recovered "
+                            f"serial={identity.serial!r} at {prefix}*"
+                        ),
+                        observed=observed,
+                    ),
+                )
+            )
+        return matches[0]
 
     def _iio_hardware_serial(self):
         try:
