@@ -108,3 +108,15 @@ deadline, or when its printed `STOP` file is created. Each completed round has
 an independent artifact directory and the root `rounds.tsv` is append-only,
 so evidence before a failure remains usable. The runner is receive-only because
 all underlying collectors use `--fake-drone`.
+
+After the soak finishes, independently audit every ledger row, signal report,
+committed prefix, kernel delta, clean-recovery identity, and V7 validation with:
+
+```bash
+python -m spf.scripts.validate_interruption_soak SOAK_ROOT \
+  --expected-receivers 2 --require-complete \
+  --output SOAK_ROOT/aggregate.json
+```
+
+Omit `--require-complete` to audit only fully completed rounds while a soak is
+still running. In-progress rounds are deliberately absent from `rounds.tsv`.
