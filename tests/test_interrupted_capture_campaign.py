@@ -23,6 +23,7 @@ def _executable(path, text):
     (
         (7, "post-case diagnostic marker", 7, 0),
         (0, "USB disconnect, simulated", 1, 1),
+        (0, "not enough memory for the allocation", 1, 1),
     ),
 )
 def test_case_preserves_post_case_kernel_evidence(

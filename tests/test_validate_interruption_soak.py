@@ -154,7 +154,21 @@ def test_validate_soak_rejects_kernel_usb_error(tmp_path):
     delta = next(tmp_path.glob("round-*/**/dmesg-delta.txt"))
     delta.write_text("usb 1-1: USB disconnect, device number 9\n")
 
-    with pytest.raises(ValueError, match="kernel USB error"):
+    with pytest.raises(ValueError, match="kernel USB/memory error"):
+        validate_soak(
+            tmp_path, expected_receivers=1, minimum_rounds=1, require_complete=False
+        )
+
+
+def test_validate_soak_rejects_kernel_memory_pressure(tmp_path):
+    _make_round(tmp_path)
+    delta = next(tmp_path.glob("round-*/**/dmesg-delta.txt"))
+    delta.write_text(
+        "__vm_enough_memory: pid: 123, comm: pt_main_thread, "
+        "not enough memory for the allocation\n"
+    )
+
+    with pytest.raises(ValueError, match="kernel USB/memory error"):
         validate_soak(
             tmp_path, expected_receivers=1, minimum_rounds=1, require_complete=False
         )

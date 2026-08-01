@@ -10,7 +10,8 @@ import re
 
 
 KERNEL_ERROR = re.compile(
-    r"USB disconnect|error -71|device descriptor read|xhci.*error|I/O error",
+    r"USB disconnect|error -71|device descriptor read|xhci.*error|I/O error|"
+    r"not enough memory|Out of memory|Killed process|oom-kill|oom_reaper",
     re.IGNORECASE,
 )
 EXPECTED_CAPTURE_STATUS = {
@@ -149,7 +150,7 @@ def validate_soak(
             if not delta.is_file():
                 raise ValueError(f"missing kernel delta: {delta}")
             if KERNEL_ERROR.search(delta.read_text()):
-                raise ValueError(f"kernel USB error in {delta}")
+                raise ValueError(f"kernel USB/memory error in {delta}")
             signals[signal_name] += 1
             interruption_frames += sum(counts)
             maximum_exit_seconds = max(

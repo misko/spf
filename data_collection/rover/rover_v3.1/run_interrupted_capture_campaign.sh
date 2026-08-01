@@ -103,7 +103,7 @@ for specification in $CASES; do
     if (( dmesg_status == 0 )); then
         tail -n "+$((before_lines + 1))" "${case_root}/dmesg-after.txt" \
             >"${case_root}/dmesg-delta.txt"
-        if grep -Eqi 'USB disconnect|error -71|device descriptor read|xhci.*error|I/O error' \
+        if grep -Eqi 'USB disconnect|error -71|device descriptor read|xhci.*error|I/O error|not enough memory|Out of memory|Killed process|oom-kill|oom_reaper' \
             "${case_root}/dmesg-delta.txt"; then
             kernel_usb_error=1
         fi
@@ -120,7 +120,7 @@ for specification in $CASES; do
         die "could not snapshot kernel log after case ${specification}"
     fi
     if (( kernel_usb_error != 0 )); then
-        die "kernel USB error appeared during interruption case ${specification}"
+        die "kernel USB/memory error appeared during interruption case ${specification}"
     fi
     if (( pytest_status != 0 )); then
         printf 'ERROR: interruption case %s failed with status %s\n' \
