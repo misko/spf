@@ -183,7 +183,7 @@ def _udev_properties(interface: str) -> dict[str, str]:
     return properties
 
 
-def find_network_interface(serial: str) -> str:
+def find_network_interfaces(serial: str) -> list[str]:
     matches: list[str] = []
     for interface_path in Path("/sys/class/net").iterdir():
         try:
@@ -196,11 +196,37 @@ def find_network_interface(serial: str) -> str:
             and properties.get("ID_SERIAL_SHORT") == serial
         ):
             matches.append(interface_path.name)
+    return matches
+
+
+def _require_single_network_interface(serial: str, matches: list[str]) -> str:
     if len(matches) != 1:
         raise FirmwareError(
             f"expected one USB-network interface for Pluto {serial}; found {matches}"
         )
     return matches[0]
+
+
+def find_network_interface(serial: str) -> str:
+    return _require_single_network_interface(serial, find_network_interfaces(serial))
+
+
+def wait_for_network_interface(
+    serial: str, *, timeout: float = 5.0, poll_interval: float = 0.1
+) -> str:
+    """Wait through the short root-namespace restoration visibility gap."""
+
+    if timeout < 0 or poll_interval < 0:
+        raise ValueError("network-interface wait controls must be non-negative")
+    deadline = time.monotonic() + timeout
+    while True:
+        matches = find_network_interfaces(serial)
+        if len(matches) == 1:
+            return matches[0]
+        # Multiple matches are an identity ambiguity, not a readiness delay.
+        if len(matches) > 1 or time.monotonic() >= deadline:
+            return _require_single_network_interface(serial, matches)
+        time.sleep(poll_interval)
 
 
 def _capture_interface_state(interface: str) -> InterfaceState:
@@ -242,7 +268,10 @@ class IsolatedPlutoNetwork:
         self.state: InterfaceState | None = None
 
     def __enter__(self) -> "IsolatedPlutoNetwork":
-        interface = find_network_interface(self.serial)
+        # A prior serial-scoped SSH call moves this interface into a temporary
+        # namespace and then restores it. Netlink can expose it in the root
+        # namespace a fraction before udev properties are queryable there.
+        interface = wait_for_network_interface(self.serial)
         self.state = _capture_interface_state(interface)
         _run(["ip", "netns", "add", self.namespace])
         try:

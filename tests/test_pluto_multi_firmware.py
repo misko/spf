@@ -13,6 +13,7 @@ from spf.scripts.pluto_multi_firmware import (
     parse_device_fw_version,
     parse_uboot_environment,
     read_passive_device_facts,
+    wait_for_network_interface,
 )
 
 
@@ -111,6 +112,34 @@ def test_parse_device_fw_version():
         )
         == "v0.37-dirty"
     )
+
+
+def test_network_interface_wait_retries_transient_restore_gap(monkeypatch):
+    observations = iter([[], [], ["eth1"]])
+    monkeypatch.setattr(
+        firmware_module,
+        "find_network_interfaces",
+        lambda serial: next(observations),
+    )
+    monkeypatch.setattr(firmware_module.time, "sleep", lambda seconds: None)
+
+    assert (
+        wait_for_network_interface("SERIAL_A", timeout=5, poll_interval=0.1)
+        == "eth1"
+    )
+
+
+def test_network_interface_wait_rejects_ambiguous_identity_without_retry(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        firmware_module,
+        "find_network_interfaces",
+        lambda serial: ["eth1", "eth2"],
+    )
+
+    with pytest.raises(FirmwareError, match=r"found \['eth1', 'eth2'\]"):
+        wait_for_network_interface("SERIAL_A", timeout=5)
 
 
 def test_parse_passive_device_facts_uses_strict_allowlist():
