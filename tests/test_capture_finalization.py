@@ -66,21 +66,26 @@ class _QueuedReadThread:
 
 
 class _WriterConcurrencyProbe(DataCollector):
-    def __init__(self, records):
+    def __init__(self, records, receiver_count=1):
         self._probe_lock = threading.Lock()
-        self.active_by_receiver = [0]
-        self.max_active_by_receiver = [0]
+        self.active_by_receiver = [0] * receiver_count
+        self.max_active_by_receiver = [0] * receiver_count
+        self.active_global = 0
+        self.max_active_global = 0
+        self.first_record_barrier = (
+            threading.Barrier(receiver_count) if receiver_count > 1 else None
+        )
         self.write_order = []
         super().__init__(
             yaml_config={
-                "receivers": [{}],
+                "receivers": [{} for _ in range(receiver_count)],
                 "n-records-per-receiver": len(records),
             },
             data_filename=None,
             position_controller=None,
             thread_class=None,
         )
-        self.read_threads = [_QueuedReadThread(records)]
+        self.read_threads = [_QueuedReadThread(records) for _ in range(receiver_count)]
 
     def setup_record_matrix(self):
         pass
@@ -88,15 +93,20 @@ class _WriterConcurrencyProbe(DataCollector):
     def write_to_record_matrix(self, thread_idx, record_idx, data):
         with self._probe_lock:
             self.active_by_receiver[thread_idx] += 1
+            self.active_global += 1
             self.max_active_by_receiver[thread_idx] = max(
                 self.max_active_by_receiver[thread_idx],
                 self.active_by_receiver[thread_idx],
             )
+            self.max_active_global = max(self.max_active_global, self.active_global)
+        if record_idx == 0 and self.first_record_barrier is not None:
+            self.first_record_barrier.wait(timeout=2)
         # Make overlap deterministic with the old shared two-worker executor.
         time.sleep(0.02)
         with self._probe_lock:
             self.write_order.append((thread_idx, record_idx, data))
             self.active_by_receiver[thread_idx] -= 1
+            self.active_global -= 1
 
 
 def test_records_for_one_receiver_are_written_serially_in_fifo_order():
@@ -108,6 +118,23 @@ def test_records_for_one_receiver_are_written_serially_in_fifo_order():
     assert collector.max_active_by_receiver == [1]
     assert collector.write_order == [(0, index, index) for index in records]
     assert collector.records_written_by_receiver == [len(records)]
+
+
+def test_receivers_write_in_parallel_but_each_remains_fifo():
+    records = list(range(10))
+    collector = _WriterConcurrencyProbe(records, receiver_count=2)
+
+    collector.run_inner_collector_thread()
+
+    assert collector.max_active_by_receiver == [1, 1]
+    assert collector.max_active_global == 2
+    for receiver_idx in range(2):
+        assert [
+            record_idx
+            for observed_receiver, record_idx, _data in collector.write_order
+            if observed_receiver == receiver_idx
+        ] == records
+    assert collector.records_written_by_receiver == [len(records), len(records)]
 
 
 def test_disconnect_preserves_primary_error_and_finalizes_partial_zarr(

@@ -284,3 +284,10 @@ below the 64 MiB bound, and the final channel RMS values were 13.65 and 13.39.
 The simultaneous-radio case was the sole skip because the fixture required
 exactly one attached radio for this run. Evidence is under
 `/tmp/spf-p0-post-soak-quick-20260801`.
+
+While `.17` remained unavailable, a deterministic two-receiver writer test
+was added. A barrier proves both receiver groups can write concurrently, while
+per-receiver active counts and recorded indices prove each radio remains
+single-writer and FIFO. The focused finalization file passed all 11 tests. This
+is software evidence for the dual-radio writer topology; it does not replace
+the pending exact-count-two hardware campaign.
