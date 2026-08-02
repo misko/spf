@@ -101,6 +101,7 @@ def test_no_arguments_prints_operational_cheatsheet(capsys):
     assert "sudo systemctl stop mavlink_controller.service" in output
     assert "compass --repair --yes --parameter-timeout 60" in output
     assert "magcal start --yes --mask 1 --retry --monitor-seconds 300" in output
+    assert "accelcal start --yes" in output
     assert "sudo systemctl restart mavlink_controller.service" in output
     assert "exit codes:" in output
 
@@ -512,3 +513,149 @@ def test_magcal_command_prints_ack_and_events_without_waiting_for_timeout(
     assert output.count("magcal start: MAV_RESULT_ACCEPTED") == 1
     assert "Compass 0: MAG_CAL_RUNNING_STEP_ONE, 51%" in output
     assert "Compass 0: MAG_CAL_SUCCESS, fitness=4.5 autosaved=1" in output
+
+
+def command_ack(command, result=mavutil.mavlink.MAV_RESULT_ACCEPTED):
+    return FakeMessage(
+        message_type="COMMAND_ACK",
+        command=command,
+        result=result,
+    )
+
+
+def accelcal_position(position):
+    return FakeMessage(
+        message_type="COMMAND_LONG",
+        command=mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS,
+        param1=float(position),
+    )
+
+
+def test_accelcal_requires_explicit_confirmation_before_connect(monkeypatch, capsys):
+    monkeypatch.setattr(
+        ardu_cli,
+        "_connect",
+        lambda args: pytest.fail("accelcal without --yes must not connect"),
+    )
+
+    assert ardu_cli.main(["accelcal", "start"]) == 2
+    assert "repeat with --yes" in capsys.readouterr().err
+
+
+def test_accelcal_refuses_armed_vehicle(monkeypatch, capsys):
+    monkeypatch.setattr(
+        ardu_cli,
+        "_connect",
+        lambda args: (FakeConnection(), heartbeat(armed=True), "fake"),
+    )
+
+    assert ardu_cli.main(["accelcal", "start", "--yes"]) == 2
+    assert "vehicle is armed" in capsys.readouterr().err
+
+
+def test_accelcal_wire_commands_match_ardupilot_protocol():
+    connection = FakeConnection()
+
+    ardu_cli.send_accelcal_start(connection)
+    ardu_cli.send_accelcal_position(connection, 4)
+
+    start, position = connection.mav.commands
+    assert start[:4] == (
+        1,
+        1,
+        mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION,
+        0,
+    )
+    assert start[4:] == (0, 0, 0, 0, 1, 0, 0)
+    assert position[:4] == (
+        1,
+        1,
+        mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS,
+        0,
+    )
+    assert position[4:] == (4, 0, 0, 0, 0, 0, 0)
+
+
+def test_run_accelcal_guides_all_six_poses_and_requires_terminal_success():
+    messages = [command_ack(mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION)]
+    for position in range(1, 7):
+        messages.extend(
+            [
+                accelcal_position(position),
+                command_ack(mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS),
+            ]
+        )
+    messages.append(accelcal_position(mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS))
+    connection = FakeConnection(messages)
+    prompts = []
+    output = []
+
+    report = ardu_cli.run_accelcal(
+        connection,
+        command_timeout_s=0.01,
+        pose_timeout_s=0.01,
+        result_timeout_s=0.01,
+        input_fn=lambda prompt: prompts.append(prompt) or "",
+        output_fn=output.append,
+    )
+
+    assert report["success"] is True
+    assert report["poses_completed"] == [1, 2, 3, 4, 5, 6]
+    assert len(prompts) == 6
+    rendered = "\n".join(output)
+    for title in (
+        "LEVEL",
+        "LEFT SIDE",
+        "RIGHT SIDE",
+        "NOSE DOWN",
+        "NOSE UP",
+        "UPSIDE DOWN",
+    ):
+        assert title in rendered
+    assert [command[2] for command in connection.mav.commands] == [
+        mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION,
+        *([mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS] * 6),
+    ]
+
+
+def test_run_accelcal_fails_closed_on_out_of_order_pose():
+    connection = FakeConnection(
+        [
+            command_ack(mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION),
+            accelcal_position(2),
+        ]
+    )
+
+    with pytest.raises(ardu_cli.CliError, match="requested pose 2, expected 1"):
+        ardu_cli.run_accelcal(
+            connection,
+            command_timeout_s=0.01,
+            pose_timeout_s=0.01,
+            result_timeout_s=0.01,
+            input_fn=lambda prompt: "",
+        )
+
+
+def test_run_accelcal_reports_terminal_failure():
+    messages = [command_ack(mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION)]
+    for position in range(1, 7):
+        messages.extend(
+            [
+                accelcal_position(position),
+                command_ack(mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS),
+            ]
+        )
+    messages.append(accelcal_position(mavutil.mavlink.ACCELCAL_VEHICLE_POS_FAILED))
+    connection = FakeConnection(messages)
+
+    report = ardu_cli.run_accelcal(
+        connection,
+        command_timeout_s=0.01,
+        pose_timeout_s=0.01,
+        result_timeout_s=0.01,
+        input_fn=lambda prompt: "",
+        output_fn=lambda message: None,
+    )
+
+    assert report["success"] is False
+    assert report["failure"] == "flight controller reported failure"

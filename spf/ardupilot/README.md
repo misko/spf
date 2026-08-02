@@ -1,7 +1,7 @@
 # ArduPilot rover CLI
 
 `ardu_cli.py` is the guarded command-line front end for ArduPilot inspection
-and compass calibration on an SPF rover.
+and sensor calibration on an SPF rover.
 
 Run it without arguments for the authoritative on-rover command cheatsheet:
 
@@ -77,6 +77,24 @@ returns early when ArduPilot sends the terminal calibration report.
 
 Use `--no-autosave` on `magcal start` only for a deliberate review-before-save
 workflow; after reviewing the reports, save it with `magcal accept --yes`.
+
+## Accelerometer calibration
+
+The CLI supports ArduPilot's full interactive six-position calibration. Stop
+the production service first because it normally owns the flight-controller
+USB serial link, make the assembled rover safe and disarmed, then run:
+
+```bash
+sudo systemctl stop mavlink_controller.service
+python -m spf.ardupilot.ardu_cli accelcal start --yes
+```
+
+The command prints the complete pose plan, then waits for ArduPilot to request
+each pose: level, left side, right side, nose down, nose up, and upside down.
+It waits for Enter before acknowledging each stable pose and fails closed on an
+unexpected pose, rejected acknowledgement, timeout, or missing terminal result.
+After a successful save, reboot ArduPilot and run `ardu_cli prearm` before
+restoring production.
 
 The CLI refuses direct-serial access while `mavlink_controller.service` is
 active. Calibration actions additionally refuse an armed vehicle and require

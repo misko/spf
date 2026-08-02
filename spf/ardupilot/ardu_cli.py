@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guarded ArduPilot inspection and compass-calibration CLI.
+"""Guarded ArduPilot inspection and calibration CLI.
 
 Exit codes:
     0  Query completed and the requested health/policy check passed.
@@ -81,6 +81,41 @@ MAGCAL_COMMANDS = {
     "cancel": mavutil.mavlink.MAV_CMD_DO_CANCEL_MAG_CAL,
 }
 
+ACCELCAL_START_COMMAND = mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION
+ACCELCAL_POSITION_COMMAND = mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS
+ACCELCAL_ACCEPTED_RESULTS = {
+    mavutil.mavlink.MAV_RESULT_ACCEPTED,
+    mavutil.mavlink.MAV_RESULT_IN_PROGRESS,
+}
+ACCELCAL_POSES = {
+    mavutil.mavlink.ACCELCAL_VEHICLE_POS_LEVEL: (
+        "LEVEL",
+        "Place the rover normally on a level surface.",
+    ),
+    mavutil.mavlink.ACCELCAL_VEHICLE_POS_LEFT: (
+        "LEFT SIDE",
+        "Place the rover on its left side.",
+    ),
+    mavutil.mavlink.ACCELCAL_VEHICLE_POS_RIGHT: (
+        "RIGHT SIDE",
+        "Place the rover on its right side.",
+    ),
+    mavutil.mavlink.ACCELCAL_VEHICLE_POS_NOSEDOWN: (
+        "NOSE DOWN",
+        "Place the rover nose down.",
+    ),
+    mavutil.mavlink.ACCELCAL_VEHICLE_POS_NOSEUP: (
+        "NOSE UP",
+        "Place the rover nose up.",
+    ),
+    mavutil.mavlink.ACCELCAL_VEHICLE_POS_BACK: (
+        "UPSIDE DOWN",
+        "Place the rover upside down, on its back.",
+    ),
+}
+ACCELCAL_SUCCESS = mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS
+ACCELCAL_FAILED = mavutil.mavlink.ACCELCAL_VEHICLE_POS_FAILED
+
 CLI_CHEATSHEET = """quick reference:
   # Direct serial has one owner; stop production before using this CLI.
   sudo systemctl stop mavlink_controller.service
@@ -98,6 +133,10 @@ CLI_CHEATSHEET = """quick reference:
   python -m spf.ardupilot.ardu_cli magcal start --yes --mask 1 --retry --monitor-seconds 300
   python -m spf.ardupilot.ardu_cli magcal monitor --timeout 10
   python -m spf.ardupilot.ardu_cli magcal cancel --yes --mask 1
+
+  # Full six-position accelerometer calibration. The CLI prints every pose and
+  # waits for Enter only after the assembled, disarmed rover is motionless.
+  python -m spf.ardupilot.ardu_cli accelcal start --yes
 
   # Restore production only after compass/prearm checks pass.
   sudo systemctl restart mavlink_controller.service
@@ -757,6 +796,224 @@ def command_magcal(args: argparse.Namespace) -> int:
     return 0 if (action != "monitor" or events) else 1
 
 
+def send_accelcal_start(connection) -> None:
+    """Start ArduPilot's full six-position accelerometer calibration."""
+    connection.mav.command_long_send(
+        connection.target_system,
+        connection.target_component,
+        ACCELCAL_START_COMMAND,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+    )
+
+
+def send_accelcal_position(connection, position: int) -> None:
+    """Confirm that the vehicle is motionless in the requested position."""
+    connection.mav.command_long_send(
+        connection.target_system,
+        connection.target_component,
+        ACCELCAL_POSITION_COMMAND,
+        0,
+        position,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+
+def _accelcal_terminal_from_message(message) -> bool | None:
+    """Return terminal success/failure, or ``None`` for a non-terminal event."""
+    if message.get_type() == "COMMAND_LONG":
+        if int(message.command) != ACCELCAL_POSITION_COMMAND:
+            return None
+        position = int(round(float(message.param1)))
+        if position == ACCELCAL_SUCCESS:
+            return True
+        if position == ACCELCAL_FAILED:
+            return False
+        return None
+
+    text = str(getattr(message, "text", "")).lower()
+    if "calibration successful" in text:
+        return True
+    if "calibration failed" in text or "calibration cancelled" in text:
+        return False
+    return None
+
+
+def _wait_accelcal_event(connection, timeout_s: float):
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        remaining = max(0.0, deadline - time.monotonic())
+        message = connection.recv_match(
+            type=["COMMAND_LONG", "STATUSTEXT"],
+            blocking=True,
+            timeout=min(0.5, remaining),
+        )
+        if message is None:
+            continue
+        terminal = _accelcal_terminal_from_message(message)
+        if terminal is not None:
+            return ("terminal", terminal, message)
+        if (
+            message.get_type() == "COMMAND_LONG"
+            and int(message.command) == ACCELCAL_POSITION_COMMAND
+        ):
+            position = int(round(float(message.param1)))
+            if position in ACCELCAL_POSES:
+                return ("pose", position, message)
+    return None
+
+
+def run_accelcal(
+    connection,
+    *,
+    command_timeout_s: float,
+    pose_timeout_s: float,
+    result_timeout_s: float,
+    input_fn=input,
+    output_fn=print,
+) -> dict[str, Any]:
+    """Run the complete interactive accelerometer-calibration state machine."""
+    send_accelcal_start(connection)
+    ack = _wait_command_ack(connection, ACCELCAL_START_COMMAND, command_timeout_s)
+    if ack is None:
+        raise CliError("no COMMAND_ACK received when starting accelcal")
+    start_result = int(ack.result)
+    if start_result not in ACCELCAL_ACCEPTED_RESULTS:
+        return {
+            "success": False,
+            "start_result": start_result,
+            "start_result_name": _mav_result_name(start_result),
+            "poses_completed": [],
+            "failure": "start command rejected",
+        }
+
+    completed: list[int] = []
+    expected_position = min(ACCELCAL_POSES)
+    while expected_position <= max(ACCELCAL_POSES):
+        event = _wait_accelcal_event(connection, pose_timeout_s)
+        if event is None:
+            raise CliError(
+                f"timed out waiting for accelerometer pose {expected_position}/6"
+            )
+        event_type, value, _message = event
+        if event_type == "terminal":
+            return {
+                "success": bool(value),
+                "start_result": start_result,
+                "start_result_name": _mav_result_name(start_result),
+                "poses_completed": completed,
+                "failure": None if value else "flight controller reported failure",
+            }
+
+        position = int(value)
+        if position < expected_position:
+            # ArduPilot periodically repeats its current request. Ignore a stale
+            # request already acknowledged by this process.
+            continue
+        if position != expected_position:
+            raise CliError(
+                f"flight controller requested pose {position}, expected "
+                f"{expected_position}; refusing to guess calibration state"
+            )
+
+        title, instruction = ACCELCAL_POSES[position]
+        output_fn(f"Step {position}/6 — {title}")
+        output_fn(f"  {instruction}")
+        output_fn(
+            "  Hold the complete rover still; do not support it by a moving part."
+        )
+        try:
+            input_fn("  Press Enter when stable (Ctrl-C aborts): ")
+        except EOFError as error:
+            raise CliError(
+                "accelcal requires an interactive terminal for pose confirmation"
+            ) from error
+
+        send_accelcal_position(connection, position)
+        pose_ack = _wait_command_ack(
+            connection, ACCELCAL_POSITION_COMMAND, command_timeout_s
+        )
+        if pose_ack is None:
+            raise CliError(f"no COMMAND_ACK received for pose {position}/6")
+        pose_result = int(pose_ack.result)
+        if pose_result not in ACCELCAL_ACCEPTED_RESULTS:
+            return {
+                "success": False,
+                "start_result": start_result,
+                "start_result_name": _mav_result_name(start_result),
+                "poses_completed": completed,
+                "failure": (
+                    f"pose {position}/6 rejected: {_mav_result_name(pose_result)}"
+                ),
+            }
+        completed.append(position)
+        expected_position += 1
+
+    event = _wait_accelcal_event(connection, result_timeout_s)
+    if event is None or event[0] != "terminal":
+        raise CliError(
+            "all poses were accepted but no terminal calibration result was received"
+        )
+    success = bool(event[1])
+    return {
+        "success": success,
+        "start_result": start_result,
+        "start_result_name": _mav_result_name(start_result),
+        "poses_completed": completed,
+        "failure": None if success else "flight controller reported failure",
+    }
+
+
+def _print_accelcal_pose_plan() -> None:
+    print("Full accelerometer calibration requires these six poses:")
+    for position, (title, instruction) in ACCELCAL_POSES.items():
+        print(f"  {position}. {title}: {instruction}")
+
+
+def command_accelcal(args: argparse.Namespace) -> int:
+    if not args.yes:
+        raise CliError(
+            "accelcal changes flight-controller calibration state; repeat with "
+            "--yes after making the disarmed rover physically safe"
+        )
+    if args.json or args.json_output:
+        raise CliError("interactive accelcal does not support JSON output")
+
+    connection, heartbeat, master = _connect(args)
+    if _armed(heartbeat):
+        raise CliError("vehicle is armed; refusing accelcal")
+
+    print(f"Connected to {master}")
+    print(
+        "Keep the assembled rover disarmed and motionless while each sample is taken."
+    )
+    print("The first command also calibrates the gyros; do not move it until prompted.")
+    _print_accelcal_pose_plan()
+    report = run_accelcal(
+        connection,
+        command_timeout_s=args.command_timeout,
+        pose_timeout_s=args.pose_timeout,
+        result_timeout_s=args.result_timeout,
+    )
+    if report["success"]:
+        print("PASS: accelerometer calibration saved successfully.")
+        print("Reboot ArduPilot, then run: python -m spf.ardupilot.ardu_cli prearm")
+        return 0
+    print(f"FAIL: accelerometer calibration failed: {report['failure']}")
+    return 1
+
+
 def _add_connection_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--master",
@@ -778,7 +1035,7 @@ def _add_connection_options(parser: argparse.ArgumentParser) -> None:
 
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Inspect an SPF rover's ArduPilot and manage compass calibration.",
+        description="Inspect an SPF rover's ArduPilot and manage sensor calibration.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=CLI_CHEATSHEET,
     )
@@ -866,6 +1123,35 @@ def get_parser() -> argparse.ArgumentParser:
         ),
     )
     monitor.set_defaults(handler=command_magcal)
+
+    accelcal = subparsers.add_parser(
+        "accelcal",
+        help="Run guarded, interactive six-position accelerometer calibration.",
+    )
+    accelcal_subparsers = accelcal.add_subparsers(dest="accelcal_action", required=True)
+    accelcal_start = accelcal_subparsers.add_parser(
+        "start", help="Start and complete all six accelerometer poses."
+    )
+    _add_connection_options(accelcal_start)
+    accelcal_start.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm persistent accelerometer calibration changes.",
+    )
+    accelcal_start.add_argument("--command-timeout", type=float, default=10.0)
+    accelcal_start.add_argument(
+        "--pose-timeout",
+        type=float,
+        default=120.0,
+        help="Maximum seconds to wait for each pose request.",
+    )
+    accelcal_start.add_argument(
+        "--result-timeout",
+        type=float,
+        default=60.0,
+        help="Maximum seconds to wait for the saved terminal result.",
+    )
+    accelcal_start.set_defaults(handler=command_accelcal)
     return parser
 
 

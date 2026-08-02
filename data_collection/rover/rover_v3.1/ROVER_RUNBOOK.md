@@ -369,7 +369,15 @@ mavproxy.py --master /dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0G4IOK-if00-
 ```
 
 1. **Load base parameters** (the `setup.sh` provisioning installs the ArduPilot settings; the boot flow also enforces them — see §4).
-2. **Accel calibration.**
+2. **Accel calibration.** Stop production, then run the guarded interactive
+   CLI. It prints and verifies the six ArduPilot poses (level, left, right,
+   nose down, nose up, and upside down):
+   ```bash
+   sudo systemctl stop mavlink_controller.service
+   python -m spf.ardupilot.ardu_cli accelcal start --yes
+   ```
+   Reboot ArduPilot and run `python -m spf.ardupilot.ardu_cli prearm` before
+   restoring production.
 3. **Compass / magcal** (`magcal start` then accept via mavproxy/Mission Planner). **Do this every collection era** — a skipped magcal is the traced root cause of the Dec–Feb heading bias (−0.14…−0.33 rad); it will trip `FLAG:heading` in the post-run scan.
 4. **Set `SYSID_THISMAV`** — unique MAVLink system id per rover.
 5. **Backup parameters** (verify the backup actually succeeded — see MP-2: a failed diff can exit 0).
