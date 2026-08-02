@@ -217,7 +217,7 @@ def test_every_production_rover_pins_supervised_v3_firmware(rover_id):
     assert plan.firmware_image_sha256 == (
         "86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191"
     )
-    assert plan.firmware_git_sha == "dac99758f265adcfdda989d347689b970ad13f5c"
+    assert plan.firmware_git_sha == "f53dd006c26677a256520b86b7c864100ccd62d2"
     assert plan.gadget_git_sha == "2072e1d0823ef6db3bc141dd733a90d76e23fc33"
     assert plan.firmware_boot_mode == "qspi"
     assert (
