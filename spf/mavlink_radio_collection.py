@@ -495,37 +495,40 @@ if __name__ == "__main__":
         force=True,
     )
 
-    # wait for it to release control back, that happens when this goes false
-    seconds_to_wait = 60
-    while seconds_to_wait > 0 and drone.is_planner_in_control():
-        time.sleep(2)
-        seconds_to_wait -= 2
+    if not args.fake_drone:
+        # wait for it to release control back, that happens when this goes false
+        seconds_to_wait = 60
+        while seconds_to_wait > 0 and drone.is_planner_in_control():
+            time.sleep(2)
+            seconds_to_wait -= 2
 
-    # Post-capture navigation is operationally important, but the Zarr above
-    # is already finalized, renamed and durably reported complete. Keep those
-    # two outcomes separate if MAVLink fails while parking the rover.
-    try:
-        if not drone.move_to_home():
-            raise RuntimeError("return-home operation did not reach home")
-    except BaseException as error:
-        incident_id = uuid.uuid4().hex
-        if status_writer is not None:
-            status_writer.publish(
-                "complete",
-                data_collector.records_written_by_receiver,
-                error=error,
+        # Post-capture navigation is operationally important, but the Zarr above
+        # is already finalized, renamed and durably reported complete. Keep those
+        # two outcomes separate if MAVLink fails while parking the rover. A
+        # fake-drone capture has no MAVLink vehicle or home and deliberately
+        # stops after validating the capture artifact.
+        try:
+            if not drone.move_to_home():
+                raise RuntimeError("return-home operation did not reach home")
+        except BaseException as error:
+            incident_id = uuid.uuid4().hex
+            if status_writer is not None:
+                status_writer.publish(
+                    "complete",
+                    data_collector.records_written_by_receiver,
+                    error=error,
+                    incident_id=incident_id,
+                    error_source="post_capture_navigation",
+                    artifact=final_filenames["data"],
+                    force=True,
+                )
+            drone.request_motion_stop(f"post-capture navigation incident {incident_id}")
+            drone.wait_for_abort_hold(timeout_seconds=2.0)
+            terminate_capture_process(
+                error,
                 incident_id=incident_id,
                 error_source="post_capture_navigation",
-                artifact=final_filenames["data"],
-                force=True,
             )
-        drone.request_motion_stop(f"post-capture navigation incident {incident_id}")
-        drone.wait_for_abort_hold(timeout_seconds=2.0)
-        terminate_capture_process(
-            error,
-            incident_id=incident_id,
-            error_source="post_capture_navigation",
-        )
 
     if is_pi() and not args.fake_drone:
         time.sleep(5)
