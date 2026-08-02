@@ -111,12 +111,15 @@ def test_runtime_status_accounts_for_completed_frames(attached_plutos, pytestcon
             serial=radio.serial, protocol_version=2
         ) as receiver:
             before = receiver.query_runtime_status()
-            capture = receiver.capture(
-                samples_per_channel=samples,
-                frame_count=frames_per_request,
+            frames = list(
+                receiver.stream_frames(
+                    samples_per_channel=samples,
+                    frame_count=frames_per_request,
+                    queue_depth=1,
+                )
             )
             after = receiver.query_runtime_status()
-        assert len(capture.frames) == frames_per_request
+        assert len(frames) == frames_per_request
         assert after.lifecycle_state == RuntimeState.IDLE
         assert after.process_nonce == before.process_nonce
         assert after.start_count == before.start_count + 1
@@ -206,6 +209,25 @@ def _simultaneous_capture(serial: str, samples: int, frames: int) -> dict:
     }
 
 
+def _simultaneous_rolling_stream(serial: str, samples: int, frames: int) -> dict:
+    with PlutoDirectUsbReceiver(serial=serial, protocol_version=2) as receiver:
+        received = list(
+            receiver.stream_frames(
+                samples_per_channel=samples,
+                frame_count=frames,
+                queue_depth=1,
+            )
+        )
+    for frame in received:
+        _validate_frame(frame, samples)
+    return {
+        "serial": serial,
+        "frames": len(received),
+        "stream_ids": len({frame.metadata.stream_id for frame in received}),
+        "sequences": [frame.metadata.buffer_sequence for frame in received],
+    }
+
+
 def test_simultaneous_radios(attached_plutos, pytestconfig, radio_report_dir):
     if len(attached_plutos) < 2:
         pytest.skip("simultaneous capture requires at least two selected radios")
@@ -228,5 +250,36 @@ def test_simultaneous_radios(attached_plutos, pytestconfig, radio_report_dir):
         radio.serial for radio in attached_plutos
     }
     (radio_report_dir / "simultaneous_capture.json").write_text(
+        json.dumps(results, indent=2) + "\n"
+    )
+
+
+def test_simultaneous_rolling_streams(attached_plutos, pytestconfig, radio_report_dir):
+    if len(attached_plutos) < 2:
+        pytest.skip("simultaneous streaming requires at least two selected radios")
+    samples = pytestconfig.getoption("--radio-samples")
+    frames = pytestconfig.getoption("--radio-frames-per-request")
+    assert frames > 1
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=len(attached_plutos)
+    ) as executor:
+        futures = [
+            executor.submit(
+                _simultaneous_rolling_stream,
+                radio.serial,
+                samples,
+                frames,
+            )
+            for radio in attached_plutos
+        ]
+        results = [future.result() for future in futures]
+    assert {result["serial"] for result in results} == {
+        radio.serial for radio in attached_plutos
+    }
+    for result in results:
+        assert result["frames"] == frames
+        assert result["stream_ids"] == 1
+        assert result["sequences"] == list(range(frames))
+    (radio_report_dir / "simultaneous_rolling_stream.json").write_text(
         json.dumps(results, indent=2) + "\n"
     )

@@ -813,6 +813,8 @@ class PPlus:
         # try to fix issue with radios coming online
         self.sdr = adi.ad9361(uri=self.uri)
         self.direct_rx = None
+        self._direct_frame_stream = None
+        self._direct_frames_remaining = 0
         self.close_tx()
         # self.sdr = None
         time.sleep(0.5)
@@ -858,30 +860,49 @@ class PPlus:
     def _capture_direct_frame(self):
         if self.direct_rx is None:
             raise RuntimeError("direct USB RX transport is not open")
-        from spf.sdrpluto.direct_usb_receiver import (
-            DirectUsbStreamDiscontinuityError,
-            iq_payload_to_complex64,
-        )
+        from spf.sdrpluto.direct_usb_receiver import iq_payload_to_complex64
 
-        capture = self.direct_rx.capture(
-            samples_per_channel=self.rx_config.buffer_size,
-            frame_count=1,
-        )
-        if capture.recovered_after_transport_loss:
-            # The replacement device and its observable configuration were
-            # attested before START, but its sequence restarted at a new stream
-            # epoch. Never append that epoch to the Zarr whose continuity was
-            # just broken; the outer supervisor may start a new capture file.
-            raise DirectUsbStreamDiscontinuityError(
-                "direct USB recovered and re-attested after transport loss; "
-                "start a new capture artifact instead of appending the "
-                f"restarted stream ({capture.transport_loss_summary})"
+        if self._direct_frame_stream is None:
+            frame_count = self.rx_config.direct_usb_frame_count_per_request
+            self._direct_frame_stream = self.direct_rx.stream_frames(
+                samples_per_channel=self.rx_config.buffer_size,
+                frame_count=frame_count,
+                queue_depth=1,
             )
-        if len(capture.frames) != 1:
-            raise RuntimeError(
-                f"direct USB returned {len(capture.frames)} frames, expected one"
-            )
-        frame = capture.frames[0]
+            self._direct_frames_remaining = frame_count
+        stream = self._direct_frame_stream
+        try:
+            frame = next(stream)
+        except BaseException:
+            try:
+                stream.close()
+            except Exception:
+                logging.exception("failed to close direct USB frame stream")
+            self._direct_frame_stream = None
+            self._direct_frames_remaining = 0
+            raise
+        self._direct_frames_remaining -= 1
+        if self._direct_frames_remaining == 0:
+            try:
+                extra_frame = next(stream)
+            except StopIteration:
+                self._direct_frame_stream = None
+            except BaseException:
+                try:
+                    stream.close()
+                except Exception:
+                    logging.exception("failed to close direct USB frame stream")
+                self._direct_frame_stream = None
+                self._direct_frames_remaining = 0
+                raise
+            else:
+                stream.close()
+                self._direct_frame_stream = None
+                self._direct_frames_remaining = 0
+                raise RuntimeError(
+                    "direct USB frame stream exceeded its requested finite count: "
+                    f"unexpected sequence {extra_frame.metadata.buffer_sequence}"
+                )
         metadata = frame.metadata
         signal_matrix = iq_payload_to_complex64(
             frame.iq_payload, metadata.samples_per_channel
@@ -1293,6 +1314,14 @@ class PPlus:
 
     def close_rx(self):
         failures = []
+        direct_frame_stream = getattr(self, "_direct_frame_stream", None)
+        self._direct_frame_stream = None
+        self._direct_frames_remaining = 0
+        if direct_frame_stream is not None:
+            try:
+                direct_frame_stream.close()
+            except Exception as error:
+                failures.append(("close direct USB frame stream", error))
         direct_rx = getattr(self, "direct_rx", None)
         self.direct_rx = None
         if direct_rx is not None:
@@ -1316,11 +1345,8 @@ class PPlus:
     def _open_direct_rx(self):
         if self.rx_config.direct_usb_protocol_version not in (1, 2):
             raise ValueError("SPF supports direct USB metadata protocol v1 or v2")
-        if self.rx_config.direct_usb_frame_count_per_request != 1:
-            raise ValueError(
-                "the synchronous direct USB receiver requires "
-                "frame-count-per-request: 1"
-            )
+        if self.rx_config.direct_usb_frame_count_per_request <= 0:
+            raise ValueError("direct USB frame-count-per-request must be positive")
         iio_serial = self._iio_hardware_serial()
         configured_serial = self.rx_config.direct_usb_serial
         if (
@@ -1349,6 +1375,17 @@ class PPlus:
             reconnect_attestor=self._attest_direct_usb_reconnect,
         )
         self.direct_rx.open()
+        if (
+            self.rx_config.direct_usb_frame_count_per_request
+            > self.direct_rx.capabilities.max_finite_frames
+        ):
+            maximum = self.direct_rx.capabilities.max_finite_frames
+            self.direct_rx.close()
+            self.direct_rx = None
+            raise ValueError(
+                "direct USB frame-count-per-request exceeds gadget capability: "
+                f"{self.rx_config.direct_usb_frame_count_per_request} > {maximum}"
+            )
         if iio_serial is not None and self.direct_rx.identity.serial != iio_serial:
             direct_serial = self.direct_rx.identity.serial
             self.direct_rx.close()

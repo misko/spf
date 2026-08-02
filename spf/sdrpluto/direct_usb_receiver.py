@@ -7,7 +7,7 @@ import dataclasses
 import gc
 import logging
 import time
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Generator, Iterable, Iterator
 from typing import Any
 
 import numpy as np
@@ -206,6 +206,7 @@ class PlutoDirectUsbReceiver:
         self._recovery_runtime_status: RuntimeStatusV1 | None = None
         self._terminal_recovery_error: Exception | None = None
         self._detached_kernel_driver = False
+        self._active_stream: Generator[DirectUsbRxFrame, None, None] | None = None
 
     @property
     def identity(self) -> DirectUsbIdentity:
@@ -387,6 +388,10 @@ class PlutoDirectUsbReceiver:
         )
 
     def close(self) -> None:
+        active_stream = self._active_stream
+        self._active_stream = None
+        if active_stream is not None:
+            active_stream.close()
         handle = self._handle
         identity = self._identity
         context = self._context
@@ -413,6 +418,8 @@ class PlutoDirectUsbReceiver:
         samples_per_channel: int,
         frame_count: int = 1,
     ) -> DirectUsbCapture:
+        if self._active_stream is not None:
+            raise RuntimeError("a direct USB frame stream is already active")
         if self._terminal_recovery_error is not None:
             raise DirectUsbRecoveryError(
                 "direct USB receiver is terminal after failed recovery; "
@@ -489,20 +496,131 @@ class PlutoDirectUsbReceiver:
                 transport_loss_summary=f"{type(error).__name__}: {error}",
             )
 
-    def _mark_terminal_recovery_failure(self, error: Exception) -> None:
-        self._terminal_recovery_error = error
-        with contextlib.suppress(usb1.USBError, AttributeError):
-            self.close()
-
-    def _capture_once(
+    def stream_frames(
         self,
         *,
         samples_per_channel: int,
         frame_count: int,
-    ) -> DirectUsbCapture:
+        queue_depth: int = 1,
+    ) -> Generator[DirectUsbRxFrame, None, None]:
+        """Yield a bounded frame group under one START/STOP lifecycle.
+
+        Only ``queue_depth`` USB transfers are resident at once. A completed
+        transfer is copied and immediately resubmitted for the next frame,
+        avoiding both per-frame radio teardown and usbfs memory growth. A
+        transport loss terminates the stream: callers must start a new capture
+        artifact rather than append a restarted stream epoch.
+        """
+
+        if self._active_stream is not None:
+            raise RuntimeError("a direct USB frame stream is already active")
+        if self._terminal_recovery_error is not None:
+            raise DirectUsbRecoveryError(
+                "direct USB receiver is terminal after failed recovery; "
+                "close it and construct a new receiver"
+            ) from self._terminal_recovery_error
+        if queue_depth <= 0:
+            raise ValueError("queue_depth must be positive")
+        self._require_handle()
+        self.identity
+        self._prepare_rx_request(
+            samples_per_channel=samples_per_channel,
+            frame_count=frame_count,
+        )
+
+        def managed_stream() -> Generator[DirectUsbRxFrame, None, None]:
+            try:
+                yield from self._stream_frames_once(
+                    samples_per_channel=samples_per_channel,
+                    frame_count=frame_count,
+                    queue_depth=queue_depth,
+                )
+            except (usb1.USBError, DirectUsbTransportError) as error:
+                raise DirectUsbStreamDiscontinuityError(
+                    "direct USB frame stream lost transport continuity; "
+                    "start a new capture artifact"
+                ) from error
+            finally:
+                self._active_stream = None
+
+        stream = managed_stream()
+        self._active_stream = stream
+        return stream
+
+    def _stream_frames_once(
+        self,
+        *,
+        samples_per_channel: int,
+        frame_count: int,
+        queue_depth: int,
+    ) -> Generator[DirectUsbRxFrame, None, None]:
         handle = self._require_handle()
         identity = self.identity
+        request, frame_bytes = self._prepare_rx_request(
+            samples_per_channel=samples_per_channel,
+            frame_count=frame_count,
+        )
+        parser = RxFrameParser(protocol_version=self.protocol_version)
+        chunks = None
+        try:
+            if self._context is None:
+                chunks = self._stream_sync_for_test(
+                    handle=handle,
+                    identity=identity,
+                    request=request,
+                    frame_count=frame_count,
+                    frame_bytes=frame_bytes,
+                )
+            else:
+                chunks = self._stream_queued(
+                    handle=handle,
+                    identity=identity,
+                    request=request,
+                    frame_count=frame_count,
+                    frame_bytes=frame_bytes,
+                    queue_depth=queue_depth,
+                )
+            yielded = 0
+            for chunk in chunks:
+                if not chunk:
+                    raise ProtocolError("zero-length direct USB bulk read")
+                frames = parser.feed(chunk)
+                if len(frames) != 1:
+                    raise ProtocolError(
+                        "one fixed direct USB transfer did not contain exactly one frame"
+                    )
+                yielded += 1
+                yield frames[0]
+            if yielded != frame_count:
+                raise ProtocolError(
+                    f"gadget returned {yielded} frames, expected {frame_count}"
+                )
+            parser.finish()
+        finally:
+            try:
+                if chunks is not None:
+                    close_chunks = getattr(chunks, "close", None)
+                    if close_chunks is not None:
+                        close_chunks()
+            finally:
+                with contextlib.suppress(usb1.USBError):
+                    handle.controlWrite(
+                        usb1.ENDPOINT_OUT | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
+                        COMMAND_STOP,
+                        COMMAND_TARGET_RX,
+                        identity.interface,
+                        b"",
+                        timeout=USB_CONTROL_TIMEOUT_MS,
+                    )
+
+    def _prepare_rx_request(
+        self, *, samples_per_channel: int, frame_count: int
+    ) -> tuple[bytes, int]:
         capabilities = self.capabilities
+        if samples_per_channel <= 0:
+            raise ProtocolError("sample request must be positive")
+        if frame_count <= 0:
+            raise ProtocolError("frame request must be positive")
         if samples_per_channel > capabilities.max_samples_per_channel:
             raise ProtocolError("sample request exceeds gadget capability")
         if frame_count > capabilities.max_finite_frames:
@@ -539,11 +657,29 @@ class PlutoDirectUsbReceiver:
             samples_per_channel=samples_per_channel,
             frame_count=frame_count,
         )
-        parser = RxFrameParser(protocol_version=self.protocol_version)
         header_bytes = (
             HEADER_BYTES if self.protocol_version == VERSION_V1 else HEADER_BYTES_V2
         )
-        frame_bytes = header_bytes + samples_per_channel * 8
+        return request, header_bytes + samples_per_channel * 8
+
+    def _mark_terminal_recovery_failure(self, error: Exception) -> None:
+        self._terminal_recovery_error = error
+        with contextlib.suppress(usb1.USBError, AttributeError):
+            self.close()
+
+    def _capture_once(
+        self,
+        *,
+        samples_per_channel: int,
+        frame_count: int,
+    ) -> DirectUsbCapture:
+        handle = self._require_handle()
+        identity = self.identity
+        request, frame_bytes = self._prepare_rx_request(
+            samples_per_channel=samples_per_channel,
+            frame_count=frame_count,
+        )
+        parser = RxFrameParser(protocol_version=self.protocol_version)
         bulk_read_bytes = max(self.bulk_chunk_bytes, frame_bytes)
         start = time.monotonic()
         try:
@@ -591,6 +727,32 @@ class PlutoDirectUsbReceiver:
             frames=tuple(frames),
             elapsed_seconds=time.monotonic() - start,
         )
+
+    def _stream_sync_for_test(
+        self,
+        *,
+        handle,
+        identity,
+        request,
+        frame_count,
+        frame_bytes,
+    ) -> Iterator[bytes]:
+        handle.controlWrite(
+            usb1.ENDPOINT_OUT | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
+            COMMAND_START_RX_V1,
+            COMMAND_TARGET_RX,
+            identity.interface,
+            request,
+            timeout=USB_CONTROL_TIMEOUT_MS,
+        )
+        for _index in range(frame_count):
+            yield bytes(
+                handle.bulkRead(
+                    identity.bulk_in_endpoint,
+                    frame_bytes,
+                    timeout=USB_BULK_TIMEOUT_MS,
+                )
+            )
 
     def _recover_connection(self, original_error: Exception) -> None:
         with contextlib.suppress(usb1.USBError, AttributeError):
@@ -745,9 +907,7 @@ class PlutoDirectUsbReceiver:
                             RecoveryAttestationDifference(
                                 field=field,
                                 expected=expected.hex(),
-                                observed=(
-                                    None if observed is None else observed.hex()
-                                ),
+                                observed=(None if observed is None else observed.hex()),
                             )
                         )
 
@@ -961,6 +1121,135 @@ class PlutoDirectUsbReceiver:
         if pending or any(chunk is None for chunk in chunks):
             raise ProtocolError("queued direct USB transfer cleanup was incomplete")
         return [chunk for chunk in chunks if chunk is not None]
+
+    def _stream_queued(
+        self,
+        *,
+        handle,
+        identity,
+        request,
+        frame_count,
+        frame_bytes,
+        queue_depth,
+    ) -> Iterator[bytes]:
+        """Yield frames from a rolling, bounded asynchronous transfer queue."""
+
+        context = self._context
+        if context is None:
+            raise RuntimeError("direct USB event context is not open")
+        queue_depth = min(queue_depth, frame_count)
+        ready: dict[int, bytes] = {}
+        assignments: dict[int, int] = {}
+        pending: set[int] = set()
+        protocol_errors: list[str] = []
+        transport_errors: list[str] = []
+        transfers = []
+        next_submit_index = queue_depth
+
+        def make_completed(slot: int):
+            def completed(transfer) -> None:
+                nonlocal next_submit_index
+                frame_index = assignments[slot]
+                status = transfer.getStatus()
+                pending.discard(slot)
+                if status == usb1.TRANSFER_COMPLETED:
+                    actual = transfer.getActualLength()
+                    if actual != frame_bytes:
+                        protocol_errors.append(
+                            f"bulk transfer {frame_index} completed with {actual} "
+                            f"bytes, expected {frame_bytes}"
+                        )
+                    else:
+                        ready[frame_index] = bytes(transfer.getBuffer()[:actual])
+                else:
+                    transport_errors.append(
+                        f"bulk transfer {frame_index} failed with libusb status "
+                        f"{status}"
+                    )
+
+                if (
+                    not protocol_errors
+                    and not transport_errors
+                    and next_submit_index < frame_count
+                ):
+                    assignments[slot] = next_submit_index
+                    next_submit_index += 1
+                    try:
+                        transfer.submit()
+                    except Exception as error:
+                        transport_errors.append(
+                            "failed to resubmit rolling bulk transfer "
+                            f"{assignments[slot]}: {type(error).__name__}: {error}"
+                        )
+                    else:
+                        pending.add(slot)
+
+            return completed
+
+        try:
+            for slot in range(queue_depth):
+                transfer = handle.getTransfer()
+                transfer.setBulk(
+                    identity.bulk_in_endpoint,
+                    frame_bytes,
+                    callback=make_completed(slot),
+                    user_data=slot,
+                    timeout=USB_BULK_TIMEOUT_MS,
+                )
+                transfers.append(transfer)
+                assignments[slot] = slot
+                transfer.submit()
+                pending.add(slot)
+
+            handle.controlWrite(
+                usb1.ENDPOINT_OUT | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
+                COMMAND_START_RX_V1,
+                COMMAND_TARGET_RX,
+                identity.interface,
+                request,
+                timeout=USB_CONTROL_TIMEOUT_MS,
+            )
+
+            for frame_index in range(frame_count):
+                deadline = time.monotonic() + USB_BULK_TIMEOUT_MS / 1000.0 + 1.0
+                while (
+                    frame_index not in ready
+                    and not protocol_errors
+                    and not transport_errors
+                ):
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise DirectUsbTransferTimeoutError(
+                            pending_transfer_count=len(pending),
+                            requested_transfer_count=frame_count,
+                            timeout_ms=USB_BULK_TIMEOUT_MS,
+                            serial=identity.serial,
+                            port_path=identity.port_path,
+                        )
+                    context.handleEventsTimeout(min(0.1, remaining))
+                if transport_errors:
+                    raise DirectUsbTransportError("; ".join(transport_errors))
+                if protocol_errors:
+                    raise ProtocolError("; ".join(protocol_errors))
+                yield ready.pop(frame_index)
+        finally:
+            if pending:
+                for slot in tuple(pending):
+                    with contextlib.suppress(usb1.USBError):
+                        transfers[slot].cancel()
+                cancel_deadline = time.monotonic() + 1.0
+                while pending and time.monotonic() < cancel_deadline:
+                    with contextlib.suppress(usb1.USBError):
+                        context.handleEventsTimeout(0.05)
+            for transfer in transfers:
+                if not transfer.isSubmitted():
+                    transfer.close()
+            gc.collect(0)
+            if pending:
+                raise ProtocolError(
+                    "rolling direct USB transfer cleanup was incomplete: "
+                    f"{len(pending)} transfer(s) remain submitted"
+                )
 
     def _require_handle(self) -> usb1.USBDeviceHandle:
         if self._handle is None:

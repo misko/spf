@@ -22,6 +22,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     MetadataFeatures,
     MetadataFlags,
     ProtocolError,
+    RxFrameParser,
     ErrorSubsystem,
     RuntimeState,
     RuntimeStatusFlags,
@@ -89,6 +90,12 @@ class _FakeHandle:
         wire, self.wire = self.wire, b""
         return wire
 
+    def releaseInterface(self, interface):
+        pass
+
+    def close(self):
+        pass
+
 
 class _DisconnectedHandle(_FakeHandle):
     def controlWrite(self, *args, **kwargs):
@@ -123,7 +130,11 @@ def _finite_capabilities(maximum_frames=16):
     return GadgetCapabilitiesV1(
         protocol_min=1,
         protocol_max=2,
-        supported_features=MetadataFeatures(0),
+        supported_features=(
+            MetadataFeatures.GAIN_ENDPOINT_SNAPSHOTS
+            | MetadataFeatures.HEADER_CRC32
+            | MetadataFeatures.SAMPLE_SEQUENCE
+        ),
         max_samples_per_channel=524288,
         max_finite_frames=maximum_frames,
         capability_flags=CapabilityFlags.FINITE_RX,
@@ -236,6 +247,71 @@ def test_capture_requests_a_complete_framed_transfer_and_stops():
     assert len(capture.frames) == 1
     assert handle.bulk_read_sizes[0][1] == HEADER_BYTES + 8 * 8
     assert len(handle.control_writes) == 2
+
+
+class _SequentialFakeHandle(_FakeHandle):
+    def __init__(self, wires):
+        super().__init__(b"")
+        self.wires = list(wires)
+
+    def bulkRead(self, endpoint, size, timeout):
+        self.bulk_read_sizes.append((endpoint, size, timeout))
+        return self.wires.pop(0)
+
+
+def test_frame_stream_uses_one_start_stop_for_multiple_sync_frames():
+    handle = _SequentialFakeHandle(
+        [_valid_wire_frame(sequence=index) for index in range(3)]
+    )
+    receiver = PlutoDirectUsbReceiver(serial="test")
+    receiver._handle = handle
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    receiver._capabilities = _finite_capabilities()
+
+    frames = list(
+        receiver.stream_frames(
+            samples_per_channel=8,
+            frame_count=3,
+            queue_depth=1,
+        )
+    )
+
+    assert [frame.metadata.buffer_sequence for frame in frames] == [0, 1, 2]
+    assert len(handle.control_writes) == 2
+    assert receiver._active_stream is None
+
+
+def test_close_stops_an_active_frame_stream():
+    handle = _SequentialFakeHandle(
+        [_valid_wire_frame(sequence=index) for index in range(2)]
+    )
+    receiver = PlutoDirectUsbReceiver(serial="test")
+    receiver._handle = handle
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    receiver._capabilities = _finite_capabilities()
+    stream = receiver.stream_frames(samples_per_channel=8, frame_count=2)
+    assert next(stream).metadata.buffer_sequence == 0
+
+    receiver.close()
+
+    assert len(handle.control_writes) == 2
+    assert receiver._active_stream is None
 
 
 def test_capture_rediscovers_same_radio_after_usb_address_changes(monkeypatch):
@@ -441,10 +517,7 @@ def test_runtime_status_query_is_read_only_and_does_not_start_streaming():
         RuntimeState.IDLE,
         ErrorSubsystem.NONE,
         0,
-        int(
-            RuntimeStatusFlags.BOOT_ID_VALID
-            | RuntimeStatusFlags.PROCESS_NONCE_VALID
-        ),
+        int(RuntimeStatusFlags.BOOT_ID_VALID | RuntimeStatusFlags.PROCESS_NONCE_VALID),
         0,
         b"\x11" * 16,
         b"\x22" * 16,
@@ -571,6 +644,154 @@ class _FailSecondSubmitHandle(_FakeAsyncHandle):
         return transfer
 
 
+class _RollingTransfer:
+    def __init__(self, handle):
+        self.handle = handle
+        self.callback = None
+        self.user_data = None
+        self.wire = b""
+        self.submitted = False
+        self.cancelled = False
+        self.closed = False
+
+    def setBulk(
+        self,
+        endpoint,
+        buffer_or_len,
+        callback=None,
+        user_data=None,
+        timeout=0,
+    ):
+        self.expected_bytes = buffer_or_len
+        self.callback = callback
+        self.user_data = user_data
+
+    def submit(self):
+        self.wire = self.handle.wires.pop(0)
+        assert len(self.wire) == self.expected_bytes
+        self.submitted = True
+        self.cancelled = False
+        self.handle.pending.append(self)
+        self.handle.event_log.append("submit")
+
+    def cancel(self):
+        self.cancelled = True
+        self.handle.event_log.append("cancel")
+
+    def getStatus(self):
+        return usb1.TRANSFER_CANCELLED if self.cancelled else usb1.TRANSFER_COMPLETED
+
+    def getActualLength(self):
+        return len(self.wire)
+
+    def getBuffer(self):
+        return self.wire
+
+    def isSubmitted(self):
+        return self.submitted
+
+    def close(self):
+        self.closed = True
+        self.callback = None
+
+
+class _RollingAsyncHandle:
+    def __init__(self, wires):
+        self.wires = list(wires)
+        self.pending = []
+        self.transfers = []
+        self.event_log = []
+        self.control_writes = []
+
+    def getTransfer(self):
+        transfer = _RollingTransfer(self)
+        self.transfers.append(transfer)
+        return transfer
+
+    def controlWrite(self, *args, **kwargs):
+        self.event_log.append("control")
+        self.control_writes.append((args, kwargs))
+
+
+class _RollingAsyncContext:
+    def __init__(self, handle):
+        self.handle = handle
+
+    def handleEventsTimeout(self, timeout):
+        transfer = self.handle.pending.pop(0)
+        transfer.submitted = False
+        transfer.callback(transfer)
+
+
+def test_frame_stream_reuses_one_rolling_transfer():
+    handle = _RollingAsyncHandle(
+        [_valid_wire_frame(sequence=index) for index in range(4)]
+    )
+    receiver = PlutoDirectUsbReceiver(serial="test")
+    receiver._handle = handle
+    receiver._context = _RollingAsyncContext(handle)
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    receiver._capabilities = _finite_capabilities()
+
+    stream = receiver.stream_frames(
+        samples_per_channel=8,
+        frame_count=4,
+        queue_depth=1,
+    )
+    assert next(stream).metadata.buffer_sequence == 0
+    # The same transfer is already resubmitted before control returns to the
+    # consumer, keeping the finite gadget stream flowing with bounded memory.
+    assert len(handle.transfers) == 1
+    assert handle.event_log[:3] == ["submit", "control", "submit"]
+    remaining = list(stream)
+
+    assert [frame.metadata.buffer_sequence for frame in remaining] == [1, 2, 3]
+    assert handle.event_log.count("submit") == 4
+    assert handle.event_log.count("control") == 2
+    assert handle.transfers[0].closed
+
+
+def test_closing_rolling_frame_stream_cancels_pending_transfer_before_stop():
+    handle = _RollingAsyncHandle(
+        [_valid_wire_frame(sequence=index) for index in range(3)]
+    )
+    receiver = PlutoDirectUsbReceiver(serial="test")
+    receiver._handle = handle
+    receiver._context = _RollingAsyncContext(handle)
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    receiver._capabilities = _finite_capabilities()
+    stream = receiver.stream_frames(
+        samples_per_channel=8,
+        frame_count=3,
+        queue_depth=1,
+    )
+    assert next(stream).metadata.buffer_sequence == 0
+
+    stream.close()
+
+    assert handle.event_log.count("cancel") == 1
+    assert handle.event_log[-1] == "control"
+    assert len(handle.control_writes) == 2
+    assert handle.transfers[0].closed
+    assert receiver._active_stream is None
+
+
 def test_capture_queues_bulk_transfers_before_start_and_parses_in_order():
     handle = _FakeAsyncHandle(
         [_valid_wire_frame(sequence=0), _valid_wire_frame(sequence=1)]
@@ -648,25 +869,73 @@ def test_queued_deadline_is_classified_as_transport_timeout(monkeypatch):
 
 def test_spf_rejects_an_attested_restarted_stream_before_using_its_iq():
     radio = PPlus.__new__(PPlus)
-    radio.rx_config = type("RxConfig", (), {"buffer_size": 8})()
+    radio.rx_config = type(
+        "RxConfig",
+        (),
+        {"buffer_size": 8, "direct_usb_frame_count_per_request": 4},
+    )()
+    radio._direct_frame_stream = None
+    radio._direct_frames_remaining = 0
+
+    def failed_stream(**_kwargs):
+        def frames():
+            raise DirectUsbStreamDiscontinuityError(
+                "direct USB frame stream lost transport continuity; "
+                "start a new capture artifact"
+            )
+            yield
+
+        return frames()
+
     radio.direct_rx = type(
         "RecoveredReceiver",
         (),
-        {
-            "capture": lambda self, **_kwargs: type(
-                "RecoveredCapture",
-                (),
-                {
-                    "recovered_after_transport_loss": True,
-                    "transport_loss_summary": "USB device re-enumerated",
-                    "frames": (),
-                },
-            )()
-        },
+        {"stream_frames": lambda self, **kwargs: failed_stream(**kwargs)},
     )()
 
     with pytest.raises(DirectUsbStreamDiscontinuityError, match="new capture artifact"):
         radio._capture_direct_frame()
+    assert radio._direct_frame_stream is None
+    assert radio._direct_frames_remaining == 0
+
+
+def test_spf_returns_one_frame_at_a_time_from_one_finite_stream_group():
+    frames = []
+    parser = RxFrameParser(protocol_version=1)
+    for sequence in range(4):
+        frames.extend(parser.feed(_valid_wire_frame(sequence=sequence)))
+    parser.finish()
+
+    class GroupedReceiver:
+        def __init__(self):
+            self.requests = []
+
+        def stream_frames(self, **kwargs):
+            self.requests.append(kwargs)
+
+            def grouped_frames():
+                yield from frames
+
+            return grouped_frames()
+
+    radio = PPlus.__new__(PPlus)
+    radio.rx_config = type(
+        "RxConfig",
+        (),
+        {"buffer_size": 8, "direct_usb_frame_count_per_request": 4},
+    )()
+    radio.direct_rx = GroupedReceiver()
+    radio._direct_frame_stream = None
+    radio._direct_frames_remaining = 0
+
+    results = [radio._capture_direct_frame() for _index in range(4)]
+
+    assert [metadata.buffer_sequence for _signal, metadata in results] == [0, 1, 2, 3]
+    assert radio.direct_rx.requests == [
+        {"samples_per_channel": 8, "frame_count": 4, "queue_depth": 1}
+    ]
+    assert radio._direct_frame_stream is None
+    assert radio._direct_frames_remaining == 0
 
 
 def test_partial_transfer_submission_is_cancelled_before_start():

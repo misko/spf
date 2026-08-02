@@ -28,6 +28,11 @@ Repeat `--radio-serial=SERIAL` to select exact devices. The expected count is
 checked after serial selection and is exact, so a missing or unexpected radio
 is reported before streaming begins.
 
+The default direct-USB gates cover both legacy finite capture and the bounded
+rolling path used by SPF session groups. The rolling two-radio test keeps one
+production-sized transfer resident per radio, validates contiguous sequences,
+and therefore stays within the common 16 MiB usbfs memory budget.
+
 `--radio-zarr` and `--radio-soak` are reserved as additional explicit gates;
 they are never implied by `--radio-hardware`.
 

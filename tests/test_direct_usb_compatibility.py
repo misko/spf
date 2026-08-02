@@ -18,15 +18,16 @@ class _OneFrameReceiver:
         self.frame = frame
         self.calls = 0
 
-    def capture(self, *, samples_per_channel, frame_count):
+    def stream_frames(self, *, samples_per_channel, frame_count, queue_depth):
         self.calls += 1
         assert samples_per_channel == 8
         assert frame_count == 1
-        return SimpleNamespace(
-            frames=(self.frame,),
-            recovered_after_transport_loss=False,
-            transport_loss_summary=None,
-        )
+        assert queue_depth == 1
+
+        def frames():
+            yield self.frame
+
+        return frames()
 
 
 def _metadata_v2():
@@ -73,8 +74,11 @@ def _pplus_with_v2_frame():
     pplus.rx_config = SimpleNamespace(
         rx_transport="direct_usb",
         buffer_size=8,
+        direct_usb_frame_count_per_request=1,
         direct_usb_require_gain_metadata=True,
     )
+    pplus._direct_frame_stream = None
+    pplus._direct_frames_remaining = 0
     pplus._last_direct_gains = None
     pplus._last_direct_rssis = None
     pplus._last_direct_metadata = None

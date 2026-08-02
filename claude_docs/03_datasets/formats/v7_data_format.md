@@ -91,8 +91,14 @@ seconds-per-sample: 0.5
 (`spf/mavlink_radio_collection.py:191`, with `validate_transport_schema` at `:194`) — materializes,
 per receiver, `rx-transport: direct_usb`,
 `direct-usb.protocol-version: 2`, `require-gain-metadata: true`, and
-`frame-count-per-request: 1`. Explicitly *conflicting* values are rejected, not overwritten —
-including `require-gain-metadata: false`, which is a hard error under v7.
+`frame-count-per-request: 1`. Explicitly *conflicting transport or metadata*
+values are rejected, not overwritten — including `require-gain-metadata:
+false`, which is a hard error under v7. The frame count is a transport tuning
+value rather than a schema version: an explicitly configured positive value is
+accepted when it does not exceed the gadget's advertised finite-frame limit.
+Values above one use a bounded rolling queue (one production-sized USB transfer
+per radio by default) and still return one timestampable frame at a time. Keep
+the default at one until the rolling path passes the attached two-radio gate.
 
 Cross-version rules enforced by `validate_transport_schema` (`:81`):
 
