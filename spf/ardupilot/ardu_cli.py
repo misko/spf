@@ -941,22 +941,12 @@ def run_accelcal(
             ) from error
 
         send_accelcal_position(connection, position)
-        pose_ack = _wait_command_ack(
-            connection, ACCELCAL_POSITION_COMMAND, command_timeout_s
-        )
-        if pose_ack is None:
-            raise CliError(f"no COMMAND_ACK received for pose {position}/6")
-        pose_result = int(pose_ack.result)
-        if pose_result not in ACCELCAL_ACCEPTED_RESULTS:
-            return {
-                "success": False,
-                "start_result": start_result,
-                "start_result_name": _mav_result_name(start_result),
-                "poses_completed": completed,
-                "failure": (
-                    f"pose {position}/6 rejected: {_mav_result_name(pose_result)}"
-                ),
-            }
+        # Do not require the per-pose COMMAND_ACK. ArduPilot periodically
+        # publishes its current requested pose and terminal result, which are
+        # the authoritative calibration state. On real Pixhawk USB links an
+        # individual ACK can be lost even though the sample was accepted and
+        # the flight controller advanced. The next loop still fails closed if
+        # no next-pose/terminal progress arrives or if a pose is skipped.
         completed.append(position)
         expected_position += 1
 

@@ -576,15 +576,10 @@ def test_accelcal_wire_commands_match_ardupilot_protocol():
     assert position[4:] == (4, 0, 0, 0, 0, 0, 0)
 
 
-def test_run_accelcal_guides_all_six_poses_and_requires_terminal_success():
+def test_run_accelcal_advances_without_optional_pose_acks():
     messages = [command_ack(mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION)]
     for position in range(1, 7):
-        messages.extend(
-            [
-                accelcal_position(position),
-                command_ack(mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS),
-            ]
-        )
+        messages.append(accelcal_position(position))
     messages.append(accelcal_position(mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS))
     connection = FakeConnection(messages)
     prompts = []
@@ -639,12 +634,7 @@ def test_run_accelcal_fails_closed_on_out_of_order_pose():
 def test_run_accelcal_reports_terminal_failure():
     messages = [command_ack(mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION)]
     for position in range(1, 7):
-        messages.extend(
-            [
-                accelcal_position(position),
-                command_ack(mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS),
-            ]
-        )
+        messages.append(accelcal_position(position))
     messages.append(accelcal_position(mavutil.mavlink.ACCELCAL_VEHICLE_POS_FAILED))
     connection = FakeConnection(messages)
 
