@@ -127,10 +127,14 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
-    hardware_enabled = config.getoption("--radio-hardware")
-    zarr_enabled = config.getoption("--radio-zarr")
-    interrupt_enabled = config.getoption("--radio-interrupt")
-    soak_enabled = config.getoption("--radio-soak")
+    # When the complete ``tests`` tree is collected, pytest may discover this
+    # nested conftest after command-line parsing.  In that case its options do
+    # not exist in the global Config object.  Hardware tests must remain
+    # fail-closed (skipped) rather than aborting collection with ValueError.
+    hardware_enabled = config.getoption("--radio-hardware", default=False)
+    zarr_enabled = config.getoption("--radio-zarr", default=False)
+    interrupt_enabled = config.getoption("--radio-interrupt", default=False)
+    soak_enabled = config.getoption("--radio-soak", default=False)
     hardware_skip = pytest.mark.skip(
         reason="requires explicit --radio-hardware and attached Pluto hardware"
     )
