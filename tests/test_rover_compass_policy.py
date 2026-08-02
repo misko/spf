@@ -61,6 +61,27 @@ def _healthy_params(*, external_slot=1):
     return params
 
 
+def _rover2_params_with_stale_internal_priority():
+    """Match Rover 2 when its disabled LSM303D is not probed this boot."""
+    params = _healthy_params()
+    params.update(
+        {
+            "COMPASS_DEV_ID2": 658945,
+            "COMPASS_DEV_ID3": 0,
+            "COMPASS_EXTERNAL": 1,
+            "COMPASS_EXTERN2": 0,
+            "COMPASS_EXTERN3": 0,
+            "COMPASS_USE": 1,
+            "COMPASS_USE2": 0,
+            "COMPASS_USE3": 0,
+            "COMPASS_PRIO1_ID": EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+            "COMPASS_PRIO2_ID": 658945,
+            "COMPASS_PRIO3_ID": 131594,
+        }
+    )
+    return params
+
+
 def test_accepts_external_compass_in_any_slot():
     for slot in (1, 2, 3):
         report = evaluate_compass_policy(_healthy_params(external_slot=slot))
@@ -97,7 +118,9 @@ def test_warns_for_large_external_offsets_within_configured_limit():
     assert report.ok, report.errors
     assert report.external_compass.offset_norm_mg > 800
     assert report.external_offset_limit_mg == 1800
-    assert any("exceeds the preferred 500.0 mG" in warning for warning in report.warnings)
+    assert any(
+        "exceeds the preferred 500.0 mG" in warning for warning in report.warnings
+    )
 
 
 def test_rejects_external_offsets_above_configured_limit():
@@ -114,7 +137,10 @@ def test_rejects_external_offsets_above_configured_limit():
     report = evaluate_compass_policy(params)
 
     assert not report.ok
-    assert any("exceeds configured COMPASS_OFFS_MAX=1000.0 mG" in error for error in report.errors)
+    assert any(
+        "exceeds configured COMPASS_OFFS_MAX=1000.0 mG" in error
+        for error in report.errors
+    )
 
 
 @pytest.mark.parametrize("configured_limit", [499, 3001])
@@ -125,7 +151,10 @@ def test_rejects_invalid_configured_offset_limit(configured_limit):
     report = evaluate_compass_policy(params)
 
     assert not report.ok
-    assert any("expected an ArduPilot limit from 500 to 3000 mG" in error for error in report.errors)
+    assert any(
+        "expected an ArduPilot limit from 500 to 3000 mG" in error
+        for error in report.errors
+    )
 
 
 def test_rejects_permissive_calibration_and_duplicate_priorities():
@@ -148,6 +177,54 @@ def test_rejects_duplicate_detected_full_device_ids():
 
     assert not report.ok
     assert any("appears in multiple slots: [1, 2]" in error for error in report.errors)
+
+
+def test_warns_for_stale_disabled_secondary_priority():
+    params = _rover2_params_with_stale_internal_priority()
+
+    report = evaluate_compass_policy(params)
+
+    assert report.ok, report.errors
+    assert any(
+        "compass priority 3 device ID 131594 is not detected this boot" in warning
+        for warning in report.warnings
+    )
+
+
+def test_warns_for_stale_disabled_second_priority():
+    params = _rover2_params_with_stale_internal_priority()
+    params.update(
+        {
+            "COMPASS_PRIO2_ID": 131594,
+            "COMPASS_PRIO3_ID": 658945,
+        }
+    )
+
+    report = evaluate_compass_policy(params)
+
+    assert report.ok, report.errors
+    assert any(
+        "compass priority 2 device ID 131594 is not detected this boot" in warning
+        for warning in report.warnings
+    )
+
+
+def test_rejects_stale_primary_priority():
+    params = _rover2_params_with_stale_internal_priority()
+    params.update(
+        {
+            "COMPASS_PRIO1_ID": 424242,
+            "COMPASS_PRIO2_ID": EXPECTED_EXTERNAL_COMPASS_DEVICE_ID,
+        }
+    )
+
+    report = evaluate_compass_policy(params)
+
+    assert not report.ok
+    assert any(
+        "compass priority 1 device ID 424242 is not detected this boot" in error
+        for error in report.errors
+    )
 
 
 def test_device_id_decode_and_inventory_include_bus_and_priorities():
@@ -194,6 +271,12 @@ def test_repair_plan_refuses_duplicate_detected_ids():
         plan_external_compass_repairs(params)
 
 
+def test_repair_plan_preserves_stale_disabled_secondary_priority():
+    params = _rover2_params_with_stale_internal_priority()
+
+    assert plan_external_compass_repairs(params) == {}
+
+
 def test_rejects_driver_mask_and_wrong_primary_priority():
     params = _healthy_params()
     params["COMPASS_DISBLMSK"] = 1 << 7
@@ -237,3 +320,25 @@ def test_cli_writes_machine_readable_report(tmp_path, capsys):
     assert report["ok"] is True
     assert report["external_compass"]["device_id"] == 658953
     assert "PASS: external GPS compass" in capsys.readouterr().out
+
+
+def test_cli_accepts_rover2_stale_secondary_and_records_warning(tmp_path, capsys):
+    params_path = tmp_path / "rover2.params"
+    params_path.write_text(
+        "\n".join(
+            f"{key} {value}"
+            for key, value in _rover2_params_with_stale_internal_priority().items()
+        )
+    )
+    report_path = tmp_path / "report.json"
+
+    assert main([str(params_path), "--json-output", str(report_path)]) == 0
+    report = json.loads(report_path.read_text())
+    output = capsys.readouterr().out
+
+    assert report["ok"] is True
+    assert any(
+        "priority 3 device ID 131594" in warning for warning in report["warnings"]
+    )
+    assert "WARNING: compass priority 3 device ID 131594" in output
+    assert "PASS: external GPS compass" in output

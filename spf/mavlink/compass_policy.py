@@ -291,10 +291,7 @@ def evaluate_compass_policy(
                 f"{external_compass.offset_norm_mg:.1f} mG exceeds "
                 f"configured COMPASS_OFFS_MAX={external_offset_limit_mg:.1f} mG"
             )
-        elif (
-            external_compass.offset_norm_mg
-            > PREFERRED_MAX_EXTERNAL_OFFSET_NORM_MG
-        ):
+        elif external_compass.offset_norm_mg > PREFERRED_MAX_EXTERNAL_OFFSET_NORM_MG:
             warnings.append(
                 f"external compass slot {external_compass.slot} offset norm "
                 f"{external_compass.offset_norm_mg:.1f} mG exceeds the preferred "
@@ -323,13 +320,21 @@ def evaluate_compass_policy(
         )
 
     detected_ids = {device_id for _slot, device_id in detected_slots}
-    stale_priorities = [
-        device_id for device_id in nonzero_priorities if device_id not in detected_ids
-    ]
-    if stale_priorities:
-        errors.append(
-            f"compass priority list contains undetected device IDs: {stale_priorities}"
+    for priority, device_id in enumerate(priorities, start=1):
+        if not device_id or device_id in detected_ids:
+            continue
+        message = (
+            f"compass priority {priority} device ID {device_id} is not detected "
+            "this boot"
         )
+        if priority == 1:
+            errors.append(message)
+        else:
+            # ArduPilot automatically fills zero-valued secondary priorities.
+            # A disabled internal compass can therefore leave a persistent
+            # priority behind when its startup probe is intermittent. The
+            # active-slot checks above still reject any non-external yaw source.
+            warnings.append(message)
 
     return CompassPolicyReport(
         errors=tuple(dict.fromkeys(errors)),
@@ -431,13 +436,11 @@ def plan_external_compass_repairs(
     ]
     if priority_errors:
         raise UnsafeCompassRepairError("; ".join(dict.fromkeys(priority_errors)))
-    detected_ids = {instance.device_id for instance in detected}
     remaining_ids: list[int] = []
     for device_id in current_priorities + [instance.device_id for instance in detected]:
         if (
             device_id
             and device_id != external_compass.device_id
-            and device_id in detected_ids
             and device_id not in remaining_ids
         ):
             remaining_ids.append(device_id)
