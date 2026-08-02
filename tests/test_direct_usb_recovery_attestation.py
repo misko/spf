@@ -471,7 +471,10 @@ def _pplus(*, gain_modes=("manual", "manual")):
         phase_inversion_debug_attr=1,
         phase_inversion_register_bit=1,
     )
-    pplus.direct_rx = SimpleNamespace(identity=_identity(address=9))
+    pplus.direct_rx = SimpleNamespace(
+        identity=_identity(address=9),
+        close=lambda: None,
+    )
     pplus.sdr = _FreshSdr()
     pplus._scan_iio_contexts = lambda: {
         "usb:1.9.5": f"Pluto, serial={SERIAL}",
