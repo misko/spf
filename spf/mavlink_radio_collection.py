@@ -505,7 +505,7 @@ if __name__ == "__main__":
     # is already finalized, renamed and durably reported complete. Keep those
     # two outcomes separate if MAVLink fails while parking the rover.
     try:
-        if not drone.move_to_home():
+        if not args.fake_drone and not drone.move_to_home():
             raise RuntimeError("return-home operation did not reach home")
     except BaseException as error:
         incident_id = uuid.uuid4().hex
