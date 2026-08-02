@@ -72,6 +72,29 @@ def test_final_failure_bypasses_throttle_and_preserves_primary_error(tmp_path):
     assert status["records_written_by_receiver"] == [3]
 
 
+def test_failed_status_persists_capture_incident_ownership(tmp_path):
+    path = tmp_path / "status.json"
+    writer = CaptureStatusWriter(
+        path,
+        capture_name="capture.zarr.tmp",
+        expected_records_per_receiver=100,
+        receiver_count=2,
+    )
+
+    writer.publish(
+        "failed",
+        [12, 11],
+        error=RuntimeError("USB timeout"),
+        incident_id="incident-123",
+        error_source="receiver:usb:1.4.5",
+        force=True,
+    )
+
+    status = json.loads(path.read_text())
+    assert status["incident_id"] == "incident-123"
+    assert status["error_source"] == "receiver:usb:1.4.5"
+
+
 def test_launcher_failure_marks_existing_status_without_hiding_error(tmp_path):
     path = tmp_path / "status.json"
     path.write_text(
@@ -93,6 +116,32 @@ def test_launcher_failure_marks_existing_status_without_hiding_error(tmp_path):
     assert result["error_type"] == "OSError"
     assert result["error_message"] == "USB transfer failed"
     assert result["records_written_by_receiver"] == [42]
+
+
+def test_launcher_exit_after_completed_artifact_does_not_relabel_capture_failed(
+    tmp_path,
+):
+    path = tmp_path / "status.json"
+    path.write_text(
+        json.dumps(
+            {
+                "state": "complete",
+                "capture_name": "capture.zarr.tmp",
+                "artifact": "/data/capture.zarr",
+                "records_written_by_receiver": [3000, 3000],
+                "error_type": "MavlinkConnectionError",
+                "error_message": "post-capture move-to-home failed",
+                "error_source": "post_capture_navigation",
+            }
+        )
+    )
+
+    result = mark_failed(path, exit_code=1)
+
+    assert result["state"] == "complete"
+    assert result["post_capture_exit_code"] == 1
+    assert "launcher_exit_code" not in result
+    assert result["artifact"] == "/data/capture.zarr"
 
 
 def test_slow_capture_sets_late_watchdog_and_warns_once(tmp_path, caplog):
@@ -133,6 +182,8 @@ def test_status_formatter_is_one_line_and_includes_primary_failure():
             "late": True,
             "error_type": "OSError",
             "error_message": "radio missing",
+            "incident_id": "incident-123",
+            "error_source": "receiver:radio-a",
         }
     )
 
@@ -141,4 +192,6 @@ def test_status_formatter_is_one_line_and_includes_primary_failure():
     assert "rate_hz=1.750" in rendered
     assert "late=true" in rendered
     assert "error=OSError: radio missing" in rendered
+    assert "incident=incident-123" in rendered
+    assert "source=receiver:radio-a" in rendered
     assert "\n" not in rendered

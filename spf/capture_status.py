@@ -108,6 +108,8 @@ class CaptureStatusWriter:
         records_written_by_receiver: Sequence[int],
         *,
         error: BaseException | None = None,
+        incident_id: str | None = None,
+        error_source: str | None = None,
         artifact: str | None = None,
         force: bool = False,
     ) -> bool:
@@ -143,8 +145,7 @@ class CaptureStatusWriter:
             else None
         )
         expected_duration = (
-            self.expected_records_per_receiver
-            / self.minimum_expected_frames_per_second
+            self.expected_records_per_receiver / self.minimum_expected_frames_per_second
         )
         projected_duration = elapsed + eta if eta is not None else None
         late = bool(
@@ -181,6 +182,10 @@ class CaptureStatusWriter:
             error_number = getattr(error, "errno", None)
             if error_number is not None:
                 payload["error_errno"] = int(error_number)
+        if incident_id is not None:
+            payload["incident_id"] = str(incident_id)
+        if error_source is not None:
+            payload["error_source"] = str(error_source)
         _atomic_json_write(self.path, payload)
         if late and not self.late_warning_emitted:
             logging.warning(
@@ -207,6 +212,18 @@ def mark_failed(path: Path | str, *, exit_code: int) -> dict:
             "capture_name": None,
             "records_written_by_receiver": [],
         }
+    if payload.get("state") == "complete":
+        # The Zarr was already finalized and published. A later navigation,
+        # sync, or process-teardown failure is operationally serious, but it
+        # cannot retroactively corrupt or un-complete that immutable artifact.
+        payload.update(
+            {
+                "updated_unix": time.time(),
+                "post_capture_exit_code": int(exit_code),
+            }
+        )
+        _atomic_json_write(status_path, payload)
+        return payload
     payload.update(
         {
             "state": "failed",
@@ -231,11 +248,19 @@ def format_status(payload: dict) -> str:
         f"capture={payload.get('capture_name') or 'unknown'}",
         "records=" + ",".join(str(value) for value in counts),
         f"rate_hz={rate:.3f}" if isinstance(rate, (int, float)) else "rate_hz=unknown",
-        f"eta_seconds={eta:.1f}" if isinstance(eta, (int, float)) else "eta_seconds=unknown",
+        f"eta_seconds={eta:.1f}"
+        if isinstance(eta, (int, float))
+        else "eta_seconds=unknown",
         f"late={str(bool(payload.get('late', False))).lower()}",
     ]
     if payload.get("error_type"):
-        fields.append(f"error={payload['error_type']}: {payload.get('error_message', '')}")
+        fields.append(
+            f"error={payload['error_type']}: {payload.get('error_message', '')}"
+        )
+    if payload.get("incident_id"):
+        fields.append(f"incident={payload['incident_id']}")
+    if payload.get("error_source"):
+        fields.append(f"source={payload['error_source']}")
     return " ".join(fields)
 
 

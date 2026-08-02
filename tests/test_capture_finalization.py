@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -208,6 +209,123 @@ def test_disconnect_publishes_durable_failed_state_with_primary_error(tmp_path):
         "failed",
     ]
     assert status.events[-1][2]["error"] is primary_error
+    assert status.events[-1][2]["incident_id"] == collector.capture_incident_id
+    assert status.events[-1][2]["error_source"] == "collector"
+
+
+def test_control_flow_exception_still_finalizes_partial_zarr(tmp_path):
+    """SystemExit must not bypass the collector's single cleanup owner."""
+
+    partial_path = tmp_path / "capture.zarr.tmp"
+    primary_error = SystemExit(1)
+    collector = _DisconnectedCollector(partial_path, primary_error)
+    collector.receiver_pplus = {}
+    collector.read_threads = []
+    collector.collector_thread = threading.Thread(target=collector.run_collector_thread)
+
+    collector.start()
+    with pytest.raises(SystemExit) as raised:
+        collector.done()
+
+    assert raised.value is primary_error
+    assert collector.finished_collecting is True
+    partial = zarr_open_from_lmdb_store(str(partial_path), mode="r")
+    try:
+        assert partial.attrs["capture_status"] == "incomplete"
+        assert partial.attrs["capture_error_type"] == "SystemExit"
+    finally:
+        partial.store.close()
+
+
+def test_primary_capture_incident_has_one_owner_and_requests_motion_stop(
+    tmp_path, caplog
+):
+    primary_error = OSError(19, "Pluto disappeared during bulk RX")
+    motion = SimpleNamespace(request_motion_stop=Mock())
+    collector = _DisconnectedCollector(tmp_path / "capture.zarr.tmp", primary_error)
+    collector.position_controller = motion
+    collector.receiver_pplus = {}
+    collector.read_threads = []
+    collector.collector_thread = threading.Thread(target=collector.run_collector_thread)
+
+    with caplog.at_level(logging.ERROR):
+        collector.start()
+        with pytest.raises(OSError):
+            collector.done()
+
+    assert collector.capture_incident_id
+    assert collector.capture_error_source == "collector"
+    motion.request_motion_stop.assert_called_once()
+    assert "Traceback (most recent call last)" not in caplog.text
+
+    partial = zarr_open_from_lmdb_store(str(tmp_path / "capture.zarr.tmp"), mode="r")
+    try:
+        assert partial.attrs["capture_incident_id"] == collector.capture_incident_id
+        assert partial.attrs["capture_error_source"] == "collector"
+    finally:
+        partial.store.close()
+
+
+def test_distinct_secondary_receiver_failure_is_one_line_not_a_traceback(
+    tmp_path, caplog
+):
+    collector = _DisconnectedCollector(
+        tmp_path / "capture.zarr.tmp", RuntimeError("unused")
+    )
+    collector.receiver_pplus = {}
+    collector.read_threads = []
+    first = OSError(19, "radio A timed out")
+    second = OSError(19, "radio B timed out")
+
+    with caplog.at_level(logging.ERROR):
+        collector._record_primary_error(first, source="receiver:radio-a")
+        collector._record_primary_error(second, source="receiver:radio-b")
+        collector._record_primary_error(first, source="collector")
+
+    assert collector.collection_error is first
+    assert caplog.text.count("detected by receiver:radio-a") == 1
+    assert caplog.text.count("additional failure from receiver:radio-b") == 1
+    assert "additional failure from collector" not in caplog.text
+    assert "Traceback (most recent call last)" not in caplog.text
+    collector._mark_capture_state("incomplete")
+    collector.close()
+    partial = zarr_open_from_lmdb_store(str(tmp_path / "capture.zarr.tmp"), mode="r")
+    try:
+        assert partial.attrs["capture_secondary_errors"] == [
+            "receiver:radio-b: OSError: [Errno 19] radio B timed out"
+        ]
+    finally:
+        partial.store.close()
+
+
+def test_reader_reports_failure_to_collector_without_owning_a_traceback(
+    monkeypatch, caplog
+):
+    received = []
+    reader = ThreadedRX(
+        pplus=SimpleNamespace(
+            rx_config=SimpleNamespace(
+                uri="test://radio",
+                rx_pos=[[0.0, 0.0], [0.04, 0.0]],
+                lo=2.4e9,
+            ),
+            soft_reset_radio=lambda: None,
+        ),
+        time_offset=0,
+        nthetas=65,
+        error_callback=lambda error: received.append(error),
+    )
+    reader.run = True
+    reader.get_data = lambda: (_ for _ in ()).throw(OSError(19, "radio gone"))
+    monkeypatch.setattr(
+        "spf.data_collector.precompute_steering_vectors", lambda **_kwargs: None
+    )
+
+    with caplog.at_level(logging.ERROR):
+        reader.read_forever()
+
+    assert received == [reader.error]
+    assert "Traceback (most recent call last)" not in caplog.text
 
 
 def test_pluto_close_attempts_tx_mute_after_rx_cleanup_failure():

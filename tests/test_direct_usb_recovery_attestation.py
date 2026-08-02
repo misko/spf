@@ -178,6 +178,8 @@ def test_recovery_attestation_precedes_start_and_changed_address_is_allowed(
     capture = receiver.capture(samples_per_channel=8)
 
     assert capture.identity.address == 9
+    assert capture.recovered_after_transport_loss is True
+    assert "USBErrorNoDevice" in capture.transport_loss_summary
     assert events[:4] == [
         "rediscover",
         "firmware_identity",

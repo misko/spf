@@ -406,6 +406,77 @@ def verify_manifest(
     return actual
 
 
+def refresh_manifest(
+    rover_id: int,
+    *,
+    config_override: str | Path | None = None,
+    path: Path = DEFAULT_READY_PATH,
+    mapping_path: Path = DEFAULT_MAPPING_PATH,
+    hmac_key_path: Path = DEFAULT_HMAC_KEY_PATH,
+    boot_id_path: Path = DEFAULT_BOOT_ID_PATH,
+) -> dict:
+    """Refresh transient attachment facts without blessing replacement radios."""
+
+    previous = load_manifest(path)
+    candidate = build_manifest(
+        rover_id,
+        config_override=config_override,
+        mapping_path=mapping_path,
+        hmac_key_path=hmac_key_path,
+        boot_id_path=boot_id_path,
+    )
+    for key in (
+        "rover_id",
+        "host_boot_id",
+        "spf_git_sha",
+        "config_path",
+        "config_sha256",
+        "configured_receiver_count",
+        "firmware",
+    ):
+        if previous.get(key) != candidate.get(key):
+            raise ReadyManifestError(
+                f"ready manifest refresh changed immutable field {key!r}"
+            )
+
+    previous_radios = {
+        radio.get("serial"): radio
+        for radio in previous.get("radios", [])
+        if isinstance(radio, dict) and radio.get("serial")
+    }
+    candidate_radios = {
+        radio.get("serial"): radio
+        for radio in candidate.get("radios", [])
+        if isinstance(radio, dict) and radio.get("serial")
+    }
+    if set(previous_radios) != set(candidate_radios):
+        raise ReadyManifestError(
+            "ready manifest refresh requires the same radio serials"
+        )
+
+    for serial, old_radio in previous_radios.items():
+        new_radio = candidate_radios[serial]
+        if old_radio.get("usb_port_path") != new_radio.get("usb_port_path"):
+            raise ReadyManifestError(
+                f"{serial}: ready manifest refresh changed physical USB port"
+            )
+        old_fingerprint = fingerprint_for_serial(previous, serial)
+        new_fingerprint = fingerprint_for_serial(candidate, serial)
+        if old_fingerprint is None or new_fingerprint is None:
+            raise ReadyManifestError(
+                f"{serial}: ready manifest refresh has an invalid fingerprint"
+            )
+        if old_fingerprint.get("stable_identity") != new_fingerprint.get(
+            "stable_identity"
+        ):
+            raise ReadyManifestError(
+                f"{serial}: ready manifest refresh changed stable hardware identity"
+            )
+
+    write_manifest(path, candidate)
+    return candidate
+
+
 def firmware_for_serial(manifest: dict, serial: str) -> dict | None:
     matching = [
         radio for radio in manifest.get("radios", []) if radio.get("serial") == serial
@@ -435,7 +506,7 @@ def fingerprint_for_serial(manifest: dict, serial: str) -> dict | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("write", "verify", "show"))
+    parser.add_argument("command", choices=("write", "refresh", "verify", "show"))
     parser.add_argument("--rover-id", required=True, type=int)
     parser.add_argument("--config")
     parser.add_argument("--output", type=Path, default=DEFAULT_READY_PATH)
@@ -449,6 +520,13 @@ def main() -> int:
                 mapping_path=args.device_mapping,
             )
             write_manifest(args.output, manifest)
+        elif args.command == "refresh":
+            manifest = refresh_manifest(
+                args.rover_id,
+                config_override=args.config,
+                path=args.output,
+                mapping_path=args.device_mapping,
+            )
         elif args.command == "verify":
             manifest = verify_manifest(
                 args.rover_id,

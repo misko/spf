@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from spf.capture_schema import (
     validate_transport_schema,
 )
 from spf.capture_status import CaptureStatusWriter
+from spf.capture_failure import terminate_capture_process
 from spf.gps.boundaries import boundaries  # crissy_boundary_convex
 from spf.gps.boundaries import find_closest_boundary
 from spf.mavlink.mavlink_controller import (
@@ -321,7 +323,6 @@ if __name__ == "__main__":
     # begin promptly after boot. Collector construction remains in the same
     # place below, after navigation readiness and planner setup.
     from spf.data_collector import (
-        CaptureInterrupted,
         DroneDataCollectorRaw,
         DroneDataCollectorRawV6,
         DroneDataCollectorRawV7,
@@ -441,37 +442,44 @@ if __name__ == "__main__":
         f"MavRadioCollection: Current system time: {system_time} current gps time {gps_time}"
     )
 
-    capture_interruption = None
+    capture_failure = None
     try:
         with capture_signal_handlers(data_collector):
             data_collector.start()
-            while data_collector.is_collecting():
-                # if args.realtime:
-                #     for x in nn_ds: # x[1]['paired'].shape  / torch.Size([1, 65])
-                #         pass
-                check_exit()
-                time.sleep(0.5)
-
+            try:
+                while data_collector.is_collecting():
+                    # if args.realtime:
+                    #     for x in nn_ds: # x[1]['paired'].shape  / torch.Size([1, 65])
+                    #         pass
+                    check_exit()
+                    time.sleep(0.5)
+            except BaseException as error:
+                # Connection-health failures and explicit run limits occur in
+                # the main thread. Route them through the same writer/radio
+                # cleanup path as receiver-thread failures.
+                data_collector.request_stop(error)
             data_collector.done()
-    except CaptureInterrupted as error:
-        # DataCollector has already stopped RX, muted TX, persisted the exact
-        # incomplete state and closed LMDB before done() re-raises. The pinned
-        # libiio build can retain a native libusb_event thread even after its
-        # context is destroyed, hanging Python finalization indefinitely.
-        # Record the handled interruption and use a conventional signal exit
-        # code after the explicit cleanup instead of invoking C destructors.
-        capture_interruption = error
+    except BaseException as error:
+        # DataCollector has stopped RX, muted TX, persisted the exact incomplete
+        # state and closed LMDB before done() re-raises the primary incident.
+        capture_failure = error
     finally:
-        # Failure and signal paths must release the planner just like a clean
-        # collection. This is especially important when the caller supervises
-        # and waits for the process to exit before recovery.
-        drone.planner_should_move = False
-    if capture_interruption is not None:
-        logging.error("Capture stopped cleanly after %s", capture_interruption)
-        logging.shutdown()
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os._exit(128 + capture_interruption.signal_number)
+        if capture_failure is None:
+            drone.planner_should_move = False
+        else:
+            # This also interrupts an already-issued waypoint and requests
+            # HOLD. If MAVLink is temporarily unavailable, Drone retries HOLD
+            # after the next fresh heartbeat.
+            drone.request_motion_stop(
+                f"capture incident {data_collector.capture_incident_id or 'unassigned'}"
+            )
+    if capture_failure is not None:
+        drone.wait_for_abort_hold(timeout_seconds=2.0)
+        terminate_capture_process(
+            capture_failure,
+            incident_id=data_collector.capture_incident_id,
+            error_source=data_collector.capture_error_source,
+        )
 
     if args.realtime:
         v5inf.close()  # make sure to close this outside of context manager!
@@ -493,7 +501,31 @@ if __name__ == "__main__":
         time.sleep(2)
         seconds_to_wait -= 2
 
-    drone.move_to_home()
+    # Post-capture navigation is operationally important, but the Zarr above
+    # is already finalized, renamed and durably reported complete. Keep those
+    # two outcomes separate if MAVLink fails while parking the rover.
+    try:
+        if not drone.move_to_home():
+            raise RuntimeError("return-home operation did not reach home")
+    except BaseException as error:
+        incident_id = uuid.uuid4().hex
+        if status_writer is not None:
+            status_writer.publish(
+                "complete",
+                data_collector.records_written_by_receiver,
+                error=error,
+                incident_id=incident_id,
+                error_source="post_capture_navigation",
+                artifact=final_filenames["data"],
+                force=True,
+            )
+        drone.request_motion_stop(f"post-capture navigation incident {incident_id}")
+        drone.wait_for_abort_hold(timeout_seconds=2.0)
+        terminate_capture_process(
+            error,
+            incident_id=incident_id,
+            error_source="post_capture_navigation",
+        )
 
     if is_pi() and not args.fake_drone:
         time.sleep(5)

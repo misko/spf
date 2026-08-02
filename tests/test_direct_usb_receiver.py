@@ -10,6 +10,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     HARDWARE_IDENTITY_VERSION,
     FIRST_CHANGE_UNAVAILABLE,
     HEADER_BYTES,
+    HEADER_BYTES_V2,
     CapabilityFlags,
     GadgetCapabilitiesV1,
     GainMetadataV1,
@@ -20,6 +21,8 @@ from spf.sdrpluto.direct_usb_protocol import (
     SampleFormat,
 )
 from spf.sdrpluto.direct_usb_receiver import (
+    DirectUsbStreamDiscontinuityError,
+    DirectUsbTransferTimeoutError,
     DirectUsbNotFoundError,
     DirectUsbRecoveryError,
     DirectUsbTransportError,
@@ -29,6 +32,7 @@ from spf.sdrpluto.direct_usb_receiver import (
     PlutoDirectUsbReceiver,
     iq_payload_to_complex64,
 )
+from spf.sdrpluto.sdr_controller import PPlus
 
 
 def test_iq_payload_layout_rx1_iq_rx2_iq():
@@ -137,7 +141,10 @@ def test_open_quiesce_stops_and_drains_orphaned_bulk_data():
         "clear",
     ]
     assert handle.events[0][1][1] == COMMAND_STOP
-    assert handle.events[1][2] == MAX_ORPHAN_DRAIN_BYTES
+    assert handle.events[1][2] == min(
+        MAX_ORPHAN_DRAIN_BYTES,
+        HEADER_BYTES_V2 + _finite_capabilities().max_samples_per_channel * 8,
+    )
 
 
 def test_open_quiesce_fails_if_orphaned_backlog_does_not_end():
@@ -542,6 +549,68 @@ def test_capture_queues_bulk_transfers_before_start_and_parses_in_order():
     assert [frame.metadata.buffer_sequence for frame in capture.frames] == [0, 1]
     assert handle.event_log[:3] == ["submit:0", "submit:1", "control"]
     assert all(transfer.closed for transfer in handle.transfers)
+
+
+class _NeverCompletesContext:
+    def handleEventsTimeout(self, timeout):
+        return None
+
+
+def test_queued_deadline_is_classified_as_transport_timeout(monkeypatch):
+    handle = _FakeAsyncHandle([_valid_wire_frame(sequence=0)])
+    receiver = PlutoDirectUsbReceiver(serial="test")
+    receiver._context = _NeverCompletesContext()
+    identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    times = iter([0.0, 12.0, 12.0, 14.0])
+    monkeypatch.setattr(
+        "spf.sdrpluto.direct_usb_receiver.time.monotonic", lambda: next(times)
+    )
+
+    with pytest.raises(DirectUsbTransferTimeoutError) as raised:
+        receiver._capture_queued(
+            handle=handle,
+            identity=identity,
+            request=b"request",
+            frame_count=1,
+            frame_bytes=len(_valid_wire_frame(sequence=0)),
+        )
+
+    assert raised.value.pending_transfer_count == 1
+    assert raised.value.requested_transfer_count == 1
+    assert raised.value.timeout_ms == 10_000
+    assert raised.value.serial == "test"
+    assert raised.value.port_path == (1,)
+
+
+def test_spf_rejects_an_attested_restarted_stream_before_using_its_iq():
+    radio = PPlus.__new__(PPlus)
+    radio.rx_config = type("RxConfig", (), {"buffer_size": 8})()
+    radio.direct_rx = type(
+        "RecoveredReceiver",
+        (),
+        {
+            "capture": lambda self, **_kwargs: type(
+                "RecoveredCapture",
+                (),
+                {
+                    "recovered_after_transport_loss": True,
+                    "transport_loss_summary": "USB device re-enumerated",
+                    "frames": (),
+                },
+            )()
+        },
+    )()
+
+    with pytest.raises(DirectUsbStreamDiscontinuityError, match="new capture artifact"):
+        radio._capture_direct_frame()
 
 
 def test_partial_transfer_submission_is_cancelled_before_start():

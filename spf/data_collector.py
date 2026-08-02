@@ -8,6 +8,7 @@ import struct
 import sys
 import threading
 import time
+import uuid
 from concurrent import futures
 from contextlib import ExitStack
 from typing import Any, Dict, Optional
@@ -334,7 +335,14 @@ def data_to_snapshot(
 
 
 class ThreadedRX:
-    def __init__(self, pplus: PPlus, time_offset, nthetas, seconds_per_sample=0):
+    def __init__(
+        self,
+        pplus: PPlus,
+        time_offset,
+        nthetas,
+        seconds_per_sample=0,
+        error_callback=None,
+    ):
         self.pplus = pplus
         self.read_q = queue.Queue(maxsize=1)
         # self.read_q = multiprocessing.Queue(maxsize=1)
@@ -344,6 +352,7 @@ class ThreadedRX:
         self.rx_config = self.pplus.rx_config
         self.seconds_per_sample = seconds_per_sample
         self.error = None
+        self.error_callback = error_callback
         assert self.pplus.rx_config.rx_pos is not None
 
     def read_forever(self):
@@ -363,7 +372,16 @@ class ThreadedRX:
                 data = self.get_data()
             except Exception as e:
                 self.error = e
-                logging.exception("Failed to read data, aborting")
+                error_callback = getattr(self, "error_callback", None)
+                if error_callback is not None:
+                    error_callback(e)
+                else:
+                    logging.error(
+                        "%s receiver stopped: %s: %s",
+                        self.rx_config.uri,
+                        type(e).__name__,
+                        e,
+                    )
                 self.run = False
                 # The collector polls ``error`` directly. The sentinel is only
                 # a wake-up hint: never block trying to enqueue it behind a
@@ -571,6 +589,11 @@ class DataCollector:
         self.finished_collecting = False
         self.thread_class = thread_class
         self.collection_error = None
+        self.capture_incident_id = None
+        self.capture_error_source = None
+        self._failure_lock = threading.Lock()
+        self._reported_failure_ids = set()
+        self.secondary_capture_errors = []
         self.cleanup_errors = []
         self.status_writer = status_writer
         self.records_written_by_receiver = [0] * len(yaml_config["receivers"])
@@ -715,7 +738,7 @@ class DataCollector:
     def prepare_threads(self):
         self.read_threads = []
         time_offset = time.time()
-        for _, pplus_rx in self.receiver_pplus.items():
+        for uri, pplus_rx in self.receiver_pplus.items():
             if pplus_rx is None:
                 continue
             seconds_per_sample = -1
@@ -726,6 +749,9 @@ class DataCollector:
                 time_offset=time_offset,
                 nthetas=self.yaml_config["n-thetas"],
                 seconds_per_sample=seconds_per_sample,
+                error_callback=lambda error, source=f"receiver:{uri}": (
+                    self._record_primary_error(error, source=source)
+                ),
             )
             read_thread.start_read_thread()
             self.read_threads.append(read_thread)
@@ -746,19 +772,63 @@ class DataCollector:
     def request_stop(self, error):
         """Request cooperative cleanup without replacing an earlier failure."""
 
-        if self.collection_error is None:
-            latent_read_error = next(
-                (
-                    read_thread.error
-                    for read_thread in getattr(self, "read_threads", ())
-                    if read_thread.error is not None
-                ),
-                None,
-            )
-            self.collection_error = latent_read_error or error
+        latent_read = next(
+            (
+                (index, read_thread.error)
+                for index, read_thread in enumerate(getattr(self, "read_threads", ()))
+                if read_thread.error is not None
+            ),
+            None,
+        )
+        if latent_read is None:
+            primary_error = error
+            source = "control"
+        else:
+            receiver_index, primary_error = latent_read
+            source = f"receiver:{receiver_index}"
+        self._record_primary_error(primary_error, source=source)
+
+    def _record_primary_error(self, error, *, source):
+        """Atomically own one capture incident and stop every producer/mover."""
+
+        first = False
+        secondary = False
+        with self._failure_lock:
+            if self.collection_error is None:
+                self.collection_error = error
+                self.capture_incident_id = uuid.uuid4().hex
+                self.capture_error_source = str(source)
+                self._reported_failure_ids.add(id(error))
+                first = True
+            elif id(error) not in self._reported_failure_ids:
+                self._reported_failure_ids.add(id(error))
+                self.secondary_capture_errors.append((str(source), error))
+                secondary = True
         self.stop_requested.set()
         for read_thread in getattr(self, "read_threads", ()):
             read_thread.run = False
+        if first:
+            logging.error(
+                "Capture incident %s detected by %s: %s: %s",
+                self.capture_incident_id,
+                self.capture_error_source,
+                type(error).__name__,
+                error,
+            )
+            request_motion_stop = getattr(
+                self.position_controller, "request_motion_stop", None
+            )
+            if request_motion_stop is not None:
+                request_motion_stop(f"capture incident {self.capture_incident_id}")
+        elif secondary:
+            logging.error(
+                "Capture incident %s additional failure from %s: %s: %s",
+                self.capture_incident_id,
+                source,
+                type(error).__name__,
+                error,
+            )
+        return first
 
     def is_collecting(self):
         return not self.finished_collecting
@@ -798,19 +868,26 @@ class DataCollector:
             self.records_written_by_receiver
         )
         if self.collection_error is not None:
+            if self.capture_incident_id is not None:
+                zarr.attrs["capture_incident_id"] = self.capture_incident_id
+            if self.capture_error_source is not None:
+                zarr.attrs["capture_error_source"] = self.capture_error_source
             zarr.attrs["capture_error_type"] = type(self.collection_error).__name__
             zarr.attrs["capture_error_message"] = str(self.collection_error)
             error_number = getattr(self.collection_error, "errno", None)
             if error_number is not None:
                 zarr.attrs["capture_error_errno"] = int(error_number)
+        if self.secondary_capture_errors:
+            zarr.attrs["capture_secondary_errors"] = [
+                f"{source}: {self._error_summary(error)}"
+                for source, error in self.secondary_capture_errors
+            ]
         if self.cleanup_errors:
             zarr.attrs["capture_cleanup_errors"] = [
                 self._error_summary(error) for error in self.cleanup_errors
             ]
 
-    def publish_operator_status(
-        self, state, *, error=None, artifact=None, force=False
-    ):
+    def publish_operator_status(self, state, *, error=None, artifact=None, force=False):
         """Best-effort durable status; observability must not corrupt IQ capture."""
 
         if self.status_writer is None:
@@ -820,6 +897,8 @@ class DataCollector:
                 state,
                 self.records_written_by_receiver,
                 error=error,
+                incident_id=self.capture_incident_id,
+                error_source=self.capture_error_source,
                 artifact=artifact,
                 force=force,
             )
@@ -879,10 +958,11 @@ class DataCollector:
         try:
             # https://stackoverflow.com/questions/48263704/threadpoolexecutor-how-to-limit-the-queue-maxsize
             self.run_inner_collector_thread()
-        except Exception as error:
-            if self.collection_error is None:
-                self.collection_error = error
-            logging.exception("Collector failed")
+        # This is the collector's single ownership boundary. Control-flow
+        # exceptions (notably SystemExit raised by a failed precondition) must
+        # still stop readers, close radios, and finalize the partial store.
+        except BaseException as error:
+            self._record_primary_error(error, source="collector")
         finally:
             logging.info("Collector tell threads to quit!")
             for read_thread in self.read_threads:
@@ -894,17 +974,28 @@ class DataCollector:
                     read_thread.join()
                 except Exception as error:
                     self.cleanup_errors.append(error)
-                    logging.exception("Receiver thread cleanup failed")
+                    logging.error(
+                        "Capture incident %s receiver cleanup failed: %s",
+                        self.capture_incident_id or "unassigned",
+                        self._error_summary(error),
+                    )
 
             for uri, pplus in self.receiver_pplus.items():
                 try:
                     pplus.close()
                 except Exception as error:
                     self.cleanup_errors.append(error)
-                    logging.exception("%s: radio cleanup/TX mute failed", uri)
+                    logging.error(
+                        "Capture incident %s %s radio cleanup/TX mute failed: %s",
+                        self.capture_incident_id or "unassigned",
+                        uri,
+                        self._error_summary(error),
+                    )
 
             if self.collection_error is None and self.cleanup_errors:
-                self.collection_error = self.cleanup_errors[0]
+                self._record_primary_error(
+                    self.cleanup_errors[0], source="radio_cleanup"
+                )
 
             self._mark_capture_state(
                 "complete" if self.collection_error is None else "incomplete"
@@ -913,9 +1004,12 @@ class DataCollector:
                 self.close()
             except Exception as error:
                 self.cleanup_errors.append(error)
-                logging.exception("Capture store finalization failed")
-                if self.collection_error is None:
-                    self.collection_error = error
+                logging.error(
+                    "Capture incident %s store finalization failed: %s",
+                    self.capture_incident_id or "unassigned",
+                    self._error_summary(error),
+                )
+                self._record_primary_error(error, source="store_finalization")
 
             self.publish_operator_status(
                 "failed" if self.collection_error is not None else "finalizing",
@@ -927,8 +1021,9 @@ class DataCollector:
             if self.collection_error is None:
                 logging.info("Collector clean exit!")
             else:
-                logging.error(
-                    "Collector exit with primary error: %s",
+                logging.info(
+                    "Collector finalized capture incident %s: %s",
+                    self.capture_incident_id,
                     self._error_summary(self.collection_error),
                 )
 

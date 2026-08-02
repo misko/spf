@@ -162,7 +162,11 @@ custom_mode_mapping = {
 
 ROVER_MODE_RTL = 11
 
-switchable_modes = {"GUIDED": "ROVER_MODE_GUIDED", "MANUAL": "ROVER_MODE_MANUAL"}
+switchable_modes = {
+    "GUIDED": "ROVER_MODE_GUIDED",
+    "MANUAL": "ROVER_MODE_MANUAL",
+    "HOLD": "ROVER_MODE_HOLD",
+}
 
 mav_cmds_num2name = {}
 
@@ -188,6 +192,10 @@ RC_SHUTDOWN_THRESHOLD = 1500
 RC_SHUTDOWN_HOLD_SECONDS = 2.0
 RC_SHUTDOWN_MAX_SAMPLE_GAP_SECONDS = 1.5
 RC_SHUTDOWN_MIN_HIGH_SAMPLES = 3
+RC_ULTRASONIC_LOW_THRESHOLD = 1000
+RC_ULTRASONIC_HIGH_THRESHOLD = 1500
+RC_ULTRASONIC_STABLE_SAMPLES = 3
+RC_ULTRASONIC_MAX_SAMPLE_GAP_SECONDS = 1.5
 
 
 class _RCHoldInterlock:
@@ -255,6 +263,57 @@ class _RCHoldInterlock:
         return False, held_seconds
 
 
+class _RCStableSwitch:
+    """Apply hysteresis and consecutive-sample debounce to an RC switch."""
+
+    def __init__(
+        self,
+        *,
+        initial_state,
+        low_threshold,
+        high_threshold,
+        stable_samples,
+        max_sample_gap_seconds,
+    ):
+        self.state = bool(initial_state)
+        self.low_threshold = int(low_threshold)
+        self.high_threshold = int(high_threshold)
+        self.stable_samples = int(stable_samples)
+        self.max_sample_gap_seconds = float(max_sample_gap_seconds)
+        self.candidate = None
+        self.candidate_samples = 0
+        self.last_sample_at = None
+
+    def update(self, *, value, now):
+        if value >= self.high_threshold:
+            observed = True
+        elif value <= self.low_threshold:
+            observed = False
+        else:
+            self.candidate = None
+            self.candidate_samples = 0
+            self.last_sample_at = now
+            return None
+
+        if (
+            self.last_sample_at is None
+            or now - self.last_sample_at > self.max_sample_gap_seconds
+            or observed != self.candidate
+        ):
+            self.candidate = observed
+            self.candidate_samples = 1
+        else:
+            self.candidate_samples += 1
+        self.last_sample_at = now
+
+        if self.candidate_samples < self.stable_samples or observed == self.state:
+            return None
+        self.state = observed
+        self.candidate = None
+        self.candidate_samples = 0
+        return self.state
+
+
 # Mean earth radius, matching the `haversine` library used by
 # distance_to_target/move_to_point — so a rest offset expressed in metres
 # means the same metres the rover uses to decide it has arrived. (The WGS84
@@ -268,6 +327,10 @@ DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS = 10.0
 
 class MavlinkConnectionError(RuntimeError):
     """The vehicle link could not be established or recovered safely."""
+
+
+class MavlinkMessageHandlingError(MavlinkConnectionError):
+    """A decoded MAVLink message could not be applied to controller state."""
 
 
 class MavlinkParameterError(MavlinkConnectionError):
@@ -536,6 +599,7 @@ class Drone:
         self.reconnect_backoff = reconnect_backoff
         self.reconnect_heartbeat_timeout = reconnect_heartbeat_timeout
         self.connection_failure = None
+        self.connection_epoch = 0
         self._connection_healthy = threading.Event()
         self._connection_lock = threading.RLock()
         self.param_count = 0
@@ -564,6 +628,7 @@ class Drone:
         )
 
         self.motor_active = False
+        self._initialize_motion_stop_state()
         self._rc_shutdown_interlock = _RCHoldInterlock(
             threshold=RC_SHUTDOWN_THRESHOLD,
             hold_seconds=RC_SHUTDOWN_HOLD_SECONDS,
@@ -664,6 +729,11 @@ class Drone:
             self.gps_fix_type = "NOT_SET_YET"
             self.ekf_healthy = False
             self.sensors_health = []
+            if hasattr(self, "_motion_hold_sent"):
+                # A HOLD sent through the vanished connection is not proof that
+                # the flight controller received it.  Retry after a fresh
+                # heartbeat if a capture abort is still pending.
+                self._motion_hold_sent.clear()
 
     def _require_healthy_connection(self):
         if self.connection_factory is not None and not self.connection_healthy:
@@ -698,7 +768,11 @@ class Drone:
 
     def raise_if_connection_failed(self):
         if self.connection_failure is not None:
-            raise MavlinkConnectionError(str(self.connection_failure))
+            if isinstance(self.connection_failure, MavlinkConnectionError):
+                raise self.connection_failure
+            raise MavlinkConnectionError(
+                str(self.connection_failure)
+            ) from self.connection_failure
 
     def _recover_connection(self, cause):
         self._mark_connection_unhealthy(cause)
@@ -728,6 +802,7 @@ class Drone:
                 return False
 
             self.connection = connection
+            self.connection_epoch += 1
             if not self.fake:
                 self.mav_mode_mapping_name2num = connection.mode_mapping()
                 self.mav_mode_mapping_num2name = mavutil.mode_mapping_bynumber(
@@ -760,9 +835,7 @@ class Drone:
             except AttributeError:
                 pass
             except MavlinkConnectionError as error:
-                logging.info(
-                    "Skipping buzzer while MAVLink is unavailable: %s", error
-                )
+                logging.info("Skipping buzzer while MAVLink is unavailable: %s", error)
                 return False
             except Exception as error:
                 # The buzzer is advisory.  A write failure must not kill the
@@ -894,11 +967,77 @@ class Drone:
             )
 
     # point long/lat
+    def _initialize_motion_stop_state(self):
+        self._motion_stop_requested = threading.Event()
+        self._motion_hold_sent = threading.Event()
+        self._motion_stop_reason = None
+
+    def request_motion_stop(self, reason="capture stopped"):
+        """Cooperatively abort planner motion; HOLD is retried until accepted."""
+
+        if not hasattr(self, "_motion_stop_requested"):
+            self._initialize_motion_stop_state()
+        if not self._motion_stop_requested.is_set():
+            self._motion_stop_reason = str(reason)
+            logging.error("Vehicle motion stop requested: %s", self._motion_stop_reason)
+        self.planner_should_move = False
+        self._motion_stop_requested.set()
+
+    def _try_enter_abort_hold(self):
+        if not getattr(self, "_motion_stop_requested", threading.Event()).is_set():
+            return False
+        if self._motion_hold_sent.is_set():
+            return True
+        try:
+            self.set_mode("HOLD")
+        except Exception as error:
+            logging.warning(
+                "Capture abort HOLD is pending until MAVLink is available: %s",
+                error,
+            )
+            return False
+        self._motion_hold_sent.set()
+        logging.warning(
+            "Vehicle entered HOLD after capture abort: %s",
+            self._motion_stop_reason,
+        )
+        return True
+
+    def wait_for_abort_hold(self, *, timeout_seconds=2.0):
+        """Bound the in-process HOLD attempt before hard process teardown."""
+
+        if timeout_seconds < 0:
+            raise ValueError("timeout_seconds cannot be negative")
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            if self._try_enter_abort_hold():
+                return True
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                logging.error(
+                    "Vehicle HOLD was not confirmed before the capture process "
+                    "exit deadline"
+                )
+                return False
+            time.sleep(min(0.1, remaining))
+
     def move_to_point(self, point, log_interval=5):
         # logging.info(f"GPS: current position {self.gps} target position {str(point)}")
+        self.raise_if_connection_failed()
+        if self._motion_stop_requested.is_set():
+            self._try_enter_abort_hold()
+            return False
         self.reposition(lat=point[1], long=point[0])
         last_message = None
         while self.distance_to_target(point) > self.tolerance_in_m:
+            self.raise_if_connection_failed()
+            if self._motion_stop_requested.is_set():
+                self._try_enter_abort_hold()
+                logging.warning(
+                    "Aborted active waypoint after capture failure; target=%s",
+                    point,
+                )
+                return False
             if last_message is None or time.time() - last_message > log_interval:
                 logging.info(
                     f"\tDist (m) to target {str(self.distance_to_target(point))} {self.motor_active} {self.mav_mode}"
@@ -931,6 +1070,9 @@ class Drone:
     def run_planner(self):
         # self.single_operation_mode_on()
         logging.info("Start planner...")
+        self._motion_stop_requested.clear()
+        self._motion_hold_sent.clear()
+        self._motion_stop_reason = None
         self.planner_should_move = True
 
         # self.single_operation_mode_on()
@@ -978,7 +1120,9 @@ class Drone:
                 time.sleep(0.1)
             logging.info("Planner starting to issue move commands...")
 
-            self.move_to_point(home)
+            if not self.move_to_point(home):
+                self.planner_in_control = False
+                return
             time.sleep(2)
 
             # drone is now ready
@@ -997,7 +1141,8 @@ class Drone:
                     time.sleep(0.2)
                 else:
                     point = next_point
-                    self.move_to_point(point)
+                    if not self.move_to_point(point):
+                        break
                 self.planner_in_control = True
                 # time.sleep(2)
 
@@ -1031,7 +1176,8 @@ class Drone:
         # Switch to RTL mode
         # self.set_rtl_mode()
         # logging.info("RTL mode set. Waiting for the drone to reach home...")
-        self.move_to_point(self.home)
+        if not self.move_to_point(self.home):
+            return False
 
         start_time = time.time()
         while time.time() - start_time < max_wait:
@@ -1255,9 +1401,7 @@ class Drone:
 
     def ack(self, keyword):
         with self._command_connection() as connection:
-            return (
-                connection.recv_match(type=keyword, blocking=True, timeout=5) is None
-            )
+            return connection.recv_match(type=keyword, blocking=True, timeout=5) is None
 
     def single_operation_mode_on(self):
         assert not self.single_operation
@@ -1304,7 +1448,22 @@ class Drone:
                     if not self._recover_connection(error):
                         return
                     continue
-                self.process_message(msg)
+                try:
+                    self.process_message(msg)
+                except Exception as error:
+                    message_type = msg.get_type() if msg is not None else "NO_MESSAGE"
+                    failure = MavlinkMessageHandlingError(
+                        "MAVLink message handler failed: "
+                        f"message_type={message_type} "
+                        f"error={type(error).__name__}: {error}"
+                    )
+                    # Preserve the original traceback for the capture's single
+                    # owning traceback without printing a second one here.
+                    failure.__cause__ = error
+                    self.connection_failure = failure
+                    self._connection_healthy.clear()
+                    logging.error("%s", failure)
+                    return
 
     def handle_HOME_POSITION(self, msg):
         # HOME_POSITION message fields are in 1e7 scaled integers
@@ -1385,8 +1544,19 @@ class Drone:
                 # and guided_mode
                 and self.ekf_healthy
             ):
-                logging.info("Drone ready (gps + gps_healthy + ekf_healthy)")
+                logging.info(
+                    "Navigation ready for capture: connection_epoch=%d "
+                    "gps=%s satellites=%s fix=%s gps_healthy=%s ekf=%s",
+                    self.connection_epoch,
+                    self.gps,
+                    self.gps_satellites,
+                    self.gps_fix_type,
+                    gps_healthy,
+                    self.ekf_healthy,
+                )
                 self.drone_ready = True
+        if getattr(self, "_motion_stop_requested", None) is not None:
+            self._try_enter_abort_hold()
 
     def handle_SYSTEM_TIME(self, msg):
         self.gps_time = msg.time_unix_usec / 1e6  # time in seconds since epoch
@@ -1404,6 +1574,15 @@ class Drone:
         )
 
     def handle_STATUSTEXT(self, msg):
+        if "SmartRTL" in msg.text and "space" in msg.text.lower():
+            logging.warning(
+                "ARDUPILOT_SMARTRTL_ADVISORY: %s:%s:%s "
+                "(flight-controller breadcrumb capacity, not Pi disk space)",
+                self.connection.target_system,
+                self.connection.target_component,
+                msg.text,
+            )
+            return
         logging.info(
             f"{self.connection.target_system}:{self.connection.target_component}:{msg.text}"
         )
@@ -1420,9 +1599,10 @@ class Drone:
                 max_sample_gap_seconds=RC_SHUTDOWN_MAX_SAMPLE_GAP_SECONDS,
                 min_high_samples=RC_SHUTDOWN_MIN_HIGH_SAMPLES,
             )
+        now = time.monotonic()
         shutdown_requested, held_seconds = self._rc_shutdown_interlock.update(
             value=msg.chan9_raw,
-            now=time.monotonic(),
+            now=now,
             permitted=not self.armed and not self.motor_active,
         )
         if shutdown_requested:
@@ -1456,14 +1636,32 @@ class Drone:
             logging.info("Request reboot")
             self.reboot()
             sys.exit(1)
-        if msg.chan12_raw > 1000:
-            if not self.disable_distance_finder:
-                logging.info("DISABLE ULTRASONIC")
-                self.disable_distance_finder = True
-        else:
-            if self.disable_distance_finder:
-                logging.info("ENABLE ULTRASONIC")
-                self.disable_distance_finder = False
+        # If --no-ultrasonic omitted the sensor entirely, ignore RC12. This
+        # prevents reconnect/default channel values from producing misleading
+        # ENABLE/DISABLE messages for hardware that is not in use.
+        if self.distance_finder is None:
+            return
+        if not hasattr(self, "_ultrasonic_rc_switch"):
+            self._ultrasonic_rc_switch = _RCStableSwitch(
+                initial_state=self.disable_distance_finder,
+                low_threshold=RC_ULTRASONIC_LOW_THRESHOLD,
+                high_threshold=RC_ULTRASONIC_HIGH_THRESHOLD,
+                stable_samples=RC_ULTRASONIC_STABLE_SAMPLES,
+                max_sample_gap_seconds=RC_ULTRASONIC_MAX_SAMPLE_GAP_SECONDS,
+            )
+        disabled = self._ultrasonic_rc_switch.update(
+            value=msg.chan12_raw,
+            now=now,
+        )
+        if disabled is None:
+            return
+        self.disable_distance_finder = disabled
+        logging.info(
+            "%s ULTRASONIC after %d stable RC samples: ch12_raw=%d",
+            "DISABLE" if disabled else "ENABLE",
+            RC_ULTRASONIC_STABLE_SAMPLES,
+            msg.chan12_raw,
+        )
 
     def handle_SERVO_OUTPUT_RAW(self, msg):
         if msg.servo1_raw == 1500 and msg.servo3_raw == 1500:

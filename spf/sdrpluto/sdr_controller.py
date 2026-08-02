@@ -858,12 +858,25 @@ class PPlus:
     def _capture_direct_frame(self):
         if self.direct_rx is None:
             raise RuntimeError("direct USB RX transport is not open")
-        from spf.sdrpluto.direct_usb_receiver import iq_payload_to_complex64
+        from spf.sdrpluto.direct_usb_receiver import (
+            DirectUsbStreamDiscontinuityError,
+            iq_payload_to_complex64,
+        )
 
         capture = self.direct_rx.capture(
             samples_per_channel=self.rx_config.buffer_size,
             frame_count=1,
         )
+        if capture.recovered_after_transport_loss:
+            # The replacement device and its observable configuration were
+            # attested before START, but its sequence restarted at a new stream
+            # epoch. Never append that epoch to the Zarr whose continuity was
+            # just broken; the outer supervisor may start a new capture file.
+            raise DirectUsbStreamDiscontinuityError(
+                "direct USB recovered and re-attested after transport loss; "
+                "start a new capture artifact instead of appending the "
+                f"restarted stream ({capture.transport_loss_summary})"
+            )
         if len(capture.frames) != 1:
             raise RuntimeError(
                 f"direct USB returned {len(capture.frames)} frames, expected one"

@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 from types import SimpleNamespace
@@ -7,6 +8,7 @@ import pytest
 from spf.mavlink.mavlink_controller import (
     Drone,
     MavlinkConnectionError,
+    MavlinkMessageHandlingError,
     connect_with_heartbeat,
     resolve_ardupilot_serial,
 )
@@ -92,6 +94,16 @@ class ParameterConnection:
                     param_count=count,
                 )
             )
+
+
+class OneMessageConnection(ReconnectConnection):
+    def __init__(self, message):
+        super().__init__()
+        self.message = message
+
+    def recv_match(self, *, blocking, timeout):
+        message, self.message = self.message, None
+        return message
 
 
 def wait_until(predicate, timeout=1.0):
@@ -188,6 +200,62 @@ def test_buzzer_send_error_does_not_kill_caller_or_trigger_reconnect():
     assert drone.connection is disconnected
     assert drone.connection_failure is None
     assert factory_calls == []
+
+
+def test_readiness_log_identifies_the_connection_epoch(caplog):
+    caplog.set_level(logging.INFO)
+    connection = ReconnectConnection()
+    drone = Drone(connection, fake=True)
+    drone.gps[:] = [1.0, 2.0]
+    drone.gps_satellites = 12
+    drone.gps_fix_type = "GPS_FIX_TYPE_3D_FIX"
+    drone.ekf_healthy = True
+    drone.sensors_health = ["MAV_SYS_STATUS_SENSOR_GPS"]
+
+    drone.handle_HEARTBEAT(heartbeat(custom_mode=15), log_interval=0)
+
+    assert drone.drone_ready is True
+    assert "Navigation ready for capture" in caplog.text
+    assert "connection_epoch=0" in caplog.text
+    assert "Drone ready (gps + gps_healthy + ekf_healthy)" not in caplog.text
+
+
+def test_message_handler_failure_is_contextual_and_fails_capture_cleanly(caplog):
+    """Reproduce the formerly context-free NoneType item-assignment crash."""
+
+    malformed_state = OneMessageConnection(
+        FakeMessage(
+            message_type="PARAM_VALUE",
+            param_id="TEST_PARAM",
+            param_value=1.0,
+            param_count=1,
+        )
+    )
+    drone = Drone(malformed_state, fake=True)
+    # Reproduce the exact Python failure shape seen in the Rover 1 journal.
+    drone.params = None
+
+    with caplog.at_level(logging.ERROR):
+        drone.start()
+        assert wait_until(lambda: drone.connection_failure is not None)
+
+    with pytest.raises(MavlinkMessageHandlingError) as raised:
+        drone.raise_if_connection_failed()
+
+    assert "PARAM_VALUE" in str(raised.value)
+    assert isinstance(raised.value.__cause__, TypeError)
+    assert "does not support item assignment" in str(raised.value.__cause__)
+
+
+def test_smartrtl_space_warning_is_labeled_as_flight_controller_storage(caplog):
+    drone = Drone.__new__(Drone)
+    drone.connection = SimpleNamespace(target_system=1, target_component=1)
+    message = SimpleNamespace(text="SmartRTL Low on space")
+
+    drone.handle_STATUSTEXT(message)
+
+    assert "ARDUPILOT_SMARTRTL_ADVISORY" in caplog.text
+    assert "not Pi disk space" in caplog.text
 
 
 def test_mode_wait_survives_reconnect_and_buzzes_replacement_connection():

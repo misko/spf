@@ -23,6 +23,33 @@ Execution status on 2026-08-01:
 | 5 soak/fault injection | Pass for one radio; dual-radio pending | 3,624.746 accepted seconds across two verified restarts plus SIGINT/SIGTERM/SIGKILL matrix pass on `.18`; exact-count-two rerun awaits `.17` external power cycle |
 | 6 Rover rollout | Pending | Candidate is not published or persistent |
 
+## Capture-incident hardening candidate (2026-08-02)
+
+The Rover 3 incident exposed failures spanning USB, MAVLink, motion and artifact
+ownership. The candidate keeps one incident owner and makes every boundary
+fail closed. The software tests below are deliberately focused; the real-radio
+`SIGSTOP` row is an explicit hardware gate and is not part of ordinary CI.
+
+| Failure | Red reproduction | Fix | Green / pass condition |
+|---|---|---|---|
+| Queued bulk transfer misses its deadline | Event context never completes one submitted transfer | Raise `DirectUsbTransferTimeoutError` with pending/requested counts, deadline, serial and physical path; treat it as transport loss | Exact typed error; no metadata/protocol misclassification |
+| Recovered USB stream is appended to an existing Zarr | Re-attested replacement returns sequence zero after transport loss | Mark the returned capture as a new stream epoch; SPF rejects it before IQ use | Supervisor may create a new artifact only after complete radio re-attestation |
+| Two readers and the collector print competing tracebacks | Inject one receiver failure through a full result queue | Atomically assign one incident ID/source; readers and cleanup emit subordinate one-line records | One owning traceback at process termination; Zarr/status carry incident provenance |
+| Ordinary failure hangs Python behind native libusb threads | Leave a non-daemon thread alive after a normal exception | Finalize store/radios, flush the owning traceback, then use a bounded hard exit | Subprocess exits `1` within five seconds |
+| Rover continues an already-issued waypoint after capture loss | Fail capture while `move_to_point` is active | Abort planner, request `HOLD`, retry HOLD after a fresh heartbeat, and bound in-process wait | Waypoint loop exits and HOLD is sent; launcher refuses retry unless HOLD succeeds |
+| Flight-controller handler crashes without message context | Recreate the observed `NoneType` item-assignment failure in `PARAM_VALUE` | Preserve the original exception as the cause, attach MAVLink message type, mark controller unhealthy | Main capture sees a typed failure and owns the complete chained traceback |
+| Completed Zarr is relabeled failed when return-home fails | Final artifact exists, then post-capture navigation raises | Keep artifact/status `complete`; record a separate post-capture incident/exit code | Complete data remains complete while the service still exits non-zero |
+| Misleading RC12 ultrasonic chatter with `--no-ultrasonic` | Feed changing RC12 values with no distance-finder object | Ignore RC12 when absent; otherwise apply hysteresis plus three-sample debounce | No phantom logs/actions; real switch changes once after stable samples |
+| Rover 3-style shared host stall lacks evidence | Suspend capture longer than both USB/MAVLink deadlines | Independent 1 Hz JSONL watchdog records process/host/USB/storage/capture domains | Hardware `sigstop` test exits within five seconds after resume and leaves a readable incomplete prefix |
+| Retry could hide wrong radio, firmware or configuration | First capture fails and attachment changes | Allow at most one new-artifact retry after exact-count discovery, atomic mapping rebuild, signed manifest write/verify and fresh process configuration | Any identity/config/firmware mismatch terminates the service; no frame is retried in-place |
+
+The software-visible `SIGSTOP` reproducer does **not** claim that CPU starvation
+was the physical cause on Rover 3. It recreates the observed simultaneous USB
+deadline and MAVLink heartbeat loss so cleanup and evidence collection can be
+verified deterministically. Distinguishing USB power/reset, host scheduling and
+firmware stalls still depends on the independent watchdog plus kernel/voltage
+evidence from a real recurrence.
+
 ## Current production baseline
 
 - Two complex RX channels, CS16 interleaved.

@@ -11,11 +11,25 @@ cd /home/pi/spf
 ```
 
 Production atomically updates `/home/pi/preflight/capture_status.json` at a
-bounded cadence. A failed collector leaves `state=failed`, its per-radio safe
-record counts and the primary error, plays the failure tune three times, and
-causes `mavlink_controller.service` to remain failed rather than resembling an
-active capture. `late=true` means projected duration exceeds 120% of the
-1.8-frame/s production expectation after the 30-second grace period.
+bounded cadence. A failed collector leaves its temporary Zarr `incomplete`,
+publishes `state=failed` with per-radio safe record counts and the owned
+incident/error, enters HOLD, and plays the failure tune three times. Production
+may make one fully re-attested retry into a new timestamped artifact; a second
+failure or a failed safety/attestation gate leaves `mavlink_controller.service`
+failed rather than resembling an active capture. `late=true` means projected
+duration exceeds 120% of the 1.8-frame/s production expectation after the
+30-second grace period.
+
+Production also writes an independent, bounded evidence journal at
+`/home/pi/preflight/capture_watchdog.jsonl` (previous rotation: `.jsonl.1`).
+It samples capture process state, RSS/thread count, Pi pressure/temperature/
+throttling, Pluto enumeration, disk space and durable capture progress once per
+second. After a capture incident the rover requests `HOLD`, finalizes only the
+safe Zarr prefix, re-attests every expected radio and its firmware/configuration,
+then permits at most one retry into a **new timestamped artifact**. A second
+consecutive failure, failed HOLD, or failed radio attestation stops the service.
+Set `SPF_CAPTURE_RESTART_ATTEMPTS=0` to disable this retry; do not increase it
+for field operation without a new fault-injection qualification.
 
 Recover an interrupted V7 store without changing it:
 

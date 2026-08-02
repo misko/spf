@@ -82,6 +82,25 @@ store must remain `in_progress`; it must never be promoted or represented as
 complete. All modes validate every safely committed prefix and then reclaim
 each radio immediately.
 
+Recreate the Rover 3 software-visible dual-timeout signature by suspending the
+collector for 12.5 seconds, then resuming it:
+
+```bash
+pytest tests/radio_hardware/test_interrupted_collection_hardware.py \
+  --radio-hardware --radio-interrupt \
+  --radio-interrupt-signal=sigstop \
+  --radio-interrupt-min-records=25 \
+  --radio-expected-count=2 \
+  --radio-capture-config=data_collection/rover/rover_v3.1/capture_configs/rover3_production_v7.yaml \
+  --radio-device-mapping=/home/pi/device_mapping \
+  --radio-ready-manifest=/run/spf/direct_usb_ready.json
+```
+
+Passing means the resumed process records one owned incident, enters the
+ordinary bounded failure exit, leaves a readable `incomplete` Zarr, and
+releases both radios. This reproduces the deadline behavior; it does not claim
+that host scheduling was the physical cause of the August 1 incident.
+
 For the reproducible pre-field matrix, use:
 
 ```bash

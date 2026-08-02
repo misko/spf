@@ -1,3 +1,4 @@
+import dataclasses
 import json
 
 import pytest
@@ -273,3 +274,77 @@ def test_ready_build_rejects_duplicate_spi_nor_identity(tmp_path, monkeypatch):
             boot_id_path=tmp_path / "boot_id",
             hmac_key_path=tmp_path / "key",
         )
+
+
+def test_ready_refresh_allows_address_change_for_same_physical_radios(
+    tmp_path, monkeypatch
+):
+    mapping = tmp_path / "device_mapping"
+    mapping.write_text("1 8\n2 9\n")
+    ready = tmp_path / "ready.json"
+    devices = list(DEVICES)
+    monkeypatch.setattr(
+        pluto_ready_manifest, "discover_runtime_plutos", lambda: devices
+    )
+    monkeypatch.setattr(pluto_ready_manifest, "_spf_git_sha", lambda: "d" * 40)
+    _mock_passive_fingerprint(monkeypatch)
+    original = pluto_ready_manifest.build_manifest(
+        1,
+        mapping_path=mapping,
+        boot_id_path=tmp_path / "boot_id",
+        hmac_key_path=tmp_path / "key",
+    )
+    pluto_ready_manifest.write_manifest(ready, original)
+
+    devices[:] = [
+        dataclasses.replace(DEVICES[0], address=18),
+        dataclasses.replace(DEVICES[1], address=19),
+    ]
+    mapping.write_text("1 18\n2 19\n")
+    refreshed = pluto_ready_manifest.refresh_manifest(
+        1,
+        path=ready,
+        mapping_path=mapping,
+        boot_id_path=tmp_path / "boot_id",
+        hmac_key_path=tmp_path / "key",
+    )
+
+    assert [radio["usb_address"] for radio in refreshed["radios"]] == [18, 19]
+    assert json.loads(ready.read_text()) == refreshed
+
+
+def test_ready_refresh_rejects_replacement_radio_without_overwriting_manifest(
+    tmp_path, monkeypatch
+):
+    mapping = tmp_path / "device_mapping"
+    mapping.write_text("1 8\n2 9\n")
+    ready = tmp_path / "ready.json"
+    devices = list(DEVICES)
+    monkeypatch.setattr(
+        pluto_ready_manifest, "discover_runtime_plutos", lambda: devices
+    )
+    monkeypatch.setattr(pluto_ready_manifest, "_spf_git_sha", lambda: "d" * 40)
+    _mock_passive_fingerprint(monkeypatch)
+    original = pluto_ready_manifest.build_manifest(
+        1,
+        mapping_path=mapping,
+        boot_id_path=tmp_path / "boot_id",
+        hmac_key_path=tmp_path / "key",
+    )
+    pluto_ready_manifest.write_manifest(ready, original)
+    original_bytes = ready.read_bytes()
+
+    devices[-1] = dataclasses.replace(DEVICES[1], serial="SERIAL_REPLACEMENT")
+    with pytest.raises(
+        pluto_ready_manifest.ReadyManifestError,
+        match="same radio serials",
+    ):
+        pluto_ready_manifest.refresh_manifest(
+            1,
+            path=ready,
+            mapping_path=mapping,
+            boot_id_path=tmp_path / "boot_id",
+            hmac_key_path=tmp_path / "key",
+        )
+
+    assert ready.read_bytes() == original_bytes

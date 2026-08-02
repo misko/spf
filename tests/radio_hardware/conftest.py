@@ -82,9 +82,12 @@ def pytest_addoption(parser):
     )
     group.addoption(
         "--radio-interrupt-signal",
-        choices=("sigint", "sigterm", "sigkill"),
+        choices=("sigint", "sigterm", "sigkill", "sigstop"),
         default="sigterm",
-        help="signal used by the real collector interruption test",
+        help=(
+            "signal used by the real collector interruption test; sigstop "
+            "suspends longer than the USB/MAVLink deadline, then resumes"
+        ),
     )
     group.addoption(
         "--radio-interrupt-min-records",

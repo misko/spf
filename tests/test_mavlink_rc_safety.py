@@ -13,9 +13,40 @@ def _drone():
     drone.armed = False
     drone.motor_active = False
     drone.disable_distance_finder = False
+    drone.distance_finder = object()
     drone.run_compass_calibration = Mock()
     drone.reboot = Mock()
     return drone
+
+
+def test_ultrasonic_rc_is_ignored_when_capture_disabled_the_sensor(monkeypatch, caplog):
+    drone = _drone()
+    drone.distance_finder = None
+    drone.disable_distance_finder = True
+    _set_monotonic(monkeypatch, [0.0, 0.1, 0.2])
+
+    for _ in range(3):
+        drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000, ch12_raw=0))
+
+    assert drone.disable_distance_finder is True
+    assert "ULTRASONIC" not in caplog.text
+
+
+def test_ultrasonic_rc_requires_three_consistent_samples(monkeypatch, caplog):
+    caplog.set_level(logging.INFO)
+    drone = _drone()
+    _set_monotonic(monkeypatch, [0.0, 0.1, 0.2, 0.3, 0.4])
+
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000, ch12_raw=1800))
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000, ch12_raw=900))
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000, ch12_raw=1800))
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000, ch12_raw=1800))
+    assert drone.disable_distance_finder is False
+    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000, ch12_raw=1800))
+
+    assert drone.disable_distance_finder is True
+    assert caplog.text.count("DISABLE ULTRASONIC") == 1
+    assert "ch12_raw=1800" in caplog.text
 
 
 def _rc_message(*, ch9_raw, ch7_raw=0, ch10_raw=0, ch12_raw=0):
@@ -170,7 +201,7 @@ def test_shutdown_command_exception_is_contained_and_owns_message(
         "spf.mavlink.mavlink_controller.subprocess.run",
         shutdown,
     )
-    _set_monotonic(monkeypatch, [0.0, 0.1, 1.1, 2.1, 2.2])
+    _set_monotonic(monkeypatch, [0.0, 0.1, 1.1, 2.1, 2.2, 2.3, 2.4])
     drone = _drone()
     caplog.set_level(logging.ERROR)
 
@@ -189,11 +220,11 @@ def test_shutdown_command_exception_is_contained_and_owns_message(
     drone.reboot.assert_not_called()
     assert drone.disable_distance_finder is False
     assert any(
-        message.startswith("RC shutdown command failed:")
-        for message in caplog.messages
+        message.startswith("RC shutdown command failed:") for message in caplog.messages
     )
 
-    drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000, ch12_raw=1800))
+    for _ in range(3):
+        drone.handle_RC_CHANNELS(_rc_message(ch9_raw=1000, ch12_raw=1800))
 
     assert drone.disable_distance_finder is True
 

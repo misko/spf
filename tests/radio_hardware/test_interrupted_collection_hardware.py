@@ -64,7 +64,9 @@ def _assert_committed_prefix_is_valid(capture, counts, attached_plutos):
         assert 0 < committed <= receiver.signal_matrix.shape[0]
         timestamps = receiver.system_timestamp[:committed]
         assert len(timestamps) == committed
-        assert all(later > earlier for earlier, later in zip(timestamps, timestamps[1:]))
+        assert all(
+            later > earlier for earlier, later in zip(timestamps, timestamps[1:])
+        )
         assert receiver.gain_metadata_valid[:committed].all()
         assert receiver.rssi_metadata_valid[:committed].all()
     assert recorded_serials == attached_serials
@@ -88,9 +90,7 @@ def _capture_from_fresh_probe_session(radio, *, maximum_sessions=3):
             ) as receiver:
                 assert receiver.identity.serial == radio.serial
                 assert receiver.identity.port_path == radio.port_path
-                capture = receiver.capture(
-                    samples_per_channel=16_384, frame_count=1
-                )
+                capture = receiver.capture(samples_per_channel=16_384, frame_count=1)
                 assert len(capture.frames) == 1
                 return attempt
         except DirectUsbRecoveryAttestationError as error:
@@ -203,10 +203,7 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
             except Exception:
                 counts = []
             last_counts = counts
-            if (
-                len(counts) == len(attached_plutos)
-                and min(counts) >= minimum_records
-            ):
+            if len(counts) == len(attached_plutos) and min(counts) >= minimum_records:
                 committed_before_interrupt = counts
                 break
         time.sleep(0.1)
@@ -220,12 +217,24 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
         )
 
     started_wait = time.monotonic()
+    suspended_seconds = 0.0
+    resumed_at = None
     if interrupt_name == "sigint":
         process.send_signal(signal.SIGINT)
     elif interrupt_name == "sigterm":
         process.terminate()
     elif interrupt_name == "sigkill":
         process.kill()
+    elif interrupt_name == "sigstop":
+        # This deterministically recreates the software-visible Rover 3
+        # signature without pretending to identify its original physical
+        # cause: both USB event handling and MAVLink heartbeats are denied CPU
+        # time beyond their 10-second deadlines.
+        process.send_signal(signal.SIGSTOP)
+        suspended_seconds = 12.5
+        time.sleep(suspended_seconds)
+        process.send_signal(signal.SIGCONT)
+        resumed_at = time.monotonic()
     else:  # argparse choices make this defensive only.
         pytest.fail(f"unsupported interruption signal: {interrupt_name}")
     try:
@@ -237,12 +246,19 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
             f"collector did not exit after {interrupt_name}:\n{log_path.read_text()}"
         )
     exit_seconds = time.monotonic() - started_wait
+    resume_to_exit_seconds = (
+        None if resumed_at is None else time.monotonic() - resumed_at
+    )
     expected_return_code = {
         "sigint": 128 + signal.SIGINT,
         "sigterm": 128 + signal.SIGTERM,
         "sigkill": -signal.SIGKILL,
+        "sigstop": 1,
     }[interrupt_name]
     assert return_code == expected_return_code
+    if interrupt_name == "sigstop":
+        assert resume_to_exit_seconds is not None
+        assert resume_to_exit_seconds < 5.0
     assert partial_path is not None and partial_path.is_dir()
     assert not list(output_dir.glob("*.zarr"))
 
@@ -254,8 +270,17 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
             assert "capture_error_type" not in partial.attrs
             assert "capture_error_message" not in partial.attrs
         else:
-            assert partial.attrs["capture_error_type"] == "CaptureInterrupted"
-            assert interrupt_name.upper() in partial.attrs["capture_error_message"]
+            if interrupt_name == "sigstop":
+                assert partial.attrs["capture_error_type"] in {
+                    "DirectUsbStreamDiscontinuityError",
+                    "DirectUsbTransferTimeoutError",
+                    "MavlinkConnectionError",
+                }
+                assert partial.attrs["capture_incident_id"]
+                assert partial.attrs["capture_error_source"]
+            else:
+                assert partial.attrs["capture_error_type"] == "CaptureInterrupted"
+                assert interrupt_name.upper() in partial.attrs["capture_error_message"]
         committed_after_interrupt = list(
             partial.attrs["capture_records_written_by_receiver"]
         )
@@ -289,6 +314,8 @@ def test_real_collector_interruption_is_fail_closed_readable_and_releases_radios
         "capture_status": expected_status,
         "return_code": return_code,
         "exit_seconds": exit_seconds,
+        "suspended_seconds": suspended_seconds,
+        "resume_to_exit_seconds": resume_to_exit_seconds,
         "progress_timeout_seconds": progress_timeout_seconds,
         "partial_zarr": str(partial_path),
         "serials": [radio.serial for radio in attached_plutos],

@@ -64,6 +64,36 @@ class DirectUsbTransportError(RuntimeError):
     """A claimed direct-USB connection failed below the framing layer."""
 
 
+class DirectUsbTransferTimeoutError(DirectUsbTransportError):
+    """A finite bulk request missed its host deadline without valid framing."""
+
+    def __init__(
+        self,
+        *,
+        pending_transfer_count: int,
+        requested_transfer_count: int,
+        timeout_ms: int,
+        serial: str,
+        port_path: tuple[int, ...],
+    ) -> None:
+        self.pending_transfer_count = int(pending_transfer_count)
+        self.requested_transfer_count = int(requested_transfer_count)
+        self.timeout_ms = int(timeout_ms)
+        self.serial = serial
+        self.port_path = tuple(port_path)
+        super().__init__(
+            "direct USB finite RX timed out "
+            f"after {self.timeout_ms} ms with "
+            f"{self.pending_transfer_count}/{self.requested_transfer_count} "
+            "queued transfers pending for "
+            f"serial={self.serial!r} port_path={self.port_path!r}"
+        )
+
+
+class DirectUsbStreamDiscontinuityError(RuntimeError):
+    """A radio was re-attested, but its new stream needs a new artifact."""
+
+
 class DirectUsbRecoveryError(RuntimeError):
     """Bounded recovery could not restore one valid finite RX request."""
 
@@ -109,6 +139,8 @@ class DirectUsbCapture:
     capabilities: GadgetCapabilitiesV1
     frames: tuple[DirectUsbRxFrame, ...]
     elapsed_seconds: float
+    recovered_after_transport_loss: bool = False
+    transport_loss_summary: str | None = None
 
 
 def iq_payload_to_complex64(
@@ -446,7 +478,11 @@ class PlutoDirectUsbReceiver:
                 capture.identity.address,
                 metadata.stream_id,
             )
-            return capture
+            return dataclasses.replace(
+                capture,
+                recovered_after_transport_loss=True,
+                transport_loss_summary=f"{type(error).__name__}: {error}",
+            )
 
     def _mark_terminal_recovery_failure(self, error: Exception) -> None:
         self._terminal_recovery_error = error
@@ -767,6 +803,7 @@ class PlutoDirectUsbReceiver:
         pending: set[int] = set()
         protocol_errors: list[str] = []
         transport_errors: list[str] = []
+        timeout_error = None
         transfers = []
 
         def completed(transfer) -> None:
@@ -818,8 +855,12 @@ class PlutoDirectUsbReceiver:
             while pending and not protocol_errors and not transport_errors:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    protocol_errors.append(
-                        f"timed out with {len(pending)} queued transfers pending"
+                    timeout_error = DirectUsbTransferTimeoutError(
+                        pending_transfer_count=len(pending),
+                        requested_transfer_count=frame_count,
+                        timeout_ms=USB_BULK_TIMEOUT_MS,
+                        serial=identity.serial,
+                        port_path=identity.port_path,
                     )
                     break
                 context.handleEventsTimeout(min(0.1, remaining))
@@ -849,6 +890,8 @@ class PlutoDirectUsbReceiver:
 
         if transport_errors:
             raise DirectUsbTransportError("; ".join(transport_errors))
+        if timeout_error is not None:
+            raise timeout_error
         if protocol_errors:
             raise ProtocolError("; ".join(protocol_errors))
         if pending or any(chunk is None for chunk in chunks):

@@ -31,12 +31,70 @@ def test_gps_time_wait_notifies_once_instead_of_beeping_each_poll():
 def test_capture_failure_is_durable_and_plays_three_operator_tones():
     launcher = (ROVER_ROOT / "drone_run.sh").read_text()
     run_capture = launcher.split("run_capture() {", 1)[1].split("\n}\n", 1)[0]
+    notify = launcher.split("notify_capture_failure() {", 1)[1].split("\n}\n", 1)[0]
 
     assert '--status-file "$CAPTURE_STATUS_FILE"' in run_capture
     assert "spf.capture_status mark-failed" in run_capture
-    assert "for _attempt in 1 2 3" in run_capture
-    assert '"$MAVLINK_CONTROLLER" --buzzer failure' in run_capture
+    assert "for _attempt in 1 2 3" in notify
+    assert '"$MAVLINK_CONTROLLER" --buzzer failure' in notify
     assert 'return "$capture_status"' in run_capture
+
+
+def test_launcher_attempts_hold_before_failure_tones_or_radio_retry():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    main_loop = launcher.split("while true; do", 1)[1].split("\n    done", 1)[0]
+
+    assert main_loop.index("ensure_vehicle_hold_after_capture_failure") < (
+        main_loop.index("notify_capture_failure")
+    )
+    assert main_loop.index("notify_capture_failure") < main_loop.index(
+        "revalidate_radios_after_capture_failure"
+    )
+
+
+def test_capture_runs_with_an_independent_bounded_watchdog():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    run_capture = launcher.split("run_capture() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert "spf.capture_watchdog monitor" in run_capture
+    assert '--pid "$capture_pid"' in run_capture
+    assert '--expected-plutos "$expected_radios"' in run_capture
+    assert '--status-file "$CAPTURE_STATUS_FILE"' in run_capture
+    assert 'wait "$capture_pid"' in run_capture
+    assert 'wait "$watchdog_pid"' in run_capture
+
+
+def test_failed_capture_can_only_restart_as_a_new_attested_artifact():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    revalidate = launcher.split("revalidate_radios_after_capture_failure() {", 1)[
+        1
+    ].split("\n}\n", 1)[0]
+    main_loop = launcher.split("while true; do", 1)[1].split("\n    done", 1)[0]
+
+    assert "SPF_CAPTURE_RESTART_ATTEMPTS" in launcher
+    assert 'device_mapping.sh" >"$mapping_candidate"' in revalidate
+    assert "spf.scripts.pluto_ready_manifest" in revalidate
+    assert 'refresh "${manifest_args[@]}"' in revalidate
+    assert 'verify "${manifest_args[@]}"' in revalidate
+    assert "if run_capture; then" in main_loop
+    assert "revalidate_radios_after_capture_failure" in main_loop
+    assert "consecutive_capture_failures" in main_loop
+    assert "ensure_vehicle_hold_after_capture_failure" in main_loop
+    assert "--mode HOLD" in launcher
+
+
+def test_post_capture_navigation_failure_cannot_relabel_a_complete_zarr():
+    source = (REPO_ROOT / "spf/mavlink_radio_collection.py").read_text()
+    post_capture = source.split(
+        "# Post-capture navigation is operationally important", 1
+    )[1]
+
+    assert "try:" in post_capture
+    assert "if not drone.move_to_home():" in post_capture
+    assert "return-home operation did not reach home" in post_capture
+    assert "except BaseException as error:" in post_capture
+    assert 'error_source="post_capture_navigation"' in post_capture
+    assert "terminate_capture_process(" in post_capture
 
 
 def test_heavy_collection_imports_are_deferred_until_after_drone_ready_wait():

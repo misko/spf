@@ -42,6 +42,10 @@ BOOT_VALIDATE_ONLY="${SPF_BOOT_VALIDATE_ONLY:-0}"
 RUN_ONCE="${SPF_RUN_ONCE:-0}"
 OUTPUT_ROOT="${SPF_OUTPUT_ROOT:-/home/pi/temp}"
 CAPTURE_STATUS_FILE="${SPF_CAPTURE_STATUS_FILE:-/home/pi/preflight/capture_status.json}"
+CAPTURE_WATCHDOG_FILE="${SPF_CAPTURE_WATCHDOG_FILE:-/home/pi/preflight/capture_watchdog.jsonl}"
+CAPTURE_WATCHDOG_INTERVAL_SECONDS="${SPF_CAPTURE_WATCHDOG_INTERVAL_SECONDS:-1}"
+CAPTURE_WATCHDOG_MAXIMUM_BYTES="${SPF_CAPTURE_WATCHDOG_MAXIMUM_BYTES:-16777216}"
+CAPTURE_RESTART_ATTEMPTS="${SPF_CAPTURE_RESTART_ATTEMPTS:-1}"
 RADIO_WAIT_SECONDS="${SPF_RADIO_WAIT_SECONDS:-600}"
 ROVER_ID_FILE="${SPF_ROVER_ID_FILE:-/home/pi/rover_id}"
 
@@ -79,6 +83,12 @@ firmware_image_sha256="${config_values[11]}"
 
 [[ "$RADIO_WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]] ||
     die "SPF_RADIO_WAIT_SECONDS must be a positive integer."
+[[ "$CAPTURE_RESTART_ATTEMPTS" =~ ^[0-9]+$ ]] ||
+    die "SPF_CAPTURE_RESTART_ATTEMPTS must be a non-negative integer."
+[[ "$CAPTURE_WATCHDOG_INTERVAL_SECONDS" =~ ^[1-9][0-9]*$ ]] ||
+    die "SPF_CAPTURE_WATCHDOG_INTERVAL_SECONDS must be a positive integer."
+[[ "$CAPTURE_WATCHDOG_MAXIMUM_BYTES" =~ ^[1-9][0-9]*$ ]] ||
+    die "SPF_CAPTURE_WATCHDOG_MAXIMUM_BYTES must be a positive integer."
 
 print_plan() {
     printf '%s\n' \
@@ -95,7 +105,9 @@ print_plan() {
         "boot_validate_only=${BOOT_VALIDATE_ONLY}" \
         "run_once=${RUN_ONCE}" \
         "output_root=${OUTPUT_ROOT}" \
-        "capture_status_file=${CAPTURE_STATUS_FILE}"
+        "capture_status_file=${CAPTURE_STATUS_FILE}" \
+        "capture_watchdog_file=${CAPTURE_WATCHDOG_FILE}" \
+        "capture_restart_attempts=${CAPTURE_RESTART_ATTEMPTS}"
 }
 
 case "${1:-}" in
@@ -153,6 +165,59 @@ verify_direct_ready() {
     fi
     "$PYTHON" -m spf.scripts.pluto_ready_manifest \
         "${manifest_args[@]}" >/dev/null
+}
+
+revalidate_radios_after_capture_failure() {
+    local mapping_candidate
+    wait_for_radios
+    mapping_candidate="$(mktemp /tmp/spf-device-mapping.XXXXXX)"
+    if ! bash "${SCRIPT_DIR}/device_mapping.sh" >"$mapping_candidate"; then
+        rm -f -- "$mapping_candidate"
+        return 1
+    fi
+    # Replace the transient bus/address mapping only after complete discovery.
+    mv -- "$mapping_candidate" "$DEVICE_MAPPING"
+
+    if [[ "$rx_transport" == "direct_usb" ]]; then
+        local manifest_args=(
+            --rover-id "$rover_id"
+            --output "$READY_FILE"
+            --device-mapping "$DEVICE_MAPPING"
+        )
+        if [[ -n "${SPF_CAPTURE_CONFIG:-}" ]]; then
+            manifest_args+=(--config "$SPF_CAPTURE_CONFIG")
+        fi
+        # This is a read-only identity/config provenance refresh: no firmware
+        # flash and no IQ/TX operation. Refresh refuses to overwrite the prior
+        # manifest unless serial, physical path, stable hardware identity,
+        # config and firmware are unchanged; only transient attachment facts
+        # such as USB address may change. The next process reapplies and
+        # verifies the full RX configuration before creating a fresh Zarr.
+        sudo -n "$PYTHON" -m spf.scripts.pluto_ready_manifest \
+            refresh "${manifest_args[@]}" >/dev/null
+        sudo -n "$PYTHON" -m spf.scripts.pluto_ready_manifest \
+            verify "${manifest_args[@]}" >/dev/null
+    else
+        sudo -n bash "${SCRIPT_DIR}/load_direct_usb_firmware.sh" \
+            check-config-all "$expected_radios"
+    fi
+}
+
+ensure_vehicle_hold_after_capture_failure() {
+    # The failed collector tries HOLD for two seconds before its bounded hard
+    # exit. Reconnect independently and verify HOLD before any radio work or
+    # new artifact, covering a MAVLink outage that outlasted that deadline.
+    "$PYTHON" "$MAVLINK_CONTROLLER" \
+        --mode HOLD \
+        --connect-attempts 3 \
+        --heartbeat-timeout 3
+}
+
+notify_capture_failure() {
+    for _attempt in 1 2 3; do
+        "$PYTHON" "$MAVLINK_CONTROLLER" --buzzer failure || true
+        sleep 1
+    done
 }
 
 sync_vehicle_configuration() {
@@ -235,7 +300,7 @@ read_only_vehicle_gate() {
 }
 
 run_capture() {
-    local capture_status
+    local capture_pid capture_status watchdog_pid watchdog_status
     mkdir -p "$OUTPUT_ROOT" "$(dirname "$CAPTURE_STATUS_FILE")"
     set +e
     "$PYTHON" "${REPO_ROOT}/spf/mavlink_radio_collection.py" \
@@ -243,19 +308,33 @@ run_capture() {
         --device-mapping "$DEVICE_MAPPING" \
         --tag "RO${rover_id}" \
         --temp "$OUTPUT_ROOT" \
-        --status-file "$CAPTURE_STATUS_FILE"
+        --status-file "$CAPTURE_STATUS_FILE" &
+    capture_pid=$!
+    "$PYTHON" -m spf.capture_watchdog monitor \
+        --pid "$capture_pid" \
+        --status-file "$CAPTURE_STATUS_FILE" \
+        --storage-path "$OUTPUT_ROOT" \
+        --output "$CAPTURE_WATCHDOG_FILE" \
+        --expected-plutos "$expected_radios" \
+        --interval-seconds "$CAPTURE_WATCHDOG_INTERVAL_SECONDS" \
+        --maximum-bytes "$CAPTURE_WATCHDOG_MAXIMUM_BYTES" &
+    watchdog_pid=$!
+    wait "$capture_pid"
     capture_status=$?
+    wait "$watchdog_pid"
+    watchdog_status=$?
     set -e
+    if [[ "$watchdog_status" -ne 0 ]]; then
+        printf 'WARNING: capture watchdog exited with status %s.\n' \
+            "$watchdog_status" >&2
+    fi
     if [[ "$capture_status" -ne 0 ]]; then
         "$PYTHON" -m spf.capture_status mark-failed \
             --path "$CAPTURE_STATUS_FILE" \
             --exit-code "$capture_status" || true
-        for _attempt in 1 2 3; do
-            "$PYTHON" "$MAVLINK_CONTROLLER" --buzzer failure || true
-            sleep 1
-        done
         return "$capture_status"
     fi
+    return 0
 }
 
 main() {
@@ -283,11 +362,36 @@ main() {
     printf 'performance\n' | sudo tee \
         /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null
 
+    consecutive_capture_failures=0
     while true; do
-        run_capture
-        is_true "$RUN_ONCE" && break
-        sleep 8
-        sync_gps_time capture
+        if run_capture; then
+            consecutive_capture_failures=0
+            is_true "$RUN_ONCE" && break
+            sleep 8
+            sync_gps_time capture
+            sleep 2
+            continue
+        else
+            capture_status=$?
+        fi
+
+        consecutive_capture_failures=$((consecutive_capture_failures + 1))
+        if ! ensure_vehicle_hold_after_capture_failure; then
+            notify_capture_failure
+            die "Capture failed and vehicle HOLD could not be confirmed."
+        fi
+        notify_capture_failure
+        if is_true "$RUN_ONCE" ||
+            (( consecutive_capture_failures > CAPTURE_RESTART_ATTEMPTS )); then
+            printf 'Capture failed %s consecutive time(s); no automatic restart.\n' \
+                "$consecutive_capture_failures" >&2
+            return "$capture_status"
+        fi
+        printf 'Capture failed; re-attesting radios before a new artifact (%s/%s).\n' \
+            "$consecutive_capture_failures" "$CAPTURE_RESTART_ATTEMPTS" >&2
+        if ! revalidate_radios_after_capture_failure; then
+            die "Radio re-attestation failed after capture incident."
+        fi
         sleep 2
     done
 }
