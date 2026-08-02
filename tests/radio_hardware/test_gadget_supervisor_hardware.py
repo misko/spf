@@ -118,7 +118,7 @@ def test_gadget_crash_rebinds_composite_and_preserves_iio(
         services = manager._ssh(
             radio.serial,
             "pidof iiod; pidof sdr_usb_gadget; "
-            "logread | grep 'rebound composite USB gadget' | tail -1",
+            "grep 'rebound composite USB gadget' /var/log/messages | tail -1",
             timeout=15,
         )
         assert "rebound composite USB gadget" in services.stdout
