@@ -675,6 +675,7 @@ class PlutoDirectUsbReceiver:
     ) -> DirectUsbCapture:
         handle = self._require_handle()
         identity = self.identity
+        capabilities = self.capabilities
         request, frame_bytes = self._prepare_rx_request(
             samples_per_channel=samples_per_channel,
             frame_count=frame_count,

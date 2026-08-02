@@ -141,21 +141,25 @@ def test_contiguous_multiframe_request(attached_plutos, pytestconfig):
     frames_per_request = pytestconfig.getoption("--radio-frames-per-request")
     assert samples > 0
     assert frames_per_request > 1
+    # Legacy capture preallocates every transfer. Keep this parser comparison
+    # below the Pi's common 16 MiB usbfs ceiling; the rolling tests exercise the
+    # full configured group with one resident transfer per radio.
+    legacy_frames = min(frames_per_request, 3)
     for radio in attached_plutos:
         with PlutoDirectUsbReceiver(
             serial=radio.serial, protocol_version=2
         ) as receiver:
             capture = receiver.capture(
                 samples_per_channel=samples,
-                frame_count=frames_per_request,
+                frame_count=legacy_frames,
             )
-        assert len(capture.frames) == frames_per_request
+        assert len(capture.frames) == legacy_frames
         assert len({frame.metadata.stream_id for frame in capture.frames}) == 1
         assert [frame.metadata.buffer_sequence for frame in capture.frames] == list(
-            range(frames_per_request)
+            range(legacy_frames)
         )
         assert [frame.metadata.first_sample_sequence for frame in capture.frames] == [
-            index * samples for index in range(frames_per_request)
+            index * samples for index in range(legacy_frames)
         ]
         for frame in capture.frames:
             _validate_frame(frame, samples)
