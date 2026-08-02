@@ -119,6 +119,11 @@ def pytest_addoption(parser):
         help="enable long-running attached-radio tests",
     )
     group.addoption(
+        "--radio-crash-recovery",
+        action="store_true",
+        help="enable deliberate direct-USB daemon crash/rebind tests",
+    )
+    group.addoption(
         "--radio-report-dir",
         type=Path,
         default=None,
@@ -135,12 +140,16 @@ def pytest_collection_modifyitems(config, items):
     zarr_enabled = config.getoption("--radio-zarr", default=False)
     interrupt_enabled = config.getoption("--radio-interrupt", default=False)
     soak_enabled = config.getoption("--radio-soak", default=False)
+    crash_recovery_enabled = config.getoption("--radio-crash-recovery", default=False)
     hardware_skip = pytest.mark.skip(
         reason="requires explicit --radio-hardware and attached Pluto hardware"
     )
     zarr_skip = pytest.mark.skip(reason="requires explicit --radio-zarr")
     interrupt_skip = pytest.mark.skip(reason="requires explicit --radio-interrupt")
     soak_skip = pytest.mark.skip(reason="requires explicit --radio-soak")
+    crash_recovery_skip = pytest.mark.skip(
+        reason="requires explicit --radio-crash-recovery"
+    )
     for item in items:
         if "radio_hardware" in item.keywords and not hardware_enabled:
             item.add_marker(hardware_skip)
@@ -150,6 +159,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(interrupt_skip)
         if "radio_soak" in item.keywords and not soak_enabled:
             item.add_marker(soak_skip)
+        if "radio_crash_recovery" in item.keywords and not crash_recovery_enabled:
+            item.add_marker(crash_recovery_skip)
 
 
 def _discover_attached_plutos() -> list[AttachedPluto]:

@@ -33,6 +33,19 @@ rolling path used by SPF session groups. The rolling two-radio test keeps one
 production-sized transfer resident per radio, validates contiguous sequences,
 and therefore stays within the common 16 MiB usbfs memory budget.
 
+Deliberately kill only the vendor gadget daemon and require the on-radio
+supervisor to rebind the USB composite while standard USB-IIO returns:
+
+```bash
+sudo env PYTHONPATH="$PWD" python -m pytest \
+  tests/radio_hardware/test_gadget_supervisor_hardware.py \
+  --radio-hardware --radio-crash-recovery --radio-expected-count=2 \
+  --radio-samples=524288 --radio-report-dir=/tmp/spf-radio-report
+```
+
+This gate changes the USB device address and process nonce by design. It does
+not reboot the Pluto, enable TX, or write QSPI.
+
 `--radio-zarr` and `--radio-soak` are reserved as additional explicit gates;
 they are never implied by `--radio-hardware`.
 
