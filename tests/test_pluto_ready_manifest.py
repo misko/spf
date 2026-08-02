@@ -104,7 +104,7 @@ def test_ready_manifest_records_config_firmware_and_each_serial(tmp_path, monkey
     assert manifest["attached_radio_count"] == 2
     assert (
         manifest["firmware"]["image_sha256"]
-        == "0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9"
+        == "5f8220bc3a9c23b891ad8a19e52eeb24ecfcd24b2ae5923a1e50e450f49a802d"
     )
     assert [radio["serial"] for radio in manifest["radios"]] == [
         "SERIAL_A",

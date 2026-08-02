@@ -9,9 +9,9 @@ rate-gate:
   action-on-fail: stop-before-a
 
 gain-table-audit:
-  firmware-git-sha: 7b02276519a802aed83d47b6672c46e578ce4de0
-  gadget-git-sha: a1e6417d07188bd72be70692e28c5d6ae9a5ec62
-  image-sha256: 0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9
+  firmware-git-sha: 7b7fb14014b9a64d245ea1bd2045ff8ea3ef8880
+  gadget-git-sha: 27a7eed7b6abcaf1b9c78f7978bf743a7a315325
+  image-sha256: 5f8220bc3a9c23b891ad8a19e52eeb24ecfcd24b2ae5923a1e50e450f49a802d
   bands:
     - name: low
       probe-frequency-hz: 1300000000

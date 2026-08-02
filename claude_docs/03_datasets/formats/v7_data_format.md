@@ -65,10 +65,10 @@ Canonical, one per rover, selected at boot from `/home/pi/rover_id`
 ```yaml
 data-version: 7
 
-pluto-firmware:                  # all seven keys required, boot-mode must be "ram"
-  release-tag: v0.38-plutoplus-spf-gain-rssi-fingerprint-v1
-  image-sha256: 0a6a8939...
-  boot-mode: ram
+pluto-firmware:                  # all seven keys required, production uses persistent QSPI
+  release-tag: v0.38-plutoplus-spf-gain-rssi-fingerprint-v2
+  image-sha256: 5f8220bc...
+  boot-mode: qspi
 
 receivers:
   - receiver-port: 2             # USB2 = Radio A

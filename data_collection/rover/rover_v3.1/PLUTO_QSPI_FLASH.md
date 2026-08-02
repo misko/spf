@@ -60,7 +60,7 @@ does this and validates the result the same way the on-device flasher does:
 
 ```bash
 # download the exact image the boot currently RAM-loads, then convert it
-gh release download v0.38-plutoplus-spf-gain-rssi-fingerprint-v1 \
+gh release download v0.38-plutoplus-spf-gain-rssi-fingerprint-v2 \
   --repo misko/plutosdr-fw --pattern "pluto.dfu" -D /tmp/fw
 bash data_collection/rover/rover_v3.1/make_pluto_frm.sh /tmp/fw/pluto.dfu /tmp/fw/pluto.frm
 ```

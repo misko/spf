@@ -94,7 +94,7 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
     assert plan["data_version"] == "7"
     assert plan["capture_status_file"] == "/home/pi/preflight/capture_status.json"
     assert (
-        plan["firmware_release_tag"] == "v0.38-plutoplus-spf-gain-rssi-fingerprint-v1"
+        plan["firmware_release_tag"] == "v0.38-plutoplus-spf-gain-rssi-fingerprint-v2"
     )
 
 
@@ -196,3 +196,27 @@ def test_canonical_v7_configs_are_self_contained(
         spacing
     }
     assert config["pluto-firmware"]["image-sha256"] == plan.firmware_image_sha256
+
+
+@pytest.mark.parametrize("rover_id", [1, 2, 3])
+def test_every_production_rover_pins_bounded_v2_firmware(rover_id):
+    plan = resolve_capture_plan(rover_id)
+    assert (
+        plan.firmware_release_tag
+        == "v0.38-plutoplus-spf-gain-rssi-fingerprint-v2"
+    )
+    assert (
+        plan.firmware_asset_name
+        == "plutoplus-spf-direct-usb-gain-rssi-fingerprint-v2-pluto.dfu"
+    )
+    assert plan.firmware_image_url == (
+        "https://github.com/misko/plutosdr-fw/releases/download/"
+        "v0.38-plutoplus-spf-gain-rssi-fingerprint-v2/"
+        "plutoplus-spf-direct-usb-gain-rssi-fingerprint-v2-pluto.dfu"
+    )
+    assert plan.firmware_image_sha256 == (
+        "5f8220bc3a9c23b891ad8a19e52eeb24ecfcd24b2ae5923a1e50e450f49a802d"
+    )
+    assert plan.firmware_git_sha == "7b7fb14014b9a64d245ea1bd2045ff8ea3ef8880"
+    assert plan.gadget_git_sha == "27a7eed7b6abcaf1b9c78f7978bf743a7a315325"
+    assert plan.firmware_boot_mode == "qspi"

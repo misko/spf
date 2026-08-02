@@ -102,9 +102,9 @@ sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh verify-all 2
 It obtains the exact hardware-tested image from:
 
 ```text
-https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-fingerprint-v1
+https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-fingerprint-v2
 
-0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9
+5f8220bc3a9c23b891ad8a19e52eeb24ecfcd24b2ae5923a1e50e450f49a802d
 ```
 
 The multi-radio loader keeps both Plutos attached. It identifies each by USB

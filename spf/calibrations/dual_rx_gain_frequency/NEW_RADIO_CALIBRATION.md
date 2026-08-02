@@ -175,9 +175,9 @@ The firmware identity is pinned in every calibration YAML. The current
 published image is:
 
 ```text
-release: v0.38-plutoplus-spf-gain-rssi-fingerprint-v1
-asset:   plutoplus-spf-direct-usb-gain-rssi-fingerprint-v1-pluto.dfu
-SHA256:  0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9
+release: v0.38-plutoplus-spf-gain-rssi-fingerprint-v2
+asset:   plutoplus-spf-direct-usb-gain-rssi-fingerprint-v2-pluto.dfu
+SHA256:  5f8220bc3a9c23b891ad8a19e52eeb24ecfcd24b2ae5923a1e50e450f49a802d
 mode:    RAM only
 ```
 
