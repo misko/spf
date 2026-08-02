@@ -11,6 +11,9 @@ from spf.sdrpluto.direct_usb_protocol import (
     FIRST_CHANGE_UNAVAILABLE,
     HEADER_BYTES,
     HEADER_BYTES_V2,
+    RUNTIME_STATUS_BYTES,
+    RUNTIME_STATUS_MAGIC,
+    RUNTIME_STATUS_VERSION,
     START_REQUEST_BYTES,
     CapabilityFlags,
     GadgetCapabilitiesV1,
@@ -19,6 +22,10 @@ from spf.sdrpluto.direct_usb_protocol import (
     MetadataFeatures,
     MetadataFlags,
     ProtocolError,
+    ErrorSubsystem,
+    RuntimeState,
+    RuntimeStatusFlags,
+    RuntimeStatusV1,
     RxFrameParser,
     SampleFormat,
     pack_start_request_v1,
@@ -477,6 +484,82 @@ def test_capability_response_matches_c_golden():
         max_finite_frames=16,
         capability_flags=(CapabilityFlags.FINITE_RX | CapabilityFlags.DUMMY_GAINS),
     )
+
+
+def test_runtime_status_response_matches_c_layout():
+    payload = struct.pack(
+        "<IHHHHiII16s16sQQ14I",
+        RUNTIME_STATUS_MAGIC,
+        RUNTIME_STATUS_BYTES,
+        RUNTIME_STATUS_VERSION,
+        RuntimeState.STREAMING,
+        ErrorSubsystem.USB_SUBMIT,
+        5,
+        int(
+            RuntimeStatusFlags.BOOT_ID_VALID
+            | RuntimeStatusFlags.PROCESS_NONCE_VALID
+            | RuntimeStatusFlags.RX_WORKER_ACTIVE
+        ),
+        0,
+        b"\x11" * 16,
+        b"\x22" * 16,
+        0x0102030405060708,
+        9,
+        *range(10, 23),
+        0,
+    )
+    assert len(payload) == RUNTIME_STATUS_BYTES == 128
+    status = RuntimeStatusV1.unpack(payload)
+    assert status.lifecycle_state is RuntimeState.STREAMING
+    assert status.last_error_subsystem is ErrorSubsystem.USB_SUBMIT
+    assert status.last_errno == 5
+    assert status.boot_id == b"\x11" * 16
+    assert status.process_nonce == b"\x22" * 16
+    assert status.current_stream_id == 0x0102030405060708
+    assert status.last_completed_sequence == 9
+    assert status.start_count == 10
+    assert status.stop_timeout_count == 21
+    assert status.worker_heartbeat_age_ms == 22
+
+
+@pytest.mark.parametrize(
+    ("offset", "replacement", "message"),
+    [
+        (0, b"BAD!", "magic"),
+        (4, b"\x7f\x00", "size"),
+        (6, b"\x02\x00", "version"),
+        (8, b"\xff\xff", "state or subsystem"),
+        (10, b"\xff\xff", "state or subsystem"),
+        (16, b"\x00\x00\x00\x80", "flags"),
+        (20, b"\x01\x00\x00\x00", "reserved"),
+        (124, b"\x01\x00\x00\x00", "reserved"),
+    ],
+)
+def test_corrupt_runtime_status_is_rejected(offset, replacement, message):
+    payload = bytearray(
+        struct.pack(
+            "<IHHHHiII16s16sQQ14I",
+            RUNTIME_STATUS_MAGIC,
+            RUNTIME_STATUS_BYTES,
+            RUNTIME_STATUS_VERSION,
+            RuntimeState.IDLE,
+            ErrorSubsystem.NONE,
+            0,
+            int(
+                RuntimeStatusFlags.BOOT_ID_VALID
+                | RuntimeStatusFlags.PROCESS_NONCE_VALID
+            ),
+            0,
+            b"\x11" * 16,
+            b"\x22" * 16,
+            0,
+            0xFFFFFFFFFFFFFFFF,
+            *([0] * 14),
+        )
+    )
+    payload[offset : offset + len(replacement)] = replacement
+    with pytest.raises(ProtocolError, match=message):
+        RuntimeStatusV1.unpack(payload)
 
 
 def test_start_request_matches_c_golden():

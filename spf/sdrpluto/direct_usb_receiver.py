@@ -17,12 +17,14 @@ from spf.sdrpluto.direct_usb_protocol import (
     CAPABILITIES_BYTES,
     COMMAND_GET_CAPABILITIES,
     COMMAND_GET_HARDWARE_IDENTITY,
+    COMMAND_GET_STATUS,
     COMMAND_START_RX_V1,
     COMMAND_STOP,
     COMMAND_TARGET_RX,
     HEADER_BYTES,
     HEADER_BYTES_V2,
     HARDWARE_IDENTITY_BYTES,
+    RUNTIME_STATUS_BYTES,
     VERSION_V1,
     VERSION_V2,
     CapabilityFlags,
@@ -30,6 +32,8 @@ from spf.sdrpluto.direct_usb_protocol import (
     GadgetCapabilitiesV1,
     HardwareIdentityV1,
     HardwareIdentityFlags,
+    RuntimeStatusFlags,
+    RuntimeStatusV1,
     MetadataFeatures,
     MetadataFlags,
     ProtocolError,
@@ -199,6 +203,7 @@ class PlutoDirectUsbReceiver:
         self._identity: DirectUsbIdentity | None = None
         self._capabilities: GadgetCapabilitiesV1 | None = None
         self._recovery_hardware_identity: HardwareIdentityV1 | None = None
+        self._recovery_runtime_status: RuntimeStatusV1 | None = None
         self._terminal_recovery_error: Exception | None = None
         self._detached_kernel_driver = False
 
@@ -625,6 +630,11 @@ class PlutoDirectUsbReceiver:
         and physical port remain the durable identity boundary.
         """
 
+        if self.capabilities.capability_flags & CapabilityFlags.STATUS:
+            self._recovery_runtime_status = self.query_runtime_status()
+        else:
+            self._recovery_runtime_status = None
+
         if not (self.capabilities.capability_flags & CapabilityFlags.HARDWARE_IDENTITY):
             self._recovery_hardware_identity = None
             return None
@@ -704,6 +714,43 @@ class PlutoDirectUsbReceiver:
                             )
                         )
 
+        expected_runtime = self._recovery_runtime_status
+        if expected_runtime is not None:
+            try:
+                observed_runtime = self.query_runtime_status()
+            except Exception as error:
+                differences.append(
+                    RecoveryAttestationDifference(
+                        field="runtime_status",
+                        expected="readable passive status",
+                        observed=f"{type(error).__name__}: {error}",
+                    )
+                )
+            else:
+                runtime_fields = (
+                    (RuntimeStatusFlags.BOOT_ID_VALID, "boot_id"),
+                    (RuntimeStatusFlags.PROCESS_NONCE_VALID, "process_nonce"),
+                )
+                for flag, field in runtime_fields:
+                    if not expected_runtime.flags & flag:
+                        continue
+                    expected = getattr(expected_runtime, field)
+                    observed = (
+                        getattr(observed_runtime, field)
+                        if observed_runtime.flags & flag
+                        else None
+                    )
+                    if observed != expected:
+                        differences.append(
+                            RecoveryAttestationDifference(
+                                field=field,
+                                expected=expected.hex(),
+                                observed=(
+                                    None if observed is None else observed.hex()
+                                ),
+                            )
+                        )
+
         if differences:
             raise DirectUsbRecoveryAttestationError(iter(differences))
         if self.reconnect_attestor is None:
@@ -753,6 +800,23 @@ class PlutoDirectUsbReceiver:
             timeout=USB_CONTROL_TIMEOUT_MS,
         )
         return HardwareIdentityV1.unpack(payload)
+
+    def query_runtime_status(self) -> RuntimeStatusV1:
+        """Read volatile gadget health without starting RX or TX."""
+
+        handle = self._require_handle()
+        identity = self.identity
+        if not (self.capabilities.capability_flags & CapabilityFlags.STATUS):
+            raise ProtocolError("gadget does not advertise runtime status support")
+        payload = handle.controlRead(
+            usb1.ENDPOINT_IN | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
+            COMMAND_GET_STATUS,
+            COMMAND_TARGET_RX,
+            identity.interface,
+            RUNTIME_STATUS_BYTES,
+            timeout=USB_CONTROL_TIMEOUT_MS,
+        )
+        return RuntimeStatusV1.unpack(payload)
 
     def _capture_sync_for_test(
         self,

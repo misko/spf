@@ -10,6 +10,10 @@ from spf.sdrpluto.direct_usb_protocol import (
     GainMetadataV1,
     HardwareIdentityFlags,
     HardwareIdentityV1,
+    ErrorSubsystem,
+    RuntimeState,
+    RuntimeStatusFlags,
+    RuntimeStatusV1,
     MetadataFeatures,
     MetadataFlags,
     ProtocolError,
@@ -101,10 +105,12 @@ def _identity(*, bus=1, address=2, serial=SERIAL, port_path=PORT_PATH):
     )
 
 
-def _capabilities(*, hardware_identity=False):
+def _capabilities(*, hardware_identity=False, runtime_status=False):
     flags = CapabilityFlags.FINITE_RX
     if hardware_identity:
         flags |= CapabilityFlags.HARDWARE_IDENTITY
+    if runtime_status:
+        flags |= CapabilityFlags.STATUS
     return GadgetCapabilitiesV1(
         protocol_min=1,
         protocol_max=1,
@@ -128,6 +134,58 @@ def _hardware_identity(*, dna=FPGA_DNA, build_id=GADGET_SHA):
         fpga_device_dna=dna,
         gadget_build_id=build_id,
     )
+
+
+def _runtime_status(*, boot_id=b"\x11" * 16, process_nonce=b"\x22" * 16):
+    return RuntimeStatusV1(
+        lifecycle_state=RuntimeState.IDLE,
+        last_error_subsystem=ErrorSubsystem.NONE,
+        last_errno=0,
+        flags=(
+            RuntimeStatusFlags.BOOT_ID_VALID
+            | RuntimeStatusFlags.PROCESS_NONCE_VALID
+        ),
+        boot_id=boot_id,
+        process_nonce=process_nonce,
+        current_stream_id=0,
+        last_completed_sequence=0xFFFFFFFFFFFFFFFF,
+        start_count=0,
+        stop_count=0,
+        completed_frame_count=0,
+        dropped_frame_count=0,
+        iio_refill_error_count=0,
+        usb_submit_error_count=0,
+        short_write_count=0,
+        buffer_starvation_count=0,
+        gain_read_failure_count=0,
+        rssi_read_failure_count=0,
+        control_error_count=0,
+        stop_timeout_count=0,
+        worker_heartbeat_age_ms=0,
+    )
+
+
+def test_recovery_rejects_changed_gadget_process_nonce(monkeypatch):
+    attestor_calls = []
+    receiver = _disconnected_receiver(
+        attestor=lambda: attestor_calls.append("configured")
+    )
+    receiver._identity = _identity(address=9)
+    receiver._capabilities = _capabilities(runtime_status=True)
+    receiver._recovery_runtime_status = _runtime_status()
+    monkeypatch.setattr(
+        receiver,
+        "query_runtime_status",
+        lambda: _runtime_status(process_nonce=b"\x33" * 16),
+    )
+
+    with pytest.raises(DirectUsbRecoveryAttestationError) as error:
+        receiver._attest_recovered_connection(_identity())
+
+    assert [difference.field for difference in error.value.differences] == [
+        "process_nonce"
+    ]
+    assert attestor_calls == []
 
 
 class _RecoveryHandle(_FakeHandle):

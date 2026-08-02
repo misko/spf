@@ -28,11 +28,14 @@ COMMAND_STOP: Final[int] = 0x11
 COMMAND_GET_CAPABILITIES: Final[int] = 0x12
 COMMAND_START_RX_V1: Final[int] = 0x13
 COMMAND_GET_HARDWARE_IDENTITY: Final[int] = 0x14
+COMMAND_GET_STATUS: Final[int] = 0x15
 COMMAND_TARGET_RX: Final[int] = 0
 
 CAPABILITIES_MAGIC: Final[int] = 0x50434753  # b"SGCP"
 HARDWARE_IDENTITY_MAGIC: Final[int] = 0x31464853  # b"SHF1"
 HARDWARE_IDENTITY_VERSION: Final[int] = 1
+RUNTIME_STATUS_MAGIC: Final[int] = 0x31545353  # b"SST1"
+RUNTIME_STATUS_VERSION: Final[int] = 1
 START_REQUEST_MAGIC: Final[int] = 0x31534753  # b"SGS1"
 START_REQUEST_MAGIC_V2: Final[int] = 0x32534753  # b"SGS2"
 MAX_FINITE_FRAMES: Final[int] = 16
@@ -84,11 +87,40 @@ class CapabilityFlags(enum.IntFlag):
     FINITE_RX = 1 << 0
     DUMMY_GAINS = 1 << 1
     HARDWARE_IDENTITY = 1 << 2
+    STATUS = 1 << 3
 
 
 class HardwareIdentityFlags(enum.IntFlag):
     FPGA_DEVICE_DNA_VALID = 1 << 0
     GADGET_BUILD_ID_VALID = 1 << 1
+
+
+class RuntimeStatusFlags(enum.IntFlag):
+    BOOT_ID_VALID = 1 << 0
+    PROCESS_NONCE_VALID = 1 << 1
+    RX_WORKER_ACTIVE = 1 << 2
+
+
+class RuntimeState(enum.IntEnum):
+    IDLE = 0
+    STARTING = 1
+    STREAMING = 2
+    COMPLETE = 3
+    STOPPING = 4
+    FAILED = 5
+
+
+class ErrorSubsystem(enum.IntEnum):
+    NONE = 0
+    CONTROL = 1
+    RX_INIT = 2
+    IIO_REFILL = 3
+    USB_SUBMIT = 4
+    USB_COMPLETION = 5
+    BUFFER_STARVATION = 6
+    GAIN_READ = 7
+    RSSI_READ = 8
+    STOP_TIMEOUT = 9
 
 
 KNOWN_FEATURES: Final[MetadataFeatures] = (
@@ -141,6 +173,11 @@ assert CAPABILITIES_BYTES == 32
 _HARDWARE_IDENTITY_STRUCT: Final[struct.Struct] = struct.Struct("<IHHIIQ40s")
 HARDWARE_IDENTITY_BYTES: Final[int] = _HARDWARE_IDENTITY_STRUCT.size
 assert HARDWARE_IDENTITY_BYTES == 64
+_RUNTIME_STATUS_STRUCT: Final[struct.Struct] = struct.Struct(
+    "<IHHHHiII16s16sQQ14I"
+)
+RUNTIME_STATUS_BYTES: Final[int] = _RUNTIME_STATUS_STRUCT.size
+assert RUNTIME_STATUS_BYTES == 128
 _START_REQUEST_STRUCT: Final[struct.Struct] = struct.Struct("<IHHIIIIII")
 START_REQUEST_BYTES: Final[int] = _START_REQUEST_STRUCT.size
 assert START_REQUEST_BYTES == 32
@@ -193,6 +230,7 @@ class GadgetCapabilitiesV1:
             CapabilityFlags.FINITE_RX
             | CapabilityFlags.DUMMY_GAINS
             | CapabilityFlags.HARDWARE_IDENTITY
+            | CapabilityFlags.STATUS
         )
         unknown_capability_flags = capability_flags & ~int(known_capability_flags)
         if unknown_capability_flags:
@@ -277,6 +315,125 @@ class HardwareIdentityV1:
             flags=parsed_flags,
             fpga_device_dna=fpga_device_dna,
             gadget_build_id=gadget_build_id,
+        )
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RuntimeStatusV1:
+    """Passive, volatile health state for one gadget process instance."""
+
+    lifecycle_state: RuntimeState
+    last_error_subsystem: ErrorSubsystem
+    last_errno: int
+    flags: RuntimeStatusFlags
+    boot_id: bytes
+    process_nonce: bytes
+    current_stream_id: int
+    last_completed_sequence: int
+    start_count: int
+    stop_count: int
+    completed_frame_count: int
+    dropped_frame_count: int
+    iio_refill_error_count: int
+    usb_submit_error_count: int
+    short_write_count: int
+    buffer_starvation_count: int
+    gain_read_failure_count: int
+    rssi_read_failure_count: int
+    control_error_count: int
+    stop_timeout_count: int
+    worker_heartbeat_age_ms: int
+
+    @classmethod
+    def unpack(cls, payload: bytes | bytearray | memoryview) -> "RuntimeStatusV1":
+        if len(payload) != RUNTIME_STATUS_BYTES:
+            raise ProtocolError(
+                "runtime status response size mismatch: "
+                f"got {len(payload)}, expected {RUNTIME_STATUS_BYTES}"
+            )
+        values = _RUNTIME_STATUS_STRUCT.unpack(payload)
+        (
+            magic,
+            response_bytes,
+            version,
+            lifecycle_state,
+            last_error_subsystem,
+            last_errno,
+            flags,
+            reserved0,
+            boot_id,
+            process_nonce,
+            current_stream_id,
+            last_completed_sequence,
+            start_count,
+            stop_count,
+            completed_frame_count,
+            dropped_frame_count,
+            iio_refill_error_count,
+            usb_submit_error_count,
+            short_write_count,
+            buffer_starvation_count,
+            gain_read_failure_count,
+            rssi_read_failure_count,
+            control_error_count,
+            stop_timeout_count,
+            worker_heartbeat_age_ms,
+            reserved1,
+        ) = values
+        if magic != RUNTIME_STATUS_MAGIC:
+            raise ProtocolError(f"bad runtime status magic: 0x{magic:08x}")
+        if response_bytes != RUNTIME_STATUS_BYTES:
+            raise ProtocolError(f"unsupported runtime status size: {response_bytes}")
+        if version != RUNTIME_STATUS_VERSION:
+            raise ProtocolError(f"unsupported runtime status version: {version}")
+        if reserved0 != 0 or reserved1 != 0:
+            raise ProtocolError("runtime status reserved fields must be zero")
+        known_flags = (
+            RuntimeStatusFlags.BOOT_ID_VALID
+            | RuntimeStatusFlags.PROCESS_NONCE_VALID
+            | RuntimeStatusFlags.RX_WORKER_ACTIVE
+        )
+        if flags & ~int(known_flags):
+            raise ProtocolError(f"unknown runtime status flags: 0x{flags:08x}")
+        parsed_flags = RuntimeStatusFlags(flags)
+        try:
+            parsed_state = RuntimeState(lifecycle_state)
+            parsed_subsystem = ErrorSubsystem(last_error_subsystem)
+        except ValueError as exc:
+            raise ProtocolError("unknown runtime status state or subsystem") from exc
+        if not parsed_flags & RuntimeStatusFlags.BOOT_ID_VALID and any(boot_id):
+            raise ProtocolError("invalid runtime boot ID must be zero")
+        if not parsed_flags & RuntimeStatusFlags.PROCESS_NONCE_VALID and any(
+            process_nonce
+        ):
+            raise ProtocolError("invalid runtime process nonce must be zero")
+        if (
+            not parsed_flags & RuntimeStatusFlags.RX_WORKER_ACTIVE
+            and worker_heartbeat_age_ms != 0
+        ):
+            raise ProtocolError("inactive worker heartbeat age must be zero")
+        return cls(
+            lifecycle_state=parsed_state,
+            last_error_subsystem=parsed_subsystem,
+            last_errno=last_errno,
+            flags=parsed_flags,
+            boot_id=boot_id,
+            process_nonce=process_nonce,
+            current_stream_id=current_stream_id,
+            last_completed_sequence=last_completed_sequence,
+            start_count=start_count,
+            stop_count=stop_count,
+            completed_frame_count=completed_frame_count,
+            dropped_frame_count=dropped_frame_count,
+            iio_refill_error_count=iio_refill_error_count,
+            usb_submit_error_count=usb_submit_error_count,
+            short_write_count=short_write_count,
+            buffer_starvation_count=buffer_starvation_count,
+            gain_read_failure_count=gain_read_failure_count,
+            rssi_read_failure_count=rssi_read_failure_count,
+            control_error_count=control_error_count,
+            stop_timeout_count=stop_timeout_count,
+            worker_heartbeat_age_ms=worker_heartbeat_age_ms,
         )
 
 

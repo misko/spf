@@ -5,9 +5,13 @@ import usb1
 
 from spf.sdrpluto.direct_usb_protocol import (
     COMMAND_STOP,
+    COMMAND_GET_STATUS,
     HARDWARE_IDENTITY_BYTES,
     HARDWARE_IDENTITY_MAGIC,
     HARDWARE_IDENTITY_VERSION,
+    RUNTIME_STATUS_BYTES,
+    RUNTIME_STATUS_MAGIC,
+    RUNTIME_STATUS_VERSION,
     FIRST_CHANGE_UNAVAILABLE,
     HEADER_BYTES,
     HEADER_BYTES_V2,
@@ -18,6 +22,9 @@ from spf.sdrpluto.direct_usb_protocol import (
     MetadataFeatures,
     MetadataFlags,
     ProtocolError,
+    ErrorSubsystem,
+    RuntimeState,
+    RuntimeStatusFlags,
     SampleFormat,
 )
 from spf.sdrpluto.direct_usb_receiver import (
@@ -421,6 +428,55 @@ def test_hardware_identity_query_is_read_only_and_does_not_start_streaming():
 
     assert identity.fpga_device_dna == 0x123456789ABCD
     assert identity.gadget_build_id == "c" * 40
+    assert handle.control_writes == []
+    assert handle.bulk_read_sizes == []
+
+
+def test_runtime_status_query_is_read_only_and_does_not_start_streaming():
+    payload = struct.pack(
+        "<IHHHHiII16s16sQQ14I",
+        RUNTIME_STATUS_MAGIC,
+        RUNTIME_STATUS_BYTES,
+        RUNTIME_STATUS_VERSION,
+        RuntimeState.IDLE,
+        ErrorSubsystem.NONE,
+        0,
+        int(
+            RuntimeStatusFlags.BOOT_ID_VALID
+            | RuntimeStatusFlags.PROCESS_NONCE_VALID
+        ),
+        0,
+        b"\x11" * 16,
+        b"\x22" * 16,
+        0,
+        0xFFFFFFFFFFFFFFFF,
+        *([0] * 14),
+    )
+    handle = _FakeHandle(payload)
+    receiver = PlutoDirectUsbReceiver(serial="test")
+    receiver._handle = handle
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x89,
+        bulk_out_endpoint=0x07,
+    )
+    receiver._capabilities = GadgetCapabilitiesV1(
+        protocol_min=1,
+        protocol_max=2,
+        supported_features=MetadataFeatures(0x37),
+        max_samples_per_channel=1024,
+        max_finite_frames=16,
+        capability_flags=CapabilityFlags.FINITE_RX | CapabilityFlags.STATUS,
+    )
+
+    status = receiver.query_runtime_status()
+
+    assert status.lifecycle_state is RuntimeState.IDLE
+    assert status.boot_id == b"\x11" * 16
     assert handle.control_writes == []
     assert handle.bulk_read_sizes == []
 
