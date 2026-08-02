@@ -1,9 +1,9 @@
-"""Opt-in crash/rebind gate for the on-Pluto direct-USB supervisor.
+"""Opt-in crash-recovery gate for the on-Pluto direct-USB supervisor.
 
 The test kills only ``sdr_usb_gadget``. It never resets the radio, changes RF
 configuration, enables TX, or writes firmware. Passing proves the supervisor
-publishes a fresh process nonce, rebinds the composite gadget, and preserves
-standard USB-IIO.
+publishes a fresh process nonce, recovers the isolated FunctionFS process, and
+preserves the composite gadget and standard USB-IIO.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def _wait_for_new_process(serial: str, old_nonce: bytes, timeout: float = 45.0):
     )
 
 
-def test_gadget_crash_rebinds_composite_and_preserves_iio(
+def test_gadget_crash_recovers_function_and_preserves_iio(
     attached_plutos, pytestconfig, radio_report_dir
 ):
     manager = _manager(len(attached_plutos))
@@ -118,10 +118,10 @@ def test_gadget_crash_rebinds_composite_and_preserves_iio(
         services = manager._ssh(
             radio.serial,
             "pidof iiod; pidof sdr_usb_gadget; "
-            "grep 'rebound composite USB gadget' /var/log/messages | tail -1",
+            "grep 'recovered direct-USB gadget process' /var/log/messages | tail -1",
             timeout=15,
         )
-        assert "rebound composite USB gadget" in services.stdout
+        assert "recovered direct-USB gadget process" in services.stdout
         report.append(
             {
                 "serial": radio.serial,
