@@ -220,3 +220,12 @@ def test_every_production_rover_pins_bounded_v2_firmware(rover_id):
     assert plan.firmware_git_sha == "7b7fb14014b9a64d245ea1bd2045ff8ea3ef8880"
     assert plan.gadget_git_sha == "27a7eed7b6abcaf1b9c78f7978bf743a7a315325"
     assert plan.firmware_boot_mode == "qspi"
+
+
+def test_boot_derives_active_device_version_from_configured_release_tag():
+    source = (ROVER_ROOT / "prepare_direct_usb_boot.sh").read_text()
+    assert (
+        'expected_device_fw="${SPF_PLUTO_EXPECTED_DEVICE_FW:-$firmware_release_tag}"'
+        in source
+    )
+    assert 'SPF_PLUTO_EXPECTED_DEVICE_FW="$expected_device_fw"' in source

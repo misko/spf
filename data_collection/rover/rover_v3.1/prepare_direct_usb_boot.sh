@@ -22,11 +22,6 @@ PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
 # capture config. SPF_PLUTO_RAM_LOAD remains an explicit operational override:
 # 1 forces a volatile RAM load, while 0 forces persistent QSPI verification.
 RAM_LOAD_OVERRIDE="${SPF_PLUTO_RAM_LOAD:-}"
-# Expected running /opt/VERSIONS device-fw for the pinned direct-USB image. Tied
-# to the image the loader downloads; bump both together (overridable via
-# /etc/spf/*.env).
-EXPECTED_DEVICE_FW="${SPF_PLUTO_EXPECTED_DEVICE_FW:-v0.38_plutoplus_with_timestamping-9-g7b02}"
-
 die() {
     printf 'ERROR: %s\n' "$*" >&2
     exit 1
@@ -82,6 +77,10 @@ firmware_image_url="${config_values[10]}"
 firmware_image_sha256="${config_values[11]}"
 firmware_gadget_git_sha="${config_values[13]}"
 firmware_boot_mode="${config_values[14]}"
+# The v2 image publishes its release tag as /opt/VERSIONS device-fw. Derive the
+# expected running value from the same config pin instead of maintaining a
+# second hard-coded version that can silently lag a firmware rollout.
+expected_device_fw="${SPF_PLUTO_EXPECTED_DEVICE_FW:-$firmware_release_tag}"
 
 if [[ -n "$RAM_LOAD_OVERRIDE" ]]; then
     if is_true "$RAM_LOAD_OVERRIDE"; then
@@ -153,7 +152,7 @@ else
     # updater volume. Only an explicit mismatch opens that serial's mass-storage
     # device to flash pluto.frm (mtd3 only). No ssh/shared-192.168.2.1 race.
     run_loader download
-    SPF_PLUTO_EXPECTED_DEVICE_FW="$EXPECTED_DEVICE_FW" \
+    SPF_PLUTO_EXPECTED_DEVICE_FW="$expected_device_fw" \
     SPF_PLUTO_EXPECTED_GADGET_SHA="$firmware_gadget_git_sha" \
     SPF_FIRMWARE_DFU="${FIRMWARE_CACHE}/${firmware_asset_name}" \
     SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
