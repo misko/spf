@@ -22,7 +22,11 @@ class _OneFrameReceiver:
         self.calls += 1
         assert samples_per_channel == 8
         assert frame_count == 1
-        return SimpleNamespace(frames=(self.frame,))
+        return SimpleNamespace(
+            frames=(self.frame,),
+            recovered_after_transport_loss=False,
+            transport_loss_summary=None,
+        )
 
 
 def _metadata_v2():

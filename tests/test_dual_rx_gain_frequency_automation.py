@@ -79,7 +79,7 @@ def test_automate_prepares_probes_captures_validates_and_resumes(tmp_path, monke
     assert result["radio_serials"] == list(serials)
     plan = json.loads((output / "automation_plan.json").read_text())
     assert plan["radio_serials"] == list(serials)
-    assert plan["firmware"]["boot-mode"] == "ram"
+    assert plan["firmware"]["boot-mode"] == "qspi"
     for serial in serials:
         assert json.loads((output / serial / "probe.json").read_text())["status"] == (
             "pass"
