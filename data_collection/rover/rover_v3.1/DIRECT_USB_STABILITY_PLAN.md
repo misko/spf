@@ -11,17 +11,17 @@ conditions for its current gate are met. Candidate firmware is RAM-loaded
 until every hardware and Zarr gate passes; the published production image is
 persistent in QSPI and remains the rollback.
 
-Execution status on 2026-08-01:
+Execution status on 2026-08-02:
 
 | Gate | Status | Evidence |
 |---|---|---|
 | 0 baseline | Pass | Two serial-selected radios; production-size lifecycle, sequence and simultaneous tests |
-| 1 Python observability | Pass for software and one radio | SIGINT/SIGTERM/SIGKILL matrix passes; abrupt death drains the orphaned endpoint and immediately releases `.18`; dual-radio rerun awaits `.17` power cycle |
-| 2 allocation/logging candidate | Partial | Native tests, ARM cross-build and full DFU build pass; cleanup/counter extensions remain |
+| 1 Python observability | Pass | Focused host integration is on `main`; SIGINT/SIGTERM/SIGKILL coverage and exact recovery attestation pass |
+| 2 allocation/logging candidate | Pass for promoted scope | Runtime status, finite bounded streaming, supervisor evidence and zero-device polling are merged; optional extended counters remain future work |
 | 3 RAM candidate | Pass for quick gate | Candidate/control comparison and 50-cycle candidate test pass |
 | 4 V7 integrity | Pass for clean and interrupted one-radio paths | Writer lost-update race fixed; 100-frame recovery and two exhaustive 3,500-frame V7 validations pass |
-| 5 soak/fault injection | Pass for one radio; dual-radio pending | 3,624.746 accepted seconds across two verified restarts plus SIGINT/SIGTERM/SIGKILL matrix pass on `.18`; exact-count-two rerun awaits `.17` external power cycle |
-| 6 Rover rollout | Pending | Candidate is not published or persistent |
+| 5 soak/fault injection | Partial | Dual-radio quick/lifecycle gate and 3/3 supervised SIGKILL recovery per radio pass; real-radio `SIGSTOP`, 20,000-cycle and eight-hour gates remain |
+| 6 Rover rollout | In progress | v3 release is published and production manifests are pinned; persistent one-rover and mission acceptance remain |
 
 ## Capture-incident hardening candidate (2026-08-02)
 

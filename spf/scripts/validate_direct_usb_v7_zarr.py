@@ -158,6 +158,7 @@ def validate_capture(path: Path, expected_frames: int, expected_receivers: int) 
                 raise ValueError(f"{name}: capture firmware was not boot-verified")
             for attribute in (
                 "firmware_release_tag",
+                "firmware_device_fw",
                 "firmware_image_sha256",
                 "firmware_git_sha",
                 "firmware_gadget_git_sha",

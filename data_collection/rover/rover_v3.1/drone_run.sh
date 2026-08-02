@@ -69,8 +69,8 @@ fi
 mapfile -d '' -t config_values < <(
     "$PYTHON" -m spf.scripts.rover_capture_config "${resolver_args[@]}"
 )
-[[ "${#config_values[@]}" -eq 15 ]] ||
-    die "Capture config resolver returned ${#config_values[@]} fields, expected 15."
+[[ "${#config_values[@]}" -eq 16 ]] ||
+    die "Capture config resolver returned ${#config_values[@]} fields, expected 16."
 config="${config_values[1]}"
 config_sha256="${config_values[2]}"
 routine="${config_values[3]}"

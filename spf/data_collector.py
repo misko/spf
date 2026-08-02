@@ -111,6 +111,7 @@ def _capture_firmware_provenance(
 
     provenance = {
         "firmware_release_tag": firmware.get("release-tag"),
+        "firmware_device_fw": firmware.get("device-fw"),
         "firmware_image_sha256": firmware.get("image-sha256"),
         "firmware_git_sha": firmware.get("firmware-git-sha"),
         "firmware_gadget_git_sha": firmware.get("gadget-git-sha"),
@@ -135,6 +136,7 @@ def _capture_firmware_provenance(
         if actual is not None:
             expected_matches = (
                 actual.get("release_tag") == firmware.get("release-tag")
+                and actual.get("device_fw") == firmware.get("device-fw")
                 and actual.get("image_sha256") == firmware.get("image-sha256")
                 and actual.get("firmware_git_sha") == firmware.get("firmware-git-sha")
                 and actual.get("gadget_git_sha") == firmware.get("gadget-git-sha")

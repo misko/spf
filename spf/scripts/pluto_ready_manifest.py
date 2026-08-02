@@ -98,6 +98,7 @@ def _boot_id(path: Path = DEFAULT_BOOT_ID_PATH) -> str:
 def _firmware_document(plan) -> dict:
     return {
         "release_tag": plan.firmware_release_tag,
+        "device_fw": plan.firmware_device_fw,
         "asset_name": plan.firmware_asset_name,
         "image_url": plan.firmware_image_url,
         "image_sha256": plan.firmware_image_sha256,

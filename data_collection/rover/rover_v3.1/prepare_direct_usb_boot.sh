@@ -68,8 +68,8 @@ fi
 mapfile -d '' -t config_values < <(
     "$PYTHON" -m spf.scripts.rover_capture_config "${resolver_args[@]}"
 )
-[[ "${#config_values[@]}" -eq 15 ]] ||
-    die "Capture config resolver returned ${#config_values[@]} fields, expected 15."
+[[ "${#config_values[@]}" -eq 16 ]] ||
+    die "Capture config resolver returned ${#config_values[@]} fields, expected 16."
 configured_radios="${config_values[5]}"
 firmware_release_tag="${config_values[8]}"
 firmware_asset_name="${config_values[9]}"
@@ -77,10 +77,11 @@ firmware_image_url="${config_values[10]}"
 firmware_image_sha256="${config_values[11]}"
 firmware_gadget_git_sha="${config_values[13]}"
 firmware_boot_mode="${config_values[14]}"
-# The v2 image publishes its release tag as /opt/VERSIONS device-fw. Derive the
-# expected running value from the same config pin instead of maintaining a
-# second hard-coded version that can silently lag a firmware rollout.
-expected_device_fw="${SPF_PLUTO_EXPECTED_DEVICE_FW:-$firmware_release_tag}"
+firmware_device_fw="${config_values[15]}"
+# The GitHub release tag and the image's build-time /opt/VERSIONS device-fw
+# value are separate immutable identities. A release can be named after its
+# qualification level without rebuilding the already-qualified image.
+expected_device_fw="${SPF_PLUTO_EXPECTED_DEVICE_FW:-$firmware_device_fw}"
 
 if [[ -n "$RAM_LOAD_OVERRIDE" ]]; then
     if is_true "$RAM_LOAD_OVERRIDE"; then

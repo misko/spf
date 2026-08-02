@@ -570,12 +570,14 @@ def test_boot_preparation_uses_configured_boot_mode_with_environment_override():
     # is retained for field recovery.
     ensure = "ensure_pluto_qspi.sh"
     config_mode = 'firmware_boot_mode="${config_values[14]}"'
+    device_fw = 'firmware_device_fw="${config_values[15]}"'
     override = 'RAM_LOAD_OVERRIDE="${SPF_PLUTO_RAM_LOAD:-}"'
     ram_gate = 'if is_true "$ram_load"; then'
     load = 'run_loader load-all "$attached_radios"'
 
     assert ensure in boot_script
     assert config_mode in boot_script
+    assert device_fw in boot_script
     assert override in boot_script
     assert ram_gate in boot_script
     # The volatile path remains isolated from persistent QSPI preparation.

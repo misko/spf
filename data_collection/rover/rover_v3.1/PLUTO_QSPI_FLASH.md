@@ -60,12 +60,16 @@ does this and validates the result the same way the on-device flasher does:
 
 ```bash
 # download the exact image the boot currently RAM-loads, then convert it
-gh release download v0.38-plutoplus-spf-gain-rssi-fingerprint-v2 \
-  --repo misko/plutosdr-fw --pattern "pluto.dfu" -D /tmp/fw
-bash data_collection/rover/rover_v3.1/make_pluto_frm.sh /tmp/fw/pluto.dfu /tmp/fw/pluto.frm
+gh release download v0.38-plutoplus-spf-gain-rssi-fingerprint-v3 \
+  --repo misko/plutosdr-fw \
+  --pattern "plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu" \
+  -D /tmp/fw
+bash data_collection/rover/rover_v3.1/make_pluto_frm.sh \
+  /tmp/fw/plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu \
+  /tmp/fw/pluto.frm
 ```
 
-Verified: the generated `pluto.frm` (13,733,956 B) carries the FRM_MAGIC and a
+Verified: the generated v3 `pluto.frm` (13,870,584 B) carries the FRM_MAGIC and a
 self-consistent md5 trailer, so `handle_frimware_frm` will accept it and write
 `mtd3`.
 

@@ -102,17 +102,18 @@ sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh verify-all 2
 It obtains the exact hardware-tested image from:
 
 ```text
-https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-fingerprint-v2
+https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-fingerprint-v3
 
-5f8220bc3a9c23b891ad8a19e52eeb24ecfcd24b2ae5923a1e50e450f49a802d
+86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191
 ```
 
 The multi-radio loader keeps both Plutos attached. It identifies each by USB
 serial and physical path, moves each duplicate `192.168.2.1` USB-network
-interface into a temporary network namespace, and targets DFU with the exact
-physical USB path. It writes only to RAM. Run `verify-all` again immediately
-before collection; loading is required after every Pluto reset or full power
-cycle, not before every frame or capture.
+interface into a temporary network namespace and targets DFU with the exact
+physical USB path. The canonical production configs use persistent QSPI mode;
+the `load-all` command above remains an explicit RAM-only recovery/test path.
+Normal boot verifies the image hash, the image's explicit `device-fw` string,
+and the gadget Git SHA before authorizing capture.
 
 Rover 1 uses `capture_configs/rover1_production_v7.yaml`.
 It runs both radios simultaneously, negotiates protocol v2, writes data

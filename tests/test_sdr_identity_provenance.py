@@ -138,6 +138,7 @@ def test_v7_records_verified_firmware_for_each_radio(tmp_path, monkeypatch):
     collector, zarr_path = _collector_with_identities(tmp_path, [identity])
     firmware = {
         "release-tag": "release",
+        "device-fw": "device-version",
         "image-sha256": "a" * 64,
         "firmware-git-sha": "b" * 40,
         "gadget-git-sha": "c" * 40,
@@ -158,6 +159,7 @@ def test_v7_records_verified_firmware_for_each_radio(tmp_path, monkeypatch):
                 "fingerprint_session_id": "SESSION-A",
                 "firmware": {
                     "release_tag": "release",
+                    "device_fw": "device-version",
                     "image_sha256": "a" * 64,
                     "firmware_git_sha": "b" * 40,
                     "gadget_git_sha": "c" * 40,
@@ -206,6 +208,7 @@ def test_v7_records_verified_firmware_for_each_radio(tmp_path, monkeypatch):
         attrs = dict(zarr.receivers.r0.attrs)
         assert attrs["sdr_serial"] == SERIAL_A
         assert attrs["firmware_release_tag"] == "release"
+        assert attrs["firmware_device_fw"] == "device-version"
         assert attrs["firmware_image_sha256"] == "a" * 64
         assert attrs["firmware_git_sha"] == "b" * 40
         assert attrs["firmware_gadget_git_sha"] == "c" * 40

@@ -104,7 +104,11 @@ def test_ready_manifest_records_config_firmware_and_each_serial(tmp_path, monkey
     assert manifest["attached_radio_count"] == 2
     assert (
         manifest["firmware"]["image_sha256"]
-        == "5f8220bc3a9c23b891ad8a19e52eeb24ecfcd24b2ae5923a1e50e450f49a802d"
+        == "86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191"
+    )
+    assert (
+        manifest["firmware"]["device_fw"]
+        == "v0.38-plutoplus-spf-gain-rssi-fingerprint-v2-8-gf53d"
     )
     assert [radio["serial"] for radio in manifest["radios"]] == [
         "SERIAL_A",

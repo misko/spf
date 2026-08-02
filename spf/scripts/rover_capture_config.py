@@ -22,6 +22,7 @@ CANONICAL_CONFIGS = {
 }
 FIRMWARE_KEYS = (
     "release-tag",
+    "device-fw",
     "asset-name",
     "image-url",
     "image-sha256",
@@ -48,6 +49,7 @@ class RoverCapturePlan:
     firmware_git_sha: str
     gadget_git_sha: str
     firmware_boot_mode: str
+    firmware_device_fw: str
 
 
 def _sha256(path: Path) -> str:
@@ -158,6 +160,7 @@ def resolve_capture_plan(
         firmware_git_sha=firmware["firmware-git-sha"],
         gadget_git_sha=firmware["gadget-git-sha"],
         firmware_boot_mode=firmware["boot-mode"],
+        firmware_device_fw=firmware["device-fw"],
     )
 
 
