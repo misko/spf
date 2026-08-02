@@ -75,7 +75,8 @@ require_command() {
 
 usb_count() {
     local usb_id="$1"
-    lsusb -d "$usb_id" 2>/dev/null | awk 'END { print NR + 0 }'
+    { lsusb -d "$usb_id" 2>/dev/null || true; } |
+        awk 'END { print NR + 0 }'
 }
 
 require_one_usb_device() {
@@ -444,4 +445,6 @@ main() {
     esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
