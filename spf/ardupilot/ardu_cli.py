@@ -10,9 +10,11 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import subprocess
 import sys
+import termios
 import time
 from pathlib import Path
 from typing import Any, Iterable
@@ -195,6 +197,23 @@ def _service_is_active() -> bool:
         return False
 
 
+def _claim_serial_exclusive(connection, master: str) -> None:
+    """Prevent another local process from opening this direct serial TTY."""
+    if not _is_direct_serial(master) or not hasattr(connection, "port"):
+        return
+    try:
+        fcntl.ioctl(connection.port.fileno(), termios.TIOCEXCL)
+    except Exception as error:
+        try:
+            connection.close()
+        except Exception:
+            pass
+        raise CliError(
+            f"could not claim exclusive MAVLink ownership of {master}: {error}. "
+            f"Stop {SERVICE_NAME}, MAVProxy, and other serial readers, then retry."
+        ) from error
+
+
 def _connect(args: argparse.Namespace):
     if (
         _is_direct_serial(args.master)
@@ -219,7 +238,10 @@ def _connect(args: argparse.Namespace):
             source_system=SOURCE_SYSTEM,
             dialect="ardupilotmega",
         )
+        _claim_serial_exclusive(connection, master)
         heartbeat = connection.wait_heartbeat(timeout=args.heartbeat_timeout)
+    except CliError:
+        raise
     except Exception as error:
         raise CliError(f"MAVLink connection to {master} failed: {error}") from error
     if heartbeat is None:

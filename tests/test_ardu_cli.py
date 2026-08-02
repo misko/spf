@@ -143,6 +143,67 @@ def test_network_fanout_does_not_conflict_with_active_service(monkeypatch):
     assert master == "udp:127.0.0.1:14550"
 
 
+def test_direct_serial_is_claimed_exclusively_before_heartbeat(monkeypatch):
+    events = []
+
+    class Port:
+        def fileno(self):
+            events.append("fileno")
+            return 42
+
+    connection = FakeConnection()
+    connection.port = Port()
+
+    def wait_heartbeat(timeout):
+        events.append("heartbeat")
+        return heartbeat()
+
+    connection.wait_heartbeat = wait_heartbeat
+    monkeypatch.setattr(ardu_cli, "_service_is_active", lambda: False)
+    monkeypatch.setattr(
+        ardu_cli.mavutil,
+        "mavlink_connection",
+        lambda *args, **kwargs: connection,
+    )
+    monkeypatch.setattr(
+        ardu_cli.fcntl,
+        "ioctl",
+        lambda fd, operation: events.append(("ioctl", fd, operation)),
+    )
+    args = SimpleNamespace(
+        master="/dev/serial/by-id/usb-ArduPilot-test",
+        allow_active_service=False,
+        baud=115200,
+        heartbeat_timeout=1,
+    )
+
+    ardu_cli._connect(args)
+
+    assert events == [
+        "fileno",
+        ("ioctl", 42, ardu_cli.termios.TIOCEXCL),
+        "heartbeat",
+    ]
+
+
+def test_exclusive_claim_failure_closes_connection(monkeypatch):
+    closed = []
+    connection = SimpleNamespace(
+        port=SimpleNamespace(fileno=lambda: 42),
+        close=lambda: closed.append(True),
+    )
+    monkeypatch.setattr(
+        ardu_cli.fcntl,
+        "ioctl",
+        lambda fd, operation: (_ for _ in ()).throw(OSError("busy")),
+    )
+
+    with pytest.raises(ardu_cli.CliError, match="exclusive MAVLink ownership"):
+        ardu_cli._claim_serial_exclusive(connection, "/dev/ttyACM2")
+
+    assert closed == [True]
+
+
 def test_parameter_download_requires_every_reported_index():
     connection = FakeConnection(
         [

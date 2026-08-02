@@ -100,4 +100,6 @@ The CLI refuses direct-serial access while `mavlink_controller.service` is
 active. Calibration actions additionally refuse an armed vehicle and require
 the explicit `--yes` acknowledgement. `--allow-active-service` exists only for
 an expert using a deliberately shared endpoint; it should not be used against
-the flight-controller serial device.
+the flight-controller serial device. Once connected, the CLI also claims the
+TTY exclusively at the kernel level so a delayed production-service start
+cannot become a second reader and steal calibration messages.
