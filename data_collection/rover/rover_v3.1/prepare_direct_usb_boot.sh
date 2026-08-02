@@ -80,6 +80,7 @@ firmware_release_tag="${config_values[8]}"
 firmware_asset_name="${config_values[9]}"
 firmware_image_url="${config_values[10]}"
 firmware_image_sha256="${config_values[11]}"
+firmware_gadget_git_sha="${config_values[13]}"
 firmware_boot_mode="${config_values[14]}"
 
 if [[ -n "$RAM_LOAD_OVERRIDE" ]]; then
@@ -153,6 +154,7 @@ else
     # device to flash pluto.frm (mtd3 only). No ssh/shared-192.168.2.1 race.
     run_loader download
     SPF_PLUTO_EXPECTED_DEVICE_FW="$EXPECTED_DEVICE_FW" \
+    SPF_PLUTO_EXPECTED_GADGET_SHA="$firmware_gadget_git_sha" \
     SPF_FIRMWARE_DFU="${FIRMWARE_CACHE}/${firmware_asset_name}" \
     SPF_FIRMWARE_CACHE_DIR="$FIRMWARE_CACHE" \
         bash "${SCRIPT_DIR}/ensure_pluto_qspi.sh" "$attached_radios"

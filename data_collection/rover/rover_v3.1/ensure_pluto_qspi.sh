@@ -5,11 +5,13 @@
 # This replaces the per-boot RAM load. For each attached Pluto it reads the
 # active firmware through the standard USB-IIO interface (which, with RAM
 # loading disabled, is exactly what booted from QSPI) and:
-#   - if it already matches the expected build  -> SKIP (the fast steady state)
+#   - if its device-fw AND gadget build ID match -> SKIP (the fast steady state)
 #   - otherwise                                 -> flash pluto.frm to QSPI and
 #     wait for the radio to reboot into the expected build.
 #
-# The steady-state check never mounts the Pluto updater volume.
+# The steady-state check never mounts the Pluto updater volume. The device-fw
+# string is not unique across SPF rebuilds, so it is insufficient by itself;
+# the passive vendor request must also return the configured gadget Git SHA.
 # Mass storage is opened only after an explicit USB-IIO mismatch, when a write
 # is actually required. The custom direct-USB build identity and capabilities
 # are verified later by the ready-manifest path before capture is authorized.
@@ -21,6 +23,7 @@
 #
 # Env:
 #   SPF_PLUTO_EXPECTED_DEVICE_FW  required: expected /opt/VERSIONS device-fw string
+#   SPF_PLUTO_EXPECTED_GADGET_SHA required: exact 40-character gadget Git SHA
 #   SPF_FIRMWARE_DFU              required: path to the published .dfu
 #   SPF_PLUTO_FRM                 optional: prebuilt/cached pluto.frm path
 #   SPF_PLUTO_FLASH_TIMEOUT       optional: per-radio reboot wait, default 180s
@@ -31,6 +34,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 EXPECTED_FW="${SPF_PLUTO_EXPECTED_DEVICE_FW:?SPF_PLUTO_EXPECTED_DEVICE_FW is required}"
+EXPECTED_GADGET_SHA="${SPF_PLUTO_EXPECTED_GADGET_SHA:?SPF_PLUTO_EXPECTED_GADGET_SHA is required}"
 DFU="${SPF_FIRMWARE_DFU:?SPF_FIRMWARE_DFU is required}"
 FRM="${SPF_PLUTO_FRM:-/home/pi/.cache/spf/firmware/pluto.frm}"
 FLASH_TIMEOUT="${SPF_PLUTO_FLASH_TIMEOUT:-180}"
@@ -41,11 +45,15 @@ MSD_READY_TIMEOUT="${SPF_PLUTO_MSD_TIMEOUT:-45}"
 EXPECTED_COUNT="${1:?expected Pluto count required}"
 MNT="/run/spf-pluto-msd"
 USB_ROOT="${SPF_PLUTO_USB_ROOT:-/sys/bus/usb/devices}"
+PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
 
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 [[ "$EXPECTED_COUNT" =~ ^[1-9][0-9]*$ ]] || die "bad expected count: ${EXPECTED_COUNT}"
+[[ "$EXPECTED_GADGET_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+    die "SPF_PLUTO_EXPECTED_GADGET_SHA must be a lowercase 40-character SHA"
 command -v iio_attr >/dev/null 2>&1 || die "missing required command: iio_attr"
+[[ -x "$PYTHON" ]] || die "Python is unavailable: ${PYTHON}"
 
 require_flash_commands() {
     local cmd
@@ -104,6 +112,10 @@ active_firmware_for_serial() {  # $1=serial -> active fw_version
     )"
     [[ -n "$version" ]] || return 1
     printf '%s' "$version"
+}
+
+active_gadget_build_for_serial() {  # $1=serial -> exact gadget Git SHA
+    "$PYTHON" -m spf.scripts.pluto_gadget_build_id --serial "$1"
 }
 
 blkdev_for_serial() {  # $1=serial -> /dev/sdX (or fail)
@@ -187,18 +199,24 @@ main() {
     [[ "${#serials[@]}" -eq "$EXPECTED_COUNT" ]] ||
         die "expected ${EXPECTED_COUNT} runtime Plutos, found ${#serials[@]}"
 
-    local ser d actual deadline
+    local ser d actual actual_gadget deadline
     for ser in "${serials[@]}"; do
         actual="$(active_firmware_for_serial "$ser")" ||
             die "${ser}: active firmware unavailable over USB-IIO; refusing to flash blind"
         if [[ "$actual" == "$EXPECTED_FW" ]]; then
-            printf '%s: active firmware matches via USB-IIO; skip (%s)\n' \
-                "$ser" "$EXPECTED_FW"
-            continue
+            actual_gadget="$(active_gadget_build_for_serial "$ser")" ||
+                die "${ser}: gadget build identity unavailable; refusing to flash blind"
+            if [[ "$actual_gadget" == "$EXPECTED_GADGET_SHA" ]]; then
+                printf '%s: active firmware and gadget build match; skip (%s, %s)\n' \
+                    "$ser" "$EXPECTED_FW" "$EXPECTED_GADGET_SHA"
+                continue
+            fi
+            printf '%s: gadget build %q != expected %q -> flashing QSPI\n' \
+                "$ser" "$actual_gadget" "$EXPECTED_GADGET_SHA"
+        else
+            printf '%s: active firmware %q != expected %q -> flashing QSPI\n' \
+                "$ser" "$actual" "$EXPECTED_FW"
         fi
-
-        printf '%s: active firmware %q != expected %q -> flashing QSPI\n' \
-            "$ser" "$actual" "$EXPECTED_FW"
         require_flash_commands
         build_frm
         d="$(wait_blkdev_for_serial "$ser")" ||
@@ -215,8 +233,13 @@ main() {
         [[ "$actual" == "$EXPECTED_FW" ]] ||
             die "${ser}: after flash active firmware is ${actual:-unavailable};" \
                 "expected ${EXPECTED_FW}"
-        printf '%s: active expected firmware after QSPI flash (%s)\n' \
-            "$ser" "$EXPECTED_FW"
+        actual_gadget="$(active_gadget_build_for_serial "$ser")" ||
+            die "${ser}: gadget build identity unavailable after QSPI flash"
+        [[ "$actual_gadget" == "$EXPECTED_GADGET_SHA" ]] ||
+            die "${ser}: after flash gadget build is ${actual_gadget};" \
+                "expected ${EXPECTED_GADGET_SHA}"
+        printf '%s: active expected firmware after QSPI flash (%s, %s)\n' \
+            "$ser" "$EXPECTED_FW" "$EXPECTED_GADGET_SHA"
     done
     printf 'PASS: %s Pluto(s) on expected active firmware %s\n' \
         "$EXPECTED_COUNT" "$EXPECTED_FW"
