@@ -17,6 +17,8 @@ from spf.sdrpluto.direct_usb_protocol import (
     CapabilityFlags,
     MetadataFeatures,
     RadioMetadataV2,
+    RuntimeState,
+    RuntimeStatusFlags,
 )
 from spf.sdrpluto.direct_usb_receiver import (
     PlutoDirectUsbReceiver,
@@ -89,8 +91,46 @@ def test_identity_and_v2_capabilities(attached_plutos):
             )
             assert capabilities.capability_flags & CapabilityFlags.FINITE_RX
             assert capabilities.capability_flags & CapabilityFlags.HARDWARE_IDENTITY
+            assert capabilities.capability_flags & CapabilityFlags.STATUS
             identity = receiver.query_hardware_identity()
             assert identity.gadget_build_id
+            status = receiver.query_runtime_status()
+            assert status.lifecycle_state == RuntimeState.IDLE
+            assert status.flags & RuntimeStatusFlags.BOOT_ID_VALID
+            assert status.flags & RuntimeStatusFlags.PROCESS_NONCE_VALID
+            assert any(status.boot_id)
+            assert any(status.process_nonce)
+
+
+def test_runtime_status_accounts_for_completed_frames(attached_plutos, pytestconfig):
+    samples = pytestconfig.getoption("--radio-samples")
+    frames_per_request = pytestconfig.getoption("--radio-frames-per-request")
+    assert frames_per_request > 1
+    for radio in attached_plutos:
+        with PlutoDirectUsbReceiver(
+            serial=radio.serial, protocol_version=2
+        ) as receiver:
+            before = receiver.query_runtime_status()
+            capture = receiver.capture(
+                samples_per_channel=samples,
+                frame_count=frames_per_request,
+            )
+            after = receiver.query_runtime_status()
+        assert len(capture.frames) == frames_per_request
+        assert after.lifecycle_state == RuntimeState.IDLE
+        assert after.process_nonce == before.process_nonce
+        assert after.start_count == before.start_count + 1
+        assert (
+            after.completed_frame_count
+            == before.completed_frame_count + frames_per_request
+        )
+        assert after.last_completed_sequence == frames_per_request - 1
+        assert after.dropped_frame_count == before.dropped_frame_count
+        assert after.iio_refill_error_count == before.iio_refill_error_count
+        assert after.usb_submit_error_count == before.usb_submit_error_count
+        assert after.short_write_count == before.short_write_count
+        assert after.buffer_starvation_count == before.buffer_starvation_count
+        assert after.stop_timeout_count == before.stop_timeout_count
 
 
 def test_contiguous_multiframe_request(attached_plutos, pytestconfig):
