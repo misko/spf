@@ -1,6 +1,6 @@
 # Rover 4 setup
 
-Provision ROVER04 as `rover_id 4` on static `192.168.1.44`, functionally
+**STATUS: COMPLETE (2026-08-03).** Provision ROVER04 as `rover_id 4` on static `192.168.1.44`, functionally
 identical to Rover 1, using Git `main` as the transport for every script.
 
 Prepared 2026-08-03 from a read-only audit of Rover 1 (`192.168.1.41`),
@@ -431,7 +431,65 @@ is tracked separately.
 - §7.5 fewer than 2 Plutos, or manifest ≠ v2 → enumeration/hardware issue; do
   not proceed to field use
 
-## 12. Estimated time
+## 12. Execution log — 2026-08-03 (COMPLETE)
+
+Rover 4 was provisioned end to end on 2026-08-03. Rover 1 was read but never
+modified. Final audit: **31 fleet fields compared, 2 differ**, both benign.
+
+| | Rover 1 | Rover 4 |
+|---|---|---|
+| `rover_id` / hostname | 1 / `roverpi1` | **4 / `roverpi4`** |
+| eth0 | 192.168.1.41/24 | **192.168.1.44/24** |
+| capture config | `rover1_production_v7.yaml` | **`rover4_production_v7.yaml`** |
+| rest offset / tag | `[1.0, 1.0]` / RO1 | **`[-1.0, -1.0]` / RO4** |
+| OS / image / Python | bookworm / stage2 / 3.11.2 | identical |
+| Plutos / FMU | 2 / `ardupilot-fmuv3` | identical |
+| ready manifest | v2, 2 radios | identical |
+| units (4) | enabled ×3, preflight disabled | identical |
+| stock services | all enabled | identical |
+
+Remaining differences: `git_head` (Rover 1 is simply behind until its next
+boot — `spf-rover-update` self-heals it) and `boot_config_layout`
+(symlink vs split, a 2023-vs-2026 image artifact, not correctable without
+reflashing Rover 1).
+
+**The stock-service trim in §7.4 was deliberately NOT applied.** Rover 1 has
+those services enabled, and the goal was parity with Rover 1. Trimming them is
+a fleet-wide decision to make once, for all four rovers, not a divergence to
+introduce on the newest one. §10 stands as the rationale for doing it later.
+
+### Defects found and fixed during execution
+
+Provisioning Rover 4 surfaced four real bugs, three of which affect the whole
+fleet. All are fixed on `main`.
+
+| Defect | Scope | Fix |
+|---|---|---|
+| **Three stale resolver field-count checks.** `d79fa576` added a 16th field (`device-fw`) and updated only one of four call sites. `configure_direct_usb_boot.sh`, `run_direct_usb_boot_preflight.sh` (the 100-frame preflight in `PRE_FIELD_CHECKLIST`) and `run_direct_usb_restart_soak.sh` all still asserted 15 and were **failing on every rover** | **Rovers 1–4** | `29cf15e` — `-ge 16`, so a future field cannot break them again |
+| `flash_ardupilot.sh` ran plain `python`, which has no pyserial on a Lite image → `ModuleNotFoundError: No module named 'serial'` | Rovers 1–4 | `1fedadb` — prefer the venv interpreter |
+| Moving eth0 to ifupdown leaves NetworkManager publishing no DNS → empty `resolv.conf`, apt and git stop resolving | new provisioning | `4b8c753` — write a static resolv.conf, matching Rover 1 |
+| `git` absent from the 2026 Lite image, and `setup.sh` clones before `install_deps.sh` installs it | new provisioning | documented in §5.2 |
+
+Two bugs were also caught in the new scripts *before* they could do harm, by
+validating them read-only against Rover 1: `command -v ifup` reports absent
+because `/sbin` is not in the `pi` user's ssh PATH, and a `q()`-wrapped
+conditional always returned 0 (`q()` ends in `|| true`), which misreported an
+unflashed FMU as flashed.
+
+### Deviations from the plan as written
+
+- **Pluto provisioning (§7.2) partially refused, correctly.** One radio was
+  already provisioned; the other runs the direct-USB firmware persistently, and
+  `check_and_set_pluto.sh` refuses to write U-Boot while that image is active.
+  Provisioning is meant to happen on stock firmware *before* direct-USB is
+  installed. `configure_direct_usb_boot.sh production-default` then succeeded
+  and the boot chain came up clean, so no further action was taken. **If that
+  radio ever needs re-provisioning it must first be reverted to stock.**
+- Wifi was disabled before base provisioning rather than after, so that the
+  static address was proven to survive a reboot before ~20 minutes of `pip`
+  work was invested.
+
+## 13. Estimated time
 
 Phase A ~20 min plus review · B ~15 min · C ~20 min (pip is slow on a Pi) ·
 D ~15 min · E ~10 min. **≈1.5 h**, excluding PR review and the DHCP reservation.
