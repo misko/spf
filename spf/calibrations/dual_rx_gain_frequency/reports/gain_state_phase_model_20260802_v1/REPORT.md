@@ -222,6 +222,8 @@ identify it.
 | g = 45 vs 26 | 0.985 | 0.996 | 0.996 | 0.451 | 0.94° |
 | g = 5 vs 26 | 0.631 | 0.572 | 0.974 | 0.480 | 1.64° |
 
+![cross-radio](fig6_cross_radio.png)
+
 The strong claim holds for the large-`H` case (g=45) below 4 GHz. Above 4 GHz,
 and for the small-`H` g=5 case, the two radios agree much less well (ρ ≈ 0.45–0.48,
 mean difference up to 4.0° in the high band). That is consistent with §3.4: above
@@ -428,6 +430,13 @@ across both radios.
 
 ## 5. The four questions
 
+![performance](fig4_performance.png)
+
+Panel (b) is the honest picture of where the remaining error lives: it is
+concentrated above 4 GHz for every model, and the 1356-parameter per-frequency
+LUT does not appear as a competitor because at an unmeasured frequency it is
+unsupported and fails closed to the anchor — the grey line *is* the LUT.
+
 ### 5.1 Does it generalise to new frequencies? Yes, by interpolation.
 
 | Held-out frequency gap | L08 H(band,g) | L16 | L26 | L27 |
@@ -556,6 +565,8 @@ words frozen:
 | **9** | **23** | **(0,2,0)** | **1** |
 | 10 | 24 | (0,2,0) | 0 |
 
+![rf-dc discriminator](fig5_rfdc_discriminator.png)
+
 **Half of that experiment already exists in the campaign.** Stage
 `F_unsupported_negative_gain_attempt_20260730` (`F_neg` in the code) is excluded
 from the rest of this analysis because it failed in the low and middle bands,
@@ -647,6 +658,13 @@ D(f, g1, g2) = H(s1) − H(s2)  +  Σ_{k=1,2} [ a_k(l1) − a_k(l2) ]·cos(2πf 
 
 corrected = wrap( measured_RX1_minus_RX2 − anchor(serial, LO, session) − D )
 ```
+
+![parameters](fig7_parameters.png)
+
+Panel (b) is the visual case for rule 5 below: the fitted baseband-LPF
+coefficients scatter about zero with no trend, so applying them where the RF
+words are equal adds noise rather than correction. Panel (a) also shows the
+LNA index 1 hole that E-CAL2 exists to fill.
 
 Two properties of this parameterisation should be stated with it. The ripple
 amplitude is indexed by the **absolute** LNA index, but the same LNA pair spans

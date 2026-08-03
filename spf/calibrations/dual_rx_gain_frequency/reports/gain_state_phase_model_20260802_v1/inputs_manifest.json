@@ -3,7 +3,7 @@
  "schema_version": 1,
  "analysis_date": "2026-08-02",
  "software": {
-  "spf_git_sha": "9da416155843b3a54d741ce8eb6f087b214c9ab4",
+  "spf_git_sha": "df9357a635e18acb887c73a5b7bacfd02c9330a2",
   "spf_git_dirty_tracked": true,
   "python": "3.12",
   "pins": "numpy<2, zarr<=2.18.4, numcodecs<0.16, lmdb, scipy, matplotlib"
@@ -898,8 +898,13 @@
   },
   {
    "file": "analysis/figs.py",
-   "bytes": 8354,
-   "sha256": "4e524d11fd32025fcf5c779a83074e80665135221f5b3de0d13e4556f1534ca8"
+   "bytes": 9470,
+   "sha256": "c01acca83d5a132ffe076706d05a36aefb7b436abfcdd1b1f2cf4f23bde4d6e8"
+  },
+  {
+   "file": "analysis/figs2.py",
+   "bytes": 15316,
+   "sha256": "5db04a7877c7b1f5656bc374e7cebae7e6e6cc75890a2a28c5de9f036ccbe809"
   },
   {
    "file": "analysis/ladder.py",
@@ -975,8 +980,8 @@
   },
   {
    "file": "inputs_manifest.json",
-   "bytes": 34742,
-   "sha256": "d296a75ef5a04c38422f48ec4631811978225ac8f45a8661c15ee592fd105328"
+   "bytes": 35339,
+   "sha256": "87edaefcba941d2cf8e6f25bfb2f1c687d1716e3d57f2faa4d4cea8e9d4e134d"
   },
   {
    "file": "ladder_results_A_main.json",
@@ -995,8 +1000,8 @@
   },
   {
    "file": "fig1_mechanism.png",
-   "bytes": 287291,
-   "sha256": "42cdcce5213cd1273e6a9500d47e6e9d85741be267545a57f73e1b2d36aa400a"
+   "bytes": 293895,
+   "sha256": "0e239dc2e53bf66c7693b49e3c6a26c5cc577400c437bdc5e748fdf3dea7b99f"
   },
   {
    "file": "fig2_ripple.png",
@@ -1007,6 +1012,26 @@
    "file": "fig3_ladder.png",
    "bytes": 176897,
    "sha256": "b8fe6c5bcb7700e95f1c628ac9980b5a36988b87cc4a2ceb1dcfb043dc854141"
+  },
+  {
+   "file": "fig4_performance.png",
+   "bytes": 233099,
+   "sha256": "6e305e16a0b7262984e9c4419e2126e36c3bcd31afcc386aea7fa41e8704443a"
+  },
+  {
+   "file": "fig5_rfdc_discriminator.png",
+   "bytes": 123971,
+   "sha256": "9ec250bad99472a066b64095d8c5a6fd647757a5ffd43d7cf8ca76d819a20f74"
+  },
+  {
+   "file": "fig6_cross_radio.png",
+   "bytes": 83663,
+   "sha256": "88848a05e6942fc8da83ed0b4ddc328f956297a80404ce1a3d900edd9a997fc1"
+  },
+  {
+   "file": "fig7_parameters.png",
+   "bytes": 113864,
+   "sha256": "f4f3f4cdaf49a34da9ca29c560130bb7c2007df20b75834e39498c30e7674d98"
   }
  ],
  "frame_counts": {

@@ -115,7 +115,10 @@ def fig1_mechanism(out="fig1_mechanism.png"):
 
     # (d) 1 dB step magnitude by cause
     ax = axes[1, 1]
-    hw, lpf = [], []
+    # decompose by WHICH audited word the 1 dB step changes. The earlier
+    # two-way "RF state vs LPF" split hid that the group contains no LNA
+    # transition at all and that the TIA steps sit at the noise floor.
+    groups = {"mixer": [], "tia": [], "lna": [], "lpf": []}
     for stage, ref in (("F", 5), ("E_tx_0", 33)):
         r = common_H(stage, ref)
         for serial, tabd in r.items():
@@ -129,31 +132,51 @@ def fig1_mechanism(out="fig1_mechanism.png"):
                     if s0 is None or s1 is None:
                         continue
                     d = abs(np.degrees(S.wrap(H[i] - H[i - 1])))
-                    rf = s0[:3] != s1[:3]
-                    (hw if rf else lpf).append(d)
-    hw, lpf = np.array(hw), np.array(lpf)
+                    if s1[0] != s0[0]:
+                        groups["lna"].append(d)
+                    elif s1[1] != s0[1]:
+                        groups["mixer"].append(d)
+                    elif s1[2] != s0[2]:
+                        groups["tia"].append(d)
+                    else:
+                        groups["lpf"].append(d)
+    NOISE = 0.36  # measured sem of the 3-epoch mean, see REPORT.md 3.3
+    order = [("lpf", "baseband\nLPF word", "#4c78a8"),
+             ("tia", "TIA\nword", "#72b7b2"),
+             ("lna", "LNA\nword", "#bab0ac"),
+             ("mixer", "mixer\nword", "#e45756")]
     rng = np.random.default_rng(0)
-    for k, (arr, lbl, col) in enumerate((
-            (lpf, f"baseband LPF word only\n(n={len(lpf)})", "#4c78a8"),
-            (hw, f"RF state change\nLNA / mixer / TIA  (n={len(hw)})", "#e45756"))):
-        x = k + rng.normal(0, 0.06, len(arr))
-        ax.scatter(x, arr, s=9, color=col, alpha=0.6, edgecolors="none")
-        ax.hlines(np.median(arr), k - 0.28, k + 0.28, color="k", lw=2, zorder=5)
-        ax.text(k, np.median(arr) * 1.35, f"median {np.median(arr):.2f}°",
-                ha="center", fontsize=7.5)
-    ax.set_xticks([0, 1])
-    ax.set_xticklabels([f"baseband LPF word only\n(n={len(lpf)})",
-                        f"RF state change\nLNA / mixer / TIA  (n={len(hw)})"],
-                       fontsize=7.5)
+    ax.axhspan(0, NOISE, color="0.85", alpha=0.6, zorder=0)
+    ax.text(3.42, NOISE * 0.55, "measurement\nfloor 0.36°", fontsize=6.2,
+            ha="right", va="center", color="0.3")
+    labels = []
+    for k, (key, lbl, col) in enumerate(order):
+        arr = np.array(groups[key])
+        labels.append(f"{lbl}\n(n={arr.size})")
+        if arr.size == 0:
+            ax.text(k, 1.0, "never\nmeasured", ha="center", va="center",
+                    fontsize=7, color="#a00", style="italic")
+            continue
+        x = k + rng.normal(0, 0.06, arr.size)
+        ax.scatter(x, np.clip(arr, 3e-3, None), s=10, color=col, alpha=0.65,
+                   edgecolors="none")
+        ax.hlines(np.median(arr), k - 0.3, k + 0.3, color="k", lw=2, zorder=5)
+        ax.text(k, np.median(arr) * 1.5, f"{np.median(arr):.2f}°",
+                ha="center", fontsize=7.5, fontweight="bold")
+    ax.set_xticks(range(4))
+    ax.set_xticklabels(labels, fontsize=6.8)
+    ax.set_xlim(-0.55, 3.55)
     ax.set_yscale("log")
+    ax.set_ylim(3e-3, 20)
     ax.set_ylabel("|ΔH| for a 1 dB gain step (deg)")
-    ax.set_title("(d) what actually moves the phase: the RF state, not the dB",
+    ax.set_title("(d) which audited word moves the phase: the mixer.\n"
+                 "     TIA sits at the floor; no LNA step was measured at 1 dB",
                  fontsize=9)
     ax.grid(axis="x", visible=False)
 
     fig.suptitle(
-        "AD9361 dual-RX phase: the gain effect is antisymmetric between arms "
-        "and is driven by discrete RF-state changes",
+        "AD9361 dual-RX phase: the gain effect is antisymmetric between the arms "
+        "and steps with the audited mixer word, not with the requested dB",
         fontsize=10.5, y=0.995)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     fig.savefig(out)
