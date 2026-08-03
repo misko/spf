@@ -19,6 +19,7 @@ CANONICAL_CONFIGS = {
     1: "rover1_production_v7.yaml",
     2: "rover2_production_v7.yaml",
     3: "rover3_production_v7.yaml",
+    4: "rover4_production_v7.yaml",
 }
 FIRMWARE_KEYS = (
     "release-tag",

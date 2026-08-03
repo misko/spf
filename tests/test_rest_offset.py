@@ -126,7 +126,14 @@ CONFIG_DIR = pathlib.Path(__file__).resolve().parents[1] / (
 COLLECTOR = pathlib.Path(__file__).resolve().parents[1] / "spf/mavlink_radio_collection.py"
 REST_OFFSET_KEY = "rest-offset-m"
 
-EXPECTED_OFFSETS = {1: [1.0, 1.0], 2: [1.0, -1.0], 3: [-1.0, 1.0]}
+# One quadrant each so no two rovers rest on the same point;
+# test_production_rovers_rest_apart enforces the separation.
+EXPECTED_OFFSETS = {
+    1: [1.0, 1.0],
+    2: [1.0, -1.0],
+    3: [-1.0, 1.0],
+    4: [-1.0, -1.0],
+}
 
 
 def test_collector_reads_the_same_key_the_configs_write():
@@ -162,7 +169,7 @@ def test_production_config_drives_the_planner_end_to_end(rover_id):
     )
 
 
-def test_the_three_production_rovers_rest_apart():
+def test_production_rovers_rest_apart():
     boundary = boundaries["franklin_safe"]
     centroid = boundary.mean(axis=0)
     homes = {}

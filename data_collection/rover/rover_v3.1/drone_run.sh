@@ -57,7 +57,7 @@ else
 fi
 [[ -f "$ROVER_ID_FILE" ]] || die "Missing ${ROVER_ID_FILE}."
 rover_id="$(tr -d '[:space:]' <"$ROVER_ID_FILE")"
-[[ "$rover_id" =~ ^[1-3]$ ]] || die "Unsupported rover_id: ${rover_id}"
+[[ "$rover_id" =~ ^[1-4]$ ]] || die "Unsupported rover_id: ${rover_id}"
 
 resolver_args=(
     --rover-id "$rover_id"

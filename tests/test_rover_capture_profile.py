@@ -178,6 +178,7 @@ def test_stock_firmware_restore_is_an_explicit_opt_out():
         (1, 3000, 2, "bounce", 0.035),
         (2, 3500, 1, "circle", 0.05075),
         (3, 3000, 2, "bounce", 0.043),
+        (4, 3000, 2, "bounce", 0.035),
     ],
 )
 def test_canonical_v7_configs_are_self_contained(
@@ -198,7 +199,7 @@ def test_canonical_v7_configs_are_self_contained(
     assert config["pluto-firmware"]["image-sha256"] == plan.firmware_image_sha256
 
 
-@pytest.mark.parametrize("rover_id", [1, 2, 3])
+@pytest.mark.parametrize("rover_id", [1, 2, 3, 4])
 def test_every_production_rover_pins_supervised_v3_firmware(rover_id):
     plan = resolve_capture_plan(rover_id)
     assert (

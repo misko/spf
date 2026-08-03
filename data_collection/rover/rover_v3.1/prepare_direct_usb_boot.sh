@@ -56,7 +56,7 @@ else
         "Missing /home/pi/rover_id and SPF_ROVER_ID was not provided."
     rover_id="$(tr -d '[:space:]' </home/pi/rover_id)"
 fi
-[[ "$rover_id" =~ ^[1-3]$ ]] || die "Unsupported rover_id: ${rover_id}"
+[[ "$rover_id" =~ ^[1-4]$ ]] || die "Unsupported rover_id: ${rover_id}"
 
 resolver_args=(
     --rover-id "$rover_id"

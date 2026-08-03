@@ -36,7 +36,7 @@ require_rover_identity() {
     [[ -f /home/pi/rover_id ]] ||
         die "Missing /home/pi/rover_id; refusing to select a production config."
     rover_id="$(tr -d '[:space:]' </home/pi/rover_id)"
-    [[ "$rover_id" =~ ^[1-3]$ ]] ||
+    [[ "$rover_id" =~ ^[1-4]$ ]] ||
         die "Unsupported rover_id: ${rover_id}"
 }
 

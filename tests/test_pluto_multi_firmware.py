@@ -597,7 +597,7 @@ def test_boot_preparation_uses_configured_boot_mode_with_environment_override():
     assert boot_script.index(invalidate) < boot_script.index(resolver)
 
 
-@pytest.mark.parametrize("rover_id", (1, 2, 3))
+@pytest.mark.parametrize("rover_id", (1, 2, 3, 4))
 def test_canonical_v7_rover_config_declares_persistent_qspi(rover_id):
     from spf.scripts.rover_capture_config import resolve_capture_plan
 
