@@ -159,7 +159,11 @@ cache_firmware_image() {
         /home/pi/spf-virtualenv/bin/python3 \
             -m spf.scripts.rover_capture_config "${resolver_args[@]}"
     )
-    [[ "${#config_values[@]}" -eq 15 ]] ||
+    # -ge, not -eq: the resolver gained a 16th field (device-fw) in d79fa576 and only
+    # one of four call sites was updated, silently breaking the other three. This
+    # script indexes fields 0-14 only, so any resolver emitting at least 16 is
+    # compatible; a future field addition cannot break it again.
+    [[ "${#config_values[@]}" -ge 16 ]] ||
         die "Capture config resolver returned the wrong firmware plan."
     SPF_FIRMWARE_RELEASE_TAG="${config_values[8]}" \
     SPF_FIRMWARE_ASSET_NAME="${config_values[9]}" \

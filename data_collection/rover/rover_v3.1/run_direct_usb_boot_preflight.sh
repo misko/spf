@@ -25,7 +25,11 @@ fi
 mapfile -d '' -t config_values < <(
     "$PYTHON" -m spf.scripts.rover_capture_config "${resolver_args[@]}"
 )
-[[ "${#config_values[@]}" -eq 15 ]] ||
+# -ge, not -eq: the resolver gained a 16th field (device-fw) in d79fa576 and only
+# one of four call sites was updated, silently breaking the other three. This
+# script indexes fields 0-14 only, so any resolver emitting at least 16 is
+# compatible; a future field addition cannot break it again.
+[[ "${#config_values[@]}" -ge 16 ]] ||
     die "Capture config resolver returned ${#config_values[@]} fields, expected 15."
 CONFIG="${config_values[1]}"
 EXPECTED_RADIOS="${config_values[5]}"

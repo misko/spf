@@ -42,7 +42,11 @@ fi
 mapfile -d '' -t plan < <(
     PYTHONPATH="$REPO_ROOT" "$PYTHON" -m spf.scripts.rover_capture_config "${resolver_args[@]}"
 )
-[[ "${#plan[@]}" -eq 15 ]] || die "capture resolver returned ${#plan[@]} fields"
+# -ge, not -eq: the resolver gained a 16th field (device-fw) in d79fa576 and only
+# one of four call sites was updated, silently breaking the other three. This
+# script indexes fields 0-14 only, so any resolver emitting at least 16 is
+# compatible; a future field addition cannot break it again.
+[[ "${#plan[@]}" -ge 16 ]] || die "capture resolver returned ${#plan[@]} fields"
 readonly RESOLVED_CONFIG="${plan[1]}"
 readonly ROUTINE="${plan[3]}"
 readonly EXPECTED_RADIOS="${plan[5]}"
