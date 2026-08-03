@@ -1,0 +1,16 @@
+# Following REPORT.md section 9 in this directory creates a virtualenv and an
+# extraction cache here. Neither belongs in Git: the venv is machine-specific
+# and the extraction is ~5,200 files regenerated from the read-only campaign
+# Zarr stores in minutes.
+.venv/
+extracted/
+__pycache__/
+*.pyc
+
+# Re-running the pipeline rewrites the committed result JSON in place when the
+# scripts are invoked from this directory rather than from a scratch copy.
+# Track them at the report root, not here.
+*.json
+*.png
+tables.md
+H_stageA.npz

@@ -1,0 +1,258 @@
+{
+ "comb": {
+  "L00 anchor only": {
+   "2blocks": 6.647185660866149,
+   "4blocks": 6.647185660866149,
+   "8blocks": 6.647185660866149,
+   "16blocks": 6.647185660866149,
+   "32blocks": 6.647185660866149,
+   "57blocks": 6.647185660866149
+  },
+  "L08 sym H(band,g)": {
+   "2blocks": 5.95618982330033,
+   "4blocks": 3.426664170681211,
+   "8blocks": 3.379964616659972,
+   "16blocks": 3.410648385435967,
+   "32blocks": 3.4176145878642754,
+   "57blocks": 3.3468644503623075
+  },
+  "L16 MECH H(state)+ripple/LNA": {
+   "2blocks": 5.498023738885763,
+   "4blocks": 2.8955745543633014,
+   "8blocks": 2.7018863902236676,
+   "16blocks": 2.7523131992481256,
+   "32blocks": 2.6299262954724196,
+   "57blocks": 2.5975249873076214
+  },
+  "L26 MECH H(state)+2 ripples/LNA": {
+   "2blocks": 5.479948578217884,
+   "4blocks": 2.8838266467306086,
+   "8blocks": 2.47299790509485,
+   "16blocks": 2.39508721409217,
+   "32blocks": 2.348833767036382,
+   "57blocks": 2.2461778807110346
+  },
+  "L27 MECH +delay +2 ripples/(band,LNA)": {
+   "2blocks": 4.919927589311328,
+   "4blocks": 7.548419430096023,
+   "8blocks": 3.5185496680538386,
+   "16blocks": 2.166984546407119,
+   "32blocks": 2.172559318815754,
+   "57blocks": 1.982635897883835
+  },
+  "L24 per-frequency additive LUT": {
+   "2blocks": 6.647185660866149,
+   "4blocks": 6.647185660866149,
+   "8blocks": 6.647185660866149,
+   "16blocks": 6.647185660866149,
+   "32blocks": 6.647185660866149,
+   "57blocks": 6.647185660866149
+  }
+ },
+ "radio_specificity": {
+  "all universal": {
+   "loeo": {
+    "model": "all universal",
+    "tier": 0,
+    "params": 43,
+    "coverage": 1.0,
+    "n": 3389,
+    "mae_deg": 1.8102717888507274,
+    "rmse_deg": 3.069682608062462,
+    "p95_deg": 6.379294069630827,
+    "max_deg": 31.238574071515004,
+    "sup_n": 3389,
+    "sup_mae_deg": 1.8102717888507274,
+    "sup_rmse_deg": 3.069682608062462,
+    "sup_p95_deg": 6.379294069630827,
+    "sup_max_deg": 31.238574071515004,
+    "tau_ns": [
+     2.54,
+     0.9
+    ],
+    "note": ""
+   },
+   "loro": {
+    "model": "all universal",
+    "tier": 0,
+    "params": 43,
+    "coverage": 1.0,
+    "n": 3389,
+    "mae_deg": 2.0025875573305574,
+    "rmse_deg": 3.511735034190304,
+    "p95_deg": 7.048014742096624,
+    "max_deg": 36.157047168342125,
+    "sup_n": 3389,
+    "sup_mae_deg": 2.0025875573305574,
+    "sup_rmse_deg": 3.511735034190304,
+    "sup_p95_deg": 7.048014742096624,
+    "sup_max_deg": 36.157047168342125,
+    "tau_ns": [
+     2.54,
+     0.89
+    ],
+    "note": ""
+   }
+  },
+  "+ per-radio static H": {
+   "loeo": {
+    "model": "+ per-radio static H",
+    "tier": 0,
+    "params": 52,
+    "coverage": 1.0,
+    "n": 3389,
+    "mae_deg": 1.807855514183911,
+    "rmse_deg": 3.027154350685942,
+    "p95_deg": 6.37120507291347,
+    "max_deg": 29.966776158994243,
+    "sup_n": 3389,
+    "sup_mae_deg": 1.807855514183911,
+    "sup_rmse_deg": 3.027154350685942,
+    "sup_p95_deg": 6.37120507291347,
+    "sup_max_deg": 29.966776158994243,
+    "tau_ns": [
+     2.54,
+     0.9
+    ],
+    "note": ""
+   },
+   "loro": {
+    "model": "+ per-radio static H",
+    "tier": 0,
+    "params": 43,
+    "coverage": 0.0,
+    "n": 3389,
+    "mae_deg": 6.647185660866149,
+    "rmse_deg": 9.155229437640848,
+    "p95_deg": 18.382044687492986,
+    "max_deg": 41.556044454612596,
+    "sup_n": 0,
+    "tau_ns": [
+     2.54,
+     0.89
+    ],
+    "note": ""
+   }
+  },
+  "+ per-radio delay": {
+   "loeo": {
+    "model": "+ per-radio delay",
+    "tier": 0,
+    "params": 49,
+    "coverage": 1.0,
+    "n": 3389,
+    "mae_deg": 1.82174772816204,
+    "rmse_deg": 3.029563832497999,
+    "p95_deg": 6.303200370989909,
+    "max_deg": 30.079073473783602,
+    "sup_n": 3389,
+    "sup_mae_deg": 1.82174772816204,
+    "sup_rmse_deg": 3.029563832497999,
+    "sup_p95_deg": 6.303200370989909,
+    "sup_max_deg": 30.079073473783602,
+    "tau_ns": [
+     2.54,
+     0.9
+    ],
+    "note": ""
+   },
+   "loro": {
+    "model": "+ per-radio delay",
+    "tier": 0,
+    "params": 43,
+    "coverage": 0.0,
+    "n": 3389,
+    "mae_deg": 6.647185660866149,
+    "rmse_deg": 9.155229437640848,
+    "p95_deg": 18.382044687492986,
+    "max_deg": 41.556044454612596,
+    "sup_n": 0,
+    "tau_ns": [
+     2.54,
+     0.89
+    ],
+    "note": ""
+   }
+  },
+  "+ per-radio ripple amplitudes": {
+   "loeo": {
+    "model": "+ per-radio ripple amplitudes",
+    "tier": 0,
+    "params": 71,
+    "coverage": 1.0,
+    "n": 3389,
+    "mae_deg": 1.8241530999549034,
+    "rmse_deg": 2.987340715930045,
+    "p95_deg": 6.360984498136234,
+    "max_deg": 28.35226801540778,
+    "sup_n": 3389,
+    "sup_mae_deg": 1.8241530999549034,
+    "sup_rmse_deg": 2.987340715930045,
+    "sup_p95_deg": 6.360984498136234,
+    "sup_max_deg": 28.35226801540778,
+    "tau_ns": [
+     2.54,
+     0.9
+    ],
+    "note": ""
+   },
+   "loro": {
+    "model": "+ per-radio ripple amplitudes",
+    "tier": 0,
+    "params": 43,
+    "coverage": 0.0,
+    "n": 3389,
+    "mae_deg": 6.647185660866149,
+    "rmse_deg": 9.155229437640848,
+    "p95_deg": 18.382044687492986,
+    "max_deg": 41.556044454612596,
+    "sup_n": 0,
+    "tau_ns": [
+     2.54,
+     0.89
+    ],
+    "note": ""
+   }
+  },
+  "+ everything per-radio": {
+   "loeo": {
+    "model": "+ everything per-radio",
+    "tier": 0,
+    "params": 86,
+    "coverage": 1.0,
+    "n": 3389,
+    "mae_deg": 1.816052050546793,
+    "rmse_deg": 2.909209422590397,
+    "p95_deg": 6.290493903509415,
+    "max_deg": 26.380063013410446,
+    "sup_n": 3389,
+    "sup_mae_deg": 1.816052050546793,
+    "sup_rmse_deg": 2.909209422590397,
+    "sup_p95_deg": 6.290493903509415,
+    "sup_max_deg": 26.380063013410446,
+    "tau_ns": [
+     2.54,
+     0.9
+    ],
+    "note": ""
+   },
+   "loro": {
+    "model": "+ everything per-radio",
+    "tier": 0,
+    "params": 43,
+    "coverage": 0.0,
+    "n": 3389,
+    "mae_deg": 6.647185660866149,
+    "rmse_deg": 9.155229437640848,
+    "p95_deg": 18.382044687492986,
+    "max_deg": 41.556044454612596,
+    "sup_n": 0,
+    "tau_ns": [
+     2.54,
+     0.89
+    ],
+    "note": ""
+   }
+  }
+ }
+}

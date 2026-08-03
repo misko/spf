@@ -1,0 +1,1888 @@
+{
+ "A -> G  (12 h later, hot, same harness)": [
+  {
+   "model": "L00 zero (per-session anchor only)",
+   "params": 0,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 7.660994118015238,
+   "rmse_deg": 13.05043334207011,
+   "p95_deg": 19.707876390987966,
+   "max_deg": 97.02466933312269,
+   "sup_mae_deg": 7.660994118015238,
+   "tau_ns": []
+  },
+  {
+   "model": "L01 sym H(g), universal",
+   "params": 3,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 6.333329436678351,
+   "rmse_deg": 12.359937466473525,
+   "p95_deg": 19.180104520253128,
+   "max_deg": 101.60526159664732,
+   "sup_mae_deg": 6.333329436678351,
+   "tau_ns": []
+  },
+  {
+   "model": "L05 sym H(lna,mixer,tia,lpf) universal",
+   "params": 15,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.992390868425374,
+   "rmse_deg": 11.771098053589059,
+   "p95_deg": 14.295407909101916,
+   "max_deg": 113.31998329994649,
+   "sup_mae_deg": 4.992390868425374,
+   "tau_ns": []
+  },
+  {
+   "model": "L06 sym H(gain-table row) universal",
+   "params": 9,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.992390868425758,
+   "rmse_deg": 11.771098053583922,
+   "p95_deg": 14.295407909197772,
+   "max_deg": 113.31998329987637,
+   "sup_mae_deg": 4.992390868425758,
+   "tau_ns": []
+  },
+  {
+   "model": "L08 sym H(band,g) universal",
+   "params": 9,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.992390868425758,
+   "rmse_deg": 11.771098053583922,
+   "p95_deg": 14.295407909197772,
+   "max_deg": 113.31998329987637,
+   "sup_mae_deg": 4.992390868425758,
+   "tau_ns": []
+  },
+  {
+   "model": "L09 sym H(radio,band,g)",
+   "params": 18,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.985934439663295,
+   "rmse_deg": 11.750228513891315,
+   "p95_deg": 14.613995630208501,
+   "max_deg": 113.75713190020697,
+   "sup_mae_deg": 4.985934439663295,
+   "tau_ns": []
+  },
+  {
+   "model": "L11 sym H(band,g) + delay(g) universal",
+   "params": 12,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.772495443125955,
+   "rmse_deg": 11.755830615544177,
+   "p95_deg": 14.59154028912113,
+   "max_deg": 113.3684950730121,
+   "sup_mae_deg": 4.772495443125955,
+   "tau_ns": []
+  },
+  {
+   "model": "L14 sym H(band,g) + 1 ripple, amp per g, universal",
+   "params": 15,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.595603407174989,
+   "rmse_deg": 11.504527902713104,
+   "p95_deg": 12.588138560973329,
+   "max_deg": 111.01184032483337,
+   "sup_mae_deg": 4.595603407174989,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L16 MECHANISTIC: H(state) + ripple amp per LNA state",
+   "params": 21,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.244586178327898,
+   "rmse_deg": 11.416655625991268,
+   "p95_deg": 12.690233789305292,
+   "max_deg": 113.20236025264606,
+   "sup_mae_deg": 4.244586178327898,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L18 sym H(band,g) + 2 ripples, amp per g, universal",
+   "params": 21,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.386402788103608,
+   "rmse_deg": 11.439994100664538,
+   "p95_deg": 12.175878823379715,
+   "max_deg": 113.99471887230652,
+   "sup_mae_deg": 4.386402788103608,
+   "tau_ns": [
+    2.52,
+    2.64
+   ]
+  },
+  {
+   "model": "L19 sym H(band,g)+2 ripples per radio + delay",
+   "params": 48,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.296620861420642,
+   "rmse_deg": 11.337084772062354,
+   "p95_deg": 11.815600695414567,
+   "max_deg": 111.67315789315585,
+   "sup_mae_deg": 4.296620861420642,
+   "tau_ns": [
+    2.54,
+    0.94
+   ]
+  },
+  {
+   "model": "L25 MECH: H(state) + ripple amp per (band,LNA)",
+   "params": 29,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.230000532079381,
+   "rmse_deg": 11.351289584389527,
+   "p95_deg": 12.298036225705586,
+   "max_deg": 113.21312350364586,
+   "sup_mae_deg": 4.230000532079381,
+   "tau_ns": [
+    2.54
+   ]
+  },
+  {
+   "model": "L26 MECH: H(state) + 2 ripples per LNA state",
+   "params": 27,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.988687628617484,
+   "rmse_deg": 11.323691445276152,
+   "p95_deg": 11.529755392146095,
+   "max_deg": 111.90430950095484,
+   "sup_mae_deg": 3.988687628617484,
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "model": "L27 MECH: + delay(state) + 2 ripples per (band,LNA)",
+   "params": 49,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.5556714796172773,
+   "rmse_deg": 11.189625873848012,
+   "p95_deg": 10.824995874786156,
+   "max_deg": 110.55704839007964,
+   "sup_mae_deg": 3.5556714796172773,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L28 MECH L27 + per-radio ripple amplitudes",
+   "params": 77,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.578117104307871,
+   "rmse_deg": 11.166396456693471,
+   "p95_deg": 11.224822616692517,
+   "max_deg": 111.71448390574372,
+   "sup_mae_deg": 3.578117104307871,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g",
+   "params": 45,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.559974358053698,
+   "rmse_deg": 11.636814517960572,
+   "p95_deg": 12.640838491314708,
+   "max_deg": 114.76927429695782,
+   "sup_mae_deg": 4.559974358053698,
+   "tau_ns": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+   ]
+  },
+  {
+   "model": "L23 sym H(radio,f,g)  per-frequency antisym LUT",
+   "params": 678,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.0250142690128943,
+   "rmse_deg": 10.954094703930473,
+   "p95_deg": 9.654192735084042,
+   "max_deg": 115.85513149159098,
+   "sup_mae_deg": 3.0250142690128943,
+   "tau_ns": []
+  },
+  {
+   "model": "L24 arm d(radio,f,g)  per-frequency additive LUT",
+   "params": 1356,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 2.7401723969960448,
+   "rmse_deg": 11.069505422463445,
+   "p95_deg": 8.079417471719607,
+   "max_deg": 120.41614770812653,
+   "sup_mae_deg": 2.7401723969960448,
+   "tau_ns": []
+  }
+ ],
+ "A -> D  (harness removed and restored)": [
+  {
+   "model": "L00 zero (per-session anchor only)",
+   "params": 0,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 7.674709663442951,
+   "rmse_deg": 13.013213062456062,
+   "p95_deg": 19.487731690968793,
+   "max_deg": 95.36110463688848,
+   "sup_mae_deg": 7.674709663442951,
+   "tau_ns": []
+  },
+  {
+   "model": "L01 sym H(g), universal",
+   "params": 3,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 6.3517661667787015,
+   "rmse_deg": 12.322252504614589,
+   "p95_deg": 19.46787593953421,
+   "max_deg": 99.94169690041318,
+   "sup_mae_deg": 6.3517661667787015,
+   "tau_ns": []
+  },
+  {
+   "model": "L05 sym H(lna,mixer,tia,lpf) universal",
+   "params": 15,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 5.0106099840914755,
+   "rmse_deg": 11.754461249901222,
+   "p95_deg": 14.751980095060727,
+   "max_deg": 111.65641860371224,
+   "sup_mae_deg": 5.0106099840914755,
+   "tau_ns": []
+  },
+  {
+   "model": "L06 sym H(gain-table row) universal",
+   "params": 9,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 5.010609984091373,
+   "rmse_deg": 11.754461249895815,
+   "p95_deg": 14.751980095016068,
+   "max_deg": 111.65641860364211,
+   "sup_mae_deg": 5.010609984091373,
+   "tau_ns": []
+  },
+  {
+   "model": "L08 sym H(band,g) universal",
+   "params": 9,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 5.010609984091373,
+   "rmse_deg": 11.754461249895815,
+   "p95_deg": 14.751980095016068,
+   "max_deg": 111.65641860364211,
+   "sup_mae_deg": 5.010609984091373,
+   "tau_ns": []
+  },
+  {
+   "model": "L09 sym H(radio,band,g)",
+   "params": 18,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 5.005366326114068,
+   "rmse_deg": 11.73263974724384,
+   "p95_deg": 14.577566878326005,
+   "max_deg": 112.09356720397277,
+   "sup_mae_deg": 5.005366326114068,
+   "tau_ns": []
+  },
+  {
+   "model": "L11 sym H(band,g) + delay(g) universal",
+   "params": 12,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.7923359242710335,
+   "rmse_deg": 11.738818383733243,
+   "p95_deg": 15.183198811159281,
+   "max_deg": 111.7049303767779,
+   "sup_mae_deg": 4.7923359242710335,
+   "tau_ns": []
+  },
+  {
+   "model": "L14 sym H(band,g) + 1 ripple, amp per g, universal",
+   "params": 15,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.627287116085381,
+   "rmse_deg": 11.485063967916293,
+   "p95_deg": 12.630315249380791,
+   "max_deg": 109.34827562859917,
+   "sup_mae_deg": 4.627287116085381,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L16 MECHANISTIC: H(state) + ripple amp per LNA state",
+   "params": 21,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.248569995568562,
+   "rmse_deg": 11.39014642821325,
+   "p95_deg": 12.497136474890068,
+   "max_deg": 111.53879555641186,
+   "sup_mae_deg": 4.248569995568562,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L18 sym H(band,g) + 2 ripples, amp per g, universal",
+   "params": 21,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.399832527392849,
+   "rmse_deg": 11.422107788817504,
+   "p95_deg": 12.262719729053357,
+   "max_deg": 112.33115417607232,
+   "sup_mae_deg": 4.399832527392849,
+   "tau_ns": [
+    2.52,
+    2.64
+   ]
+  },
+  {
+   "model": "L19 sym H(band,g)+2 ripples per radio + delay",
+   "params": 48,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.332884595167052,
+   "rmse_deg": 11.329465643355705,
+   "p95_deg": 11.778707543706329,
+   "max_deg": 110.00959319692164,
+   "sup_mae_deg": 4.332884595167052,
+   "tau_ns": [
+    2.54,
+    0.94
+   ]
+  },
+  {
+   "model": "L25 MECH: H(state) + ripple amp per (band,LNA)",
+   "params": 29,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.2440460164845595,
+   "rmse_deg": 11.326898863720142,
+   "p95_deg": 12.299777777583195,
+   "max_deg": 111.54955880741171,
+   "sup_mae_deg": 4.2440460164845595,
+   "tau_ns": [
+    2.54
+   ]
+  },
+  {
+   "model": "L26 MECH: H(state) + 2 ripples per LNA state",
+   "params": 27,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.987923716259644,
+   "rmse_deg": 11.297729790244926,
+   "p95_deg": 11.721436715382069,
+   "max_deg": 110.24074480472063,
+   "sup_mae_deg": 3.987923716259644,
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "model": "L27 MECH: + delay(state) + 2 ripples per (band,LNA)",
+   "params": 49,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.5558560919859312,
+   "rmse_deg": 11.163774167263382,
+   "p95_deg": 10.595135680296323,
+   "max_deg": 108.89348369384544,
+   "sup_mae_deg": 3.5558560919859312,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L28 MECH L27 + per-radio ripple amplitudes",
+   "params": 77,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.580648355390191,
+   "rmse_deg": 11.140599770944567,
+   "p95_deg": 11.074782687381585,
+   "max_deg": 110.05091920950952,
+   "sup_mae_deg": 3.580648355390191,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g",
+   "params": 45,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 4.604848878748637,
+   "rmse_deg": 11.632338137631207,
+   "p95_deg": 12.473384975781489,
+   "max_deg": 113.10570960072367,
+   "sup_mae_deg": 4.604848878748637,
+   "tau_ns": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+   ]
+  },
+  {
+   "model": "L23 sym H(radio,f,g)  per-frequency antisym LUT",
+   "params": 678,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.011874557203601,
+   "rmse_deg": 10.923275402382432,
+   "p95_deg": 9.656459592161948,
+   "max_deg": 114.19156679535679,
+   "sup_mae_deg": 3.011874557203601,
+   "tau_ns": []
+  },
+  {
+   "model": "L24 arm d(radio,f,g)  per-frequency additive LUT",
+   "params": 1356,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 2.7381659277283243,
+   "rmse_deg": 11.046107757819174,
+   "p95_deg": 7.908023011298542,
+   "max_deg": 118.75258301189237,
+   "sup_mae_deg": 2.7381659277283243,
+   "tau_ns": []
+  }
+ ],
+ "A -> B  (11 dB pad on treated RX1)": [
+  {
+   "model": "L00 zero (per-session anchor only)",
+   "params": 0,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 6.587970868248816,
+   "rmse_deg": 9.326333708626983,
+   "p95_deg": 18.451823654704672,
+   "max_deg": 45.644933075224905,
+   "sup_mae_deg": 6.587970868248816,
+   "tau_ns": []
+  },
+  {
+   "model": "L01 sym H(g), universal",
+   "params": 3,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 5.247243244360634,
+   "rmse_deg": 7.859815883967066,
+   "p95_deg": 15.886523739472683,
+   "max_deg": 52.33358949622828,
+   "sup_mae_deg": 5.247243244360634,
+   "tau_ns": []
+  },
+  {
+   "model": "L05 sym H(lna,mixer,tia,lpf) universal",
+   "params": 15,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.298866553457447,
+   "rmse_deg": 5.551856426560282,
+   "p95_deg": 12.151496827431934,
+   "max_deg": 54.25109816551566,
+   "sup_mae_deg": 3.298866553457447,
+   "tau_ns": []
+  },
+  {
+   "model": "L06 sym H(gain-table row) universal",
+   "params": 9,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.298866553458941,
+   "rmse_deg": 5.551856426560174,
+   "p95_deg": 12.151496827527769,
+   "max_deg": 54.251098165493474,
+   "sup_mae_deg": 3.298866553458941,
+   "tau_ns": []
+  },
+  {
+   "model": "L08 sym H(band,g) universal",
+   "params": 9,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.298866553458941,
+   "rmse_deg": 5.551856426560174,
+   "p95_deg": 12.151496827527769,
+   "max_deg": 54.251098165493474,
+   "sup_mae_deg": 3.298866553458941,
+   "tau_ns": []
+  },
+  {
+   "model": "L09 sym H(radio,band,g)",
+   "params": 18,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.304856951141355,
+   "rmse_deg": 5.541016437364041,
+   "p95_deg": 12.273669304891563,
+   "max_deg": 52.98350691875669,
+   "sup_mae_deg": 3.304856951141355,
+   "tau_ns": []
+  },
+  {
+   "model": "L11 sym H(band,g) + delay(g) universal",
+   "params": 12,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.0858124272410166,
+   "rmse_deg": 5.500379756989104,
+   "p95_deg": 12.181544199859927,
+   "max_deg": 53.75781678884029,
+   "sup_mae_deg": 3.0858124272410166,
+   "tau_ns": []
+  },
+  {
+   "model": "L14 sym H(band,g) + 1 ripple, amp per g, universal",
+   "params": 15,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.1257643609667674,
+   "rmse_deg": 5.172499825140946,
+   "p95_deg": 9.644310989551,
+   "max_deg": 53.455571655313804,
+   "sup_mae_deg": 3.1257643609667674,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L16 MECHANISTIC: H(state) + ripple amp per LNA state",
+   "params": 21,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 2.848832686945114,
+   "rmse_deg": 4.977839786153204,
+   "p95_deg": 10.133332287606319,
+   "max_deg": 48.57508373448942,
+   "sup_mae_deg": 2.848832686945114,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L18 sym H(band,g) + 2 ripples, amp per g, universal",
+   "params": 21,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 2.9842110660865546,
+   "rmse_deg": 5.028967249115884,
+   "p95_deg": 9.74616759400811,
+   "max_deg": 52.543356727758216,
+   "sup_mae_deg": 2.9842110660865546,
+   "tau_ns": [
+    2.52,
+    2.64
+   ]
+  },
+  {
+   "model": "L19 sym H(band,g)+2 ripples per radio + delay",
+   "params": 48,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 2.824276771260658,
+   "rmse_deg": 4.7780317682363265,
+   "p95_deg": 9.126899302387805,
+   "max_deg": 51.00114776348769,
+   "sup_mae_deg": 2.824276771260658,
+   "tau_ns": [
+    2.54,
+    0.94
+   ]
+  },
+  {
+   "model": "L25 MECH: H(state) + ripple amp per (band,LNA)",
+   "params": 29,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 2.8710723304685795,
+   "rmse_deg": 4.9743189761671545,
+   "p95_deg": 9.708082730286783,
+   "max_deg": 51.426829084113315,
+   "sup_mae_deg": 2.8710723304685795,
+   "tau_ns": [
+    2.54
+   ]
+  },
+  {
+   "model": "L26 MECH: H(state) + 2 ripples per LNA state",
+   "params": 27,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 2.5475660084273994,
+   "rmse_deg": 4.430800566882511,
+   "p95_deg": 8.405293536437659,
+   "max_deg": 45.56466688327713,
+   "sup_mae_deg": 2.5475660084273994,
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "model": "L27 MECH: + delay(state) + 2 ripples per (band,LNA)",
+   "params": 49,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 2.185638280726571,
+   "rmse_deg": 4.20685699303261,
+   "p95_deg": 8.2620432074578,
+   "max_deg": 45.73878967263492,
+   "sup_mae_deg": 2.185638280726571,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L28 MECH L27 + per-radio ripple amplitudes",
+   "params": 77,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 2.195020313147517,
+   "rmse_deg": 4.190885828940393,
+   "p95_deg": 8.271901397972405,
+   "max_deg": 48.12772760942008,
+   "sup_mae_deg": 2.195020313147517,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g",
+   "params": 45,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 3.0377313168795266,
+   "rmse_deg": 4.975229624305726,
+   "p95_deg": 9.508177989415154,
+   "max_deg": 51.30659418329835,
+   "sup_mae_deg": 3.0377313168795266,
+   "tau_ns": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+   ]
+  },
+  {
+   "model": "L23 sym H(radio,f,g)  per-frequency antisym LUT",
+   "params": 678,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 1.7796296481640381,
+   "rmse_deg": 3.873012857265711,
+   "p95_deg": 8.195699382323651,
+   "max_deg": 49.675679781466464,
+   "sup_mae_deg": 1.7796296481640381,
+   "tau_ns": []
+  },
+  {
+   "model": "L24 arm d(radio,f,g)  per-frequency additive LUT",
+   "params": 1356,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 1.5708829571474963,
+   "rmse_deg": 3.7998478372409976,
+   "p95_deg": 7.7140979870781266,
+   "max_deg": 51.06718198285984,
+   "sup_mae_deg": 1.5708829571474963,
+   "tau_ns": []
+  }
+ ],
+ "A -> C  (30 cm jumper on treated RX1)": [
+  {
+   "model": "L00 zero (per-session anchor only)",
+   "params": 0,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 7.711743609377982,
+   "rmse_deg": 13.590892219303473,
+   "p95_deg": 19.593821406729383,
+   "max_deg": 137.47326314993322,
+   "sup_mae_deg": 7.711743609377982,
+   "tau_ns": []
+  },
+  {
+   "model": "L01 sym H(g), universal",
+   "params": 3,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 6.351135878383587,
+   "rmse_deg": 12.797182621768231,
+   "p95_deg": 19.37192481856172,
+   "max_deg": 142.05385541345794,
+   "sup_mae_deg": 6.351135878383587,
+   "tau_ns": []
+  },
+  {
+   "model": "L05 sym H(lna,mixer,tia,lpf) universal",
+   "params": 15,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.915339679479241,
+   "rmse_deg": 12.190615682837423,
+   "p95_deg": 14.721591279455623,
+   "max_deg": 153.768577116757,
+   "sup_mae_deg": 4.915339679479241,
+   "tau_ns": []
+  },
+  {
+   "model": "L06 sym H(gain-table row) universal",
+   "params": 9,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.915339679479495,
+   "rmse_deg": 12.190615682832808,
+   "p95_deg": 14.721591279477861,
+   "max_deg": 153.76857711668686,
+   "sup_mae_deg": 4.915339679479495,
+   "tau_ns": []
+  },
+  {
+   "model": "L08 sym H(band,g) universal",
+   "params": 9,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.915339679479495,
+   "rmse_deg": 12.190615682832808,
+   "p95_deg": 14.721591279477861,
+   "max_deg": 153.76857711668686,
+   "sup_mae_deg": 4.915339679479495,
+   "tau_ns": []
+  },
+  {
+   "model": "L09 sym H(radio,band,g)",
+   "params": 18,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.9134145809747345,
+   "rmse_deg": 12.202799446866347,
+   "p95_deg": 14.680018185983483,
+   "max_deg": 154.20572571701751,
+   "sup_mae_deg": 4.9134145809747345,
+   "tau_ns": []
+  },
+  {
+   "model": "L11 sym H(band,g) + delay(g) universal",
+   "params": 12,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.677460320461516,
+   "rmse_deg": 12.152621521297705,
+   "p95_deg": 14.872967765666697,
+   "max_deg": 153.8170888898227,
+   "sup_mae_deg": 4.677460320461516,
+   "tau_ns": []
+  },
+  {
+   "model": "L14 sym H(band,g) + 1 ripple, amp per g, universal",
+   "params": 15,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.732825110455604,
+   "rmse_deg": 12.335031014912284,
+   "p95_deg": 13.178738518723662,
+   "max_deg": 151.46043414164393,
+   "sup_mae_deg": 4.732825110455604,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L16 MECHANISTIC: H(state) + ripple amp per LNA state",
+   "params": 21,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.326674970529507,
+   "rmse_deg": 11.930963264927168,
+   "p95_deg": 13.820773184305432,
+   "max_deg": 153.65095406945662,
+   "sup_mae_deg": 4.326674970529507,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L18 sym H(band,g) + 2 ripples, amp per g, universal",
+   "params": 21,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.498499886465048,
+   "rmse_deg": 11.992752914046326,
+   "p95_deg": 14.321784629073335,
+   "max_deg": 154.44331268911708,
+   "sup_mae_deg": 4.498499886465048,
+   "tau_ns": [
+    2.52,
+    2.64
+   ]
+  },
+  {
+   "model": "L19 sym H(band,g)+2 ripples per radio + delay",
+   "params": 48,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.422735795389975,
+   "rmse_deg": 12.14778993189273,
+   "p95_deg": 12.185930072108743,
+   "max_deg": 152.1217517099664,
+   "sup_mae_deg": 4.422735795389975,
+   "tau_ns": [
+    2.54,
+    0.94
+   ]
+  },
+  {
+   "model": "L25 MECH: H(state) + ripple amp per (band,LNA)",
+   "params": 29,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.36550028110899,
+   "rmse_deg": 11.938839267851334,
+   "p95_deg": 14.118675722778391,
+   "max_deg": 153.66171732045646,
+   "sup_mae_deg": 4.36550028110899,
+   "tau_ns": [
+    2.54
+   ]
+  },
+  {
+   "model": "L26 MECH: H(state) + 2 ripples per LNA state",
+   "params": 27,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.043103473786895,
+   "rmse_deg": 11.73697536829817,
+   "p95_deg": 12.34926079837907,
+   "max_deg": 152.3529033177654,
+   "sup_mae_deg": 4.043103473786895,
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "model": "L27 MECH: + delay(state) + 2 ripples per (band,LNA)",
+   "params": 49,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 3.6795699702114866,
+   "rmse_deg": 11.644857673529238,
+   "p95_deg": 12.830105641869187,
+   "max_deg": 151.0056422068902,
+   "sup_mae_deg": 3.6795699702114866,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L28 MECH L27 + per-radio ripple amplitudes",
+   "params": 77,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 3.6928879290301917,
+   "rmse_deg": 11.664624065839593,
+   "p95_deg": 12.850308315663327,
+   "max_deg": 152.16307772255428,
+   "sup_mae_deg": 3.6928879290301917,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g",
+   "params": 45,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 4.625151220894103,
+   "rmse_deg": 12.055359214259859,
+   "p95_deg": 12.600209771828233,
+   "max_deg": 155.21786811376842,
+   "sup_mae_deg": 4.625151220894103,
+   "tau_ns": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+   ]
+  },
+  {
+   "model": "L23 sym H(radio,f,g)  per-frequency antisym LUT",
+   "params": 678,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 3.287287703499437,
+   "rmse_deg": 11.725813754342793,
+   "p95_deg": 12.765266953215132,
+   "max_deg": 156.30372530840154,
+   "sup_mae_deg": 3.287287703499437,
+   "tau_ns": []
+  },
+  {
+   "model": "L24 arm d(radio,f,g)  per-frequency additive LUT",
+   "params": 1356,
+   "coverage": 1.0,
+   "n": 3387,
+   "mae_deg": 3.0230216419077007,
+   "rmse_deg": 11.74179011808754,
+   "p95_deg": 12.121373239956098,
+   "max_deg": 160.86474152493713,
+   "sup_mae_deg": 3.0230216419077007,
+   "tau_ns": []
+  }
+ ],
+ "A -> F": [
+  {
+   "model": "L00 zero (per-session anchor only)",
+   "params": 0,
+   "coverage": 1.0,
+   "n": 828,
+   "mae_deg": 2.9301373607033914,
+   "rmse_deg": 4.594117073622931,
+   "p95_deg": 10.212923676770195,
+   "max_deg": 19.382530434375575,
+   "sup_mae_deg": 2.9301373607033914,
+   "tau_ns": []
+  },
+  {
+   "model": "L01 sym H(g), universal",
+   "params": 3,
+   "coverage": 0.13043478260869565,
+   "n": 828,
+   "mae_deg": 3.4860133112804186,
+   "rmse_deg": 4.180880018584175,
+   "p95_deg": 7.694574317144732,
+   "max_deg": 16.45043775929577,
+   "sup_mae_deg": 2.6175556589697533,
+   "tau_ns": []
+  },
+  {
+   "model": "L05 sym H(lna,mixer,tia,lpf) universal",
+   "params": 15,
+   "coverage": 0.37681159420289856,
+   "n": 828,
+   "mae_deg": 2.7008199985373573,
+   "rmse_deg": 3.7018862801182095,
+   "p95_deg": 8.27512860059102,
+   "max_deg": 15.816925955713387,
+   "sup_mae_deg": 2.453091595662809,
+   "tau_ns": []
+  },
+  {
+   "model": "L06 sym H(gain-table row) universal",
+   "params": 9,
+   "coverage": 0.2463768115942029,
+   "n": 828,
+   "mae_deg": 3.20744813977048,
+   "rmse_deg": 4.702786762650121,
+   "p95_deg": 9.818124565051214,
+   "max_deg": 19.07685499863164,
+   "sup_mae_deg": 2.9291960255041767,
+   "tau_ns": []
+  },
+  {
+   "model": "L08 sym H(band,g) universal",
+   "params": 9,
+   "coverage": 0.13043478260869565,
+   "n": 828,
+   "mae_deg": 3.2936252402842063,
+   "rmse_deg": 4.837991909010051,
+   "p95_deg": 10.13191424796012,
+   "max_deg": 19.07685499863164,
+   "sup_mae_deg": 1.4309520040885264,
+   "tau_ns": []
+  },
+  {
+   "model": "L09 sym H(radio,band,g)",
+   "params": 18,
+   "coverage": 0.13043478260869565,
+   "n": 828,
+   "mae_deg": 3.319354284841035,
+   "rmse_deg": 4.852608976325447,
+   "p95_deg": 10.367108372592375,
+   "max_deg": 18.08244858414999,
+   "sup_mae_deg": 1.4591485084824616,
+   "tau_ns": []
+  },
+  {
+   "model": "L11 sym H(band,g) + delay(g) universal",
+   "params": 12,
+   "coverage": 0.13043478260869565,
+   "n": 828,
+   "mae_deg": 3.13486992939668,
+   "rmse_deg": 4.538206370032021,
+   "p95_deg": 9.34659369988145,
+   "max_deg": 18.223895499837187,
+   "sup_mae_deg": 1.6870099987216451,
+   "tau_ns": []
+  },
+  {
+   "model": "L14 sym H(band,g) + 1 ripple, amp per g, universal",
+   "params": 15,
+   "coverage": 0.13043478260869565,
+   "n": 828,
+   "mae_deg": 3.115700220202598,
+   "rmse_deg": 4.589777397199226,
+   "p95_deg": 10.413903992153928,
+   "max_deg": 17.11608147183977,
+   "sup_mae_deg": 1.6242011012711348,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L16 MECHANISTIC: H(state) + ripple amp per LNA state",
+   "params": 21,
+   "coverage": 0.37681159420289856,
+   "n": 828,
+   "mae_deg": 2.672840457739925,
+   "rmse_deg": 3.6631055559722605,
+   "p95_deg": 8.315878097808781,
+   "max_deg": 16.027190278006284,
+   "sup_mae_deg": 2.4260216606313523,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L18 sym H(band,g) + 2 ripples, amp per g, universal",
+   "params": 21,
+   "coverage": 0.13043478260869565,
+   "n": 828,
+   "mae_deg": 2.9068395664101203,
+   "rmse_deg": 4.300975859283475,
+   "p95_deg": 9.967974828675102,
+   "max_deg": 17.424764001795403,
+   "sup_mae_deg": 1.4468947951094857,
+   "tau_ns": [
+    2.52,
+    2.64
+   ]
+  },
+  {
+   "model": "L19 sym H(band,g)+2 ripples per radio + delay",
+   "params": 48,
+   "coverage": 0.13043478260869565,
+   "n": 828,
+   "mae_deg": 3.3453168556968236,
+   "rmse_deg": 4.7376443369595105,
+   "p95_deg": 10.559399269321297,
+   "max_deg": 16.78519740137403,
+   "sup_mae_deg": 1.6682093848915696,
+   "tau_ns": [
+    2.54,
+    0.94
+   ]
+  },
+  {
+   "model": "L25 MECH: H(state) + ripple amp per (band,LNA)",
+   "params": 29,
+   "coverage": 0.37681159420289856,
+   "n": 828,
+   "mae_deg": 2.691083919453203,
+   "rmse_deg": 3.703504550705924,
+   "p95_deg": 8.323653774548768,
+   "max_deg": 16.131653535484737,
+   "sup_mae_deg": 2.4767466315205144,
+   "tau_ns": [
+    2.54
+   ]
+  },
+  {
+   "model": "L26 MECH: H(state) + 2 ripples per LNA state",
+   "params": 27,
+   "coverage": 0.37681159420289856,
+   "n": 828,
+   "mae_deg": 2.71532314625973,
+   "rmse_deg": 3.6933451183517394,
+   "p95_deg": 8.24454286367771,
+   "max_deg": 16.273881965553713,
+   "sup_mae_deg": 2.409053168057502,
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "model": "L27 MECH: + delay(state) + 2 ripples per (band,LNA)",
+   "params": 49,
+   "coverage": 0.37681159420289856,
+   "n": 828,
+   "mae_deg": 3.343503796083466,
+   "rmse_deg": 4.583000989630077,
+   "p95_deg": 9.77358246118994,
+   "max_deg": 15.786145162370353,
+   "sup_mae_deg": 2.5574081681426755,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L28 MECH L27 + per-radio ripple amplitudes",
+   "params": 77,
+   "coverage": 0.37681159420289856,
+   "n": 828,
+   "mae_deg": 3.361537839120251,
+   "rmse_deg": 4.613556613718797,
+   "p95_deg": 9.806307965328823,
+   "max_deg": 15.790457821864118,
+   "sup_mae_deg": 2.603660075650572,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g",
+   "params": 45,
+   "coverage": 0.13043478260869565,
+   "n": 828,
+   "mae_deg": 3.2520360741491685,
+   "rmse_deg": 4.611968401457485,
+   "p95_deg": 10.4823435483971,
+   "max_deg": 18.250830061930294,
+   "sup_mae_deg": 1.453144183876566,
+   "tau_ns": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+   ]
+  },
+  {
+   "model": "L23 sym H(radio,f,g)  per-frequency antisym LUT",
+   "params": 678,
+   "coverage": 0.0,
+   "n": 828,
+   "mae_deg": 2.9301373607033914,
+   "rmse_deg": 4.594117073622931,
+   "p95_deg": 10.212923676770195,
+   "max_deg": 19.382530434375575,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  },
+  {
+   "model": "L24 arm d(radio,f,g)  per-frequency additive LUT",
+   "params": 1356,
+   "coverage": 0.0,
+   "n": 828,
+   "mae_deg": 2.9301373607033914,
+   "rmse_deg": 4.594117073622931,
+   "p95_deg": 10.212923676770195,
+   "max_deg": 19.382530434375575,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  }
+ ],
+ "A -> E": [
+  {
+   "model": "L00 zero (per-session anchor only)",
+   "params": 0,
+   "coverage": 1.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": 0.7380794840677165,
+   "tau_ns": []
+  },
+  {
+   "model": "L01 sym H(g), universal",
+   "params": 3,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  },
+  {
+   "model": "L05 sym H(lna,mixer,tia,lpf) universal",
+   "params": 15,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 1.2999460074869327,
+   "rmse_deg": 1.9244150287172097,
+   "p95_deg": 4.20767086968529,
+   "max_deg": 6.615759418947237,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  },
+  {
+   "model": "L06 sym H(gain-table row) universal",
+   "params": 9,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 1.0265994825113025,
+   "rmse_deg": 1.6841616493543097,
+   "p95_deg": 4.0946428863405,
+   "max_deg": 5.86654054074549,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  },
+  {
+   "model": "L08 sym H(band,g) universal",
+   "params": 9,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  },
+  {
+   "model": "L09 sym H(radio,band,g)",
+   "params": 18,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  },
+  {
+   "model": "L11 sym H(band,g) + delay(g) universal",
+   "params": 12,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  },
+  {
+   "model": "L14 sym H(band,g) + 1 ripple, amp per g, universal",
+   "params": 15,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L16 MECHANISTIC: H(state) + ripple amp per LNA state",
+   "params": 21,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 1.2550379000118013,
+   "rmse_deg": 1.8560711600688506,
+   "p95_deg": 4.050484164839649,
+   "max_deg": 6.463160269524561,
+   "sup_mae_deg": null,
+   "tau_ns": [
+    2.56
+   ]
+  },
+  {
+   "model": "L18 sym H(band,g) + 2 ripples, amp per g, universal",
+   "params": 21,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": [
+    2.52,
+    2.64
+   ]
+  },
+  {
+   "model": "L19 sym H(band,g)+2 ripples per radio + delay",
+   "params": 48,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": [
+    2.54,
+    0.94
+   ]
+  },
+  {
+   "model": "L25 MECH: H(state) + ripple amp per (band,LNA)",
+   "params": 29,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 1.2355061915432135,
+   "rmse_deg": 1.8276754025151754,
+   "p95_deg": 3.943903214126306,
+   "max_deg": 6.3976484956893165,
+   "sup_mae_deg": null,
+   "tau_ns": [
+    2.54
+   ]
+  },
+  {
+   "model": "L26 MECH: H(state) + 2 ripples per LNA state",
+   "params": 27,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 1.301886447684718,
+   "rmse_deg": 1.950827938782208,
+   "p95_deg": 4.178742405750126,
+   "max_deg": 6.768275471904277,
+   "sup_mae_deg": null,
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "model": "L27 MECH: + delay(state) + 2 ripples per (band,LNA)",
+   "params": 49,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 1.4730738777144698,
+   "rmse_deg": 2.266456863648672,
+   "p95_deg": 4.800077829629565,
+   "max_deg": 7.287647514438041,
+   "sup_mae_deg": null,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L28 MECH L27 + per-radio ripple amplitudes",
+   "params": 77,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 1.473307231018492,
+   "rmse_deg": 2.26683952361205,
+   "p95_deg": 4.798859539870085,
+   "max_deg": 7.287603329399048,
+   "sup_mae_deg": null,
+   "tau_ns": [
+    2.54,
+    0.88
+   ]
+  },
+  {
+   "model": "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g",
+   "params": 45,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+   ]
+  },
+  {
+   "model": "L23 sym H(radio,f,g)  per-frequency antisym LUT",
+   "params": 678,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  },
+  {
+   "model": "L24 arm d(radio,f,g)  per-frequency additive LUT",
+   "params": 1356,
+   "coverage": 0.0,
+   "n": 324,
+   "mae_deg": 0.7380794840677165,
+   "rmse_deg": 1.2635676117764607,
+   "p95_deg": 2.9889342233575826,
+   "max_deg": 4.771552513713867,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  }
+ ],
+ "F+E -> A": [
+  {
+   "model": "L00 zero (per-session anchor only)",
+   "params": 0,
+   "coverage": 1.0,
+   "n": 3389,
+   "mae_deg": 6.647185660866149,
+   "rmse_deg": 9.155229437640848,
+   "p95_deg": 18.382044687492986,
+   "max_deg": 41.556044454612596,
+   "sup_mae_deg": 6.647185660866149,
+   "tau_ns": []
+  },
+  {
+   "model": "L01 sym H(g), universal",
+   "params": 26,
+   "coverage": 0.5998819710829153,
+   "n": 3389,
+   "mae_deg": 5.611740079039559,
+   "rmse_deg": 8.218667812725458,
+   "p95_deg": 17.383072065033392,
+   "max_deg": 38.402316969222845,
+   "sup_mae_deg": 3.0657626922617816,
+   "tau_ns": []
+  },
+  {
+   "model": "L05 sym H(lna,mixer,tia,lpf) universal",
+   "params": 24,
+   "coverage": 0.8619061670109177,
+   "n": 3389,
+   "mae_deg": 6.5292128483499345,
+   "rmse_deg": 10.043765673166366,
+   "p95_deg": 21.70807675266099,
+   "max_deg": 37.858143503852325,
+   "sup_mae_deg": 4.454881583355114,
+   "tau_ns": []
+  },
+  {
+   "model": "L06 sym H(gain-table row) universal",
+   "params": 39,
+   "coverage": 0.8619061670109177,
+   "n": 3389,
+   "mae_deg": 5.975917405842454,
+   "rmse_deg": 9.020059769358166,
+   "p95_deg": 18.8990274963344,
+   "max_deg": 37.858143505661296,
+   "sup_mae_deg": 4.38755660233674,
+   "tau_ns": []
+  },
+  {
+   "model": "L08 sym H(band,g) universal",
+   "params": 50,
+   "coverage": 0.5998819710829153,
+   "n": 3389,
+   "mae_deg": 5.922424748091817,
+   "rmse_deg": 9.35941292198935,
+   "p95_deg": 20.422408207198128,
+   "max_deg": 37.85814350465571,
+   "sup_mae_deg": 2.207757521593389,
+   "tau_ns": []
+  },
+  {
+   "model": "L09 sym H(radio,band,g)",
+   "params": 100,
+   "coverage": 0.5998819710829153,
+   "n": 3389,
+   "mae_deg": 5.922874169710553,
+   "rmse_deg": 9.353659963393417,
+   "p95_deg": 20.343519023138278,
+   "max_deg": 37.363016652772245,
+   "sup_mae_deg": 2.208546111258792,
+   "tau_ns": []
+  },
+  {
+   "model": "L11 sym H(band,g) + delay(g) universal",
+   "params": 76,
+   "coverage": 0.5998819710829153,
+   "n": 3389,
+   "mae_deg": 5.996307674692794,
+   "rmse_deg": 9.203500697026483,
+   "p95_deg": 19.898535261642287,
+   "max_deg": 36.98594521893113,
+   "sup_mae_deg": 2.4628522832139508,
+   "tau_ns": []
+  },
+  {
+   "model": "L14 sym H(band,g) + 1 ripple, amp per g, universal",
+   "params": 102,
+   "coverage": 0.5998819710829153,
+   "n": 3389,
+   "mae_deg": 12.388032195206973,
+   "rmse_deg": 18.901935108017373,
+   "p95_deg": 44.1240830890397,
+   "max_deg": 65.29709580427755,
+   "sup_mae_deg": 11.268816487402008,
+   "tau_ns": [
+    0.26
+   ]
+  },
+  {
+   "model": "L16 MECHANISTIC: H(state) + ripple amp per LNA state",
+   "params": 28,
+   "coverage": 0.8619061670109177,
+   "n": 3389,
+   "mae_deg": 6.287527195870329,
+   "rmse_deg": 9.611906390735177,
+   "p95_deg": 21.227761334655135,
+   "max_deg": 40.73106126030729,
+   "sup_mae_deg": 4.459548589029599,
+   "tau_ns": [
+    1.52
+   ]
+  },
+  {
+   "model": "L18 sym H(band,g) + 2 ripples, amp per g, universal",
+   "params": 154,
+   "coverage": 0.5998819710829153,
+   "n": 3389,
+   "mae_deg": 6.5610443406319945,
+   "rmse_deg": 9.670410943496963,
+   "p95_deg": 20.587958314708914,
+   "max_deg": 35.89887149693652,
+   "sup_mae_deg": 2.960645937388363,
+   "tau_ns": [
+    0.1,
+    2.6
+   ]
+  },
+  {
+   "model": "L19 sym H(band,g)+2 ripples per radio + delay",
+   "params": 360,
+   "coverage": 0.5998819710829153,
+   "n": 3389,
+   "mae_deg": 5.923571622538858,
+   "rmse_deg": 9.200754017663995,
+   "p95_deg": 20.66566878096583,
+   "max_deg": 38.58965062033537,
+   "sup_mae_deg": 2.6091170566988815,
+   "tau_ns": [
+    1.6,
+    1.58
+   ]
+  },
+  {
+   "model": "L25 MECH: H(state) + ripple amp per (band,LNA)",
+   "params": 28,
+   "coverage": 0.20684567719091176,
+   "n": 3389,
+   "mae_deg": 5.819894572065212,
+   "rmse_deg": 9.101633228790988,
+   "p95_deg": 20.097375436660336,
+   "max_deg": 40.73106126030729,
+   "sup_mae_deg": 4.75322255252845,
+   "tau_ns": [
+    1.52
+   ]
+  },
+  {
+   "model": "L26 MECH: H(state) + 2 ripples per LNA state",
+   "params": 32,
+   "coverage": 0.8619061670109177,
+   "n": 3389,
+   "mae_deg": 5.973737339332839,
+   "rmse_deg": 9.056588394736742,
+   "p95_deg": 19.908325973331266,
+   "max_deg": 33.88244858025524,
+   "sup_mae_deg": 4.1425424477671635,
+   "tau_ns": [
+    0.76,
+    2.86
+   ]
+  },
+  {
+   "model": "L27 MECH: + delay(state) + 2 ripples per (band,LNA)",
+   "params": 38,
+   "coverage": 0.20684567719091176,
+   "n": 3389,
+   "mae_deg": 5.746702681438256,
+   "rmse_deg": 9.538069726614042,
+   "p95_deg": 21.5568892370502,
+   "max_deg": 37.712361431224075,
+   "sup_mae_deg": 4.9694428419826755,
+   "tau_ns": [
+    1.6,
+    0.24
+   ]
+  },
+  {
+   "model": "L28 MECH L27 + per-radio ripple amplitudes",
+   "params": 46,
+   "coverage": 0.20684567719091176,
+   "n": 3389,
+   "mae_deg": 5.724411060785287,
+   "rmse_deg": 9.481786180326475,
+   "p95_deg": 21.052698956418574,
+   "max_deg": 41.0611664090365,
+   "sup_mae_deg": 4.984275202781123,
+   "tau_ns": [
+    0.16,
+    1.48
+   ]
+  },
+  {
+   "model": "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g",
+   "params": 362,
+   "coverage": 0.5998819710829153,
+   "n": 3389,
+   "mae_deg": 6.4866867504439005,
+   "rmse_deg": 9.134616660538398,
+   "p95_deg": 18.844670706514368,
+   "max_deg": 41.8457733957656,
+   "sup_mae_deg": 4.174859925743425,
+   "tau_ns": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+   ]
+  },
+  {
+   "model": "L23 sym H(radio,f,g)  per-frequency antisym LUT",
+   "params": 200,
+   "coverage": 0.0,
+   "n": 3389,
+   "mae_deg": 6.647185660866149,
+   "rmse_deg": 9.155229437640848,
+   "p95_deg": 18.382044687492986,
+   "max_deg": 41.556044454612596,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  },
+  {
+   "model": "L24 arm d(radio,f,g)  per-frequency additive LUT",
+   "params": 400,
+   "coverage": 0.0,
+   "n": 3389,
+   "mae_deg": 6.647185660866149,
+   "rmse_deg": 9.155229437640848,
+   "p95_deg": 18.382044687492986,
+   "max_deg": 41.556044454612596,
+   "sup_mae_deg": null,
+   "tau_ns": []
+  }
+ ],
+ "leave-one-gain-out": {
+  "L00 zero (per-session anchor only)": {
+   "params": 0,
+   "coverage": 1.0,
+   "n": 4641,
+   "mae_deg": 5.555916410913222,
+   "rmse_deg": 8.164203127511724,
+   "p95_deg": 17.861042348904615,
+   "max_deg": 41.556044454612596
+  },
+  "L01 sym H(g), universal": {
+   "params": 26,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 4.806598911291498,
+   "rmse_deg": 7.225419298555138,
+   "p95_deg": 15.482700715284833,
+   "max_deg": 39.53728636930127
+  },
+  "L05 sym H(lna,mixer,tia,lpf) universal": {
+   "params": 26,
+   "coverage": 0.38009049773755654,
+   "n": 4641,
+   "mae_deg": 5.06017233949426,
+   "rmse_deg": 7.667185724736263,
+   "p95_deg": 18.12837819065012,
+   "max_deg": 29.47045088707741
+  },
+  "L06 sym H(gain-table row) universal": {
+   "params": 39,
+   "coverage": 0.5998707175177763,
+   "n": 4641,
+   "mae_deg": 5.019539578261594,
+   "rmse_deg": 7.301616821396819,
+   "p95_deg": 15.114537502979637,
+   "max_deg": 38.866390032989884
+  },
+  "L08 sym H(band,g) universal": {
+   "params": 50,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 5.154405043111584,
+   "rmse_deg": 7.7067300604663265,
+   "p95_deg": 16.683531191536183,
+   "max_deg": 35.6821599605134
+  },
+  "L09 sym H(radio,band,g)": {
+   "params": 100,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 5.157280590339463,
+   "rmse_deg": 7.7136622703322315,
+   "p95_deg": 16.80260717754345,
+   "max_deg": 35.44012424841449
+  },
+  "L11 sym H(band,g) + delay(g) universal": {
+   "params": 76,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 5.270796483776779,
+   "rmse_deg": 7.924010891354899,
+   "p95_deg": 17.671543518725024,
+   "max_deg": 35.213435239708296
+  },
+  "L14 sym H(band,g) + 1 ripple, amp per g, universal": {
+   "params": 102,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 12.305619389430193,
+   "rmse_deg": 24.28252005437327,
+   "p95_deg": 69.80147220955622,
+   "max_deg": 99.8357128398642
+  },
+  "L16 MECHANISTIC: H(state) + ripple amp per LNA state": {
+   "params": 32,
+   "coverage": 0.38009049773755654,
+   "n": 4641,
+   "mae_deg": 5.239865502253114,
+   "rmse_deg": 7.904076684389327,
+   "p95_deg": 18.53100841423947,
+   "max_deg": 29.47045088707741
+  },
+  "L18 sym H(band,g) + 2 ripples, amp per g, universal": {
+   "params": 154,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 5.908420566827586,
+   "rmse_deg": 9.056492723274278,
+   "p95_deg": 21.432189202101448,
+   "max_deg": 36.25950061440901
+  },
+  "L19 sym H(band,g)+2 ripples per radio + delay": {
+   "params": 360,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 4.955862462512273,
+   "rmse_deg": 7.650048024071368,
+   "p95_deg": 18.030859558624265,
+   "max_deg": 34.61604760671694
+  },
+  "L25 MECH: H(state) + ripple amp per (band,LNA)": {
+   "params": 40,
+   "coverage": 0.18358112475759533,
+   "n": 4641,
+   "mae_deg": 5.026350310926143,
+   "rmse_deg": 7.688005355249926,
+   "p95_deg": 17.990495021432178,
+   "max_deg": 29.47045088707741
+  },
+  "L26 MECH: H(state) + 2 ripples per LNA state": {
+   "params": 38,
+   "coverage": 0.38009049773755654,
+   "n": 4641,
+   "mae_deg": 5.038070686817341,
+   "rmse_deg": 7.6091984453018116,
+   "p95_deg": 17.861884119569012,
+   "max_deg": 29.47045088707741
+  },
+  "L27 MECH: + delay(state) + 2 ripples per (band,LNA)": {
+   "params": 61,
+   "coverage": 0.18358112475759533,
+   "n": 4641,
+   "mae_deg": 20.286078492628125,
+   "rmse_deg": 39.364457095862164,
+   "p95_deg": 107.02049044668067,
+   "max_deg": 138.99111741465666
+  },
+  "L28 MECH L27 + per-radio ripple amplitudes": {
+   "params": 89,
+   "coverage": 0.18358112475759533,
+   "n": 4641,
+   "mae_deg": 20.286979313597136,
+   "rmse_deg": 39.36699425181042,
+   "p95_deg": 107.02049044668067,
+   "max_deg": 138.99111741465666
+  },
+  "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g": {
+   "params": 362,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 5.0481041832984355,
+   "rmse_deg": 7.544701981650519,
+   "p95_deg": 16.12455991786872,
+   "max_deg": 41.238623576279494
+  },
+  "L23 sym H(radio,f,g)  per-frequency antisym LUT": {
+   "params": 868,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 5.079996630183998,
+   "rmse_deg": 7.629590559160298,
+   "p95_deg": 16.75758236975748,
+   "max_deg": 41.556044454612596
+  },
+  "L24 arm d(radio,f,g)  per-frequency additive LUT": {
+   "params": 1736,
+   "coverage": 0.0,
+   "n": 4641,
+   "mae_deg": 5.079830694044549,
+   "rmse_deg": 7.629374011441382,
+   "p95_deg": 16.759852063801137,
+   "max_deg": 41.556044454612596
+  }
+ }
+}

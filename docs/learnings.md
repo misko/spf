@@ -4,6 +4,81 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## L10 — dual-RX gain phase tracks the AD9361 RF state, not the requested dB (2026-08-02)
+
+Re-analysis of the 2026-07-30 A–G spectroscopy campaign (2 radios, 113 LOs 400–5900 MHz;
+18,202 of the campaign's 19,836 frames used). Full report, code and input hashes in
+`spf/calibrations/dual_rx_gain_frequency/reports/gain_state_phase_model_20260802_v1/`.
+
+**Baseline, recorded for the first time.** With a per-frequency equal-gain anchor already
+applied, changing the RX gain pair still costs **6.65° MAE / 18.4° P95 / 41.6° max** —
+**8.31° MAE** counting only the unequal-gain cells a correction actually acts on. Raw
+uncorrected `RX1−RX2` is 14.2–14.8° MAE. (The previously quoted ~14° `constant_per_radio`
+figure is the *anchored-per-radio* number, not a no-correction number.)
+
+**Three findings that constrain every future model:**
+
+1. **The gain effect is 94–99% antisymmetric between the arms.** Writing
+   `D(g1,g2) = H(g1) − H(g2)` with one shared `H` leaves 1.3–6.0% of the energy in the
+   arm-specific residual — though that residual concentrates above 4 GHz (mean 3.72°,
+   max 23.7° there, against 0.73° mean below 1300 MHz). Measured model-free from the additive-cross schedule via
+   `H = [D(g,26) − D(26,g)]/2`, `A = D(g,26) + D(26,g)` — no fit involved. `H` is largely
+   shared *between radios* for the large-`H` case (ρ = 0.985 at g=45; 0.996 in the low and
+   middle bands) but much less so above 4 GHz and for small `H` (ρ ≈ 0.45–0.48).
+2. **Phase steps where the audited gain table changes an RF word — and the measured
+   driver is the mixer.** A 1 dB step changing the **mixer** word moves `H` by a median
+   **2.664°** against **0.343°** for a baseband-LPF-only step (7.8×, cluster-bootstrap 95%
+   CI [5.1, 16.3], n = 12 vs 132 over 12 and 14 (radio, LO) clusters). The four measured
+   **TIA** 0→1 steps sit at 0.339°, indistinguishable from the LPF floor (p = 0.995) — and
+   both sit at the *measured* per-step noise floor of 0.355–0.368°, so neither is resolvable
+   by this experiment, while the mixer step is 7.4× that floor. Critically,
+   **no adjacent-1 dB LNA transition was measured anywhere in the campaign** — the LNA
+   evidence is four 9 dB steps (5.4–10.0°) plus the ripple in finding 3. Across 27→40 dB
+   at 5100/5766 MHz the audited state is frozen and 13 dB of gain costs <1° on three of
+   four curves (1.8° on the fourth). **Corollary: parameterise by the audited
+   `(LNA, MIXER, TIA)` words, not by requested dB.** Doing so raises the fraction of
+   *unseen* requested gains that are predictable at all from 48% to 90%.
+3. **The frequency dependence is a reflection standing wave modulated by the LNA state.**
+   Fitted delays 2.54 ns and 0.88–0.92 ns, shared by both radios. Where the gain table
+   changes the LNA index the ripple amplitude is 1.1–10.7°; where it does not, 0.11–0.36°.
+   The ordering *inverts* across the 4 GHz band edge exactly as the tables predict. This
+   also explains the previously anomalous 433/600 MHz gain-curve anticorrelation
+   (ρ = −0.22): 167 MHz is 0.43 of the 392.5 MHz ripple period ≈ 153° of ripple phase.
+
+**Gain-table byte 2 bit 5 is `RF_DC_CAL`, not digital gain.** Digital gain is identically
+zero on all 231 rows of all three tables, so it cannot contribute phase. The flag is set on
+exactly the rows that begin a new LNA/mixer/TIA state, which confounds an RF-state phase
+step with an RF-DC-recalibration step. The excluded `F_neg` stage bounds any RF-DC-only
+step at **≲0.7°** (n = 24, median 0.722°) against a 4.36° LMT step at the same LOs, but at
+n = 4 rising edges it does not resolve the attribution to the 0.35° level. Read finding 2
+as "the RF-state transition, including any RF-DC correction it triggers"; E-CAL1 closes it.
+
+**What to do.** Given a measured equal-gain anchor at the operating LO, a **27-parameter
+universal** model (`H(state)` + two LNA-state-indexed ripples) predicts an unmeasured
+frequency at 2.26° MAE (2.83° on unequal-gain cells) and an *unmeasured radio* at 2.22°,
+against the 6.65° baseline. **No parameter needs to be radio-specific** — promoting any
+family to per-radio changes same-radio error by ≤0.014° (inside the predeclared 0.1°
+margin) and destroys transfer. The minimal radio-specific state is one measured anchor per
+(serial, exact LO, session). **This is a two-radio result on one harness topology**; the
+fifth-radio pre-registered test in `reports/four_radio_dense_20260728_v1/README.md` is the
+condition for promoting it to a fleet claim.
+
+**What NOT to do.** (a) Do not fit smooth polynomials in frequency: they look fine when
+neighbouring LOs are retained and blow up to 9.6–10.4° MAE across a real 690 MHz gap (the
+reported 173.6° max is wrap-saturated — the true excursion is larger). (b) Do not
+extrapolate across a gain-table band — train on two bands, predict the third, and no model
+beats baseline by more than 8%. The model interpolates within a measured span; it does not
+extrapolate. (c) Do not apply the correction when the audited `(LNA, MIXER, TIA)` words are
+identical on both arms: there the fitted baseband-LPF differences are noise, and the model
+injects a mean 1.36° and makes 81% of those cells worse. (d) Do not expect a stored gain
+model to match a fresh calibration: across a 12-hour session boundary even the
+1356-parameter per-frequency LUT degrades from 0.62° to 2.74°, so there is real session
+drift in the *gain-dependent* term, not only in the intercept.
+
+**Calibration cost.** Held-out error is flat for frequency gaps from 96 MHz to ~690 MHz,
+so a ~10-point comb over 400–5900 MHz recovers essentially all of the 113-point comb's
+benefit for the gain term. Beyond ~1.4 GHz gaps it degrades.
+
 ## L9 — sub-GHz post-processing recovery: mostly NOT recoverable for phase (2026-07-12)
 
 The wall array no longer exists, so historical sub-GHz data can only be salvaged by

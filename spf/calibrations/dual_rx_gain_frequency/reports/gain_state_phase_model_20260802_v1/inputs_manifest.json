@@ -1,0 +1,1024 @@
+{
+ "schema": "spf.calibration.gain_state_phase_model.inputs",
+ "schema_version": 1,
+ "analysis_date": "2026-08-02",
+ "software": {
+  "spf_git_sha": "9da416155843b3a54d741ce8eb6f087b214c9ab4",
+  "spf_git_dirty_tracked": true,
+  "python": "3.12",
+  "pins": "numpy<2, zarr<=2.18.4, numcodecs<0.16, lmdb, scipy, matplotlib"
+ },
+ "radios": {
+  "treated_historical_17": "104000bac4950008230026001b440a003a",
+  "control_historical_18": "1040007c4a94000211000b009186843ef2"
+ },
+ "stages_used_by_analysis": {
+  "model_ladder_and_diagnostics": [
+   "A"
+  ],
+  "pooled_gain_coverage": [
+   "A",
+   "F",
+   "E_tx_0",
+   "rate_pilot"
+  ],
+  "transfer_tests": [
+   "A",
+   "B",
+   "C",
+   "D",
+   "G"
+  ],
+  "excluded_abandoned_attempts": [
+   "F_unsupported_negative_gain_attempt_20260730",
+   "G_usb_iio_timeout_attempt_20260730"
+  ],
+  "excluded_other": [
+   "E_tx_n7",
+   "E_tx_n14",
+   "E_tx_n21",
+   "E_tx_n28",
+   "E_tx_n80 (TX-muted floor control)",
+   "E_anchor_* (single-frame thermal anchors)"
+  ]
+ },
+ "campaign_provenance": [
+  {
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/gain_table_audit.json",
+   "bytes": 76156,
+   "sha256": "214ba7a9caba7f26aea8851cdac1be88a07049ff347fc29b59cf7054deb94ef4"
+  },
+  {
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/campaign_plan.json",
+   "bytes": 14796,
+   "sha256": "e6cdcfc39e51e16e8d50a6c3c67aff0fd28859492dd274861ca73a0835a5e6e9"
+  },
+  {
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full_r2/gain_table_audit.json",
+   "bytes": 76156,
+   "sha256": "214ba7a9caba7f26aea8851cdac1be88a07049ff347fc29b59cf7054deb94ef4"
+  },
+  {
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full_r2/campaign_plan.json",
+   "bytes": 15113,
+   "sha256": "d7af83702d32762eecd47f2776f75da2c87219db1a4a434fd562eee09a27e1b4"
+  }
+ ],
+ "analysed_scalar_inputs": [
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "A",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1694,
+   "bytes": 117261,
+   "sha256": "2319762b1f19ed0bc712f31fafd50efb3e887d837818b8da3542a27bf3bdadc3"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "A",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1695,
+   "bytes": 116955,
+   "sha256": "c9fa82fe90a851ab111c37d39ccc94b3bdaf643c97f123b7fbddc9db59bc7a9f"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "B",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1694,
+   "bytes": 117202,
+   "sha256": "5f5eb6bc2abfeafffa30b2eb790a69193d22107beaca0476c47e41a3c84f4645"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "B",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1695,
+   "bytes": 119057,
+   "sha256": "8dcc2cb5b5012229e8d6d84795675367c573b019623ec253882564f7cf256711"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "C",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1692,
+   "bytes": 117196,
+   "sha256": "9ffcb3798d19e0f718b0b4f7f4df54220e92ef1c1052c3cb024fd488da189bc3"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "C",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1695,
+   "bytes": 117587,
+   "sha256": "2bb50198961ace1f322e7bc0763c9e0463d427c8f151393b153b85a7f8f38659"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "D",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1694,
+   "bytes": 117170,
+   "sha256": "e261e5a8ed0a24dd4c95f32096315f4dcda634194f48ed544237f348ed8a2798"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "D",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1695,
+   "bytes": 117019,
+   "sha256": "1cb2ccf169548f5e449811b69395e74caa9f2dccf210c9a0ed1b7907edd9a528"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_0",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5978,
+   "sha256": "2903f870d14613b355931b918895e2cfef8f35857435801ceb05f807d8e61e65"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_0",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5976,
+   "sha256": "f6d239ffe5da6a450f1d2d35bdfcf93dfccebfb73d353fd0c213eee2e781e1bf"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n14",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5977,
+   "sha256": "ae6f186a58d02a76248881bf839811746c4e035b514bba02cc7416bb53164429"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n14",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5975,
+   "sha256": "aa3540d4c8904b2b82e36249b38a66975bf7a359a5ffe17821d808b0588dabcc"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n21",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5977,
+   "sha256": "a7b825bb7fce9929a86e40c59a6aed13031851c7efaa993f6a551ab8d8f92ce8"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n21",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5976,
+   "sha256": "9615d32b9eec6c84c60dc35835136548cbf71ad6caaad9c5a63eb9d3fa179b2d"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n28",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5976,
+   "sha256": "730e5eb8572faed6d85777951cb65bc9b4be4d4bf122452f9c09a3736e828cf4"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n28",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5977,
+   "sha256": "03f0d23929d9f6cc581020544a42839153584016081bca712ad51631ba9b4987"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n7",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5977,
+   "sha256": "31850c750dce6bb2659b703c7956bed99cb27a8b670ee4042fa1284d5d277036"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n7",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5977,
+   "sha256": "cd01e59c255c03464abaf7dd6de38a7bfb0e0e8e97dd23f98bc66a3273015de4"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n80",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5975,
+   "sha256": "0db30220b1de9c01756226d97bc10873a6d2481d0a1c194c12b5ac735ace9b41"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n80",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5976,
+   "sha256": "31c39c6271ae53d7dbc102fa2e423e13bed9f971bd1c4768d447a93c98d70fe8"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_before",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5977,
+   "sha256": "c9029dfe4d8764068b6054433eb6a52a83c293007f0c05e478646a7f0bf6106a"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_before",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1,
+   "completed": 1,
+   "quality_valid": 1,
+   "bytes": 5976,
+   "sha256": "9e3eaa179f8d4403700539f646614aa4ce0b7e0e75cd80717fb34fda38692f9c"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_0",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 16782,
+   "sha256": "8fcd12502447b46504d37b2f100b8457f04da98130088880a6646729e8945985"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_0",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 16701,
+   "sha256": "6eb623c8ec6b9328c8d2d44f4ee723c74281775cacacc0cf10f1df7525533270"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n14",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 16962,
+   "sha256": "ca253bcea8aa1e579d357940aa7d9b778cde1c4da6d4748f7501e340164d9b04"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n14",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 16911,
+   "sha256": "0c0c4c7dca76288265cdcd535cf69a697bac1593dfd358b6ef3897de894c4b91"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n21",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 17085,
+   "sha256": "00b0732bc84ed81d9e988f1e91079366b848cb94a46b07235ff6c1c17cfb98c4"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n21",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 17091,
+   "sha256": "d01bff07bf2f62980e7e162686e3a06dea3cb7191bc253a156fdcb6fe1b62774"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n28",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 17227,
+   "sha256": "88e2e0257b0d6b8a62bdd41ec282c7e6d8ff68b74aaa0d17870fbc27a63bc53d"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n28",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 17278,
+   "sha256": "e8b34a054f4fc41a50a2af2390d2a5a59eb2ac430c3ad12f543cf3c32d835dbd"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n7",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 16805,
+   "sha256": "d764807c9431e384ef088a2ce5560fb91ce8365b9302910c922cd5b90670d224"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n7",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 162,
+   "bytes": 16740,
+   "sha256": "0b80dfa0c1b495d6e0c70cce8173c397eda04964f287bfdc860891ebc72178fb"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n80",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 0,
+   "bytes": 18351,
+   "sha256": "9f4554342b511d80ffc34fc3ec1c3c891e9209af91b6ff2cc10858b8cd4f0b5e"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n80",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 162,
+   "completed": 162,
+   "quality_valid": 0,
+   "bytes": 18338,
+   "sha256": "e0ebf4b9e65b6aedebbdb9dcddc3e4bf85d85c84eecd29aa8df2d1d64e79b8f9"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "F_unsupported_negative_gain_attempt_20260730",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 738,
+   "completed": 534,
+   "quality_valid": 534,
+   "bytes": 45649,
+   "sha256": "d065aba7949247c9bdbe0832b6db7927f5869a6342ad0bfd1a02c9a0699e3286"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "F_unsupported_negative_gain_attempt_20260730",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 738,
+   "completed": 534,
+   "quality_valid": 534,
+   "bytes": 45498,
+   "sha256": "3817eab25656f6c76f552f12cbc6607ce3e3ac4b1398fe62a21f5b11e0ac1512"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "rate_pilot",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 50,
+   "completed": 50,
+   "quality_valid": 50,
+   "bytes": 9963,
+   "sha256": "78b4d9de842c4dda4ee1fd32df19507bae39b1829ed8167760211ab412bbad04"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "rate_pilot",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 50,
+   "completed": 50,
+   "quality_valid": 50,
+   "bytes": 9954,
+   "sha256": "07a600ed92ab62bce7325009b3c216f74ce7130b3f618f8d1b2dce86e255e611"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "F",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 414,
+   "completed": 414,
+   "quality_valid": 414,
+   "bytes": 33300,
+   "sha256": "de7283ae7f44e14abd9c1bedde7f9e7889c5d0c9b54019973b2584ce54020eb1"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "F",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 414,
+   "completed": 414,
+   "quality_valid": 414,
+   "bytes": 33188,
+   "sha256": "d892528c42857a141d59325f30c75f7f272556674b92b90cd2a02cb9d4e2ba20"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "G",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1694,
+   "bytes": 117321,
+   "sha256": "cce0eb46095af2952feafbfa144b1431ea28b9426fa80249d6e9671e121759ac"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "G",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1695,
+   "completed": 1695,
+   "quality_valid": 1695,
+   "bytes": 117068,
+   "sha256": "ef844146745fa32e7b3c2034542a25636914f70f43982866f07a09555154257e"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "G_usb_iio_timeout_attempt_20260730",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "frames": 1695,
+   "completed": 1650,
+   "quality_valid": 1649,
+   "bytes": 114649,
+   "sha256": "74ac5ade78866b7883fc5fb421aaa5106c602e3d9838468463238ea86f698f5d"
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "G_usb_iio_timeout_attempt_20260730",
+   "serial": "104000bac4950008230026001b440a003a",
+   "frames": 1695,
+   "completed": 1653,
+   "quality_valid": 1653,
+   "bytes": 114749,
+   "sha256": "701cbb9de3438cb1d10c3558d0508cdfbf5ef91284e46eedc7017f606757369a"
+  }
+ ],
+ "source_zarr_stores": [
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "A",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/A/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785395782
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "A",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/A/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785395778
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "B",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/B/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785424072
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "B",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/B/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785424068
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "C",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/C/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785429234
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "C",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/C/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785429230
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "D",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/D/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785432977
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "D",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/D/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785432973
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_0",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_0/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434108
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_0",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_0/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434101
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n14",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n14/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434517
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n14",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n14/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434510
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n21",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n21/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434718
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n21",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n21/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434711
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n28",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n28/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434919
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n28",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n28/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434916
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n7",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n7/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434317
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n7",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n7/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434310
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n80",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n80/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785435119
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_after_n80",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_after_n80/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785435112
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_before",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_before/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785433900
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_anchor_before",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_anchor_before/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785433898
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_0",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_0/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434035
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_0",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_0/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434045
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n14",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n14/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434447
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n14",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n14/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434457
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n21",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n21/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434646
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n21",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n21/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434656
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n28",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n28/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434847
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n28",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n28/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434857
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n7",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n7/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434241
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n7",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n7/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785434251
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n80",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n80/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785435049
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "E_tx_n80",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/E_tx_n80/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785435059
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "F_unsupported_negative_gain_attempt_20260730",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/F_unsupported_negative_gain_attempt_20260730/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785435744
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "F_unsupported_negative_gain_attempt_20260730",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/F_unsupported_negative_gain_attempt_20260730/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785435760
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "rate_pilot",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/rate_pilot/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785393115
+  },
+  {
+   "campaign": "spectroscopy_20260730_full",
+   "stage": "rate_pilot",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full/stages/rate_pilot/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785393118
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "F",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full_r2/stages/F/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785436412
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "F",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full_r2/stages/F/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785436420
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "G",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full_r2/stages/G/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785441971
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "G",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full_r2/stages/G/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785441967
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "G_usb_iio_timeout_attempt_20260730",
+   "serial": "1040007c4a94000211000b009186843ef2",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full_r2/stages/G_usb_iio_timeout_attempt_20260730/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785439129
+  },
+  {
+   "campaign": "spectroscopy_20260730_full_r2",
+   "stage": "G_usb_iio_timeout_attempt_20260730",
+   "serial": "104000bac4950008230026001b440a003a",
+   "path": "/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full_r2/stages/G_usb_iio_timeout_attempt_20260730/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+   "data_mdb_bytes": 137438953472,
+   "data_mdb_mtime_unix": 1785439136
+  }
+ ],
+ "analysis_code": [
+  {
+   "file": "analysis/diag_Hspectrum.py",
+   "bytes": 7133,
+   "sha256": "3073f39d10b9cfa011a99be35fe966fdfc75c4c07d5ecfbab98e65f8b2c41153"
+  },
+  {
+   "file": "analysis/diag_gainsteps.py",
+   "bytes": 4965,
+   "sha256": "81bc91d7721477981b097fd1a5c9066c2e1ef30185975f735631d95e4bf74f08"
+  },
+  {
+   "file": "analysis/diag_symmetry.py",
+   "bytes": 7948,
+   "sha256": "aecf6abb195b2f4131ad9920b8048523d32fc8df4aaae54d329c098831f1cf88"
+  },
+  {
+   "file": "analysis/emit_ladder_table.py",
+   "bytes": 2369,
+   "sha256": "4805a1891bfab5955a95b5dc0f66866cf9dd86ed0e0164985e5725a7b309f6d5"
+  },
+  {
+   "file": "analysis/extract.py",
+   "bytes": 4390,
+   "sha256": "8f391f3bb538d3f4bf4df71d28a2a4d13d6a8bb9045a3e9b8fdee66ee9faa545"
+  },
+  {
+   "file": "analysis/features.py",
+   "bytes": 4510,
+   "sha256": "d9f4484b6639c06aa55e1377b6f02fe9eb91c1223c045b53bbc41dc3d67b5b59"
+  },
+  {
+   "file": "analysis/fig_ladder.py",
+   "bytes": 5941,
+   "sha256": "87901235e7ed62480987a09bcee42b729f0d7361cd08a25d596538ba6f48aa57"
+  },
+  {
+   "file": "analysis/figs.py",
+   "bytes": 8354,
+   "sha256": "4e524d11fd32025fcf5c779a83074e80665135221f5b3de0d13e4556f1534ca8"
+  },
+  {
+   "file": "analysis/ladder.py",
+   "bytes": 17105,
+   "sha256": "67d551ef810426a5a8bff1adbdda674c3e4970b70f03dbfc0f9e7d2fec1e42d5"
+  },
+  {
+   "file": "analysis/make_manifest.py",
+   "bytes": 6978,
+   "sha256": "19a9a684e3e1195db79f68a394da77f2c841a13820daaac811ae23c78329f437"
+  },
+  {
+   "file": "analysis/models.py",
+   "bytes": 9181,
+   "sha256": "ede3c13195445fdc552020aaae99c11d215171e8f2c92ddb00c8f1bfff977079"
+  },
+  {
+   "file": "analysis/review_fixes.py",
+   "bytes": 11382,
+   "sha256": "8cbff8e30c672a16370a116f5023347d9351e9a6688410f6d3bdc4e02245ca65"
+  },
+  {
+   "file": "analysis/run_band.py",
+   "bytes": 2337,
+   "sha256": "a0c06221fcd49c8e2473c477115b4ca53ca08685b402b10edd293a4c0f27faf6"
+  },
+  {
+   "file": "analysis/run_comb.py",
+   "bytes": 5537,
+   "sha256": "3d707fb743ab86fd4e8260e5ad2b9c8670a012ef8166f70597a8d4bc1e999141"
+  },
+  {
+   "file": "analysis/run_ladder.py",
+   "bytes": 1607,
+   "sha256": "538bd22a4353ae423fd7e96b38282491711e2440b833c477d19db0cc145fe069"
+  },
+  {
+   "file": "analysis/run_min.py",
+   "bytes": 1889,
+   "sha256": "6b15c484383d517320dc327463f54364d2706d009fcc5afb44d6ebb32d2c4be7"
+  },
+  {
+   "file": "analysis/spflib.py",
+   "bytes": 10265,
+   "sha256": "889c8b4fbe6f12b613590c5bca2613bc5fe517f44ec4983af62377eacd6e62a8"
+  },
+  {
+   "file": "analysis/tables.py",
+   "bytes": 4302,
+   "sha256": "fee70e0afd9d058d8aa5502354a59686d0553707533be9f866876cf16eec05fd"
+  },
+  {
+   "file": "analysis/transfer.py",
+   "bytes": 6269,
+   "sha256": "24f53193e9eeb1e68c0d762a9012056fd4ce6fb7eb814d927cb01d96024f387b"
+  },
+  {
+   "file": "analysis/verify_selection.py",
+   "bytes": 2504,
+   "sha256": "b6e296bbdecd080653b144ed2500ff99c3ff5a6fca8f2d5387e008b75636f30d"
+  }
+ ],
+ "generated_results": [
+  {
+   "file": "band_results.json",
+   "bytes": 6636,
+   "sha256": "91e6341cab5edf62a9760be44e00c279439d7046d5fe9b58564b9a70f53103fa"
+  },
+  {
+   "file": "comb_results.json",
+   "bytes": 5970,
+   "sha256": "f98e5264fc3a893a37dcf4139ebf13d192c3e7bad2d802c99e53bc48535b4a15"
+  },
+  {
+   "file": "inputs_manifest.json",
+   "bytes": 34742,
+   "sha256": "d296a75ef5a04c38422f48ec4631811978225ac8f45a8661c15ee592fd105328"
+  },
+  {
+   "file": "ladder_results_A_main.json",
+   "bytes": 141003,
+   "sha256": "b11c0995ad66de11e7cbd3ec9bc3f1536e0fb4864b8625d9c66299d30788424e"
+  },
+  {
+   "file": "min_results.json",
+   "bytes": 28384,
+   "sha256": "06eb1ac428f923b5db4bc7539f5692048c9c32ee7bc39ca1644a2a7a0554190b"
+  },
+  {
+   "file": "transfer_results.json",
+   "bytes": 44894,
+   "sha256": "d6ed6449cd0c27a88af21a448a26cf35bfb2e32b9717f297c4f3fe4c0cbd32ce"
+  },
+  {
+   "file": "fig1_mechanism.png",
+   "bytes": 287291,
+   "sha256": "42cdcce5213cd1273e6a9500d47e6e9d85741be267545a57f73e1b2d36aa400a"
+  },
+  {
+   "file": "fig2_ripple.png",
+   "bytes": 158792,
+   "sha256": "53b86a6b6489a4ca53e1c698d96e163d0bb8212a60c1e1d8e4d25187aa70bd96"
+  },
+  {
+   "file": "fig3_ladder.png",
+   "bytes": 176897,
+   "sha256": "b8fe6c5bcb7700e95f1c628ac9980b5a36988b87cc4a2ceb1dcfb043dc854141"
+  }
+ ],
+ "frame_counts": {
+  "all_extracted_stores": {
+   "scheduled": 24702,
+   "completed": 24207,
+   "quality_valid": 23875
+  },
+  "stages_used_by_this_analysis": {
+   "scheduled": 18202,
+   "completed": 18202,
+   "quality_valid": 18195
+  }
+ }
+}
