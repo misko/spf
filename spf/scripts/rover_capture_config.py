@@ -31,6 +31,20 @@ FIRMWARE_KEYS = (
     "gadget-git-sha",
     "boot-mode",
 )
+# Maps each pluto-firmware YAML key to its RoverCapturePlan attribute. Kept
+# beside FIRMWARE_KEYS so the two cannot drift: firmware_block() below asserts
+# that every key is mapped, so adding a field to FIRMWARE_KEYS without mapping
+# it fails loudly instead of being silently dropped from firmware comparisons.
+FIRMWARE_KEY_TO_PLAN_ATTR = {
+    "release-tag": "firmware_release_tag",
+    "device-fw": "firmware_device_fw",
+    "asset-name": "firmware_asset_name",
+    "image-url": "firmware_image_url",
+    "image-sha256": "firmware_image_sha256",
+    "firmware-git-sha": "firmware_git_sha",
+    "gadget-git-sha": "gadget_git_sha",
+    "boot-mode": "firmware_boot_mode",
+}
 
 
 @dataclass(frozen=True)
@@ -51,6 +65,21 @@ class RoverCapturePlan:
     gadget_git_sha: str
     firmware_boot_mode: str
     firmware_device_fw: str
+
+
+def firmware_block(plan: RoverCapturePlan) -> dict[str, str]:
+    """Rebuild a plan's ``pluto-firmware`` mapping, exactly as written in YAML.
+
+    Derived from FIRMWARE_KEYS rather than hand-listed so that a field added to
+    the contract is always included in firmware equality checks. Callers compare
+    this against a config's own ``pluto-firmware`` block.
+    """
+    missing = [key for key in FIRMWARE_KEYS if key not in FIRMWARE_KEY_TO_PLAN_ATTR]
+    if missing:
+        raise RuntimeError(
+            f"FIRMWARE_KEY_TO_PLAN_ATTR is missing entries for: {missing}"
+        )
+    return {key: getattr(plan, FIRMWARE_KEY_TO_PLAN_ATTR[key]) for key in FIRMWARE_KEYS}
 
 
 def _sha256(path: Path) -> str:

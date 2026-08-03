@@ -21,7 +21,7 @@ from spf.calibrations.dual_rx_gain_frequency.validate import (
     validate_dataset,
     write_validation_report,
 )
-from spf.scripts.rover_capture_config import resolve_capture_plan
+from spf.scripts.rover_capture_config import firmware_block, resolve_capture_plan
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -66,15 +66,11 @@ def _write_json_atomic(path: Path, document: dict[str, Any]) -> None:
 
 
 def _firmware_from_capture_plan(plan) -> dict[str, str]:
-    return {
-        "release-tag": plan.firmware_release_tag,
-        "asset-name": plan.firmware_asset_name,
-        "image-url": plan.firmware_image_url,
-        "image-sha256": plan.firmware_image_sha256,
-        "firmware-git-sha": plan.firmware_git_sha,
-        "gadget-git-sha": plan.gadget_git_sha,
-        "boot-mode": plan.firmware_boot_mode,
-    }
+    # Derived from FIRMWARE_KEYS in rover_capture_config, not hand-listed. The
+    # previous hand-written version silently omitted "device-fw" after it was
+    # added to the contract, so the comparison below stopped checking the very
+    # field that distinguishes a firmware build from its source-version string.
+    return firmware_block(plan)
 
 
 def _validated_inputs(
