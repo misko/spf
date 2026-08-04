@@ -190,6 +190,110 @@ def test_install_refuses_to_clobber_a_real_file(tmp_path):
     assert occupied.read_text() == "#!/bin/sh\necho not ours\n"
 
 
+# ----------------------------------------------------------------- config ---
+
+# ~/.rover_config is optional and normally absent -- on a rover, and on the
+# base station, every setting falls back to a built-in default. It exists so
+# tests (and an unusual machine) can inject known values.
+
+
+def test_absent_config_falls_back_to_built_in_defaults(tmp_path):
+    """The normal case: no file anywhere, dev defaults apply."""
+    missing = tmp_path / "nope" / ".rover_config"
+    result = run_cli("config", env={"SPF_ROVER_CONFIG": str(missing)})
+    assert result.returncode == 0, result.stderr
+    assert "absent" in result.stdout
+    assert "192.168.1.141" in result.stdout      # default SITL host
+    assert "14590 14591 14592" in result.stdout  # default SITL ports
+    assert result.stdout.count("default") >= 8
+
+
+def test_config_file_supplies_values(tmp_path):
+    config = tmp_path / ".rover_config"
+    config.write_text(
+        "# a comment\n"
+        "SPF_SITL_HOST=10.0.0.9\n"
+        "SPF_SITL_PORTS=25590 25591\n"
+        "\n"
+    )
+    result = run_cli("config", env={"SPF_ROVER_CONFIG": str(config)})
+    assert result.returncode == 0, result.stderr
+    assert "10.0.0.9" in result.stdout
+    assert "25590 25591" in result.stdout
+    assert str(config) in result.stdout  # provenance points at the file
+
+
+def test_environment_beats_the_config_file(tmp_path):
+    """Precedence: real env > file > default, so an explicit override wins."""
+    config = tmp_path / ".rover_config"
+    config.write_text("SPF_SITL_HOST=10.0.0.9\n")
+    result = run_cli(
+        "config",
+        env={"SPF_ROVER_CONFIG": str(config), "SPF_SITL_HOST": "172.16.0.1"},
+    )
+    assert "172.16.0.1" in result.stdout
+    assert "10.0.0.9" not in result.stdout
+    assert "environment" in result.stdout
+
+
+def test_config_file_is_parsed_not_executed(tmp_path):
+    """A sourced config would run as root under `sudo rover install`."""
+    canary = tmp_path / "canary"
+    config = tmp_path / ".rover_config"
+    config.write_text(
+        f"SPF_SITL_HOST=$(touch {canary})\n"
+        f"SPF_SITL_IMAGE=`touch {canary}`\n"
+    )
+    result = run_cli("config", env={"SPF_ROVER_CONFIG": str(config)})
+    assert result.returncode == 0, result.stderr
+    assert not canary.exists(), "config file was EXECUTED, not parsed"
+
+
+def test_config_ignores_keys_outside_the_spf_namespace(tmp_path):
+    """A stray line must not be able to clobber PATH, HOME, or an internal."""
+    config = tmp_path / ".rover_config"
+    config.write_text("PATH=/nowhere\nHOME=/nowhere\nSPF_SITL_HOST=10.0.0.9\n")
+    result = run_cli("config", env={"SPF_ROVER_CONFIG": str(config)})
+    assert result.returncode == 0, result.stderr
+    assert "10.0.0.9" in result.stdout  # the SPF_ key still applied
+
+
+# ------------------------------------------------------------ sitl status ---
+
+
+def test_sitl_status_reports_free_ports(tmp_path):
+    """Point the check at a port nothing owns."""
+    config = tmp_path / ".rover_config"
+    config.write_text("SPF_SITL_PORTS=59999\n")
+    result = run_cli("sitl", "status", env={"SPF_ROVER_CONFIG": str(config)})
+    assert result.returncode == 0, result.stderr
+    assert "are free" in result.stdout
+
+
+def test_sitl_status_detects_a_bound_port(tmp_path):
+    """The real behaviour: bind a port, then assert the CLI notices.
+
+    This is why SPF_SITL_PORTS is injectable -- the check can be exercised
+    against a port the test controls instead of requiring a live simulator on
+    14590. Uses an ephemeral port so concurrent runs cannot collide, which is
+    the same lesson as the SITL fixture itself.
+    """
+    import socket
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        bound = sock.getsockname()[1]
+
+        config = tmp_path / ".rover_config"
+        config.write_text(f"SPF_SITL_PORTS={bound}\n")
+        result = run_cli("sitl", "status", env={"SPF_ROVER_CONFIG": str(config)})
+
+    assert result.returncode == 0, result.stderr
+    assert "already bound" in result.stdout
+    assert str(bound) in result.stdout
+
+
 # --------------------------------------------------------- coverage guard ---
 
 # Every script in rover_v3.1 gets a disposition. Adding a script without

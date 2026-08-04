@@ -12,7 +12,12 @@
 #   rover ardupilot <sub>      prearm, compass, motor-test, flash
 #   rover radio <sub>          status, firmware, preflight, capture
 #   rover sitl <sub>           status, up, down  (base station only)
-#   rover audit | version | install
+#   rover audit | config | version | install
+#
+# Settings come from the environment, then an optional
+# ~/.rover_config, then built-in defaults. The file is normally absent --
+# it exists mainly so tests can inject known values. `rover config` shows
+# the effective value of each setting and where it came from.
 #
 # The groups dispatch to the existing scripts unchanged -- this is a front
 # door, not a rewrite, so every script stays directly callable and rovers
@@ -29,6 +34,49 @@ set -euo pipefail
 # its tests run from a dev-box checkout that is not /home/pi/spf.
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 ROVER_DIR="$(dirname "$SELF")"
+
+# ---------------------------------------------------------------- config ---
+#
+# ~/.rover_config holds per-machine settings: SITL ports on the base station,
+# a non-default checkout, and so on. It is PARSED, never sourced. Sourcing
+# would execute arbitrary shell as whoever ran the CLI -- including root, via
+# `sudo rover install` -- and could not implement the precedence below.
+#
+#   real environment  >  ~/.rover_config  >  built-in default
+#
+# so `SPF_SITL_HOST=x rover sitl status` still wins over the file, and tests
+# can point SPF_ROVER_CONFIG at a fixture.
+ROVER_CONFIG="${SPF_ROVER_CONFIG:-${HOME:-/root}/.rover_config}"
+
+declare -A ROVER_CONFIG_ENV=()
+
+load_rover_config() {
+    # Snapshot which settings the real environment supplied, so `rover config`
+    # can report provenance after both sources land in the same variables.
+    local exported
+    for exported in $(compgen -v SPF_ 2>/dev/null || true); do
+        [[ -n "${!exported:-}" ]] && ROVER_CONFIG_ENV["$exported"]=1
+    done
+    [[ -r "$ROVER_CONFIG" ]] || return 0
+    local key value
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"                      # strip comments
+        [[ "$line" == *=* ]] || continue        # skip blanks and junk
+        key="${line%%=*}"; value="${line#*=}"
+        key="${key//[[:space:]]/}"
+        # Only SPF_-prefixed shell-safe names, so a stray line cannot clobber
+        # PATH, HOME, or any of the CLI's own internals.
+        [[ "$key" =~ ^SPF_[A-Z0-9_]+$ ]] || continue
+        value="${value#"${value%%[![:space:]]*}"}"   # trim leading space
+        value="${value%"${value##*[![:space:]]}"}"   # trim trailing space
+        value="${value%\"}"; value="${value#\"}"     # strip surrounding quotes
+        value="${value%\'}"; value="${value#\'}"
+        [[ -n "${!key:-}" ]] && continue        # a real env var wins
+        printf -v "$key" '%s' "$value"
+    done <"$ROVER_CONFIG"
+}
+load_rover_config
+
 REPO_ROOT="${SPF_REPO_ROOT:-$(cd "${ROVER_DIR}/../../.." && pwd)}"
 VENV="${SPF_VENV:-/home/pi/spf-virtualenv}"
 INSTALL_PATH="${SPF_ROVER_CLI_PATH:-/usr/local/bin/rover}"
@@ -38,12 +86,13 @@ PLUTO_USB_ID="${SPF_PLUTO_USB_ID:-0456:b673}"
 # The sim runs on the base station, never on a rover (ROVER_RUNBOOK §6).
 SITL_HOST="${SPF_SITL_HOST:-192.168.1.141}"
 SITL_IMAGE="${SPF_SITL_IMAGE:-csmisko/ardupilotspf:latest}"
-SITL_PORTS="14590 14591 14592"
+# Overridable so a test can point the check at a port it controls.
+SITL_PORTS="${SPF_SITL_PORTS:-14590 14591 14592}"
 
 # Every operator-facing subcommand, in help order. tests/test_rover_cli.py
 # reads this list and asserts each entry both dispatches and answers --help,
 # so a subcommand cannot be documented without working, or work unlisted.
-SUBCOMMANDS=(doctor ardupilot radio sitl audit version install help)
+SUBCOMMANDS=(doctor ardupilot radio sitl audit config version install help)
 
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
@@ -64,6 +113,7 @@ commands:
   radio       Plutos: status, firmware, preflight, capture
   sitl        simulator on the base station: status, up, down
   audit       read-only fleet fingerprint (identity.* vs fleet.* drift)
+  config      effective settings, and where each value came from
   version     what this checkout is, and whether it matches main
   install     symlink this CLI to ${INSTALL_PATH} (needs sudo)
   help        this message
@@ -260,6 +310,46 @@ Print the checkout's commit, and whether it matches origin/main."; return 0; }
     printf '\n'
 }
 
+# ------------------------------------------------------------------ config ---
+
+cmd_config() {
+    [[ "${1:-}" =~ ^(-h|--help)$ ]] && { echo "usage: rover config
+Show every setting, its effective value, and where that value came from
+(environment, ${ROVER_CONFIG}, or built-in default).
+
+The config file is optional. Absent -- the normal case on a rover and on the
+base station -- every setting falls back to its built-in default."; return 0; }
+
+    head_ "config"
+    if [[ -r "$ROVER_CONFIG" ]]; then
+        note "file : ${ROVER_CONFIG}"
+    else
+        note "file : ${ROVER_CONFIG} (absent — using built-in defaults)"
+    fi
+    printf '\n  %-26s %-34s %s\n' SETTING VALUE SOURCE
+    local name value
+    for name in SPF_REPO_ROOT:"$REPO_ROOT" SPF_VENV:"$VENV" \
+                SPF_ROVER_CLI_PATH:"$INSTALL_PATH" \
+                SPF_DIRECT_USB_READY_FILE:"$READY_MANIFEST" \
+                SPF_PLUTO_USB_ID:"$PLUTO_USB_ID" SPF_SITL_HOST:"$SITL_HOST" \
+                SPF_SITL_IMAGE:"$SITL_IMAGE" SPF_SITL_PORTS:"$SITL_PORTS"; do
+        value="${name#*:}"; name="${name%%:*}"
+        printf '  %-26s %-34s %s\n' "$name" "$value" "$(config_source "$name")"
+    done
+    printf '\n'
+}
+
+# Reports where a setting came from. The environment and the file are both
+# read into the same variable, so this re-reads the file to tell them apart.
+config_source() {
+    local key="$1"
+    if [[ -n "${ROVER_CONFIG_ENV[$key]:-}" ]]; then printf 'environment'; return; fi
+    if [[ -r "$ROVER_CONFIG" ]] && grep -qE "^[[:space:]]*${key}[[:space:]]*=" "$ROVER_CONFIG"; then
+        printf '%s' "$ROVER_CONFIG"; return
+    fi
+    printf 'default'
+}
+
 # ----------------------------------------------------------------- install ---
 
 cmd_install() {
@@ -436,6 +526,7 @@ main() {
         radio)           cmd_radio "$@" ;;
         sitl)            cmd_sitl "$@" ;;
         audit)           cmd_audit "$@" ;;
+        config)          cmd_config "$@" ;;
         version)         cmd_version "$@" ;;
         install)         cmd_install "$@" ;;
         help|-h|--help)  usage 0 ;;
