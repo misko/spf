@@ -2,17 +2,24 @@
 """Spin the rover's motors at a ladder of throttle levels and ask the operator
 to confirm each one.
 
-    THE WHEELS MUST BE OFF THE GROUND. This drives the motors directly,
-    bypassing the arming checks, exactly as ArduPilot's bench motor test does.
-    A rover on its wheels WILL drive away.
+    THE WHEELS MUST BE OFF THE GROUND. A rover on its wheels WILL drive away.
 
-Uses MAV_CMD_DO_MOTOR_TEST, so it needs neither arming nor a GPS fix nor a
-calibrated compass — which is the point: it isolates "do the motors and ESCs
-work" from every other pre-arm gate.
+Uses MAV_CMD_DO_MOTOR_TEST. Two things about Rover that are easy to get wrong,
+both found the hard way on rover 2:
+
+  * The vehicle must be ARMED. Rover accepts DO_MOTOR_TEST while disarmed,
+    replies MAV_RESULT_ACCEPTED, says "Throttle disarmed" and moves nothing.
+    Pass --arm; the script disarms again on every exit path.
+  * Motor instances 3 and 4 are the throttle outputs. Instances 1 and 2 are
+    steering and move nothing on a skid-steer rover.
+
+Because an ACK is not evidence, every burst is verified by watching
+SERVO_OUTPUT_RAW and reporting the PWM swing.
 
 Safety, in the order the checks fire:
 
   1. --wheels-raised is mandatory. There is no default.
+  0. The vehicle is disarmed on every exit path, including Ctrl-C.
   2. An interactive confirmation you must type in full (unless --dry-run).
   3. Refuses to run while mavlink_controller.service holds the serial link.
   4. Claims the TTY with TIOCEXCL so nothing else can open it mid-test.
@@ -27,10 +34,10 @@ Usage:
     # rehearse the whole flow, send nothing:
     ./run_motor_test.py --dry-run
 
-    # the real thing:
-    ./run_motor_test.py --wheels-raised
-    ./run_motor_test.py --wheels-raised --levels 10,25 --seconds 1.5
-    ./run_motor_test.py --wheels-raised --json /tmp/motor_test.json
+    # the real thing (--arm is required for anything to actually spin):
+    ./run_motor_test.py --wheels-raised --arm
+    ./run_motor_test.py --wheels-raised --arm --levels 10,25 --seconds 1.5
+    ./run_motor_test.py --wheels-raised --arm --json /tmp/motor_test.json
 
 Exit status: 0 all confirmed, 1 operator reported a fault or aborted,
 2 setup/connection error.
@@ -59,7 +66,15 @@ SOURCE_SYSTEM = 250
 DEFAULT_LEVELS = (10, 25, 50, 100)
 # ArduPilot Rover skid-steer: SERVO1_FUNCTION 74 (throttle right),
 # SERVO3_FUNCTION 73 (throttle left). Motor test addresses them by instance.
-MOTORS = {1: "motor 1 (throttle right, SERVO1)", 2: "motor 2 (throttle left, SERVO3)"}
+# ArduPilot Rover maps DO_MOTOR_TEST instances 1/2 to STEERING and 3/4 to the
+# throttle outputs. Determined empirically on rover 2 by sweeping instances 1-4
+# and watching SERVO_OUTPUT_RAW: instances 1 and 2 moved nothing, instance 3
+# drove servo3 1500->2042 us and instance 4 drove servo1 1500->958 us. Testing
+# instances 1/2 is why an earlier version reported success while nothing spun.
+MOTORS = {
+    3: "throttle left (SERVO3, function 73)",
+    4: "throttle right (SERVO1, function 74)",
+}
 MOTOR_TEST_THROTTLE_PERCENT = 0
 
 CONFIRM_PHRASE = "WHEELS UP"
@@ -288,7 +303,7 @@ def main() -> int:
         help=f"throttle percentages, low to high (default: {','.join(str(v) for v in DEFAULT_LEVELS)})",
     )
     parser.add_argument(
-        "--motors", default="1,2", help="motor instances to test (default: 1,2)"
+        "--motors", default="3,4", help="motor instances to test (default: 3,4)"
     )
     parser.add_argument(
         "--seconds", type=float, default=2.0, help="burst length per level (default: 2)"
