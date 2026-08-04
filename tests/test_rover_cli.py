@@ -274,7 +274,7 @@ def env_cli(*args, profile, config=None, **kwargs):
     return run_cli("env", *args, env=environment, **kwargs)
 
 
-@pytest.mark.parametrize("setting", ["crash_detect", "crash_recovery"])
+@pytest.mark.parametrize("setting", ["crash_detect", "crash_recovery", "ultrasonic"])
 def test_env_reads_the_built_in_default_when_the_profile_is_absent(
     tmp_path, setting: str
 ):
@@ -294,7 +294,7 @@ def test_crash_detect_defaults_on_and_recovery_defaults_off(tmp_path):
     assert "rover 4" in recovery, "the read must explain WHY it is off here"
 
 
-@pytest.mark.parametrize("setting", ["crash_detect", "crash_recovery"])
+@pytest.mark.parametrize("setting", ["crash_detect", "crash_recovery", "ultrasonic"])
 def test_env_writes_and_reads_back(tmp_path, setting: str):
     profile = tmp_path / "rover_collection.env"
     assert env_cli(setting, "enable", profile=profile).returncode == 0

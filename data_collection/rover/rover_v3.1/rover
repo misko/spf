@@ -491,6 +491,7 @@ cmd_env() {
     case "$action" in
         crash_detect|crash-detect)     key=SPF_CRASH_DETECT ;;
         crash_recovery|crash-recovery) key=SPF_CRASH_RECOVERY ;;
+        ultrasonic)                    key=SPF_ULTRASONIC ;;
         ""|-h|--help)
             group_usage env \
                 "Settings the capture services read from ${PROFILE_ENV}." \
@@ -499,6 +500,7 @@ cmd_env() {
                 "subcommands:" \
                 "  crash_detect     detect a stalled rover and hand it to the operator" \
                 "  crash_recovery   first try to reverse out of the jam (rover 4 only)" \
+                "  ultrasonic       obstacle stop; disable when CH12 cannot reach the Pi" \
                 "" \
                 "  rover env <setting>                   show the effective value" \
                 "  sudo rover env <setting> enable       turn it on for this rover" \

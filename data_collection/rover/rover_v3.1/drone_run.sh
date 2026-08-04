@@ -67,10 +67,13 @@ rover_id="$(tr -d '[:space:]' <"$ROVER_ID_FILE")"
 source "${SCRIPT_DIR}/rover_env_defaults.sh"
 CRASH_DETECT="${SPF_CRASH_DETECT:-$(spf_default_crash_detect)}"
 CRASH_RECOVERY="${SPF_CRASH_RECOVERY:-$(spf_default_crash_recovery "$rover_id")}"
+ULTRASONIC="${SPF_ULTRASONIC:-$(spf_default_ultrasonic)}"
 is_true "$CRASH_DETECT" && crash_detect_flag=--crash-detect ||
     crash_detect_flag=--no-crash-detect
 is_true "$CRASH_RECOVERY" && crash_recovery_flag=--crash-recovery ||
     crash_recovery_flag=--no-crash-recovery
+is_true "$ULTRASONIC" && ultrasonic_flag=--ultrasonic ||
+    ultrasonic_flag=--no-ultrasonic
 
 resolver_args=(
     --rover-id "$rover_id"
@@ -122,6 +125,7 @@ print_plan() {
         "capture_watchdog_file=${CAPTURE_WATCHDOG_FILE}" \
         "capture_restart_attempts=${CAPTURE_RESTART_ATTEMPTS}" \
         "crash_detect=${CRASH_DETECT}" \
+        "ultrasonic=${ULTRASONIC}" \
         "crash_recovery=${CRASH_RECOVERY}"
 }
 
@@ -325,7 +329,8 @@ run_capture() {
         --temp "$OUTPUT_ROOT" \
         --status-file "$CAPTURE_STATUS_FILE" \
         "$crash_detect_flag" \
-        "$crash_recovery_flag" &
+        "$crash_recovery_flag" \
+        "$ultrasonic_flag" &
     capture_pid=$!
     "$PYTHON" -m spf.capture_watchdog monitor \
         --pid "$capture_pid" \
