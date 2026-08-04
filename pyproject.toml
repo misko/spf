@@ -23,6 +23,11 @@ dependencies = [
  "numba",
  "scipy",
  "zarr<=2.18.4", # newer versions remove support for lmdb
+ # zarr 2.x imports numcodecs.blosc.cbuffer_sizes, which numcodecs 0.16 removed.
+ # Unpinned, a fresh resolve installs 0.16.x and every capture dies at import
+ # with ImportError: cannot import name 'cbuffer_sizes'. Pinning zarr without
+ # pinning what zarr imports from is not a pin.
+ "numcodecs<0.16",
  "pyadi-iio",
  "libusb1>=3.1",
  "pyproj",
