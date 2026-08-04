@@ -29,6 +29,9 @@ ROVER_DIR="$(dirname "$SELF")"
 REPO_ROOT="${SPF_REPO_ROOT:-$(cd "${ROVER_DIR}/../../.." && pwd)}"
 VENV="${SPF_VENV:-/home/pi/spf-virtualenv}"
 INSTALL_PATH="${SPF_ROVER_CLI_PATH:-/usr/local/bin/rover}"
+READY_MANIFEST="${SPF_DIRECT_USB_READY_FILE:-/run/spf/direct_usb_ready.json}"
+# ADALM-PLUTO / PlutoPlus USB id, as reported by lsusb on rovers 1 and 2.
+PLUTO_USB_ID="${SPF_PLUTO_USB_ID:-0456:b673}"
 
 # Every operator-facing subcommand, in help order. tests/test_rover_cli.py
 # reads this list and asserts each entry both dispatches and answers --help,
@@ -160,8 +163,27 @@ report_hardware() {
     fc="$(ls /dev/serial/by-id/usb-ArduPilot* 2>/dev/null | head -1 || true)"
     if [[ -n "$fc" ]]; then ok "flight controller: $(basename "$fc")"; else bad "flight controller: not found"; fi
 
-    plutos="$(ip -o link show 2>/dev/null | grep -c 'usb[0-9]' || true)"
-    if [[ "${plutos:-0}" -gt 0 ]]; then ok "pluto usb interfaces: ${plutos}"; else warn "pluto usb interfaces: none"; fi
+    # Count by USB vendor:product. Plutos enumerate as USB *ethernet gadgets*
+    # -- eth1 and eth2 on rover 1 -- not as usbN, so matching interface names
+    # reports zero radios on a rover that has two attached.
+    plutos="$(lsusb -d "$PLUTO_USB_ID" 2>/dev/null | wc -l)"
+    if [[ "${plutos:-0}" -gt 0 ]]; then ok "plutos attached: ${plutos}"; else bad "plutos attached: none"; fi
+
+    # Attached is not the same as usable. The ready manifest is what the boot
+    # chain actually gates on, and it goes stale on a git pull -- which is how
+    # rover 2 ended up refusing to capture after an update earlier today.
+    if [[ -r "$READY_MANIFEST" ]]; then
+        local attached configured
+        attached="$(grep -o '"attached_radio_count"[: ]*[0-9]*' "$READY_MANIFEST" | grep -o '[0-9]*$')"
+        configured="$(grep -o '"configured_receiver_count"[: ]*[0-9]*' "$READY_MANIFEST" | grep -o '[0-9]*$')"
+        if [[ "${attached:-0}" == "${configured:-x}" ]]; then
+            ok "ready manifest: ${attached}/${configured} radios"
+        else
+            bad "ready manifest: ${attached:-?} attached vs ${configured:-?} configured"
+        fi
+    else
+        warn "no ready manifest at ${READY_MANIFEST} — radios not prepared this boot"
+    fi
 
     if [[ -x "${VENV}/bin/python3" ]]; then ok "virtualenv: ${VENV}"; else bad "virtualenv missing: ${VENV}"; fi
 }
