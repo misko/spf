@@ -1,8 +1,13 @@
-# Canonical Rover 1 production capture.
+# Canonical Rover 4 production capture.
 # data-version 7 implies direct-USB metadata protocol v2 for every receiver.
+#
+# Antenna spacing is per-rover physical geometry, not a shared default:
+# rover1 = 35 mm, rover2 = 50.75 mm, rover3 = 43 mm, rover4 = 47 mm (fixed).
+#
 # Resting position offset from the fence centroid, metres (east, north).
 # Keeps rovers from converging on the same point at mission start/end.
-# Rover 1 = (+1, +1). Affects start/home/RTL only, never pattern geometry.
+# Rover 4 = (-1, -1), the one free quadrant. Affects start/home/RTL only,
+# never pattern geometry.
 rest-offset-m: [-1.0, -1.0]
 
 emitter:
@@ -29,7 +34,7 @@ pluto-firmware:
 receivers:
   - receiver-port: 2
     theta-in-pis: 0
-    antenna-spacing-m: 0.035
+    antenna-spacing-m: 0.047 # 47 mm, fixed spacing, measured on the vehicle
     nelements: 2
     array-type: linear
     # Intentional: avoid persistent fast-attack gain-lock states seen on bursty digital video.
@@ -44,7 +49,7 @@ receivers:
 
   - receiver-port: 1
     theta-in-pis: 0.5
-    antenna-spacing-m: 0.035
+    antenna-spacing-m: 0.047 # 47 mm, fixed spacing, measured on the vehicle
     nelements: 2
     array-type: linear
     # Intentional: avoid persistent fast-attack gain-lock states seen on bursty digital video.

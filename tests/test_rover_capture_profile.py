@@ -178,7 +178,7 @@ def test_stock_firmware_restore_is_an_explicit_opt_out():
         (1, 3000, 2, "bounce", 0.035),
         (2, 3500, 1, "circle", 0.05075),
         (3, 3000, 2, "bounce", 0.043),
-        (4, 3000, 2, "bounce", 0.035),
+        (4, 3000, 2, "bounce", 0.047),
     ],
 )
 def test_canonical_v7_configs_are_self_contained(
