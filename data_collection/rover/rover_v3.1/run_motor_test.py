@@ -85,13 +85,25 @@ def _service_is_active() -> bool:
 
 
 def _resolve_master(explicit: str | None) -> str:
+    """Reuse the repo's resolver: /dev/serial/by-id/usb-ArduPilot*.
+
+    Globbing /dev/ttyACM* is wrong on a rover — the Pluto CDC gadget also
+    presents ttyACM nodes, so the first one is frequently not the flight
+    controller. The by-id path names the device by what it actually is.
+    """
     if explicit:
         return explicit
-    import glob
-
-    for candidate in sorted(glob.glob("/dev/ttyACM*")):
-        return candidate
-    raise TestError("no /dev/ttyACM* found; pass --master explicitly")
+    try:
+        from spf.mavlink.check_prearm import resolve_default_master
+    except ImportError as error:
+        raise TestError(
+            f"cannot import the SPF resolver ({error}); run with the SPF "
+            "virtualenv or pass --master"
+        ) from error
+    try:
+        return resolve_default_master()
+    except RuntimeError as error:
+        raise TestError(str(error)) from error
 
 
 def _connect(master: str, baud: int, timeout: float):
