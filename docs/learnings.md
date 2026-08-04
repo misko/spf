@@ -583,3 +583,43 @@ Two general lessons:
   present as one symptom, and fixing the first changes the diagnosis of the
   second — so re-diagnose after every fix rather than carrying the old theory
   forward.
+
+## Rover (2026-08-04): a successful FrSky bind proves TX↔RX, not RX→flight
+## controller — the R9 SX ships with its SBUS pin emitting PWM
+
+Rover 4 was bound, registered, wired correctly into the FC's RCIN, and
+completely deaf. Cause: the R9 SX ships with **all six pins as PWM channels
+CH1–CH6**, and the port silkscreened `CH6/SBUS OUT` keeps emitting PWM channel 6
+until it is explicitly switched. Binding does not change it. Fix is on the
+transmitter: the **receiver line** (the row showing `R9SX1`) → ENTER → Options →
+`REC OPTIONS R9SX` → **Pin6 = SBUS** (Pin5 = S.PORT for telemetry).
+
+Three traps around it, each of which cost time:
+
+- **Module options ≠ receiver options.** The External RF row's Options is the
+  R9M's own (RF power, telemetry) and shows only a power setting. The pin map
+  lives one level down, on the receiver row.
+- **The transmitter reads those options over the air**, so the receiver must be
+  powered and linked before the screen populates. On a bench that needs a flight
+  battery: the servo/RCIN rail is not powered by the Pi's USB, so a USB-only
+  rover has a dead receiver, an empty RC stream, and a menu that will not load.
+- **Rovers 1–3 only worked because someone set this years ago and never wrote it
+  down.** Same shape as `rover install` and MAVProxy: knowledge living in a
+  person, invisible until Rover 4 was built purely from what is in the repo.
+
+Diagnostic rule this produced: **`RC_CHANNELS` message count is not evidence of
+an RC link.** ArduPilot streams that message at whatever rate you request whether
+or not a receiver exists, filling `chancount=0`. Only populated channels prove
+receiver→FC. `rover ardupilot rc` originally got this backwards and blamed the
+transmitter for a receiver-side fault; it now distinguishes no-frames /
+frames-without-channels / real-channels. `0 channels, rssi 255` means no RC
+input, full stop.
+
+Also worth keeping: **CH16 carries RSSI** on the R9 SX ("6 PWM / 16 SBUS (CH16
+outputs RSSI)"), so a CH16 that moves on its own is signal strength, not a stray
+control. And the receiver's default failsafe is **Hold** — combined with the
+fleet's `FS_THR_ENABLE 0`, a rover that loses its 900 MHz link keeps executing
+its last command with ArduPilot taking no action. Still open.
+
+Procedure: `rover4_setup.md` §14.5. Manual:
+https://www.frsky-rc.com/wp-content/uploads/Downloads/Manual/R9%20SX/R9%20SX-Manual.pdf

@@ -62,7 +62,7 @@ Most of it derives from `~/rover_id`; only four items are set by hand.
 | **`rest-offset-m`** | `[1.0, 1.0]` | **`[-1.0, -1.0]`** | hand (§4.3) — **see below** |
 | telemetry ports | 14571 / 14581 | **14574 / 14584** | base-station Mac (`telem.sh`), not the rover |
 | Taranis RxNum | `01` | **`04`** | hand (§14.2) — bench, **outstanding** |
-| R9 SX pin 6 | `SBUS` | **`SBUS`** | hand (§14.5) — **not set by binding** |
+| R9 SX pin 6 | `SBUS` | **`SBUS`** | hand (§14.5) — **not set by binding**; ✅ confirmed 2026-08-04 |
 | SiK NetID | `25` | **`46`** | hand (§14.9) — bench, **outstanding** |
 
 The last two rows were out of scope for Phases A–E and are still unset: Rover 4
@@ -614,7 +614,8 @@ should then show the receiver name instead of `[Bnd]`.
 
 ### 14.5 Switch the receiver's pin 6 to SBUS — **binding does not do this**
 
-**This is the step that cost a bench session on 2026-08-04.** A registered, bound
+**This is the step that cost a bench session on 2026-08-04**, and switching it
+is what finally made Rover 4 respond to the radio. A registered, bound
 R9 SX with its SBUS lead correctly in the flight controller's RCIN emits
 *nothing the FC can decode*, because the pin is still a PWM channel.
 
