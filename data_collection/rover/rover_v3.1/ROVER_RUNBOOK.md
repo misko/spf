@@ -82,6 +82,7 @@ It is read-only and answers the three questions that have actually cost us time 
 | `sudo rover radio firmware` | running firmware per radio, by USB serial |
 | `rover sitl status` \| `up` \| `down` | the sim — **base station only**, refuses on a rover |
 | `rover audit` | fleet fingerprint (`identity.*` vs `fleet.*` drift) |
+| `rover config` | effective settings and where each came from |
 
 `rover ap` abbreviates `rover ardupilot`. Every group takes `--help`.
 
@@ -127,7 +128,7 @@ python spf/spf/mavlink_radio_collection.py -c spf/data_collection/rover/rover_v3
 
 **4 — drive the handshake from QGC:** set mode **Manual**, then **Guided**. `run_planner` waits for MANUAL *first*, then GUIDED (§14.3); the Pi arms itself after GUIDED and the planner starts issuing waypoints. Port **14590** is left free for scripted commands (`mavlink_controller.py --ip 127.0.0.1 --port 14590 --proto tcp --mode guided`).
 
-⚠ CI runs on `.141` too and its SITL tests bind 14590/14591 — check `docker ps` and `ss -tlnp | grep 1459` first.
+✅ CI no longer competes for these ports — its sim takes ephemeral host ports (see §6.3). 14590–14595 are yours. `rover sitl status` confirms they are free and reports any other sim already running.
 
 ### The four GPS fences
 
@@ -797,7 +798,16 @@ docker run --rm -it -p 14590-14595:14590-14595 csmisko/ardupilotspf:latest /ardu
 
 `-p 14590-14595:14590-14595` publishes on **all** interfaces (not just loopback), which is what lets a rover on the LAN reach the sim at `192.168.1.141`. Wait for the log line **`Detected vehicle`** before connecting anything.
 
-⚠ **Port collision with CI.** The self-hosted CI runner is on this same box and `tests/test_in_simulator.py` binds `14590`/`14591` for every push. A long-running manual sim will make CI fail with `Bind for 127.0.0.1:14591 failed: port is already allocated` (and vice versa — observed 2026-07-25). Check `docker ps` and `ss -tlnp | grep 1459` before launching, and stop the sim when done.
+**Port collision with CI — fixed 2026-08-03.** The self-hosted CI runner shares this box, and `tests/test_in_simulator.py` used to bind `14590`/`14591` for every push. Whichever started second died with `Bind for 127.0.0.1:14591 failed: port is already allocated` (observed 2026-07-25).
+
+The test fixture now asks Docker for **ephemeral host ports**; the container side stays `14590`/`14591`, since `sim_vehicle.py` bakes those into its `--out` arguments. A manual sim on `14590-14595` and a CI run are therefore free to overlap — verified with both up at once.
+
+Two things to know if you touch that fixture:
+
+- Docker does **not** preserve order (observed `14590→32769` with `14591→32768`). Ports are carried in a role-keyed `SimEndpoints`, never a positional pair.
+- The collector takes `--drone-uri` explicitly. Without it, it reads `drone-uri: tcp:127.0.0.1:14591` from `tests/rover_config.yaml` and would dial **your dev sim** rather than the one under test — silent cross-talk instead of a loud bind failure.
+
+Run `rover sitl status` before launching; it reports whether the ports are free and whether a sim is already up.
 
 Fort Baker rehearsal spawns used in the field log, if you want the real site's geofence instead of the SF default: `-l 37.835940,-122.478244,0,0`, `-l 37.835450,-122.478590,0,0`, `-l 37.834975,-122.478842,0,0`.
 
