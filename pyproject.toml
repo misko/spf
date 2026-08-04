@@ -16,6 +16,7 @@ dependencies = [
  "shapely",
  "attrs",
  "pymavlink>=2.4.42",
+ "MAVProxy", # mavproxy.py GCS/fan-out CLI; manual install until 2026-08-04
  "pyserial",
  "tqdm",
  "numba",
