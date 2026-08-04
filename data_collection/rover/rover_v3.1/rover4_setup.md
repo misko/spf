@@ -62,7 +62,8 @@ Most of it derives from `~/rover_id`; only four items are set by hand.
 | **`rest-offset-m`** | `[1.0, 1.0]` | **`[-1.0, -1.0]`** | hand (§4.3) — **see below** |
 | telemetry ports | 14571 / 14581 | **14574 / 14584** | base-station Mac (`telem.sh`), not the rover |
 | Taranis RxNum | `01` | **`04`** | hand (§14.2) — bench, **outstanding** |
-| SiK NetID | `25` | **`46`** | hand (§14.8) — bench, **outstanding** |
+| R9 SX pin 6 | `SBUS` | **`SBUS`** | hand (§14.5) — **not set by binding** |
+| SiK NetID | `25` | **`46`** | hand (§14.9) — bench, **outstanding** |
 
 The last two rows were out of scope for Phases A–E and are still unset: Rover 4
 has no RC link and no telemetry pairing, so **it cannot yet be driven**. See
@@ -565,9 +566,13 @@ Fleet context and the meaning of each transmitter setting are in
 
 ### 14.0 Prerequisites
 
-- An **R9 SX** receiver physically installed and wired to the FC's RC input.
+- An **R9 SX** receiver physically installed, its `CH6/SBUS OUT` port wired to
+  the FC's RCIN, and **pin 6 switched to SBUS** (§14.5 — binding does not do
+  this).
+- A **flight battery connected**, not just USB. The receiver is powered from the
+  servo/RCIN rail; a USB-only rover has a dead receiver and an empty RC stream.
 - The **R9M ACCESS** module in the transmitter's external bay.
-- Every other rover **powered off** for §14.1–14.4. This is not optional: it is
+- Every other rover **powered off** for §14.1–14.6. This is not optional: it is
   what makes a mis-set RxNum fail loudly (nothing responds) instead of silently
   driving the wrong vehicle.
 
@@ -607,7 +612,45 @@ apply here.
 Power the receiver normally. Receiver 1 → **Bind**, select the R9 SX. The slot
 should then show the receiver name instead of `[Bnd]`.
 
-### 14.5 GATE — model match, both directions
+### 14.5 Switch the receiver's pin 6 to SBUS — **binding does not do this**
+
+**This is the step that cost a bench session on 2026-08-04.** A registered, bound
+R9 SX with its SBUS lead correctly in the flight controller's RCIN emits
+*nothing the FC can decode*, because the pin is still a PWM channel.
+
+The R9 SX ships with all six pins as **PWM channels CH1–CH6**. The port
+silkscreened `CH6/SBUS OUT` outputs **PWM channel 6** until you change it. Per
+the [R9 SX manual](https://www.frsky-rc.com/wp-content/uploads/Downloads/Manual/R9%20SX/R9%20SX-Manual.pdf):
+"6 standard servo connectors (default PWM channel)", "Switchable CH5 / CH6 into
+S.Port / SBUS Output channels".
+
+Symptom when this is wrong — the bind looks perfect and the vehicle is deaf:
+
+```
+rover ardupilot rc
+  the flight controller reports 0 channels (rssi 255) - no receiver input
+```
+
+**Where the setting lives.** Not the module options — those are the R9M's own
+(RF power, telemetry) and show only a power setting. Cursor onto the **receiver
+line itself**, the row showing `R9SX1` under `Receiver <n>`, press ENTER there,
+and choose **Options** from that popup. The screen is `REC OPTIONS R9SX`:
+
+| Pin | Default | Wanted |
+|---|---|---|
+| Pin1–Pin4 | `CH1`–`CH4` | unchanged |
+| Pin5 | `CH5` | `S.PORT` (telemetry) |
+| **Pin6** | `CH6` | **`SBUS`** |
+
+The transmitter reads these **over the air from the receiver**, so the receiver
+must be powered and linked before the screen will populate. On a bench that means
+a real flight battery — the servo/RCIN rail is not powered by the Pi's USB, so a
+USB-only rover has an unpowered receiver and this menu will not load.
+
+Rover 2 is the known-good reference; its pin screen is what Rover 4's should
+match.
+
+### 14.6 GATE — model match, both directions
 
 1. With only Rover 4 powered, move the sticks. **PASS:** its servos respond.
 2. Select **Rover 1's** model. **PASS:** Rover 4 does *not* respond.
@@ -615,7 +658,23 @@ should then show the receiver name instead of `[Bnd]`.
 Step 2 is the one that catches a duplicate or unchanged RxNum, and it is the one
 that gets skipped. Do not proceed past a failure here.
 
-### 14.6 Verify the channel map against §3.5.2
+Confirm what the flight controller actually receives, rather than inferring it
+from servo movement:
+
+```bash
+sudo systemctl stop mavlink_controller.service && rover ardupilot rc
+```
+
+Populated channels prove receiver → FC. `0 channels` means §14.5 is not done, or
+the receiver has no power. **CH16 carries RSSI** (the R9 SX spec is "6 PWM / 16
+SBUS (CH16 outputs RSSI)"), so a CH16 that moves on its own is signal strength,
+not a stray control.
+
+**LED reference** for telling the three failure states apart at the bench, from
+the manual: solid green = bind mode; **green flashing, red off = bound and
+working normally**; nothing lit = no power.
+
+### 14.7 Verify the channel map against §3.5.2
 
 Run ArduPilot RC calibration, then confirm each control does what
 [`ROVER_RUNBOOK.md`](./ROVER_RUNBOOK.md) §3.5.2 says — with the rover on stands,
@@ -631,7 +690,7 @@ wheels clear of the ground:
 - **CH7 (SD)** reboots the FC — confirm before trusting it, it also kills the
   collector in the lower band.
 
-### 14.7 Receiver failsafe — decide, do not inherit
+### 14.8 Receiver failsafe — decide, do not inherit
 
 The R9 SX's own failsafe (No Pulses / Hold / Custom) and the FC's
 `FS_THR_ENABLE` are one decision, not two. `rover3_base_parameters.params` ships
@@ -644,7 +703,7 @@ Protection requires **both** the receiver on No Pulses **and** `FS_THR_ENABLE`
 enabled. Set this deliberately for Rover 4 and record what you chose; it is
 tracked as an open item in §3.5.1.
 
-### 14.8 SiK NetID 46
+### 14.9 SiK NetID 46
 
 Set both ends of Rover 4's SiK pair to **NetID 46** via Mission Planner (see
 `README.md` "SikRadio"; copy the settings across to the second radio). Non-unique
@@ -655,10 +714,10 @@ NetIDs cross-talk.
 > per vehicle, four vehicles per field. That degrades range and link quality in a
 > way that reads as a hardware fault. Confirm the band and record it here.
 
-### 14.9 Exit criteria
+### 14.10 Exit criteria
 
-- §14.5 passes in both directions.
-- Every control in §14.6 verified on stands.
+- §14.6 passes in both directions, confirmed with `rover ardupilot rc`.
+- Every control in §14.7 verified on stands.
 - Receiver failsafe chosen and written down.
 - NetID 46 on both radios, telemetry link up.
 - §3.5.1's fleet table updated with Rover 4's row.
