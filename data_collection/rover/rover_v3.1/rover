@@ -173,13 +173,30 @@ report_hardware() {
     # chain actually gates on, and it goes stale on a git pull -- which is how
     # rover 2 ended up refusing to capture after an update earlier today.
     if [[ -r "$READY_MANIFEST" ]]; then
-        local attached configured
+        local attached configured manifest_sha head_sha
         attached="$(grep -o '"attached_radio_count"[: ]*[0-9]*' "$READY_MANIFEST" | grep -o '[0-9]*$')"
         configured="$(grep -o '"configured_receiver_count"[: ]*[0-9]*' "$READY_MANIFEST" | grep -o '[0-9]*$')"
         if [[ "${attached:-0}" == "${configured:-x}" ]]; then
             ok "ready manifest: ${attached}/${configured} radios"
         else
             bad "ready manifest: ${attached:-?} attached vs ${configured:-?} configured"
+        fi
+
+        # The manifest pins the commit it was generated from. A `git pull`
+        # moves HEAD and strands it, and the capture then refuses to start with
+        # "spf_git_sha is stale or mismatched" -- which is what happened to
+        # rover 2 after an update this morning. Radio counts still look right
+        # when this is wrong, so it has to be checked separately.
+        manifest_sha="$(grep -o '"spf_git_sha"[: ]*"[a-f0-9]*"' "$READY_MANIFEST" | grep -o '[a-f0-9]\{7,\}')"
+        head_sha="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
+        if [[ -z "$manifest_sha" ]]; then
+            warn "ready manifest has no spf_git_sha"
+        elif [[ "$manifest_sha" == "$head_sha" ]]; then
+            ok "manifest matches HEAD"
+        else
+            bad "manifest is STALE (built at ${manifest_sha:0:7}, HEAD is ${head_sha:0:7})
+      the next capture will refuse to start — regenerate with:
+      sudo systemctl restart spf-pluto-direct-usb"
         fi
     else
         warn "no ready manifest at ${READY_MANIFEST} — radios not prepared this boot"
