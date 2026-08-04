@@ -108,6 +108,66 @@ def test_cli_resolves_repo_through_a_symlink(tmp_path):
     assert str(REPO_ROOT) in result.stdout, "symlinked CLI did not resolve its repo"
 
 
+# ------------------------------------------------- update-blocking changes ---
+
+
+def make_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "checkout"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    (repo / "tracked.txt").write_text("original\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
+    return repo
+
+
+def test_untracked_files_are_not_reported_as_update_blocking(tmp_path):
+    """Every rover carries untracked operational files and always will.
+
+    pluto_env, this_rover.params, device_mapping and friends are untracked on
+    rovers 1 and 2 right now. update_spf_before_boot.sh gates on `git diff
+    --quiet` and `git diff --cached --quiet`, neither of which looks at
+    untracked files, so reporting them as blocking would put a permanent false
+    warning on every rover in the fleet.
+    """
+    repo = make_repo(tmp_path)
+    (repo / "pluto_env").write_text("untracked\n")
+    (repo / "this_rover.params").write_text("untracked\n")
+
+    result = run_cli("version", env={"SPF_REPO_ROOT": str(repo)})
+    assert result.returncode == 0, result.stderr
+    assert "no update-blocking changes" in result.stdout
+    assert "will refuse" not in result.stdout
+
+
+def test_modified_tracked_file_is_reported_as_update_blocking(tmp_path):
+    repo = make_repo(tmp_path)
+    (repo / "tracked.txt").write_text("locally edited\n")
+
+    result = run_cli("version", env={"SPF_REPO_ROOT": str(repo)})
+    assert "tracked files modified" in result.stdout
+    assert "will refuse" in result.stdout
+
+
+def test_staged_change_is_reported_as_update_blocking(tmp_path):
+    repo = make_repo(tmp_path)
+    (repo / "new.txt").write_text("staged\n")
+    subprocess.run(["git", "add", "new.txt"], cwd=repo, check=True)
+
+    result = run_cli("version", env={"SPF_REPO_ROOT": str(repo)})
+    assert "staged changes present" in result.stdout
+
+
+def test_unreachable_remote_is_a_warning_not_a_failure(tmp_path):
+    """A rover in the field may have no route to GitHub; the CLI must still run."""
+    repo = make_repo(tmp_path)
+    result = run_cli("version", env={"SPF_REPO_ROOT": str(repo)})
+    assert result.returncode == 0, "no network must not make the CLI fail"
+    assert "staleness unknown" in result.stdout
+
+
 # ---------------------------------------------------------------- install ---
 
 

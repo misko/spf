@@ -104,18 +104,30 @@ git_remote_state() {
 }
 
 report_git() {
-    local head dirty state
+    local head state untracked
     head="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
     note "checkout : ${REPO_ROOT}"
     note "HEAD     : ${head}"
 
-    dirty="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l)"
-    if [[ "$dirty" -gt 0 ]]; then
-        # update_spf_before_boot.sh does `merge --ff-only` and refuses a dirty
-        # tree, so local edits silently block every future boot-time update.
-        warn "tree has ${dirty} local change(s) — update_spf_before_boot.sh will refuse to merge"
-    else
-        ok "tree is clean"
+    # Mirror update_spf_before_boot.sh's gate EXACTLY: it runs `git diff
+    # --quiet` and `git diff --cached --quiet` and refuses on either. It does
+    # not look at untracked files. Counting `status --porcelain` instead would
+    # warn on every rover in the fleet -- all of them carry untracked operational
+    # files (pluto_env, this_rover.params, device_mapping) -- and a warning that
+    # is always on is a warning nobody reads.
+    local blocked=0
+    if ! git -C "$REPO_ROOT" diff --quiet -- 2>/dev/null; then
+        bad "tracked files modified — boot update will refuse: git -C ${REPO_ROOT} diff --stat"
+        blocked=1
+    fi
+    if ! git -C "$REPO_ROOT" diff --cached --quiet -- 2>/dev/null; then
+        bad "staged changes present — boot update will refuse: git -C ${REPO_ROOT} diff --cached --stat"
+        blocked=1
+    fi
+    if [[ "$blocked" -eq 0 ]]; then
+        untracked="$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null | wc -l)"
+        # Informational only: these do not block a fast-forward.
+        ok "no update-blocking changes ($((untracked)) untracked file(s), which do not block)"
     fi
 
     state="$(git_remote_state)"
