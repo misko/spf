@@ -620,24 +620,38 @@ cmd_ardupilot() {
             exec "$(venv_python)" "${ROVER_DIR}/run_motor_test.py" "$@" ;;
         flash)
             exec bash "${ROVER_DIR}/flash_ardupilot.sh" "$@" ;;
-        rc)
-            # Read-only listener. ardu_cli refuses a direct serial link while
-            # mavlink_controller.service owns it, so no guard is needed here.
-            exec "$(venv_python)" "${REPO_ROOT}/spf/ardupilot/ardu_cli.py" rc "$@" ;;
-        calibrate)
-            exec "$(venv_python)" "${REPO_ROOT}/spf/ardupilot/ardu_cli.py" calibrate "$@" ;;
-        reboot)
-            exec "$(venv_python)" "${REPO_ROOT}/spf/ardupilot/ardu_cli.py" reboot "$@" ;;
+        # Straight pass-through to ardu_cli. Every one of these refuses a direct
+        # serial link while mavlink_controller.service owns it, so the ownership
+        # guard lives there rather than being duplicated per subcommand.
+        rc|status|accelcal|magcal|calibrate|reboot)
+            exec "$(venv_python)" "${REPO_ROOT}/spf/ardupilot/ardu_cli.py" \
+                "$action" "$@" ;;
         ""|-h|--help)
             group_usage ardupilot \
-                "subcommands:" \
+                "inspect:" \
+                "  status       arm, mode, GPS, EKF and sensor health right now" \
                 "  prearm       report pre-arm health and every failing check" \
                 "  compass      verify the compass policy (which slots are used for yaw)" \
                 "  rc           echo what the FC hears from the radio — bind/switch debugging" \
-                "  calibrate    EVERYTHING a mission needs: accel+gyro, reboot, compass, verify" \
+                "" \
+                "calibrate (accel BEFORE compass, with a reboot between — the compass" \
+                "fit uses the accel/gyro attitude, and accel offsets need a restart):" \
+                "  accelcal     six-position accelerometer + gyro calibration" \
+                "  magcal       compass calibration (start | accept | cancel | monitor)" \
+                "  calibrate    all of the above in order, plus a pre-arm verify" \
+                "" \
+                "act:" \
                 "  reboot       reboot the flight controller and wait for it to come back" \
                 "  motor-test   spin the motors at a throttle ladder — WHEELS MUST BE RAISED" \
-                "  flash        flash ArduPilot firmware to the flight controller"
+                "  flash        flash ArduPilot firmware to the flight controller" \
+                "" \
+                "the usual sequence, with production stopped:" \
+                "  sudo systemctl stop mavlink_controller.service" \
+                "  rover ardupilot accelcal start --yes" \
+                "  rover ardupilot reboot --yes" \
+                "  rover ardupilot compass --repair --yes --parameter-timeout 90" \
+                "  rover ardupilot magcal start --yes --mask 1 --retry --monitor-seconds 300" \
+                "  rover ardupilot prearm"
             ;;
         *) die "unknown ardupilot subcommand: ${action} (try: rover ardupilot --help)" ;;
     esac

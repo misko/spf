@@ -594,3 +594,58 @@ def test_doctor_does_not_fail_the_mission_over_a_missing_symlink(tmp_path):
     environment["SPF_ROVER_CLI_PATH"] = str(tmp_path / "absent" / "rover")
     result = run_cli("doctor", env=environment)
     assert "== cli ==" in result.stdout
+
+
+# ------------------------------------------------- ardupilot pass-throughs ---
+#
+# Calibration was only reachable as `python -m spf.ardupilot.ardu_cli ...` while
+# the wrapper exposed a subset, so the documented sequence kept dropping out of
+# `rover` half way through. These pin that every advertised ardupilot
+# subcommand actually dispatches, with its arguments intact.
+
+ARDUPILOT_PASSTHROUGH = ("status", "prearm", "compass", "rc", "accelcal", "magcal",
+                         "calibrate", "reboot")
+
+
+def fake_venv(tmp_path: Path) -> dict:
+    """A venv whose python3 echoes its arguments instead of running them.
+
+    Two dispatch paths exist and both must be stubbed: the ardu_cli
+    pass-throughs resolve the interpreter themselves via SPF_VENV, while
+    `prearm` and `compass` go through shell wrappers that read SPF_PYTHON.
+    """
+    venv = tmp_path / "venv" / "bin"
+    venv.mkdir(parents=True)
+    python = venv / "python3"
+    python.write_text("#!/bin/sh\necho \"DISPATCH $*\"\n")
+    python.chmod(0o755)
+    return {"SPF_VENV": str(tmp_path / "venv"), "SPF_PYTHON": str(python)}
+
+
+@pytest.mark.parametrize("subcommand", ARDUPILOT_PASSTHROUGH)
+def test_ardupilot_subcommand_dispatches_to_ardu_cli(subcommand: str, tmp_path):
+    result = run_cli("ardupilot", subcommand, env=fake_venv(tmp_path))
+    assert "ardu_cli.py" in result.stdout, result.stdout + result.stderr
+    assert f" {subcommand}" in result.stdout, result.stdout
+
+
+def test_ardupilot_passthrough_preserves_arguments(tmp_path):
+    """magcal start --mask 1 must arrive intact, not collapsed to `magcal`."""
+    result = run_cli(
+        "ardupilot", "magcal", "start", "--yes", "--mask", "1",
+        env=fake_venv(tmp_path),
+    )
+    assert "magcal start --yes --mask 1" in result.stdout, result.stdout
+
+
+@pytest.mark.parametrize("subcommand", ARDUPILOT_PASSTHROUGH)
+def test_every_advertised_ardupilot_subcommand_is_documented(subcommand: str):
+    """A subcommand that works but is undocumented is one nobody finds."""
+    result = run_cli("ardupilot", "--help")
+    assert f"  {subcommand}" in result.stdout, result.stdout
+
+
+def test_unknown_ardupilot_subcommand_still_fails(tmp_path):
+    result = run_cli("ardupilot", "definitely-not-a-subcommand", env=fake_venv(tmp_path))
+    assert result.returncode != 0
+    assert "unknown ardupilot subcommand" in result.stderr
