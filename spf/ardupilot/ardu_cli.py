@@ -27,6 +27,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from pymavlink import mavutil
 
+from spf.mavlink.pymavlink_compat import harden_pymavlink_instance_messages
 from spf.mavlink.check_prearm import (
     PrearmResult,
     resolve_default_master,
@@ -185,8 +186,13 @@ exit codes:
 """
 
 
+harden_pymavlink_instance_messages()
+
+
 class CliError(RuntimeError):
     """Expected operational error that should produce exit status 2."""
+
+
 
 
 def _json_safe(value: Any) -> Any:

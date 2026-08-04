@@ -26,6 +26,7 @@ from spf.mavlink.compass_policy import (
     format_compass_inventory,
 )
 from spf.mavlink.mavparm import MAVParmDict
+from spf.mavlink.pymavlink_compat import harden_pymavlink_instance_messages
 from spf.motion_planners.dynamics import Dynamics
 from spf.motion_planners.planner import (
     BouncePlanner,
@@ -33,6 +34,11 @@ from spf.motion_planners.planner import (
     PointCycle,
     StationaryPlanner,
 )
+
+# Before any vehicle link is opened. run_compass_calibration() is reachable from
+# Taranis CH10 in the field, and the MAG_CAL_PROGRESS messages it provokes are
+# what trip the pymavlink instance-message defect this repairs.
+harden_pymavlink_instance_messages()
 
 logging.basicConfig(
     filename="logs.log",
