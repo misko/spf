@@ -384,6 +384,74 @@ mavproxy.py --master /dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0G4IOK-if00-
 
 Base ArduPilot param block (`spf/ardupilot/ardupilot_setup.md`): `RC1/2_MAX 2006 MIN 982 TRIM 1495`, `RC3 TRIM 1515`; `MODE4=10`, `MODE6=11`; `SERVO1_FUNCTION 73`, `SERVO3_FUNCTION 74` + `SERVO3_REVERSED 1`, both `MAX 2200 MIN 800`; `MOT_THR_MIN 12`; `TURN_RADIUS 5`, `WP_PIVOT_ANGLE 0`, `WP_RADIUS 0.5`, `WP_SPEED 3`, `RTL_SPEED 3`, `CRUISE_SPEED 3`, `CRUISE_THROTTLE 70`.
 
+### 3.7 Motor / ESC bench test — `run_motor_test.py`
+
+> ⚠️ **THE WHEELS MUST BE OFF THE GROUND.** This arms the vehicle and drives the
+> throttle outputs. A rover on its wheels **will drive away.** Put it on stilts
+> or a stand and confirm both wheels spin freely first.
+
+Spins each motor at **10 / 25 / 50 / 100 %** and asks the operator to confirm
+each step. Isolates "do the motors and ESCs work" from every other pre-arm gate,
+which is what you want after an FC reflash or an ESC/wiring change.
+
+```bash
+sudo systemctl stop mavlink_controller.service
+cd /home/pi/spf/data_collection/rover/rover_v3.1
+
+./run_motor_test.py --dry-run                       # rehearse, sends nothing
+sudo ./run_motor_test.py --wheels-raised --arm      # the real thing
+sudo ./run_motor_test.py --wheels-raised --arm --levels 10,25 --seconds 1.5
+sudo ./run_motor_test.py --wheels-raised --arm --json /tmp/motor_test.json
+
+sudo systemctl start mavlink_controller.service     # restore when done
+```
+
+Any answer other than `y` aborts the run. Levels must ascend, so a typo cannot
+start at 100 %. The vehicle is disarmed on every exit path — normal finish,
+operator abort, Ctrl-C and exceptions — and each burst carries ArduPilot's own
+timeout so the motors stop even if the process is killed.
+
+**Two Rover behaviours that will waste your afternoon if you do not know them.**
+Both were found the hard way on Rover 2, where the first version of this script
+reported 8/8 success while nothing moved:
+
+1. **`--arm` is required.** Rover accepts `DO_MOTOR_TEST` while disarmed,
+   replies `MAV_RESULT_ACCEPTED`, emits `STATUSTEXT: Throttle disarmed`, and
+   never moves the output. **An ACK is not evidence that a motor ran.**
+2. **Motor instances 3 and 4 are the throttle outputs.** Instances 1 and 2 are
+   steering and move nothing on a skid-steer rover. Measured by sweeping
+   instances 1–4 against `SERVO_OUTPUT_RAW`:
+
+   | instance | output moved | swing |
+   |---|---|---|
+   | 1, 2 | none | 0 µs |
+   | **3** | servo3 (throttle left) 1500 → 2042 | 542 µs |
+   | **4** | servo1 (throttle right) 1500 → 958 | 542 µs |
+
+Because of both, every burst is verified by watching `SERVO_OUTPUT_RAW`; a swing
+under 10 µs is reported as `NO PWM MOVEMENT` with the likely cause rather than
+being counted as a pass.
+
+Expected PWM ladder on a healthy skid-steer rover (measured on Rover 2). The two
+motors move in opposite directions — that is the skid-steer reversal, not a
+fault — and 100 % reaches exactly `SERVO_MIN`/`SERVO_MAX` (800 / 2200):
+
+| level | throttle left (servo3) | throttle right (servo1) | swing |
+|---|---|---|---|
+| 10 % | 1500 → 1633 | 1500 → 1367 | 133 µs |
+| 25 % | 1500 → 1727 | 1500 → 1273 | 227 µs |
+| 50 % | 1500 → 1885 | 1500 → 1115 | 385 µs |
+| 100 % | 1500 → **2200** | 1500 → **800** | 700 µs |
+
+If arming fails, the vehicle is not motor-test-ready for a reason worth knowing:
+```bash
+sudo python3 -m spf.mavlink.check_prearm
+```
+
+The flight controller is resolved via `/dev/serial/by-id/usb-ArduPilot*`, never
+by globbing `/dev/ttyACM*` — the Pluto CDC gadget also presents `ttyACM` nodes
+and is frequently `ttyACM0`.
+
 ---
 
 ## 4. Update flow (boot-time self-update)
