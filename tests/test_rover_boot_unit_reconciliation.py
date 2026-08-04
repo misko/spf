@@ -65,7 +65,13 @@ def run_reconciler(
     state_dir: Path,
     fake_systemctl: Path,
     environment: dict[str, str],
+    cli_link: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    # --cli-link is never optional in practice: the reconciler also converges
+    # the /usr/local/bin/rover symlink, and a test that let it fall through to
+    # the default would reconcile the developer's real system.
+    if cli_link is None:
+        cli_link = state_dir.parent / "unused-cli-link"
     return subprocess.run(
         [
             str(RECONCILER),
@@ -75,6 +81,8 @@ def run_reconciler(
             str(state_dir),
             "--systemctl",
             str(fake_systemctl),
+            "--cli-link",
+            str(cli_link),
             "--unprivileged",
         ],
         cwd=REPO_ROOT,
@@ -148,3 +156,102 @@ def test_install_failure_never_requests_a_reboot(tmp_path):
     assert result.returncode not in {0, 10}
     assert not (state_dir / "boot-unit-reconcile-attempt").exists()
     assert not (tmp_path / "systemctl.log").exists()
+
+
+# ------------------------------------------------------ rover CLI symlink ---
+#
+# `rover install` joined provision_rover.sh's base stage hours after Rover 4 had
+# already run that stage, and nothing re-runs a provisioning stage -- so Rover 4
+# had no /usr/local/bin/rover at all. The reconciler converges it for the same
+# reason it converges units: a rover provisioned at an older commit must still
+# end up in the current desired state without anyone remembering to intervene.
+
+
+def test_absent_cli_symlink_is_created(tmp_path):
+    systemd_dir = tmp_path / "systemd"
+    systemd_dir.mkdir()
+    fake_systemctl, environment = make_fake_systemctl(tmp_path)
+    cli_link = tmp_path / "bin" / "rover"
+    cli_link.parent.mkdir()
+
+    result = run_reconciler(
+        systemd_dir, tmp_path / "state", fake_systemctl, environment, cli_link
+    )
+
+    assert result.returncode == 10, result.stderr
+    assert cli_link.is_symlink()
+    assert cli_link.resolve() == (ROVER_ROOT / "rover").resolve()
+
+
+def test_cli_symlink_reconciliation_is_idempotent(tmp_path):
+    systemd_dir = tmp_path / "systemd"
+    systemd_dir.mkdir()
+    fake_systemctl, environment = make_fake_systemctl(tmp_path)
+    cli_link = tmp_path / "bin" / "rover"
+    cli_link.parent.mkdir()
+
+    run_reconciler(
+        systemd_dir, tmp_path / "state", fake_systemctl, environment, cli_link
+    )
+    second = run_reconciler(
+        systemd_dir, tmp_path / "state", fake_systemctl, environment, cli_link
+    )
+
+    assert "rover CLI symlink is current" in second.stdout
+    assert cli_link.resolve() == (ROVER_ROOT / "rover").resolve()
+
+
+def test_stale_cli_symlink_is_repointed(tmp_path):
+    """A symlink into a moved or renamed checkout is as broken as a missing one."""
+    systemd_dir = tmp_path / "systemd"
+    systemd_dir.mkdir()
+    fake_systemctl, environment = make_fake_systemctl(tmp_path)
+    cli_link = tmp_path / "bin" / "rover"
+    cli_link.parent.mkdir()
+    cli_link.symlink_to("/bin/true")
+
+    run_reconciler(
+        systemd_dir, tmp_path / "state", fake_systemctl, environment, cli_link
+    )
+
+    assert cli_link.resolve() == (ROVER_ROOT / "rover").resolve()
+
+
+def test_a_real_file_at_the_cli_path_is_never_clobbered(tmp_path):
+    """Someone put that file there by hand; `rover install` refuses too."""
+    systemd_dir = tmp_path / "systemd"
+    systemd_dir.mkdir()
+    fake_systemctl, environment = make_fake_systemctl(tmp_path)
+    cli_link = tmp_path / "bin" / "rover"
+    cli_link.parent.mkdir()
+    cli_link.write_text("handwritten\n")
+
+    result = run_reconciler(
+        systemd_dir, tmp_path / "state", fake_systemctl, environment, cli_link
+    )
+
+    assert cli_link.read_text() == "handwritten\n"
+    assert "not a symlink" in result.stderr
+
+
+def test_cli_symlink_failure_never_changes_the_unit_exit_status(tmp_path):
+    """The 0/10/75 contract belongs to the units; the CLI link must not touch it."""
+    systemd_dir = tmp_path / "systemd"
+    systemd_dir.mkdir()
+    fake_systemctl, environment = make_fake_systemctl(tmp_path)
+    # An unwritable parent makes reconciliation fail the way a non-root boot
+    # would, without needing to be root to arrange it.
+    unwritable = tmp_path / "unwritable"
+    unwritable.mkdir(mode=0o500)
+    cli_link = unwritable / "rover"
+
+    first = run_reconciler(
+        systemd_dir, tmp_path / "state", fake_systemctl, environment, cli_link
+    )
+    second = run_reconciler(
+        systemd_dir, tmp_path / "state", fake_systemctl, environment, cli_link
+    )
+
+    assert first.returncode == 10, first.stderr
+    assert second.returncode == 0, second.stderr
+    assert not cli_link.exists()

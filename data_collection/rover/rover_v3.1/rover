@@ -233,6 +233,29 @@ report_services() {
     done
 }
 
+# A rover whose CLI symlink is missing still flies; it just cannot be driven by
+# name over ssh. Report it, but as a warning -- doctor's non-zero exit is
+# reserved for things that stop a mission, and this does not.
+report_cli() {
+    local want_real have
+    want_real="$(readlink -f -- "$SELF")"
+
+    if [[ -L "$INSTALL_PATH" ]]; then
+        have="$(readlink -f -- "$INSTALL_PATH" 2>/dev/null || true)"
+        if [[ "$have" == "$want_real" ]]; then
+            ok "${INSTALL_PATH} -> ${have}"
+        else
+            warn "${INSTALL_PATH} -> ${have:-<broken>}, but this CLI is ${want_real}"
+            note "fix: sudo ${SELF} install"
+        fi
+    elif [[ -e "$INSTALL_PATH" ]]; then
+        warn "${INSTALL_PATH} exists and is not a symlink — 'rover install' will refuse"
+    else
+        warn "${INSTALL_PATH} missing — 'rover' only works by full path"
+        note "fix: sudo ${SELF} install   (or reboot; the boot reconciler now heals this)"
+    fi
+}
+
 report_hardware() {
     local fc plutos
     # by-id, never /dev/ttyACM*: on rover 2 ttyACM0 is the PlutoSDR and ttyACM1
@@ -303,6 +326,7 @@ anything is broken enough to stop a mission."; return 0; }
     local id; id="$(rover_id)"
     head_ "rover ${id:-?} — $(hostname 2>/dev/null)"
     head_ "git";      report_git
+    head_ "cli";      report_cli
     head_ "services"; report_services
     head_ "hardware"; report_hardware
     head_ "disk";     report_disk

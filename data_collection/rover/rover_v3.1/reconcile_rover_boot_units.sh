@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 #
-# Converge the root-managed Rover systemd units on the files in this checkout.
+# Converge the root-managed Rover systemd units, and the /usr/local/bin/rover
+# CLI symlink, on the files in this checkout.
 #
-# Exit status:
+# Exit status (units only -- CLI symlink reconciliation is advisory and never
+# changes the status):
 #   0  already converged
 #   10 units installed and enabled; one reboot is required
 #   75 this exact desired state already requested a reboot but still drifted
@@ -17,6 +19,7 @@ readonly STATE_FILE_NAME="boot-unit-reconcile-attempt"
 SYSTEMD_DIR="/etc/systemd/system"
 STATE_DIR="/var/lib/spf"
 SYSTEMCTL="systemctl"
+CLI_LINK="/usr/local/bin/rover"
 USE_SUDO=1
 
 readonly -a MANAGED_UNITS=(
@@ -54,6 +57,50 @@ run_privileged() {
     else
         "$@"
     fi
+}
+
+# The `rover` CLI is a root-owned symlink into this checkout -- the same kind of
+# artifact as the units below, and it drifts the same way. Its usual failure is
+# simply never having been created: `rover install` joined provision_rover.sh's
+# base stage (afbbbfd, 2026-08-03 19:58) hours after Rover 4 had already run
+# that stage, and nothing re-runs a provisioning stage. Converge it here so a
+# rover provisioned before any base-stage change still self-heals.
+#
+# Deliberately advisory, and deliberately outside install_and_verify: a missing
+# CLI is a convenience failure, never a reason to fail a boot or to request the
+# reconciliation reboot that a drifted unit earns. This function returns 0 on
+# every path so it cannot perturb the 0/10/75 contract above.
+reconcile_cli_symlink() {
+    local want="${SCRIPT_DIR}/rover" want_real have
+
+    if [[ ! -x "$want" ]]; then
+        printf 'WARN: rover CLI source is missing or not executable: %s\n' \
+            "$want" >&2
+        return 0
+    fi
+    want_real="$(readlink -f -- "$want")"
+
+    if [[ -L "$CLI_LINK" ]]; then
+        have="$(readlink -f -- "$CLI_LINK" 2>/dev/null || true)"
+        if [[ "$have" == "$want_real" ]]; then
+            printf 'PASS: rover CLI symlink is current.\n'
+            return 0
+        fi
+    elif [[ -e "$CLI_LINK" ]]; then
+        # A real file here was put there by a person. Replacing it would destroy
+        # their work; `rover install` refuses for the same reason.
+        printf 'WARN: %s exists and is not a symlink; leaving it untouched.\n' \
+            "$CLI_LINK" >&2
+        return 0
+    fi
+
+    if run_privileged ln -sfn -- "$want" "$CLI_LINK" 2>/dev/null; then
+        printf 'PASS: reconciled rover CLI symlink -> %s\n' "$want"
+    else
+        printf 'WARN: could not reconcile %s; run: sudo %s install\n' \
+            "$CLI_LINK" "$want" >&2
+    fi
+    return 0
 }
 
 unit_files_match() {
@@ -188,6 +235,11 @@ main() {
                 SYSTEMCTL="$2"
                 shift 2
                 ;;
+            --cli-link)
+                [[ "$#" -ge 2 ]] || die "--cli-link requires a value."
+                CLI_LINK="$2"
+                shift 2
+                ;;
             --unprivileged)
                 USE_SUDO=0
                 shift
@@ -202,6 +254,8 @@ main() {
         esac
     done
 
+    # Before the units, and never able to change the status they return.
+    reconcile_cli_symlink
     install_and_verify
 }
 

@@ -539,3 +539,58 @@ def test_disposition_table_has_no_stale_entries():
     on_disk = {path.name for path in ROVER_DIR.iterdir() if path.is_file()}
     missing = SCRIPT_DISPOSITION.keys() - on_disk
     assert not missing, f"SCRIPT_DISPOSITION names deleted script(s): {sorted(missing)}"
+
+
+# ------------------------------------------------------- CLI symlink health ---
+#
+# Rover 4 shipped with no /usr/local/bin/rover at all: `rover install` joined
+# provision_rover.sh's base stage after that rover had already run it. The boot
+# reconciler now heals this, but doctor still has to be able to say so -- an
+# operator who cannot run `rover` by name needs to be told why, not left to
+# guess at PATH.
+
+
+def rover_hostname_shim(tmp_path: Path) -> dict:
+    """Make the checkout look like a rover, so doctor runs its full report."""
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    (shim / "hostname").write_text("#!/bin/sh\necho roverpi4\n")
+    (shim / "hostname").chmod(0o755)
+    return {"PATH": f"{shim}:{os.environ['PATH']}"}
+
+
+def doctor_cli_section(tmp_path: Path, cli_path: Path) -> str:
+    environment = rover_hostname_shim(tmp_path)
+    environment["SPF_ROVER_CLI_PATH"] = str(cli_path)
+    result = run_cli("doctor", env=environment)
+    section = result.stdout.split("== cli ==")[-1].split("== services ==")[0]
+    return section
+
+
+def test_doctor_reports_a_missing_cli_symlink(tmp_path):
+    section = doctor_cli_section(tmp_path, tmp_path / "absent" / "rover")
+    assert "missing" in section
+    assert "install" in section
+
+
+def test_doctor_accepts_a_correct_cli_symlink(tmp_path):
+    link = tmp_path / "rover"
+    link.symlink_to(CLI)
+    section = doctor_cli_section(tmp_path, link)
+    assert "missing" not in section
+    assert str(CLI.resolve()) in section
+
+
+def test_doctor_flags_a_symlink_into_a_different_checkout(tmp_path):
+    link = tmp_path / "rover"
+    link.symlink_to("/bin/true")
+    section = doctor_cli_section(tmp_path, link)
+    assert "but this CLI is" in section
+
+
+def test_doctor_does_not_fail_the_mission_over_a_missing_symlink(tmp_path):
+    """doctor's non-zero exit is reserved for things that stop a mission."""
+    environment = rover_hostname_shim(tmp_path)
+    environment["SPF_ROVER_CLI_PATH"] = str(tmp_path / "absent" / "rover")
+    result = run_cli("doctor", env=environment)
+    assert "== cli ==" in result.stdout
