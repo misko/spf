@@ -117,8 +117,38 @@ previously blocked provisioning.
    Wifi would remain enabled and the stub would be corrupted.
 
 `setup.sh` also runs both board blocks ungated, disables wifi and reboots before
-any static address is proven, and is not re-runnable. **It is not invoked as a
-whole.** Its steps are executed individually, in the safe order below.
+any static address is proven, and is not re-runnable.
+
+**`setup.sh` is DEPRECATED as of 2026-08-03 and refuses to run** (echo + `exit 1`
+at the top). It is kept only as a historical reference for its firmware and
+parameter URLs. Use `provision_rover.sh`.
+
+### Quick start — `provision_rover.sh`
+
+Bootstrap (two commands that cannot be scripted from inside the repo):
+
+```bash
+sudo apt-get update && sudo apt-get install -y git
+cd /home/pi && git clone https://github.com/misko/spf.git
+```
+
+Then, on the rover:
+
+```bash
+cd /home/pi/spf/data_collection/rover/rover_v3.1
+sudo ./provision_rover.sh 4 --stage all        # identity + network + base
+# --- from ANOTHER machine, prove the address (wifi is still up) ---
+ssh pi@192.168.1.44 'hostname; ip -brief addr show eth0'
+sudo ./provision_rover.sh 4 --stage wifi-off && sudo reboot
+sudo ./provision_rover.sh 4 --stage firmware  && sudo reboot
+./provision_rover.sh 4 --stage audit
+./compare_rovers.sh 192.168.1.41 192.168.1.44
+```
+
+Every stage is idempotent, so a re-run after a failure or reboot is safe.
+`--stage all` deliberately stops before `wifi-off` (needs the human gate above)
+and `firmware` (needs a reboot first). The detailed per-step rationale for each
+stage is in §5–§8 below.
 
 ---
 
@@ -391,12 +421,29 @@ branch, the four SPF unit states, the five stock services — and diffs two rove
 This would have surfaced today's divergences (Rover 1's still-enabled
 ModemManager, the `/boot/config.txt` stub) automatically.
 
-### Deferred: `setup.sh` hardening
-Board detection instead of two ungated blocks, idempotent/resumable
-`--only`/`--skip`, dropping the v0.37 blob, and delegating to the two scripts
-above. **Left until after Rover 4 is commissioned** — refactoring the provisioner
-while commissioning hardware changes two variables at once, and `setup.sh` is not
-in the path when its steps are called individually.
+### `provision_rover.sh <rover_id> --stage <stage>`
+The end-to-end provisioner, written after Rover 4 was commissioned by hand so
+that it encodes a sequence that is known to work rather than one that is merely
+plausible.
+
+Stages: `identity`, `network`, `wifi-off`, `base`, `firmware`, `audit`, and
+`all`. The split is not cosmetic — `wifi-off` and `firmware` each end in a
+reboot, and `wifi-off` is gated on a human proving the static address first.
+It **delegates** to the existing, separately-tested scripts
+(`configure_rover_network.sh`, `install_deps.sh`, `flash_ardupilot.sh`,
+`check_and_set_pluto.sh`, `configure_direct_usb_boot.sh`, `device_mapping.sh`,
+`audit_rover.sh`) rather than reimplementing them, and covers the eight steps
+that were ad-hoc during Rover 4: git bootstrap check, `~/rover_id`, venv,
+editable install, `RPi.GPIO`, `~/.bashrc`, the udev rule, and `device_mapping`.
+
+`device_mapping` matters more than it looks: `~/.bashrc` only regenerates it on
+an **interactive** login, so a provisioning run over ssh would otherwise leave
+it missing, and `prepare_direct_usb_boot.sh` fails without it.
+
+`setup.sh` is deprecated and refuses to run. `tests/test_provision_rover.py`
+asserts that its `exit 1` precedes every executable side effect, that every
+documented stage is dispatched, that `network` never disables wifi, and that
+`--stage all` stops before `wifi-off` and `firmware`.
 
 ---
 
