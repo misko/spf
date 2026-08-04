@@ -179,7 +179,7 @@ Boundaries are hard-coded in `spf/gps/boundaries.py` as `(long, lat)` polygons; 
 
 **Provision & maintain a rover**
 
-- [§3 One-time provisioning & flashing](#3-one-time-provisioning--flashing) — OS image · provisioner · Pluto firmware/DFU · ArduPilot flash · SiK NetIDs · [Taranis control map (§3.5)](#35-taranis-q-rc-channel-map-safety-critical) · calibration sequence
+- [§3 One-time provisioning & flashing](#3-one-time-provisioning--flashing) — OS image · provisioner · Pluto firmware/DFU · ArduPilot flash · SiK NetIDs · [Taranis RC link & control map (§3.5)](#35-taranis-q-rc-link-and-channel-map-safety-critical) — R9M ACCESS bind/RxNums · calibration sequence
 - [§4 Update flow](#4-update-flow-boot-time-self-update) — the boot-time git self-update and its 15 s interrupt window
 
 **Operate in the field**
@@ -384,7 +384,50 @@ python uploader.py ardurover.apj | tee > ardurover_flash.log; sleep 5
 
 `data_collection/rover/rover_v3.1/README.md`: **Rover1 = 25, Rover2 = 32, Rover3 = 39.** Non-unique NetIDs cause link/state cross-talk.
 
-### 3.5 Taranis Q RC channel map (safety-critical)
+### 3.5 Taranis Q RC link and channel map (safety-critical)
+
+#### 3.5.1 RF module and per-rover bind (as flown, 2026-08-04)
+
+The production link is the **R9M module in the external bay running ACCESS**, with an
+**R9 SX** receiver in each rover. This supersedes `README.md`, which still describes the
+original **internal XJT / D16 + X8R** link — that is the Jun-2024 configuration and is no
+longer what flies. Settings common to all three models: `External RF: R9M ACCESS`,
+`Ch Range CH1-16`.
+
+| Taranis model | RxNum | Occupied receiver slot | Slot 1 / Slot 2 / Slot 3 |
+|---|---|---|---|
+| **Rover 1** | `01` | 2 | `[Bnd]` / **R9SX1** / `[Bnd]` |
+| **Rover 2** | `05` | 3 | `[Bnd]` / `[Bnd]` / **R9SX1** |
+| **Rover 3** | `00` | 1 | **R9SX1** / `[Bnd]` / `[Bnd]` |
+
+**RxNum is the identity that matters, not the slot.** The receiver number is what the bind
+writes into the receiver and what model-match checks; the slot index (1/2/3) is only which
+of the model's three receiver positions happens to hold the bind. The slots differ per
+rover for no functional reason — **do not infer the rover number from the slot number**, and
+do not "tidy" them to match, because re-slotting means re-binding.
+
+The three RxNums are distinct (`00`/`01`/`05`), which is the actual requirement — the same
+uniqueness discipline as the SiK NetIDs in §3.4. Non-unique RxNums across models mean the
+wrong rover can arm and drive off the wrong model.
+
+> ⚠ **Rover 3 sits on RxNum `00`,** the bottom of the range and the value an untouched model
+> can carry. Before adding or restoring any model on this transmitter, set its RxNum away
+> from `00` first — a new model left at the default is a model that can command Rover 3.
+> Bench-verify after any transmitter change: power one rover, wiggle the sticks, and confirm
+> only that rover's servos move.
+
+**Not recorded in-tree** — fill in when next at the bench: the R9M hardware variant (R9M /
+R9M Lite / R9M Lite Pro), the **FCC vs LBT** firmware region, the module telemetry-power
+setting, and whether the three receivers all genuinely carry the name `R9SX1` or that is one
+physical receiver moved between models.
+
+> ⚠ **Long-range link, no throttle failsafe.** `rover3_base_parameters.params` sets
+> `FS_THR_ENABLE 0`. That was tolerable on the short-range X8R link, where losing the link
+> meant the rover was already close. On a 900 MHz R9 the rover can be far past visual range
+> when the link drops, and ArduPilot will take **no** failsafe action. Treat this as open —
+> see §10.
+
+#### 3.5.2 Channel map
 
 ![Taranis Q X7 control map](./taranis_q_controls.png)
 

@@ -146,6 +146,15 @@ Backup parameters
 
 ### Taranis Q setup
 
+> **Superseded (2026-08-04) — the RF module and receiver below are no longer what flies.**
+> The transmitter now runs the **R9M module in the external bay on ACCESS**, with an **R9 SX**
+> receiver in each rover; internal XJT/D16 and the X8R are the original Jun-2024 link. The
+> bind procedure in this section (F/S-button hold, red/green LED states) is the **ACCST/X8R**
+> procedure and does **not** apply to an ACCESS R9 SX, which registers and binds from the
+> module menu instead. Per-rover RxNums — Rover1 `01`, Rover2 `05`, Rover3 `00` — and the
+> current bind state are in [`ROVER_RUNBOOK.md`](./ROVER_RUNBOOK.md) §3.5.1. The channel
+> assignments further down this section are still broadly right, but §3.5.2 is authoritative.
+
 ```
 Setup (Internal RF)
 XJT D16

@@ -61,8 +61,12 @@ Most of it derives from `~/rover_id`; only four items are set by hand.
 | routine / n / radios | `bounce` / 3000 / 2 | same | from the capture config |
 | **`rest-offset-m`** | `[1.0, 1.0]` | **`[-1.0, -1.0]`** | hand (§4.3) — **see below** |
 | telemetry ports | 14571 / 14581 | **14574 / 14584** | base-station Mac (`telem.sh`), not the rover |
+| Taranis RxNum | `01` | **`04`** | hand (§14.2) — bench, **outstanding** |
+| SiK NetID | `25` | **`46`** | hand (§14.8) — bench, **outstanding** |
 
-SiK NetID is out of scope for this work.
+The last two rows were out of scope for Phases A–E and are still unset: Rover 4
+has no RC link and no telemetry pairing, so **it cannot yet be driven**. See
+[§14](#14-phase-f--rc-link-and-sik-telemetry-outstanding-as-of-2026-08-04).
 
 ### `rest-offset-m` is safety-relevant, not cosmetic
 
@@ -540,3 +544,121 @@ unflashed FMU as flashed.
 
 Phase A ~20 min plus review · B ~15 min · C ~20 min (pip is slow on a Pi) ·
 D ~15 min · E ~10 min. **≈1.5 h**, excluding PR review and the DHCP reservation.
+
+---
+
+## 14. Phase F — RC link and SiK telemetry (outstanding as of 2026-08-04)
+
+Phases A–E left Rover 4 with a provisioned Pi, flashed FC, working Plutos and a
+capture config, but **no RC link and no SiK NetID**. It cannot be driven. This
+phase closes both. It is a bench operation — every step needs the rover powered
+and in front of you.
+
+Fleet context and the meaning of each transmitter setting are in
+[`ROVER_RUNBOOK.md`](./ROVER_RUNBOOK.md) §3.5.1. Rover 4's assignments:
+
+| Item | Rover 4 | Rationale |
+|---|---|---|
+| RxNum | **`04`** | free; `00`/`01`/`05` are taken by rovers 3/1/2 |
+| Receiver slot | **1** | standardize new binds on slot 1 |
+| SiK NetID | **`46`** | continues the 25/32/39 step-of-7 pattern |
+
+### 14.0 Prerequisites
+
+- An **R9 SX** receiver physically installed and wired to the FC's RC input.
+- The **R9M ACCESS** module in the transmitter's external bay.
+- Every other rover **powered off** for §14.1–14.4. This is not optional: it is
+  what makes a mis-set RxNum fail loudly (nothing responds) instead of silently
+  driving the wrong vehicle.
+
+### 14.1 Create the model — copy, do not build from blank
+
+Model Select → copy an existing rover model → rename to `Rover 4`.
+
+Copying carries the CH1–12 map, mixes and switch assignments across intact. The
+map is safety-critical (arm on CH5, mode on CH8, shutdown on CH9) and retyping it
+by hand is the likeliest way to produce a rover that arms on the wrong switch.
+
+### 14.2 Set RxNum before binding anything
+
+In the new model: `External RF: R9M ACCESS`, `Ch Range CH1-16`, **`RxNum 04`**.
+
+**Clear the receiver slots the copy inherited.** A copied model carries the
+source model's bind, so until they are cleared Rover 4's model is still addressing
+*Rover 1's* receiver.
+
+RxNum reaches a receiver **only at bind time** — it is written into the receiver
+and stored there. Editing it later does not push over the air; it just breaks the
+link until you re-bind. Hence: set it now, bind after.
+
+### 14.3 Register the receiver (skip if already registered)
+
+ACCESS splits pairing into registration and bind. Registration is one-time per
+receiver and transmitter-wide; it persists across later re-binds.
+
+Power the R9 SX with its F/S button held to enter registration mode, then
+External RF → **Register** on the transmitter. Note that the button is for
+*registration only* — the bind in §14.4 needs the receiver powered normally. The
+button-hold procedure in `README.md` is the older ACCST/X8R one and does not
+apply here.
+
+### 14.4 Bind into slot 1
+
+Power the receiver normally. Receiver 1 → **Bind**, select the R9 SX. The slot
+should then show the receiver name instead of `[Bnd]`.
+
+### 14.5 GATE — model match, both directions
+
+1. With only Rover 4 powered, move the sticks. **PASS:** its servos respond.
+2. Select **Rover 1's** model. **PASS:** Rover 4 does *not* respond.
+
+Step 2 is the one that catches a duplicate or unchanged RxNum, and it is the one
+that gets skipped. Do not proceed past a failure here.
+
+### 14.6 Verify the channel map against §3.5.2
+
+Run ArduPilot RC calibration, then confirm each control does what
+[`ROVER_RUNBOOK.md`](./ROVER_RUNBOOK.md) §3.5.2 says — with the rover on stands,
+wheels clear of the ground:
+
+- **CH5 (SF)** arms and disarms.
+- **CH8 (SA)** mid position reads **RTL**, not Guided. The boot-enforced
+  `rover3_base_parameters.params` sets `MODE4=11`/`MODE6=15`; the README's older
+  ordering is wrong and has already caused confusion once (see `docs/learnings.md`,
+  2026-07-23).
+- **CH9 (SH)** shuts the Pi down only after a release, then a >2 s hold while
+  disarmed.
+- **CH7 (SD)** reboots the FC — confirm before trusting it, it also kills the
+  collector in the lower band.
+
+### 14.7 Receiver failsafe — decide, do not inherit
+
+The R9 SX's own failsafe (No Pulses / Hold / Custom) and the FC's
+`FS_THR_ENABLE` are one decision, not two. `rover3_base_parameters.params` ships
+`FS_THR_ENABLE 0`, so ArduPilot takes **no** action on RC loss regardless of the
+receiver setting — a receiver left on "Hold" means a rover that loses its link
+keeps executing its last command. On a 900 MHz link the rover can be well past
+visual range when that happens.
+
+Protection requires **both** the receiver on No Pulses **and** `FS_THR_ENABLE`
+enabled. Set this deliberately for Rover 4 and record what you chose; it is
+tracked as an open item in §3.5.1.
+
+### 14.8 SiK NetID 46
+
+Set both ends of Rover 4's SiK pair to **NetID 46** via Mission Planner (see
+`README.md` "SikRadio"; copy the settings across to the second radio). Non-unique
+NetIDs cross-talk.
+
+> **Unresolved:** the SiK band is not recorded anywhere in-tree. If these radios
+> are 915 MHz they share a band with the R9M on FCC firmware — two transmitters
+> per vehicle, four vehicles per field. That degrades range and link quality in a
+> way that reads as a hardware fault. Confirm the band and record it here.
+
+### 14.9 Exit criteria
+
+- §14.5 passes in both directions.
+- Every control in §14.6 verified on stands.
+- Receiver failsafe chosen and written down.
+- NetID 46 on both radios, telemetry link up.
+- §3.5.1's fleet table updated with Rover 4's row.
