@@ -157,6 +157,11 @@ stage_base() {
     } >>"$rc"
     chown "$(stat -c '%U:%G' "$PI_HOME")" "$rc" 2>/dev/null || true
 
+    # Symlinked, never copied, so `git pull` carries CLI updates with the rest
+    # of the tree. /usr/local/bin is first on pi's non-interactive ssh PATH.
+    note "rover CLI -> /usr/local/bin/rover"
+    bash "${ROVER_DIR}/rover" install || die "rover install failed"
+
     note "udev usb_device rule"
     local rules=/etc/udev/rules.d/99-com.rules
     if [[ -f "$rules" ]]; then

@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+#
+# rover — one front door to the Rover 3.1 fleet tooling.
+#
+# Installed on a rover as /usr/local/bin/rover, a SYMLINK into the git working
+# tree. That is deliberate: a copied CLI would go stale exactly the way the
+# checkout did when `./run_motor_test.py` came back "No such file or directory"
+# on rover 1 while sitting ten commits behind main. Because the symlink points
+# into the tree, `git pull` updates the CLI along with everything else.
+#
+#   rover doctor      one-screen health check (git, services, hardware, disk)
+#   rover audit       read-only fleet fingerprint (audit_rover.sh)
+#   rover version     what this checkout is
+#   rover install     create /usr/local/bin/rover (needs sudo)
+#
+# Subcommand groups — ardupilot / radio / sitl — arrive in later phases.
+#
+# This dispatcher is bash, not Python, so that `rover doctor` still runs on a
+# half-provisioned rover whose virtualenv is missing or broken. Diagnosing that
+# is the job; a Python CLI could not start to do it.
+
+set -euo pipefail
+
+# Resolve through the /usr/local/bin symlink to the real file in the tree, so
+# the repo root is discovered rather than hardcoded. This also lets the CLI and
+# its tests run from a dev-box checkout that is not /home/pi/spf.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+ROVER_DIR="$(dirname "$SELF")"
+REPO_ROOT="${SPF_REPO_ROOT:-$(cd "${ROVER_DIR}/../../.." && pwd)}"
+VENV="${SPF_VENV:-/home/pi/spf-virtualenv}"
+INSTALL_PATH="${SPF_ROVER_CLI_PATH:-/usr/local/bin/rover}"
+
+# Every operator-facing subcommand, in help order. tests/test_rover_cli.py
+# reads this list and asserts each entry both dispatches and answers --help,
+# so a subcommand cannot be documented without working, or work unlisted.
+SUBCOMMANDS=(doctor audit version install help)
+
+die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
+note() { printf '  %s\n' "$*"; }
+head_() { printf '\n== %s ==\n' "$*"; }
+ok() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
+warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
+bad() { printf '  \033[31m✗\033[0m %s\n' "$*"; }
+
+usage() {
+    cat <<EOF
+rover — Rover 3.1 fleet tooling
+
+usage: rover <command> [options]
+
+commands:
+  doctor      one-screen health check: git state, services, hardware, disk
+  audit       read-only fleet fingerprint (identity.* vs fleet.* drift)
+  version     what this checkout is, and whether it matches main
+  install     symlink this CLI to ${INSTALL_PATH} (needs sudo)
+  help        this message
+
+  Run 'rover <command> --help' for detail.
+
+environment:
+  SPF_REPO_ROOT   checkout to operate on  (default: derived from this script)
+  SPF_VENV        virtualenv              (default: /home/pi/spf-virtualenv)
+
+notes:
+  Provisioning a new rover is still provision_rover.sh; this CLI is the
+  day-to-day front door, not a replacement for it.
+EOF
+    exit "${1:-0}"
+}
+
+# ---------------------------------------------------------------- identity ---
+
+# Rover id comes from the hostname (roverpiN, set by configure_rover_network.sh)
+# so that no subcommand has to be told which rover it is running on. Getting
+# this wrong is worse than not knowing it, so an unrecognised hostname yields
+# empty rather than a guess.
+rover_id() {
+    local host
+    host="$(hostname 2>/dev/null || true)"
+    [[ "$host" =~ ^roverpi([0-9]+)$ ]] && printf '%s' "${BASH_REMATCH[1]}"
+}
+
+require_rover_id() {
+    local id
+    id="$(rover_id)"
+    [[ -n "$id" ]] || die "not a rover: hostname '$(hostname 2>/dev/null)' is not roverpiN.
+  This command must run on a rover. Provision one with provision_rover.sh."
+    printf '%s' "$id"
+}
+
+# ------------------------------------------------------------- git / stale ---
+
+# Bounded and non-fatal by design. A rover in the field may have no route to
+# GitHub, and a CLI that hangs or refuses to run because it cannot reach the
+# network is useless exactly when it is needed most.
+git_remote_state() {
+    local behind
+    if ! timeout 5 git -C "$REPO_ROOT" fetch --quiet origin main 2>/dev/null; then
+        printf 'offline'
+        return
+    fi
+    behind="$(git -C "$REPO_ROOT" rev-list --count HEAD..origin/main 2>/dev/null || echo '?')"
+    if [[ "$behind" == "0" ]]; then printf 'current'; else printf 'behind:%s' "$behind"; fi
+}
+
+report_git() {
+    local head dirty state
+    head="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    note "checkout : ${REPO_ROOT}"
+    note "HEAD     : ${head}"
+
+    dirty="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l)"
+    if [[ "$dirty" -gt 0 ]]; then
+        # update_spf_before_boot.sh does `merge --ff-only` and refuses a dirty
+        # tree, so local edits silently block every future boot-time update.
+        warn "tree has ${dirty} local change(s) — update_spf_before_boot.sh will refuse to merge"
+    else
+        ok "tree is clean"
+    fi
+
+    state="$(git_remote_state)"
+    case "$state" in
+        current) ok "up to date with origin/main" ;;
+        offline) warn "cannot reach origin — staleness unknown (no network?)" ;;
+        behind:*) bad "BEHIND origin/main by ${state#behind:} commit(s) — run: git -C ${REPO_ROOT} pull --ff-only" ;;
+    esac
+}
+
+# ------------------------------------------------------------------ doctor ---
+
+report_services() {
+    local unit state
+    for unit in spf-rover-update spf-pluto-direct-usb mavlink_controller; do
+        state="$(systemctl is-active "$unit" 2>/dev/null || true)"
+        case "$state" in
+            active)   ok "${unit}: active" ;;
+            inactive) note "${unit}: inactive" ;;
+            failed)   bad "${unit}: FAILED — journalctl -u ${unit} -n50" ;;
+            *)        note "${unit}: ${state:-not installed}" ;;
+        esac
+    done
+}
+
+report_hardware() {
+    local fc plutos
+    # by-id, never /dev/ttyACM*: on rover 2 ttyACM0 is the PlutoSDR and ttyACM1
+    # is the flight controller, so the glob picks the wrong device.
+    fc="$(ls /dev/serial/by-id/usb-ArduPilot* 2>/dev/null | head -1 || true)"
+    if [[ -n "$fc" ]]; then ok "flight controller: $(basename "$fc")"; else bad "flight controller: not found"; fi
+
+    plutos="$(ip -o link show 2>/dev/null | grep -c 'usb[0-9]' || true)"
+    if [[ "${plutos:-0}" -gt 0 ]]; then ok "pluto usb interfaces: ${plutos}"; else warn "pluto usb interfaces: none"; fi
+
+    if [[ -x "${VENV}/bin/python3" ]]; then ok "virtualenv: ${VENV}"; else bad "virtualenv missing: ${VENV}"; fi
+}
+
+report_disk() {
+    local pct avail
+    pct="$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9' || echo 0)"
+    avail="$(df -h --output=avail / 2>/dev/null | tail -1 | tr -d ' ' || echo '?')"
+    if [[ "${pct:-0}" -ge 90 ]]; then
+        bad "root filesystem ${pct}% full (${avail} free) — captures will fail"
+    elif [[ "${pct:-0}" -ge 75 ]]; then
+        warn "root filesystem ${pct}% full (${avail} free)"
+    else
+        ok "root filesystem ${pct}% full (${avail} free)"
+    fi
+}
+
+cmd_doctor() {
+    [[ "${1:-}" =~ ^(-h|--help)$ ]] && { echo "usage: rover doctor
+One-screen health check. Read-only; changes nothing. Non-zero exit if
+anything is broken enough to stop a mission."; return 0; }
+
+    local id; id="$(rover_id)"
+    head_ "rover ${id:-?} — $(hostname 2>/dev/null)"
+    head_ "git";      report_git
+    head_ "services"; report_services
+    head_ "hardware"; report_hardware
+    head_ "disk";     report_disk
+    printf '\n'
+}
+
+cmd_audit() {
+    [[ "${1:-}" =~ ^(-h|--help)$ ]] && { echo "usage: rover audit
+Read-only fleet fingerprint via audit_rover.sh. Splits identity.* fields
+(expected to differ per rover) from fleet.* fields (drift)."; return 0; }
+    local id; id="$(require_rover_id)"
+    exec bash "${ROVER_DIR}/audit_rover.sh" "$id" "$@"
+}
+
+cmd_version() {
+    [[ "${1:-}" =~ ^(-h|--help)$ ]] && { echo "usage: rover version
+Print the checkout's commit, and whether it matches origin/main."; return 0; }
+    head_ "rover CLI"
+    note "repo   : ${REPO_ROOT}"
+    note "rover  : $(rover_id || echo 'not a rover')"
+    report_git
+    printf '\n'
+}
+
+# ----------------------------------------------------------------- install ---
+
+cmd_install() {
+    [[ "${1:-}" =~ ^(-h|--help)$ ]] && { echo "usage: sudo rover install
+Symlink this CLI to ${INSTALL_PATH} so 'rover' works from any directory,
+including over ssh. A symlink, not a copy, so git pull updates it."; return 0; }
+
+    [[ $EUID -eq 0 ]] || die "must run as root: sudo ${SELF} install"
+
+    local target_dir; target_dir="$(dirname "$INSTALL_PATH")"
+    [[ -d "$target_dir" ]] || die "no such directory: ${target_dir}"
+
+    if [[ -e "$INSTALL_PATH" && ! -L "$INSTALL_PATH" ]]; then
+        die "${INSTALL_PATH} exists and is not a symlink — refusing to overwrite"
+    fi
+
+    ln -sfn "$SELF" "$INSTALL_PATH"
+    ok "${INSTALL_PATH} -> ${SELF}"
+
+    # /usr/local/bin is first on pi's non-interactive ssh PATH, but verify
+    # rather than assume: /sbin is absent from that PATH, which has already
+    # caused one script to report an installed binary as missing.
+    if command -v rover >/dev/null 2>&1; then
+        ok "'rover' resolves to $(command -v rover)"
+    else
+        warn "'rover' is not on PATH (${PATH}) — invoke ${INSTALL_PATH} directly"
+    fi
+    printf '\n'
+}
+
+# ---------------------------------------------------------------- dispatch ---
+
+main() {
+    [[ $# -gt 0 ]] || usage 0
+    local command="$1"; shift
+    case "$command" in
+        doctor)          cmd_doctor "$@" ;;
+        audit)           cmd_audit "$@" ;;
+        version)         cmd_version "$@" ;;
+        install)         cmd_install "$@" ;;
+        help|-h|--help)  usage 0 ;;
+        --subcommands)   printf '%s\n' "${SUBCOMMANDS[@]}" ;;  # for tests
+        *)
+            printf '\nERROR: unknown command: %s\n' "$command" >&2
+            usage 2
+            ;;
+    esac
+}
+
+main "$@"
