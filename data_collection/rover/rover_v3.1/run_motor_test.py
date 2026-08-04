@@ -191,6 +191,37 @@ def _request_servo_stream(connection) -> None:
     )
 
 
+def _get_param(connection, name: str, timeout: float = 5.0):
+    connection.mav.param_request_read_send(
+        connection.target_system, connection.target_component, name.encode(), -1
+    )
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        message = connection.recv_match(type="PARAM_VALUE", blocking=True, timeout=1)
+        if message is None:
+            continue
+        if message.param_id.rstrip("\x00") == name:
+            return message.param_value
+    return None
+
+
+def _set_param(connection, name: str, value: float, timeout: float = 5.0) -> bool:
+    """Set a parameter and confirm by reading it back."""
+    connection.mav.param_set_send(
+        connection.target_system,
+        connection.target_component,
+        name.encode(),
+        float(value),
+        mavutil.mavlink.MAV_PARAM_TYPE_REAL32,
+    )
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        actual = _get_param(connection, name, timeout=1.5)
+        if actual is not None and abs(actual - value) < 1e-6:
+            return True
+    return False
+
+
 def _is_armed(connection) -> bool:
     heartbeat = connection.recv_match(type="HEARTBEAT", blocking=True, timeout=5)
     if heartbeat is None:
@@ -325,6 +356,17 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--bypass-arming-checks",
+        action="store_true",
+        help=(
+            "temporarily set ARMING_CHECK=0 so a bench test can run past an "
+            "unrelated pre-arm failure (e.g. 'Compass not healthy'). The "
+            "original value is recorded and RESTORED on every exit path. "
+            "ARMING_CHECK is NOT in the fleet params files, so nothing else "
+            "would ever put it back."
+        ),
+    )
+    parser.add_argument(
         "--allow-active-service",
         action="store_true",
         help="expert override; the service may fight you for the serial link",
@@ -394,6 +436,7 @@ def main() -> int:
     results: list[dict] = []
     aborted = False
     armed_by_us = False
+    original_arming_check = None
     try:
         if not args.dry_run:
             master = _resolve_master(args.master)
@@ -401,6 +444,17 @@ def main() -> int:
             connection = _connect(master, args.baud, args.heartbeat_timeout)
             print(f"  heartbeat from system {connection.target_system}")
             _request_servo_stream(connection)
+
+            if args.bypass_arming_checks:
+                original_arming_check = _get_param(connection, "ARMING_CHECK")
+                if original_arming_check is None:
+                    raise TestError("could not read ARMING_CHECK; refusing to bypass")
+                print(
+                    f"  ARMING_CHECK {original_arming_check:g} -> 0 "
+                    f"(will be restored to {original_arming_check:g})"
+                )
+                if not _set_param(connection, "ARMING_CHECK", 0.0):
+                    raise TestError("could not set ARMING_CHECK=0")
 
             if args.arm:
                 print("  arming (wheels MUST be raised) ...")
@@ -491,6 +545,20 @@ def main() -> int:
                     print(
                         "  WARNING: could not confirm disarm — DISARM MANUALLY "
                         "before going near the vehicle",
+                        file=sys.stderr,
+                    )
+            if original_arming_check is not None:
+                # Same discipline as disarm: restore on every exit path. Nothing
+                # else restores this - ARMING_CHECK is not in the params files.
+                for _ in range(3):
+                    if _set_param(connection, "ARMING_CHECK", original_arming_check):
+                        print(f"  ARMING_CHECK restored to {original_arming_check:g}")
+                        break
+                else:
+                    print(
+                        f"  WARNING: could not restore ARMING_CHECK to "
+                        f"{original_arming_check:g} - SET IT BACK BY HAND before "
+                        f"this rover goes anywhere",
                         file=sys.stderr,
                     )
             try:
