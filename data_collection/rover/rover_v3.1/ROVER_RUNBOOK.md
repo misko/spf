@@ -59,6 +59,50 @@ mavproxy.py --out 192.168.1.155:14550 --out 192.168.1.155:14551
 
 ---
 
+## Quick start — the `rover` command
+
+Every rover has `rover` on its PATH (`/usr/local/bin/rover`, a **symlink** into
+`~/spf`, so `git pull` updates the CLI with everything else). Start here:
+
+```bash
+rover doctor
+```
+
+One screen: git state, services, flight controller, Plutos, ready manifest, disk.
+It is read-only and answers the three questions that have actually cost us time —
+*is this checkout stale?*, *are the radios ready?*, *what is failing?*
+
+| Command | What it does |
+|---|---|
+| `rover doctor` | full health check (start here) |
+| `rover ardupilot prearm` | pre-arm health and every failing check |
+| `rover ardupilot compass` | which compass slots are used for yaw |
+| `rover ardupilot motor-test --wheels-raised --arm` | throttle ladder — see §3.7 |
+| `rover radio status` | attached Plutos + ready-manifest state |
+| `sudo rover radio firmware` | running firmware per radio, by USB serial |
+| `rover sitl status` \| `up` \| `down` | the sim — **base station only**, refuses on a rover |
+| `rover audit` | fleet fingerprint (`identity.*` vs `fleet.*` drift) |
+
+`rover ap` abbreviates `rover ardupilot`. Every group takes `--help`.
+
+**Two things `doctor` catches that nothing else surfaced:**
+
+- **A stale checkout.** `./run_motor_test.py` once came back "No such file or
+  directory" on rover 1 — the file existed on main, but the rover was ten
+  commits behind. `doctor` says `BEHIND origin/main by N commits` outright.
+- **A ready manifest stranded by a `git pull`.** The manifest pins the commit it
+  was built from; pulling moves HEAD and the next capture aborts with
+  `spf_git_sha is stale or mismatched`. Radio counts still look correct when this
+  is wrong. Fix: `sudo systemctl restart spf-pluto-direct-usb`.
+
+Installed automatically by `provision_rover.sh --stage base`; on an existing
+rover, `sudo ~/spf/data_collection/rover/rover_v3.1/rover install`.
+
+Provisioning a new rover is still `provision_rover.sh` — the CLI is the
+day-to-day front door, not a replacement for it.
+
+---
+
 ## Quick start — SITL bench test (sim on `.141` + real rover + QGC on the Mac)
 
 Three MAVLink endpoints, one client each (`tcpin` is **single-client, first-come**): sim → **14592** collector · **14591** QGC · **14590** spare/scripted. Full detail in §6 and §16.
