@@ -145,8 +145,73 @@ def _stop_all(connection, motors) -> None:
             pass
 
 
-def _spin(connection, instance: int, percent: int, seconds: float) -> str | None:
-    """Run one motor at one level. Returns a MAV_RESULT name, or None on timeout."""
+def _servo_raw(connection, timeout: float = 3.0):
+    """Current PWM on outputs 1-4, or None."""
+    message = connection.recv_match(
+        type="SERVO_OUTPUT_RAW", blocking=True, timeout=timeout
+    )
+    if message is None:
+        return None
+    return (
+        message.servo1_raw,
+        message.servo2_raw,
+        message.servo3_raw,
+        message.servo4_raw,
+    )
+
+
+def _request_servo_stream(connection) -> None:
+    connection.mav.command_long_send(
+        connection.target_system,
+        connection.target_component,
+        mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+        0,
+        float(mavutil.mavlink.MAVLINK_MSG_ID_SERVO_OUTPUT_RAW),
+        100000.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+
+
+def _is_armed(connection) -> bool:
+    heartbeat = connection.recv_match(type="HEARTBEAT", blocking=True, timeout=5)
+    if heartbeat is None:
+        return False
+    return bool(heartbeat.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+
+
+def _set_arm(connection, arm: bool, timeout: float = 10.0) -> str | None:
+    connection.mav.command_long_send(
+        connection.target_system,
+        connection.target_component,
+        mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+        0,
+        1.0 if arm else 0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+    ack = connection.recv_match(type="COMMAND_ACK", blocking=True, timeout=timeout)
+    if ack is None:
+        return None
+    return mavutil.mavlink.enums["MAV_RESULT"][ack.result].name
+
+
+def _spin(connection, instance: int, percent: int, seconds: float) -> dict:
+    """Run one motor at one level.
+
+    Returns the ACK *and* the observed PWM swing. The ACK alone is not evidence:
+    ArduPilot Rover replies MAV_RESULT_ACCEPTED to DO_MOTOR_TEST while disarmed,
+    emits "Throttle disarmed", and never moves the output. Watching
+    SERVO_OUTPUT_RAW is what actually proves the motor was driven.
+    """
+    before = _servo_raw(connection)
     connection.mav.command_long_send(
         connection.target_system,
         connection.target_component,
@@ -162,10 +227,39 @@ def _spin(connection, instance: int, percent: int, seconds: float) -> str | None
         0.0,
         0.0,
     )
-    ack = connection.recv_match(type="COMMAND_ACK", blocking=True, timeout=3)
-    if ack is None:
-        return None
-    return mavutil.mavlink.enums["MAV_RESULT"][ack.result].name
+    ack_message = connection.recv_match(type="COMMAND_ACK", blocking=True, timeout=3)
+    ack = (
+        None
+        if ack_message is None
+        else mavutil.mavlink.enums["MAV_RESULT"][ack_message.result].name
+    )
+
+    peak = before
+    statustexts: list[str] = []
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        sample = _servo_raw(connection, timeout=0.5)
+        if sample is not None and before is not None:
+            if max(abs(a - b) for a, b in zip(sample, before)) > max(
+                abs(a - b) for a, b in zip(peak or before, before)
+            ):
+                peak = sample
+        text = connection.recv_match(type="STATUSTEXT", blocking=False)
+        if text is not None:
+            statustexts.append(text.text)
+
+    swing = (
+        None
+        if before is None or peak is None
+        else max(abs(a - b) for a, b in zip(peak, before))
+    )
+    return {
+        "ack": ack,
+        "pwm_before": before,
+        "pwm_peak": peak,
+        "pwm_swing": swing,
+        "statustext": statustexts,
+    }
 
 
 def _ask(prompt: str) -> bool:
@@ -204,6 +298,16 @@ def main() -> int:
         "--dry-run",
         action="store_true",
         help="rehearse the sequence and prompts; send no MAVLink commands",
+    )
+    parser.add_argument(
+        "--arm",
+        action="store_true",
+        help=(
+            "arm the vehicle for the duration of the test. REQUIRED on Rover: "
+            "DO_MOTOR_TEST is accepted while disarmed but never drives the "
+            "outputs (the FC replies 'Throttle disarmed'). The vehicle is "
+            "disarmed again on every exit path."
+        ),
     )
     parser.add_argument(
         "--allow-active-service",
@@ -274,33 +378,73 @@ def main() -> int:
     connection = None
     results: list[dict] = []
     aborted = False
+    armed_by_us = False
     try:
         if not args.dry_run:
             master = _resolve_master(args.master)
             print(f"  connecting to {master} ...")
             connection = _connect(master, args.baud, args.heartbeat_timeout)
-            print(f"  heartbeat from system {connection.target_system}\n")
+            print(f"  heartbeat from system {connection.target_system}")
+            _request_servo_stream(connection)
+
+            if args.arm:
+                print("  arming (wheels MUST be raised) ...")
+                result = _set_arm(connection, True)
+                time.sleep(2)
+                if not _is_armed(connection):
+                    raise TestError(
+                        f"arming failed (ack={result}). Check pre-arm health:\n"
+                        f"    sudo python3 -m spf.mavlink.check_prearm"
+                    )
+                armed_by_us = True
+                print("  ARMED\n")
+            else:
+                print(
+                    "\n  NOTE: --arm not given. On Rover, DO_MOTOR_TEST is accepted\n"
+                    "  while disarmed but never drives the outputs. Expect no movement.\n"
+                )
 
         for percent in levels:
             print(f"--- {percent}% ---")
             for instance in motors:
                 label = MOTORS[instance]
                 print(f"  spinning {label} at {percent}% for {args.seconds}s ...")
-                ack = None
+                telemetry: dict = {}
                 if not args.dry_run:
-                    ack = _spin(connection, instance, percent, args.seconds)
-                    time.sleep(args.seconds + 0.5)
+                    telemetry = _spin(connection, instance, percent, args.seconds)
+                    time.sleep(0.5)
+                    ack = telemetry.get("ack")
                     if ack is not None and ack != "MAV_RESULT_ACCEPTED":
                         print(f"    WARNING: flight controller replied {ack}")
+                    for text in telemetry.get("statustext", []):
+                        print(f"    FC says: {text}")
+                    swing = telemetry.get("pwm_swing")
+                    if swing is None:
+                        print("    WARNING: no SERVO_OUTPUT_RAW; cannot verify PWM moved")
+                    elif swing < 10:
+                        # The failure mode that made an ACK look like success.
+                        print(
+                            f"    NO PWM MOVEMENT (swing {swing} us). The command was "
+                            f"accepted but the output never left {telemetry['pwm_before']}."
+                        )
+                        print(
+                            "    On Rover, DO_MOTOR_TEST only drives outputs while ARMED "
+                            "— re-run with --arm."
+                        )
+                    else:
+                        print(
+                            f"    PWM {telemetry['pwm_before']} -> {telemetry['pwm_peak']} "
+                            f"(swing {swing} us)"
+                        )
                 ok = True if args.dry_run else _ask(f"did {label} spin smoothly at {percent}%?")
                 results.append(
                     {
                         "percent": percent,
                         "motor": instance,
                         "label": label,
-                        "ack": ack,
                         "operator_confirmed": ok,
                         "dry_run": args.dry_run,
+                        **telemetry,
                     }
                 )
                 if not ok:
@@ -319,6 +463,21 @@ def main() -> int:
     finally:
         if connection is not None:
             _stop_all(connection, motors)
+            if armed_by_us:
+                # Every exit path disarms: normal finish, operator abort, Ctrl-C,
+                # and any exception. Never leave a rover armed.
+                for attempt in range(3):
+                    _set_arm(connection, False)
+                    time.sleep(1.0)
+                    if not _is_armed(connection):
+                        print("  DISARMED")
+                        break
+                else:
+                    print(
+                        "  WARNING: could not confirm disarm — DISARM MANUALLY "
+                        "before going near the vehicle",
+                        file=sys.stderr,
+                    )
             try:
                 connection.close()
             except Exception:
