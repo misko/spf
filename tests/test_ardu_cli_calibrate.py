@@ -33,6 +33,9 @@ def calibrate_args(**overrides):
         "reboot_timeout": 1.0,
         "magcal_timeout": 1.0,
         "prearm_timeout": 1.0,
+        "ready_timeout": 0.0,
+        "parameter_timeout": 1.0,
+        "mask": 1,
     }
     settings.update(overrides)
     return argparse.Namespace(**settings)
@@ -89,6 +92,9 @@ def harness(monkeypatch):
     monkeypatch.setattr(ardu_cli, "_wait_command_ack", fake_ack)
     monkeypatch.setattr(ardu_cli, "monitor_magcal", fake_monitor)
     monkeypatch.setattr(ardu_cli, "run_prearm_checks", fake_prearm)
+    monkeypatch.setattr(
+        ardu_cli, "_calibration_compass_policy", lambda *_a: (True, [])
+    )
     return recorder, monkeypatch
 
 
@@ -219,3 +225,118 @@ def test_reboot_fails_closed_when_the_fc_never_returns(monkeypatch):
             sleep_fn=lambda _s: None,
             connect_fn=never,
         )
+
+
+# ------------------------------------------- readiness and compass policy ---
+#
+# Both of these were found on real hardware (Rover 4, 2026-08-04) after the
+# first version of `calibrate` shipped, and neither was caught by stubs.
+
+
+def test_reboot_waits_for_imu_health_not_just_a_heartbeat(monkeypatch):
+    """A heartbeat arrives long before gyros are healthy; magcal must not start then."""
+    waited = []
+    monkeypatch.setattr(ardu_cli, "send_fc_reboot", lambda _c: None)
+    monkeypatch.setattr(
+        ardu_cli,
+        "wait_for_sensor_health",
+        lambda conn, timeout, **kw: waited.append(timeout) or True,
+    )
+    new = SimpleNamespace(close=lambda: None)
+
+    ardu_cli.reboot_flight_controller(
+        argparse.Namespace(),
+        SimpleNamespace(close=lambda: None),
+        settle_s=0.0,
+        timeout_s=5.0,
+        ready_timeout_s=7.0,
+        output_fn=lambda _m: None,
+        sleep_fn=lambda _s: None,
+        connect_fn=lambda _a: (new, SimpleNamespace(), "/dev/fake"),
+    )
+
+    assert waited == [7.0]
+
+
+def test_sensor_health_requires_both_gyro_and_accel():
+    healthy = (
+        ardu_cli.mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_GYRO
+        | ardu_cli.mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_ACCEL
+    )
+    gyro_only = ardu_cli.mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_GYRO
+
+    class Conn:
+        def __init__(self, values):
+            self.values = list(values)
+
+        def recv_match(self, **_kw):
+            if not self.values:
+                return None
+            return SimpleNamespace(
+                onboard_control_sensors_health=self.values.pop(0)
+            )
+
+        mav = SimpleNamespace(command_long_send=lambda *a: None)
+        target_system = target_component = 1
+
+    assert ardu_cli.wait_for_sensor_health(Conn([gyro_only, healthy]), 5.0)
+    assert not ardu_cli.wait_for_sensor_health(
+        Conn([gyro_only]), 0.2, output_fn=lambda _m: None
+    )
+
+
+def test_magcal_default_mask_is_the_external_compass(harness):
+    """mask=0 would calibrate the internal compass the policy excludes from yaw."""
+    recorder, monkeypatch = harness
+    seen = {}
+    monkeypatch.setattr(
+        ardu_cli,
+        "send_magcal_command",
+        lambda _c, action, **kw: seen.update(kw) or recorder.stages.append("magcal:start"),
+    )
+    monkeypatch.setattr(
+        ardu_cli, "_calibration_compass_policy", lambda *_a: (True, [])
+    )
+
+    ardu_cli.command_calibrate(
+        calibrate_args(mask=ardu_cli.DEFAULT_MAGCAL_MASK, parameter_timeout=1.0, ready_timeout=0.0)
+    )
+
+    assert ardu_cli.DEFAULT_MAGCAL_MASK == 1
+    assert seen["mask"] == 1
+
+
+def test_a_broken_compass_policy_blocks_calibration(harness):
+    """Calibrating while a non-primary slot drives yaw is a confidently wrong result."""
+    recorder, monkeypatch = harness
+    monkeypatch.setattr(
+        ardu_cli,
+        "_calibration_compass_policy",
+        lambda *_a: (False, ["non-primary compass slot 2 is enabled for yaw"]),
+    )
+
+    code = ardu_cli.command_calibrate(
+        calibrate_args(mask=1, parameter_timeout=1.0, ready_timeout=0.0)
+    )
+
+    assert code == 1
+    assert not any(stage == "magcal:start" for stage in recorder.stages)
+
+
+def test_an_uncalibrated_compass_does_not_block_its_own_calibration(monkeypatch):
+    """The gate must ignore 'has no calibration' or calibrate could never run."""
+    monkeypatch.setattr(
+        ardu_cli, "download_parameters", lambda _c, _t: ({}, True)
+    )
+    monkeypatch.setattr(
+        ardu_cli,
+        "evaluate_compass_policy",
+        lambda _p: SimpleNamespace(
+            errors=["external compass slot 1 has no calibration"]
+        ),
+    )
+
+    ok, blocking = ardu_cli._calibration_compass_policy(object(), 1.0)
+
+    assert ok
+    assert blocking == []

@@ -104,6 +104,19 @@ MAGCAL_COMMANDS = {
     "cancel": mavutil.mavlink.MAV_CMD_DO_CANCEL_MAG_CAL,
 }
 
+# Gyro + accel only. GPS/home/full pre-arm are never satisfied on a bench, and
+# a bench is where calibration happens.
+SENSORS_REQUIRED_FOR_CALIBRATION = (
+    mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_GYRO
+    | mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_ACCEL
+)
+
+# The fleet calibrates the external compass in slot 1, matching CLI_CHEATSHEET
+# and the compass policy (EXPECTED_EXTERNAL_COMPASS_DEVICE_ID lives in slot 1).
+# mask=0 would calibrate every compass including the internal one the policy
+# excludes from yaw.
+DEFAULT_MAGCAL_MASK = 1
+
 ACCELCAL_START_COMMAND = mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION
 ACCELCAL_POSITION_COMMAND = mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS
 ACCELCAL_ACCEPTED_RESULTS = {
@@ -1245,12 +1258,50 @@ def send_fc_reboot(connection) -> None:
     )
 
 
+def wait_for_sensor_health(
+    connection,
+    timeout_s: float,
+    *,
+    sensors: int = SENSORS_REQUIRED_FOR_CALIBRATION,
+    output_fn=print,
+) -> bool:
+    """Wait until the IMU reports healthy, not merely until it says hello.
+
+    A heartbeat arrives long before a rebooted flight controller is usable: the
+    gyros are still initialising and, on fmuv3, the IO coprocessor is still
+    coming up. Treating the first heartbeat as readiness is what made a pre-arm
+    run seconds after a reboot report "Gyros not healthy" and "IOMCU is
+    unhealthy" on Rover 4 when nothing was actually wrong.
+
+    Only gyro and accel health are required. Deliberately not GPS, home or full
+    pre-arm: those are never satisfied on a bench, which is exactly where
+    calibration happens.
+    """
+    _request_message(connection, mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 200_000)
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        message = connection.recv_match(
+            type="SYS_STATUS", blocking=True, timeout=0.5
+        )
+        if message is None:
+            continue
+        health = int(getattr(message, "onboard_control_sensors_health", 0) or 0)
+        if health & sensors == sensors:
+            return True
+    output_fn(
+        f"  WARNING: IMU did not report healthy within {timeout_s:.0f}s; "
+        "continuing, but calibration quality may suffer"
+    )
+    return False
+
+
 def reboot_flight_controller(
     args: argparse.Namespace,
     connection,
     *,
     settle_s: float,
     timeout_s: float,
+    ready_timeout_s: float = 0.0,
     output_fn=print,
     sleep_fn=time.sleep,
     connect_fn=None,
@@ -1285,6 +1336,11 @@ def reboot_flight_controller(
             sleep_fn(1.0)
             continue
         if heartbeat is not None:
+            output_fn("  heartbeat received; waiting for the IMU to settle")
+            if ready_timeout_s > 0:
+                wait_for_sensor_health(
+                    new_connection, ready_timeout_s, output_fn=output_fn
+                )
             output_fn("  flight controller is back")
             return new_connection
         try:
@@ -1310,14 +1366,39 @@ def command_reboot(args: argparse.Namespace) -> int:
         raise CliError("vehicle is armed; refusing to reboot the flight controller")
     print(f"Connected to {master}")
     connection = reboot_flight_controller(
-        args, connection, settle_s=args.settle, timeout_s=args.reboot_timeout
+        args,
+        connection,
+        settle_s=args.settle,
+        timeout_s=args.reboot_timeout,
+        ready_timeout_s=args.ready_timeout,
     )
     try:
         connection.close()
     except Exception:
         pass
-    print("PASS: flight controller rebooted and is responding.")
+    print("PASS: flight controller rebooted and its IMU is healthy.")
     return 0
+
+
+# Errors describing the calibration we are about to perform. Gating on these
+# would deadlock: an uncalibrated compass could never be calibrated.
+CALIBRATION_PENDING_MARKERS = ("has no calibration", "offset norm")
+
+
+def _calibration_compass_policy(
+    connection, parameter_timeout_s: float
+) -> tuple[bool, list[str]]:
+    """Policy problems that must be repaired *before* calibrating."""
+    params, complete = download_parameters(connection, parameter_timeout_s)
+    if not complete:
+        return False, ["did not receive a complete parameter snapshot"]
+    report = evaluate_compass_policy(params)
+    blocking = [
+        problem
+        for problem in report.errors
+        if not any(marker in problem for marker in CALIBRATION_PENDING_MARKERS)
+    ]
+    return (not blocking), blocking
 
 
 def command_calibrate(args: argparse.Namespace) -> int:
@@ -1368,16 +1449,38 @@ def command_calibrate(args: argparse.Namespace) -> int:
 
     print("== 2/4  reboot ==")
     connection = reboot_flight_controller(
-        args, connection, settle_s=args.settle, timeout_s=args.reboot_timeout
+        args,
+        connection,
+        settle_s=args.settle,
+        timeout_s=args.reboot_timeout,
+        ready_timeout_s=args.ready_timeout,
     )
     print()
 
     print("== 3/4  compass / magcal ==")
+    # Calibrating while a non-primary or empty slot is enabled for yaw leaves
+    # the vehicle using compasses this command never calibrated. Rover 4 was in
+    # exactly that state (slot 2 and empty slot 3 both enabled for yaw), so this
+    # gate fails closed rather than producing a confidently wrong calibration.
+    policy_ok, policy_errors = _calibration_compass_policy(
+        connection, args.parameter_timeout
+    )
+    if not policy_ok:
+        print("\nFAIL: compass policy must be repaired before calibrating:")
+        for problem in policy_errors:
+            print(f"  - {problem}")
+        print(
+            "\n  Fix with:  rover ardupilot compass --repair --yes\n"
+            "  Then reboot if it asks, and re-run calibrate."
+        )
+        return 1
     print(
         "  Rotate the rover slowly through every axis: level spin, nose up,\n"
         "  nose down, on each side, and inverted. Keep away from metal.\n"
     )
-    send_magcal_command(connection, "start", mask=0, retry=False, autosave=True)
+    send_magcal_command(
+        connection, "start", mask=args.mask, retry=True, autosave=True
+    )
     ack = _wait_command_ack(
         connection, MAGCAL_COMMANDS["start"], args.command_timeout
     )
@@ -1416,7 +1519,11 @@ def command_calibrate(args: argparse.Namespace) -> int:
 
     print("== 4/4  pre-arm verification ==")
     connection = reboot_flight_controller(
-        args, connection, settle_s=args.settle, timeout_s=args.reboot_timeout
+        args,
+        connection,
+        settle_s=args.settle,
+        timeout_s=args.reboot_timeout,
+        ready_timeout_s=args.ready_timeout,
     )
     result = run_prearm_checks(connection, timeout_s=args.prearm_timeout)
     try:
@@ -1500,6 +1607,12 @@ def get_parser() -> argparse.ArgumentParser:
     reboot.add_argument("--yes", action="store_true")
     reboot.add_argument("--settle", type=float, default=2.0)
     reboot.add_argument("--reboot-timeout", type=float, default=60.0)
+    reboot.add_argument(
+        "--ready-timeout",
+        type=float,
+        default=30.0,
+        help="Seconds to wait for gyro/accel health after the heartbeat returns.",
+    )
     reboot.set_defaults(handler=command_reboot)
 
     calibrate = subparsers.add_parser(
@@ -1523,6 +1636,22 @@ def get_parser() -> argparse.ArgumentParser:
         help="Ceiling on compass calibration; a terminal report exits early.",
     )
     calibrate.add_argument("--prearm-timeout", type=float, default=30.0)
+    calibrate.add_argument(
+        "--ready-timeout",
+        type=float,
+        default=30.0,
+        help="Seconds to wait for gyro/accel health after each reboot.",
+    )
+    calibrate.add_argument("--parameter-timeout", type=float, default=60.0)
+    calibrate.add_argument(
+        "--mask",
+        type=lambda value: int(value, 0),
+        default=DEFAULT_MAGCAL_MASK,
+        help=(
+            "Compass bitmask to calibrate. Default 1 = the external compass in "
+            "slot 1, matching the fleet compass policy."
+        ),
+    )
     calibrate.set_defaults(handler=command_calibrate)
 
     rc = subparsers.add_parser(
