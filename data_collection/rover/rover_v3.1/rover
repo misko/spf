@@ -9,7 +9,7 @@
 # into the tree, `git pull` updates the CLI along with everything else.
 #
 #   rover doctor              one-screen health check
-#   rover ardupilot <sub>      prearm, compass, motor-test, flash
+#   rover ardupilot <sub>      prearm, compass, rc, motor-test, flash
 #   rover radio <sub>          status, firmware, preflight, capture
 #   rover sitl <sub>           status, up, down  (base station only)
 #   rover audit | config | version | install
@@ -596,11 +596,16 @@ cmd_ardupilot() {
             exec "$(venv_python)" "${ROVER_DIR}/run_motor_test.py" "$@" ;;
         flash)
             exec bash "${ROVER_DIR}/flash_ardupilot.sh" "$@" ;;
+        rc)
+            # Read-only listener. ardu_cli refuses a direct serial link while
+            # mavlink_controller.service owns it, so no guard is needed here.
+            exec "$(venv_python)" "${REPO_ROOT}/spf/ardupilot/ardu_cli.py" rc "$@" ;;
         ""|-h|--help)
             group_usage ardupilot \
                 "subcommands:" \
                 "  prearm       report pre-arm health and every failing check" \
                 "  compass      verify the compass policy (which slots are used for yaw)" \
+                "  rc           echo what the FC hears from the radio — bind/switch debugging" \
                 "  motor-test   spin the motors at a throttle ladder — WHEELS MUST BE RAISED" \
                 "  flash        flash ArduPilot firmware to the flight controller"
             ;;

@@ -45,6 +45,27 @@ from spf.mavlink.compass_policy import (
 SERVICE_NAME = "mavlink_controller.service"
 SOURCE_SYSTEM = 254
 
+RC_MAX_CHANNELS = 18
+
+# The rover control map, so `rc` names what moved instead of only numbering it.
+# CH1-6 are ArduPilot's (rover3_rc_servo_parameters.params); CH7/9/10/12 carry
+# RCx_OPTION 0 and are read raw by the Pi in handle_RC_CHANNELS, so they are
+# invisible to ArduPilot itself but still visible in this stream.
+# Source of truth: ROVER_RUNBOOK.md 3.5.2.
+RC_CHANNEL_ROLES = {
+    1: "roll/ail   (RCMAP_ROLL)",
+    2: "pitch/ele  (RCMAP_PITCH)",
+    3: "throttle   (RCMAP_THROTTLE)",
+    4: "yaw/rud    (RCMAP_YAW)",
+    5: "ARM/DISARM (RC5_OPTION 153, switch SF)",
+    6: "scripting1 (RC6_OPTION 300 - inert, no Lua in-tree)",
+    7: "reboot FC / kill collector (Pi, switch SD)",
+    8: "FLIGHT MODE (MODE_CH 8, switch SA: Manual/RTL/Guided)",
+    9: "shutdown Pi (Pi, switch SH)",
+    10: "compass calibration (Pi, switch SC)",
+    12: "ultrasonic enable/disable (Pi)",
+}
+
 STATUS_MESSAGE_IDS = {
     "SYS_STATUS": mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS,
     "GPS_RAW_INT": mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT,
@@ -1026,6 +1047,187 @@ def command_accelcal(args: argparse.Namespace) -> int:
     return 1
 
 
+def _rc_snapshot(message) -> dict[int, int]:
+    """Channel -> raw microseconds for every channel the receiver reports."""
+    count = int(getattr(message, "chancount", 0) or 0)
+    values: dict[int, int] = {}
+    for channel in range(1, RC_MAX_CHANNELS + 1):
+        raw = getattr(message, f"chan{channel}_raw", None)
+        if raw is None:
+            continue
+        # ArduPilot pads unpopulated channels with 0 past chancount; keeping them
+        # would report phantom "movement" the moment a receiver changes protocol.
+        if channel > count and not raw:
+            continue
+        values[channel] = int(raw)
+    return values
+
+
+def _rc_role(channel: int) -> str:
+    return RC_CHANNEL_ROLES.get(channel, "")
+
+
+def _format_rc_row(values: dict[int, int]) -> str:
+    return " ".join(f"{channel}:{value}" for channel, value in sorted(values.items()))
+
+
+def command_rc(args: argparse.Namespace) -> int:
+    """Echo RC_CHANNELS so an operator can see what the FC receives from the radio."""
+    connection, _heartbeat, master = _connect(args)
+    print(f"Connected to {master}")
+
+    interval_us = max(1, int(args.rate_hz and 1_000_000 / args.rate_hz))
+    _request_message(
+        connection, mavutil.mavlink.MAVLINK_MSG_ID_RC_CHANNELS, interval_us
+    )
+
+    deadline = time.monotonic() + args.duration
+    started = time.monotonic()
+    last: dict[int, int] = {}
+    seen: dict[int, dict[str, int]] = {}
+    frames = 0
+    last_print = started
+    last_rssi: int | None = None
+
+    print(
+        f"Listening for RC_CHANNELS for {args.duration:.0f}s "
+        f"(threshold {args.threshold} us). Move one switch at a time; Ctrl-C to stop.\n"
+    )
+    try:
+        while time.monotonic() < deadline:
+            message = connection.recv_match(
+                type="RC_CHANNELS", blocking=True, timeout=0.5
+            )
+            now = time.monotonic()
+            if message is None:
+                # Silence is the single most informative outcome here, so say so
+                # while waiting rather than only in the summary.
+                if now - last_print >= args.quiet_tick:
+                    elapsed = now - started
+                    state = "no RC_CHANNELS yet" if not frames else "no change"
+                    print(f"  t+{elapsed:6.1f}s  {state}")
+                    last_print = now
+                continue
+
+            frames += 1
+            values = _rc_snapshot(message)
+            rssi = int(getattr(message, "rssi", 255) or 0)
+            for channel, value in values.items():
+                record = seen.setdefault(channel, {"min": value, "max": value})
+                record["min"] = min(record["min"], value)
+                record["max"] = max(record["max"], value)
+
+            if not last:
+                print(
+                    f"  baseline  {len(values)} channels, rssi {rssi}\n"
+                    f"            {_format_rc_row(values)}\n"
+                )
+                last = values
+                last_print = now
+                last_rssi = rssi
+                continue
+
+            changed = [
+                (channel, last.get(channel), value)
+                for channel, value in values.items()
+                if last.get(channel) is not None
+                and abs(value - last[channel]) >= args.threshold
+            ]
+            if args.all:
+                print(f"  t+{now - started:6.1f}s  {_format_rc_row(values)}")
+                last_print = now
+            for channel, before, value in changed:
+                role = _rc_role(channel)
+                suffix = f"   {role}" if role else ""
+                print(
+                    f"  t+{now - started:6.1f}s  CH{channel:<2} "
+                    f"{before:>4} -> {value:<4}{suffix}"
+                )
+                last_print = now
+            if changed:
+                last = values
+            else:
+                # Track the latest values without redrawing, so a slow drift
+                # still eventually crosses the threshold against a fresh base.
+                last.update(
+                    {
+                        channel: value
+                        for channel, value in values.items()
+                        if channel not in last
+                    }
+                )
+            if rssi != last_rssi and abs(rssi - (last_rssi or 0)) >= args.threshold:
+                print(f"  t+{now - started:6.1f}s  rssi {last_rssi} -> {rssi}")
+                last_rssi = rssi
+    except KeyboardInterrupt:
+        print("\n  stopped\n")
+    finally:
+        try:
+            connection.close()
+        except Exception:
+            pass
+
+    elapsed = max(time.monotonic() - started, 1e-6)
+    moved = sorted(
+        channel
+        for channel, record in seen.items()
+        if record["max"] - record["min"] >= args.threshold
+    )
+    report = {
+        "master": master,
+        "frames": frames,
+        "elapsed_s": round(elapsed, 2),
+        "rate_hz": round(frames / elapsed, 2),
+        "channels": {
+            str(channel): {
+                "min": record["min"],
+                "max": record["max"],
+                "moved": (record["max"] - record["min"]) >= args.threshold,
+                "role": _rc_role(channel),
+            }
+            for channel, record in sorted(seen.items())
+        },
+        "moved": moved,
+        "rc_received": frames > 0,
+    }
+    if args.json or args.json_output:
+        _write_json(report, args.json_output)
+        return 0 if frames else 1
+
+    print(f"\n  {frames} RC_CHANNELS frames in {elapsed:.1f}s ({report['rate_hz']}/s)")
+    if not frames:
+        print(
+            "\nFAIL: the flight controller received no RC frames at all.\n"
+            "  The transmitter/receiver bind is not the only suspect here — the FC\n"
+            "  never saw a single frame, so look between the receiver and the FC:\n"
+            "    - receiver powered, and its bind LED showing a live link?\n"
+            "    - SBUS/signal wire in the FC's RC input, right pin and orientation?\n"
+            "    - RC_PROTOCOLS allows the receiver's protocol "
+            "(rover3_rc_servo_parameters.params sets 1)\n"
+            "    - serial RC receivers need the FC rebooted after rewiring"
+        )
+        return 1
+
+    print("\n  channel        min    max   moved   role")
+    for channel, record in sorted(seen.items()):
+        did_move = (record["max"] - record["min"]) >= args.threshold
+        print(
+            f"  CH{channel:<2}         {record['min']:>5}  {record['max']:>5}   "
+            f"{'yes' if did_move else ' - '}     {_rc_role(channel)}"
+        )
+    if not moved:
+        print(
+            "\nFAIL: RC frames are arriving but nothing moved.\n"
+            "  The receiver is talking to the flight controller, so the wiring is\n"
+            "  fine and the problem is upstream of it: transmitter off, wrong model\n"
+            "  selected, RxNum mismatch, or the switches are not mapped to channels\n"
+            "  in the transmitter's mixer."
+        )
+        return 1
+    print(f"\nPASS: {frames} frames, channels moved: {', '.join(f'CH{c}' for c in moved)}")
+    return 0
+
+
 def _add_connection_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--master",
@@ -1087,6 +1289,42 @@ def get_parser() -> argparse.ArgumentParser:
         help="Confirm persistent writes requested by --repair.",
     )
     compass.set_defaults(handler=command_compass)
+
+    rc = subparsers.add_parser(
+        "rc",
+        help="Echo RC_CHANNELS live: what the flight controller hears from the radio.",
+    )
+    _add_connection_options(rc)
+    rc.add_argument(
+        "--duration",
+        type=float,
+        default=120.0,
+        help="Seconds to listen before printing the summary.",
+    )
+    rc.add_argument(
+        "--threshold",
+        type=int,
+        default=15,
+        help="Microseconds a channel must move before it is reported as a change.",
+    )
+    rc.add_argument(
+        "--rate-hz",
+        type=float,
+        default=10.0,
+        help="Requested RC_CHANNELS stream rate.",
+    )
+    rc.add_argument(
+        "--all",
+        action="store_true",
+        help="Print every frame, not only changes.",
+    )
+    rc.add_argument(
+        "--quiet-tick",
+        type=float,
+        default=5.0,
+        help="Seconds of no change before printing a keepalive line.",
+    )
+    rc.set_defaults(handler=command_rc)
 
     prearm = subparsers.add_parser(
         "prearm", help="Run ArduPilot pre-arm checks without attempting to arm."
