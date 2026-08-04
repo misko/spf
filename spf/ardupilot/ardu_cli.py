@@ -1105,6 +1105,12 @@ def command_rc(args: argparse.Namespace) -> int:
     last: dict[int, int] = {}
     seen: dict[int, dict[str, int]] = {}
     frames = 0
+    # ArduPilot emits RC_CHANNELS at the requested rate whether or not a
+    # receiver exists; with no input it sends chancount=0. Counting those as
+    # "RC is arriving" blames the transmitter for a receiver-to-FC fault, which
+    # is exactly backwards. Rover 4 hit this: 201 frames, every one 0 channels.
+    frames_with_channels = 0
+    baseline_printed = False
     last_print = started
     last_rssi: int | None = None
 
@@ -1130,17 +1136,26 @@ def command_rc(args: argparse.Namespace) -> int:
 
             frames += 1
             values = _rc_snapshot(message)
+            if values:
+                frames_with_channels += 1
             rssi = int(getattr(message, "rssi", 255) or 0)
             for channel, value in values.items():
                 record = seen.setdefault(channel, {"min": value, "max": value})
                 record["min"] = min(record["min"], value)
                 record["max"] = max(record["max"], value)
 
-            if not last:
-                print(
-                    f"  baseline  {len(values)} channels, rssi {rssi}\n"
-                    f"            {_format_rc_row(values)}\n"
-                )
+            if not baseline_printed:
+                baseline_printed = True
+                if values:
+                    print(
+                        f"  baseline  {len(values)} channels, rssi {rssi}\n"
+                        f"            {_format_rc_row(values)}\n"
+                    )
+                else:
+                    print(
+                        "  the flight controller reports 0 channels "
+                        f"(rssi {rssi}) - no receiver input\n"
+                    )
                 last = values
                 last_print = now
                 last_rssi = rssi
@@ -1195,6 +1210,7 @@ def command_rc(args: argparse.Namespace) -> int:
     report = {
         "master": master,
         "frames": frames,
+        "frames_with_channels": frames_with_channels,
         "elapsed_s": round(elapsed, 2),
         "rate_hz": round(frames / elapsed, 2),
         "channels": {
@@ -1207,11 +1223,11 @@ def command_rc(args: argparse.Namespace) -> int:
             for channel, record in sorted(seen.items())
         },
         "moved": moved,
-        "rc_received": frames > 0,
+        "rc_received": frames_with_channels > 0,
     }
     if args.json or args.json_output:
         _write_json(report, args.json_output)
-        return 0 if frames else 1
+        return 0 if moved else 1
 
     print(f"\n  {frames} RC_CHANNELS frames in {elapsed:.1f}s ({report['rate_hz']}/s)")
     if not frames:
@@ -1224,6 +1240,24 @@ def command_rc(args: argparse.Namespace) -> int:
             "    - RC_PROTOCOLS allows the receiver's protocol "
             "(rover3_rc_servo_parameters.params sets 1)\n"
             "    - serial RC receivers need the FC rebooted after rewiring"
+        )
+        return 1
+
+    if not frames_with_channels:
+        print(
+            "\nFAIL: the flight controller is receiving no RC input.\n"
+            f"  It sent {frames} RC_CHANNELS frames, but every one reported 0\n"
+            "  channels - ArduPilot streams this message whether or not a\n"
+            "  receiver is attached, so this is NOT evidence of a working link.\n"
+            "\n  A successful bind does not put data on the FC. Look between the\n"
+            "  receiver and the flight controller:\n"
+            "    - is the receiver's SBUS output wired to the FC's RCIN pin,\n"
+            "      correct pin and orientation?\n"
+            "    - is the receiver powered, with its LED showing a live link?\n"
+            "    - does this receiver need its output protocol set to SBUS?\n"
+            "    - reboot the FC after any rewiring; serial RC is detected once\n"
+            "  RC_PROTOCOLS is 1 (all protocols) from"
+            " rover3_rc_servo_parameters.params, so it is not filtering."
         )
         return 1
 

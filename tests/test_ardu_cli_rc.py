@@ -142,3 +142,46 @@ def test_padded_channels_past_chancount_are_ignored(monkeypatch):
 def test_safety_critical_channels_are_labelled(channel):
     """An unlabelled arm/mode/shutdown channel makes the tool useless for its job."""
     assert ardu_cli.RC_CHANNEL_ROLES[channel]
+
+
+# ------------------------------------------------- the chancount=0 blind spot ---
+#
+# Found on Rover 4: `rc` reported "frames are arriving but nothing moved" and
+# sent the operator to check the transmitter, when in fact the FC had no RC
+# input at all. ArduPilot streams RC_CHANNELS at the requested rate whether or
+# not a receiver exists, filling chancount=0 -- so message count is not
+# evidence of a link, and only channel data is.
+
+
+def test_zero_channel_frames_are_not_mistaken_for_a_working_link(monkeypatch, capsys):
+    empty = [rc_frame({}, chancount=0, rssi=255) for _ in range(5)]
+    code, _ = run_rc(monkeypatch, empty)
+    output = capsys.readouterr().out
+
+    assert code == 1
+    assert "receiving no RC input" in output
+    # Must NOT send the operator upstream to the transmitter.
+    assert "wrong model" not in output
+    assert "RxNum" not in output
+    # Must point between receiver and FC instead.
+    assert "SBUS" in output
+
+
+def test_the_zero_channel_baseline_prints_once(monkeypatch, capsys):
+    """It repeated the baseline line on every frame, because `last` stayed empty."""
+    code, _ = run_rc(monkeypatch, [rc_frame({}, chancount=0, rssi=255) for _ in range(6)])
+    output = capsys.readouterr().out
+
+    assert code == 1
+    assert output.count("no receiver input") == 1
+
+
+def test_real_channels_still_report_the_transmitter_side_diagnosis(monkeypatch, capsys):
+    """With genuine channel data and no movement, the transmitter IS the suspect."""
+    code, _ = run_rc(monkeypatch, [rc_frame(BASELINE) for _ in range(4)])
+    output = capsys.readouterr().out
+
+    assert code == 1
+    assert "nothing moved" in output
+    assert "RxNum" in output
+    assert "receiving no RC input" not in output
