@@ -83,7 +83,7 @@ def test_all_rover_configs_pin_identical_firmware():
         rover_id: yaml.safe_load(canonical_config_path(rover_id).read_text())[
             "pluto-firmware"
         ]
-        for rover_id in (1, 2, 3)
+        for rover_id in (1, 2, 3, 4)
     }
     reference = blocks[REFERENCE_ROVER_ID]
     for rover_id, block in blocks.items():
@@ -118,7 +118,7 @@ def test_firmware_block_covers_every_contract_key():
 
 def test_firmware_block_roundtrips_the_rover_config():
     """A plan rebuilt into a firmware mapping equals the YAML it was loaded from."""
-    for rover_id in (1, 2, 3):
+    for rover_id in (1, 2, 3, 4):
         on_disk = yaml.safe_load(canonical_config_path(rover_id).read_text())[
             "pluto-firmware"
         ]
