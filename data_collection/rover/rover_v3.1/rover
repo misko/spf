@@ -624,12 +624,18 @@ cmd_ardupilot() {
             # Read-only listener. ardu_cli refuses a direct serial link while
             # mavlink_controller.service owns it, so no guard is needed here.
             exec "$(venv_python)" "${REPO_ROOT}/spf/ardupilot/ardu_cli.py" rc "$@" ;;
+        calibrate)
+            exec "$(venv_python)" "${REPO_ROOT}/spf/ardupilot/ardu_cli.py" calibrate "$@" ;;
+        reboot)
+            exec "$(venv_python)" "${REPO_ROOT}/spf/ardupilot/ardu_cli.py" reboot "$@" ;;
         ""|-h|--help)
             group_usage ardupilot \
                 "subcommands:" \
                 "  prearm       report pre-arm health and every failing check" \
                 "  compass      verify the compass policy (which slots are used for yaw)" \
                 "  rc           echo what the FC hears from the radio — bind/switch debugging" \
+                "  calibrate    EVERYTHING a mission needs: accel+gyro, reboot, compass, verify" \
+                "  reboot       reboot the flight controller and wait for it to come back" \
                 "  motor-test   spin the motors at a throttle ladder — WHEELS MUST BE RAISED" \
                 "  flash        flash ArduPilot firmware to the flight controller"
             ;;

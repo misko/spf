@@ -1228,6 +1228,209 @@ def command_rc(args: argparse.Namespace) -> int:
     return 0
 
 
+def send_fc_reboot(connection) -> None:
+    """Ask the flight controller to reboot (param1=1, autopilot reboot)."""
+    connection.mav.command_long_send(
+        connection.target_system,
+        connection.target_component,
+        mavutil.mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+
+
+def reboot_flight_controller(
+    args: argparse.Namespace,
+    connection,
+    *,
+    settle_s: float,
+    timeout_s: float,
+    output_fn=print,
+    sleep_fn=time.sleep,
+    connect_fn=None,
+):
+    """Reboot the FC and return a fresh, heartbeat-verified connection.
+
+    Accel offsets do not take effect until the flight controller restarts, so a
+    magcal run before this reboot fits against the pre-calibration attitude --
+    exactly the error that calibrating accel-before-compass exists to avoid.
+
+    Fails closed. If the FC does not come back within ``timeout_s`` this raises
+    rather than returning a connection, because the alternative is running a
+    calibration against a half-booted vehicle.
+    """
+    connect_fn = connect_fn or _connect
+    output_fn("  rebooting the flight controller...")
+    send_fc_reboot(connection)
+    # No ACK is expected: a rebooting FC stops talking mid-command.
+    try:
+        connection.close()
+    except Exception:
+        pass
+
+    sleep_fn(settle_s)
+    deadline = time.monotonic() + timeout_s
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            new_connection, heartbeat, _master = connect_fn(args)
+        except Exception as error:  # transport not back yet
+            last_error = error
+            sleep_fn(1.0)
+            continue
+        if heartbeat is not None:
+            output_fn("  flight controller is back")
+            return new_connection
+        try:
+            new_connection.close()
+        except Exception:
+            pass
+        sleep_fn(1.0)
+    raise CliError(
+        f"flight controller did not return within {timeout_s:.0f}s of the reboot"
+        + (f" (last error: {last_error})" if last_error else "")
+        + ". Refusing to continue calibrating against an unverified vehicle."
+    )
+
+
+def command_reboot(args: argparse.Namespace) -> int:
+    if not args.yes:
+        raise CliError(
+            "reboot restarts the flight controller; repeat with --yes after "
+            "making the disarmed rover physically safe"
+        )
+    connection, heartbeat, master = _connect(args)
+    if _armed(heartbeat):
+        raise CliError("vehicle is armed; refusing to reboot the flight controller")
+    print(f"Connected to {master}")
+    connection = reboot_flight_controller(
+        args, connection, settle_s=args.settle, timeout_s=args.reboot_timeout
+    )
+    try:
+        connection.close()
+    except Exception:
+        pass
+    print("PASS: flight controller rebooted and is responding.")
+    return 0
+
+
+def command_calibrate(args: argparse.Namespace) -> int:
+    """The full mission-required calibration, in the only order that is correct.
+
+    accel (+gyro) -> reboot -> compass -> prearm verify.
+
+    Base parameters and SYSID_THISMAV are deliberately absent: drone_run.sh
+    force-loads them on every boot, so calibrating them here would be redundant.
+    RC calibration is absent for a stronger reason -- the same boot sync
+    force-writes RC1-16 MIN/MAX/TRIM from rover3_rc_servo_parameters.params, so
+    any RC calibration is reverted at the next boot.
+    """
+    if not args.yes:
+        raise CliError(
+            "calibrate changes flight-controller calibration state and reboots "
+            "it; repeat with --yes once the disarmed rover is physically safe "
+            "and you can pick it up and rotate it"
+        )
+    if args.json or args.json_output:
+        raise CliError("interactive calibration does not support JSON output")
+
+    connection, heartbeat, master = _connect(args)
+    if _armed(heartbeat):
+        raise CliError("vehicle is armed; refusing to calibrate")
+
+    print(f"Connected to {master}")
+    print(
+        "\nThis runs the full mission-required calibration:\n"
+        "  1. accelerometer + gyro  (six poses, you will be prompted)\n"
+        "  2. flight-controller reboot  (accel offsets take effect here)\n"
+        "  3. compass / magcal  (rotate the rover through all axes)\n"
+        "  4. pre-arm verification\n"
+    )
+
+    print("== 1/4  accelerometer + gyro ==")
+    _print_accelcal_pose_plan()
+    accel = run_accelcal(
+        connection,
+        command_timeout_s=args.command_timeout,
+        pose_timeout_s=args.pose_timeout,
+        result_timeout_s=args.result_timeout,
+    )
+    if not accel["success"]:
+        print(f"FAIL: accelerometer calibration failed: {accel['failure']}")
+        return 1
+    print("  accelerometer calibration saved\n")
+
+    print("== 2/4  reboot ==")
+    connection = reboot_flight_controller(
+        args, connection, settle_s=args.settle, timeout_s=args.reboot_timeout
+    )
+    print()
+
+    print("== 3/4  compass / magcal ==")
+    print(
+        "  Rotate the rover slowly through every axis: level spin, nose up,\n"
+        "  nose down, on each side, and inverted. Keep away from metal.\n"
+    )
+    send_magcal_command(connection, "start", mask=0, retry=False, autosave=True)
+    ack = _wait_command_ack(
+        connection, MAGCAL_COMMANDS["start"], args.command_timeout
+    )
+    if ack is None:
+        raise CliError("no COMMAND_ACK received for magcal start")
+    if int(ack.result) not in ACCELCAL_ACCEPTED_RESULTS:
+        print(f"FAIL: magcal start rejected: {_mav_result_name(int(ack.result))}")
+        return 1
+
+    events = monitor_magcal(
+        connection,
+        args.magcal_timeout,
+        on_event=_print_magcal_event,
+    )
+    reports = [
+        event for event in events if event.get("message_type") == "MAG_CAL_REPORT"
+    ]
+    if not reports:
+        print(
+            f"\nFAIL: no MAG_CAL_REPORT within {args.magcal_timeout:.0f}s. "
+            "The compass is NOT calibrated."
+        )
+        return 1
+    failed = [
+        report
+        for report in reports
+        if report.get("cal_status_name") != "MAG_CAL_SUCCESS"
+    ]
+    if failed:
+        statuses = ", ".join(
+            str(report.get("cal_status_name")) for report in failed
+        )
+        print(f"\nFAIL: compass calibration did not succeed: {statuses}")
+        return 1
+    print("  compass calibration saved (autosave)\n")
+
+    print("== 4/4  pre-arm verification ==")
+    connection = reboot_flight_controller(
+        args, connection, settle_s=args.settle, timeout_s=args.reboot_timeout
+    )
+    result = run_prearm_checks(connection, timeout_s=args.prearm_timeout)
+    try:
+        connection.close()
+    except Exception:
+        pass
+    if not result.passed:
+        print("\nFAIL: calibration completed but the rover does not pass pre-arm.")
+        print("  Inspect with: rover ardupilot prearm")
+        return 1
+    print("\nPASS: accelerometer, gyro and compass calibrated; pre-arm is clean.")
+    return 0
+
+
 def _add_connection_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--master",
@@ -1289,6 +1492,38 @@ def get_parser() -> argparse.ArgumentParser:
         help="Confirm persistent writes requested by --repair.",
     )
     compass.set_defaults(handler=command_compass)
+
+    reboot = subparsers.add_parser(
+        "reboot", help="Reboot the flight controller and wait for it to return."
+    )
+    _add_connection_options(reboot)
+    reboot.add_argument("--yes", action="store_true")
+    reboot.add_argument("--settle", type=float, default=2.0)
+    reboot.add_argument("--reboot-timeout", type=float, default=60.0)
+    reboot.set_defaults(handler=command_reboot)
+
+    calibrate = subparsers.add_parser(
+        "calibrate",
+        help=(
+            "Full mission calibration in the correct order: "
+            "accel+gyro, reboot, compass, pre-arm verify."
+        ),
+    )
+    _add_connection_options(calibrate)
+    calibrate.add_argument("--yes", action="store_true")
+    calibrate.add_argument("--command-timeout", type=float, default=10.0)
+    calibrate.add_argument("--pose-timeout", type=float, default=120.0)
+    calibrate.add_argument("--result-timeout", type=float, default=60.0)
+    calibrate.add_argument("--settle", type=float, default=2.0)
+    calibrate.add_argument("--reboot-timeout", type=float, default=60.0)
+    calibrate.add_argument(
+        "--magcal-timeout",
+        type=float,
+        default=300.0,
+        help="Ceiling on compass calibration; a terminal report exits early.",
+    )
+    calibrate.add_argument("--prearm-timeout", type=float, default=30.0)
+    calibrate.set_defaults(handler=command_calibrate)
 
     rc = subparsers.add_parser(
         "rc",
