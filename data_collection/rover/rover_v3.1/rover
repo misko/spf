@@ -8,12 +8,15 @@
 # on rover 1 while sitting ten commits behind main. Because the symlink points
 # into the tree, `git pull` updates the CLI along with everything else.
 #
-#   rover doctor      one-screen health check (git, services, hardware, disk)
-#   rover audit       read-only fleet fingerprint (audit_rover.sh)
-#   rover version     what this checkout is
-#   rover install     create /usr/local/bin/rover (needs sudo)
+#   rover doctor              one-screen health check
+#   rover ardupilot <sub>      prearm, compass, motor-test, flash
+#   rover radio <sub>          status, firmware, preflight, capture
+#   rover sitl <sub>           status, up, down  (base station only)
+#   rover audit | version | install
 #
-# Subcommand groups — ardupilot / radio / sitl — arrive in later phases.
+# The groups dispatch to the existing scripts unchanged -- this is a front
+# door, not a rewrite, so every script stays directly callable and rovers
+# 1/2/3 boot from main exactly as before.
 #
 # This dispatcher is bash, not Python, so that `rover doctor` still runs on a
 # half-provisioned rover whose virtualenv is missing or broken. Diagnosing that
@@ -32,11 +35,15 @@ INSTALL_PATH="${SPF_ROVER_CLI_PATH:-/usr/local/bin/rover}"
 READY_MANIFEST="${SPF_DIRECT_USB_READY_FILE:-/run/spf/direct_usb_ready.json}"
 # ADALM-PLUTO / PlutoPlus USB id, as reported by lsusb on rovers 1 and 2.
 PLUTO_USB_ID="${SPF_PLUTO_USB_ID:-0456:b673}"
+# The sim runs on the base station, never on a rover (ROVER_RUNBOOK §6).
+SITL_HOST="${SPF_SITL_HOST:-192.168.1.141}"
+SITL_IMAGE="${SPF_SITL_IMAGE:-csmisko/ardupilotspf:latest}"
+SITL_PORTS="14590 14591 14592"
 
 # Every operator-facing subcommand, in help order. tests/test_rover_cli.py
 # reads this list and asserts each entry both dispatches and answers --help,
 # so a subcommand cannot be documented without working, or work unlisted.
-SUBCOMMANDS=(doctor audit version install help)
+SUBCOMMANDS=(doctor ardupilot radio sitl audit version install help)
 
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
@@ -53,6 +60,9 @@ usage: rover <command> [options]
 
 commands:
   doctor      one-screen health check: git state, services, hardware, disk
+  ardupilot   flight controller: prearm, compass, motor-test, flash  (alias: ap)
+  radio       Plutos: status, firmware, preflight, capture
+  sitl        simulator on the base station: status, up, down
   audit       read-only fleet fingerprint (identity.* vs fleet.* drift)
   version     what this checkout is, and whether it matches main
   install     symlink this CLI to ${INSTALL_PATH} (needs sudo)
@@ -280,6 +290,141 @@ including over ssh. A symlink, not a copy, so git pull updates it."; return 0; }
     printf '\n'
 }
 
+# ------------------------------------------------------------------- venv ---
+
+# Resolve the interpreter rather than advising about it. Every wrapped Python
+# script currently fails with its own "use the SPF virtualenv" message, which
+# tells the operator what went wrong but still makes them fix it by hand.
+venv_python() {
+    local interpreter="${VENV}/bin/python3"
+    [[ -x "$interpreter" ]] ||
+        die "virtualenv python missing: ${interpreter}
+  Rebuild it with: sudo ./provision_rover.sh \$(rover version) --stage base"
+    printf '%s' "$interpreter"
+}
+
+group_usage() {
+    local group="$1"; shift
+    printf 'usage: rover %s <subcommand> [options]\n\n' "$group"
+    printf '%s\n' "$@"
+    printf "\nRun 'rover %s <subcommand> --help' for that subcommand's own options.\n" "$group"
+}
+
+# -------------------------------------------------------------- ardupilot ---
+
+cmd_ardupilot() {
+    local action="${1:-}"; shift || true
+    case "$action" in
+        prearm)
+            exec bash "${ROVER_DIR}/check_ardupilot_prearm.sh" "$@" ;;
+        compass)
+            exec bash "${ROVER_DIR}/check_compass_policy.sh" "$@" ;;
+        motor-test)
+            require_rover_id >/dev/null
+            exec "$(venv_python)" "${ROVER_DIR}/run_motor_test.py" "$@" ;;
+        flash)
+            exec bash "${ROVER_DIR}/flash_ardupilot.sh" "$@" ;;
+        ""|-h|--help)
+            group_usage ardupilot \
+                "subcommands:" \
+                "  prearm       report pre-arm health and every failing check" \
+                "  compass      verify the compass policy (which slots are used for yaw)" \
+                "  motor-test   spin the motors at a throttle ladder — WHEELS MUST BE RAISED" \
+                "  flash        flash ArduPilot firmware to the flight controller"
+            ;;
+        *) die "unknown ardupilot subcommand: ${action} (try: rover ardupilot --help)" ;;
+    esac
+}
+
+# ------------------------------------------------------------------ radio ---
+
+cmd_radio() {
+    local action="${1:-}"; shift || true
+    case "$action" in
+        firmware)
+            # Mounts each Pluto's updater volume, so it genuinely needs root.
+            [[ $EUID -eq 0 ]] || die "'rover radio firmware' must run as root: sudo rover radio firmware"
+            exec bash "${ROVER_DIR}/check_pluto_firmware.sh" "$@" ;;
+        preflight)
+            require_rover_id >/dev/null
+            exec bash "${ROVER_DIR}/run_direct_usb_boot_preflight.sh" "$@" ;;
+        capture)
+            require_rover_id >/dev/null
+            exec bash "${ROVER_DIR}/drone_run.sh" "$@" ;;
+        status)
+            head_ "radios"; report_hardware; printf '\n' ;;
+        ""|-h|--help)
+            group_usage radio \
+                "subcommands:" \
+                "  status       attached Plutos and ready-manifest state (read-only)" \
+                "  firmware     running firmware per radio, by USB serial (needs sudo)" \
+                "  preflight    one motion-free production-shaped capture after boot" \
+                "  capture      the production boot launcher (drone_run.sh)"
+            ;;
+        *) die "unknown radio subcommand: ${action} (try: rover radio --help)" ;;
+    esac
+}
+
+# ------------------------------------------------------------------- sitl ---
+
+cmd_sitl() {
+    local action="${1:-}"; shift || true
+
+    # The sim runs on the base station, never on a rover: no arm64 image is
+    # built, and the rover dials out to .141 instead. Refusing here is cheaper
+    # than a confusing docker pull failure on a Pi.
+    if [[ -n "$(rover_id)" && "$action" != "" && "$action" != "-h" && "$action" != "--help" ]]; then
+        die "SITL runs on the base station (${SITL_HOST}), never on a rover.
+  This is roverpi$(rover_id). The rover dials out to the sim; see ROVER_RUNBOOK §6."
+    fi
+
+    case "$action" in
+        status)
+            head_ "sitl"
+            note "host  : ${SITL_HOST}"
+            note "image : ${SITL_IMAGE}"
+            local containers
+            containers="$(docker ps --filter "ancestor=${SITL_IMAGE}" --format '{{.ID}} {{.Status}}' 2>/dev/null || true)"
+            if [[ -n "$containers" ]]; then ok "sim running: ${containers}"; else note "no sim container running"; fi
+            # CI shares this box and binds 14590/14591 on every push, so a
+            # collision is the normal failure, not an exotic one.
+            local busy=0 port
+            for port in $SITL_PORTS; do
+                if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
+                    bad "port ${port} is already bound — CI or another sim owns it"
+                    busy=1
+                fi
+            done
+            [[ "$busy" -eq 0 ]] && ok "ports ${SITL_PORTS// /, } are free"
+            printf '\n' ;;
+        up)
+            command -v docker >/dev/null || die "docker is not installed on this host"
+            local spawn="${SPF_SITL_SPAWN:-37.76509485,-122.40940127,0,0}"
+            printf '\n  launching sim (Ctrl-C to stop); wait for "Detected vehicle"\n\n'
+            exec docker run --rm -it -p 14590-14595:14590-14595 "$SITL_IMAGE" \
+                /ardupilot/Tools/autotest/sim_vehicle.py \
+                -l "$spawn" -v rover -f rover-skid \
+                --out tcpin:0.0.0.0:14590 --out tcpin:0.0.0.0:14591 -S 1 "$@" ;;
+        down)
+            local ids
+            ids="$(docker ps -q --filter "ancestor=${SITL_IMAGE}" 2>/dev/null || true)"
+            [[ -n "$ids" ]] || { note "no sim container running"; return 0; }
+            docker stop $ids >/dev/null && ok "stopped: ${ids}" ;;
+        ""|-h|--help)
+            group_usage sitl \
+                "Runs on the base station (${SITL_HOST}), never on a rover." \
+                "" \
+                "subcommands:" \
+                "  status   is a sim running, and are 14590/14591 free of CI?" \
+                "  up       launch the sim (foreground; Ctrl-C to stop)" \
+                "  down     stop any running sim container" \
+                "" \
+                "env: SPF_SITL_SPAWN=lat,lon,alt,heading  (default: SF / Crissy Field)"
+            ;;
+        *) die "unknown sitl subcommand: ${action} (try: rover sitl --help)" ;;
+    esac
+}
+
 # ---------------------------------------------------------------- dispatch ---
 
 main() {
@@ -287,6 +432,9 @@ main() {
     local command="$1"; shift
     case "$command" in
         doctor)          cmd_doctor "$@" ;;
+        ardupilot|ap)    cmd_ardupilot "$@" ;;
+        radio)           cmd_radio "$@" ;;
+        sitl)            cmd_sitl "$@" ;;
         audit)           cmd_audit "$@" ;;
         version)         cmd_version "$@" ;;
         install)         cmd_install "$@" ;;

@@ -200,20 +200,20 @@ SCRIPT_DISPOSITION = {
     # reachable from the CLI today
     "rover": "cli",
     "audit_rover.sh": "exposed",
-    # planned front doors, by phase
-    "check_ardupilot_prearm.sh": "phase2-ardupilot",
-    "check_compass_policy.sh": "phase2-ardupilot",
-    "flash_ardupilot.sh": "phase2-ardupilot",
-    "run_motor_test.py": "phase2-ardupilot",
-    "mavlink_set_guided_mode.py": "phase2-ardupilot",
-    "check_pluto_firmware.sh": "phase3-radio",
-    "check_and_set_pluto.sh": "phase3-radio",
-    "ensure_pluto_qspi.sh": "phase3-radio",
-    "prepare_direct_usb_boot.sh": "phase3-radio",
-    "load_direct_usb_firmware.sh": "phase3-radio",
-    "configure_direct_usb_boot.sh": "phase3-radio",
-    "run_direct_usb_boot_preflight.sh": "phase3-radio",
-    "drone_run.sh": "phase3-radio",
+    # fronted by `rover ardupilot ...` and `rover radio ...`
+    "check_ardupilot_prearm.sh": "exposed",
+    "check_compass_policy.sh": "exposed",
+    "flash_ardupilot.sh": "exposed",
+    "run_motor_test.py": "exposed",
+    "mavlink_set_guided_mode.py": "utility",
+    "check_pluto_firmware.sh": "exposed",
+    "check_and_set_pluto.sh": "internal",
+    "ensure_pluto_qspi.sh": "internal",
+    "prepare_direct_usb_boot.sh": "internal",
+    "load_direct_usb_firmware.sh": "internal",
+    "configure_direct_usb_boot.sh": "internal",
+    "run_direct_usb_boot_preflight.sh": "exposed",
+    "drone_run.sh": "exposed",
     # provisioning: deliberately NOT behind the CLI. These run once, as root,
     # on a machine that may not have a working CLI yet.
     "provision_rover.sh": "provisioning",
@@ -238,6 +238,42 @@ SCRIPT_DISPOSITION = {
     "telem.sh": "utility",
     "debug_drone_run.sh": "utility",
 }
+
+
+GROUPS = ("ardupilot", "radio", "sitl")
+
+
+@pytest.mark.parametrize("group", GROUPS)
+def test_group_help_lists_subcommands(group: str):
+    result = run_cli(group, "--help")
+    assert result.returncode == 0, result.stderr
+    assert f"usage: rover {group}" in result.stdout
+
+
+@pytest.mark.parametrize("group", GROUPS)
+def test_group_rejects_unknown_subcommand(group: str):
+    result = run_cli(group, "not-a-subcommand")
+    assert result.returncode != 0
+    assert "unknown" in result.stderr
+
+
+def test_ardupilot_alias_ap_works():
+    result = run_cli("ap", "--help")
+    assert result.returncode == 0
+    assert "usage: rover ardupilot" in result.stdout
+
+
+def test_exposed_scripts_are_actually_reachable_from_the_cli():
+    """A disposition of 'exposed' must mean the CLI really dispatches to it.
+
+    Without this the table is a comment: someone could mark a script exposed,
+    never wire it, and the guard would still pass.
+    """
+    cli_source = CLI.read_text()
+    exposed = [n for n, d in SCRIPT_DISPOSITION.items() if d == "exposed"]
+    assert exposed, "expected some scripts to be exposed"
+    unreachable = [name for name in exposed if name not in cli_source]
+    assert not unreachable, f"marked 'exposed' but never dispatched to: {unreachable}"
 
 
 def test_every_script_has_a_cli_disposition():
