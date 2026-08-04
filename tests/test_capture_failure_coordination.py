@@ -10,7 +10,11 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from spf.mavlink.mavlink_controller import Drone, MavlinkConnectionError
+from spf.mavlink.mavlink_controller import (
+    MOVE_ABORTED,
+    Drone,
+    MavlinkConnectionError,
+)
 
 
 def _moving_drone() -> Drone:
@@ -48,7 +52,9 @@ def test_capture_failure_interrupts_an_active_waypoint_and_enters_hold():
     moving.join(timeout=1.0)
 
     assert not moving.is_alive()
-    assert result == [False]
+    # move_to_point reports an outcome rather than a bool: a waypoint skipped
+    # by stall recovery must not read the same as an aborted capture.
+    assert result == [MOVE_ABORTED]
     assert drone.planner_should_move is False
     drone.set_mode.assert_called_once_with("HOLD")
 

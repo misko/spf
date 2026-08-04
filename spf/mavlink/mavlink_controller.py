@@ -197,6 +197,47 @@ RC_ULTRASONIC_HIGH_THRESHOLD = 1500
 RC_ULTRASONIC_STABLE_SAMPLES = 3
 RC_ULTRASONIC_MAX_SAMPLE_GAP_SECONDS = 1.5
 
+# Stall detection. The rover can high-center or jam a wheel while driving a
+# GUIDED waypoint; ATC_SPEED_I then winds up and the throttle pins at 100%
+# until someone pulls the battery. The invariant is deliberately displacement
+# from an anchor rather than distance-to-target: with TURN_RADIUS 5.0 the rover
+# can arc for over twenty seconds without closing on its target, and that is
+# healthy driving, not a stall.
+STALL_PROGRESS_RADIUS_M = 3.0  # displacement that counts as "it moved"
+STALL_DETECT_SECONDS = 10.0  # no progress for this long == stalled
+STALL_MANUAL_SECONDS = 40.0  # recovery only: give up, hand to the operator
+# Leg length, both reverse and lateral. MUST exceed WP_RADIUS (5.0 in
+# rover3_base_parameters.params) or the maneuver silently does nothing:
+# ArduPilot judges arrival on WP_RADIUS, so a target 3 m away is already
+# "reached" the moment it is issued, and the rover never drives the leg. Found
+# in SITL, where the escape produced only small steering corrections
+# (servo1=1502, servo3=1487) instead of the pegged reverse output expected.
+STALL_ESCAPE_DISTANCE_M = 8.0
+STALL_ESCAPE_DRIVE_SECONDS = 4.0  # hard bound per leg
+STALL_ESCAPE_SETTLE_SECONDS = 1.0  # HOLD between legs, so the firmware resets I
+STALL_AXIS_MIN_M = 0.5  # shortest usable stall->reverse axis
+STALL_MAX_ESCAPES = 3  # escapes without real recovery before handing over
+# Displacement that clears the escape count, i.e. proof the rover recovered
+# under its OWN power. Deliberately far beyond what an escape can produce
+# (one leg is STALL_ESCAPE_DISTANCE_M): that is what keeps the reset
+# non-circular. Resetting on the progress radius instead would let each
+# escape clear its own count, which is no cap at all.
+STALL_RECOVERED_M = 3 * STALL_ESCAPE_DISTANCE_M
+STALL_MANUAL_ATTEMPTS = 3  # set_mode("MANUAL") retries before giving up loudly
+STALL_MANUAL_RETRY_SECONDS = 2.0
+
+# _stall_verdict outcomes.
+STALL_OK = "ok"
+STALL_ESCAPE = "escape"
+STALL_MANUAL = "manual"
+
+# move_to_point outcomes. Three states rather than a bool: a skipped waypoint
+# must not be confused with an aborted capture, since the planner continues in
+# the first case and stops in the second.
+MOVE_REACHED = "reached"
+MOVE_SKIPPED = "skipped"
+MOVE_ABORTED = "aborted"
+
 
 class _RCHoldInterlock:
     """Debounce a destructive RC action and require an intentional release."""
@@ -474,6 +515,26 @@ def meters_to_degrees(east_m, north_m, latitude_deg):
     return np.array([east_m / m_per_deg_long, north_m / m_per_deg_lat])
 
 
+def degrees_to_meters(dlong, dlat, latitude_deg):
+    """Convert a (dlong, dlat) degree offset to (East, North) metres.
+
+    The exact inverse of meters_to_degrees. Needed because a bearing cannot be
+    rotated in degree-space: longitude degrees shrink by cos(latitude), so at
+    the SPF sites (~37.8 deg) a 90-degree rotation applied to a (dlong, dlat)
+    pair comes out up to ~15 degrees off. Convert to metres, rotate there,
+    convert back.
+    """
+    m_per_deg_lat = (np.pi / 180.0) * EARTH_RADIUS_M
+    m_per_deg_long = m_per_deg_lat * np.cos(np.radians(latitude_deg))
+    return np.array([dlong * m_per_deg_long, dlat * m_per_deg_lat])
+
+
+def bearing_to_unit_vector(bearing_deg):
+    """Compass bearing (degrees, clockwise from North) to an (East, North) unit."""
+    radians = np.radians(bearing_deg)
+    return np.array([np.sin(radians), np.cos(radians)])
+
+
 def rest_offset_to_degrees(rest_offset_m, boundary):
     """Per-rover resting offset in degrees, or None when unconfigured.
 
@@ -592,6 +653,11 @@ class Drone:
         reconnect_attempts=DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
         reconnect_backoff=DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
         reconnect_heartbeat_timeout=DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+        crash_detect=True,
+        crash_recovery=False,
+        stall_detect_seconds=STALL_DETECT_SECONDS,
+        stall_manual_seconds=STALL_MANUAL_SECONDS,
+        stall_progress_radius_m=STALL_PROGRESS_RADIUS_M,
     ):
         self.connection = connection
         self.connection_factory = connection_factory
@@ -628,6 +694,12 @@ class Drone:
         )
 
         self.motor_active = False
+        self.crash_detect = crash_detect
+        self.crash_recovery = crash_recovery
+        self.stall_detect_seconds = float(stall_detect_seconds)
+        self.stall_manual_seconds = float(stall_manual_seconds)
+        self.stall_progress_radius_m = float(stall_progress_radius_m)
+        self._initialize_stall_state()
         self._initialize_motion_stop_state()
         self._rc_shutdown_interlock = _RCHoldInterlock(
             threshold=RC_SHUTDOWN_THRESHOLD,
@@ -1021,13 +1093,321 @@ class Drone:
                 return False
             time.sleep(min(0.1, remaining))
 
+    # ------------------------------------------------------------- stall ---
+    #
+    # Detection is unconditional and identical in every configuration; the
+    # crash_recovery flag only decides what happens after a stall is detected.
+    # Detection is safe everywhere -- its worst outcome is handing a working
+    # rover to a human -- while autonomous reversing is not, so that stays
+    # opt-in per rover.
+
+    def _initialize_stall_state(self):
+        self._stall_anchor = None
+        self._stall_anchor_at = None
+        self._stall_last_escape_at = None
+        self._stall_escape_left = True
+        self._stall_escapes = 0
+
+    def _stall_radius(self):
+        return getattr(self, "stall_progress_radius_m", STALL_PROGRESS_RADIUS_M)
+
+    def _reset_stall_anchor(self, now=None):
+        """Re-anchor at the current position; the stall clock restarts here."""
+
+        self._stall_anchor = self.gps
+        self._stall_anchor_at = time.monotonic() if now is None else now
+        self._stall_last_escape_at = None
+
+    def _stall_verdict(self):
+        """OK / ESCAPE / MANUAL for the current position and elapsed time.
+
+        The anchor is reset ONLY by real motion, never merely by attempting a
+        recovery -- that is what makes "stuck in reverse too" safe: a maneuver
+        that moves the rover nowhere leaves the clock untouched.
+
+        But the clock alone is not sufficient, and assuming it was cost a
+        contract violation. An escape that DOES shift the rover a metre resets
+        the anchor, which defers the escalation the escape is supposed to lead
+        to -- so a rover creeping a metre per attempt escapes forever and never
+        reaches the operator, while the runbook promised three attempts then
+        MANUAL. Hence STALL_MAX_ESCAPES, counted since the last waypoint
+        actually REACHED (see move_to_point) rather than since the last anchor
+        reset; counting the latter would be circular, because the escape is
+        what moves the anchor.
+        """
+
+        # getattr throughout, matching the _rc_shutdown_interlock pattern: a
+        # reconnected or hand-built Drone must not crash the motion loop over a
+        # missing attribute.
+        if not getattr(self, "crash_detect", True):
+            return STALL_OK
+        if not hasattr(self, "_stall_anchor"):
+            self._initialize_stall_state()
+        detect_seconds = getattr(self, "stall_detect_seconds", STALL_DETECT_SECONDS)
+        manual_seconds = getattr(self, "stall_manual_seconds", STALL_MANUAL_SECONDS)
+        radius_m = getattr(
+            self, "stall_progress_radius_m", STALL_PROGRESS_RADIUS_M
+        )
+
+        driving = (
+            self.armed and self.motor_active and self.mav_mode == "ROVER_MODE_GUIDED"
+        )
+        if not driving:
+            self._reset_stall_anchor()
+            return STALL_OK
+
+        now = time.monotonic()
+        if self._stall_anchor is None or self._stall_anchor_at is None:
+            self._reset_stall_anchor(now=now)
+            return STALL_OK
+        travelled = self.distance_to_target(self._stall_anchor)
+        if travelled > radius_m:
+            if travelled > STALL_RECOVERED_M:
+                # Further than any escape could have shoved it, so the rover is
+                # genuinely under way again and has earned a clean slate.
+                self._stall_escapes = 0
+            self._reset_stall_anchor(now=now)
+            return STALL_OK
+
+        stalled_seconds = now - self._stall_anchor_at
+        if stalled_seconds < detect_seconds:
+            return STALL_OK
+        if not getattr(self, "crash_recovery", False):
+            return STALL_MANUAL
+        if stalled_seconds >= manual_seconds:
+            return STALL_MANUAL
+        if getattr(self, "_stall_escapes", 0) >= STALL_MAX_ESCAPES:
+            return STALL_MANUAL
+        if (
+            self._stall_last_escape_at is None
+            or now - self._stall_last_escape_at >= detect_seconds
+        ):
+            self._stall_last_escape_at = now
+            return STALL_ESCAPE
+        return STALL_OK
+
+    def stalled_seconds(self):
+        if getattr(self, "_stall_anchor_at", None) is None:
+            return 0.0
+        return time.monotonic() - self._stall_anchor_at
+
+    def reverse(self, reversed_travel):
+        """Tell the waypoint navigator to drive to destinations backwards.
+
+        MAV_CMD_DO_SET_REVERSE is a command, not a parameter -- Rover routes it
+        to Mode::set_reversed() -> AR_WPNav, a runtime flag with no EEPROM
+        backing. Mode::enter() clears it on every mode change, but within a
+        mode it persists, so callers must clear it on every exit path or the
+        next leg is driven backwards.
+        """
+
+        with self._command_connection() as connection:
+            connection.mav.command_long_send(
+                connection.target_system,
+                connection.target_component,
+                mavutil.mavlink.MAV_CMD_DO_SET_REVERSE,
+                0,
+                1 if reversed_travel else 0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
+
+    def status_text(self, text, severity=mavutil.mavlink.MAV_SEVERITY_WARNING):
+        """Surface a decision to any attached GCS, not just the Pi's log file.
+
+        Never raises: a missing GCS must not break motion control.
+        """
+
+        try:
+            with self._command_connection() as connection:
+                connection.mav.statustext_send(severity, text[:50].encode())
+        except Exception as error:  # pragma: no cover - best effort only
+            logging.debug("statustext_send failed: %s", error)
+
+    def _wait_for_escape_progress(self, deadline_seconds):
+        """Drive a leg until it covers ground or runs out of time.
+
+        Time-bounded rather than success-checked, on purpose: a leg that moves
+        the rover nothing simply leaves the stall clock running.
+        """
+
+        deadline = time.monotonic() + deadline_seconds
+        while time.monotonic() < deadline:
+            self.raise_if_connection_failed()
+            if self._motion_stop_requested.is_set():
+                return False
+            if self.distance_to_target(self._stall_anchor) > self._stall_radius():
+                return True
+            time.sleep(0.1)
+        return False
+
+    def _escape_jam(self):
+        """Back out of a jam, then step off the axis we backed out along.
+
+        Leg 1 reverses STALL_ESCAPE_DISTANCE_M. Leg 2 aims the same distance
+        perpendicular to the MEASURED stall->reverse axis rather than to the
+        compass heading, so it reflects the displacement actually achieved.
+        Returns False only if a capture abort landed mid-maneuver.
+        """
+
+        stall_point = self.gps
+        stalled = self.stalled_seconds()
+        self._stall_escapes = getattr(self, "_stall_escapes", 0) + 1
+        logging.warning(
+            "STALL: no progress for %.0fs at %s; reversing out"
+            " (attempt %d/%d, side=%s)",
+            stalled,
+            str(stall_point),
+            self._stall_escapes,
+            STALL_MAX_ESCAPES,
+            "left" if self._stall_escape_left else "right",
+        )
+        self.status_text(f"STALL {stalled:.0f}s: reversing out")
+
+        try:
+            self.reverse(True)
+            behind = stall_point + meters_to_degrees(
+                *(
+                    STALL_ESCAPE_DISTANCE_M
+                    * bearing_to_unit_vector(self.heading + 180)
+                ),
+                stall_point[1],
+            )
+            self.reposition(lat=behind[1], long=behind[0])
+            if not self._wait_for_escape_progress(STALL_ESCAPE_DRIVE_SECONDS):
+                if self._motion_stop_requested.is_set():
+                    return False
+        finally:
+            # Unconditional: leaving the flag set would drive the entire next
+            # leg backwards. The HOLD is not cosmetic either -- after reversing
+            # the speed integrator sits well negative and would fight the next
+            # forward command, and get_throttle_out_speed() resets it for free
+            # once speed control goes inactive.
+            self.reverse(False)
+            self.set_mode("HOLD")
+            time.sleep(STALL_ESCAPE_SETTLE_SECONDS)
+            # GUIDED must come back, and this is not optional bookkeeping. In
+            # HOLD the vehicle ignores guided targets, so leaving it there makes
+            # the lateral leg a no-op, makes every later reposition a no-op, and
+            # -- worst -- fails _stall_verdict's GUIDED gate, which resets the
+            # anchor and puts MANUAL permanently out of reach. The maneuver would
+            # disable itself after one attempt and park the rover. Observed in
+            # SITL as mode timelines ending [..., 'GUIDED', 'HOLD'] with faint
+            # forward output (servo1=1503, servo3=1504) instead of reverse.
+            self.set_mode("GUIDED")
+
+        reverse_point = self.gps
+        if self.distance_to_target(self._stall_anchor) > self._stall_radius():
+            logging.warning("STALL: reversing freed the rover; skipping lateral leg")
+            return True
+
+        offset_m = degrees_to_meters(*(reverse_point - stall_point), reverse_point[1])
+        axis_m = float(np.linalg.norm(offset_m))
+        if axis_m >= STALL_AXIS_MIN_M:
+            unit = offset_m / axis_m
+        else:
+            # The reverse leg achieved nothing usable, so there is no measured
+            # axis to be orthogonal to; fall back to the heading.
+            unit = bearing_to_unit_vector(self.heading + 180)
+        if self._stall_escape_left:
+            orthogonal = np.array([-unit[1], unit[0]])
+        else:
+            orthogonal = np.array([unit[1], -unit[0]])
+        self._stall_escape_left = not self._stall_escape_left
+
+        lateral = reverse_point + meters_to_degrees(
+            *(STALL_ESCAPE_DISTANCE_M * orthogonal), reverse_point[1]
+        )
+        logging.warning(
+            "STALL: reverse covered %.1fm; stepping %.0fm off that axis to %s",
+            axis_m,
+            STALL_ESCAPE_DISTANCE_M,
+            str(lateral),
+        )
+        self.reposition(lat=lateral[1], long=lateral[0])
+        self._wait_for_escape_progress(STALL_ESCAPE_DRIVE_SECONDS)
+        return not self._motion_stop_requested.is_set()
+
+    def _hand_over_to_manual(self):
+        """Put the rover in MANUAL and wait for the operator to hand it back.
+
+        MODE_CH 8 only re-applies on switch MOVEMENT, so a Pi-set MANUAL
+        persists until a human physically moves CH8 -- that is the interlock.
+        Deliberately does not touch _motion_stop_requested: a stall is not a
+        capture abort and must not send HOLD.
+        """
+
+        stalled = self.stalled_seconds()
+        logging.error(
+            "STALL: no progress for %.0fs at %s; handing control to the operator",
+            stalled,
+            str(self.gps),
+        )
+        self.status_text(
+            f"STALL {stalled:.0f}s: handing to MANUAL",
+            severity=mavutil.mavlink.MAV_SEVERITY_CRITICAL,
+        )
+        self.buzzer(tones["failure"])
+
+        for _ in range(STALL_MANUAL_ATTEMPTS):
+            self.set_mode("MANUAL")
+            time.sleep(STALL_MANUAL_RETRY_SECONDS)
+            if self.mav_mode == "ROVER_MODE_MANUAL":
+                break
+        else:
+            logging.error(
+                "STALL: MANUAL was not confirmed after %d attempts; mode is %s",
+                STALL_MANUAL_ATTEMPTS,
+                self.mav_mode,
+            )
+
+        while self.mav_mode != "ROVER_MODE_GUIDED":
+            self.raise_if_connection_failed()
+            if self._motion_stop_requested.is_set():
+                self._try_enter_abort_hold()
+                return False
+            logging.info(
+                "STALL: waiting for the operator to hand control back (CH8 -> guided)"
+            )
+            self.buzzer(tones["wait"])
+            time.sleep(2)
+
+        if not self.armed:
+            self.arm()
+            time.sleep(0.1)
+        self._reset_stall_anchor()
+        self._stall_escapes = 0
+        logging.info("STALL: operator returned control; resuming")
+        return True
+
+    def _handle_stall(self, verdict):
+        """Apply a stall verdict. Returns the move outcome, or None to carry on."""
+
+        if verdict == STALL_ESCAPE:
+            if not self._escape_jam():
+                return MOVE_ABORTED
+            return MOVE_SKIPPED
+        if verdict == STALL_MANUAL:
+            if not self._hand_over_to_manual():
+                return MOVE_ABORTED
+            return MOVE_SKIPPED
+        return None
+
     def move_to_point(self, point, log_interval=5):
         # logging.info(f"GPS: current position {self.gps} target position {str(point)}")
         self.raise_if_connection_failed()
         if self._motion_stop_requested.is_set():
             self._try_enter_abort_hold()
-            return False
+            return MOVE_ABORTED
         self.reposition(lat=point[1], long=point[0])
+        # The stall anchor is deliberately NOT reset here. It is owned by
+        # _stall_verdict and reset only by real motion, so the clock survives
+        # across the waypoints an escape abandons -- which is what makes the
+        # escalation to MANUAL reachable at all.
         last_message = None
         while self.distance_to_target(point) > self.tolerance_in_m:
             self.raise_if_connection_failed()
@@ -1037,7 +1417,13 @@ class Drone:
                     "Aborted active waypoint after capture failure; target=%s",
                     point,
                 )
-                return False
+                return MOVE_ABORTED
+            # Outside the distance_finder guard below on purpose: the stall
+            # watchdog must work with --no-ultrasonic, unlike the "Are we
+            # sleeping somwehere?" heuristic it supersedes.
+            outcome = self._handle_stall(self._stall_verdict())
+            if outcome is not None:
+                return outcome
             if last_message is None or time.time() - last_message > log_interval:
                 logging.info(
                     f"\tDist (m) to target {str(self.distance_to_target(point))} {self.motor_active} {self.mav_mode}"
@@ -1065,7 +1451,17 @@ class Drone:
                         time.sleep(0.5)
             time.sleep(0.1)
         logging.info(f"\tReached target {str(point)} , current gps {str(self.gps)}")
-        return True
+        # Arriving IS progress, so the clock restarts here -- but note that a
+        # SKIPPED waypoint deliberately does not reset it (see _handle_stall).
+        # That asymmetry is the whole point: without the reset, the slow final
+        # approach plus the stop-and-go of a waypoint transition reads exactly
+        # like a stall and the watchdog fires on a healthy rover (observed in
+        # SITL: "Reached target" then "no progress for 3s" on the next leg).
+        # Without the skip case NOT resetting, escalation to MANUAL could never
+        # be reached, because every abandoned waypoint would buy a fresh window.
+        self._reset_stall_anchor()
+        self._stall_escapes = 0
+        return MOVE_REACHED
 
     def run_planner(self):
         # self.single_operation_mode_on()
@@ -1120,7 +1516,7 @@ class Drone:
                 time.sleep(0.1)
             logging.info("Planner starting to issue move commands...")
 
-            if not self.move_to_point(home):
+            if self.move_to_point(home) == MOVE_ABORTED:
                 self.planner_in_control = False
                 return
             time.sleep(2)
@@ -1141,8 +1537,16 @@ class Drone:
                     time.sleep(0.2)
                 else:
                     point = next_point
-                    if not self.move_to_point(point):
+                    outcome = self.move_to_point(point)
+                    if outcome == MOVE_ABORTED:
                         break
+                    if outcome == MOVE_SKIPPED:
+                        # The rover jammed on this waypoint. Drop one more so
+                        # it does not immediately drive back at whatever it
+                        # just backed out of -- for `bounce` that is a whole
+                        # leg, and for `circle` about a tenth of a lap.
+                        next(yp)
+                        point = None
                 self.planner_in_control = True
                 # time.sleep(2)
 
@@ -1176,11 +1580,23 @@ class Drone:
         # Switch to RTL mode
         # self.set_rtl_mode()
         # logging.info("RTL mode set. Waiting for the drone to reach home...")
-        if not self.move_to_point(self.home):
-            return False
+        # monotonic, not time.time(): GPS time sync moves the wall clock on the
+        # rover (see handle_SYSTEM_TIME), which would corrupt this deadline.
+        deadline = time.monotonic() + max_wait
+        while True:
+            outcome = self.move_to_point(self.home)
+            if outcome == MOVE_ABORTED:
+                return False
+            if outcome == MOVE_REACHED:
+                break
+            # MOVE_SKIPPED: a stall escape or MANUAL handback ran. Unlike the
+            # planner there is no next waypoint to fall through to, so re-issue
+            # home until it is reached or the deadline passes.
+            if time.monotonic() >= deadline:
+                logging.warning("Timed out driving home after a stall recovery.")
+                return False
 
-        start_time = time.time()
-        while time.time() - start_time < max_wait:
+        while time.monotonic() < deadline:
             dist = self.distance_to_target(self.home)
             logging.debug(f"Distance to home: {dist:.2f} meters")
             if dist <= self.tolerance_in_m:

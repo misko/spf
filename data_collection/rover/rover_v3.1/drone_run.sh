@@ -9,7 +9,9 @@ set -euo pipefail
 
 readonly REPO_ROOT="/home/pi/spf"
 readonly SCRIPT_DIR="${REPO_ROOT}/data_collection/rover/rover_v3.1"
-readonly PROFILE_ENV="/etc/spf/rover_collection.env"
+# Overridable so tests can point the profile at a tempdir instead of /etc,
+# mirroring the SPF_ROVER_CONFIG seam the `rover` CLI already provides.
+readonly PROFILE_ENV="${SPF_PROFILE_ENV:-/etc/spf/rover_collection.env}"
 readonly READY_FILE="/run/spf/direct_usb_ready.json"
 readonly DEVICE_MAPPING="/home/pi/device_mapping"
 readonly MAVLINK_CONTROLLER="${REPO_ROOT}/spf/mavlink/mavlink_controller.py"
@@ -59,6 +61,17 @@ fi
 rover_id="$(tr -d '[:space:]' <"$ROVER_ID_FILE")"
 [[ "$rover_id" =~ ^[1-4]$ ]] || die "Unsupported rover_id: ${rover_id}"
 
+# Stall handling. Defaults live in rover_env_defaults.sh so this script and the
+# `rover` CLI cannot disagree about them; both source that one file.
+# shellcheck source=data_collection/rover/rover_v3.1/rover_env_defaults.sh
+source "${SCRIPT_DIR}/rover_env_defaults.sh"
+CRASH_DETECT="${SPF_CRASH_DETECT:-$(spf_default_crash_detect)}"
+CRASH_RECOVERY="${SPF_CRASH_RECOVERY:-$(spf_default_crash_recovery "$rover_id")}"
+is_true "$CRASH_DETECT" && crash_detect_flag=--crash-detect ||
+    crash_detect_flag=--no-crash-detect
+is_true "$CRASH_RECOVERY" && crash_recovery_flag=--crash-recovery ||
+    crash_recovery_flag=--no-crash-recovery
+
 resolver_args=(
     --rover-id "$rover_id"
     --format null
@@ -107,7 +120,9 @@ print_plan() {
         "output_root=${OUTPUT_ROOT}" \
         "capture_status_file=${CAPTURE_STATUS_FILE}" \
         "capture_watchdog_file=${CAPTURE_WATCHDOG_FILE}" \
-        "capture_restart_attempts=${CAPTURE_RESTART_ATTEMPTS}"
+        "capture_restart_attempts=${CAPTURE_RESTART_ATTEMPTS}" \
+        "crash_detect=${CRASH_DETECT}" \
+        "crash_recovery=${CRASH_RECOVERY}"
 }
 
 case "${1:-}" in
@@ -308,7 +323,9 @@ run_capture() {
         --device-mapping "$DEVICE_MAPPING" \
         --tag "RO${rover_id}" \
         --temp "$OUTPUT_ROOT" \
-        --status-file "$CAPTURE_STATUS_FILE" &
+        --status-file "$CAPTURE_STATUS_FILE" \
+        "$crash_detect_flag" \
+        "$crash_recovery_flag" &
     capture_pid=$!
     "$PYTHON" -m spf.capture_watchdog monitor \
         --pid "$capture_pid" \

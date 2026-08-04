@@ -28,6 +28,33 @@ logging.basicConfig(
 )
 
 
+def pytest_addoption(parser):
+    group = parser.getgroup("SPF simulator")
+    group.addoption(
+        "--sitl-crash",
+        action="store_true",
+        help=(
+            "enable the stall detection/recovery simulator suite; it launches "
+            "its own container and each case waits out real-time stall clocks"
+        ),
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Gate the crash suite behind --sitl-crash.
+
+    It is slow (its cases wait out wall-clock stall thresholds) and it starts a
+    second simulator container, so it must not run in the default suite. Gating
+    by marker rather than by filename keeps it explicit and skipped-not-silent.
+    """
+    if config.getoption("--sitl-crash", default=False):
+        return
+    skip = pytest.mark.skip(reason="requires explicit --sitl-crash")
+    for item in items:
+        if "sitl_crash" in item.keywords:
+            item.add_marker(skip)
+
+
 def update_config(input_fn, updates, output_fn):
     base_config = load_config_from_fn(str(input_fn))
     merged_config = merge_dictionary(base_config, updates)

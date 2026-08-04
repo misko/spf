@@ -49,4 +49,5 @@ markers = [
   "radio_interrupt: terminates a real attached-radio collector subprocess",
   "radio_crash_recovery: kills only the direct-USB daemon and verifies supervised rebind",
   "radio_soak: long-running attached-radio stability test",
+  "sitl_crash: stall detection/recovery against a simulated rover (--sitl-crash)",
 ]

@@ -92,7 +92,17 @@ SITL_PORTS="${SPF_SITL_PORTS:-14590 14591 14592}"
 # Every operator-facing subcommand, in help order. tests/test_rover_cli.py
 # reads this list and asserts each entry both dispatches and answers --help,
 # so a subcommand cannot be documented without working, or work unlisted.
-SUBCOMMANDS=(doctor ardupilot radio sitl audit config version install help)
+SUBCOMMANDS=(doctor ardupilot radio sitl audit config env version install help)
+
+# ~/.rover_config configures THIS CLI. The capture services never read it --
+# systemd hands them /etc/spf/rover_collection.env via EnvironmentFile=, and
+# drone_run.sh sources that same file. Keeping the two apart matters: a
+# SPF_CRASH_* key in ~/.rover_config would be reported as the effective value
+# while the rover ignored it, which is the exact question `rover config` exists
+# to answer correctly.
+PROFILE_ENV="${SPF_PROFILE_ENV:-/etc/spf/rover_collection.env}"
+# shellcheck source=data_collection/rover/rover_v3.1/rover_env_defaults.sh
+source "${ROVER_DIR}/rover_env_defaults.sh"
 
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
@@ -114,6 +124,7 @@ commands:
   sitl        simulator on the base station: status, up, down
   audit       read-only fleet fingerprint (identity.* vs fleet.* drift)
   config      effective settings, and where each value came from
+  env         capture-service settings: crash_detect, crash_recovery
   version     what this checkout is, and whether it matches main
   install     symlink this CLI to ${INSTALL_PATH} (needs sudo)
   help        this message
@@ -213,6 +224,12 @@ report_services() {
             failed)   bad "${unit}: FAILED — journalctl -u ${unit} -n50" ;;
             *)        note "${unit}: ${state:-not installed}" ;;
         esac
+    done
+    # What the next capture will actually do when the rover jams. Cheap to
+    # print, and it is the first thing you want after a rover comes home stuck.
+    local key
+    for key in "${SPF_CAPTURE_ENV_KEYS[@]}"; do
+        note "${key,,}: $(capture_env_label "$(capture_env_effective "$key")")"
     done
 }
 
@@ -337,6 +354,171 @@ base station -- every setting falls back to its built-in default."; return 0; }
         printf '  %-26s %-34s %s\n' "$name" "$value" "$(config_source "$name")"
     done
     printf '\n'
+
+    # Capture-service settings are a separate table on purpose: they resolve
+    # from a different file, for a different consumer. Folding them into the
+    # table above would let ~/.rover_config appear as the source of a value the
+    # rover never sees.
+    head_ "capture services"
+    note "file : ${PROFILE_ENV}"
+    note "read by systemd units and drone_run.sh, never from ${ROVER_CONFIG}"
+    report_capture_env
+}
+
+# ------------------------------------------------------------------- env ---
+#
+# Capture-service settings. These live in PROFILE_ENV rather than
+# ~/.rover_config because that is the only file that reaches a running capture.
+
+# Value as written in the profile file, or empty if unset there.
+capture_env_file_value() {
+    local key="$1"
+    [[ -r "$PROFILE_ENV" ]] || return 0
+    sed -n "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//p" "$PROFILE_ENV" |
+        tail -n 1 | tr -d '"'\''[:space:]'
+}
+
+# Effective value: the file wins if it sets the key, otherwise the built-in
+# per-rover default. Deliberately NOT influenced by ~/.rover_config -- see the
+# note by PROFILE_ENV.
+capture_env_effective() {
+    local key="$1" id value
+    id="$(rover_id || true)"
+    value="$(capture_env_file_value "$key")"
+    if [[ -n "$value" ]]; then printf '%s' "$value"; return; fi
+    spf_capture_env_default "$key" "$id"
+}
+
+capture_env_label() {
+    spf_env_is_true "$1" && printf 'enabled' || printf 'disabled'
+}
+
+# Warn when a capture setting was put somewhere it cannot take effect. Cheap,
+# and it closes the one footgun the two-file split creates.
+capture_env_shadow_warning() {
+    local key subcommand
+    [[ -r "$ROVER_CONFIG" ]] || return 0
+    for key in "${SPF_CAPTURE_ENV_KEYS[@]}"; do
+        if grep -qE "^[[:space:]]*${key}[[:space:]]*=" "$ROVER_CONFIG"; then
+            subcommand="${key#SPF_}"
+            warn "${key} is set in ${ROVER_CONFIG}, which capture never reads."
+            note "Set it with: sudo rover env ${subcommand,,} enable|disable"
+        fi
+    done
+    return 0
+}
+
+report_capture_env() {
+    local key id value source_label
+    id="$(rover_id || true)"
+    printf '\n  %-22s %-10s %s\n' SETTING VALUE SOURCE
+    for key in "${SPF_CAPTURE_ENV_KEYS[@]}"; do
+        value="$(capture_env_file_value "$key")"
+        if [[ -n "$value" ]]; then
+            source_label="$PROFILE_ENV"
+        else
+            value="$(spf_capture_env_default "$key" "$id")"
+            source_label="default ($(spf_capture_env_default_note "$key" "$id"))"
+        fi
+        printf '  %-22s %-10s %s\n' \
+            "$key" "$(capture_env_label "$value")" "$source_label"
+    done
+    if [[ ! -r "$PROFILE_ENV" ]]; then
+        printf '\n'; note "${PROFILE_ENV} (absent — using built-in defaults)"
+    fi
+    capture_env_shadow_warning
+    if systemctl is-active --quiet mavlink_controller 2>/dev/null; then
+        ok "mavlink_controller.service active — changes apply at next capture start"
+    fi
+    printf '\n'
+}
+
+# The requirement is being able to write the file, not being root -- on a rover
+# /etc/spf is root-owned so this still demands sudo, but it stays honest (and
+# testable) when PROFILE_ENV is pointed somewhere else.
+capture_env_require_writable() {
+    local action="$1" verb="$2" dir
+    dir="$(dirname "$PROFILE_ENV")"
+    [[ -d "$dir" ]] || mkdir -p "$dir" 2>/dev/null || true
+    if [[ -e "$PROFILE_ENV" ]]; then
+        [[ -w "$PROFILE_ENV" ]] && return 0
+    elif [[ -d "$dir" && -w "$dir" ]]; then
+        return 0
+    fi
+    die "cannot write ${PROFILE_ENV}: sudo rover env ${action} ${verb}"
+}
+
+# Idempotent and atomic: rewrite the key in place if present, append it if not,
+# and never disturb another setting in the file.
+capture_env_write() {
+    local key="$1" value="$2" tmp
+    tmp="$(mktemp "${PROFILE_ENV}.XXXXXX")" || die "cannot write near ${PROFILE_ENV}"
+    if [[ -r "$PROFILE_ENV" ]]; then
+        grep -vE "^[[:space:]]*${key}[[:space:]]*=" "$PROFILE_ENV" >"$tmp" || true
+    fi
+    printf '%s=%s\n' "$key" "$value" >>"$tmp"
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$PROFILE_ENV" || { rm -f "$tmp"; die "failed to update ${PROFILE_ENV}"; }
+}
+
+cmd_env() {
+    local action="${1:-}"; shift || true
+    local key
+    case "$action" in
+        crash_detect|crash-detect)     key=SPF_CRASH_DETECT ;;
+        crash_recovery|crash-recovery) key=SPF_CRASH_RECOVERY ;;
+        ""|-h|--help)
+            group_usage env \
+                "Settings the capture services read from ${PROFILE_ENV}." \
+                "This is NOT ~/.rover_config, which configures only this CLI." \
+                "" \
+                "subcommands:" \
+                "  crash_detect     detect a stalled rover and hand it to the operator" \
+                "  crash_recovery   first try to reverse out of the jam (rover 4 only)" \
+                "" \
+                "  rover env <setting>                   show the effective value" \
+                "  sudo rover env <setting> enable       turn it on for this rover" \
+                "  sudo rover env <setting> disable      turn it off for this rover"
+            return 0 ;;
+        *) die "unknown env subcommand: ${action} (try: rover env --help)" ;;
+    esac
+
+    local verb="${1:-}"
+    case "$verb" in
+        -h|--help)
+            # group_usage promises this works for every subcommand.
+            printf 'usage: rover env %s [enable|disable]\n\n' "$action"
+            printf '%s\n' \
+                "With no action, print the effective value and where it came from." \
+                "enable/disable write ${key} to ${PROFILE_ENV}, which is the" \
+                "only file the capture services read. Takes effect at the next" \
+                "capture start: sudo systemctl restart mavlink_controller"
+            return 0 ;;
+        "")
+            head_ "${action//-/_}"
+            local id value
+            id="$(rover_id || true)"
+            value="$(capture_env_file_value "$key")"
+            if [[ -n "$value" ]]; then
+                note "setting  : $(capture_env_label "$value")     (${key}=${value} in ${PROFILE_ENV})"
+            else
+                note "setting  : unset"
+                note "default  : $(capture_env_label "$(spf_capture_env_default "$key" "$id")")     ($(spf_capture_env_default_note "$key" "$id"))"
+            fi
+            note "effective: $(capture_env_label "$(capture_env_effective "$key")")"
+            capture_env_shadow_warning
+            if systemctl is-active --quiet mavlink_controller 2>/dev/null; then
+                ok "mavlink_controller.service active — applies at next capture start"
+            fi
+            printf '\n' ;;
+        enable|disable)
+            capture_env_require_writable "$action" "$verb"
+            [[ "$verb" == "enable" ]] && capture_env_write "$key" 1 ||
+                capture_env_write "$key" 0
+            ok "${key}=$([[ "$verb" == enable ]] && echo 1 || echo 0) in ${PROFILE_ENV}"
+            note "restart to apply: sudo systemctl restart mavlink_controller" ;;
+        *) die "unknown action: ${verb} (expected: enable, disable, or nothing to read)" ;;
+    esac
 }
 
 # Reports where a setting came from. The environment and the file are both
@@ -527,6 +709,7 @@ main() {
         sitl)            cmd_sitl "$@" ;;
         audit)           cmd_audit "$@" ;;
         config)          cmd_config "$@" ;;
+        env)             cmd_env "$@" ;;
         version)         cmd_version "$@" ;;
         install)         cmd_install "$@" ;;
         help|-h|--help)  usage 0 ;;

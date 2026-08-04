@@ -202,6 +202,7 @@ Boundaries are hard-coded in `spf/gps/boundaries.py` as `(long, lat)` polygons; 
 
 - [§10 Safety & known issues](#10-safety--known-issues) — controller safety catalog (MC/MP), arm/motion hazards, numbered KNOWN_ISSUES digest
 - [§11 Troubleshooting](#11-troubleshooting) — stuck at waypoint, weak signal, bricked Pluto, wifi interference, spacing surgery, power gremlins
+- [§17 Stall detection](#17-stall-detection--what-the-rover-does-when-it-gets-stuck) — what happens when the rover jams, the MANUAL handback, `rover env crash_detect` / `crash_recovery`
 
 **Deep reference (verified reads)**
 
@@ -1101,6 +1102,10 @@ git -C /home/pi/spf pull && pip install -e /home/pi/spf
 python3 spf/mavlink_radio_collection.py -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n ${n}
 python3 spf/mavlink_radio_collection.py -c ${config} -m /home/pi/device_mapping -r ${routine} -t "RO${rover_id}" -n ${n} -s 600   # time-capped
 sudo systemctl {start,stop,status} mavlink_controller.service
+
+rover env crash_detect                          # stall watchdog state + provenance (§17)
+rover env crash_recovery
+sudo rover env crash_recovery enable            # then: sudo systemctl restart mavlink_controller
 ```
 
 ### Sim / test
@@ -1156,7 +1161,7 @@ lsusb | grep ADALM | wc -l                                                      
 
 - **MC-1 / KI#18 [DRIVE-CRITICAL]** CH9 shutdown now requires a release, a continuous 2-second hold with at least three samples, and a disarmed/inactive rover; it triggers only once until release. CH7 reboot and CH10 compass-calibration actions still have no equivalent hold interlock, so treat their transmitter mappings as safety-critical.
 - **MC-2** `is_planner_in_control` reads a lazy attr → AttributeError if called before `set_and_start_planner`; current order is safe.
-- **MC-3 / KI#44 [DRIVE-CRITICAL]** `move_to_point` loops `while distance>tolerance` with **no timeout/abort** — an unreachable/blocked target hangs the planner thread forever. (:436)
+- **MC-3 / KI#44 [DRIVE-CRITICAL, PARTLY MITIGATED 2026-08-03]** `move_to_point` loops `while distance>tolerance` with **no timeout/abort** — an unreachable/blocked target hangs the planner thread forever. (:436) The stall watchdog (§17) now covers the case that actually bit us — a jammed rover stops covering ground and is handed to the operator in MANUAL — but the loop still has no overall deadline, so a rover that keeps *moving* without ever arriving still hangs.
 - **MC-4 / KI#40 [DRIVE-CRITICAL, silently-wrong]** `healthy_ekf_flag` ORs `EKF_POS_HORIZ_REL` twice and **omits `EKF_POS_HORIZ_ABS`** — the arm/ready gate accepts a relative-only EKF, so the rover can arm and drive absolute lat/long waypoints before the absolute fix converges. Verify absolute GPS/EKF health out-of-band. (:264–268)
 - **MC-5** No locks on cross-thread `mav_mode/armed/gps/motor_active` reads in `run_planner` — worst case a mis-timed arm/disarm for ~0.1 s (GIL bounds tearing to logical, not memory).
 - **MC-6** `single_operation_mode` is non-reentrant (asserts not already single); not reached by current callers.
@@ -1215,7 +1220,9 @@ lsusb | grep ADALM | wc -l                                                      
 
 ## 11. Troubleshooting
 
-**Rover stuck at a waypoint / mission never advances.** `move_to_point` has no timeout (MC-3): an unreachable target, GPS drift, or a collision-disarm that never re-arms hangs the planner. Also check MC-7 (ready/MANUAL/GUIDED waits are unbounded) — if it's sitting at "Waiting for drone to start moving," the RC mode switch (CH8) hasn't been flipped MANUAL→GUIDED, or the EKF never went healthy. Recovery is manual abort (RC or power). Watch heartbeat liveness live; there is no watchdog anywhere in the Drone stack.
+**Rover stuck at a waypoint / mission never advances.** Since 2026-08-03 a stall watchdog covers the common case: if the rover stops covering ground for `STALL_DETECT_SECONDS` (10 s) while armed, in GUIDED, with throttle commanded, it is handed to the operator in MANUAL — the buzzer plays the failure tone and the log says `STALL: ... handing control to the operator`. Drive it clear on the Taranis, then flip CH8 away and back to GUIDED and capture resumes at the next waypoint. On rovers with `crash_recovery` enabled it first tries to reverse out and step off the jam axis up to three times (10/20/30 s) before handing over — at 40 s if the rover never moved, or straight after the third attempt if it kept creeping. See §17.
+
+What the watchdog does NOT cover: it only fires while `mav_mode == ROVER_MODE_GUIDED` and the throttle is off neutral, so a rover sitting at "Waiting for drone to start moving" is a different problem — CH8 was never flipped MANUAL→GUIDED, or the EKF never went healthy (MC-7: those waits are still unbounded). `--ignore-mode` bypasses mode checks entirely and so bypasses the watchdog too. `move_to_point` still has no *overall* timeout (MC-3): a reachable-but-never-reached target with the rover genuinely moving will still loop. Recovery there is still manual abort (RC or power).
 
 **Weak signal / high NaN / raise the emitter.** Rover NaN 46–70% is normal (bursty emitter) — do not panic on NaN alone; only `no_signal` (NaN > 90% / < 100 valid) and heading-common bias are true failures in the post-run scan. **[field note]** If signal is genuinely weak, physically **raise the emitter mast** (line-of-sight at 5.766 GHz is height-sensitive) and/or increase emitter tx-gain with `--tx-gain <int>` (only valid when the emitter `type: sdr`). The RF chain runs 5.766 GHz / 30 MS/s / 3 MHz BW.
 
@@ -1654,3 +1661,187 @@ sudo systemctl start mavlink_controller.service
 ```
 
 **Notes.** This is bench/tether only — `192.168.1.41` exists over ethernet; rover Wi-Fi is disabled (§2, §11), so in the field it's the SiK path (§16.1) instead. This is a **push** setup (mavproxy sends to a fixed IP), so if the Mac's DHCP lease changes the stream goes nowhere — re-check step 1. And per the warning above, a connected QGC can arm and drive a live rover: keep it on blocks or powered down while experimenting.
+
+---
+
+## 17. Stall detection — what the rover does when it gets stuck
+
+Added 2026-08-03. Before this, a rover that high-centered or jammed a wheel sat
+at 100% throttle until someone pulled the battery: `move_to_point` had no
+timeout, and the one "stall" branch in it fired only when the throttle was
+*asleep at neutral* — the opposite failure. See `docs/learnings.md` for the
+integrator-windup mechanism.
+
+### 17.1 What it detects
+
+**"The rover has not moved 3 m from where it was N seconds ago, while armed, in
+GUIDED, with throttle commanded."**
+
+Displacement from an anchor, not distance-to-target: `WP_PIVOT_ANGLE 0` and
+`TURN_RADIUS 5.0` mean a turn is an arc, so a healthy rover legitimately moves
+*away* from its waypoint for twenty seconds at a time. The anchor is reset only
+by real motion — never by a recovery attempt — which is what lets one clock
+drive the whole escalation and what makes "stuck in reverse too" safe: a
+maneuver that moves the rover nowhere simply lets the clock run on.
+
+Gates, all of which must hold: `crash_detect` on, armed, `motor_active`
+(servo1/servo3 not both 1500), and `mav_mode == ROVER_MODE_GUIDED`. So it does
+not fire in MANUAL/HOLD, while disarmed, during the ultrasonic collision pause,
+or under `--ignore-mode`.
+
+### 17.2 The two behaviours
+
+| `crash_detect` | `crash_recovery` | on a stall |
+|---|---|---|
+| off | — | nothing; `move_to_point` loops as it did before |
+| **on** (fleet default) | **off** (default) | MANUAL at **10 s** |
+| on | on (**rover 4** only) | up to **3** reverse-out attempts (10/20/30 s), then MANUAL — at 40 s if the rover never moved, or immediately after the third attempt if it kept creeping |
+
+Detection is identical in every configuration; `crash_recovery` only changes
+what happens after. Detection is safe everywhere — its worst outcome is handing
+a working rover to a human — while autonomous reversing is a real motion risk,
+so it stays opt-in per rover until the fleet has field evidence.
+
+**The escape maneuver (recovery only), two legs per attempt.** Both legs are
+`STALL_ESCAPE_DISTANCE_M` = 8 m, which **must stay above `WP_RADIUS` (5.0)** —
+ArduPilot judges arrival on `WP_RADIUS`, so a nearer target counts as already
+reached and the rover never drives the leg. That bug shipped briefly at 3 m and
+made stage 1 a silent no-op; `tests/test_crash_detection.py` now reads WP_RADIUS
+from the params file and asserts the gap.
+
+1. `MAV_CMD_DO_SET_REVERSE(1)`, drive to a point 3 m behind, bounded to 4 s.
+   Then `DO_SET_REVERSE(0)` **unconditionally** and HOLD for 1 s — the HOLD is
+   not cosmetic, it makes the firmware zero its wound-up speed integrator via
+   `if (!speed_control_active()) { reset_I(); }`.
+2. Drive 3 m perpendicular to the *measured* stall→reverse axis (not the
+   compass heading), alternating side each attempt. Skipped entirely if leg 1
+   already freed the rover; falls back to the heading if leg 1 moved it less
+   than 0.5 m and so left no usable axis.
+
+Afterwards the planner drops one extra waypoint, so the rover does not
+immediately drive back into whatever it just backed out of. For `bounce` that
+is a whole leg; for `circle`, about a tenth of a lap.
+
+**What actually caps the attempts.** Two independent limits, and both are
+needed. The 40 s clock catches a rover that cannot move at all. `STALL_MAX_ESCAPES
+= 3` catches the case the clock cannot: an escape that shifts the rover a metre
+resets the progress anchor and so restarts the clock, which would let a
+creeping rover escape forever without ever reaching you. The counter clears only
+when the rover actually **reaches a waypoint** (or you hand control back) —
+never merely because an escape moved it, which would be circular.
+
+### 17.3 What the operator does
+
+The buzzer plays the **failure** tone (§15) and the log says
+`STALL: ... handing control to the operator`. The rover is now in MANUAL and
+your sticks drive it.
+
+1. Drive it clear on the Taranis.
+2. Flip CH8 **away from GUIDED and back** — `MODE_CH 8` only re-applies on
+   switch *movement*, which is the interlock: a Pi-set MANUAL persists until a
+   human acknowledges it.
+3. Capture resumes at the next waypoint. The recording is not lost.
+
+If the rover is still jammed when you hand it back, it will escalate again on
+the same schedule.
+
+### 17.4 Turning it on and off
+
+These are capture-service settings in `/etc/spf/rover_collection.env` — the file
+systemd hands every unit via `EnvironmentFile=` and the only one a running
+capture reads. **Not** `~/.rover_config`, which configures the CLI only; a
+`SPF_CRASH_*` key placed there is ignored by the rover, and `rover config` warns
+when it finds one.
+
+```bash
+rover env crash_detect            # effective value, and where it came from
+rover env crash_recovery
+sudo rover env crash_recovery enable
+sudo systemctl restart mavlink_controller
+```
+
+Defaults live in `rover_env_defaults.sh`, sourced by both the CLI and
+`drone_run.sh` so the two cannot disagree — the drift that produced the
+ARMING_CHECK divergence (b4fa14a). `rover doctor` prints both effective values.
+
+### 17.5 Testing it
+
+Unit: `tests/test_crash_detection.py` (no hardware, fake clock).
+
+Simulator: `tests/test_in_simulator_crash.py`, gated behind `--sitl-crash`
+because each case waits out real-time stall clocks and it starts its own
+container.
+
+```bash
+python3 -m pytest tests/test_in_simulator_crash.py --sitl-crash -v
+```
+
+Green as of 2026-08-04: **10/10 in ~6m40s.** Getting there found three product
+bugs, none of which produced a wrong log line — escape legs shorter than
+`WP_RADIUS` (never driven), an escape that left the vehicle in `HOLD`
+(self-disabling), and an attempt cap the escape's own motion could clear
+(escaped forever). All three were only visible in servo PWM and mode telemetry,
+which is why this suite asserts on those rather than on the collector's output.
+
+The false-positive guard deliberately runs at **production** thresholds (3 m /
+10 s / 40 s) rather than the compressed ones the other cases use: its whole job
+is to validate the real margin, and acceleration and turn dynamics do not scale
+with the window.
+
+Three things must be right or the suite silently detects nothing — each gives
+you a motionless rover and no stall, which reads like a broken watchdog:
+
+| must | not | why |
+|---|---|---|
+| clamp `SERVOn_MIN/MAX` | `MOT_THR_MAX` | the latter stops the rover but zeroes the throttle output, so `motor_active` goes false |
+| `-S 1` | `-S 5` | the stall clock is host wall-clock; speedup multiplies ground covered per wall-second |
+| params over MAVLink | `--load-params` | that path takes ~25 s (verifies all 1281), so the jam lands after the rover has parked |
+
+It asserts on **vehicle telemetry**, not on the collector's log — `saw_reverse()`
+means servo1 *and* servo3 genuinely went below 1500. That is what validates
+`DO_SET_REVERSE` on the firmware the rovers actually run (4.5.0; the source
+consulted during design was 4.5.7, and reverse-in-GUIDED has been reported
+broken on some 4.5 builds).
+
+Two things that suite must do differently from `test_in_simulator.py`, both
+learned the hard way:
+
+- **It runs the sim at `-S 1`, not `-S 5`.** The stall clock is host wall-clock
+  while the vehicle moves in sim time, so a speedup multiplies the ground
+  covered per wall-second and defeats the 3 m progress radius. Measured at
+  `-S 5`: a rover crawling at 0.26 m/s still covered 15.8 m per 12 s of wall
+  time, so the anchor kept resetting and no stall was ever detected.
+- **It jams with the servo clamp, not `MOT_THR_MAX`** — see the warning below.
+
+By hand with QGC (§6, §16) — the dev sim keeps fixed ports precisely so a human
+can type a connection string:
+
+```bash
+rover sitl up --out tcpin:0.0.0.0:14592
+```
+
+Connect QGC to TCP `14592`, then induce the jam from **Vehicle Setup →
+Parameters** by clamping the throttle channels' output range —
+`SERVO1_MIN`/`SERVO3_MIN` → `1480` and `SERVO1_MAX`/`SERVO3_MAX` → `1520`. Free
+the rover again by restoring `1000`/`2000` mid-maneuver.
+
+**Do not use `MOT_THR_MAX` for this** — it looks like the obvious knob and it
+does not work. Measured in this simulator, `MOT_THR_MAX ≤ 5` does stop the
+rover (0.03 m/s) but collapses both throttle outputs to exactly 1500, so
+`motor_active` goes false and the watchdog correctly stands down: you get a
+motionless rover and no detection, which reads like a bug in the watchdog and
+is not one. The servo clamp works because SITL's `SimRover` converts PWM with a
+fixed `2*((servo-1000)/1000 - 0.5)` mapping regardless of `SERVOn_MIN/MAX`, so
+ArduPilot pegs the output at the clamp (clearly off neutral) while the physics
+sees ~2% throttle.
+
+Watch in **Analyze → MAVLink Inspector**:
+
+| field | meaning |
+|---|---|
+| `SERVO_OUTPUT_RAW.servo1_raw` / `servo3_raw` | both < 1500 = genuinely reversing |
+| `HEARTBEAT.custom_mode` | 15 GUIDED → 4 HOLD (settle) → 0 MANUAL |
+| `GLOBAL_POSITION_INT` | frozen while jammed, moving once freed |
+
+The rover also emits `STATUSTEXT` on each decision, so the reasoning appears in
+QGC's message panel alongside ArduPilot's own messages.

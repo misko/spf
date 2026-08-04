@@ -22,6 +22,9 @@ from spf.mavlink.mavlink_controller import (
     DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
     DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
     DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
+    STALL_DETECT_SECONDS,
+    STALL_MANUAL_SECONDS,
+    STALL_PROGRESS_RADIUS_M,
     Drone,
     connect_with_heartbeat,
     drone_get_planner,
@@ -204,6 +207,42 @@ def parse_args():
         "--write-to-disk", action=argparse.BooleanOptionalAction, default=True
     )
 
+    # Stall handling. Detection defaults on everywhere -- its worst outcome is
+    # handing a working rover to a human. Recovery (autonomous reversing) is
+    # opt-in per rover; drone_run.sh resolves the fleet default.
+    parser.add_argument(
+        "--crash-detect",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
+        "--crash-recovery",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--stall-detect-seconds",
+        type=float,
+        default=STALL_DETECT_SECONDS,
+        help="no progress for this long counts as a stall",
+    )
+    parser.add_argument(
+        "--stall-manual-seconds",
+        type=float,
+        default=STALL_MANUAL_SECONDS,
+        help="with --crash-recovery, give up and hand to MANUAL after this long",
+    )
+    parser.add_argument(
+        "--stall-progress-radius-m",
+        type=float,
+        default=STALL_PROGRESS_RADIUS_M,
+        help=(
+            "displacement that counts as progress; scale it WITH "
+            "--stall-detect-seconds so the implied speed floor stays "
+            "what production uses (3m/10s = 0.3 m/s)"
+        ),
+    )
+
     parser.add_argument("--fake-drone", action=argparse.BooleanOptionalAction)
     parser.add_argument("--exit", action=argparse.BooleanOptionalAction)
     return parser.parse_args()
@@ -294,6 +333,11 @@ if __name__ == "__main__":
             reconnect_attempts=DEFAULT_MAVLINK_RECONNECT_ATTEMPTS,
             reconnect_backoff=DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
             reconnect_heartbeat_timeout=DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+            crash_detect=args.crash_detect,
+            crash_recovery=args.crash_recovery,
+            stall_detect_seconds=args.stall_detect_seconds,
+            stall_manual_seconds=args.stall_manual_seconds,
+            stall_progress_radius_m=args.stall_progress_radius_m,
         )
         drone.process_message(initial_heartbeat)
         drone.start()
@@ -303,6 +347,11 @@ if __name__ == "__main__":
             distance_finder=distance_finder,
             fake=True,
             ignore_mode=args.ignore_mode,
+            crash_detect=args.crash_detect,
+            crash_recovery=args.crash_recovery,
+            stall_detect_seconds=args.stall_detect_seconds,
+            stall_manual_seconds=args.stall_manual_seconds,
+            stall_progress_radius_m=args.stall_progress_radius_m,
         )
 
     next_readiness_tone_at = time.monotonic() + READINESS_TONE_INTERVAL_SECONDS
