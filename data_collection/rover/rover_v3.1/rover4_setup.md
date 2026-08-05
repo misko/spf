@@ -571,6 +571,21 @@ Fleet context and the meaning of each transmitter setting are in
   this).
 - A **flight battery connected**, not just USB. The receiver is powered from the
   servo/RCIN rail; a USB-only rover has a dead receiver and an empty RC stream.
+- **Both antennas present and correct on every radio.** Rover 4 shipped with one
+  channel-0 antenna missing its pole entirely and the other fitted with a short
+  pole. Nothing detected it: the Plutos enumerated `dual-RX present`, firmware
+  verified, no USB or IIO errors, and 3000 frames recorded finite, correctly
+  shaped IQ containing no signal. It cost a day and was visible in ten seconds
+  to anyone who looked at the mast. Verify by eye, then measure:
+
+  ```bash
+  sudo systemctl stop mavlink_controller.service && rover radio signal
+  ```
+
+  Every channel should read within a few dB of its sibling. See
+  [`field_reports/2026_08_04.md`](./field_reports/2026_08_04.md) §"Antennas, not
+  radios" for how the measurement localises a fault to the antenna rather than
+  the radio.
 - The **R9M ACCESS** module in the transmitter's external bay.
 - Every other rover **powered off** for §14.1–14.6. This is not optional: it is
   what makes a mis-set RxNum fail loudly (nothing responds) instead of silently
@@ -722,3 +737,5 @@ NetIDs cross-talk.
 - Receiver failsafe chosen and written down.
 - NetID 46 on both radios, telemetry link up.
 - §3.5.1's fleet table updated with Rover 4's row.
+- `rover radio signal` shows every channel within a few dB of its sibling, with
+  no channel's AGC railed on most frames.
