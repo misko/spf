@@ -32,12 +32,26 @@ Differences from the v4->v5 version (why this file exists):
      the TX (the v4->v5 version copied the first N rows, assuming idxs start at 0).
 
 Output naming mirrors the old CLI: ``<rx>.<tx>.zarr`` under --output.
+
+WHICH SIDECARS THIS TOOL NEEDS
+------------------------------
+A staged capture is NOT just the ``.zarr`` -- it is the ``.zarr`` AND its ``.yaml``
+sidecar (and, for the field record, its ``.log``). This merge reads the **RX**
+capture's ``.yaml`` only: it is the antenna geometry / receiver config that the
+merged dataset is written with. The **TX** capture contributes GPS from its zarr
+and nothing else, so a TX rover that never came back online -- or whose sidecar
+was left behind -- does not block a merge. Only the RX sidecars do.
+
+Every RX sidecar is checked up front, before any pairing work, and ALL missing
+ones are reported at once (see ``check_inputs``). Staging one with
+``stage_captures.sh`` copies the whole family and cannot leave a sidecar behind.
 """
 
 import argparse
 import bisect
 import logging
 import os
+import sys
 
 import lmdb
 import numpy as np
@@ -56,6 +70,63 @@ from spf.scripts.zarr_utils import (
 # and heading come from the v4/v7 f64 set; the scalar/2x keys are the gain/RSSI
 # metadata that the whole direct-USB campaign is about.
 EXTRA_F64_KEYS = ["gps_timestamp", "gps_lat", "gps_long", "heading"]
+
+
+def config_path_for(zarr_fn):
+    """The ``.yaml`` sidecar that belongs to ``zarr_fn``.
+
+    ``a.zarr -> a.yaml`` and ``a.zarr.tmp -> a.yaml.tmp``: an unfinalized capture
+    keeps the suffix on all three family members, and finalization renames them
+    together (ROVER_RUNBOOK 12.2). Split on the LAST ``.zarr`` rather than
+    ``str.replace``, so a directory named ``.../rovers.zarr_staging/x.zarr`` is not
+    mangled.
+    """
+    head, sep, tail = zarr_fn.rpartition(".zarr")
+    if not sep:
+        raise ValueError(f"not a .zarr path, cannot derive its .yaml sidecar: {zarr_fn}")
+    return head + ".yaml" + tail
+
+
+def check_inputs(txs, rxs):
+    """Return a list of human-readable problems with the run's inputs.
+
+    Empty list means the run has everything it needs. This exists because the
+    sidecar read used to happen deep inside the per-pair merge: on 2026-08-04 a
+    staging copy that took only the ``.zarr`` directories got through the whole
+    TX x RX scan and then died on a FileNotFoundError naming ONE file, so the fix
+    was iterative -- rerun, wait, learn about the next one.
+
+    Only RX sidecars are required; see the module docstring on why the TX one is
+    not read.
+    """
+    problems = []
+    for tx in txs:
+        if not os.path.exists(tx):
+            problems.append(f"TX capture is missing: {tx}")
+    missing_sidecars = []
+    for rx in rxs:
+        if not os.path.exists(rx):
+            problems.append(f"RX capture is missing: {rx}")
+            continue
+        config_fn = config_path_for(rx)
+        if not os.path.exists(config_fn):
+            missing_sidecars.append((rx, config_fn))
+    if missing_sidecars:
+        problems.append(
+            f"{len(missing_sidecars)} RX capture(s) staged WITHOUT their .yaml "
+            "sidecar. A staged capture is the .zarr AND its .yaml (and .log); the "
+            "merge reads the RX .yaml for the receiver/antenna config, so it "
+            "cannot run without them:"
+        )
+        for rx, config_fn in missing_sidecars:
+            problems.append(f"    {os.path.basename(rx)}  needs  {config_fn}")
+        problems.append(
+            "  Copy each capture WITH its sidecars from the rover, e.g.\n"
+            "    data_collection/rover/rover_v3.1/stage_captures.sh \\\n"
+            "        --from pi@roverpi1:temp --to <staging dir> --match '<capture>*'\n"
+            "  (TX sidecars are NOT needed -- an offline TX rover never blocks a merge.)"
+        )
+    return problems
 
 
 def lat_lon_to_xy(lat, lon, center_lat, center_lon):
@@ -247,12 +318,16 @@ def merge_v7rx_v7tx(
     )
 
     buffer_size = rx_zarr["receivers/r0/signal_matrix"].shape[-1]
-    config = yaml.safe_load(open(rx_fn.replace(".zarr", ".yaml"), "r"))
+    # RX sidecar only -- and its presence was already checked for every RX before
+    # any pairing started (check_inputs), so reaching here with it missing means
+    # the file disappeared mid-run.
+    with open(config_path_for(rx_fn), "r") as f:
+        config = yaml.safe_load(f)
     assert (
         config["receivers"][0]["theta-in-pis"] != 0.0 or fix_config
     ), "theta-in-pis is 0 and --no-fix-config; ambiguous, refusing"
     config["receivers"][0]["theta-in-pis"] = 1.0
-    with open(zarr_out_fn.replace(".zarr", ".yaml"), "w") as f:
+    with open(config_path_for(zarr_out_fn), "w") as f:
         yaml.dump(config, f, default_flow_style=False)
 
     # v5 ground-truth keys + the v7 gps/heading keys, then the v7 gain/RSSI datasets.
@@ -296,12 +371,7 @@ def merge_v7rx_v7tx(
     return timesteps
 
 
-if __name__ == "__main__":
-    logging.basicConfig(
-        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
-        level=os.environ.get("LOGLEVEL", "INFO").upper(),
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--txs", type=str, nargs="+", required=True, help="TX (emitter) zarrs")
     parser.add_argument("--rxs", type=str, nargs="+", required=True, help="RX zarrs")
@@ -310,8 +380,35 @@ if __name__ == "__main__":
     parser.add_argument(
         "--fix-config", action=argparse.BooleanOptionalAction, default=True
     )
-    parser.add_argument("--dry-run", action="store_true", default=False)
-    args = parser.parse_args()
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help=(
+            "report the TX/RX overlap map without copying IQ. Missing inputs are "
+            "still reported (and still make the run exit non-zero)."
+        ),
+    )
+    return parser
+
+
+def main(argv=None):
+    args = get_parser().parse_args(argv)
+
+    # Fail fast, and completely. Pairing every TX against every RX takes minutes
+    # on a field-sized staging directory; learning only then that a sidecar was
+    # never copied off the rover -- one sidecar per rerun -- is the failure this
+    # guards. A dry run gets the same report, because a dry run is exactly when
+    # an operator is asking "is this staging directory good?", but it still
+    # produces its overlap map first so the trip is not wasted.
+    problems = check_inputs(args.txs, args.rxs)
+    if problems and not args.dry_run:
+        print("\n".join(["Refusing to merge -- inputs are incomplete:"] + problems),
+              file=sys.stderr)
+        return 2
+    if problems:
+        print("\n".join(["Inputs are incomplete (continuing: --dry-run):"] + problems),
+              file=sys.stderr)
 
     def _base(p):
         return os.path.basename(p).replace(".zarr.tmp", "").replace(".zarr", "")
@@ -334,3 +431,23 @@ if __name__ == "__main__":
                 logging.error("CORRUPT tx:%s rx:%s : %s", tx, rx, e)
             except (KeyError, ValueError, AssertionError) as e:
                 logging.error("DataError tx:%s rx:%s : %s", tx, rx, e)
+
+    if problems:
+        # Dry run only: the map is printed, but the run is not "fine".
+        print(
+            "\nThe overlap map above is complete, but the input problems reported "
+            "at the top of this run remain; a real merge will refuse until they "
+            "are fixed.",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s",
+        level=os.environ.get("LOGLEVEL", "INFO").upper(),
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    sys.exit(main())

@@ -6,11 +6,51 @@
 # into the raw capture directory.
 #
 # ---------------------------------------------------------------------------
+# STAGING: A CAPTURE IS THE .zarr AND ITS .yaml (AND .log)
+#
+# Before step 1 can run, the captures have to be copied off the rovers into
+# $RAW. A recorded session is a FAMILY of three files that share one name:
+#
+#     <capture>.zarr    the data (a directory: an LMDB store)
+#     <capture>.yaml    the capture config — routine, antenna spacing, tag
+#     <capture>.log     the run log
+#
+# and while a run is unfinalized all three carry a `.tmp` suffix, renamed
+# together when it completes (ROVER_RUNBOOK §12.2).
+#
+# Step 1 reads the RX capture's `.yaml` — it is the receiver/antenna config the
+# merged dataset is written with. On 2026-08-04 a staging copy took only the
+# `.zarr` directories; the merge paired every TX against every RX and only then
+# died on a missing sidecar, and the `.yaml`s had to be fetched from the rovers
+# afterwards. `cp *.zarr` is the natural thing to type and it is wrong.
+#
+# Stage with the helper instead — it copies the whole family and verifies at the
+# destination that nothing was left behind. Run it from the BASE STATION; a
+# rover has no rsync or scp, so offload is always a pull:
+#
+#     rover stage --from pi@roverpi1:temp --to "$RAW"        # RX
+#     rover stage --from pi@roverpi2:temp --to "$RAW"        # TX (emitter)
+#     rover stage --from pi@roverpi3:temp --to "$RAW" --match '*2026_08_04*'
+#
+#     # equivalently, without the CLI:
+#     data_collection/rover/rover_v3.1/stage_captures.sh --from ... --to ...
+#
+# Only RX sidecars are required. The TX capture contributes GPS from its zarr
+# and nothing else, so a TX rover that never came back online does not block a
+# merge — a fact worth knowing before anyone goes hunting for a TX `.yaml`.
+#
+# Step 1 checks every RX sidecar up front and reports ALL missing ones at once,
+# before doing any pairing. `--dry-run` reports them too.
+# ---------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
 # WHERE EACH STEP'S FILES LIVE
 #
 #   step 0  raw captures (immutable, input)
 #           $RAW/*.zarr[.tmp]            one dir per collection launch
-#           $RAW/*.yaml[.tmp]            the capture config for each
+#           $RAW/*.yaml[.tmp]            the capture config for each — REQUIRED
+#                                        for every RX; see STAGING above
+#           $RAW/*.log[.tmp]             the run log for each
 #
 #   step 1  merged TX/RX datasets        <- v7_tx_rx_merge.py
 #           $MERGED/<rx>.<tx>.zarr       one per overlapping emitter/receiver pair
@@ -61,6 +101,9 @@ cd "$REPO"
 # Pairs every emitter capture against every receiver capture. Pairs that do not
 # overlap in GPS time, or that cannot be read, are skipped in ~2 s each, so this
 # doubles as the overlap map. Add --dry-run to get the map without copying IQ.
+#
+# Refuses before any pairing if an RX .yaml sidecar is missing, listing every
+# one at once — see STAGING at the top of this file.
 if has 1; then
   echo "=== [1] merge -> $MERGED ==="
   mkdir -p "$MERGED"

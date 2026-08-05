@@ -694,3 +694,32 @@ session, so convergence is at most one boot late.
 volatile-and-unmanaged, as a warning (a lost journal costs the post-mortem, not
 the mission). Drop-in over `journald.conf` deliberately: drop-ins outrank the
 main file, so nothing packaged is edited and removal is one `rm`.
+
+## Rover (2026-08-05): a staged capture is the `.zarr` AND its `.yaml` — and the
+## TX/RX merge only ever reads the RX one
+
+Captures from the 2026-08-04 sessions were copied from the rovers to the NAS as
+`*.zarr` directories only. `spf/scripts/v7_tx_rx_merge.py` reads each RX
+capture's `.yaml` sidecar for the receiver/antenna config, so the merge scanned
+and paired **every** TX against **every** RX first, then died on a
+`FileNotFoundError` naming one file. The sidecars were still on the rovers.
+
+Two facts to keep:
+
+- **A recorded session is a family of three:** `<capture>.zarr` (an LMDB
+  directory), `<capture>.yaml` (routine, antenna spacing, tag), `<capture>.log`.
+  Unfinalized runs carry `.tmp` on all three and are renamed together. `cp
+  *.zarr` is the natural thing to type and it loses the config. Use `rover stage
+  --from pi@roverpiN:temp --to <dir>` (ROVER_RUNBOOK §12.4), which copies the
+  family and verifies at the destination.
+- **Only the RX sidecar is needed.** The TX (emitter) capture contributes GPS
+  from its zarr and nothing else, so a TX rover that never came back online — or
+  whose `.yaml` was left behind — never blocks a merge. Nobody knew this at the
+  time and effort went into chasing TX sidecars that were never required.
+
+Generalization, same shape as the ready-manifest staleness check: **validate
+every input the run needs before doing any of the run's expensive work, and
+report all the failures at once.** One-at-a-time discovery turns a five-minute
+fix into an afternoon of rerun-and-wait. `v7_tx_rx_merge.py` now checks all RX
+sidecars up front and lists every missing one; `--dry-run` reports them too, but
+still prints the GPS-overlap map first so the trip is not wasted.

@@ -81,6 +81,7 @@ It is read-only and answers the three questions that have actually cost us time 
 | `rover radio status` | attached Plutos + ready-manifest state |
 | `sudo rover radio firmware` | running firmware per radio, by USB serial |
 | `rover sitl status` \| `up` \| `down` | the sim — **base station only**, refuses on a rover |
+| `rover stage --from pi@roverpi1:temp --to <dir>` | offload captures **with their sidecars** — base station only, see §12.4 |
 | `rover audit` | fleet fingerprint (`identity.*` vs `fleet.*` drift) |
 | `rover config` | effective settings and where each came from |
 
@@ -206,7 +207,7 @@ Boundaries are hard-coded in `spf/gps/boundaries.py` as `(long, lat)` polygons; 
 
 **Deep reference (verified reads)**
 
-- [§12 Observed operator commands](#12-observed-on-device-operator-commands-from-piroverpi1-history) — what was actually typed on roverpi1: service control, zarr ops, where calibration really happens
+- [§12 Observed operator commands](#12-observed-on-device-operator-commands-from-piroverpi1-history) — what was actually typed on roverpi1: service control, zarr ops, where calibration really happens, and [staging captures off a rover (§12.4)](#124-staging-captures-off-the-rovers--rover-stage) — a capture is the `.zarr` **and** its `.yaml`
 - [§13 Boot / update / debug / production sequences](#13-boot--update--debug--production-sequences-detailed) — boot decision flowchart, the five sequences, verified gotchas
 - [§14 Control flow](#14-control-flow--how-the-rc--arming--gpsekf--mode-drive-the-robot) — RC → FC → Pi pipeline, `drone_ready` gate, `run_planner` state machine, verified bugs
 
@@ -1146,6 +1147,8 @@ GCS connection recipes (QGC / Mission Planner over radio, ethernet, or SITL): **
 ### Data-ops
 
 ```bash
+# offload: the whole .zarr/.yaml/.log family, never just the .zarr (§12.4)
+rover stage --from pi@roverpi1:temp --to /mnt/qnap01/mouse9911/rovers_august_2026/aug4
 python spf/scripts/dataset_quality_scan.py --splits <s1.txt> [...] --precompute-cache /mnt/md2/cache/precompute_cache_3p7 --output-dir data_quality_reports/scan_<YYYY_MM_DD> --parallel 12
 vcgencmd measure_temp                                                                  # Pi thermal check
 lsusb | grep ADALM | wc -l                                                             # radio count
@@ -1307,7 +1310,7 @@ diff rover_receiver_config_pi_3mhz_47mm.yaml rover_receiver_config_pi_3mhz_43mm.
 cp   rover_receiver_config_pi_3mhz_47mm.yaml rover_receiver_config_pi_3mhz_35mm.yaml
 ```
 
-Notes: many `.tmp -> final` renames means many rover-1 sessions were **interrupted** and salvaged by hand. There is **no `rsync`/`scp` on the rover** — offload to storage is driven from the base station, not the Pi. Compaction was run after missions on 2024-04-10, 2024-11-13, 2025-01-30, 02-22, 02-23, 03-02, 03-15, 03-22, 04-05.
+Notes: many `.tmp -> final` renames means many rover-1 sessions were **interrupted** and salvaged by hand. There is **no `rsync`/`scp` on the rover** — offload to storage is driven from the base station, not the Pi, with `rover stage` (**§12.4** — copy the whole `.zarr`/`.yaml`/`.log` family, never just the `.zarr`). Compaction was run after missions on 2024-04-10, 2024-11-13, 2025-01-30, 02-22, 02-23, 03-02, 03-15, 03-22, 04-05.
 
 ### 12.3 Calibration (magnetometer / compass / accel) — where it actually happens
 
@@ -1327,6 +1330,36 @@ grep BRD mav.parm      # inspect board (BRD_*) params
 ```
 
 The CLI param path (`mavlink_controller.py --load-params/--diff-params`) runs **inside `drone_run.sh`**, not typed by hand — so it doesn't appear in interactive history either. See §3.6 for the full calibration procedure and §5 for the runtime param gate.
+
+### 12.4 Staging captures off the rovers — `rover stage`
+
+**A capture is the `.zarr` AND its `.yaml` (and its `.log`).** They share one name and are one recorded session; while a run is unfinalized all three carry `.tmp` and are renamed together (§12.2).
+
+```
+<capture>.zarr    the data (a directory — an LMDB store)
+<capture>.yaml    the capture config: routine, antenna spacing, tag
+<capture>.log     the run log
+```
+
+Copy them with the helper rather than by hand. It takes the whole family, and it verifies **at the destination** that nothing was left behind:
+
+```bash
+# from the BASE STATION — a rover has no rsync/scp, so offload is always a pull
+rover stage --from pi@roverpi1:temp --to /mnt/qnap01/mouse9911/rovers_august_2026/aug4
+rover stage --from pi@roverpi3:temp --to "$RAW" --match '*2026_08_04*'   # one session
+rover stage --from "$RAW" --to "$RAW2" --dry-run                          # check a dir
+
+# without the CLI:
+data_collection/rover/rover_v3.1/stage_captures.sh --from ... --to ...
+```
+
+`--match` globs the **capture name** (no extension), so `'*tag_RO1*'` selects the whole family of every RO1 capture. The source is opened read-only; `--delete` is deliberately not offered.
+
+**Why this exists.** On 2026-08-04 captures were staged to the NAS by copying only the `.zarr` directories. `spf/scripts/v7_tx_rx_merge.py` reads each **RX** capture's `.yaml` for the receiver/antenna config, so the merge scanned and paired every TX against every RX, then died on a `FileNotFoundError` naming one sidecar — and the sidecars were still on the rovers. `cp *.zarr` is the natural thing to type and it is wrong.
+
+**Only RX sidecars are needed.** The TX (emitter) capture contributes GPS from its zarr and nothing else, so a TX rover that never came back online — or whose `.yaml` was left behind — never blocks a merge. This was not obvious to anyone at the time; do not go hunting for a TX `.yaml`.
+
+The merge now checks every RX sidecar **before** any pairing and reports **all** the missing ones at once, `--dry-run` included. If it refuses, rerun `rover stage` for the named captures.
 
 ---
 
