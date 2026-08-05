@@ -22,7 +22,9 @@ ENABLED_UNITS = (
 
 def make_fake_systemctl(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     enabled_dir = tmp_path / "enabled"
-    enabled_dir.mkdir()
+    # exist_ok, so a test may build the shim more than once for the same
+    # tmp_path -- the journald tests run the reconciler repeatedly.
+    enabled_dir.mkdir(exist_ok=True)
     log = tmp_path / "systemctl.log"
     fake = tmp_path / "systemctl"
     fake.write_text(
@@ -66,12 +68,19 @@ def run_reconciler(
     fake_systemctl: Path,
     environment: dict[str, str],
     cli_link: Path | None = None,
+    journald_dropin: Path | None = None,
+    journal_dir: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     # --cli-link is never optional in practice: the reconciler also converges
     # the /usr/local/bin/rover symlink, and a test that let it fall through to
-    # the default would reconcile the developer's real system.
+    # the default would reconcile the developer's real system. The same is true
+    # of the journald paths, which default to /etc and /var/log.
     if cli_link is None:
         cli_link = state_dir.parent / "unused-cli-link"
+    if journald_dropin is None:
+        journald_dropin = state_dir.parent / "unused-journald.conf.d" / "spf.conf"
+    if journal_dir is None:
+        journal_dir = state_dir.parent / "unused-journal"
     return subprocess.run(
         [
             str(RECONCILER),
@@ -83,6 +92,10 @@ def run_reconciler(
             str(fake_systemctl),
             "--cli-link",
             str(cli_link),
+            "--journald-dropin",
+            str(journald_dropin),
+            "--journal-dir",
+            str(journal_dir),
             "--unprivileged",
         ],
         cwd=REPO_ROOT,
@@ -255,3 +268,148 @@ def test_cli_symlink_failure_never_changes_the_unit_exit_status(tmp_path):
     assert first.returncode == 10, first.stderr
     assert second.returncode == 0, second.stderr
     assert not cli_link.exists()
+
+
+# ---------------------------------------------------- journald persistence ---
+#
+# Rovers 1 and 4 ran journald with Storage=volatile and lost the journal at
+# every reboot; rovers 2 and 3 did not. On 2026-08-04 Rover 4 recorded a capture
+# with one receive channel 24 dB down and the AGC railed, and the journal for
+# that boot no longer existed by the time anyone looked. The reconciler
+# converges the setting for the same reason it converges the CLI symlink: a
+# provisioning stage never re-runs, so only boot convergence reaches the fleet.
+
+
+def journald_paths(tmp_path: Path) -> tuple[Path, Path]:
+    return tmp_path / "journald.conf.d" / "10-spf-persistent.conf", tmp_path / "journal"
+
+
+def run_with_journald(tmp_path: Path, **kwargs) -> subprocess.CompletedProcess[str]:
+    systemd_dir = tmp_path / "systemd"
+    systemd_dir.mkdir(exist_ok=True)
+    fake_systemctl, environment = kwargs.pop("systemctl", (None, None))
+    if fake_systemctl is None:
+        fake_systemctl, environment = make_fake_systemctl(tmp_path)
+    dropin, journal_dir = journald_paths(tmp_path)
+    return run_reconciler(
+        systemd_dir,
+        tmp_path / "state",
+        fake_systemctl,
+        environment,
+        journald_dropin=kwargs.pop("journald_dropin", dropin),
+        journal_dir=kwargs.pop("journal_dir", journal_dir),
+        **kwargs,
+    )
+
+
+def test_journald_persistence_is_configured_when_absent(tmp_path):
+    dropin, journal_dir = journald_paths(tmp_path)
+
+    result = run_with_journald(tmp_path)
+
+    assert result.returncode == 10, result.stderr
+    text = dropin.read_text()
+    assert "Storage=persistent" in text
+    assert "SystemMaxUse=1G" in text
+    assert journal_dir.is_dir()
+
+
+def test_journald_reconciliation_is_idempotent(tmp_path):
+    dropin, _ = journald_paths(tmp_path)
+    run_with_journald(tmp_path)
+    written = dropin.read_text()
+
+    second = run_with_journald(tmp_path)
+
+    assert second.returncode == 0, second.stderr
+    assert "journald persistence is configured" in second.stdout
+    assert dropin.read_text() == written
+
+
+def test_a_hand_edited_journald_dropin_is_rewritten(tmp_path):
+    """The drop-in says it is managed; drift back to volatile must not stick."""
+    dropin, _ = journald_paths(tmp_path)
+    run_with_journald(tmp_path)
+    dropin.write_text("[Journal]\nStorage=volatile\n")
+
+    run_with_journald(tmp_path)
+
+    assert "Storage=persistent" in dropin.read_text()
+
+
+def test_journald_is_never_restarted(tmp_path):
+    """A journald restart cuts the log streams of services already running.
+
+    Buying one boot of persistence at the price of silencing the capture chain
+    for the rest of that boot is the wrong trade; the setting takes effect at
+    the next boot instead.
+    """
+    fake_systemctl, environment = make_fake_systemctl(tmp_path)
+
+    run_with_journald(tmp_path, systemctl=(fake_systemctl, environment))
+
+    log = (tmp_path / "systemctl.log").read_text()
+    assert "journald" not in log
+    assert "restart" not in log
+
+
+def test_journald_failure_never_changes_the_unit_exit_status(tmp_path):
+    """As with the CLI symlink, the 0/10/75 contract belongs to the units."""
+    unwritable = tmp_path / "unwritable"
+    unwritable.mkdir(mode=0o500)
+
+    first = run_with_journald(
+        tmp_path,
+        journald_dropin=unwritable / "conf.d" / "spf.conf",
+        journal_dir=unwritable / "journal",
+    )
+    second = run_with_journald(
+        tmp_path,
+        journald_dropin=unwritable / "conf.d" / "spf.conf",
+        journal_dir=unwritable / "journal",
+    )
+
+    assert first.returncode == 10, first.stderr
+    assert second.returncode == 0, second.stderr
+    assert "journal stays volatile" in first.stderr
+
+
+def test_journald_only_converges_nothing_else(tmp_path):
+    """provision_rover.sh's base stage uses this; it must not install units."""
+    systemd_dir = tmp_path / "systemd"
+    systemd_dir.mkdir()
+    fake_systemctl, environment = make_fake_systemctl(tmp_path)
+    dropin, journal_dir = journald_paths(tmp_path)
+    cli_link = tmp_path / "bin" / "rover"
+    cli_link.parent.mkdir()
+
+    result = subprocess.run(
+        [
+            str(RECONCILER),
+            "--systemd-dir",
+            str(systemd_dir),
+            "--state-dir",
+            str(tmp_path / "state"),
+            "--systemctl",
+            str(fake_systemctl),
+            "--cli-link",
+            str(cli_link),
+            "--journald-dropin",
+            str(dropin),
+            "--journal-dir",
+            str(journal_dir),
+            "--journald-only",
+            "--unprivileged",
+        ],
+        cwd=REPO_ROOT,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Storage=persistent" in dropin.read_text()
+    assert list(systemd_dir.iterdir()) == []
+    assert not cli_link.exists()
+    assert not (tmp_path / "systemctl.log").exists()

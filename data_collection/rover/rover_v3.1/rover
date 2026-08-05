@@ -104,6 +104,12 @@ PROFILE_ENV="${SPF_PROFILE_ENV:-/etc/spf/rover_collection.env}"
 # shellcheck source=data_collection/rover/rover_v3.1/rover_env_defaults.sh
 source "${ROVER_DIR}/rover_env_defaults.sh"
 
+# Journald persistence, converged at boot by reconcile_rover_boot_units.sh.
+# Overridable so tests can point doctor at a fixture instead of the real
+# /etc and /var/log of whatever machine they run on.
+JOURNALD_DROPIN="${SPF_JOURNALD_DROPIN:-$SPF_JOURNALD_DROPIN_PATH_DEFAULT}"
+JOURNAL_DIR="${SPF_JOURNAL_DIR:-$SPF_JOURNAL_DIR_DEFAULT}"
+
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
 head_() { printf '\n== %s ==\n' "$*"; }
@@ -118,7 +124,7 @@ rover — Rover 3.1 fleet tooling
 usage: rover <command> [options]
 
 commands:
-  doctor      one-screen health check: git state, services, hardware, disk
+  doctor      one-screen health check: git, services, journal, hardware, disk
   ardupilot   flight controller: prearm, compass, motor-test, flash  (alias: ap)
   radio       Plutos: status, firmware, preflight, capture
   sitl        simulator on the base station: status, up, down
@@ -256,6 +262,34 @@ report_cli() {
     fi
 }
 
+# A volatile journal does not stop a mission -- it stops the POST-MORTEM, which
+# is why this warns rather than failing. It is also the only place an operator
+# can see the one state that matters and cannot be read off the config alone:
+# the drop-in may be written and journald still be volatile until a reboot.
+report_journal() {
+    local configured=0 boots
+    if [[ -f "$JOURNALD_DROPIN" ]] &&
+        [[ "$(cat -- "$JOURNALD_DROPIN" 2>/dev/null || true)" == "$(spf_journald_dropin_content)" ]]; then
+        configured=1
+    fi
+
+    if spf_journal_is_persistent_now "$JOURNAL_DIR"; then
+        ok "journal is persistent (${JOURNAL_DIR}) — logs survive reboots"
+        boots="$(journalctl --list-boots 2>/dev/null | wc -l || echo 0)"
+        [[ "${boots:-0}" -gt 0 ]] && note "boots retained: ${boots}"
+        if [[ "$configured" -eq 0 ]]; then
+            warn "no SPF drop-in at ${JOURNALD_DROPIN} — persistence is unmanaged and uncapped here"
+        fi
+    elif [[ "$configured" -eq 1 ]]; then
+        warn "journal is still VOLATILE — persistence is configured and takes effect at the next reboot"
+        note "journald is deliberately not restarted mid-boot; it would cut the running services' log streams"
+    else
+        warn "journal is VOLATILE — this boot's logs die at reboot, exactly as rover 4's did on 2026-08-04"
+        note "fix: reboot (the boot reconciler configures it), or run:
+      sudo bash ${ROVER_DIR}/reconcile_rover_boot_units.sh --journald-only"
+    fi
+}
+
 report_hardware() {
     local fc plutos
     # by-id, never /dev/ttyACM*: on rover 2 ttyACM0 is the PlutoSDR and ttyACM1
@@ -320,7 +354,7 @@ report_disk() {
 
 cmd_doctor() {
     [[ "${1:-}" =~ ^(-h|--help)$ ]] && { echo "usage: rover doctor
-One-screen health check. Read-only; changes nothing. Non-zero exit if
+One-screen health check: git state, CLI, services, journal, hardware, disk. Read-only; changes nothing. Non-zero exit if
 anything is broken enough to stop a mission."; return 0; }
 
     local id; id="$(rover_id)"
@@ -328,6 +362,7 @@ anything is broken enough to stop a mission."; return 0; }
     head_ "git";      report_git
     head_ "cli";      report_cli
     head_ "services"; report_services
+    head_ "journal";  report_journal
     head_ "hardware"; report_hardware
     head_ "disk";     report_disk
     printf '\n'
