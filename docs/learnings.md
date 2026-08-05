@@ -4,6 +4,39 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## Rover (2026-08-05): the zero-byte `.log` sidecar was an import-time
+## `logging.basicConfig` winning over the collector's — every capture's log
+## went to a relative `logs.log` instead
+
+Every `.log` sidecar next to every rover capture (verified on rovers 1, 3 and 4 on
+2026-08-04) was zero bytes. The file was NOT missing a writer: `mavlink_radio_collection.py`
+did attach a `logging.FileHandler(temp_filenames["log"])`. The defect is that importing
+`spf.mavlink.mavlink_controller` calls `logging.basicConfig(filename="logs.log")` at MODULE
+IMPORT time, and `basicConfig` is a documented no-op when the root logger already has
+handlers. So the sidecar was opened (created, hence zero bytes) and every log line went to a
+`logs.log` in whatever directory the process happened to start in. This is the same relative
+path that has already caused a `PermissionError` crash from a root-owned `logs.log` in the
+checkout.
+
+Cost: on 2026-08-04 a 143 MB store tagged `RO4` turned out to have been recorded with rover
+2's config against SITL. Establishing that required opening the store and reading its
+embedded config, because nothing recorded what command had actually run.
+
+What to do:
+- Capture logging goes through `spf/capture_log.py::configure_capture_logging`, which uses
+  `force=True` (load-bearing — without it the handlers are never installed) and resolves the
+  sidecar to an ABSOLUTE path so the destination never follows the working directory.
+- The sidecar now opens with a provenance header: full argv, resolved capture-config path
+  (absolute) and whether it came from `SPF_CAPTURE_CONFIG` or the canonical resolver, rover
+  id, tag, hostname, pid, git commit (with `-dirty`), and the timestamps below.
+- Record BOTH local and UTC time, explicitly labelled. Capture filenames are stamped in
+  LOCAL time and rovers do not agree on a zone: on 2026-08-04 Rover 4 was on
+  `America/Los_Angeles` while rovers 1–3 were on `Europe/London`, so two captures taken
+  minutes apart were named eight hours and one calendar day apart. A store's true instant
+  must never require guessing which rover wrote it.
+- Anything asserting "the sidecar is written" must assert non-empty content, not existence.
+  Existence was true for the entire lifetime of the bug.
+
 ## L10 — dual-RX gain phase tracks the AD9361 RF state, not the requested dB (2026-08-02)
 
 Re-analysis of the 2026-07-30 A–G spectroscopy campaign (2 radios, 113 LOs 400–5900 MHz;
