@@ -1,42 +1,42 @@
-# Fleet dependency constraints — the versions Rover 1 runs.
+# Fleet dependency guard rails, applied by update_spf_before_boot.sh.
 #
-# WHY THIS EXISTS
-# Every rover's Python environment was previously whatever PyPI served on its
-# provisioning day. On 2026-08-04 the fleet was running three different zarr
-# versions against production datasets, and Rover 4 -- the first rover
-# provisioned in months -- had never been able to capture at all, because a
-# fresh resolve installed numcodecs 0.16.5 against zarr 2.x and every capture
-# process died importing `cbuffer_sizes`. The same mechanism removed `future`
-# from under MAVProxy.
+# THESE ARE RANGES, NOT EXACT PINS, AND THAT IS DELIBERATE.
 #
-# Rover 1 is the reference: it has the longest run of known-good captures.
-# Its complete environment is recorded in rover1_reference_freeze.txt.
+# The boot updater runs `pip install -e . -c <this file>` before the radios and
+# the collector start. Anything here that a rover does not already satisfy
+# forces pip to resolve, download and -- for packages with no aarch64 wheel --
+# COMPILE, while the boot waits.
 #
-# WHAT IS PINNED HERE, AND WHAT IS NOT
-# This file pins the stack that determines DATASET FORMAT and MAVLINK
-# BEHAVIOUR -- the things whose drift silently changes recorded data or
-# vehicle interaction. It deliberately does NOT pin the compute stack
-# (torch, numba, scipy): those do not change what is recorded, and forcing a
-# multi-gigabyte torch downgrade during a boot-time `pip install` on a Pi is a
-# far larger risk than the drift it would fix. Torch divergence is tracked
-# separately (Rover 1 has 2.5.1, Rover 4 has 2.13.0).
+# That is not hypothetical. An earlier version of this file pinned
+# numcodecs==0.12.1 exactly. Rover 4 had 0.15.1, no aarch64 wheel exists for
+# 0.12.1, and the boot updater sat compiling c-blosc/zstd from source with
+# spf-pluto-direct-usb.service blocked behind it (Requires=) and the operator's
+# capture blocked behind that -- in the field, at night. numpy==1.25.2 was
+# queued next, which on a Pi is an hour or worse and may not build at all.
 #
-# Applied by update_spf_before_boot.sh as `pip install -e . -c <this file>`.
-# Constraints do not install anything by themselves; they only bound the
-# version chosen for a package that is already being installed.
+# So: this file exists ONLY to exclude version combinations that are KNOWN to
+# break, and every bound here is one that the fleet already satisfies. It costs
+# nothing at boot.
+#
+# To converge a rover onto Rover 1's exact versions -- which is a real thing to
+# want, and what rover1_reference_freeze.txt records -- do it DELIBERATELY, on a
+# bench, with the collector stopped:
+#
+#     sudo systemctl stop mavlink_controller.service
+#     ~/spf-virtualenv/bin/python3 -m pip install -r \
+#         data_collection/rover/rover_v3.1/rover1_reference_freeze.txt
+#
+# Expect source builds and budget an hour. Never at boot.
 
-# --- dataset format: these decide what a capture looks like on disk ---
-zarr==2.17.1
-numcodecs==0.12.1
-lmdb==1.4.1
-numpy==1.25.2
+# zarr 2.x imports numcodecs.blosc.cbuffer_sizes, which numcodecs 0.16 removed.
+# Unpinned, a fresh resolve installs 0.16.x and EVERY capture dies at import --
+# which is exactly what happened to Rover 4 for its entire existence until
+# 2026-08-04. The whole fleet is already below 0.16.
+numcodecs<0.16
 
-# --- MAVLink: these decide how the vehicle is talked to ---
-pymavlink==2.4.42
-MAVProxy==1.8.70
-future==1.0.0
-pyserial==3.5
+# zarr 3 removes LMDB support, which every v7 store depends on.
+zarr<=2.18.4
 
-# --- radio ---
-pyadi-iio==0.0.16
-libusb1==3.4.0
+# MAVProxy imports `future` without declaring it; pymavlink used to supply it
+# transitively and stopped. `future` is named in pyproject.toml for this
+# reason -- no bound is needed here, only the dependency itself.

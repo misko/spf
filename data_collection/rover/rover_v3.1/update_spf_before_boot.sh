@@ -140,14 +140,19 @@ main() {
             # rover that boots with drifted versions is recoverable and
             # visible in `rover doctor`; a rover whose boot chain died over a
             # dependency constraint is neither.
+            # Bounded. The constraints are chosen so nothing should need
+            # building, but a boot must never be able to sit in a compiler:
+            # spf-pluto-direct-usb.service Requires= this unit, so a stuck pip
+            # blocks the radios and every capture behind them.
             if [[ -f "$CONSTRAINTS" ]]; then
-                if "$PYTHON" -m pip install -e "$REPO_ROOT" -c "$CONSTRAINTS"; then
+                if timeout "${SPF_PIP_TIMEOUT_SECONDS:-300}" \
+                    "$PYTHON" -m pip install -e "$REPO_ROOT" -c "$CONSTRAINTS"; then
                     printf 'Dependencies pinned to the fleet reference.\n'
                 else
                     printf '%s\n' \
-                        "WARNING: constrained install failed; retrying without" \
-                        "constraints. Versions may drift from the fleet --" \
-                        "check with: rover doctor" >&2
+                        "WARNING: constrained install failed or timed out;" \
+                        "retrying without constraints. Versions may drift from" \
+                        "the fleet -- check with: rover doctor" >&2
                     "$PYTHON" -m pip install -e "$REPO_ROOT"
                 fi
             else
