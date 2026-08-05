@@ -33,6 +33,7 @@ readonly SERVICE_NAME="mavlink_controller.service"
 PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
 RECORDS="${SPF_RX_CHECK_RECORDS:-100}"
 OUTPUT_ROOT="${SPF_RX_CHECK_OUTPUT_ROOT:-/home/pi/preflight/rx_signal_check}"
+RADIO_WAIT_SECONDS="${SPF_RX_CHECK_RADIO_WAIT_SECONDS:-45}"
 KEEP=0
 EXISTING=""
 declare -a OVERRIDES=()
@@ -83,6 +84,30 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
     die "${SERVICE_NAME} is active and owns the radios.
   Stop it first: sudo systemctl stop ${SERVICE_NAME}"
 fi
+
+# `systemctl stop` returns when the unit is inactive, NOT when its USB handles
+# are released. Running immediately after a stop loses the race and the Pluto
+# library reports the unhelpful "No device found" -- two of three back-to-back
+# runs failed exactly this way on Rover 1. Wait for the radios to actually be
+# free instead of trusting the unit state.
+wait_for_radios() {
+    local deadline=$((SECONDS + RADIO_WAIT_SECONDS)) holder
+    while (( SECONDS < deadline )); do
+        holder="$(pgrep -f "mavlink_radio_collection|drone_run.sh" | grep -v "^$$\$" || true)"
+        if [[ -z "$holder" ]]; then
+            return 0
+        fi
+        printf '\r   waiting for the radios to be released (pid %s)... %ss  ' \
+            "$(tr "\n" "," <<<"$holder" | sed "s/,\$//")" "$((deadline - SECONDS))"
+        sleep 1
+    done
+    printf '\n'
+    die "Radios still held after ${RADIO_WAIT_SECONDS}s by:
+$(pgrep -af "mavlink_radio_collection|drone_run.sh" || true)
+  Stop those before retrying."
+}
+wait_for_radios
+[[ -t 1 ]] && printf '\r%*s\r' 70 '' || true
 
 # A V7 capture refuses to record without boot-verified Pluto firmware, and it
 # only discovers that AFTER bringing the radios online -- about five minutes in,
