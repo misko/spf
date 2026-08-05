@@ -762,3 +762,36 @@ def test_doctor_does_not_fail_the_mission_over_a_volatile_journal(tmp_path):
     # hardware section on a dev box, which has no flight controller -- that is
     # the pre-existing behaviour of every doctor test here.)
     assert "== hardware ==" in result.stdout, result.stdout
+
+
+# ------------------------------------------------------- ultrasonic default ---
+#
+# The obstacle stop is OFF fleet-wide as of 2026-08-05, and the env setting is
+# authoritative over the transmitter: with it off the collector runs
+# --no-ultrasonic, never constructs the distance finder, and handle_RC_CHANNELS
+# returns on `distance_finder is None` before reading CH12. That last part
+# matters because an R9 SX in failsafe holds its last channel values, so a
+# frozen-high CH12 must not be able to switch a disabled sensor back on.
+
+
+def test_ultrasonic_is_off_by_default_fleet_wide(tmp_path):
+    """A silent flip back to on would re-arm the obstacle stop everywhere."""
+    for rover_id in ("1", "2", "3", "4"):
+        result = subprocess.run(
+            ["bash", "-c",
+             f'source "{ROVER_DIR}/rover_env_defaults.sh"; '
+             f'spf_capture_env_default SPF_ULTRASONIC {rover_id}'],
+            capture_output=True, text=True, check=True,
+        )
+        assert result.stdout.strip() == "0", f"rover {rover_id}"
+
+
+def test_crash_detect_stays_on_as_the_remaining_backstop(tmp_path):
+    """Turning off the obstacle stop leaves stall detection carrying safety."""
+    result = subprocess.run(
+        ["bash", "-c",
+         f'source "{ROVER_DIR}/rover_env_defaults.sh"; '
+         f'spf_capture_env_default SPF_CRASH_DETECT 1'],
+        capture_output=True, text=True, check=True,
+    )
+    assert result.stdout.strip() == "1"

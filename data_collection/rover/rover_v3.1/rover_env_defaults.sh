@@ -35,14 +35,26 @@ spf_default_crash_recovery() {
     if [[ "$rover_id" == "4" ]]; then printf '1'; else printf '0'; fi
 }
 
-# The ultrasonic obstacle stop. On by default -- it exists to stop the rover
-# hitting things. Taranis CH12 toggles it live, but that path needs a working
-# RC link and a receiver the flight controller can hear; when the switch does
-# not reach the Pi there was previously no way to disable the sensor short of
-# editing drone_run.sh on the rover, which dirties the checkout and silently
-# stops it self-updating. This knob is the supported way to turn it off.
+# The ultrasonic obstacle stop. OFF fleet-wide as of 2026-08-05.
+#
+# It was on by default, and Taranis CH12 could toggle it live. Both changed:
+# the sensor is off unless a rover explicitly enables it, and when it is off the
+# transmitter cannot bring it back.
+#
+# THE ENV SETTING IS AUTHORITATIVE, NOT THE TRANSMITTER. With ultrasonic off the
+# collector runs --no-ultrasonic, which never constructs the distance finder at
+# all; handle_RC_CHANNELS then returns on `distance_finder is None` before it
+# looks at CH12. So a stray, held, or failsafe-frozen CH12 cannot re-enable a
+# sensor the operator disabled -- which matters, because an R9 SX in failsafe
+# holds its last channel values, and CH12 sat high on rovers 2 and 3 during
+# 2026-08-04. Pinned by
+# tests/test_mavlink_rc_safety.py::test_ultrasonic_rc_is_ignored_when_capture_disabled_the_sensor.
+#
+# What is given up: the obstacle stop. Stall detection (SPF_CRASH_DETECT, on
+# fleet-wide) remains the backstop -- a rover that stops covering ground while
+# armed and commanded is handed to the operator in MANUAL.
 spf_default_ultrasonic() {
-    printf '1'
+    printf '0'
 }
 
 # The fleet's time base. Capture filenames are stamped in LOCAL time, so a
@@ -136,7 +148,7 @@ spf_capture_env_default_note() {
         SPF_CRASH_DETECT)
             printf 'fleet-wide' ;;
         SPF_ULTRASONIC)
-            printf 'fleet-wide; CH12 toggles it live when RC reaches the Pi' ;;
+            printf 'off fleet-wide since 2026-08-05; CH12 cannot re-enable it' ;;
         SPF_CRASH_RECOVERY)
             if [[ "$rover_id" == "4" ]]; then
                 printf 'rover 4 only'
