@@ -676,10 +676,16 @@ cmd_radio() {
             exec bash "${ROVER_DIR}/drone_run.sh" "$@" ;;
         status)
             head_ "radios"; report_hardware; printf '\n' ;;
+        signal)
+            # Short motion-free capture on every radio, then per-channel health.
+            # The loop for diagnosing an antenna: swap it, run this, read it.
+            require_rover_id >/dev/null
+            exec bash "${ROVER_DIR}/run_rx_signal_check.sh" "$@" ;;
         ""|-h|--help)
             group_usage radio \
                 "subcommands:" \
                 "  status       attached Plutos and ready-manifest state (read-only)" \
+                "  signal       capture N frames on every radio, report per-channel health" \
                 "  firmware     running firmware per radio, by USB serial (needs sudo)" \
                 "  preflight    one motion-free production-shaped capture after boot" \
                 "  capture      the production boot launcher (drone_run.sh)"

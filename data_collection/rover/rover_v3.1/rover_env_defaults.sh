@@ -45,6 +45,16 @@ spf_default_ultrasonic() {
     printf '1'
 }
 
+# The fleet's time base. Capture filenames are stamped in LOCAL time, so a
+# rover on a different timezone produces filenames that disagree with its
+# siblings by the UTC offset -- Rover 4 sat on America/Los_Angeles and stamped a
+# capture taken minutes after Rover 1's as eight hours and one calendar day
+# earlier. Clocks were NTP-correct throughout; only the naming diverged, and
+# nothing errors when it does.
+spf_fleet_timezone() {
+    printf 'Europe/London'
+}
+
 # Resolve one key's built-in default for a given rover id.
 spf_capture_env_default() {
     local key="$1" rover_id="${2:-}"

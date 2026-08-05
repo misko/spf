@@ -458,6 +458,7 @@ SCRIPT_DISPOSITION = {
     "load_direct_usb_firmware.sh": "internal",
     "configure_direct_usb_boot.sh": "internal",
     "run_direct_usb_boot_preflight.sh": "exposed",
+    "run_rx_signal_check.sh": "exposed",
     "drone_run.sh": "exposed",
     # provisioning: deliberately NOT behind the CLI. These run once, as root,
     # on a machine that may not have a working CLI yet.

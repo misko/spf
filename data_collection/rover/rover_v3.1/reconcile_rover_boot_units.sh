@@ -16,10 +16,16 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly STATE_FILE_NAME="boot-unit-reconcile-attempt"
 
+# Shared fleet defaults (timezone, capture env keys). Sourced, never executed
+# for side effects -- the file is documented as side-effect free.
+# shellcheck source=rover_env_defaults.sh
+source "${SCRIPT_DIR}/rover_env_defaults.sh"
+
 SYSTEMD_DIR="/etc/systemd/system"
 STATE_DIR="/var/lib/spf"
 SYSTEMCTL="systemctl"
 CLI_LINK="/usr/local/bin/rover"
+FLEET_TIMEZONE="${SPF_ROVER_TIMEZONE:-}"
 USE_SUDO=1
 
 readonly -a MANAGED_UNITS=(
@@ -99,6 +105,43 @@ reconcile_cli_symlink() {
     else
         printf 'WARN: could not reconcile %s; run: sudo %s install\n' \
             "$CLI_LINK" "$want" >&2
+    fi
+    return 0
+}
+
+# Capture filenames are stamped in LOCAL time, so a rover whose timezone drifts
+# from the fleet silently names its captures hours -- and possibly a calendar
+# day -- away from a sibling rover recording the same emitter pass. Rover 4 did
+# exactly this on 2026-08-04: America/Los_Angeles against the fleet's
+# Europe/London, NTP-correct throughout, nothing erroring anywhere.
+#
+# Converged here for the same reason as the units and the CLI symlink: a rover
+# provisioned at any point in the past must end up in the current desired state
+# without anyone remembering to intervene.
+#
+# Advisory, like the CLI symlink: a wrong timezone misnames data, it does not
+# stop a mission, so it must never fail a boot or earn a reboot. Returns 0 on
+# every path.
+reconcile_timezone() {
+    local want current
+    want="$FLEET_TIMEZONE"
+    if [[ -z "$want" ]]; then
+        want="$(spf_fleet_timezone 2>/dev/null || true)"
+    fi
+    [[ -n "$want" ]] || return 0
+
+    current="$(timedatectl show -p Timezone --value 2>/dev/null || true)"
+    if [[ "$current" == "$want" ]]; then
+        printf 'PASS: timezone is %s.\n' "$want"
+        return 0
+    fi
+
+    if run_privileged timedatectl set-timezone "$want" 2>/dev/null; then
+        printf 'PASS: timezone %s -> %s (capture filenames use local time).\n' \
+            "${current:-unknown}" "$want"
+    else
+        printf 'WARN: could not set timezone to %s (is %s); capture filenames will not match the fleet.\n' \
+            "$want" "${current:-unknown}" >&2
     fi
     return 0
 }
@@ -240,6 +283,15 @@ main() {
                 CLI_LINK="$2"
                 shift 2
                 ;;
+            --timezone)
+                [[ "$#" -ge 2 ]] || die "--timezone requires a value."
+                FLEET_TIMEZONE="$2"
+                shift 2
+                ;;
+            --no-timezone)
+                FLEET_TIMEZONE=""
+                shift
+                ;;
             --unprivileged)
                 USE_SUDO=0
                 shift
@@ -255,6 +307,7 @@ main() {
     done
 
     # Before the units, and never able to change the status they return.
+    reconcile_timezone
     reconcile_cli_symlink
     install_and_verify
 }

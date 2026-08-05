@@ -20,6 +20,7 @@ fi
 PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
 BOOT_UNIT_RECONCILER="${SPF_BOOT_UNIT_RECONCILER:-${SCRIPT_DIR}/reconcile_rover_boot_units.sh}"
 INSTALL_DEPS="${SPF_INSTALL_DEPS:-${SCRIPT_DIR}/install_deps.sh}"
+CONSTRAINTS="${SPF_PIP_CONSTRAINTS:-${SCRIPT_DIR}/rover_constraints.txt}"
 REMOTE_WAIT_SECONDS="${SPF_UPDATE_REMOTE_WAIT_SECONDS:-12}"
 GIT_TIMEOUT_SECONDS="${SPF_UPDATE_GIT_TIMEOUT_SECONDS:-4}"
 REBOOT_DELAY_SECONDS="${SPF_UPDATE_REBOOT_DELAY_SECONDS:-15}"
@@ -129,7 +130,29 @@ main() {
             [[ -x "$PYTHON" ]] || die "Python is unavailable: ${PYTHON}"
             printf 'Repository updated; refreshing dependencies and editable install.\n'
             bash "$INSTALL_DEPS"
-            "$PYTHON" -m pip install -e "$REPO_ROOT"
+            # Constrain the resolve to the fleet reference versions. Without
+            # this, each rover installs whatever PyPI serves that day: on
+            # 2026-08-04 the fleet ran three zarr versions and Rover 4 could
+            # not capture at all, because a fresh resolve paired numcodecs
+            # 0.16.5 with zarr 2.x and every capture died at import.
+            #
+            # Falls back to an unconstrained install rather than dying. A
+            # rover that boots with drifted versions is recoverable and
+            # visible in `rover doctor`; a rover whose boot chain died over a
+            # dependency constraint is neither.
+            if [[ -f "$CONSTRAINTS" ]]; then
+                if "$PYTHON" -m pip install -e "$REPO_ROOT" -c "$CONSTRAINTS"; then
+                    printf 'Dependencies pinned to the fleet reference.\n'
+                else
+                    printf '%s\n' \
+                        "WARNING: constrained install failed; retrying without" \
+                        "constraints. Versions may drift from the fleet --" \
+                        "check with: rover doctor" >&2
+                    "$PYTHON" -m pip install -e "$REPO_ROOT"
+                fi
+            else
+                "$PYTHON" -m pip install -e "$REPO_ROOT"
+            fi
         fi
     fi
 
