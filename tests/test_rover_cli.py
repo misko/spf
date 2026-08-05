@@ -432,6 +432,42 @@ def test_sitl_status_detects_a_bound_port(tmp_path):
     assert str(bound) in result.stdout
 
 
+# ------------------------------------------------------------------ stage ---
+#
+# `rover stage` fronts stage_captures.sh, which copies a capture WITH its .yaml
+# and .log sidecars. Its own behaviour is covered by tests/test_stage_captures.py;
+# these pin the front door and the base-station-only rule.
+
+
+def test_stage_dispatches_to_stage_captures(tmp_path):
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "cap_tag_RO1.zarr").mkdir()
+    (source / "cap_tag_RO1.zarr" / "data.mdb").write_bytes(b"x")
+    (source / "cap_tag_RO1.yaml").write_text("receivers: []\n")
+    (source / "cap_tag_RO1.log").write_text("log\n")
+
+    result = run_cli("stage", "--from", str(source), "--to", str(tmp_path / "dst"))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (tmp_path / "dst" / "cap_tag_RO1.yaml").exists()
+
+
+def test_stage_refuses_to_run_on_a_rover(tmp_path):
+    """There is no rsync or scp on a rover; offload is a pull from the base."""
+    environment = rover_hostname_shim(tmp_path)
+    result = run_cli("stage", "--from", "/x", "--to", "/y", env=environment)
+    assert result.returncode != 0
+    assert "base station" in result.stderr
+
+
+def test_stage_help_works_on_a_rover_too(tmp_path):
+    """Refusing to act must not refuse to explain -- and --help is asserted
+    for every subcommand, on whatever machine the suite runs."""
+    result = run_cli("stage", "--help", env=rover_hostname_shim(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert ".yaml" in result.stdout
+
+
 # --------------------------------------------------------- coverage guard ---
 
 # Every script in rover_v3.1 gets a disposition. Adding a script without
@@ -460,6 +496,9 @@ SCRIPT_DISPOSITION = {
     "run_direct_usb_boot_preflight.sh": "exposed",
     "run_rx_signal_check.sh": "exposed",
     "drone_run.sh": "exposed",
+    # base-station side, like sitl: offload PULLS from a rover, because a rover
+    # has no rsync/scp (ROVER_RUNBOOK 12.2). Behaviour: tests/test_stage_captures.py
+    "stage_captures.sh": "exposed",
     # provisioning: deliberately NOT behind the CLI. These run once, as root,
     # on a machine that may not have a working CLI yet.
     "provision_rover.sh": "provisioning",

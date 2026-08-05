@@ -12,6 +12,7 @@
 #   rover ardupilot <sub>      prearm, compass, rc, motor-test, flash
 #   rover radio <sub>          status, firmware, preflight, capture
 #   rover sitl <sub>           status, up, down  (base station only)
+#   rover stage                pull captures + sidecars off a rover (base station)
 #   rover audit | config | version | install
 #
 # Settings come from the environment, then an optional
@@ -92,7 +93,7 @@ SITL_PORTS="${SPF_SITL_PORTS:-14590 14591 14592}"
 # Every operator-facing subcommand, in help order. tests/test_rover_cli.py
 # reads this list and asserts each entry both dispatches and answers --help,
 # so a subcommand cannot be documented without working, or work unlisted.
-SUBCOMMANDS=(doctor ardupilot radio sitl audit config env version install help)
+SUBCOMMANDS=(doctor ardupilot radio sitl stage audit config env version install help)
 
 # ~/.rover_config configures THIS CLI. The capture services never read it --
 # systemd hands them /etc/spf/rover_collection.env via EnvironmentFile=, and
@@ -122,6 +123,7 @@ commands:
   ardupilot   flight controller: prearm, compass, motor-test, flash  (alias: ap)
   radio       Plutos: status, firmware, preflight, capture
   sitl        simulator on the base station: status, up, down
+  stage       copy captures off a rover WITH their .yaml/.log sidecars
   audit       read-only fleet fingerprint (identity.* vs fleet.* drift)
   config      effective settings, and where each value came from
   env         capture-service settings: crash_detect, crash_recovery
@@ -755,6 +757,22 @@ cmd_sitl() {
     esac
 }
 
+# ------------------------------------------------------------------ stage ---
+
+cmd_stage() {
+    # Same shape as sitl: this runs on the base station. There is no rsync or
+    # scp on a rover (ROVER_RUNBOOK 12.2), so offload is always a pull.
+    if [[ -n "$(rover_id)" && ! "${1:-}" =~ ^(|-h|--help)$ ]]; then
+        die "staging runs on the base station and PULLS from the rover.
+  This is roverpi$(rover_id), which has no rsync/scp — see ROVER_RUNBOOK 12.2.
+  From the base station:  rover stage --from pi@$(hostname):temp --to <dir>"
+    fi
+    if [[ "${1:-}" == "" ]]; then
+        set -- --help
+    fi
+    exec bash "${ROVER_DIR}/stage_captures.sh" "$@"
+}
+
 # ---------------------------------------------------------------- dispatch ---
 
 main() {
@@ -765,6 +783,7 @@ main() {
         ardupilot|ap)    cmd_ardupilot "$@" ;;
         radio)           cmd_radio "$@" ;;
         sitl)            cmd_sitl "$@" ;;
+        stage)           cmd_stage "$@" ;;
         audit)           cmd_audit "$@" ;;
         config)          cmd_config "$@" ;;
         env)             cmd_env "$@" ;;
