@@ -34,7 +34,9 @@ def label(name):
     """rover_..._tag_RO1.rover_..._tag_RO2 -> 'RO1@HH:MM:SS x RO2@HH:MM:SS'"""
     def one(x):
         t = x[15:23].replace("_", ":")
-        tag = next((k for k in ("RO1", "RO2", "RO3") if f"tag_{k}" in x), "?")
+        # Every rover tag, not a hardcoded three: RO4 joined the fleet on
+        # 2026-08-04 and silently labelled itself "?" here.
+        tag = next((k for k in ("RO1", "RO2", "RO3", "RO4", "RO5") if f"tag_{k}" in x), "?")
         return f"{tag}@{t}"
     parts = name.split(".")
     return " x ".join(one(p) for p in parts[:2]) if len(parts) > 1 else one(parts[0])
