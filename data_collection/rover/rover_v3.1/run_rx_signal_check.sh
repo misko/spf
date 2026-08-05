@@ -56,6 +56,18 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
   Stop it first: sudo systemctl stop ${SERVICE_NAME}"
 fi
 
+# A V7 capture refuses to record without boot-verified Pluto firmware, and it
+# only discovers that AFTER bringing the radios online -- about five minutes in,
+# ending in a RuntimeError deep in data_collector. The manifest that proves it
+# lives in /run (tmpfs), so it is absent on any boot where
+# spf-pluto-direct-usb.service did not complete. Check it up front.
+READY_FILE="${SPF_DIRECT_USB_READY_FILE:-/run/spf/direct_usb_ready.json}"
+[[ -f "$READY_FILE" ]] || die "Pluto firmware is not boot-verified: ${READY_FILE} is absent.
+  A V7 capture will refuse to record without it.
+  Fix:    sudo systemctl start spf-pluto-direct-usb.service
+  Then:   ls -l ${READY_FILE}
+  If that service fails, see: journalctl -u spf-pluto-direct-usb.service -b"
+
 rover_id="$(tr -d '[:space:]' </home/pi/rover_id 2>/dev/null || true)"
 [[ -n "$rover_id" ]] || die "Missing /home/pi/rover_id; this must run on a rover."
 
