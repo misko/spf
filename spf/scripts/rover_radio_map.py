@@ -39,6 +39,7 @@ DEFAULT_DEVICE_MAPPING = "/home/pi/device_mapping"
 DEFAULT_READY_MANIFEST = "/run/spf/direct_usb_ready.json"
 # Matches the URI the collector builds in mavlink_radio_collection.py.
 URI_TEMPLATE = "pluto://usb:1.{dev}.5"
+SYSFS_USB = "/sys/bus/usb/devices"
 
 
 def read_device_mapping(path: str) -> dict[int, str]:
@@ -73,8 +74,30 @@ def present_ports() -> dict[int, str]:
     return found
 
 
+def serial_from_sysfs(port: int, root: str = SYSFS_USB) -> str | None:
+    """Live serial for the radio on this hub port.
+
+    Preferred over the boot manifest for two reasons: it is world-readable, and
+    it is keyed by PORT, which is physical and stable. The manifest keys by
+    iio_uri, which embeds the USB device number -- and that changes every time a
+    radio re-enumerates. Rover 1's r1 had cycled from dev 3 to dev 12 by the
+    time anyone looked, so the manifest could no longer identify it.
+    """
+    try:
+        with open(f"{root}/1-1.{port}/serial", encoding="utf-8") as handle:
+            return handle.read().strip() or None
+    except OSError:
+        return None
+
+
 def serials_by_uri(path: str) -> dict[str, str]:
-    """iio_uri -> pluto serial, from the boot firmware attestation."""
+    """iio_uri -> pluto serial, from the boot firmware attestation.
+
+    Fallback only. Note the two fields sit in DIFFERENT nested dicts --
+    radios[i].hardware_fingerprint.attachment.iio_uri against
+    radios[i].serial -- so they have to be paired per radio rather than found
+    together.
+    """
     try:
         with open(path, encoding="utf-8") as handle:
             manifest = json.load(handle)
@@ -82,20 +105,16 @@ def serials_by_uri(path: str) -> dict[str, str]:
         return {}
 
     out: dict[str, str] = {}
-
-    def walk(node):
-        if isinstance(node, dict):
-            uri = node.get("iio_uri")
-            serial = node.get("pluto_serial") or node.get("serial")
-            if isinstance(uri, str) and isinstance(serial, str):
-                out[uri] = serial
-            for value in node.values():
-                walk(value)
-        elif isinstance(node, list):
-            for value in node:
-                walk(value)
-
-    walk(manifest)
+    for radio in manifest.get("radios", []) or []:
+        if not isinstance(radio, dict):
+            continue
+        fingerprint = radio.get("hardware_fingerprint") or {}
+        attachment = fingerprint.get("attachment") or {}
+        identity = fingerprint.get("stable_identity") or {}
+        uri = attachment.get("iio_uri")
+        serial = identity.get("pluto_serial") or radio.get("serial")
+        if isinstance(uri, str) and isinstance(serial, str):
+            out[uri] = serial
     return out
 
 
@@ -111,6 +130,13 @@ def build(config_path: str, mapping_path: str, manifest_path: str) -> dict:
 
     live = present_ports()
     serials = serials_by_uri(manifest_path)
+    # The manifest records the device number each radio had at boot. A live
+    # number far above it means the radio has re-enumerated since -- i.e. it
+    # dropped off the bus and came back, possibly repeatedly.
+    boot_devs = {
+        int(uri.split(".")[1]) for uri in serials if uri.count(".") >= 2
+    }
+    highest_boot_dev = max(boot_devs, default=0)
 
     rows = []
     for index, receiver in enumerate(config.get("receivers", [])):
@@ -126,15 +152,25 @@ def build(config_path: str, mapping_path: str, manifest_path: str) -> dict:
                 "live_dev": live_dev,
                 "uri": uri,
                 "kernel_name": f"usb 1-1.{port}" if port is not None else None,
-                "serial": serials.get(uri.replace("pluto://", ""), None)
-                if uri
-                else None,
+                # Live first, boot snapshot second.
+                "serial": (
+                    serial_from_sysfs(port)
+                    or (serials.get(uri.replace("pluto://", "")) if uri else None)
+                ),
+                "boot_serial": (
+                    serials.get(uri.replace("pluto://", "")) if uri else None
+                ),
                 "present": live_dev is not None,
                 # A mapping written before a re-enumeration points at a device
                 # number that no longer exists; the collector then opens the
                 # wrong URI or none at all.
                 "mapping_stale": (
                     live_dev is not None and dev is not None and live_dev != dev
+                ),
+                "reenumerated": (
+                    live_dev is not None
+                    and highest_boot_dev
+                    and int(live_dev) > highest_boot_dev
                 ),
                 "antenna_spacing_m": receiver.get("antenna-spacing-m"),
             }
@@ -173,6 +209,15 @@ def render(report: dict) -> int:
         print(f"  {mark} {row['receiver']:<2}{str(row['receiver_port']):>5}"
               f"{str(row['mapped_dev'] or '-'):>5}  {row['kernel_name'] or '-':<11}"
               f"{(row['uri'] or '-'):<22}{(row['serial'] or '-'):<36}{state}")
+
+    churned = [r for r in report["receivers"] if r.get("reenumerated")]
+    if churned:
+        print()
+        for row in churned:
+            print(f"  NOTE: {row['receiver']} is at dev {row['live_dev']}, above "
+                  f"every device number present at boot.")
+        print("    That radio has left and rejoined the bus since boot. Check:")
+        print("      dmesg -T | grep -i 'usb disconnect'")
 
     print()
     if missing:
