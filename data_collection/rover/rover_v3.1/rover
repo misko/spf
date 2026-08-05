@@ -638,6 +638,22 @@ venv_python() {
     printf '%s' "$interpreter"
 }
 
+# The canonical capture config for this rover, resolved the same way
+# run_rx_signal_check.sh and the boot preflight resolve it, so `map` cannot
+# disagree with what the collector will actually open.
+radio_config_path() {
+    local id values
+    id="$(rover_id)"
+    mapfile -d '' -t values < <(
+        "$(venv_python)" -m spf.scripts.rover_capture_config \
+            --rover-id "$id" --format null \
+            ${SPF_CAPTURE_CONFIG:+--config "$SPF_CAPTURE_CONFIG"}
+    )
+    [[ "${#values[@]}" -ge 16 ]] ||
+        die "capture config resolver returned ${#values[@]} fields"
+    printf '%s' "${values[1]}"
+}
+
 group_usage() {
     local group="$1"; shift
     printf 'usage: rover %s <subcommand> [options]\n\n' "$group"
@@ -713,6 +729,14 @@ cmd_radio() {
             exec bash "${ROVER_DIR}/drone_run.sh" "$@" ;;
         status)
             head_ "radios"; report_hardware; printf '\n' ;;
+        map)
+            # Which physical radio is r0, which is r1, and is each still there.
+            require_rover_id >/dev/null
+            local cfg; cfg="$(radio_config_path)"
+            exec "$(venv_python)" -m spf.scripts.rover_radio_map \
+                --config "$cfg" "$@" ;;
+        remap)
+            exec bash "${ROVER_DIR}/update_device_mapping.sh" "$@" ;;
         signal)
             # Short motion-free capture on every radio, then per-channel health.
             # The loop for diagnosing an antenna: swap it, run this, read it.
@@ -722,6 +746,8 @@ cmd_radio() {
             group_usage radio \
                 "subcommands:" \
                 "  status       attached Plutos and ready-manifest state (read-only)" \
+                "  map          which radio is r0/r1: port, dev, URI, serial, present?" \
+                "  remap        regenerate ~/device_mapping from the bus (--check to test)" \
                 "  signal       capture N frames on every radio, report per-channel health" \
                 "               (--freq/--bandwidth/--sampling/--rx-gain/--gain-mode override RF)" \
                 "  firmware     running firmware per radio, by USB serial (needs sudo)" \

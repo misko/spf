@@ -495,6 +495,7 @@ SCRIPT_DISPOSITION = {
     "configure_direct_usb_boot.sh": "internal",
     "run_direct_usb_boot_preflight.sh": "exposed",
     "run_rx_signal_check.sh": "exposed",
+    "update_device_mapping.sh": "exposed",
     "drone_run.sh": "exposed",
     # base-station side, like sitl: offload PULLS from a rover, because a rover
     # has no rsync/scp (ROVER_RUNBOOK 12.2). Behaviour: tests/test_stage_captures.py

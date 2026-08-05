@@ -1,0 +1,40 @@
+calibration-frames: 10
+data-version: 5
+emitter:
+  motor_channel: 1
+  type: esp32
+n-records-per-receiver: 1025
+n-thetas: 65
+receivers:
+- antenna-spacing-m: 0.05075
+  array-type: linear
+  bandwidth: 300000
+  buffer-size: 524288
+  f-carrier: 2412000000
+  f-intermediate: 100000
+  f-sampling: 16000000
+  motor_channel: 0
+  nelements: 2
+  receiver-uri: fake
+  rx-buffers: 2
+  rx-gain: -3
+  rx-gain-mode: fast_attack
+  theta-in-pis: -0.25
+- antenna-spacing-m: 0.05075
+  array-type: linear
+  bandwidth: 300000
+  buffer-size: 524288
+  f-carrier: 2412000000
+  f-intermediate: 100000
+  f-sampling: 16000000
+  motor_channel: 0
+  nelements: 2
+  receiver-uri: fake
+  rx-buffers: 2
+  rx-gain: -3
+  rx-gain-mode: fast_attack
+  theta-in-pis: 1.25
+routine: null
+seconds-per-sample: 5.0
+skip_phase_calibration: true
+width: 4000
