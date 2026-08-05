@@ -77,6 +77,30 @@ mkdir -p "$run_dir"
 printf '\n== capturing %s frames per receiver (motion-free) ==\n' "$RECORDS"
 printf '   config : %s\n   output : %s\n\n' "$CONFIG" "$run_dir"
 
+readonly STATUS_FILE="${run_dir}/capture_status.json"
+
+# Progress comes from the collector's own status file, the same one the capture
+# watchdog polls. CaptureStatus.publish throttles to one write every ~5 s, so
+# the counts step rather than stream; the elapsed clock ticks every second so
+# the display still shows liveness between updates.
+status_counts() {
+    [[ -r "$STATUS_FILE" ]] || return 1
+    sed -n 's/.*"records_written_by_receiver": \[\([^]]*\)\].*/\1/p' \
+        <(tr -d '\n' <"$STATUS_FILE") | tr -d ' '
+}
+
+draw_bar() {
+    local done="$1" total="$2" elapsed="$3" per_rx="$4" width=30 filled pct bar pad
+    (( total > 0 )) || total=1
+    pct=$(( done * 100 / total ))
+    filled=$(( done * width / total ))
+    (( filled > width )) && filled=$width
+    printf -v bar '%*s' "$filled" ''
+    printf -v pad '%*s' "$(( width - filled ))" ''
+    printf '\r   [%s%s] %3d%%  %s/%s  [%s]  %s  ' \
+        "${bar// /=}" "${pad// /·}" "$pct" "$done" "$total" "${per_rx:-…}" "$elapsed"
+}
+
 export PYTHONBREAKPOINT=0
 # Run from the run directory, not the checkout. mavlink_controller.py calls
 # logging.basicConfig(filename="logs.log") with a RELATIVE path, so the log
@@ -94,9 +118,42 @@ cd "$run_dir"
     --routine center \
     --records-per-receiver "$RECORDS" \
     --temp "$run_dir" \
+    --status-file "$STATUS_FILE" \
     --tag "RXCHECK_RO${rover_id}" \
-    >"$run_dir/console.txt" 2>&1 ||
-    { tail -20 "$run_dir/console.txt" >&2; die "Capture failed; see ${run_dir}/console.txt"; }
+    >"$run_dir/console.txt" 2>&1 &
+capture_pid=$!
+
+# A bar is only meaningful on a terminal. Redirected to a file or a log, print
+# a plain line per update instead of thousands of carriage returns.
+started=$SECONDS
+last_line=""
+while kill -0 "$capture_pid" 2>/dev/null; do
+    counts="$(status_counts || true)"
+    done_frames=0
+    if [[ -n "$counts" ]]; then
+        # The laggard receiver is the honest progress: the capture is not
+        # finished until every receiver has its frames.
+        done_frames="$(tr ',' '\n' <<<"$counts" | sort -n | head -1)"
+        [[ "$done_frames" =~ ^[0-9]+$ ]] || done_frames=0
+    fi
+    elapsed=$(printf '%d:%02d' $(( (SECONDS-started)/60 )) $(( (SECONDS-started)%60 )))
+    if [[ -t 1 ]]; then
+        draw_bar "$done_frames" "$RECORDS" "$elapsed" "${counts:-}"
+    elif [[ "$done_frames/$RECORDS" != "$last_line" ]]; then
+        printf '   %s/%s frames  [%s]  %s\n' \
+            "$done_frames" "$RECORDS" "${counts:-…}" "$elapsed"
+        last_line="$done_frames/$RECORDS"
+    fi
+    sleep 1
+done
+
+wait "$capture_pid" || capture_status=$?
+[[ -t 1 ]] && printf '\r%*s\r' 90 ''
+if [[ "${capture_status:-0}" -ne 0 ]]; then
+    tail -20 "$run_dir/console.txt" >&2
+    die "Capture failed (status ${capture_status}); see ${run_dir}/console.txt"
+fi
+printf '   captured in %s\n' "$(printf '%d:%02d' $(( (SECONDS-started)/60 )) $(( (SECONDS-started)%60 )))"
 
 mapfile -t zarr_paths < <(find "$run_dir" -maxdepth 1 -name '*.zarr' -print)
 [[ "${#zarr_paths[@]}" -eq 1 ]] ||
