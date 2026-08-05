@@ -78,8 +78,15 @@ printf '\n== capturing %s frames per receiver (motion-free) ==\n' "$RECORDS"
 printf '   config : %s\n   output : %s\n\n' "$CONFIG" "$run_dir"
 
 export PYTHONBREAKPOINT=0
-cd "$REPO_ROOT"
-"$PYTHON" spf/mavlink_radio_collection.py \
+# Run from the run directory, not the checkout. mavlink_controller.py calls
+# logging.basicConfig(filename="logs.log") with a RELATIVE path, so the log
+# lands in whatever the working directory is. Pointing that at the repo means
+# a single earlier `sudo` run leaves a root-owned logs.log that makes every
+# later non-root capture die with PermissionError before it starts. Here the
+# log lands beside the capture it belongs to, and the checkout is never
+# written to.
+cd "$run_dir"
+"$PYTHON" "${REPO_ROOT}/spf/mavlink_radio_collection.py" \
     --fake-drone \
     --no-ultrasonic \
     --yaml-config "$CONFIG" \

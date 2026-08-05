@@ -43,8 +43,12 @@ export PYTHONBREAKPOINT=0
 run_dir="${OUTPUT_ROOT}/$(date +%Y%m%d_%H%M%S)_rover${rover_id}"
 mkdir -p "$run_dir"
 
-cd "$REPO_ROOT"
-"$PYTHON" spf/mavlink_radio_collection.py \
+# Not the checkout: mavlink_controller.py logs to a RELATIVE "logs.log", so
+# running from $REPO_ROOT drops it in the tree, and one root-owned copy makes
+# every later non-root run fail with PermissionError. Beside the capture is
+# both writable and where the log is actually wanted.
+cd "$run_dir"
+"$PYTHON" "${REPO_ROOT}/spf/mavlink_radio_collection.py" \
     --fake-drone \
     --no-ultrasonic \
     --yaml-config "$CONFIG" \
