@@ -14,6 +14,16 @@
 #   run_rx_signal_check.sh                 # capture 100 frames/receiver, report
 #   run_rx_signal_check.sh --records 250   # longer capture
 #   run_rx_signal_check.sh /path/to.zarr   # report on an existing store
+#
+# RF overrides (applied to a COPY of the config; production YAML is untouched):
+#   --freq HZ          carrier, e.g. --freq 5.8e9      (fleet default 5.766e9)
+#   --bandwidth HZ     e.g. --bandwidth 5e6            (default 3e6)
+#   --sampling HZ      sample rate, e.g. --sampling 20e6  (default 30e6)
+#   --rx-gain DB       e.g. --rx-gain 20               (default -3)
+#   --gain-mode MODE   slow_attack | fast_attack | manual  (default slow_attack)
+#
+# A capture at the wrong frequency looks exactly like a dead antenna, so the
+# effective RF settings are printed above the metrics table every run.
 
 set -euo pipefail
 
@@ -25,6 +35,7 @@ RECORDS="${SPF_RX_CHECK_RECORDS:-100}"
 OUTPUT_ROOT="${SPF_RX_CHECK_OUTPUT_ROOT:-/home/pi/preflight/rx_signal_check}"
 KEEP=0
 EXISTING=""
+declare -a OVERRIDES=()
 
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 2; }
 
@@ -32,9 +43,26 @@ while [[ "$#" -gt 0 ]]; do
     case "$1" in
         --records) [[ "$#" -ge 2 ]] || die "--records requires a value."
                    RECORDS="$2"; shift 2 ;;
+        # RF overrides. These do not edit the production config -- an effective
+        # copy is written into the run directory and captured with instead, so
+        # the canonical YAML stays exactly as the fleet flies it.
+        --freq|--f-carrier)
+                   [[ "$#" -ge 2 ]] || die "$1 requires a value."
+                   OVERRIDES+=("f-carrier=$2"); shift 2 ;;
+        --rx-gain) [[ "$#" -ge 2 ]] || die "--rx-gain requires a value."
+                   OVERRIDES+=("rx-gain=$2"); shift 2 ;;
+        --gain-mode)
+                   [[ "$#" -ge 2 ]] || die "--gain-mode requires a value."
+                   OVERRIDES+=("rx-gain-mode=$2"); shift 2 ;;
+        --bandwidth)
+                   [[ "$#" -ge 2 ]] || die "--bandwidth requires a value."
+                   OVERRIDES+=("bandwidth=$2"); shift 2 ;;
+        --sampling|--f-sampling)
+                   [[ "$#" -ge 2 ]] || die "$1 requires a value."
+                   OVERRIDES+=("f-sampling=$2"); shift 2 ;;
         --keep)    KEEP=1; shift ;;
         -h|--help)
-            sed -n '3,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '3,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
             exit 0 ;;
         *)         EXISTING="$1"; shift ;;
     esac
@@ -86,8 +114,46 @@ CONFIG="${config_values[1]}"
 run_dir="${OUTPUT_ROOT}/$(date +%Y%m%d_%H%M%S)_rover${rover_id}"
 mkdir -p "$run_dir"
 
+# Overrides are applied to a COPY. The production config is immutable: it is
+# what the fleet flies, and a diagnostic must never be able to change it.
+if [[ "${#OVERRIDES[@]}" -gt 0 ]]; then
+    effective="${run_dir}/effective_config.yaml"
+    "$PYTHON" - "$CONFIG" "$effective" "${OVERRIDES[@]}" <<'PYEOF' || die "Could not apply overrides."
+import sys, yaml
+source, target, *pairs = sys.argv[1:]
+config = yaml.safe_load(open(source))
+overrides = dict(pair.split("=", 1) for pair in pairs)
+for key, raw in overrides.items():
+    try:
+        value = float(raw) if key != "rx-gain-mode" else raw
+        if key != "rx-gain-mode" and value.is_integer():
+            value = int(value)
+    except ValueError:
+        value = raw
+    for receiver in config["receivers"]:
+        before = receiver.get(key)
+        receiver[key] = value
+        print(f"   override  {key}: {before} -> {value}")
+with open(target, "w") as handle:
+    yaml.safe_dump(config, handle, sort_keys=False)
+PYEOF
+    CONFIG="$effective"
+fi
+
 printf '\n== capturing %s frames per receiver (motion-free) ==\n' "$RECORDS"
-printf '   config : %s\n   output : %s\n\n' "$CONFIG" "$run_dir"
+printf '   config : %s\n   output : %s\n' "$CONFIG" "$run_dir"
+# Print the RF the capture will actually use. A sweep that finds nothing at the
+# wrong frequency looks identical to a dead antenna, so the settings must be on
+# screen next to the numbers they produced.
+"$PYTHON" - "$CONFIG" <<'PYEOF'
+import sys, yaml
+config = yaml.safe_load(open(sys.argv[1]))
+rx = config["receivers"][0]
+print(f"   rf     : carrier {rx['f-carrier']/1e9:.6g} GHz  "
+      f"bw {rx['bandwidth']/1e6:.4g} MHz  fs {rx['f-sampling']/1e6:.4g} MS/s  "
+      f"gain {rx['rx-gain']} ({rx['rx-gain-mode']})")
+print()
+PYEOF
 
 readonly STATUS_FILE="${run_dir}/capture_status.json"
 

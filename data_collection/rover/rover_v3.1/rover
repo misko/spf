@@ -686,6 +686,7 @@ cmd_radio() {
                 "subcommands:" \
                 "  status       attached Plutos and ready-manifest state (read-only)" \
                 "  signal       capture N frames on every radio, report per-channel health" \
+                "               (--freq/--bandwidth/--sampling/--rx-gain/--gain-mode override RF)" \
                 "  firmware     running firmware per radio, by USB serial (needs sudo)" \
                 "  preflight    one motion-free production-shaped capture after boot" \
                 "  capture      the production boot launcher (drone_run.sh)"
