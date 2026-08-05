@@ -623,3 +623,41 @@ its last command with ArduPilot taking no action. Still open.
 
 Procedure: `rover4_setup.md` §14.5. Manual:
 https://www.frsky-rc.com/wp-content/uploads/Downloads/Manual/R9%20SX/R9%20SX-Manual.pdf
+
+## Rover (2026-08-05): half the fleet threw its journal away at every reboot,
+## and the fix must not restart journald
+
+Verified 2026-08-04: rovers 1 and 4 ran journald with `Storage=volatile` (journal
+in `/run`, destroyed by every reboot; rover 4 retained exactly one boot), while
+rovers 2 and 3 were persistent. Nothing reports this, and nothing fails when it
+is wrong — until you need the log.
+
+It cost a real diagnosis. Rover 4 recorded a capture with one receive channel
+**24 dB** below its sibling and the AGC railed on 99% of frames; when we went to
+read what the radio had logged during that capture, the journal for that boot no
+longer existed, and the `.log` sidecar was zero bytes (separate defect). There
+was no record at all.
+
+**Converged at boot, not in provisioning.** `reconcile_rover_boot_units.sh` now
+writes `/etc/systemd/journald.conf.d/10-spf-persistent.conf`
+(`Storage=persistent`, `SystemMaxUse=1G`, `SystemMaxFileSize=64M`) and creates
+`/var/log/journal`. `provision_rover.sh --stage base` calls the same code path
+(`--journald-only`) so a new rover never has the defect, but that is not what
+fixes the fleet: **nothing re-runs a provisioning stage** — the same lesson the
+missing `/usr/local/bin/rover` symlink taught on rover 4. Only boot convergence
+reaches rovers that were provisioned earlier.
+
+**Do not restart systemd-journald to make it take effect.** journald reads
+`Storage=` once, at start, so the drop-in only applies at the next boot — accept
+that. A restart tears down and rebuilds the stdout/stderr stream sockets that
+every already-started service is logging through, and streams that are not
+restored go silent for the rest of that boot. The services at risk are precisely
+the capture chain this exists to diagnose, so restarting would trade a whole
+boot of capture logs for one boot of persistence. The rovers reboot for every
+session, so convergence is at most one boot late.
+
+**Configured ≠ in effect**, and that distinction is now visible: `rover doctor`'s
+`journal` section reports persistent / configured-but-volatile-until-reboot /
+volatile-and-unmanaged, as a warning (a lost journal costs the post-mortem, not
+the mission). Drop-in over `journald.conf` deliberately: drop-ins outrank the
+main file, so nothing packaged is edited and removal is one `rm`.

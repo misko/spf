@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
-# Converge the root-managed Rover systemd units, and the /usr/local/bin/rover
-# CLI symlink, on the files in this checkout.
+# Converge the root-managed Rover systemd units on the files in this checkout,
+# plus the fleet-wide properties that drift the same way and are equally
+# invisible when they do: the /usr/local/bin/rover CLI symlink, the timezone,
+# and persistent journald.
 #
-# Exit status (units only -- CLI symlink reconciliation is advisory and never
-# changes the status):
+# Exit status (units only -- the CLI symlink, timezone and journald
+# reconciliations are advisory and never change the status):
 #   0  already converged
 #   10 units installed and enabled; one reboot is required
 #   75 this exact desired state already requested a reboot but still drifted
@@ -26,6 +28,9 @@ STATE_DIR="/var/lib/spf"
 SYSTEMCTL="systemctl"
 CLI_LINK="/usr/local/bin/rover"
 FLEET_TIMEZONE="${SPF_ROVER_TIMEZONE:-}"
+JOURNALD_DROPIN="$SPF_JOURNALD_DROPIN_PATH_DEFAULT"
+JOURNAL_DIR="$SPF_JOURNAL_DIR_DEFAULT"
+JOURNALD_ONLY=0
 USE_SUDO=1
 
 readonly -a MANAGED_UNITS=(
@@ -53,7 +58,15 @@ Production use takes no arguments. The options below isolate regression tests:
   --systemd-dir DIR
   --state-dir DIR
   --systemctl COMMAND
+  --cli-link PATH
+  --timezone ZONE | --no-timezone
+  --journald-dropin PATH
+  --journal-dir DIR
   --unprivileged
+
+Also supported in production:
+  --journald-only   converge journald persistence and nothing else (the
+                    provisioner's base stage uses this), always exiting 0.
 EOF
 }
 
@@ -143,6 +156,86 @@ reconcile_timezone() {
         printf 'WARN: could not set timezone to %s (is %s); capture filenames will not match the fleet.\n' \
             "$want" "${current:-unknown}" >&2
     fi
+    return 0
+}
+
+# Rovers 1 and 4 keep their journal in RAM (Storage=volatile) and lose it at
+# every reboot; rovers 2 and 3 keep theirs. That asymmetry cost us the diagnosis
+# of Rover 4's 24 dB channel imbalance on 2026-08-04 -- the journal for the boot
+# that recorded the capture was already gone when we went to read it.
+#
+# Converged here, for the reason the CLI symlink taught us: adding a step to a
+# provisioning stage does not reach a rover that already ran that stage, and
+# nothing re-runs a stage. Boot convergence is what actually fixes a fleet.
+#
+# WE DELIBERATELY DO NOT RESTART systemd-journald.
+#
+# journald reads Storage= once, at start, so this drop-in only takes effect at
+# the next boot -- which is fine, because this reconciler runs at every boot and
+# the rovers reboot for every session. Restarting it here would buy one boot's
+# worth of logs at real risk: a journald restart tears down and rebuilds the
+# stdout/stderr stream sockets that every already-started service is logging
+# through, and services whose streams do not get restored go silent for the rest
+# of the boot. The units this reconciler exists to serve -- the capture chain --
+# are exactly those services. Silencing the capture's logs in order to make
+# logging more reliable is a bad trade, and a rover that cannot fly because of a
+# logging setting is a far worse outcome than a rover with a volatile journal.
+# So: write the desired state, create the directory, and let the next boot pick
+# it up. `rover doctor` reports the difference between configured and in effect.
+#
+# Advisory, like the two above, and outside install_and_verify: a volatile
+# journal costs diagnosis, not a mission. Returns 0 on every path.
+reconcile_journald_persistence() {
+    local want have dropin_dir source_tmp
+    want="$(spf_journald_dropin_content)"
+    dropin_dir="$(dirname -- "$JOURNALD_DROPIN")"
+
+    have=""
+    if [[ -f "$JOURNALD_DROPIN" ]]; then
+        have="$(cat -- "$JOURNALD_DROPIN" 2>/dev/null || true)"
+    fi
+
+    if [[ "$have" == "$want" && -d "$JOURNAL_DIR" ]]; then
+        if spf_journal_is_persistent_now "$JOURNAL_DIR"; then
+            printf 'PASS: journald is persistent (%s).\n' "$JOURNAL_DIR"
+        else
+            printf 'PASS: journald persistence is configured; it takes effect at the next boot.\n'
+        fi
+        return 0
+    fi
+
+    if ! run_privileged install -d -m 0755 -- "$dropin_dir" 2>/dev/null; then
+        printf 'WARN: could not create %s; journal stays volatile.\n' \
+            "$dropin_dir" >&2
+        return 0
+    fi
+
+    # 2755 root:systemd-journal is what systemd-tmpfiles creates here; journald
+    # makes the per-machine subdirectory itself once it starts persistent.
+    if run_privileged install -d -m 2755 -- "$JOURNAL_DIR" 2>/dev/null; then
+        if command -v getent >/dev/null 2>&1 &&
+            getent group systemd-journal >/dev/null 2>&1; then
+            run_privileged chgrp systemd-journal -- "$JOURNAL_DIR" \
+                >/dev/null 2>&1 || true
+        fi
+    else
+        printf 'WARN: could not create %s; journal stays volatile.\n' \
+            "$JOURNAL_DIR" >&2
+        return 0
+    fi
+
+    source_tmp="$(mktemp /tmp/spf-journald-dropin.XXXXXX)" || return 0
+    printf '%s\n' "$want" >"$source_tmp"
+    if run_privileged install -m 0644 -- "$source_tmp" "$JOURNALD_DROPIN" \
+        2>/dev/null; then
+        printf '%s\n' \
+            "PASS: wrote ${JOURNALD_DROPIN} (Storage=persistent, SystemMaxUse=1G)." \
+            "      journald is not restarted on purpose; this takes effect at the next boot."
+    else
+        printf 'WARN: could not write %s; journal stays volatile.\n' \
+            "$JOURNALD_DROPIN" >&2
+    fi
+    rm -f -- "$source_tmp" >/dev/null 2>&1 || true
     return 0
 }
 
@@ -292,6 +385,20 @@ main() {
                 FLEET_TIMEZONE=""
                 shift
                 ;;
+            --journald-dropin)
+                [[ "$#" -ge 2 ]] || die "--journald-dropin requires a value."
+                JOURNALD_DROPIN="$2"
+                shift 2
+                ;;
+            --journal-dir)
+                [[ "$#" -ge 2 ]] || die "--journal-dir requires a value."
+                JOURNAL_DIR="$2"
+                shift 2
+                ;;
+            --journald-only)
+                JOURNALD_ONLY=1
+                shift
+                ;;
             --unprivileged)
                 USE_SUDO=0
                 shift
@@ -306,8 +413,16 @@ main() {
         esac
     done
 
+    # The provisioner's base stage wants the journald convergence alone, before
+    # any unit is installed and without the reboot contract.
+    if [[ "$JOURNALD_ONLY" -eq 1 ]]; then
+        reconcile_journald_persistence
+        return 0
+    fi
+
     # Before the units, and never able to change the status they return.
     reconcile_timezone
+    reconcile_journald_persistence
     reconcile_cli_symlink
     install_and_verify
 }

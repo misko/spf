@@ -55,6 +55,68 @@ spf_fleet_timezone() {
     printf 'Europe/London'
 }
 
+# --------------------------------------------------------------- journald ---
+#
+# Rovers 1 and 4 ran journald with Storage=volatile: the journal lives only in
+# /run, so every reboot destroys it. On 2026-08-04 Rover 4 recorded a capture
+# with one receive channel 24 dB below its sibling and the AGC railed on 99% of
+# frames; by the time anyone looked, the journal for that boot no longer
+# existed, and the .log sidecar was zero bytes. There was no record at all.
+#
+# The desired state is defined HERE, once, so the boot reconciler, the
+# provisioner and `rover doctor` cannot disagree about what "persistent" means
+# -- the same reason the capture-env defaults live in this file.
+#
+# The knobs, and why these numbers:
+#   Storage=persistent   unconditional, rather than `auto`. `auto` only writes
+#                        to disk if /var/log/journal already exists, which is
+#                        exactly the state that silently failed to hold.
+#   SystemMaxUse=1G      the rovers have 470 GB SD cards at 8% used, so space
+#                        is not tight, but an uncapped journal is still an
+#                        unbounded write amplifier on flash. 1 GB is months of
+#                        rover logs and is trimmed by journald itself, oldest
+#                        first, with no operator involvement.
+#   SystemMaxFileSize=64M  keeps rotation granular, so hitting the cap discards
+#                        an old 64 MB slice rather than a large fraction of the
+#                        retained history.
+#
+# It is a DROP-IN, never an edit to /etc/systemd/journald.conf: drop-ins take
+# precedence over the main file, so this overrides the distro's Storage=volatile
+# without modifying a packaged file (and is removable in one `rm`).
+SPF_JOURNALD_DROPIN_PATH_DEFAULT="/etc/systemd/journald.conf.d/10-spf-persistent.conf"
+SPF_JOURNAL_DIR_DEFAULT="/var/log/journal"
+
+spf_journald_dropin_content() {
+    cat <<'EOF'
+# Managed by SPF: data_collection/rover/rover_v3.1/reconcile_rover_boot_units.sh
+# Edits are overwritten at the next boot. Change rover_env_defaults.sh instead.
+#
+# Volatile journals cost us the diagnosis of Rover 4's 24 dB channel imbalance
+# on 2026-08-04: the boot that recorded it was gone before anyone could look.
+[Journal]
+Storage=persistent
+SystemMaxUse=1G
+SystemMaxFileSize=64M
+EOF
+}
+
+# Is the journal ACTUALLY landing on disk right now? Configuration is not the
+# same as effect -- journald reads Storage at start, so a rover that has just
+# been converged is still volatile until it reboots. Both the reconciler and
+# doctor have to be able to tell those two states apart, so the check lives
+# here with the desired state it is checked against.
+spf_journal_is_persistent_now() {
+    local dir="${1:-}" entry
+    [[ -n "$dir" ]] || dir="$SPF_JOURNAL_DIR_DEFAULT"
+    [[ -d "$dir" ]] || return 1
+    for entry in "$dir"/*/*.journal "$dir"/*.journal; do
+        if [[ -f "$entry" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Resolve one key's built-in default for a given rover id.
 spf_capture_env_default() {
     local key="$1" rover_id="${2:-}"

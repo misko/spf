@@ -162,6 +162,15 @@ stage_base() {
     note "rover CLI -> /usr/local/bin/rover"
     bash "${ROVER_DIR}/rover" install || die "rover install failed"
 
+    # Persistent journald, so a freshly provisioned rover is not volatile even
+    # for its first boot. This is NOT the mechanism that fixes the fleet --
+    # nothing re-runs a provisioning stage, which is why rovers 1 and 4 stayed
+    # volatile and why the boot reconciler converges it on every boot. It is
+    # here only so a new rover never has the defect in the first place.
+    note "journald persistence (Storage=persistent, SystemMaxUse=1G)"
+    bash "${ROVER_DIR}/reconcile_rover_boot_units.sh" --journald-only ||
+        note "journald persistence could not be configured — the boot reconciler will retry"
+
     note "udev usb_device rule"
     local rules=/etc/udev/rules.d/99-com.rules
     if [[ -f "$rules" ]]; then

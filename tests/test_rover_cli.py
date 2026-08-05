@@ -650,3 +650,75 @@ def test_unknown_ardupilot_subcommand_still_fails(tmp_path):
     result = run_cli("ardupilot", "definitely-not-a-subcommand", env=fake_venv(tmp_path))
     assert result.returncode != 0
     assert "unknown ardupilot subcommand" in result.stderr
+
+
+# ------------------------------------------------------- journal-persistence ---
+#
+# Rover 4's journal was volatile, so the boot that recorded a capture with one
+# receive channel 24 dB down was gone before anyone could read it. The boot
+# reconciler now converges the setting; doctor has to be able to say which of
+# the three states the rover is in, because "configured" and "in effect" are
+# not the same thing -- journald only reads Storage= at start.
+
+
+def doctor_journal_section(tmp_path: Path, dropin: Path, journal_dir: Path) -> str:
+    environment = rover_hostname_shim(tmp_path)
+    environment["SPF_ROVER_CLI_PATH"] = str(tmp_path / "absent" / "rover")
+    environment["SPF_JOURNALD_DROPIN"] = str(dropin)
+    environment["SPF_JOURNAL_DIR"] = str(journal_dir)
+    result = run_cli("doctor", env=environment)
+    assert "== journal ==" in result.stdout, result.stdout + result.stderr
+    return result.stdout.split("== journal ==")[-1].split("== hardware ==")[0]
+
+
+def desired_dropin() -> str:
+    result = subprocess.run(
+        ["bash", "-c", f"source '{ROVER_DIR}/rover_env_defaults.sh'; "
+                       "spf_journald_dropin_content"],
+        capture_output=True, text=True, check=True,
+    )
+    return result.stdout
+
+
+def test_doctor_reports_a_volatile_journal(tmp_path):
+    section = doctor_journal_section(tmp_path, tmp_path / "absent.conf", tmp_path / "none")
+    assert "VOLATILE" in section
+    assert "--journald-only" in section
+
+
+def test_doctor_separates_configured_from_in_effect(tmp_path):
+    """The drop-in is written, but journald still holds the journal in RAM."""
+    dropin = tmp_path / "10-spf-persistent.conf"
+    dropin.write_text(desired_dropin())
+    journal_dir = tmp_path / "journal"
+    journal_dir.mkdir()
+
+    section = doctor_journal_section(tmp_path, dropin, journal_dir)
+
+    assert "still VOLATILE" in section
+    assert "next reboot" in section
+
+
+def test_doctor_accepts_a_persistent_journal(tmp_path):
+    dropin = tmp_path / "10-spf-persistent.conf"
+    dropin.write_text(desired_dropin())
+    journal_dir = tmp_path / "journal" / "0123456789abcdef"
+    journal_dir.mkdir(parents=True)
+    (journal_dir / "system.journal").write_bytes(b"")
+
+    section = doctor_journal_section(tmp_path, dropin, journal_dir.parent)
+
+    assert "persistent" in section
+    assert "VOLATILE" not in section
+
+
+def test_doctor_does_not_fail_the_mission_over_a_volatile_journal(tmp_path):
+    """A lost journal costs the post-mortem, not the mission."""
+    environment = rover_hostname_shim(tmp_path)
+    environment["SPF_JOURNALD_DROPIN"] = str(tmp_path / "absent.conf")
+    environment["SPF_JOURNAL_DIR"] = str(tmp_path / "none")
+    result = run_cli("doctor", env=environment)
+    # The report must carry on past the journal section. (It stops in the
+    # hardware section on a dev box, which has no flight controller -- that is
+    # the pre-existing behaviour of every doctor test here.)
+    assert "== hardware ==" in result.stdout, result.stdout
