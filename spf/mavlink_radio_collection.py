@@ -14,6 +14,7 @@ from spf.capture_schema import (
     normalize_capture_config,
     validate_transport_schema,
 )
+from spf.capture_log import configure_capture_logging
 from spf.capture_status import CaptureStatusWriter
 from spf.capture_failure import terminate_capture_process
 from spf.gps.boundaries import boundaries  # crissy_boundary_convex
@@ -283,15 +284,27 @@ if __name__ == "__main__":
 
     logger = logging.getLogger(__name__)
 
-    # setup logging
-    handlers = [
-        logging.StreamHandler(),
-        logging.FileHandler(temp_filenames["log"]),
-    ]
-    logging.basicConfig(
-        handlers=handlers,
-        format="%(asctime)s:%(levelname)s:%(message)s",
-        level=getattr(logging, args.logging_level.upper(), None),
+    # Setup logging into the capture's own .log sidecar. This MUST go through
+    # configure_capture_logging: importing spf.mavlink.mavlink_controller above
+    # already called logging.basicConfig(filename="logs.log"), so a plain
+    # basicConfig here is a no-op and leaves the sidecar zero bytes while the
+    # run's log lands in a relative logs.log. configure_capture_logging forces
+    # the handlers, makes the path absolute, and writes the provenance header
+    # (argv, config path and its source, rover id, tag, host, git commit, and
+    # both local and UTC timestamps) ahead of the first log line.
+    configure_capture_logging(
+        temp_filenames["log"],
+        level=args.logging_level,
+        argv=sys.argv,
+        config_path=args.yaml_config,
+        tag=args.tag,
+        run_started_at=run_started_at,
+        data_filename=final_filenames["data"],
+        # The header is written to the .log.tmp; name the file it becomes so a
+        # reader of the finalized sidecar sees its own path.
+        extra={
+            "log_sidecar_final": str(Path(final_filenames["log"]).absolute()),
+        },
     )
 
     # make a copy of the YAML
