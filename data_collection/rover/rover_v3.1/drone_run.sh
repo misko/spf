@@ -126,7 +126,10 @@ print_plan() {
         "capture_restart_attempts=${CAPTURE_RESTART_ATTEMPTS}" \
         "crash_detect=${CRASH_DETECT}" \
         "ultrasonic=${ULTRASONIC}" \
-        "crash_recovery=${CRASH_RECOVERY}"
+        "crash_recovery=${CRASH_RECOVERY}" \
+        "compass_gate_retries=${COMPASS_GATE_RETRIES}" \
+        "compass_reboot_enable=${COMPASS_REBOOT_ENABLE}" \
+        "compass_reboot_delay_s=${COMPASS_REBOOT_DELAY_S}"
 }
 
 case "${1:-}" in
@@ -352,6 +355,12 @@ compass_gate_with_retries() {
 # moment the gate passes, so the number always describes one unbroken episode.
 readonly COMPASS_REBOOT_COUNT_FILE="/home/pi/compass_reboot_attempts"
 readonly COMPASS_REBOOT_DELAY_S="${SPF_COMPASS_REBOOT_DELAY_S:-20}"
+# The escalation is deliberately unbounded, so it needs an off switch that does
+# not require a code change or catching the 20s window. Set
+# SPF_COMPASS_REBOOT_ENABLE=0 in /etc/spf/rover_collection.env to park a rover
+# with a known-bad compass lead: it then fails closed like before instead of
+# cycling. Per-rover, survives reboots, and is visible in the boot plan.
+readonly COMPASS_REBOOT_ENABLE="${SPF_COMPASS_REBOOT_ENABLE:-1}"
 
 clear_compass_reboot_count() {
     rm -f -- "$COMPASS_REBOOT_COUNT_FILE"
@@ -367,6 +376,11 @@ clear_compass_reboot_count() {
 # Never reached for a misconfiguration: compass_gate_with_retries returns 1 for
 # those and the caller dies instead.
 reboot_rover_for_absent_compass() {
+    if ! is_true "$COMPASS_REBOOT_ENABLE"; then
+        printf 'Compass gate: external compass absent, but rover reboot is disabled\n' >&2
+        printf '  (SPF_COMPASS_REBOOT_ENABLE=0). Failing closed instead of cycling.\n' >&2
+        die "Compass policy verification failed; refusing collection and motion."
+    fi
     local count=0
     [[ -r "$COMPASS_REBOOT_COUNT_FILE" ]] && \
         count="$(tr -cd '0-9' <"$COMPASS_REBOOT_COUNT_FILE")"
