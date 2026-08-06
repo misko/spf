@@ -342,3 +342,77 @@ def test_cli_accepts_rover2_stale_secondary_and_records_warning(tmp_path, capsys
     )
     assert "WARNING: compass priority 3 device ID 131594" in output
     assert "PASS: external GPS compass" in output
+
+
+# ------------------------------------------------- retryable classification ---
+#
+# Rover 4, 2026-08-06: the external IST8310 on the GPS mast intermittently fails
+# to appear on the FC's I2C bus. A reboot re-probes and it usually returns, so
+# drone_run.sh retries that case. It must NEVER retry a misconfiguration, which
+# reads identically after any number of reboots.
+
+
+def _external_absent_params():
+    """The external compass vanished from the bus; its slot is still enabled."""
+    params = _healthy_params()
+    params["COMPASS_DEV_ID"] = 0  # not probed this boot
+    return params
+
+
+def test_a_healthy_vehicle_is_not_retryable_because_it_has_not_failed():
+    report = evaluate_compass_policy(_healthy_params())
+    assert report.ok
+    assert not report.retryable
+
+
+def test_a_missing_external_compass_is_retryable():
+    report = evaluate_compass_policy(_external_absent_params())
+
+    assert not report.ok
+    assert report.retryable, report.errors
+    # every error must be an absence error, or the classification is unsound
+    assert len(report.absence_errors) == len(report.errors)
+    assert any("was not detected as external" in e for e in report.absence_errors)
+
+
+def test_a_misconfiguration_is_never_retryable():
+    """A nonzero driver mask survives every reboot; retrying would bury it."""
+    params = _healthy_params()
+    params["COMPASS_DISBLMSK"] = 4
+
+    report = evaluate_compass_policy(params)
+
+    assert not report.ok
+    assert not report.retryable
+
+
+def test_an_absent_compass_plus_a_misconfiguration_is_not_retryable():
+    """Fail closed: one non-absence error disqualifies the whole verdict."""
+    params = _external_absent_params()
+    params["COMPASS_DISBLMSK"] = 4
+
+    report = evaluate_compass_policy(params)
+
+    assert not report.ok
+    assert report.absence_errors, "the absence should still be recognised"
+    assert not report.retryable, "but a config error must veto the retry"
+
+
+def test_an_empty_enabled_slot_is_a_config_error_while_the_external_is_present():
+    """Only the external's OWN empty slot is an absence symptom."""
+    params = _healthy_params()
+    params["COMPASS_USE3"] = 1  # slot 3 enabled for a compass never fitted
+
+    report = evaluate_compass_policy(params)
+
+    assert not report.ok
+    assert not report.retryable, report.errors
+
+
+def test_retryable_is_exposed_in_the_json_the_boot_path_reads():
+    report = evaluate_compass_policy(_external_absent_params())
+    payload = report.to_dict()
+
+    assert payload["retryable"] is True
+    assert payload["absence_errors"]
+    assert evaluate_compass_policy(_healthy_params()).to_dict()["retryable"] is False

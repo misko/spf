@@ -703,3 +703,51 @@ def _raise(error):
         raise error
 
     return raiser
+
+
+# ------------------------------------------------------- link loss vs stall ---
+#
+# Rover 4, 2026-08-05 23:10 (report E1): a 48 s "stall" fired in the same second
+# as a heartbeat timeout. The rover had not stopped -- the telemetry had. When
+# heartbeats stop, self.gps freezes at its last value, so the anchor distance
+# stays ~0 while the clock runs, and an operator is sent after a phantom.
+
+
+def test_a_dead_link_is_not_reported_as_a_stall(monkeypatch):
+    import time as _time
+
+    drone = _drone(monkeypatch)
+    drone.reconnect_heartbeat_timeout = 5.0
+    drone.last_heartbeat = _time.time() - 30.0  # link gone well past the timeout
+    drone._reset_stall_anchor()
+    drone.clock.now += 60.0  # far beyond the 10 s detect threshold
+
+    assert drone._stall_verdict() == STALL_OK
+
+
+def test_a_live_link_still_detects_a_real_stall(monkeypatch):
+    """The suppression must not cost us true positives."""
+    import time as _time
+
+    drone = _drone(monkeypatch)
+    drone.reconnect_heartbeat_timeout = 5.0
+    drone.last_heartbeat = _time.time()  # heartbeats arriving normally
+    drone._reset_stall_anchor()
+    drone.clock.now += 60.0
+
+    assert drone._stall_verdict() == STALL_MANUAL
+
+
+def test_a_drone_that_never_tracks_heartbeats_still_detects_stalls(monkeypatch):
+    """last_heartbeat == 0 means "not tracked", NOT "link is dead".
+
+    Reading 0 as a dead link disables stall detection on every fake-drone and
+    test path at once -- which is exactly what the first version of this
+    suppression did.
+    """
+    drone = _drone(monkeypatch)
+    assert getattr(drone, "last_heartbeat", 0) == 0
+    drone._reset_stall_anchor()
+    drone.clock.now += 60.0
+
+    assert drone._stall_verdict() == STALL_MANUAL

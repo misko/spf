@@ -95,6 +95,23 @@ class SdrCleanupError(RuntimeError):
         )
         super().__init__(details)
 
+    @property
+    def tx_may_be_unmuted(self) -> bool:
+        """True when a TX *mute* step failed, as opposed to bookkeeping.
+
+        Every other teardown step -- destroying buffers, disabling channels,
+        clearing cyclic mode -- has no physical consequence if it fails during
+        an abort. Setting tx_hardwaregain to -80 does: if it did not land and
+        the radio is still powered, the radio may still be radiating.
+
+        Usually this fires because the device has already gone (Errno 5), in
+        which case the host cannot mute it at all and only the Pluto's own
+        firmware can -- but an operator needs to be told that plainly rather
+        than reading it out of a list of five equal-looking cleanup failures.
+        Seen on rovers 1 and 4, 2026-08-05 (report B8).
+        """
+        return any(step.startswith("mute TX") for step, _error in self.failures)
+
 
 def _find_local_pluto_usb_device(serial: str) -> tuple[int, int, tuple[int, ...]]:
     """Resolve one local Pluto serial to its capture-time USB location."""

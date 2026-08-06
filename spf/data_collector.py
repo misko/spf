@@ -993,6 +993,18 @@ class DataCollector:
                         uri,
                         self._error_summary(error),
                     )
+                    # A failed mute is the only teardown failure with a physical
+                    # consequence, so it gets its own line rather than being one
+                    # of five equal-looking entries. Duck-typed to avoid
+                    # importing the radio layer into the collector.
+                    if getattr(error, "tx_may_be_unmuted", False):
+                        logging.error(
+                            "Capture incident %s %s: TX MUTE DID NOT LAND -- if this "
+                            "radio is still powered it may still be transmitting. "
+                            "Power-cycle the radio before the next capture.",
+                            self.capture_incident_id or "unassigned",
+                            uri,
+                        )
 
             if self.collection_error is None and self.cleanup_errors:
                 self._record_primary_error(

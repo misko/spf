@@ -66,15 +66,35 @@ class CompassPolicyReport:
     external_offset_limit_mg: float
     priorities: tuple[int, int, int]
     extra_devices: tuple[tuple[int, int], ...]
+    absence_errors: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
         return not self.errors
 
+    @property
+    def retryable(self) -> bool:
+        """True only when every error is "the external compass is not on the bus".
+
+        This is the one failure a flight-controller reboot can fix: ArduPilot
+        probes I2C compasses once at boot and never rescans, so a reboot is a
+        fresh probe and the device either appears or it does not.
+
+        Every other failure -- a wrong COMPASS_PRIO1_ID, a nonzero
+        COMPASS_DISBLMSK, an offset over COMPASS_OFFS_MAX, a slot enabled for
+        yaw while the external is present -- reads identically after any number
+        of reboots. Retrying those would bury a real, actionable defect behind a
+        delay, which is worse than failing immediately. Fail closed: anything
+        not positively classified as an absence is not retryable.
+        """
+        return bool(self.absence_errors) and len(self.absence_errors) == len(self.errors)
+
     def to_dict(self) -> dict:
         return {
             "ok": self.ok,
+            "retryable": self.retryable,
             "errors": list(self.errors),
+            "absence_errors": list(self.absence_errors),
             "warnings": list(self.warnings),
             "external_compass": (
                 _instance_to_dict(self.external_compass)
@@ -173,6 +193,15 @@ def evaluate_compass_policy(
     """Evaluate a parameter snapshot without changing the flight controller."""
     errors: list[str] = []
     warnings: list[str] = []
+    # Errors caused purely by the external compass being absent from the bus
+    # this boot. Tracked separately so a caller can tell a transient I2C probe
+    # miss (worth one reboot) from a misconfiguration (never worth a reboot).
+    absence_errors: list[str] = []
+
+    def absent(message: str) -> None:
+        errors.append(message)
+        absence_errors.append(message)
+
     instances = _read_instances(params, errors)
     extra_devices = tuple(
         (slot, int(float(params.get(f"COMPASS_DEV_ID{slot}", 0))))
@@ -245,8 +274,9 @@ def evaluate_compass_policy(
         and instance.device_id != expected_external_device_id
     ]
     external_compass = external_candidates[0] if len(external_candidates) == 1 else None
-    if not external_candidates:
-        errors.append(
+    external_absent = not external_candidates
+    if external_absent:
+        absent(
             "expected external GPS compass "
             f"device ID {expected_external_device_id} was not detected as external"
         )
@@ -264,7 +294,12 @@ def evaluate_compass_policy(
 
     for instance in instances:
         if not instance.detected and instance.used_for_yaw:
-            errors.append(f"empty compass slot {instance.slot} is enabled for yaw")
+            message = f"empty compass slot {instance.slot} is enabled for yaw"
+            # When the external is missing, its own slot reads empty-but-enabled
+            # -- the same fault seen twice. When the external IS present, an
+            # empty slot enabled for yaw is a real configuration defect and must
+            # not be retried.
+            absent(message) if external_absent else errors.append(message)
         if (
             instance.detected
             and external_compass is not None
@@ -328,7 +363,7 @@ def evaluate_compass_policy(
             "this boot"
         )
         if priority == 1:
-            errors.append(message)
+            absent(message)
         else:
             # ArduPilot automatically fills zero-valued secondary priorities.
             # A disabled internal compass can therefore leave a persistent
@@ -344,6 +379,8 @@ def evaluate_compass_policy(
         external_offset_limit_mg=external_offset_limit_mg,
         priorities=priorities,
         extra_devices=extra_devices,
+        # Deduped the same way as `errors`, so `retryable` can compare lengths.
+        absence_errors=tuple(dict.fromkeys(absence_errors)),
     )
 
 

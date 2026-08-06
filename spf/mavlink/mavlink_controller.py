@@ -1155,6 +1155,31 @@ class Drone:
             self, "stall_progress_radius_m", STALL_PROGRESS_RADIUS_M
         )
 
+        # A dead link looks exactly like a dead rover. When heartbeats stop,
+        # self.gps freezes at its last value, so the anchor distance stays ~0
+        # while the clock keeps running -- and armed/motor_active/mav_mode are
+        # equally stale. Rover 4's 48s "stall" on 2026-08-05 fired in the same
+        # second as a heartbeat timeout (report E1); the rover had not stopped,
+        # the telemetry had, and an operator was sent after a phantom.
+        #
+        # Reset rather than freeze the clock: a rover that genuinely stalled
+        # during an outage then needs detect_seconds of FRESH data before it
+        # counts, which delays a true detection but can never invent one.
+        # `> 0` matters and is not defensive noise: 0 means "no heartbeat has
+        # ever been recorded", which is a Drone that does not track them (the
+        # fake-drone and test paths) -- not a dead link. Treating it as dead
+        # would silently disable stall detection everywhere. Same guard the
+        # connection-health check uses.
+        last_heartbeat = getattr(self, "last_heartbeat", 0) or 0
+        stale_after = getattr(
+            self,
+            "reconnect_heartbeat_timeout",
+            DEFAULT_MAVLINK_HEARTBEAT_TIMEOUT_SECONDS,
+        )
+        if last_heartbeat > 0 and (time.time() - last_heartbeat) > stale_after:
+            self._reset_stall_anchor()
+            return STALL_OK
+
         driving = (
             self.armed and self.motor_active and self.mav_mode == "ROVER_MODE_GUIDED"
         )

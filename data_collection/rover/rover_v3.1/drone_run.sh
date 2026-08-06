@@ -239,6 +239,101 @@ notify_capture_failure() {
     done
 }
 
+# The external IST8310 on the GPS mast intermittently fails to appear on the
+# flight controller's I2C bus. ArduPilot probes compasses once at boot and never
+# rescans, so the two recoveries available are: re-read the parameters (the gate
+# reads COMPASS_DEV_ID*, which the FC populates during that probe, so a check run
+# too soon after an FC restart can report a healthy compass as absent), and
+# reboot the flight controller for a fresh probe.
+#
+# Only an absence is retried. `retryable` in the policy JSON is true when EVERY
+# error is "the external compass is not on the bus"; a misconfiguration reads
+# identically after any number of reboots, so retrying it would bury a real
+# defect behind a delay. Fail closed on anything else.
+readonly COMPASS_GATE_ATTEMPTS="${SPF_COMPASS_GATE_ATTEMPTS:-3}"
+
+compass_gate_failure_is_retryable() {
+    [[ -s "$COMPASS_READY_FILE" ]] || return 1
+    "$PYTHON" - "$COMPASS_READY_FILE" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1]) as handle:
+        report = json.load(handle)
+except Exception:
+    sys.exit(1)          # unreadable verdict is not a licence to retry
+sys.exit(0 if report.get("retryable") is True else 1)
+PYEOF
+}
+
+# Randomised so a retry cannot land in lockstep with whatever periodic or
+# thermal condition caused the miss, and so four rovers restarting together do
+# not retry in phase. Delay grows with the attempt.
+compass_gate_backoff_seconds() {
+    local attempt="$1"
+    case "$attempt" in
+        1) printf '%s\n' "$(( 5 + RANDOM % 6 ))" ;;    #  5-10s, re-read only
+        2) printf '%s\n' "$(( 15 + RANDOM % 11 ))" ;;  # 15-25s, after a reboot
+        *) printf '%s\n' "$(( 30 + RANDOM % 16 ))" ;;  # 30-45s, after a reboot
+    esac
+}
+
+# Reboot via ardu_cli, not MAVLINK_CONTROLLER --reboot: ardu_cli refuses to
+# reboot an armed vehicle and its reconnect loop tolerates the fmuv3 enumerating
+# USB twice. --allow-active-service is correct here and only here: this script
+# IS mavlink_controller.service, and no capture holds the port during boot sync.
+reboot_flight_controller_for_compass() {
+    "$PYTHON" "${REPO_ROOT}/spf/ardupilot/ardu_cli.py" reboot \
+        --yes --allow-active-service
+}
+
+run_compass_gate() {
+    # "$@" is the mode-specific mavlink_controller invocation.
+    rm -f -- "$COMPASS_READY_FILE"
+    "$PYTHON" "$MAVLINK_CONTROLLER" "$@" \
+        --compass-policy-json "$COMPASS_READY_FILE"
+}
+
+# Runs the compass gate up to COMPASS_GATE_ATTEMPTS times, escalating:
+#   attempt 1 -> short sleep, re-read only (catches the COMPASS_DEV_ID race)
+#   attempt 2 -> FC reboot, medium sleep
+#   attempt 3 -> FC reboot, long sleep
+# then fails closed. Returns 0 on pass; the caller dies on a non-zero return.
+compass_gate_with_retries() {
+    local what="$1"; shift
+    local attempt delay
+    for (( attempt = 1; attempt <= COMPASS_GATE_ATTEMPTS; attempt++ )); do
+        if run_compass_gate "$@"; then
+            [[ "$attempt" -gt 1 ]] && \
+                printf 'Compass gate passed on attempt %s of %s.\n' \
+                    "$attempt" "$COMPASS_GATE_ATTEMPTS"
+            return 0
+        fi
+        if ! compass_gate_failure_is_retryable; then
+            printf 'Compass gate failed for a reason a reboot cannot fix; not retrying.\n' >&2
+            return 1
+        fi
+        if [[ "$attempt" -ge "$COMPASS_GATE_ATTEMPTS" ]]; then
+            printf 'Compass gate: external compass still absent after %s attempts.\n' \
+                "$COMPASS_GATE_ATTEMPTS" >&2
+            return 1
+        fi
+        delay="$(compass_gate_backoff_seconds "$attempt")"
+        if [[ "$attempt" -eq 1 ]]; then
+            printf 'Compass gate (%s): external compass absent; settling %ss and re-reading parameters (attempt %s/%s).\n' \
+                "$what" "$delay" "$((attempt + 1))" "$COMPASS_GATE_ATTEMPTS"
+        else
+            printf 'Compass gate (%s): external compass still absent; rebooting the flight controller, then %ss (attempt %s/%s).\n' \
+                "$what" "$delay" "$((attempt + 1))" "$COMPASS_GATE_ATTEMPTS"
+            if ! reboot_flight_controller_for_compass; then
+                printf 'Compass gate: flight-controller reboot failed; not retrying.\n' >&2
+                return 1
+            fi
+        fi
+        sleep "$delay"
+    done
+    return 1
+}
+
 sync_vehicle_configuration() {
     if is_true "$SKIP_PARAMETER_SYNC"; then
         verify_compass_policy_read_only
@@ -252,19 +347,14 @@ sync_vehicle_configuration() {
     # A normal boot uses one complete download for managed-parameter verification,
     # compass inventory logging, and policy. Changed parameters get one additional
     # full readback after their acknowledged writes.
-    rm -f -- "$COMPASS_READY_FILE"
-    if ! "$PYTHON" "$MAVLINK_CONTROLLER" \
-        --prepare-vehicle-params "$PARAMS_FILE" \
-        --compass-policy-json "$COMPASS_READY_FILE"; then
+    if ! compass_gate_with_retries "parameter sync" \
+        --prepare-vehicle-params "$PARAMS_FILE"; then
         die "Vehicle parameter or compass policy verification failed."
     fi
 }
 
 verify_compass_policy_read_only() {
-    rm -f -- "$COMPASS_READY_FILE"
-    if ! "$PYTHON" "$MAVLINK_CONTROLLER" \
-        --check-compass-policy \
-        --compass-policy-json "$COMPASS_READY_FILE"; then
+    if ! compass_gate_with_retries "read-only" --check-compass-policy; then
         die "Compass policy verification failed; refusing collection and motion."
     fi
 }
