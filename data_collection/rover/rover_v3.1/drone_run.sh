@@ -443,39 +443,75 @@ verify_compass_policy_read_only() {
     die "Compass policy verification failed; refusing collection and motion."
 }
 
-system_clock_is_plausible() {
-    # Raspberry Pi 5 has an RTC and may also have NTP. A plausible clock is
-    # sufficient for boot filenames; GPS UTC is refreshed after a completed
-    # capture, when the vehicle necessarily has a usable navigation solution.
-    [[ "$(date +%s)" -ge 1735689600 ]]  # 2025-01-01T00:00:00Z
+# EVERY boot sets the clock from GPS before anything is named.
+#
+# There is no battery-backed RTC on this Pi, so a network-less field boot
+# restores a timestamp saved at the last shutdown -- journald says "System clock
+# time unset or jumped backwards, restoring from recorded timestamp". The
+# capture filename is stamped from that clock at process start
+# (mavlink_radio_collection.py:254), MINUTES before the first sample is
+# recorded, so a stale clock names the artifact wrongly and nothing downstream
+# notices until the merge.
+#
+# 19 of 47 finalised campaign captures were misdated this way, by up to 4h28m.
+# The cause was a former `system_clock_is_plausible` guard that skipped the boot
+# sync whenever the clock read later than 2025-01-01 -- which a clock restored
+# to four hours ago clears by nineteen months. It is deliberately gone.
+#
+# Blocking here costs nothing real: the capture already waits for the planner to
+# take control, which requires a GPS fix, so GPS UTC is available before any
+# data is written. The name was simply being stamped too early.
+readonly GPS_TIME_SYNC_ATTEMPTS="${SPF_GPS_TIME_SYNC_ATTEMPTS:-3}"
+
+gps_time_sync_once() {
+    # --get-time blocks until the FC reports GPS UTC. Bounded so a no-sky /
+    # cold-TTFF boot cannot hang forever. Time comes from GPS via MAVLink; the
+    # rover has no internet and does not use NTP in the field.
+    local gps_time
+    if ! timeout "${SPF_GPS_TIME_TIMEOUT:-180}" \
+        "$PYTHON" "$MAVLINK_CONTROLLER" --get-time "$TIME_FILE"; then
+        return 1
+    fi
+    gps_time="$(cat "$TIME_FILE")"
+    # --get-time can exit on a 3D fix before UTC has arrived, yielding epoch 0.
+    # Never set the clock to 1970: that corrupts every subsequent data/log
+    # filename until the next successful sync, which is worse than being stale.
+    if [[ "$gps_time" == 1970-* ]]; then
+        printf 'GPS reported a 1970 time (fix without UTC yet); not setting clock.\n'
+        return 1
+    fi
+    sudo date -s "$gps_time"
 }
 
 sync_gps_time() {
     local phase="${1:-capture}"
-    if [[ "$phase" == "boot" ]] && system_clock_is_plausible; then
-        printf '%s\n' \
-            'System clock is plausible; deferring GPS UTC refresh until after capture.'
-        return 0
+    local attempts=1 attempt
+    if [[ "$phase" == "boot" ]]; then
+        attempts="$GPS_TIME_SYNC_ATTEMPTS"
     fi
-    # --get-time blocks until the FC has GPS UTC time. Bound the first attempt so
-    # a no-sky / cold-TTFF boot cannot hang forever before the governor and
-    # capture loop; the loop below keeps re-syncing and sets the clock the moment
-    # GPS locks. Time comes from GPS via MAVLink (no internet/NTP).
-    if timeout "${SPF_GPS_TIME_TIMEOUT:-180}" \
-        "$PYTHON" "$MAVLINK_CONTROLLER" --get-time "$TIME_FILE"; then
-        gps_time="$(cat "$TIME_FILE")"
-        # --get-time can return a 1970 timestamp if it exits on a 3D fix before
-        # UTC arrives; never set the system clock to epoch-0 (it would corrupt
-        # every subsequent data/log filename until the next successful sync).
-        if [[ "$gps_time" == 1970-* ]]; then
-            printf 'GPS reported a 1970 time (fix without UTC yet); not setting clock.\n'
-        else
-            sudo date -s "$gps_time"
+    for (( attempt = 1; attempt <= attempts; attempt++ )); do
+        if gps_time_sync_once; then
+            printf 'System clock set from GPS UTC (%s, attempt %s/%s).\n' \
+                "$phase" "$attempt" "$attempts"
+            return 0
         fi
+        if [[ "$attempt" -lt "$attempts" ]]; then
+            printf 'No GPS UTC yet (%s, attempt %s/%s); retrying.\n' \
+                "$phase" "$attempt" "$attempts"
+        fi
+    done
+    if [[ "$phase" == "boot" ]]; then
+        printf '\n' >&2
+        printf 'WARNING: no GPS UTC after %s attempts of up to %ss each.\n' \
+            "$attempts" "${SPF_GPS_TIME_TIMEOUT:-180}" >&2
+        printf '  The system clock is UNVERIFIED and may be hours stale (no RTC).\n' >&2
+        printf '  Any capture named before the next successful sync carries a WRONG\n' >&2
+        printf '  timestamp -- order and pair on gps_timestamp, never on the filename.\n' >&2
     else
         printf 'No GPS time within %ss; continuing (capture loop keeps retrying --get-time).\n' \
             "${SPF_GPS_TIME_TIMEOUT:-180}"
     fi
+    return 1
 }
 
 read_only_vehicle_gate() {
@@ -554,7 +590,10 @@ main() {
     fi
 
     sync_vehicle_configuration
-    sync_gps_time boot
+    # Guarded, not bare: sync_gps_time now reports failure, and under `set -e` a
+    # bare call would abort the boot. An unverified clock is loud but not fatal
+    # -- the capture still cannot start until the planner has GPS anyway.
+    sync_gps_time boot || printf 'Continuing with an unverified system clock.\n' >&2
     printf 'performance\n' | sudo tee \
         /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null
 
@@ -564,7 +603,7 @@ main() {
             consecutive_capture_failures=0
             is_true "$RUN_ONCE" && break
             sleep 8
-            sync_gps_time capture
+            sync_gps_time capture || true
             sleep 2
             continue
         else

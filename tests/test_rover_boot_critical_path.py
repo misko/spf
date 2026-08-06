@@ -6,17 +6,62 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ROVER_ROOT = REPO_ROOT / "data_collection/rover/rover_v3.1"
 
 
-def test_plausible_clock_defers_blocking_gps_time_sync_at_boot():
+def test_every_boot_syncs_the_clock_from_gps_before_anything_is_named():
+    """The Pi has no RTC, so a stale restored clock names captures wrongly.
+
+    A former `system_clock_is_plausible` guard skipped the boot sync whenever
+    the clock read later than 2025-01-01 -- which a clock restored to four hours
+    ago clears by nineteen months. 19 of 47 finalised campaign captures were
+    misdated as a result, by up to 4h28m. The guard must not come back.
+    """
     launcher = (ROVER_ROOT / "drone_run.sh").read_text()
 
-    assert "system_clock_is_plausible" in launcher
+    assert "system_clock_is_plausible() {" not in launcher, (
+        "the plausibility guard is what caused 19 misdated captures; "
+        "every boot must actually ask the GPS"
+    )
+    # It may be NAMED in a comment recording why it is gone -- that history is
+    # worth keeping -- but it must never be invoked again.
+    invoked = [
+        line
+        for line in launcher.splitlines()
+        if "system_clock_is_plausible" in line and not line.lstrip().startswith("#")
+    ]
+    assert not invoked, f"the removed guard is still invoked: {invoked}"
     assert "sync_gps_time boot" in launcher
     assert "sync_gps_time capture" in launcher
+
     sync_body = launcher.split("sync_gps_time() {", 1)[1].split("\n}\n", 1)[0]
-    assert '[[ "$phase" == "boot" ]] && system_clock_is_plausible' in sync_body
-    assert sync_body.index("system_clock_is_plausible") < sync_body.index(
-        'timeout "${SPF_GPS_TIME_TIMEOUT:-180}"'
-    )
+    # No early return before the sync is attempted: the boot path must reach it.
+    assert "return 0" not in sync_body.split("for ((", 1)[0]
+    # Boot gets multiple bounded attempts; a capture-phase call gets one.
+    assert 'if [[ "$phase" == "boot" ]]; then' in sync_body
+    assert 'attempts="$GPS_TIME_SYNC_ATTEMPTS"' in sync_body
+
+    once_body = launcher.split("gps_time_sync_once() {", 1)[1].split("\n}\n", 1)[0]
+    assert 'timeout "${SPF_GPS_TIME_TIMEOUT:-180}"' in once_body
+    assert 'sudo date -s "$gps_time"' in once_body
+    # Never set the clock to epoch 0 on a fix-without-UTC.
+    assert '[[ "$gps_time" == 1970-* ]]' in once_body
+
+
+def test_gps_time_sync_failure_cannot_abort_the_boot_under_set_e():
+    """sync_gps_time now returns non-zero; a bare call would kill the launcher."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+
+    assert "set -euo pipefail" in launcher
+    assert "sync_gps_time boot || " in launcher
+    assert "sync_gps_time capture || true" in launcher
+
+
+def test_an_unverified_clock_is_announced_loudly():
+    """Silent failure here is what let misdated captures go unnoticed for a week."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    sync_body = launcher.split("sync_gps_time() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert "WARNING: no GPS UTC after" in sync_body
+    assert "UNVERIFIED" in sync_body
+    assert "never on the filename" in sync_body
 
 
 def test_gps_time_wait_notifies_once_instead_of_beeping_each_poll():
