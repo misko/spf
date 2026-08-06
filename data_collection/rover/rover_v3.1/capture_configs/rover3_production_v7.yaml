@@ -32,8 +32,12 @@ receivers:
     antenna-spacing-m: 0.043
     nelements: 2
     array-type: linear
-    # Intentional: avoid persistent fast-attack gain-lock states seen on bursty digital video.
-    rx-gain-mode: slow_attack
+    # Deliberate A/B against rovers 1/2/4, which stay on slow_attack: with a
+    # bursty O4 emitter the AGC spends most frames in the gaps, and slow_attack
+    # may be too slow to settle on a burst. Watch for the persistent
+    # fast-attack gain-lock states this config previously avoided -- if they
+    # reappear on bursty digital video, revert this rover to slow_attack.
+    rx-gain-mode: fast_attack
     rx-buffers: 4
     rx-gain: -3
     buffer-size: 524288
@@ -47,8 +51,12 @@ receivers:
     antenna-spacing-m: 0.043
     nelements: 2
     array-type: linear
-    # Intentional: avoid persistent fast-attack gain-lock states seen on bursty digital video.
-    rx-gain-mode: slow_attack
+    # Deliberate A/B against rovers 1/2/4, which stay on slow_attack: with a
+    # bursty O4 emitter the AGC spends most frames in the gaps, and slow_attack
+    # may be too slow to settle on a burst. Watch for the persistent
+    # fast-attack gain-lock states this config previously avoided -- if they
+    # reappear on bursty digital video, revert this rover to slow_attack.
+    rx-gain-mode: fast_attack
     rx-buffers: 4
     rx-gain: -3
     buffer-size: 524288
