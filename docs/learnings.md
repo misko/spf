@@ -4,6 +4,85 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## RF (2026-08-06): the O4 emitter is BURSTY — any statistic taken over all
+## frames measures the silence, not the signal
+
+The single most expensive methodological trap in this project so far. It produced
+three confidently-wrong conclusions in one day, each retracted only after a better
+measurement:
+
+1. "channel 0 has never received the emitter on any rover, on any day"
+2. "ch0 died when the fleet moved from 5.866 to 5.766 GHz"
+3. "rover 3's frozen AGC is the fast_attack gain-lock"
+
+All three came from **medians and means over every frame**. The O4 is a digital
+video transmitter, not a CW source; `claude_docs/03_datasets/data_quality_plan.md`
+records **60–70% NaN as the healthy baseline** for it. With the emitter silent in
+most frames, an all-frame median measures the gaps.
+
+**What to do instead.** Classify each frame first, then compare only frames in
+which the emitter was transmitting. The strongest discriminator needs no absolute
+level at all: **do the two elements go loud on the same frames?** Per-frame
+in-band power on Aug 5 data gives ch0 a 18–20 dB burst swing, ch1 10–14 dB, and
+corr(ch0,ch1) of +0.36 to +0.71 — both elements tracking the same bursts. The
+genuinely dead element (RO4 r1 ch0, the Aug 4 missing-pole antenna) shows a
+3.3 dB swing and does not track.
+
+**Also beware the noise reference.** The "out-of-band" window used for SNR must be
+outside the emitter's own 3 MHz bandwidth, or the reference contains the signal.
+
+**Corollary — the earlier campaign is not comparable.** Pre-2026 data used a CW
+"tone blaster" ESP32 emitter, present in *every* frame. Medians work there and
+fail on O4 days. Any cross-era comparison of per-frame statistics must account
+for this or it will invent an effect at the era boundary.
+
+`rover radio signal` still compares channels across all frames and is therefore
+still capable of reporting "ch0 DEAD → swap that antenna" on a healthy rover.
+
+## Rover (2026-08-06): capture filenames came from a restored clock, and
+## `system_clock_is_plausible` meant "later than 2025"
+
+**19 of 47 finalised campaign captures carry the wrong timestamp** — every capture
+day since the campaign began, worst case +4h28m. Measured by comparing each
+filename against `min(gps_timestamp)` inside its own store.
+
+The Pi 4 has **no battery-backed RTC**. A network-less boot restores the timestamp
+saved at last shutdown (`System clock time unset or jumped backwards, restoring
+from recorded timestamp`), and the filename is stamped from that clock at process
+start — minutes before the first sample. `drone_run.sh` skipped the boot-time GPS
+sync whenever the clock read later than 2025-01-01, which a clock restored to four
+hours ago clears by nineteen months. Added by `920bc63` (2026-07-31) as a
+boot-latency optimisation, on a comment premise ("Raspberry Pi 5 has an RTC") that
+is false for this fleet.
+
+**The merged datasets are NOT corrupted.** `v7_tx_rx_merge.py` interpolates on
+`gps_timestamp`, which comes from ArduPilot's `SYSTEM_TIME.time_unix_usec` over
+MAVLink and never touches the Pi clock. What is wrong is filenames as an ordering
+or identification key, day attribution, and log correlation — and, because the
+merge is a full TX×RX cross-product with no session curation, *selecting* captures
+by filename can silently mis-group them.
+
+**Rules that follow.** Order, pair and attribute by `gps_timestamp`, never by
+filename. Note that `system_timestamp` is seconds-since-capture-start, NOT an
+epoch — treating it as one silently yields 1970. Corrections to the 19 already on
+disk go in a sidecar index (`spf/scripts/get_gps_time.py` prints the true time in
+filename format); **never rename recorded data.**
+
+## Rover (2026-08-06): `railed_fraction` measures gain CONSTANCY, not railing
+
+`rx_signal_metrics.py` computes `(gain == max(gain)).mean()` — the fraction of
+frames at the *maximum observed* gain, not at the AD9361's 62 dB ceiling. For a
+channel whose gain never moves it reports **100% regardless of the actual value**.
+
+It read correctly on 2026-08-05 only by coincidence, because the gain there
+genuinely was 62.0. On 2026-08-06 it flagged rover 3's B1 as "railed 100%" at a
+median gain of **29 dB** — the gain was constant at 29 for all 100 frames.
+
+The detection was still worth having: a **frozen AGC means the channel has nothing
+varying to track**, which found a real antenna fault (replacing the antenna
+unfroze it, with `fast_attack` unchanged — so the lock was NOT an AGC-mode
+problem, as first assumed). Keep the check, fix the name and the comparison.
+
 ## Rover (2026-08-05): the zero-byte `.log` sidecar was an import-time
 ## `logging.basicConfig` winning over the collector's — every capture's log
 ## went to a relative `logs.log` instead
