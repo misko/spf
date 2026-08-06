@@ -13,14 +13,20 @@ Differences from the v4->v5 version (why this file exists):
      like the historical v5 merged data (the v5 keys are all present) and no
      gain/RSSI *array* from the direct-USB campaign is dropped.
 
-     CAVEAT -- zarr ATTRS are NOT propagated. The source stores carry ~30 receiver
-     attrs (direct_usb_serial / bus / port_path, firmware identity, ...) and 4 root
-     attrs (capture_status, capture_records_written_by_receiver,
-     sdr_identity_version, radio_metadata_schema_version); the merged store gets
-     only radio_metadata_schema_version. So a merged dataset cannot currently tell
-     you which physical Pluto is r0, what firmware it ran, or whether the source
-     capture finalized cleanly. Propagating these (plus the merge revision and the
-     projection center) is a known gap -- see the 2026_08_01 field report appendix.
+     Since 2026-08-06 the source zarr ATTRS are propagated too. The RX store's 31
+     receiver attrs (direct_usb_serial / bus / port_path, firmware identity, ...)
+     are copied verbatim into receivers/r*/.zattrs -- slots the merged store
+     already had and left empty -- and its root attrs, the aeqd projection center
+     and a TX source record go to root under namespaced keys. So a merged dataset
+     now says which physical Pluto is r0, what firmware it ran, and whether the
+     source capture finalized. See spf/dataset/provenance.py; datasets merged
+     before that date carry a .provenance.json sidecar instead, and
+     load_provenance() reads either.
+
+     The TX record is deliberately four fields rather than thirty-one: the TX
+     contributes GPS only, and its GPS is already here as tx_pos_*_mm -- exactly
+     invertible via the recorded projection, so the TX radio's identity is not
+     load-bearing.
   2. Projection center is derived from the data (mean TX GPS) instead of a
      boundary-table geofence. The July 2026 site is Fort Baker (~1 m from
      fort_baker_left_boundary), so find_closest_boundary would work; the
@@ -58,6 +64,7 @@ import numpy as np
 import yaml
 from pyproj import Proj
 
+from spf.dataset.provenance import build_provenance, write_provenance
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys
 from spf.dataset.v7_data import v7rx_2x_keys, v7rx_scalar_keys
 from spf.scripts.zarr_utils import (
@@ -344,6 +351,20 @@ def merge_v7rx_v7tx(
         skip_signal_matrix=False,
     )
     new_zarr.attrs["radio_metadata_schema_version"] = 2
+    # Which physical Pluto is r0, and did the RX capture finalise? Both used to be
+    # unanswerable from a merged store: the 31 receiver attrs carrying sdr_serial
+    # were dropped, and the merged filename discards a source's .tmp suffix. The
+    # RX attrs go back into receivers/r*/.zattrs, which already existed and were
+    # empty. See spf/dataset/provenance.py.
+    prov_root, prov_receivers = build_provenance(
+        rx_zarr=rx_zarr,
+        rx_fn=rx_fn,
+        tx_zarr=tx_zarr,
+        tx_fn=tx_fn,
+        center_lat=center_lat,
+        center_lon=center_lon,
+        n_receivers=receivers,
+    )
     for r in range(receivers):
         rz = new_zarr[f"receivers/r{r}"]
         for key, dtype in v7rx_scalar_keys.items():
@@ -365,6 +386,10 @@ def merge_v7rx_v7tx(
         new_zarr["receivers/r0/rx_theta_in_pis"][:] = config["receivers"][0][
             "theta-in-pis"
         ]
+
+    # After _copy_receiver, so a receiver group's attrs cannot be lost to the
+    # create_dataset calls above.
+    write_provenance(new_zarr, prov_root, prov_receivers)
 
     new_zarr.store.close()
     zarr_shrink(zarr_out_fn)
