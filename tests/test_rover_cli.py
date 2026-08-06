@@ -306,7 +306,7 @@ def test_env_writes_and_reads_back(tmp_path, setting: str):
 def test_env_write_is_idempotent_and_preserves_other_settings(tmp_path):
     """A capture profile carries unrelated knobs; a write must not disturb them."""
     profile = tmp_path / "rover_collection.env"
-    profile.write_text("SPF_RUN_ONCE=1\nSPF_OUTPUT_ROOT=/home/pi/temp\n")
+    profile.write_text("SPF_RADIO_WAIT_SECONDS=600\nSPF_OUTPUT_ROOT=/home/pi/temp\n")
 
     for _ in range(3):
         env_cli("crash_recovery", "enable", profile=profile)
@@ -315,7 +315,7 @@ def test_env_write_is_idempotent_and_preserves_other_settings(tmp_path):
     lines = [line for line in profile.read_text().splitlines() if line.strip()]
     assert lines.count("SPF_CRASH_RECOVERY=1") == 1, lines
     assert "SPF_CRASH_DETECT=0" in lines
-    assert "SPF_RUN_ONCE=1" in lines
+    assert "SPF_RADIO_WAIT_SECONDS=600" in lines
     assert "SPF_OUTPUT_ROOT=/home/pi/temp" in lines
 
 
@@ -327,14 +327,14 @@ def test_env_refuses_to_write_an_unwritable_profile(tmp_path):
     locked = tmp_path / "locked"
     locked.mkdir()
     profile = locked / "rover_collection.env"
-    profile.write_text("SPF_RUN_ONCE=1\n")
+    profile.write_text("SPF_RADIO_WAIT_SECONDS=600\n")
     profile.chmod(0o444)
     locked.chmod(0o555)
     try:
         result = env_cli("crash_recovery", "enable", profile=profile)
         assert result.returncode != 0
         assert "sudo rover env crash_recovery enable" in result.stderr
-        assert profile.read_text() == "SPF_RUN_ONCE=1\n"
+        assert profile.read_text() == "SPF_RADIO_WAIT_SECONDS=600\n"
     finally:
         locked.chmod(0o755)
         profile.chmod(0o644)

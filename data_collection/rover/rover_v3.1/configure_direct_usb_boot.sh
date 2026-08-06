@@ -237,8 +237,9 @@ enable_production() {
     systemctl enable "$UPDATE_UNIT" "$LOADER_UNIT" "$PRODUCTION_UNIT"
     printf '%s\n' \
         "PASS: canonical V7 production boot is enabled." \
-        "No service was started. Review ${COLLECTION_ENV_DEST}; use" \
-        "SPF_BOOT_VALIDATE_ONLY=1 for the first reboot."
+        "No service was started. Review ${COLLECTION_ENV_DEST}. To bring the" \
+        "rover up without letting it move, use 'qualify' instead: it disables" \
+        "the mission unit outright."
     show_status
 }
 

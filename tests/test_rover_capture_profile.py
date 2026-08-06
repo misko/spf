@@ -157,13 +157,12 @@ def test_boot_reuses_parameter_snapshot_for_compass_inventory_and_policy():
     assert '--compass-policy-json "$COMPASS_READY_FILE"' in gate_body
     assert '"$MAVLINK_CONTROLLER" "$@"' in gate_body
 
-    main_body = launcher.rsplit("main() {", 1)[1]
-    validation_body = main_body.split('if is_true "$BOOT_VALIDATE_ONLY"; then', 1)[
-        1
-    ].split("fi", 1)[0]
-    assert validation_body.index("read_only_vehicle_gate") < validation_body.index(
-        "verify_compass_policy_read_only"
-    )
+    # SPF_BOOT_VALIDATE_ONLY was removed on 2026-08-06; the validate-only branch
+    # it gated no longer exists. `configure_direct_usb_boot.sh qualify` provides
+    # the stronger guarantee (it disables the mission unit outright). The NAME
+    # still appears, in the fail-closed guard that refuses to start a rover whose
+    # profile still sets it -- so assert on the branch, not on the string.
+    assert 'is_true "$BOOT_VALIDATE_ONLY"' not in launcher
 
 
 def test_stock_firmware_restore_is_an_explicit_opt_out():

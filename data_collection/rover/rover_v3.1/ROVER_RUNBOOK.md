@@ -678,7 +678,6 @@ sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
 sudoedit /etc/spf/rover_collection.env
 # First reboot only:
 # SPF_SKIP_SELF_UPDATE=1
-# SPF_BOOT_VALIDATE_ONLY=1
 sudo reboot
 ```
 
@@ -695,12 +694,22 @@ Inspect the resolved mission without accessing hardware:
 data_collection/rover/rover_v3.1/drone_run.sh --print-plan
 ```
 
-With `SPF_BOOT_VALIDATE_ONLY=1`, a boot verifies both radios and a real MAVLink
-heartbeat, requires `armed=false`, then exits before parameter writes,
-collection, planning, arming, or motion. Once this passes and the assembled
-Rover is physically safe to move, set `SPF_BOOT_VALIDATE_ONLY=0`. The next boot
-uses the original Rover routine, record count, real serial MAVLink source, and
-infinite repeat cadence.
+To bring a rover up without letting it move, use
+`configure_direct_usb_boot.sh qualify`. It **disables
+`mavlink_controller.service` outright**, so the motion-capable mission loop
+cannot start at all — a stronger guarantee than the removed
+`SPF_BOOT_VALIDATE_ONLY`, which only stopped the loop from inside the unit that
+was still enabled to run it. Once the rover is physically safe to move, restore
+the mission unit with `configure_direct_usb_boot.sh production-v7`; the next
+boot uses the original Rover routine, record count, real serial MAVLink source,
+and infinite repeat cadence.
+
+> **Note.** `qualify` does not reproduce one thing the old flag did: a
+> `armed=false` assertion before parameter writes. `read_only_vehicle_gate()` in
+> `drone_run.sh` still implements that check but is currently unreferenced —
+> wiring it into the normal boot path is a deliberate decision that has not been
+> taken, because it would add a new die-on-boot condition for a rover booted
+> with its RC arm switch on.
 
 The loader deliberately reads and compares the active firmware identity even
 when a direct interface is already present; interface presence alone cannot
@@ -786,7 +795,11 @@ bandwidth, and 0.5-second pacing. The v4 profile is
 
 The parameter gate now aborts if the post-load diff is nonzero. The only
 launcher arguments are explicit and bounded: `--print-plan`,
-`--boot-validate-only`, and `--once`; unknown arguments fail.
+and nothing else; unknown arguments fail. `SPF_BOOT_VALIDATE_ONLY` and
+`SPF_RUN_ONCE` were removed on 2026-08-06 — the launcher refuses to start if
+either is still present in the profile. To bring a rover up without letting it
+move, use `configure_direct_usb_boot.sh qualify`, which disables the
+motion-capable unit outright rather than relying on a variable read inside it.
 
 Manual field launch outside the loop (real Plutos, real serial ArduPilot autodetect, ultrasonic on) — **DO NOT run casually**:
 

@@ -258,8 +258,9 @@ sudo data_collection/rover/rover_v3.1/configure_direct_usb_boot.sh \
 sudoedit /etc/spf/rover_collection.env
 ```
 
-For the first reboot set `SPF_SKIP_SELF_UPDATE=1` and
-`SPF_BOOT_VALIDATE_ONLY=1`. Pass only when:
+For the first reboot set `SPF_SKIP_SELF_UPDATE=1`. To bring the rover up
+without letting it move, use `configure_direct_usb_boot.sh qualify`, which
+disables `mavlink_controller.service` outright. Pass only when:
 
 - the loader completes before `mavlink_controller.service`;
 - every serial/path and verified firmware identity appears in
@@ -270,7 +271,8 @@ For the first reboot set `SPF_SKIP_SELF_UPDATE=1` and
   motion.
 
 When the Rover is physically safe to move and the normal MANUAL→GUIDED operator
-procedure is ready, set `SPF_BOOT_VALIDATE_ONLY=0`. The canonical V7 config
+procedure is ready, re-enable the mission unit with
+`configure_direct_usb_boot.sh production-v7`. The canonical V7 config
 writes full endpoint metadata and retains each Rover's established routine and
 record count.
 

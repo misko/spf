@@ -288,3 +288,25 @@ def test_get_time_waits_for_utc_not_merely_for_a_fix():
     # The file must be opened only once a real value exists: opening it before
     # the wait meant a timeout-killed attempt truncated it to zero bytes.
     assert body.index("while drone.gps_time == 0:") < body.index("open(args.get_time")
+
+
+def test_removed_flags_fail_closed_instead_of_being_ignored():
+    """A rover parked with SPF_BOOT_VALIDATE_ONLY=1 must not silently start moving.
+
+    Rovers pull origin/main at boot, so ignoring a stale line would put a
+    deliberately-parked rover into the motion-capable mission loop unattended.
+    """
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+
+    assert 'if [[ -n "${SPF_BOOT_VALIDATE_ONLY:-}" ]]; then' in launcher
+    assert 'if [[ -n "${SPF_RUN_ONCE:-}" ]]; then' in launcher
+    assert "MOTION-CAPABLE mission loop" in launcher
+
+    # The behaviour itself is gone: no branch, no CLI flag, no plan key.
+    assert 'is_true "$BOOT_VALIDATE_ONLY"' not in launcher
+    assert 'is_true "$RUN_ONCE"' not in launcher
+    assert "--boot-validate-only)" not in launcher
+    assert "--once)" not in launcher
+    plan = launcher.split("print_plan() {", 1)[1].split("\n}\n", 1)[0]
+    assert "boot_validate_only=" not in plan
+    assert "run_once=" not in plan

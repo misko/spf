@@ -40,8 +40,29 @@ fi
 
 PYTHON="${SPF_PYTHON:-/home/pi/spf-virtualenv/bin/python3}"
 SKIP_PARAMETER_SYNC="${SPF_SKIP_PARAMETER_SYNC:-0}"
-BOOT_VALIDATE_ONLY="${SPF_BOOT_VALIDATE_ONLY:-0}"
-RUN_ONCE="${SPF_RUN_ONCE:-0}"
+# SPF_BOOT_VALIDATE_ONLY and SPF_RUN_ONCE are REMOVED, not merely unread.
+#
+# BOOT_VALIDATE_ONLY was a weaker, in-band duplicate of what
+# `configure_direct_usb_boot.sh qualify` already does properly: qualify
+# systemctl-disables the motion-capable unit, so the mission loop cannot start
+# at all, rather than relying on an env var read from inside it. RUN_ONCE was a
+# bench convenience with no runbook procedure attached.
+#
+# Fail closed rather than ignore: a rover whose /etc/spf/rover_collection.env
+# still says SPF_BOOT_VALIDATE_ONLY=1 was deliberately parked so it could not
+# move. Silently ignoring that line would put it into the motion-capable mission
+# loop on its next boot -- and rovers pull origin/main at boot, so it would
+# happen unattended. Refuse to start until a human removes the line.
+if [[ -n "${SPF_BOOT_VALIDATE_ONLY:-}" ]]; then
+    die "SPF_BOOT_VALIDATE_ONLY is removed. If this rover was parked so it could
+  not move, it will now run the MOTION-CAPABLE mission loop. Use
+  'configure_direct_usb_boot.sh qualify' to disable the mission unit instead,
+  then delete SPF_BOOT_VALIDATE_ONLY from ${PROFILE_ENV}."
+fi
+if [[ -n "${SPF_RUN_ONCE:-}" ]]; then
+    die "SPF_RUN_ONCE is removed; the launcher always runs the mission loop.
+  Delete SPF_RUN_ONCE from ${PROFILE_ENV}."
+fi
 OUTPUT_ROOT="${SPF_OUTPUT_ROOT:-/home/pi/temp}"
 CAPTURE_STATUS_FILE="${SPF_CAPTURE_STATUS_FILE:-/home/pi/preflight/capture_status.json}"
 CAPTURE_WATCHDOG_FILE="${SPF_CAPTURE_WATCHDOG_FILE:-/home/pi/preflight/capture_watchdog.jsonl}"
@@ -141,8 +162,6 @@ print_plan() {
         "data_version=${data_version}" \
         "firmware_release_tag=${firmware_release_tag}" \
         "firmware_image_sha256=${firmware_image_sha256}" \
-        "boot_validate_only=${BOOT_VALIDATE_ONLY}" \
-        "run_once=${RUN_ONCE}" \
         "output_root=${OUTPUT_ROOT}" \
         "capture_status_file=${CAPTURE_STATUS_FILE}" \
         "capture_watchdog_file=${CAPTURE_WATCHDOG_FILE}" \
@@ -162,14 +181,6 @@ case "${1:-}" in
         [[ "$#" -eq 1 ]] || die "--print-plan takes no arguments."
         print_plan
         exit 0
-        ;;
-    --boot-validate-only)
-        [[ "$#" -eq 1 ]] || die "--boot-validate-only takes no arguments."
-        BOOT_VALIDATE_ONLY=1
-        ;;
-    --once)
-        [[ "$#" -eq 1 ]] || die "--once takes no arguments."
-        RUN_ONCE=1
         ;;
     "")
         ;;
@@ -456,9 +467,7 @@ verify_compass_policy_read_only() {
     if [[ "$status" -eq 0 ]]; then
         return 0
     fi
-    # BOOT_VALIDATE_ONLY exists to inspect a rover without side effects, so it
-    # reports and stops. Every other caller is a real boot and may escalate.
-    if [[ "$status" -eq 2 ]] && ! is_true "$BOOT_VALIDATE_ONLY"; then
+    if [[ "$status" -eq 2 ]]; then
         reboot_rover_for_absent_compass  # does not return
     fi
     die "Compass policy verification failed; refusing collection and motion."
@@ -591,6 +600,13 @@ ensure_clock_verified_before_capture() {
     return 0
 }
 
+# CURRENTLY UNREFERENCED. Its only caller was the SPF_BOOT_VALIDATE_ONLY branch,
+# removed above -- so this is now the one assertion the boot path has LOST:
+# nothing else checks armed==false before parameter writes and the mission loop.
+# Kept, not deleted, because that gap is worth closing deliberately rather than
+# by accident. Wiring it into the normal boot path would add a new die-on-boot
+# condition (a rover booted with the RC arm switch on), which is a behaviour
+# change that should be made on purpose.
 read_only_vehicle_gate() {
     local status_file
     status_file="$(mktemp /tmp/spf-mavlink-status.XXXXXX)"
@@ -659,13 +675,6 @@ main() {
         bash "${SCRIPT_DIR}/device_mapping.sh" >"$DEVICE_MAPPING"
     fi
 
-    if is_true "$BOOT_VALIDATE_ONLY"; then
-        read_only_vehicle_gate
-        verify_compass_policy_read_only
-        printf 'PASS: boot validation stopped before parameter writes or collection.\n'
-        return 0
-    fi
-
     sync_vehicle_configuration
     # Guarded, not bare: sync_gps_time now reports failure, and under `set -e` a
     # bare call would abort the boot. An unverified clock is loud but not fatal
@@ -679,7 +688,6 @@ main() {
         ensure_clock_verified_before_capture
         if run_capture; then
             consecutive_capture_failures=0
-            is_true "$RUN_ONCE" && break
             sleep 8
             # Opportunistic: keeps a long session's clock fresh. The naming
             # guarantee comes from ensure_clock_verified_before_capture above.
@@ -696,8 +704,7 @@ main() {
             die "Capture failed and vehicle HOLD could not be confirmed."
         fi
         notify_capture_failure
-        if is_true "$RUN_ONCE" ||
-            (( consecutive_capture_failures > CAPTURE_RESTART_ATTEMPTS )); then
+        if (( consecutive_capture_failures > CAPTURE_RESTART_ATTEMPTS )); then
             printf 'Capture failed %s consecutive time(s); no automatic restart.\n' \
                 "$consecutive_capture_failures" >&2
             return "$capture_status"
