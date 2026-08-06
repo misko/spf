@@ -53,15 +53,26 @@ SKIP_PARAMETER_SYNC="${SPF_SKIP_PARAMETER_SYNC:-0}"
 # move. Silently ignoring that line would put it into the motion-capable mission
 # loop on its next boot -- and rovers pull origin/main at boot, so it would
 # happen unattended. Refuse to start until a human removes the line.
+# Refuse ONLY if the flag was actually engaged. `=0` is the harmless production
+# default and is present on every rover today -- dying on that would take the
+# whole fleet down at the next boot for no safety benefit.
 if [[ -n "${SPF_BOOT_VALIDATE_ONLY:-}" ]]; then
-    die "SPF_BOOT_VALIDATE_ONLY is removed. If this rover was parked so it could
-  not move, it will now run the MOTION-CAPABLE mission loop. Use
-  'configure_direct_usb_boot.sh qualify' to disable the mission unit instead,
-  then delete SPF_BOOT_VALIDATE_ONLY from ${PROFILE_ENV}."
+    if is_true "${SPF_BOOT_VALIDATE_ONLY}"; then
+        die "SPF_BOOT_VALIDATE_ONLY=1 is set, but the flag is removed. This rover
+  was parked so it could not move; starting now would run the MOTION-CAPABLE
+  mission loop. Use 'configure_direct_usb_boot.sh qualify' to disable the
+  mission unit instead, then delete the line from ${PROFILE_ENV}."
+    fi
+    printf 'NOTE: SPF_BOOT_VALIDATE_ONLY is removed and ignored; delete it from %s.\n' \
+        "$PROFILE_ENV" >&2
 fi
 if [[ -n "${SPF_RUN_ONCE:-}" ]]; then
-    die "SPF_RUN_ONCE is removed; the launcher always runs the mission loop.
-  Delete SPF_RUN_ONCE from ${PROFILE_ENV}."
+    if is_true "${SPF_RUN_ONCE}"; then
+        die "SPF_RUN_ONCE=1 is set, but the flag is removed and the launcher now
+  always runs the mission loop. Delete the line from ${PROFILE_ENV}."
+    fi
+    printf 'NOTE: SPF_RUN_ONCE is removed and ignored; delete it from %s.\n' \
+        "$PROFILE_ENV" >&2
 fi
 OUTPUT_ROOT="${SPF_OUTPUT_ROOT:-/home/pi/temp}"
 CAPTURE_STATUS_FILE="${SPF_CAPTURE_STATUS_FILE:-/home/pi/preflight/capture_status.json}"
