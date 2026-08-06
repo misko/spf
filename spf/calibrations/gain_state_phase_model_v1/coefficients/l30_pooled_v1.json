@@ -1,0 +1,71 @@
+{
+ "model": "L30 MIN: H(lna,mixer,tia) only, universal",
+ "tau_seconds": [],
+ "h_deg": {
+  "lna": {
+   "0": 4.465643196647177,
+   "2": 5.902524881582071,
+   "3": -10.368208355202958
+  },
+  "mixer": {
+   "0": -4.412200157666491,
+   "1": -2.5356081213745334,
+   "2": 2.9096335116030003,
+   "4": 4.037835095139242
+  },
+  "tia": {
+   "0": 0.10196228845760638,
+   "1": -0.10196477755751394
+  },
+  "lpf": {}
+ },
+ "ripple_deg": {},
+ "provenance": {
+  "source_report": "spf/calibrations/dual_rx_gain_frequency/reports/gain_state_phase_model_20260802_v1",
+  "ladder_rung": "L30 MIN: H(lna,mixer,tia) only, universal",
+  "stages": [
+   "A",
+   "F",
+   "E_tx_0",
+   "rate_pilot"
+  ],
+  "n_rows": 4641,
+  "n_los": 119,
+  "gains_db": [
+   -1,
+   0,
+   5,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   26,
+   27,
+   28,
+   29,
+   30,
+   31,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   45
+  ],
+  "n_columns": 9,
+  "rank": 6,
+  "ridge": 1e-08,
+  "anchor": "measured equal-gain cell, per (radio, stage, LO, epoch)",
+  "phase_convention": "angle(RX1) - angle(RX2), radians",
+  "spf_git_sha": "a4f562d58d5b9769c2a9c4f3a03888c73f2336b8",
+  "gain_tables_sha256": "214ba7a9caba7f26aea8851cdac1be88a07049ff347fc29b59cf7054deb94ef4"
+ }
+}
