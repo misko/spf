@@ -300,7 +300,17 @@ def test_removed_flags_fail_closed_instead_of_being_ignored():
 
     assert 'if [[ -n "${SPF_BOOT_VALIDATE_ONLY:-}" ]]; then' in launcher
     assert 'if [[ -n "${SPF_RUN_ONCE:-}" ]]; then' in launcher
-    assert "MOTION-CAPABLE mission loop" in launcher
+    assert "MOTION-CAPABLE" in launcher
+
+    # Only a flag that was actually ENGAGED may refuse to boot. "=0" is the
+    # harmless production default present on every rover, and dying on it would
+    # take the whole fleet down at the next boot -- unattended, since rovers pull
+    # origin/main at boot.
+    guard = launcher.split('if [[ -n "${SPF_BOOT_VALIDATE_ONLY:-}" ]]; then', 1)[1]
+    guard = guard.split("\nfi\n", 1)[0]
+    assert 'is_true "${SPF_BOOT_VALIDATE_ONLY}"' in guard, "=0 must not be fatal"
+    assert "die " in guard, "=1 must be fatal"
+    assert "NOTE:" in guard, "=0 should still tell the operator to delete the line"
 
     # The behaviour itself is gone: no branch, no CLI flag, no plan key.
     assert 'is_true "$BOOT_VALIDATE_ONLY"' not in launcher
