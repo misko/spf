@@ -193,6 +193,24 @@ class CliError(RuntimeError):
     """Expected operational error that should produce exit status 2."""
 
 
+class TransportLost(RuntimeError):
+    """The serial link went away mid-read.
+
+    A rebooting fmuv3 enumerates USB twice: once early, when it sends its first
+    heartbeat, and again when the IO coprocessor takes over. The second
+    re-enumeration invalidates the handle we are already reading from, and
+    pyserial surfaces that as ``SerialException: device reports readiness to
+    read but returned no data``. That is a normal stage of the reboot, not a
+    failure -- callers inside a reconnect loop should treat it as "not back
+    yet" and retry.
+    """
+
+
+# pyserial raises SerialException, which subclasses IOError (== OSError in
+# py3); pymavlink can surface the same underlying condition as a bare OSError.
+TRANSPORT_ERRORS = (OSError,)
+
+
 
 
 def _json_safe(value: Any) -> Any:
@@ -1317,12 +1335,22 @@ def wait_for_sensor_health(
     pre-arm: those are never satisfied on a bench, which is exactly where
     calibration happens.
     """
-    _request_message(connection, mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 200_000)
+    try:
+        _request_message(
+            connection, mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 200_000
+        )
+    except TRANSPORT_ERRORS as error:
+        raise TransportLost(str(error)) from error
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        message = connection.recv_match(
-            type="SYS_STATUS", blocking=True, timeout=0.5
-        )
+        try:
+            message = connection.recv_match(
+                type="SYS_STATUS", blocking=True, timeout=0.5
+            )
+        except TRANSPORT_ERRORS as error:
+            # The FC re-enumerated underneath us. Let the caller's reconnect
+            # loop own the retry; it still holds the overall reboot deadline.
+            raise TransportLost(str(error)) from error
         if message is None:
             continue
         health = int(getattr(message, "onboard_control_sensors_health", 0) or 0)
@@ -1378,9 +1406,26 @@ def reboot_flight_controller(
         if heartbeat is not None:
             output_fn("  heartbeat received; waiting for the IMU to settle")
             if ready_timeout_s > 0:
-                wait_for_sensor_health(
-                    new_connection, ready_timeout_s, output_fn=output_fn
-                )
+                try:
+                    wait_for_sensor_health(
+                        new_connection, ready_timeout_s, output_fn=output_fn
+                    )
+                except TransportLost as error:
+                    # fmuv3 enumerates twice: the first heartbeat can arrive on
+                    # a handle that dies when the IO coprocessor takes over.
+                    # That is still "not back yet", so go around again rather
+                    # than failing a reboot that is actually progressing.
+                    output_fn(
+                        "  link dropped while settling (FC re-enumerated); "
+                        "reconnecting"
+                    )
+                    last_error = error
+                    try:
+                        new_connection.close()
+                    except Exception:
+                        pass
+                    sleep_fn(1.0)
+                    continue
             output_fn("  flight controller is back")
             return new_connection
         try:

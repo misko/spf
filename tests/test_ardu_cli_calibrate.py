@@ -258,6 +258,61 @@ def test_reboot_waits_for_imu_health_not_just_a_heartbeat(monkeypatch):
     assert waited == [7.0]
 
 
+def test_sensor_health_reports_a_dropped_link_as_transport_loss():
+    """pyserial's raw SerialException must not escape as a traceback.
+
+    Found on Rover 4 (2026-08-06): `rover ardupilot reboot --yes` printed
+    "heartbeat received; waiting for the IMU to settle" and then died with
+    `SerialException: device reports readiness to read but returned no data`.
+    The reboot had in fact worked -- the fmuv3 simply re-enumerated a second
+    time while settling.
+    """
+
+    class Dropping:
+        def recv_match(self, **_kw):
+            raise OSError(
+                "device reports readiness to read but returned no data "
+                "(device disconnected or multiple access on port?)"
+            )
+
+        mav = SimpleNamespace(command_long_send=lambda *a: None)
+        target_system = target_component = 1
+
+    with pytest.raises(ardu_cli.TransportLost):
+        ardu_cli.wait_for_sensor_health(Dropping(), 5.0, output_fn=lambda _m: None)
+
+
+def test_reboot_survives_a_second_re_enumeration_while_settling(monkeypatch):
+    """fmuv3 enumerates twice; the first heartbeat can arrive on a doomed handle."""
+    monkeypatch.setattr(ardu_cli, "send_fc_reboot", lambda _c: None)
+    first = SimpleNamespace(close=lambda: None)
+    second = SimpleNamespace(close=lambda: None)
+    handed_out = [first, second]
+    calls = []
+
+    def flaky_health(conn, timeout, **_kw):
+        calls.append(conn)
+        if conn is first:
+            raise ardu_cli.TransportLost("re-enumerated")
+        return True
+
+    monkeypatch.setattr(ardu_cli, "wait_for_sensor_health", flaky_health)
+
+    result = ardu_cli.reboot_flight_controller(
+        argparse.Namespace(),
+        SimpleNamespace(close=lambda: None),
+        settle_s=0.0,
+        timeout_s=5.0,
+        ready_timeout_s=7.0,
+        output_fn=lambda _m: None,
+        sleep_fn=lambda _s: None,
+        connect_fn=lambda _a: (handed_out.pop(0), SimpleNamespace(), "/dev/fake"),
+    )
+
+    assert result is second, "must return the link that survived, not the first one"
+    assert calls == [first, second]
+
+
 def test_sensor_health_requires_both_gyro_and_accel():
     healthy = (
         ardu_cli.mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_GYRO
