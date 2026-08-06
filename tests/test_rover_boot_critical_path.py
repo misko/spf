@@ -34,8 +34,9 @@ def test_every_boot_syncs_the_clock_from_gps_before_anything_is_named():
     sync_body = launcher.split("sync_gps_time() {", 1)[1].split("\n}\n", 1)[0]
     # No early return before the sync is attempted: the boot path must reach it.
     assert "return 0" not in sync_body.split("for ((", 1)[0]
-    # Boot gets multiple bounded attempts; a capture-phase call gets one.
-    assert 'if [[ "$phase" == "boot" ]]; then' in sync_body
+    # Naming-critical phases get multiple bounded attempts; the opportunistic
+    # post-capture sync gets one.
+    assert 'gps_time_sync_is_naming_critical "$phase"' in sync_body
     assert 'attempts="$GPS_TIME_SYNC_ATTEMPTS"' in sync_body
 
     once_body = launcher.split("gps_time_sync_once() {", 1)[1].split("\n}\n", 1)[0]
@@ -163,3 +164,58 @@ def test_heavy_collection_imports_are_deferred_until_after_drone_ready_wait():
     assert source.index("Drone startup wait for drone ready") < source.index(
         "from spf.data_collector import"
     )
+
+
+def test_no_capture_is_named_before_the_clock_is_gps_verified():
+    """The filename is stamped when the capture process starts, not when it ends.
+
+    Syncing only AFTER a capture left exactly one capture per session misnamed
+    whenever the boot sync had failed: capture 1 stamped its name from the stale
+    clock, then completed, then fixed the clock for capture 2 onward.
+    """
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    main_loop = launcher.split("while true; do", 1)[1].split("\n    done", 1)[0]
+
+    assert "ensure_clock_verified_before_capture" in main_loop
+    assert main_loop.index("ensure_clock_verified_before_capture") < main_loop.index(
+        "if run_capture; then"
+    ), "the clock must be verified BEFORE the capture names its artifact"
+
+
+def test_pre_capture_sync_gets_the_full_retry_budget():
+    """boot and pre-capture both name artifacts; the post-capture sync does not."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    critical = launcher.split("gps_time_sync_is_naming_critical() {", 1)[1].split(
+        "\n}\n", 1
+    )[0]
+
+    assert '"$1" == "boot"' in critical
+    assert '"$1" == "pre-capture"' in critical
+    assert "sync_gps_time pre-capture" in launcher
+    assert "sync_gps_time capture || true" in launcher
+
+
+def test_a_verified_clock_is_not_resynced_before_every_capture():
+    """Once set from GPS the clock is good for the session; re-syncing before every capture
+    would add a MAVLink round trip and an operator tone to every run."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    ensure = launcher.split("ensure_clock_verified_before_capture() {", 1)[1].split(
+        "\n}\n", 1
+    )[0]
+
+    assert '[[ "$CLOCK_VERIFIED_FROM_GPS" -eq 1 ]]' in ensure
+    assert "return 0" in ensure.split('CLOCK_VERIFIED_FROM_GPS" -eq 1', 1)[1]
+    # the flag is only ever set by a successful sync
+    sync_body = launcher.split("sync_gps_time() {", 1)[1].split("\n}\n", 1)[0]
+    assert "CLOCK_VERIFIED_FROM_GPS=1" in sync_body
+
+
+def test_an_unverified_capture_says_the_store_is_still_trustworthy():
+    """Operators must not conclude the DATA is bad -- only the filename is."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    ensure = launcher.split("ensure_clock_verified_before_capture() {", 1)[1].split(
+        "\n}\n", 1
+    )[0]
+
+    assert "UNVERIFIED clock" in ensure
+    assert "gps_timestamp inside the store is still correct" in ensure

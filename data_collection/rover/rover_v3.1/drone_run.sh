@@ -483,14 +483,27 @@ gps_time_sync_once() {
     sudo date -s "$gps_time"
 }
 
+# Set by the first successful GPS sync of this boot. Until it is 1, no capture
+# should be named: the filename is stamped from the wall clock when the capture
+# process starts, so an unverified clock produces a misdated artifact.
+CLOCK_VERIFIED_FROM_GPS=0
+
+# "boot" and "pre-capture" are naming-critical -- a wrong clock at either point
+# misdates an artifact -- so they get the full retry budget. The post-capture
+# sync is opportunistic housekeeping and gets one try.
+gps_time_sync_is_naming_critical() {
+    [[ "$1" == "boot" || "$1" == "pre-capture" ]]
+}
+
 sync_gps_time() {
     local phase="${1:-capture}"
     local attempts=1 attempt
-    if [[ "$phase" == "boot" ]]; then
+    if gps_time_sync_is_naming_critical "$phase"; then
         attempts="$GPS_TIME_SYNC_ATTEMPTS"
     fi
     for (( attempt = 1; attempt <= attempts; attempt++ )); do
         if gps_time_sync_once; then
+            CLOCK_VERIFIED_FROM_GPS=1
             printf 'System clock set from GPS UTC (%s, attempt %s/%s).\n' \
                 "$phase" "$attempt" "$attempts"
             return 0
@@ -500,10 +513,10 @@ sync_gps_time() {
                 "$phase" "$attempt" "$attempts"
         fi
     done
-    if [[ "$phase" == "boot" ]]; then
+    if gps_time_sync_is_naming_critical "$phase"; then
         printf '\n' >&2
-        printf 'WARNING: no GPS UTC after %s attempts of up to %ss each.\n' \
-            "$attempts" "${SPF_GPS_TIME_TIMEOUT:-180}" >&2
+        printf 'WARNING: no GPS UTC after %s attempts of up to %ss each (%s).\n' \
+            "$attempts" "${SPF_GPS_TIME_TIMEOUT:-180}" "$phase" >&2
         printf '  The system clock is UNVERIFIED and may be hours stale (no RTC).\n' >&2
         printf '  Any capture named before the next successful sync carries a WRONG\n' >&2
         printf '  timestamp -- order and pair on gps_timestamp, never on the filename.\n' >&2
@@ -512,6 +525,26 @@ sync_gps_time() {
             "${SPF_GPS_TIME_TIMEOUT:-180}"
     fi
     return 1
+}
+
+# The capture filename is stamped from the wall clock when
+# mavlink_radio_collection.py starts, so the clock must be correct BEFORE
+# run_capture, not after it. Syncing only afterwards is what left exactly one
+# capture per session misnamed whenever the boot sync had failed.
+#
+# Costs nothing in the normal case: once the clock is verified this returns
+# immediately, and when it is not, the capture was about to block waiting for a
+# GPS fix anyway -- the mission cannot start without one.
+ensure_clock_verified_before_capture() {
+    if [[ "$CLOCK_VERIFIED_FROM_GPS" -eq 1 ]]; then
+        return 0
+    fi
+    if sync_gps_time pre-capture; then
+        return 0
+    fi
+    printf 'WARNING: starting a capture with an UNVERIFIED clock; its FILENAME may\n' >&2
+    printf '  carry the wrong time. gps_timestamp inside the store is still correct.\n' >&2
+    return 0
 }
 
 read_only_vehicle_gate() {
@@ -599,10 +632,13 @@ main() {
 
     consecutive_capture_failures=0
     while true; do
+        ensure_clock_verified_before_capture
         if run_capture; then
             consecutive_capture_failures=0
             is_true "$RUN_ONCE" && break
             sleep 8
+            # Opportunistic: keeps a long session's clock fresh. The naming
+            # guarantee comes from ensure_clock_verified_before_capture above.
             sync_gps_time capture || true
             sleep 2
             continue
