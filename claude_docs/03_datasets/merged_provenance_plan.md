@@ -72,133 +72,150 @@ captures that never finalised, and nothing in those datasets says so.
 
 ## Design
 
-### The record
+### There is already a place, and for RX it is empty
 
-One schema-versioned namespace, `attrs["provenance"]`:
+Zarr groups carry their own `.zattrs`. The merged store **already has every slot
+the source uses** — the merge simply writes nothing into them:
 
-```jsonc
-{
-  "schema_version": 1,
-  "generator": {
-    "tool": "v7_tx_rx_merge.py",
-    "git_commit": "<sha of spf at merge time>",
-    "written_utc": "2026-08-06T09:14:22Z",
-    "min_timesteps": 500,
-    "projection_center": {"lat": 37.83538, "lon": -122.4785}
-  },
-  "sources": {
-    "rx": {
-      "store": "rover_2026_08_05_23_31_21_…_tag_RO1.zarr",
-      "suffix": ".zarr",              // ".zarr.tmp" records an unfinalised source
-      "finalized": true,
-      "attrs_sha256": "<hash of the serialised source attrs>",
-      "root": { "capture_status": "complete", … },
-      "receivers": { "r0": { …31 attrs… }, "r1": { …31 attrs… } }
-    },
-    "tx": { … same shape … }
-  }
-}
+| Slot | Source store | Merged store |
+|---|---:|---:|
+| root `.zattrs` | 4 keys | 1 key |
+| `receivers/r0/.zattrs` | 31 keys | **0 — empty** |
+| `receivers/r1/.zattrs` | 31 keys | **0 — empty** |
+
+So restoring RX provenance needs **no new schema, no namespace, no nesting**. It
+is a dict copy into the identical slot, next to `_copy_receiver` in
+`v7_tx_rx_merge.py`:
+
+```python
+new_zarr.attrs.update(dict(rx_zarr.attrs))            # root: capture_status, ...
+for r in range(receivers):
+    new_zarr[f"receivers/r{r}"].attrs.update(
+        dict(rx_zarr[f"receivers/r{r}"].attrs))       # 31 attrs incl. sdr_serial
 ```
 
-Design choices, and why:
+An earlier draft of this plan proposed a nested `attrs["provenance"]` record
+holding rx and tx side by side. That was over-designed: it invented a container
+for something zarr already models, and it only looked necessary because the plan
+assumed TX needed the same treatment as RX. It does not — see below.
 
-- **One namespace, not 62 flattened keys.** Source attrs collide between rx and
-  tx (both have `sdr_serial`), and a flat merge would need prefixes that then
-  need parsing. Nesting keeps the source record byte-identical to what was read.
-- **`attrs_sha256` over the serialised source attrs.** Lets a later run detect
-  that a source was replaced or re-created since the record was written. Cheap,
-  and the alternative is trusting a filename forever.
-- **`suffix` and `finalized` recorded explicitly**, because the merged filename
-  destroys that distinction (finding 3).
-- **`projection_center` and `min_timesteps`** because the merge is not a pure
-  function of its inputs — the XY frame origin is derived from the TX GPS mean,
-  and a different `--min-timesteps` yields a different row count.
+### TX needs GPS, and the GPS is already there
 
-### The derived index
+The merged store has no TX receiver group and should not grow one: its
+`receivers/` **are** the RX's receivers. What the TX contributes is position, and
+that is already stored as `tx_pos_x_mm` / `tx_pos_y_mm` — the TX GPS track
+interpolated onto every RX timestamp.
 
-The canonical record is nested, but the hot question — *which physical radio was
-r0?* — should not require walking it. The writer also emits a small flat index,
-always regenerated from the record and never hand-edited:
+**That projection is exactly invertible from the merged store alone.** The store
+also holds the RX's raw `gps_lat` / `gps_long` *and* its projected
+`rx_pos_x_mm` / `rx_pos_y_mm`, which over-determines the aeqd projection centre.
+Fitting it on one merged dataset:
 
-```jsonc
-attrs["radio_identity"] = {
-  "rx": {"r0": "10400090fd95…192e5a", "r1": "104000d02597…846432"},
-  "tx": {"r0": "…"}
-}
-attrs["source_status"] = {"rx": "complete", "tx": "complete", "rx_finalized": true}
+```
+recovered centre : 37.8349747, -122.4788380     residual RMS 0.0000 mm
+TX GPS inverted  : lat 37.834841..37.835118   lon -122.478979..-122.478701
+TX source actual : lat 37.834840..37.835120   lon -122.478979..-122.478701
 ```
 
-Redundant by construction. The justification is that "recoverable" and
-"answerable" are different properties, and the corpus has just demonstrated the
-cost of the gap between them.
+Agreement is 0.04 m / 0.24 m at the bounding-box corners, and that residue is the
+merge trimming TX to the overlap window — not projection error.
 
-### Where it lives — three write paths, one read path
+**Consequence: no legacy merged dataset needs anything added to recover TX GPS.**
+It is already present and exact. What is missing is only the convenience of not
+having to run a least-squares fit to get it, and the identity of which TX store
+it came from.
 
-| Era | Location | Written by |
+### The whole change, then
+
+| What | Where it goes | New schema? |
 |---|---|---|
-| New merges (Aug 5 onward) | in-band `attrs` | `v7_tx_rx_merge.py` |
-| The 24 legacy merges | sidecar `<name>.provenance.json` | `backfill_merged_provenance.py` |
-| Either | — | `load_provenance()` — prefers in-band, falls back to sidecar |
+| RX radio attrs — `sdr_serial`, firmware, USB path (31 × 2) | `receivers/r{0,1}/.zattrs` — **exists, empty** | no |
+| RX capture status — `capture_status`, record counts (4) | root `.zattrs` — exists | no |
+| **`projection`** = `{proj: "aeqd", lat_0, lon_0, units: "m"}` | root `.zattrs` | **1 key** |
+| **`tx_source`** = `{store, suffix, finalized, capture_status}` | root `.zattrs` | **1 key** |
 
-**Why a sidecar for legacy rather than writing attrs in place.** Repo convention
-is that artifacts are append-only. A sidecar adds without mutating, is reversible
-by deleting one file, and is reviewable as plain JSON *before* anything trusts
-it. Merged directories already carry `.yaml` sidecars, so the pattern is
-established there. Cost is ~50 KB across the corpus.
+**Two new root keys.** Everything else lands in slots zarr already provides.
 
-If in-band is preferred for legacy too, it is `--in-place` on the same tool: the
-record is identical, only the destination changes. The tradeoff is mutating 24
-existing artifacts to save one indirection in the reader.
+`projection` because inverting `tx_pos_*_mm` should not require a fit, and
+because it pins the frame the XY coordinates are expressed in — the merge derives
+it from the mean TX GPS, so it varies per dataset.
+
+`tx_source` because the TX store's name and finalisation state are the one thing
+about the TX that genuinely is not recoverable from the merged arrays. Four
+fields, not thirty-one: the TX's radio identity does not matter when only its
+GPS is used.
+
+`suffix` / `finalized` are recorded explicitly in `tx_source` — and, for RX, come
+free with the copied root attrs — because the merged filename destroys the
+`.tmp` distinction (finding 3).
+
+### Legacy backfill: writing into empty slots
+
+The RX slots in the 24 legacy stores are **empty**. Filling them adds keys where
+none exist and changes no existing value, which is additive in the sense the
+append-only convention is about — unlike editing a split file or a config. So
+in-place is defensible here, and it keeps one read path instead of two.
+
+The tool supports both, defaulting to the safer one:
+
+- `--sidecar` (default) writes `<name>.provenance.json` mirroring the native
+  layout: `{"root": {...}, "receivers": {"r0": {...}, "r1": {...}}, "projection": {...}, "tx_source": {...}}`.
+- `--in-place` writes the same content into the store's own attrs, and refuses to
+  run if any target slot is non-empty.
+
+Start with `--sidecar`, review the JSON, then promote with `--in-place` once it
+has been checked. `load_provenance()` prefers in-band and falls back to the
+sidecar, so both eras read identically and the promotion is invisible to callers.
 
 **Why not re-run the merge.** Re-merging rewrites 184 GB of arrays that are
-already byte-correct in order to change ~50 KB of metadata, and every precompute
-keyed to the current stores would have to be regenerated behind it. The arrays
-are not in question — only the metadata is.
+already byte-correct to change ~50 KB of metadata, and every precompute keyed to
+the current stores would follow. The arrays are not in question.
 
 ## Execution
 
 Each phase is independently revertible and leaves the corpus usable.
 
-**P0 — Freeze the inventory.** Emit and commit
-`merged_provenance_inventory.json`: 24 datasets, resolved source paths,
-suffix, `capture_status`, r0/r1 serials. This is the artifact every later phase
-diffs against, and it is worth having on its own — it is how finding 3 surfaced.
+**P0 — Freeze the inventory.** Emit and commit `merged_provenance_inventory.json`:
+24 datasets, resolved source paths, suffix, `capture_status`, r0/r1 serials,
+fitted projection centre. This is what later phases diff against, and it is worth
+having on its own — it is how finding 3 surfaced.
 
-**P1 — Schema and writer.** Add the record to `v7_tx_rx_merge.py`. Tests:
-round-trip through a merge; a `.zarr.tmp` source sets `finalized: false`; a
-source whose attrs are absent yields an explicit `null`, never a silent omission.
+**P1 — Writer.** The three-line attrs copy above, plus `projection` and
+`tx_source`, in `v7_tx_rx_merge.py`. Tests: a round-tripped `sdr_serial`; a
+`.zarr.tmp` source setting `finalized: false`; `projection` inverting
+`tx_pos_*_mm` back to the TX source's GPS within a tolerance.
 
-**P2 — Backfill tool.** `backfill_merged_provenance.py`, `--dry-run` first,
-printing the JSON it would write. Idempotent. Refuses to write a sidecar when
-in-band provenance already exists, so the two paths cannot disagree.
+**P2 — Backfill tool.** `backfill_merged_provenance.py --dry-run` prints what it
+would write; `--sidecar` then `--in-place`. Idempotent; refuses to overwrite a
+non-empty slot.
 
-**P3 — Accessor.** `spf/dataset/provenance.py::load_provenance(store)`, used by
-`merged_df_figure.py` and `df_metrics.py` so figures can label results with the
-physical radio rather than `r0`.
+**P3 — Accessor.** `spf/dataset/provenance.py::load_provenance(store)`, wired into
+`merged_df_figure.py` and `df_metrics.py` so figures label results by physical
+radio rather than `r0`.
 
-**P4 — Verify.** All 24 answer both questions: which serial was r0, and was the
-source finalised. Assert the five known-unfinalised are flagged.
+**P4 — Verify.** All 24 answer: which serial was r0, was the source finalised,
+and what frame are the XY coordinates in. Assert the five known-unfinalised are
+flagged.
 
-**P5 — Aug 5.** Merges run after P1 are born with in-band provenance and need no
-backfill.
+**P5 — Aug 5.** Merges run after P1 are born correct and need no backfill.
 
 **P6 — Optional: precompute linkage.** Not required — the precompute reads no
-attrs (finding 1) — but stamping `attrs_sha256` into precompute outputs would
+attrs (finding 1) — but stamping the source serials into precompute outputs would
 let a cached tensor be traced to the radio that produced it.
 
 ## Cost
 
 | | Reads | Writes | Wall clock |
 |---|---|---|---|
-| Backfill 24 legacy | attrs only, no arrays | ~50 KB of JSON | minutes |
+| Backfill 24 legacy | attrs only, no arrays | ~50 KB | minutes |
 | Re-merge 24 | ~500 GB of sources | 184 GB + precompute | days |
 
 ## What it changes for open questions
 
 The 2026-08-05 report's central unresolved question is whether the channel
 deficits on RO1/RO3/RO4 are cross-array coupling (5.3) or real hardware faults.
-That is a question about *physical radios*, and the merged datasets — the ones
-the DF metrics are computed from — currently cannot name one. Across the whole
-corpus only two distinct r0 serials appear (`…192e5a` on the 35 mm arrays,
-`…3b1bd0` on the 43 mm arrays); with provenance in place, per-serial error
-statistics become a one-line query instead of a re-derivation from filenames.
+That is a question about *physical radios*, and the merged datasets the DF
+metrics are computed from cannot currently name one. Across the whole corpus only
+two distinct r0 serials appear (`…192e5a` on the 35 mm arrays, `…3b1bd0` on the
+43 mm arrays); with the attrs restored, per-serial error statistics become a
+query rather than a re-derivation from filenames.
