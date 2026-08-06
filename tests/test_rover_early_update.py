@@ -62,6 +62,10 @@ def _run_updater(tmp_path: Path, checkout: Path) -> subprocess.CompletedProcess[
             "SPF_TEST_REBOOT_COMMAND": str(reboot),
             "SPF_UPDATE_REBOOT_DELAY_SECONDS": "0",
             "SPF_UPDATE_REMOTE_WAIT_SECONDS": "1",
+            # 0 disables the eth0 uplink gate: these tests exercise the
+            # git/reboot logic against a local clone, and the dev box and
+            # CI do not have a rover's interface names.
+            "SPF_UPDATE_UPLINK_WAIT_SECONDS": "0",
             "SPF_UPDATE_GIT_TIMEOUT_SECONDS": "1",
             "SPF_TEST_EVENTS": str(events),
         }
@@ -151,3 +155,38 @@ def test_late_mission_launcher_no_longer_updates_repository():
 
     assert "maybe_self_update" not in launcher
     assert "git pull" not in launcher
+
+
+# ---------------------------------------------------------------- uplink gate ---
+#
+# Rover 1, 2026-08-06: spf-rover-update.service started 29 ms after
+# network.target and its 12 s Git budget expired before eth0 even had carrier
+# (+3.4 s). network-online.target was no help -- it went green 800 ms into boot,
+# satisfied by a DHCP lease on eth1 at 192.168.2.10, which is a PLUTO's USB-net
+# interface. Three boots running, the rover stayed on stale code and kept
+# capturing at the old carrier frequency.
+
+
+def test_the_updater_waits_on_the_named_lan_interface_not_a_timer():
+    updater = UPDATER.read_text()
+
+    assert 'UPLINK_INTERFACE="${SPF_UPDATE_UPLINK_INTERFACE:-eth0}"' in updater
+    # Interface-specific by name: an any-interface check is satisfied by a Pluto.
+    assert 'ip -4 addr show dev "$UPLINK_INTERFACE" scope global' in updater
+    assert '/sys/class/net/${UPLINK_INTERFACE}/carrier' in updater
+    # The gate runs BEFORE the git budget starts.
+    assert updater.index("wait_for_uplink") < updater.index("fetch_main_bounded()")
+    main_body = updater.rsplit("main() {", 1)[1]
+    assert main_body.index("wait_for_uplink") < main_body.index("fetch_main_bounded")
+
+
+def test_an_offline_boot_gives_up_on_carrier_instead_of_burning_the_budget():
+    """A rover in a field has no cable; it must not stall every boot waiting."""
+    updater = UPDATER.read_text()
+    body = updater.split("wait_for_uplink() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert "UPLINK_CARRIER_GRACE_SECONDS" in body
+    assert "offline boot" in body
+    # And it still fails open -- no uplink must never block the boot.
+    assert "return 1" in body
+    assert "No usable uplink on ${UPLINK_INTERFACE}" in updater

@@ -23,6 +23,20 @@ INSTALL_DEPS="${SPF_INSTALL_DEPS:-${SCRIPT_DIR}/install_deps.sh}"
 CONSTRAINTS="${SPF_PIP_CONSTRAINTS:-${SCRIPT_DIR}/rover_constraints.txt}"
 REMOTE_WAIT_SECONDS="${SPF_UPDATE_REMOTE_WAIT_SECONDS:-12}"
 GIT_TIMEOUT_SECONDS="${SPF_UPDATE_GIT_TIMEOUT_SECONDS:-4}"
+# Wait on the LAN interface itself, not on a timer and not on
+# network-online.target.
+#
+# Measured on rover 1, 2026-08-06: this unit started 29 ms after network.target,
+# and network-online.target went green 800 ms later -- satisfied by a DHCP lease
+# on eth1 at 192.168.2.10, which is a PLUTO's USB-net interface, not the LAN.
+# eth0 did not get carrier until 3.4 s after that. The 12 s Git budget therefore
+# expired against an interface that did not exist yet, three boots running, and
+# left the rover on stale code with one line in the journal to say so.
+UPLINK_INTERFACE="${SPF_UPDATE_UPLINK_INTERFACE:-eth0}"
+UPLINK_WAIT_SECONDS="${SPF_UPDATE_UPLINK_WAIT_SECONDS:-30}"
+# If there is still no carrier after this, there is no cable: an offline field
+# boot must not sit through the full uplink budget on every start.
+UPLINK_CARRIER_GRACE_SECONDS="${SPF_UPDATE_UPLINK_CARRIER_GRACE_SECONDS:-8}"
 REBOOT_DELAY_SECONDS="${SPF_UPDATE_REBOOT_DELAY_SECONDS:-15}"
 SKIP_SELF_UPDATE="${SPF_SKIP_SELF_UPDATE:-0}"
 
@@ -71,6 +85,50 @@ reconcile_boot_units() {
     esac
 }
 
+uplink_has_carrier() {
+    [[ "$(cat "/sys/class/net/${UPLINK_INTERFACE}/carrier" 2>/dev/null)" == "1" ]]
+}
+
+uplink_has_address() {
+    # Global-scope IPv4 on the LAN interface specifically. The Plutos hand out
+    # 192.168.2.10 on eth1/eth2 within a second of boot, which is why any
+    # any-interface check (including network-online.target) is not the same
+    # question as "can this rover reach the remote".
+    ip -4 addr show dev "$UPLINK_INTERFACE" scope global 2>/dev/null |
+        grep -q 'inet '
+}
+
+# Returns 0 as soon as the LAN interface is usable, 1 if it is not going to be.
+# Bounded both ways: a rover with a cable stops waiting the moment DHCP lands,
+# and a rover without one gives up after the carrier grace instead of burning
+# the whole budget on every field boot.
+wait_for_uplink() {
+    local deadline grace_deadline
+    # 0 disables the check: for hosts where the rover's interface names do not
+    # apply (CI, a dev box, a rover reached over something other than eth0).
+    # The Git fetch remains bounded by REMOTE_WAIT_SECONDS regardless.
+    if [[ "$UPLINK_WAIT_SECONDS" -eq 0 ]]; then
+        return 0
+    fi
+    deadline=$((SECONDS + UPLINK_WAIT_SECONDS))
+    grace_deadline=$((SECONDS + UPLINK_CARRIER_GRACE_SECONDS))
+
+    while (( SECONDS < deadline )); do
+        if uplink_has_carrier && uplink_has_address; then
+            return 0
+        fi
+        if ! uplink_has_carrier && (( SECONDS >= grace_deadline )); then
+            printf 'No carrier on %s after %ss; treating this as an offline boot.\n' \
+                "$UPLINK_INTERFACE" "$UPLINK_CARRIER_GRACE_SECONDS"
+            return 1
+        fi
+        sleep 1
+    done
+    printf 'Uplink %s did not become usable within %ss.\n' \
+        "$UPLINK_INTERFACE" "$UPLINK_WAIT_SECONDS"
+    return 1
+}
+
 fetch_main_bounded() {
     local attempt_timeout deadline remaining
     deadline=$((SECONDS + REMOTE_WAIT_SECONDS))
@@ -106,6 +164,10 @@ main() {
         die "Staged changes prevent a safe boot update."
     if is_true "$SKIP_SELF_UPDATE"; then
         printf 'Repository update explicitly disabled; using %s.\n' "$current_hash"
+    elif ! wait_for_uplink; then
+        printf '%s\n' \
+            "No usable uplink on ${UPLINK_INTERFACE};" \
+            "continuing with checked-out code ${current_hash}."
     elif ! fetch_main_bounded; then
         printf '%s\n' \
             "Git remote unavailable after ${REMOTE_WAIT_SECONDS}s;" \
