@@ -65,7 +65,7 @@ Use the committed production configuration selected by `drone_run.sh`:
 | 2 | `capture_configs/rover2_production_v7.yaml` | 1 |
 | 3 | `capture_configs/rover3_production_v7.yaml` | 2 |
 
-The production RF/frame contract is 5.766 GHz LO, 30 MS/s, 3 MHz RF
+The production RF/frame contract is 5.840 GHz LO, 30 MS/s, 3 MHz RF
 bandwidth, 524,288 complex samples per channel per frame, two RX channels per
 Pluto, four kernel RX buffers, slow-attack gain control, and a 0.5 second
 snapshot interval.

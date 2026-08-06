@@ -16,7 +16,7 @@
 #   run_rx_signal_check.sh /path/to.zarr   # report on an existing store
 #
 # RF overrides (applied to a COPY of the config; production YAML is untouched):
-#   --freq HZ          carrier, e.g. --freq 5.8e9      (fleet default 5.766e9)
+#   --freq HZ          carrier, e.g. --freq 5.8e9      (fleet default 5.840e9)
 #   --bandwidth HZ     e.g. --bandwidth 5e6            (default 3e6)
 #   --sampling HZ      sample rate, e.g. --sampling 20e6  (default 30e6)
 #   --rx-gain DB       e.g. --rx-gain 20               (default -3)

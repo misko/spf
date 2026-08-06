@@ -38,7 +38,7 @@ receivers:
     rx-gain: -3
     buffer-size: 524288
     f-intermediate: 100000
-    f-carrier: 5.766e+9
+    f-carrier: 5.840e+9
     f-sampling: 30.0e+6
     bandwidth: 3.0e+6
 
@@ -53,7 +53,7 @@ receivers:
     rx-gain: -3
     buffer-size: 524288
     f-intermediate: 100000
-    f-carrier: 5.766e+9
+    f-carrier: 5.840e+9
     f-sampling: 30.0e+6
     bandwidth: 3.0e+6
 

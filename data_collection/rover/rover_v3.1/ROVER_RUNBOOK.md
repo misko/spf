@@ -234,7 +234,10 @@ The **base station is the dev box at `192.168.1.141`**. In tethered/manual produ
 
 ### RF / power topology (from `data_collection/rover/rover_v3.1/make_schematic.py`)
 
-- RF center **5.766 GHz**, sample rate **30 MS/s**, **3 MHz** bandwidth.
+- RF center **5.840 GHz**, sample rate **30 MS/s**, **3 MHz** bandwidth.
+  (5.766 GHz through 2026-08-05; see the 2026-08-06 field report for why it moved.
+  **The O4 emitter's channel must be set to match** — it is external hardware and
+  the capture YAML does not drive it.)
 - Motor driver: **Cytron MDDS30**; buck regulators for the Pi/FC/radios.
 - SiK telemetry NetIDs: Rover1=25, Rover2=32, Rover3=39.
 - Pi4 USB mapping: **USB2 = Radio A, USB1 = Radio B**.

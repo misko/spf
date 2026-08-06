@@ -123,7 +123,7 @@ edge(ax, bottom(pi), top(us), DATA)
 # ------------------------------------------------------------------ radios
 ra = box(ax, 1.24, 0.70, 0.245, 0.185, "PlutoPlus SDR — Radio A",
          ["2r2t fw (checked at boot)", "2-el array 35/43/47 mm",
-          "5.766 GHz, 30 MS/s, 3 MHz BW", "slow_attack AGC"], fc="#eafaf0")
+          "5.840 GHz, 30 MS/s, 3 MHz BW", "slow_attack AGC"], fc="#eafaf0")
 rb = box(ax, 1.24, 0.47, 0.245, 0.185, "PlutoPlus SDR — Radio B",
          ["mounted at different θ", "(rover 2: single radio)",
           "usb-gadget net 192.168.2.1"], fc="#eafaf0")

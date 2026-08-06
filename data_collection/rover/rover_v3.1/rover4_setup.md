@@ -190,7 +190,7 @@ sed 's/^rest-offset-m: \[1\.0, 1\.0\]$/rest-offset-m: [-1.0, -1.0]/' \
     rover1_production_v7.yaml > rover4_production_v7.yaml
 diff rover1_production_v7.yaml rover4_production_v7.yaml   # expect ONLY line 6
 ```
-Rover 4 shares Rover 1's geometry (2× Pluto, 0.035 m, ports 1/2, 5.766 GHz), so
+Rover 4 shares Rover 1's geometry (2× Pluto, 0.035 m, ports 1/2, 5.840 GHz), so
 everything except the rest offset is copied. **Confirm the intended role before
 merging** — if Rover 4 is an emitter, this config is wrong.
 
