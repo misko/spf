@@ -2442,23 +2442,39 @@ def mavlink_controller_run(args):
     # logging.info("Armed!")
 
     if args.get_time is not None:
-        with open(args.get_time, "w") as f:
-            drone.buzzer(tones["gps-time"])
-            logging.info("GPS-time: waiting for heartbeat")
-            while drone.last_heartbeat == 0:
-                time.sleep(0.1)
-            logging.info("GPS-time: waiting for gps time")
-            # NB: this can exit on a 3D fix while gps_time is still 0, yielding a
-            # 1970 timestamp; drone_run.sh sync_gps_time guards `date -s` against
-            # that so the system clock is never set to 1970 (poll shortened 5->1s).
-            while drone.gps_time == 0 and drone.gps_fix_type != "GPS_FIX_TYPE_3D_FIX":
-                time.sleep(1)
+        drone.buzzer(tones["gps-time"])
+        logging.info("GPS-time: waiting for heartbeat")
+        while drone.last_heartbeat == 0:
+            time.sleep(0.1)
+        logging.info("GPS-time: waiting for gps time")
+        # Wait for real UTC, never merely for a fix. The previous condition also
+        # exited on a 3D fix, which is a race: ArduPilot reports a fix before
+        # SYSTEM_TIME has delivered UTC, so this returned with gps_time == 0 and
+        # wrote an epoch-0 timestamp. drone_run.sh was expected to catch that by
+        # its "1970-" prefix, but datetime.fromtimestamp(0) renders as naive
+        # LOCAL time -- "1970-01-01 01:00:00" in Europe/London but
+        # "1969-12-31 16:00:00" west of UTC, where the prefix misses and the
+        # clock really is set to epoch 0. Do not produce the bad value at all.
+        #
+        # The old literal was doubly wrong: "GPS_FIX_TYPE_3D_FIX" also fails to
+        # match DGPS/RTK_FLOAT/RTK_FIXED, so a BETTER fix did not satisfy it.
+        #
+        # Unbounded by design -- callers bound it (drone_run.sh wraps this in
+        # `timeout ${SPF_GPS_TIME_TIMEOUT:-180}` and retries).
+        while drone.gps_time == 0:
+            time.sleep(1)
 
-            gps_time = datetime.fromtimestamp(drone.gps_time).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
+        gps_time = datetime.fromtimestamp(drone.gps_time).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        # Open only once a real value exists. Opening "w" before the wait meant
+        # every timeout-killed attempt truncated this file to zero bytes and
+        # destroyed whatever a previous successful sync had written -- and
+        # `date -d ""` parses to today-at-midnight, so an empty file silently
+        # became a plausible-looking clock up to 24h wrong.
+        with open(args.get_time, "w") as f:
             f.write(gps_time + "\n")
-            sys.exit(0)
+        sys.exit(0)
 
     if (
         args.save_params is not None

@@ -40,10 +40,9 @@ def test_every_boot_syncs_the_clock_from_gps_before_anything_is_named():
     assert 'attempts="$GPS_TIME_SYNC_ATTEMPTS"' in sync_body
 
     once_body = launcher.split("gps_time_sync_once() {", 1)[1].split("\n}\n", 1)[0]
-    assert 'timeout "${SPF_GPS_TIME_TIMEOUT:-180}"' in once_body
-    assert 'sudo date -s "$gps_time"' in once_body
-    # Never set the clock to epoch 0 on a fix-without-UTC.
-    assert '[[ "$gps_time" == 1970-* ]]' in once_body
+    assert 'timeout "$GPS_TIME_TIMEOUT_S"' in once_body
+    # The epoch-0 guard and the clock-setting call are asserted in detail by
+    # test_the_clock_is_validated_as_an_epoch_not_by_a_1970_prefix.
 
 
 def test_gps_time_sync_failure_cannot_abort_the_boot_under_set_e():
@@ -219,3 +218,73 @@ def test_an_unverified_capture_says_the_store_is_still_trustworthy():
 
     assert "UNVERIFIED clock" in ensure
     assert "gps_timestamp inside the store is still correct" in ensure
+
+
+def test_print_plan_variables_are_all_defined_before_it_runs():
+    """`--print-plan` exits at the top of the script, under `set -u`.
+
+    Defining a tunable next to the function that uses it, rather than with the
+    other env-derived knobs, makes `--print-plan` die with "unbound variable" on
+    a real rover -- and it cannot be caught locally, because drone_run.sh exits
+    earlier here on the missing /home/pi paths. Static check instead.
+    """
+    import re
+
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    body = launcher.split("print_plan() {", 1)[1].split("\n}\n", 1)[0]
+    referenced = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", body)))
+    assert referenced, "print_plan should reference variables"
+
+    before_call = launcher[: launcher.index("--print-plan)")]
+    unbound = [
+        name
+        for name in referenced
+        if not re.search(
+            rf"^\s*(readonly\s+)?{name}=|mapfile.*\b{name}\b", before_call, re.M
+        )
+    ]
+    assert not unbound, (
+        f"--print-plan would die on unbound variable(s): {unbound}. "
+        "Define them with the other env-derived knobs near the top."
+    )
+
+
+def test_gps_clock_knobs_are_validated_and_visible():
+    """SPF_GPS_TIME_SYNC_ATTEMPTS=0 or SPF_GPS_TIME_TIMEOUT=0 would silently
+    reinstate the defect: a zero-iteration retry loop, and GNU `timeout 0`
+    disables the timeout rather than meaning "do not wait"."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+
+    assert '[[ "$GPS_TIME_SYNC_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] ||' in launcher
+    assert '[[ "$GPS_TIME_TIMEOUT_S" =~ ^[1-9][0-9]*$ ]] ||' in launcher
+    plan = launcher.split("print_plan() {", 1)[1].split("\n}\n", 1)[0]
+    assert "gps_time_sync_attempts=" in plan
+    assert "gps_time_timeout_s=" in plan
+
+
+def test_the_clock_is_validated_as_an_epoch_not_by_a_1970_prefix():
+    """datetime.fromtimestamp(0) is naive LOCAL time: "1970-01-01 01:00:00" in
+    Europe/London but "1969-12-31 16:00:00" west of UTC, where a "1970-*" prefix
+    test misses entirely and `date -s` really does set the clock to epoch 0.
+    And `date -d ""` does NOT fail -- it parses to today at midnight."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    once = launcher.split("gps_time_sync_once() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert '[[ "$gps_time" == 1970-* ]]' not in once, "prefix test is timezone-broken"
+    assert '[[ -z "${gps_time//[[:space:]]/}" ]]' in once, "empty file must be rejected"
+    assert 'date -d "$gps_time" +%s' in once, "parse to an epoch"
+    assert '"$epoch" -lt 1735689600' in once, "floor the epoch"
+    assert 'sudo -n date -s "@$epoch"' in once, "set from the validated epoch, with sudo -n"
+
+
+def test_get_time_waits_for_utc_not_merely_for_a_fix():
+    """The old OR-exit returned on a 3D fix while gps_time was still 0, writing
+    an epoch-0 timestamp; and its literal did not match DGPS/RTK fix strings."""
+    source = (REPO_ROOT / "spf/mavlink/mavlink_controller.py").read_text()
+    body = source.split("if args.get_time is not None:", 1)[1].split("\n    if (", 1)[0]
+
+    assert "while drone.gps_time == 0:" in body
+    assert 'gps_fix_type != "GPS_FIX_TYPE_3D_FIX"' not in body
+    # The file must be opened only once a real value exists: opening it before
+    # the wait meant a timeout-killed attempt truncated it to zero bytes.
+    assert body.index("while drone.gps_time == 0:") < body.index("open(args.get_time")

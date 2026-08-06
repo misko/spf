@@ -51,6 +51,17 @@ CAPTURE_RESTART_ATTEMPTS="${SPF_CAPTURE_RESTART_ATTEMPTS:-1}"
 RADIO_WAIT_SECONDS="${SPF_RADIO_WAIT_SECONDS:-600}"
 ROVER_ID_FILE="${SPF_ROVER_ID_FILE:-/home/pi/rover_id}"
 
+# Compass-gate and GPS-clock tunables live here, with every other env-derived
+# knob, because print_plan() reads them and `--print-plan` exits long before the
+# functions that use them. Defining them next to those functions made
+# `--print-plan` die on an unbound variable under `set -u`.
+COMPASS_GATE_RETRIES="${SPF_COMPASS_GATE_RETRIES:-3}"
+COMPASS_REBOOT_COUNT_FILE="/home/pi/compass_reboot_attempts"
+COMPASS_REBOOT_DELAY_S="${SPF_COMPASS_REBOOT_DELAY_S:-20}"
+COMPASS_REBOOT_ENABLE="${SPF_COMPASS_REBOOT_ENABLE:-1}"
+GPS_TIME_SYNC_ATTEMPTS="${SPF_GPS_TIME_SYNC_ATTEMPTS:-3}"
+GPS_TIME_TIMEOUT_S="${SPF_GPS_TIME_TIMEOUT:-180}"
+
 if [[ "$PYTHON" == */* ]]; then
     [[ -x "$PYTHON" ]] || die "Python environment is unavailable: ${PYTHON}"
 else
@@ -105,6 +116,18 @@ firmware_image_sha256="${config_values[11]}"
     die "SPF_CAPTURE_WATCHDOG_INTERVAL_SECONDS must be a positive integer."
 [[ "$CAPTURE_WATCHDOG_MAXIMUM_BYTES" =~ ^[1-9][0-9]*$ ]] ||
     die "SPF_CAPTURE_WATCHDOG_MAXIMUM_BYTES must be a positive integer."
+# Either of these can silently reinstate the defect just removed, from one line
+# in /etc/spf/rover_collection.env with no code change: ATTEMPTS=0 makes the
+# retry loop run zero times, and GNU `timeout 0` DISABLES the timeout rather
+# than meaning "do not wait".
+[[ "$GPS_TIME_SYNC_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] ||
+    die "SPF_GPS_TIME_SYNC_ATTEMPTS must be a positive integer, got: ${GPS_TIME_SYNC_ATTEMPTS}"
+[[ "$GPS_TIME_TIMEOUT_S" =~ ^[1-9][0-9]*$ ]] ||
+    die "SPF_GPS_TIME_TIMEOUT must be a positive integer of seconds, got: ${GPS_TIME_TIMEOUT_S}"
+[[ "$COMPASS_GATE_RETRIES" =~ ^[0-9]+$ ]] ||
+    die "SPF_COMPASS_GATE_RETRIES must be a non-negative integer."
+[[ "$COMPASS_REBOOT_DELAY_S" =~ ^[0-9]+$ ]] ||
+    die "SPF_COMPASS_REBOOT_DELAY_S must be a non-negative integer."
 
 print_plan() {
     printf '%s\n' \
@@ -129,7 +152,9 @@ print_plan() {
         "crash_recovery=${CRASH_RECOVERY}" \
         "compass_gate_retries=${COMPASS_GATE_RETRIES}" \
         "compass_reboot_enable=${COMPASS_REBOOT_ENABLE}" \
-        "compass_reboot_delay_s=${COMPASS_REBOOT_DELAY_S}"
+        "compass_reboot_delay_s=${COMPASS_REBOOT_DELAY_S}" \
+        "gps_time_sync_attempts=${GPS_TIME_SYNC_ATTEMPTS}" \
+        "gps_time_timeout_s=${GPS_TIME_TIMEOUT_S}"
 }
 
 case "${1:-}" in
@@ -253,7 +278,6 @@ notify_capture_failure() {
 # error is "the external compass is not on the bus"; a misconfiguration reads
 # identically after any number of reboots, so retrying it would bury a real
 # defect behind a delay. Fail closed on anything else.
-readonly COMPASS_GATE_RETRIES="${SPF_COMPASS_GATE_RETRIES:-3}"
 
 compass_gate_failure_is_retryable() {
     [[ -s "$COMPASS_READY_FILE" ]] || return 1
@@ -353,14 +377,11 @@ compass_gate_with_retries() {
 # How many times THIS rover has rebooted itself chasing an absent compass.
 # Persisted outside /run so it survives the reboot it is counting; cleared the
 # moment the gate passes, so the number always describes one unbroken episode.
-readonly COMPASS_REBOOT_COUNT_FILE="/home/pi/compass_reboot_attempts"
-readonly COMPASS_REBOOT_DELAY_S="${SPF_COMPASS_REBOOT_DELAY_S:-20}"
 # The escalation is deliberately unbounded, so it needs an off switch that does
 # not require a code change or catching the 20s window. Set
 # SPF_COMPASS_REBOOT_ENABLE=0 in /etc/spf/rover_collection.env to park a rover
 # with a known-bad compass lead: it then fails closed like before instead of
 # cycling. Per-rover, survives reboots, and is visible in the boot plan.
-readonly COMPASS_REBOOT_ENABLE="${SPF_COMPASS_REBOOT_ENABLE:-1}"
 
 clear_compass_reboot_count() {
     rm -f -- "$COMPASS_REBOOT_COUNT_FILE"
@@ -461,26 +482,49 @@ verify_compass_policy_read_only() {
 # Blocking here costs nothing real: the capture already waits for the planner to
 # take control, which requires a GPS fix, so GPS UTC is available before any
 # data is written. The name was simply being stamped too early.
-readonly GPS_TIME_SYNC_ATTEMPTS="${SPF_GPS_TIME_SYNC_ATTEMPTS:-3}"
+# Both are validated, because either can silently reinstate the exact defect
+# that was just removed, from an /etc/spf/rover_collection.env line with no code
+# change: ATTEMPTS=0 makes the retry loop run zero times, and GNU `timeout 0`
+# DISABLES the timeout rather than meaning "do not wait".
 
 gps_time_sync_once() {
     # --get-time blocks until the FC reports GPS UTC. Bounded so a no-sky /
     # cold-TTFF boot cannot hang forever. Time comes from GPS via MAVLink; the
     # rover has no internet and does not use NTP in the field.
     local gps_time
-    if ! timeout "${SPF_GPS_TIME_TIMEOUT:-180}" \
+    if ! timeout "$GPS_TIME_TIMEOUT_S" \
         "$PYTHON" "$MAVLINK_CONTROLLER" --get-time "$TIME_FILE"; then
         return 1
     fi
     gps_time="$(cat "$TIME_FILE")"
-    # --get-time can exit on a 3D fix before UTC has arrived, yielding epoch 0.
-    # Never set the clock to 1970: that corrupts every subsequent data/log
-    # filename until the next successful sync, which is worse than being stale.
-    if [[ "$gps_time" == 1970-* ]]; then
-        printf 'GPS reported a 1970 time (fix without UTC yet); not setting clock.\n'
+
+    # Validate as an EPOCH, never by string prefix. --get-time writes naive
+    # local time, so epoch 0 renders "1970-01-01 01:00:00" in Europe/London but
+    # "1969-12-31 16:00:00" west of UTC -- a "1970-*" test misses it there and
+    # the clock really does get set to epoch 0. An epoch floor is
+    # timezone-independent.
+    local epoch
+    # Explicit, because `date -d ""` does NOT fail: it parses to today at
+    # 00:00:00 local, which sails past any sanity floor while being up to 24h
+    # wrong. An empty file is what a timeout-killed attempt used to leave.
+    if [[ -z "${gps_time//[[:space:]]/}" ]]; then
+        printf 'GPS time file is empty; not setting clock.\n'
         return 1
     fi
-    sudo date -s "$gps_time"
+    if ! epoch="$(date -d "$gps_time" +%s 2>/dev/null)" || [[ -z "$epoch" ]]; then
+        printf 'GPS time %q is unparseable; not setting clock.\n' "$gps_time"
+        return 1
+    fi
+    # A GPS-derived UTC before 2025 is a fix-without-UTC, not a real time.
+    if [[ "$epoch" -lt 1735689600 ]]; then
+        printf 'GPS reported %s (epoch %s) — no UTC yet; not setting clock.\n' \
+            "$gps_time" "$epoch"
+        return 1
+    fi
+    # @epoch, so the value we validated is the value we set, independent of the
+    # zone. sudo -n like every other privileged call here: a prompting sudo
+    # would hang the boot.
+    sudo -n date -s "@$epoch"
 }
 
 # Set by the first successful GPS sync of this boot. Until it is 1, no capture
@@ -516,13 +560,13 @@ sync_gps_time() {
     if gps_time_sync_is_naming_critical "$phase"; then
         printf '\n' >&2
         printf 'WARNING: no GPS UTC after %s attempts of up to %ss each (%s).\n' \
-            "$attempts" "${SPF_GPS_TIME_TIMEOUT:-180}" "$phase" >&2
+            "$attempts" "$GPS_TIME_TIMEOUT_S" "$phase" >&2
         printf '  The system clock is UNVERIFIED and may be hours stale (no RTC).\n' >&2
         printf '  Any capture named before the next successful sync carries a WRONG\n' >&2
         printf '  timestamp -- order and pair on gps_timestamp, never on the filename.\n' >&2
     else
         printf 'No GPS time within %ss; continuing (capture loop keeps retrying --get-time).\n' \
-            "${SPF_GPS_TIME_TIMEOUT:-180}"
+            "$GPS_TIME_TIMEOUT_S"
     fi
     return 1
 }
