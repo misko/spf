@@ -144,11 +144,18 @@ def test_boot_reuses_parameter_snapshot_for_compass_inventory_and_policy():
         0
     ]
     assert "--prepare-vehicle-params" in sync_body
-    assert '--compass-policy-json "$COMPASS_READY_FILE"' in sync_body
     assert "--load-params" not in sync_body
     assert "--diff-params" not in sync_body
     assert "--save-params" not in sync_body
     assert "verify_compass_policy_read_only" in sync_body
+
+    # The policy JSON is requested alongside the parameter download rather than
+    # in a second pass, so inventory and policy describe ONE snapshot. That flag
+    # now lives in run_compass_gate, which every gate invocation funnels through
+    # -- the invariant is unchanged, only its location.
+    gate_body = launcher.split("run_compass_gate() {", 1)[1].split("\n}", 1)[0]
+    assert '--compass-policy-json "$COMPASS_READY_FILE"' in gate_body
+    assert '"$MAVLINK_CONTROLLER" "$@"' in gate_body
 
     main_body = launcher.rsplit("main() {", 1)[1]
     validation_body = main_body.split('if is_true "$BOOT_VALIDATE_ONLY"; then', 1)[

@@ -250,7 +250,7 @@ notify_capture_failure() {
 # error is "the external compass is not on the bus"; a misconfiguration reads
 # identically after any number of reboots, so retrying it would bury a real
 # defect behind a delay. Fail closed on anything else.
-readonly COMPASS_GATE_ATTEMPTS="${SPF_COMPASS_GATE_ATTEMPTS:-3}"
+readonly COMPASS_GATE_RETRIES="${SPF_COMPASS_GATE_RETRIES:-3}"
 
 compass_gate_failure_is_retryable() {
     [[ -s "$COMPASS_READY_FILE" ]] || return 1
@@ -267,14 +267,22 @@ PYEOF
 
 # Randomised so a retry cannot land in lockstep with whatever periodic or
 # thermal condition caused the miss, and so four rovers restarting together do
-# not retry in phase. Delay grows with the attempt.
+# not retry in phase. Delay grows with the retry number.
 compass_gate_backoff_seconds() {
-    local attempt="$1"
-    case "$attempt" in
+    local retry="$1"
+    case "$retry" in
         1) printf '%s\n' "$(( 5 + RANDOM % 6 ))" ;;    #  5-10s, re-read only
         2) printf '%s\n' "$(( 15 + RANDOM % 11 ))" ;;  # 15-25s, after a reboot
         *) printf '%s\n' "$(( 30 + RANDOM % 16 ))" ;;  # 30-45s, after a reboot
     esac
+}
+
+# Retry 1 settles and re-reads only; every later retry reboots the FC first.
+# The cheap one goes first because the gate reads COMPASS_DEV_ID*, which the FC
+# writes during its boot probe -- a check run soon after an FC restart can call
+# a healthy compass absent, and ruling that out costs seconds instead of ~40s.
+compass_gate_retry_reboots_fc() {
+    [[ "$1" -ge 2 ]]
 }
 
 # Reboot via ardu_cli, not MAVLINK_CONTROLLER --reboot: ardu_cli refuses to
@@ -293,45 +301,93 @@ run_compass_gate() {
         --compass-policy-json "$COMPASS_READY_FILE"
 }
 
-# Runs the compass gate up to COMPASS_GATE_ATTEMPTS times, escalating:
-#   attempt 1 -> short sleep, re-read only (catches the COMPASS_DEV_ID race)
-#   attempt 2 -> FC reboot, medium sleep
-#   attempt 3 -> FC reboot, long sleep
-# then fails closed. Returns 0 on pass; the caller dies on a non-zero return.
+# One initial check, then COMPASS_GATE_RETRIES recovery attempts:
+#   retry 1 -> settle  5-10s, re-read parameters only (no reboot)
+#   retry 2 -> FC reboot, then 15-25s
+#   retry 3 -> FC reboot, then 30-45s
+# Returns: 0 pass
+#          1 failed for a reason no reboot can fix -- caller must die
+#          2 external compass absent and every FC-level recovery is spent --
+#            caller may escalate to a full rover reboot
 compass_gate_with_retries() {
     local what="$1"; shift
-    local attempt delay
-    for (( attempt = 1; attempt <= COMPASS_GATE_ATTEMPTS; attempt++ )); do
+    local retry delay
+    for (( retry = 0; retry <= COMPASS_GATE_RETRIES; retry++ )); do
+        if [[ "$retry" -gt 0 ]]; then
+            delay="$(compass_gate_backoff_seconds "$retry")"
+            if compass_gate_retry_reboots_fc "$retry"; then
+                printf 'Compass gate (%s): external compass still absent; rebooting the flight controller, then waiting %ss (retry %s/%s).\n' \
+                    "$what" "$delay" "$retry" "$COMPASS_GATE_RETRIES"
+                if ! reboot_flight_controller_for_compass; then
+                    printf 'Compass gate: flight-controller reboot failed; not retrying.\n' >&2
+                    return 1
+                fi
+            else
+                printf 'Compass gate (%s): external compass absent; settling %ss and re-reading parameters (retry %s/%s).\n' \
+                    "$what" "$delay" "$retry" "$COMPASS_GATE_RETRIES"
+            fi
+            sleep "$delay"
+        fi
+
         if run_compass_gate "$@"; then
-            [[ "$attempt" -gt 1 ]] && \
-                printf 'Compass gate passed on attempt %s of %s.\n' \
-                    "$attempt" "$COMPASS_GATE_ATTEMPTS"
+            if [[ "$retry" -gt 0 ]]; then
+                printf 'Compass gate passed on retry %s of %s.\n' \
+                    "$retry" "$COMPASS_GATE_RETRIES"
+            fi
+            clear_compass_reboot_count
             return 0
         fi
         if ! compass_gate_failure_is_retryable; then
             printf 'Compass gate failed for a reason a reboot cannot fix; not retrying.\n' >&2
             return 1
         fi
-        if [[ "$attempt" -ge "$COMPASS_GATE_ATTEMPTS" ]]; then
-            printf 'Compass gate: external compass still absent after %s attempts.\n' \
-                "$COMPASS_GATE_ATTEMPTS" >&2
-            return 1
-        fi
-        delay="$(compass_gate_backoff_seconds "$attempt")"
-        if [[ "$attempt" -eq 1 ]]; then
-            printf 'Compass gate (%s): external compass absent; settling %ss and re-reading parameters (attempt %s/%s).\n' \
-                "$what" "$delay" "$((attempt + 1))" "$COMPASS_GATE_ATTEMPTS"
-        else
-            printf 'Compass gate (%s): external compass still absent; rebooting the flight controller, then %ss (attempt %s/%s).\n' \
-                "$what" "$delay" "$((attempt + 1))" "$COMPASS_GATE_ATTEMPTS"
-            if ! reboot_flight_controller_for_compass; then
-                printf 'Compass gate: flight-controller reboot failed; not retrying.\n' >&2
-                return 1
-            fi
-        fi
-        sleep "$delay"
     done
-    return 1
+    printf 'Compass gate: external compass still absent after %s retries.\n' \
+        "$COMPASS_GATE_RETRIES" >&2
+    return 2
+}
+
+# How many times THIS rover has rebooted itself chasing an absent compass.
+# Persisted outside /run so it survives the reboot it is counting; cleared the
+# moment the gate passes, so the number always describes one unbroken episode.
+readonly COMPASS_REBOOT_COUNT_FILE="/home/pi/compass_reboot_attempts"
+readonly COMPASS_REBOOT_DELAY_S="${SPF_COMPASS_REBOOT_DELAY_S:-20}"
+
+clear_compass_reboot_count() {
+    rm -f -- "$COMPASS_REBOOT_COUNT_FILE"
+}
+
+# Escalation of last resort for an ABSENT external compass: a full rover reboot
+# power-cycles more of the system than an FC reset and re-runs the whole boot
+# sequence. Deliberately unbounded -- a rover that can recover on the ninth boot
+# is worth more than one parked overnight -- but every cycle announces itself and
+# then waits, so an operator watching the journal can SSH in or cut power and
+# stop the loop. Raise SPF_COMPASS_REBOOT_DELAY_S for a wider window.
+#
+# Never reached for a misconfiguration: compass_gate_with_retries returns 1 for
+# those and the caller dies instead.
+reboot_rover_for_absent_compass() {
+    local count=0
+    [[ -r "$COMPASS_REBOOT_COUNT_FILE" ]] && \
+        count="$(tr -cd '0-9' <"$COMPASS_REBOOT_COUNT_FILE")"
+    count="$(( ${count:-0} + 1 ))"
+    printf '%s\n' "$count" >"$COMPASS_REBOOT_COUNT_FILE" 2>/dev/null || true
+
+    printf '\n'
+    printf '=== COMPASS ABSENT: REBOOTING THE ROVER (reboot #%s for this fault) ===\n' "$count" >&2
+    printf 'The external GPS compass did not appear after %s flight-controller retries.\n' \
+        "$COMPASS_GATE_RETRIES" >&2
+    printf 'If this keeps repeating the compass is not coming back on its own:\n' >&2
+    printf '  reseat the GPS/compass connector at BOTH ends, and check the mast lead.\n' >&2
+    printf 'Rebooting in %ss -- Ctrl-C, `systemctl stop mavlink_controller`, or power off to intervene.\n' \
+        "$COMPASS_REBOOT_DELAY_S" >&2
+    sleep "$COMPASS_REBOOT_DELAY_S"
+    printf 'Rebooting now.\n' >&2
+    sudo -n systemctl reboot || sudo -n reboot
+    # systemctl reboot returns immediately; block so nothing downstream runs
+    # against a vehicle whose yaw source was never verified.
+    sleep 300
+    exit 1
 }
 
 sync_vehicle_configuration() {
@@ -347,16 +403,30 @@ sync_vehicle_configuration() {
     # A normal boot uses one complete download for managed-parameter verification,
     # compass inventory logging, and policy. Changed parameters get one additional
     # full readback after their acknowledged writes.
-    if ! compass_gate_with_retries "parameter sync" \
-        --prepare-vehicle-params "$PARAMS_FILE"; then
-        die "Vehicle parameter or compass policy verification failed."
-    fi
+    # `|| status=$?` and not a bare call: under `set -e` a bare command
+    # returning 2 would exit the script before the case could read it.
+    local status=0
+    compass_gate_with_retries "parameter sync" \
+        --prepare-vehicle-params "$PARAMS_FILE" || status="$?"
+    case "$status" in
+        0) return 0 ;;
+        2) reboot_rover_for_absent_compass ;;  # does not return
+        *) die "Vehicle parameter or compass policy verification failed." ;;
+    esac
 }
 
 verify_compass_policy_read_only() {
-    if ! compass_gate_with_retries "read-only" --check-compass-policy; then
-        die "Compass policy verification failed; refusing collection and motion."
+    local status=0
+    compass_gate_with_retries "read-only" --check-compass-policy || status="$?"
+    if [[ "$status" -eq 0 ]]; then
+        return 0
     fi
+    # BOOT_VALIDATE_ONLY exists to inspect a rover without side effects, so it
+    # reports and stops. Every other caller is a real boot and may escalate.
+    if [[ "$status" -eq 2 ]] && ! is_true "$BOOT_VALIDATE_ONLY"; then
+        reboot_rover_for_absent_compass  # does not return
+    fi
+    die "Compass policy verification failed; refusing collection and motion."
 }
 
 system_clock_is_plausible() {
