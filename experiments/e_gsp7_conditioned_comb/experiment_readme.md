@@ -50,7 +50,8 @@ fleet delays `τ = (2.56, 0.92) ns`:
 | Comb | N | Condition number |
 |---|---|---|
 | **Chosen by conditioning** (pre-registered below) | 10 | **1.0899** |
-| Uniform over the same span | 10 | **21.7782** |
+| **The actual E-CAL3 comb** (primary control) | 10 | **17.9208** |
+| A `linspace` uniform comb (secondary control) | 10 | 21.7782 |
 | Random, median of 2000 draws | 10 | 2.3218 |
 | Random, best of 2000 draws | 10 | 1.2524 |
 | **Dense reference (all 111 LOs)** | 111 | **1.0308** |
@@ -77,12 +78,25 @@ constrained to ≥3 LOs per AD9361 gain-table band, seed `20260807`. Exact value
 900, 1050, 1200, 1350, 1750, 3050, 3800, 4500, 5200, 5900
 ```
 
-**Control — uniform, N = 10 (MHz)** — the E-CAL3 failure mode, captured in the
-same session so the comparison is controlled:
+**Control — the E-CAL3 comb, N = 10 (MHz)**, captured in the same session so the
+comparison is controlled:
 
 ```
-400, 1000, 1600, 2250, 2850, 3450, 4050, 4700, 5300, 5900
+400, 1000, 1600, 2200, 2800, 3400, 4100, 4700, 5300, 5900
 ```
+
+> **Pre-registration amendment, 2026-08-07, made before any data existed** (capture
+> still running, no analysis performed). The control above is now the **actual**
+> E-CAL3 comb, taken from `gsc_common.PREREG_10_MHZ`, replacing a `linspace`
+> reconstruction of it that I had written here first
+> (`400, 1000, 1600, 2250, 2850, 3450, 4050, 4700, 5300, 5900`).
+>
+> The real comb scores **17.9208**, reproducing the E-GSC report's quoted 17.92
+> exactly and confirming this `ripple_conditioning` implementation matches theirs.
+> My reconstruction scored 21.7782 — i.e. *worse* conditioned — so this amendment
+> makes the control **more faithful and harder to beat**, not easier. Both combs
+> lie inside the captured 111-LO grid and both will be scored; the real E-CAL3
+> comb is the primary control.
 
 **Secondary — conditioning-chosen, N = 16 (MHz):**
 
