@@ -202,6 +202,46 @@ band non-portability confirmed as a real extrapolation limit rather than a cover
 
 ---
 
+## E-GSP7 — conditioning-chosen sparse comb — ✅ **COMPLETE (2026-08-07)**
+
+**Answers the E-GSC ledger row "Is a sparse protocol now recommendable?", which said
+"Not yet — it needs a prospective sparse capture with the comb chosen by conditioning."**
+That capture ran: 111 LOs, 3,330 frames, one unchanged-harness session, combs
+pre-registered before the first frame, every arm at 100% state coverage.
+
+**Answer: yes, but only as a conjunction.** A ten-LO comb calibrates **only** when it is
+chosen by conditioning **and** fitted with the ripple delays frozen at fleet values:
+
+| ten-LO comb | free-delay | frozen-delay |
+|---|---|---|
+| chosen by conditioning (cond 1.09) | 8.35° ✗ | **4.95° ✓** (baseline 7.48°) |
+| the actual E-CAL3 comb (cond 17.92) | 9.37° ✗ | **23.50° ✗✗** |
+
+Drop either condition and it is worse than applying no model. If the delays must be
+fitted, the floor is **N\* = 16** — and chosen-16 is the only arm that recovers the true
+delays, (2.50, 0.98) ns against fleet (2.56, 0.92).
+
+**Unpredicted and operationally important: freezing the delays on a badly-conditioned
+comb is actively dangerous.** It helps the good comb (8.35 → 4.95) and wrecks the aliased
+one (9.37 → 23.50), because with free delays the fit escapes by moving τ somewhere less
+collinear and freezing removes that escape. Never freeze without checking conditioning.
+
+**Prefer the committed coefficients anyway.** With no refit they score 3.86° (1.93×) on
+this same fresh capture — better than the best ten-LO refit. The sparse refit earns its
+keep only where a genuinely local fit is required.
+
+Four prior predictions confirmed prospectively: E-CAL3's failure reproduces at the same
+ratio (1.287× vs 1.281× worse than baseline); E-GSC's 73.4% frozen-delay recovery measures
+70.4%; N\* = 16 free; and the "~1.9× on transfer" headline measures 1.93×.
+
+**Still open:** evaluation was within-session, so this establishes identifiability and
+conditioning, not session-to-session robustness. A cross-session repeat is the remaining
+step before a sparse protocol is deployable. Report:
+`spf/calibrations/dual_rx_gain_frequency/reports/e_gsp7_conditioned_comb_20260807_v1/`;
+design in `experiments/e_gsp7_conditioned_comb/`.
+
+---
+
 # Computational program — existing data only, no new captures
 
 ## E-GSC1 — mine the wide 53-LO integer-gain survey with the gain-state parameterisation

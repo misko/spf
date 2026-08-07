@@ -255,9 +255,34 @@ ten-frequency calibration.
 - **N\* = 16** LOs with free delays; **N\* = 8** with the delays frozen at fleet values.
   Freezing the delays recovers **73.4%** of the dense-fit improvement at N = 10 and 97.7%
   at N = 24, in 100% of random subsets.
-- **A sparse protocol is still NOT recommendable**, because all of the above is
-  retrospective subsampling of a dense capture. It needs a *prospective* sparse capture
-  with the comb chosen by conditioning. Until that runs, calibrate densely.
+- ~~**A sparse protocol is still NOT recommendable**~~ **E-GSP7 ran that prospective
+  capture on 2026-08-07 and a ten-LO comb DOES calibrate — but only as a conjunction.**
+  Fresh 111-LO session, combs pre-registered before the capture, all arms at 100%
+  state coverage:
+
+  | ten-LO comb | free-delay | frozen-delay |
+  |---|---|---|
+  | chosen by conditioning (cond 1.09) | 8.35° ✗ | **4.95° ✓ (1.51× better than baseline)** |
+  | the actual E-CAL3 comb (cond 17.92) | 9.37° ✗ | **23.50° ✗✗ (3.2× WORSE than baseline)** |
+
+  **Both conditions are necessary: choose the comb by conditioning AND freeze the ripple
+  delays at fleet values.** Drop either and it is worse than applying no model at all.
+  If the delays must be fitted, the floor is **N\* = 16** (chosen-16 free: 5.57° ✓, and it
+  is the only arm that recovers the true delays, (2.50, 0.98) against fleet (2.56, 0.92)).
+
+- **Freezing the delays on a badly-conditioned comb is actively dangerous** — this was not
+  predicted. Freezing helps the good comb (8.35 → 4.95) and wrecks the aliased one
+  (9.37 → 23.50). With the delays free the fit escapes by moving τ somewhere less
+  collinear on that comb; freezing removes the escape route. **Never freeze the delays
+  without checking the comb's conditioning first.**
+
+- **Even so, prefer the committed coefficients.** Scored with no refit on that same fresh
+  capture they give 3.86° (1.93× — replicating the ~1.9× transfer ratio above on an
+  independent session), beating the best ten-LO refit at 4.95°. If fleet delays are
+  trusted enough to freeze, the committed coefficients are trusted enough to use.
+  Report: `reports/e_gsp7_conditioned_comb_20260807_v1/`. Caveat: E-GSP7's held-out LOs
+  are *within-session*, so it establishes identifiability, not session-to-session
+  robustness.
 
 Beyond ~1.4 GHz gaps it degrades. Full analysis:
 `reports/gain_state_computational_20260807_v1/` §3.
