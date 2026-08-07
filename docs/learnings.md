@@ -848,3 +848,35 @@ Keep the latch as well as the live signal: post-capture parking waits for
 `run_planner` to actually EXIT (`planner_is_still_driving()`), and using the
 live signal there would end the wait the instant an operator took MANUAL, with
 parking and planner then fighting over the rover.
+
+## Rover (2026-08-06): parameter-file merges are last-wins only because SPF has
+## its own MAVParmDict — pymavlink's does not behave that way
+
+`sync_vehicle_configuration` builds the managed-parameter file by concatenating
+`rover3_base_parameters.params` and `rover3_rc_servo_parameters.params`, and now
+an optional `rover<N>_overrides.params` appended last. That only works because
+`spf/mavlink/mavparm.py`'s `MAVParmDict.load()` builds a **dict**, so a repeated
+key is last-wins and `diff()` compares against the merged view.
+
+`pymavlink.mavparm.MAVParmDict` is a different class with different behaviour,
+and `Drone` imports the local one. Under a first-wins merge the override would
+be reported as a difference on every readback — `prepare_vehicle_parameters`
+would never see `remaining_differences` reach zero, raise
+`VehicleParameterVerificationError`, and `sync_vehicle_configuration` would
+`die` **on every boot of every rover**. A test pins both directions.
+
+Two related facts worth keeping:
+
+- **Despite their names, `rover3_*.params` are the FLEET files.** Every rover
+  gets both, with `__ROVER_ID__` substituted. Anything true of one rover only
+  needs `rover<N>_overrides.params`; there was no way to express it before.
+- **`prepare_vehicle_parameters` already refuses writes to an armed vehicle**
+  (`5ec2c0e`, 2026-08-01), and that survived the `SPF_BOOT_VALIDATE_ONLY`
+  removal. The removed `read_only_vehicle_gate`'s comment claimed it was the
+  last such assertion; it was not. The gap was only the armed rover whose
+  parameters already match — no write, so nothing unsafe, but no record either.
+
+Generalization: **when a check is claimed to be "the last line of defence",
+verify that claim before acting on it.** Both the code comment and a field
+report repeated it, and the fix was designed around restoring a safety property
+that had never been lost.
