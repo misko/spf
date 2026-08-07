@@ -1547,6 +1547,15 @@ class Drone:
                 time.sleep(0.1)
             logging.info("Planner starting to issue move commands...")
 
+            # BEFORE the first move, not after it. The collector gates the start
+            # of recording on this flag, and it used to be assigned only at the
+            # BOTTOM of the waypoint loop below -- so it stayed False through the
+            # drive-to-home and the whole first waypoint. Rover 1 on 2026-08-07
+            # logged "Planner starting to issue move commands" at 01:12:42 and
+            # was still logging "Waiting for drone to start moving" at 01:14:27:
+            # two minutes of driving with nothing recorded.
+            self.planner_in_control = True
+
             if self.move_to_point(home) == MOVE_ABORTED:
                 self.planner_in_control = False
                 return

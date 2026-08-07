@@ -45,6 +45,29 @@ READINESS_TONE_INTERVAL_SECONDS = 15.0
 ANNOYING_TONES_DISABLE_PATH = Path.home() / "disable_annoying_tones"
 
 
+class PlannerControlLost(RuntimeError):
+    """The planner stopped driving while a capture was still recording."""
+
+
+def planner_control_lost(drone) -> bool:
+    """True when the vehicle is no longer under planner control.
+
+    `is_planner_in_control()` used to be read exactly once, to decide when to
+    START recording, and never again. An operator taking MANUAL is a designed
+    interlock -- the stall handover relies on it -- but the rover then sits
+    still while the collector keeps writing snapshots. On 2026-08-07 rover 4
+    advanced 320 -> 578 of 3000 records with the mode column reading MANUAL,
+    and gps_lat/long are exactly the fields rx_pos/tx_pos ground truth is
+    derived from, so those records describe a vehicle that was not moving.
+
+    `drone is None` is the --fake-drone bench path: there is no vehicle to lose
+    control of, and those captures must still run.
+    """
+    if drone is None:
+        return False
+    return not drone.is_planner_in_control()
+
+
 def maybe_play_readiness_wait_tone(
     drone,
     *,
