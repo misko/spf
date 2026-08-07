@@ -145,7 +145,15 @@ figure is the *anchored-per-radio* number, not a no-correction number.)
    both sit at the *measured* per-step noise floor of 0.355–0.368°, so neither is resolvable
    by this experiment, while the mixer step is 7.4× that floor. Critically,
    **no adjacent-1 dB LNA transition was measured anywhere in the campaign** — the LNA
-   evidence is four 9 dB steps (5.4–10.0°) plus the ripple in finding 3. Across 27→40 dB
+   evidence is four 9 dB steps (5.4–10.0°) plus the ripple in finding 3.
+   *(**Closed 2026-08-07 by E-GSC4**, from the committed wide-survey coefficients: **318**
+   adjacent-1 dB LNA transitions over 106 clusters give a median **7.983°** against a
+   **0.180°** same-dataset LPF floor — **44.46×**, CI [35.32, 53.98]. One step is free of
+   the LPF confound entirely, high band 40→41 dB, LNA 2→3 with MIXER/TIA/LPF frozen, at
+   **16.775°**. The mixer result also replicates from that independent session at 6.04×,
+   CI [5.11, 7.51]. And **`h_tia` should be dropped**: identifiable at p = 0.0072 but only
+   0.240°, below the 0.355–0.368° noise floor and worth ≤0.092° on any holdout.)*
+   Across 27→40 dB
    at 5100/5766 MHz the audited state is frozen and 13 dB of gain costs <1° on three of
    four curves (1.8° on the fourth). **Corollary: parameterise by the audited
    `(LNA, MIXER, TIA)` words, not by requested dB.** Doing so raises the fraction of
@@ -186,7 +194,19 @@ from "this harness cannot see RF-DC effects at all".
 **What to do.** Given a measured equal-gain anchor at the operating LO, a **27-parameter
 universal** model (`H(state)` + two LNA-state-indexed ripples) predicts an unmeasured
 frequency at 2.26° MAE (2.83° on unequal-gain cells) and an *unmeasured radio* at 2.22°,
-against the 6.65° baseline. **No parameter needs to be radio-specific** — promoting any
+against the 6.65° baseline.
+
+> **CORRECTED 2026-08-07 — those are retrospective cross-validation numbers, and the
+> prospective result is roughly half as good.** On a fresh 103-LO session the *committed*
+> `L26` coefficients improved a 9.06° anchor-only baseline to **4.79–4.80° MAE**. The
+> 2.26° → 4.79° gap is fully accounted for: convention (+0.566°) plus refit-versus-transfer
+> (+2.159°), minus 0.195° because the new session was slightly easier. **State the headline
+> as a ratio, not an absolute: ~1.9× on transfer, ~2.9× on same-session refit** — ratios are
+> convention-invariant, degrees are not. The transferability claim survives; the absolute
+> figure does not. See `reports/gain_state_computational_20260807_v1/` §4 and
+> `gain_state_phase_model_20260802_v1/REPORT.md` §8.1.
+
+**No parameter needs to be radio-specific** — promoting any
 family to per-radio changes same-radio error by ≤0.014° (inside the predeclared 0.1°
 margin) and destroys transfer. The minimal radio-specific state is one measured anchor per
 (serial, exact LO, session). **This is a two-radio result on one harness topology**; the
@@ -198,16 +218,43 @@ neighbouring LOs are retained and blow up to 9.6–10.4° MAE across a real 690 
 reported 173.6° max is wrap-saturated — the true excursion is larger). (b) Do not
 extrapolate across a gain-table band — train on two bands, predict the third, and no model
 beats baseline by more than 8%. The model interpolates within a measured span; it does not
-extrapolate. (c) Do not apply the correction when the audited `(LNA, MIXER, TIA)` words are
+extrapolate. *(Confirmed 2026-08-07: E-CAL2 filled the missing gain states — all four LNA
+levels now present in all three bands — and leave-one-band-out is still 3.727° at 95.7%
+coverage. So this is a **real frequency-extrapolation limit, not a coverage hole**, and the
+cross-band default is fail-closed.)* (c) Do not apply the correction when the audited `(LNA, MIXER, TIA)` words are
 identical on both arms: there the fitted baseband-LPF differences are noise, and the model
 injects a mean 1.36° and makes 81% of those cells worse. (d) Do not expect a stored gain
 model to match a fresh calibration: across a 12-hour session boundary even the
 1356-parameter per-frequency LUT degrades from 0.62° to 2.74°, so there is real session
 drift in the *gain-dependent* term, not only in the intercept.
 
-**Calibration cost.** Held-out error is flat for frequency gaps from 96 MHz to ~690 MHz,
-so a ~10-point comb over 400–5900 MHz recovers essentially all of the 113-point comb's
-benefit for the gain term. Beyond ~1.4 GHz gaps it degrades.
+**Calibration cost — the sparse-comb claim was REFUTED, then diagnosed (2026-08-07).**
+
+~~Held-out error is flat for frequency gaps from 96 MHz to ~690 MHz, so a ~10-point comb
+over 400–5900 MHz recovers essentially all of the 113-point comb's benefit for the gain
+term.~~ **Do not use this.** E-CAL3 tested it prospectively: an `L26` refit from exactly ten
+uniformly spaced LOs scored **11.61° MAE** on the other 103 — *worse than the 9.06°
+anchor-only baseline*, i.e. worse than no model at all. The original claim came from holding
+out blocks while training on most of the remaining dense comb, which is not a
+ten-frequency calibration.
+
+**Why it failed, and what is actually true (E-GSC2/E-GSC3):**
+
+- The failure was the comb's **uniform 600 MHz spacing, not its point count.** That spacing
+  aliases the two ripple delays onto each other — `Δ(τ₁−τ₂) = 0.984` cycles, condition
+  number **17.92 against a 2.35 median**, worse-conditioned than **1,999 of 2,000 random
+  10-LO combs**. It was close to the worst possible choice.
+- **The nonlinear ripple delays are what fail first**; the linear terms are fine. Below
+  N ≈ 32 the two ripple slots are outright exchanged in 42–75% of refits.
+- **N\* = 16** LOs with free delays; **N\* = 8** with the delays frozen at fleet values.
+  Freezing the delays recovers **73.4%** of the dense-fit improvement at N = 10 and 97.7%
+  at N = 24, in 100% of random subsets.
+- **A sparse protocol is still NOT recommendable**, because all of the above is
+  retrospective subsampling of a dense capture. It needs a *prospective* sparse capture
+  with the comb chosen by conditioning. Until that runs, calibrate densely.
+
+Beyond ~1.4 GHz gaps it degrades. Full analysis:
+`reports/gain_state_computational_20260807_v1/` §3.
 
 ## L9 — sub-GHz post-processing recovery: mostly NOT recoverable for phase (2026-07-12)
 

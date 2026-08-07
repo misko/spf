@@ -189,12 +189,14 @@ Run E-GSC1 and E-GSC4 first. They need no new captures — they run on committed
 coefficients, not on raw IQ, which is a real limitation and is scoped in E-GSC1 — and
 their outcomes change what the bench experiments should be.
 
-**Before any of it, update `docs/learnings.md` L10.** It still carries the retracted
-conclusions: the "~10-point comb recovers essentially all of the 113-point comb's benefit"
-claim that E-CAL3 rejected at 11.61°, and the 2.26°/2.22° headline with no prospective
-caveat. `future_experiments.md` and the report's §8.1 were updated on 2026-08-07 and
-`learnings.md` was not, so anyone following this project's own "read learnings first" rule
-currently gets a refuted result.
+~~**Before any of it, update `docs/learnings.md` L10.**~~ ✅ **Done 2026-08-07.** L10 now
+carries: the refuted sparse-comb claim struck out with E-CAL3's 11.61° and E-GSC2/3's
+diagnosis (uniform 600 MHz spacing aliased the ripple delays; N\* = 16 free / 8 frozen;
+a sparse protocol still needs a *prospective* conditioning-chosen capture); the
+2.26°/2.22° headline corrected to the prospective 4.79–4.80° and restated as a
+convention-invariant ratio (~1.9× transfer, ~2.9× same-session refit); E-GSC4's 318
+adjacent-1 dB LNA transitions at 44.46× the LPF floor; `h_tia` marked for dropping; and
+band non-portability confirmed as a real extrapolation limit rather than a coverage hole.
 
 ---
 
