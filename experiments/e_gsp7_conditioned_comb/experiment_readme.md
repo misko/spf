@@ -104,6 +104,23 @@ comparison is controlled:
 750, 800, 1050, 1600, 2600, 2650, 2850, 2900, 3250, 3450, 3550, 3650, 3700, 4150, 4450, 5500
 ```
 
+### 3.1 All four combs cover the same hardware states (verified before capture)
+
+With gains {5, 26, 45} the audited tables expose nine distinct `(band, gain)`
+hardware states — three gains × three gain-table bands:
+
+| Band | 5 dB | 26 dB | 45 dB |
+|---|---|---|---|
+| low | (0, 1, 0) | (0, 2, 1) | (2, 4, 1) |
+| middle | (0, 1, 0) | (0, 4, 1) | (2, 4, 1) |
+| high | (0, 1, 0) | (2, 4, 1) | (3, 4, 1) |
+
+Every comb above touches all three bands, so **each covers 9/9 states**. State
+coverage is therefore identical across all arms and the *only* difference between
+them is where the LOs sit in frequency — that is, the conditioning. Any gap in
+held-out error cannot be attributed to one comb having seen states another
+missed, which is the obvious confound and it is excluded by construction.
+
 ## 4. Approach
 
 Capture the **dense 111-LO stage-A design** in one unchanged-harness session, then
