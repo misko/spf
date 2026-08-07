@@ -24,12 +24,20 @@
 #   disable-wifi  append dtoverlay=disable-wifi to the REAL config file.
 #                 REFUSES unless the static address already answers, so the
 #                 rover is never left with no reachable path.
+#   disable-bt    append dtoverlay=disable-bt. Same refusal guard. Separate
+#                 from disable-wifi on purpose: on a Pi the BT overlay also
+#                 hands the primary UART (ttyAMA0) back from the modem, so any
+#                 rover whose flight controller is on a SERIAL link can have its
+#                 device path change under it. The fleet talks to the FC over
+#                 USB, which is why this is offered at all -- confirm that per
+#                 rover before running it.
 #   rollback      undo static-only (remove interfaces file, restore DHCP).
 #
 # Usage:
 #   sudo ./configure_rover_network.sh 4 --stage static-only
 #        ./configure_rover_network.sh 4 --stage verify
 #   sudo ./configure_rover_network.sh 4 --stage disable-wifi
+#   sudo ./configure_rover_network.sh 4 --stage disable-bt
 #   sudo ./configure_rover_network.sh 4 --stage rollback
 #
 set -euo pipefail
@@ -37,7 +45,7 @@ set -euo pipefail
 die() { printf 'configure_rover_network: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
 
-[[ $# -ge 1 ]] || die "usage: $0 ROVER_ID --stage {static-only|verify|disable-wifi|rollback}"
+[[ $# -ge 1 ]] || die "usage: $0 ROVER_ID --stage {static-only|verify|disable-wifi|disable-bt|rollback}"
 rover_id="$1"; shift
 [[ "$rover_id" =~ ^[1-4]$ ]] || die "Unsupported rover_id: ${rover_id}"
 
@@ -190,6 +198,32 @@ disable-wifi)
     note "tail: $(tail -1 "$boot_config")"
     note ""
     note "NEXT: reboot, then confirm ${address} returns and wlan0 is gone."
+    ;;
+
+disable-bt)
+    [[ $EUID -eq 0 ]] || die "disable-bt must run as root"
+
+    # Same guard as disable-wifi: never remove a radio until the wired path is
+    # known good. Bluetooth is not a fallback login path here, but a rover that
+    # does not answer is a rover nobody should be editing boot config on.
+    static_is_live || die "refusing: ${address} does not answer ping. Run --stage static-only, verify it, then retry."
+
+    boot_config="$(detect_boot_config)"
+    note "authoritative boot config: ${boot_config}"
+
+    if grep -qE '^\s*dtoverlay=disable-bt' "$boot_config"; then
+        note "dtoverlay=disable-bt already present - nothing to do"
+    else
+        cp -a "$boot_config" "${boot_config}.bak.$(date +%s 2>/dev/null || echo prev)"
+        printf 'dtoverlay=disable-bt\n' >>"$boot_config"
+        note "appended dtoverlay=disable-bt"
+    fi
+    note "tail: $(tail -1 "$boot_config")"
+    note ""
+    note "WARNING: this overlay also returns ttyAMA0 from the bluetooth modem."
+    note "  Confirm this rover reaches its flight controller over USB, not serial,"
+    note "  before rebooting: ls -l /dev/serial/by-id/"
+    note "NEXT: reboot, then confirm ${address} returns and /sys/class/bluetooth is empty."
     ;;
 
 rollback)

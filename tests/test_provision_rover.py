@@ -135,3 +135,77 @@ def test_provision_rover_guards_rover_id_like_the_boot_scripts():
         assert "^[1-4]$" in (ROVER_ROOT / script).read_text(), (
             f"{script} disagrees with provision_rover.sh about supported rover ids"
         )
+
+
+# ------------------------------------------------------- bluetooth (S-8) -----
+#
+# Every rover has hci0 present and bluetooth.service enabled (measured on all
+# four, 2026-08-06). 2.4 GHz is well out of band at 5.8 GHz, so this is made
+# VISIBLE and operator-actionable rather than disabled automatically -- but
+# "nobody had looked" is not the same as "it is fine".
+
+NETWORK = ROVER_ROOT / "configure_rover_network.sh"
+AUDIT = ROVER_ROOT / "audit_rover.sh"
+
+
+def test_the_audit_reports_the_bluetooth_radio_not_only_its_service():
+    """fleet.stock.bluetooth is the systemd unit. They disagree whenever the
+    unit is disabled but the boot overlay was never applied -- which is the
+    state that matters, and the one nothing reported."""
+    audit = AUDIT.read_text()
+
+    audit_code = "\n".join(
+        line for line in audit.splitlines() if not line.lstrip().startswith("#")
+    )
+
+    assert "fleet.hci0" in audit_code
+    assert "/sys/class/bluetooth/hci0" in audit_code, (
+        "sysfs, not hciconfig: the tool is deprecated and absent from newer "
+        "images, where its absence would read as 'no bluetooth radio' -- the "
+        "reassuring answer, which is the one a check must never give by accident"
+    )
+    assert "hciconfig" not in audit_code, "must not depend on the deprecated tool"
+
+
+def test_disabling_bluetooth_is_its_own_stage_with_the_same_refusal_guard():
+    """Never remove a radio from a rover that is not answering."""
+    network = NETWORK.read_text()
+
+    assert "disable-bt)" in network
+    stage = network.split("disable-bt)", 1)[1].split("\n    ;;", 1)[0]
+    assert "static_is_live || die" in stage, (
+        "must refuse unless the static address already answers, like disable-wifi"
+    )
+    assert "dtoverlay=disable-bt" in stage
+    assert "$EUID -eq 0" in stage
+
+
+def test_the_bluetooth_stage_warns_about_the_uart_it_also_frees():
+    """The overlay hands ttyAMA0 back from the modem. This fleet reaches its
+    flight controllers over USB, which is the only reason this is offered --
+    a serial-linked rover would have its device path change under it."""
+    network = NETWORK.read_text()
+    stage = network.split("disable-bt)", 1)[1].split("\n    ;;", 1)[0]
+
+    assert "ttyAMA0" in stage
+    assert "USB" in stage
+
+
+def test_the_bluetooth_stage_is_documented_in_the_usage_block():
+    """A stage the header does not list is a stage nobody runs."""
+    network = NETWORK.read_text()
+    header = network.split("set -euo pipefail", 1)[0]
+
+    assert "disable-bt" in header
+    assert "disable-wifi|disable-bt" in network, "usage string must list it too"
+
+
+def test_an_unknown_stage_still_dies():
+    result = subprocess.run(
+        ["bash", str(NETWORK), "1", "--stage", "not-a-stage"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert "unknown stage" in (result.stdout + result.stderr)

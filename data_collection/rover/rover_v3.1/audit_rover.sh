@@ -66,6 +66,17 @@ else
 fi
 
 emit fleet.wlan0 "$(ip link show wlan0 >/dev/null 2>&1 && echo present || echo absent)"
+# Bluetooth is a live radio on every rover and nothing in the checklist mentions
+# it (S-8, 2026-08-06). 2.4 GHz is well out of band at 5.8 GHz, so this is
+# reported rather than acted on -- but "nobody had looked" is not the same as
+# "it is fine", and an audit line is what turns one into the other.
+#
+# sysfs, not hciconfig: the tool is deprecated and absent from newer images,
+# where its absence would read as "no bluetooth radio" -- the reassuring answer,
+# which is the one a check must never give by accident. fleet.stock.bluetooth
+# above reports the systemd unit; this reports the radio itself, and they
+# disagree whenever the unit is disabled but the overlay was never applied.
+emit fleet.hci0 "$([[ -e /sys/class/bluetooth/hci0 ]] && echo present || echo absent)"
 # NOT `command -v ifup`: /sbin is absent from the pi user's PATH over ssh, so
 # that reports "absent" on rover 1 where the package is installed.
 if [[ "$(q dpkg-query -W -f='${Status}' ifupdown)" == "install ok installed" ]]; then
