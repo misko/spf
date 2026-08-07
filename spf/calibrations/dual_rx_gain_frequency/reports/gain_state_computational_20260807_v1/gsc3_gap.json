@@ -1,0 +1,292 @@
+{
+ "convention": "ANCHORED D = phi - measured equal-gain anchor; fail-closed; MAE deg; ratio = baseline / model",
+ "note": "every row reports BOTH the all-cell and the unequal-gain-only convention, so no comparison mixes them",
+ "cell_overlap": {
+  "stage_A_cells": 1130,
+  "prospective_cells": 1130,
+  "common_cells": 1130,
+  "stage_A_only": 0,
+  "prospective_only": 0
+ },
+ "decomposition": {
+  "published_retrospective_2p26": 2.2619847093214576,
+  "published_prospective_4p79": 4.791623351677603,
+  "step1_convention_only": {
+   "note": "same stage-A LOFO fold, restated on unequal-gain cells",
+   "all_cells": 2.2619847093214576,
+   "unequal_gain": 2.8276894798562964,
+   "delta_deg": 0.5657047705348388
+  },
+  "step2_refit_to_transfer": {
+   "note": "same convention (unequal-gain), same campaign, within-session CV vs unchanged-harness transfer to G",
+   "stage_A_LOFO_uneq": 2.8276894798562964,
+   "A_to_G_uneq": 4.98622736015664,
+   "delta_deg": 2.1585378803003437
+  },
+  "step3_session_difficulty": {
+   "note": "anchor-only baselines, unequal-gain",
+   "stage_A": 8.30959505889907,
+   "stage_G": 9.576949120602597,
+   "prospective": 9.289890700188216,
+   "prospective_vs_stage_A_pct": 11.797152982073534,
+   "model_error_vs_stage_A_LOFO_pct": 69.4536612245385
+  },
+  "ratios_uneq": {
+   "stage_A_LOFO_refit": 2.938651898694819,
+   "A_to_G_transfer": 1.9206803919791058,
+   "D_to_G_transfer": 1.7609848308818614,
+   "prospective_transfer": 1.9387773241683777
+  }
+ },
+ "rows": [
+  {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 2.2619847093214576,
+   "p95_deg": 7.54074957234847,
+   "max_deg": 36.846741118475315,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 2.8276894798562964,
+   "uneq_p95_deg": 8.320367479671072,
+   "ratio_all": 2.9386518986948187,
+   "ratio_uneq": 2.938651898694819,
+   "label": "stage A LOFO (unseen frequency, same session)",
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 2.077875486167299,
+   "p95_deg": 7.038769113588628,
+   "max_deg": 36.40175212848172,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 2.5975359729328575,
+   "uneq_p95_deg": 7.501588357503759,
+   "ratio_all": 3.199029828840742,
+   "ratio_uneq": 3.199029828840742,
+   "label": "stage A LOEO (unseen epoch, same session)",
+   "tau_ns": [
+    2.54,
+    0.92
+   ]
+  },
+  {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 2.472997905094851,
+   "p95_deg": 7.62186361066876,
+   "max_deg": 39.21340562884004,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 3.091475433554574,
+   "uneq_p95_deg": 8.312088123733567,
+   "ratio_all": 2.6879059004343144,
+   "ratio_uneq": 2.6879059004343144,
+   "label": "stage A LOBLK (unseen ~690 MHz block)",
+   "tau_ns": [
+    2.54,
+    0.93
+   ]
+  },
+  {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 7.660994118015238,
+   "mae_deg": 3.988687628617484,
+   "p95_deg": 11.529755392146095,
+   "max_deg": 111.90430950095484,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 9.576949120602597,
+   "uneq_mae_deg": 4.98622736015664,
+   "uneq_p95_deg": 14.553308540326954,
+   "ratio_all": 1.9206803919791056,
+   "ratio_uneq": 1.9206803919791058,
+   "label": "A -> G  12 h later, hot, unchanged harness",
+   "tau_ns": [
+    2.56,
+    0.92
+   ],
+   "n_columns": 27,
+   "n_train_rows": 3389
+  },
+  {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 7.660994118015238,
+   "mae_deg": 4.350403242360006,
+   "p95_deg": 14.830213647340866,
+   "max_deg": 98.75978357734654,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 9.576949120602597,
+   "uneq_mae_deg": 5.438405233625254,
+   "uneq_p95_deg": 17.42093167769841,
+   "ratio_all": 1.7609848308818619,
+   "ratio_uneq": 1.7609848308818614,
+   "label": "D -> G  later pair, unchanged harness",
+   "tau_ns": [
+    2.56,
+    0.94
+   ],
+   "n_columns": 27,
+   "n_train_rows": 3389
+  },
+  {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.587970868248816,
+   "mae_deg": 2.5475660084273994,
+   "p95_deg": 8.405293536437648,
+   "max_deg": 45.56466688327713,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.235571107523143,
+   "uneq_mae_deg": 3.1846924391591505,
+   "uneq_p95_deg": 9.380190402476451,
+   "ratio_all": 2.5859863283054008,
+   "ratio_uneq": 2.5859863283054008,
+   "label": "A -> B  11 dB pad added to treated RX1",
+   "tau_ns": [
+    2.56,
+    0.92
+   ],
+   "n_columns": 27,
+   "n_train_rows": 3389,
+   "harness_treatment": true
+  },
+  {
+   "n": 3387,
+   "coverage": 1.0,
+   "baseline_mae_deg": 7.711743609377982,
+   "mae_deg": 4.043103473786895,
+   "p95_deg": 12.34926079837907,
+   "max_deg": 152.3529033177654,
+   "n_uneq": 2709,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 9.641814545944342,
+   "uneq_mae_deg": 5.054998695354823,
+   "uneq_p95_deg": 14.310744131728992,
+   "ratio_all": 1.907382202651105,
+   "ratio_uneq": 1.9073822026511047,
+   "label": "A -> C  30 cm jumper added to treated RX1",
+   "tau_ns": [
+    2.56,
+    0.92
+   ],
+   "n_columns": 27,
+   "n_train_rows": 3389,
+   "harness_treatment": true
+  },
+  {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 7.674709663442951,
+   "mae_deg": 3.987923716259644,
+   "p95_deg": 11.721436715382069,
+   "max_deg": 110.24074480472063,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 9.594094817192238,
+   "uneq_mae_deg": 4.985272399263715,
+   "uneq_p95_deg": 14.810178933456477,
+   "ratio_all": 1.9244875803796015,
+   "ratio_uneq": 1.9244875803796015,
+   "label": "A -> D  harness removed and restored",
+   "tau_ns": [
+    2.56,
+    0.92
+   ],
+   "n_columns": 27,
+   "n_train_rows": 3389,
+   "harness_treatment": true
+  },
+  {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 7.431364322280984,
+   "mae_deg": 3.833015906284445,
+   "p95_deg": 12.051905262358474,
+   "max_deg": 92.38888370175025,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 9.289890700188216,
+   "uneq_mae_deg": 4.791623351677603,
+   "uneq_p95_deg": 14.36489460846643,
+   "ratio_all": 1.9387773241683774,
+   "ratio_uneq": 1.9387773241683777,
+   "label": "prospective, all 113 LOs (PAIRED with stage-A CV)",
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "n": 3089,
+   "coverage": 1.0,
+   "baseline_mae_deg": 7.244632895782822,
+   "mae_deg": 3.716975870187828,
+   "p95_deg": 11.869943683944868,
+   "max_deg": 90.45760675412714,
+   "n_uneq": 2471,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 9.05652408542013,
+   "uneq_mae_deg": 4.6465958976164305,
+   "uneq_p95_deg": 13.902504142125442,
+   "ratio_all": 1.9490664316356545,
+   "ratio_uneq": 1.949066431635655,
+   "label": "prospective, 103 LOs excl. the E-CAL3 training comb",
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "n": 300,
+   "coverage": 1.0,
+   "baseline_mae_deg": 9.354075577123721,
+   "mae_deg": 5.027841477959275,
+   "p95_deg": 16.665262541227804,
+   "max_deg": 92.38888370175025,
+   "n_uneq": 240,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 11.692594471404652,
+   "uneq_mae_deg": 6.284801847449094,
+   "uneq_p95_deg": 20.6354907957335,
+   "ratio_all": 1.8604555489924473,
+   "ratio_uneq": 1.8604555489924475,
+   "label": "prospective, the 10 E-CAL3 comb LOs only",
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 7.431364322280984,
+   "mae_deg": 3.833015906284445,
+   "p95_deg": 12.051905262358474,
+   "max_deg": 92.38888370175025,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 9.289890700188216,
+   "uneq_mae_deg": 4.791623351677603,
+   "uneq_p95_deg": 14.36489460846643,
+   "ratio_all": 1.9387773241683774,
+   "ratio_uneq": 1.9387773241683777,
+   "label": "prospective, restricted to cells stage A also covered"
+  }
+ ]
+}

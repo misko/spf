@@ -718,6 +718,34 @@ was never calibrated.**
 
 ### 8.1 Prospective E-CAL2/E-CAL3 result — 2026-08-07
 
+> ### ➜ FOLLOW-UP ANALYSIS, 2026-08-07 — read this alongside §8.1
+>
+> The computational program that this section motivated has since been run:
+> **[`gain_state_computational_20260807_v1/REPORT.md`](../gain_state_computational_20260807_v1/REPORT.md)**
+> (E-GSC1–E-GSC5). It reproduces every number below to four decimal places and
+> then changes how four of them should be read:
+>
+> - **The ten-LO failure was the comb's uniform ~600 MHz *spacing*, not its point
+>   count.** `600 MHz × (τ₁ − τ₂) = 0.984` cycles, so the two ripple components
+>   alias onto each other; the scheduled comb is worse-conditioned than 1,999 of
+>   2,000 random 10-LO combs. A *random* 10-LO comb with the delays frozen at the fleet
+>   values recovers 73.4% of the dense-fit improvement in 100% of subsets.
+>   N\* = 16 with free delays, **N\* = 8 with frozen delays**.
+> - **The 2.26° → 4.79° gap is fully explained** by the unequal-gain convention
+>   (+0.566°) plus refit-versus-transfer (+2.159°); the prospective session was
+>   in fact *easier* than stage G. `2.26°` was never a transfer number, and
+>   "the new session was harder" is refuted.
+> - **The table below mixes two masks**: its 9.06° baseline is scored on the 103
+>   held-out LOs while its 4.79°/4.80° rows are scored on all 113. Paired on 103
+>   LOs the committed sets give 4.6466° / 4.6506°; paired on 113 the baseline is
+>   9.2899°. No conclusion changes, but the table should be restated on one mask.
+> - **E-GSC1 and E-GSC4 are no longer blocked** — the wide survey's raw stores
+>   are gone, but its committed `model_matrix.json` yields 318 adjacent-1 dB LNA
+>   transitions (44.46× the same-dataset LPF floor), so §3.3's "no adjacent-1 dB
+>   LNA transition was measured at all" now scopes to this campaign only. That
+>   analysis also says to **drop `h_tia`** and confirms band non-portability as a
+>   frequency-extrapolation limit rather than a coverage hole.
+
 The follow-up campaign is stored at:
 
 ```text

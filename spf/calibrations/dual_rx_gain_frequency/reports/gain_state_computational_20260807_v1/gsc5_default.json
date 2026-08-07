@@ -1,0 +1,319 @@
+{
+ "preregistered_criterion": "(fixed before any prospective number was computed):\n\n  P1 within-band default. Among rungs with >= 99% coverage on the same mask,\n     take the lowest unseen-frequency error (stage-A LOFO, confirmed by pooled\n     LOFO and by stage-A LOBLK). Ties inside 0.1 deg go to the simpler rung.\n  P2 cross-band default. A rung may be recommended across an UNMEASURED\n     gain-table band only if, on the identical leave-one-band-out mask, it beats\n     the anchor-only baseline by >= 0.5 deg at >= 95% coverage. Beating the\n     other rung is not sufficient: both must clear the baseline. If none clears\n     it, the cross-band default is \"fail closed\", i.e. anchor only.\n  P3 second rung. L30 ships as an additionally-supported rung if it wins P2, or\n     if it is strictly better than L26 in the rule-5 regime (both arms sharing\n     the audited LNA/MIXER/TIA words), where it is neutral by construction and\n     L26 is known to inject error.\n  P4 every error is reported with coverage on the same mask, in both the\n     all-cell and the unequal-gain-only convention.",
+ "selection_data": "A-G campaign only (stage A and the pooled set). No prospective number entered the selection.",
+ "P1_stage_a_lofo": {
+  "L26": {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 2.2619847093214576,
+   "p95_deg": 7.54074957234847,
+   "max_deg": 36.846741118475315,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 2.8276894798562964,
+   "uneq_p95_deg": 8.320367479671072,
+   "params": 27,
+   "tau_ns": [
+    2.56,
+    0.92
+   ]
+  },
+  "L30": {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 3.538945228475509,
+   "p95_deg": 12.274899636299883,
+   "max_deg": 33.6714231760809,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 4.424007886131871,
+   "uneq_p95_deg": 13.184810573502677,
+   "params": 8,
+   "tau_ns": []
+  },
+  "L31": {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 2.5752707184287393,
+   "p95_deg": 8.124090107476553,
+   "max_deg": 37.328597931403145,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 3.219325881503135,
+   "uneq_p95_deg": 8.879191928857612,
+   "params": 20,
+   "tau_ns": [
+    2.56,
+    0.94
+   ]
+  }
+ },
+ "P1_stage_a_loblk": {
+  "L26": {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 2.472997905094851,
+   "p95_deg": 7.62186361066876,
+   "max_deg": 39.21340562884004,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 3.091475433554574,
+   "uneq_p95_deg": 8.312088123733567,
+   "params": 27,
+   "tau_ns": [
+    2.54,
+    0.93
+   ]
+  },
+  "L30": {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 3.6598835036255553,
+   "p95_deg": 12.262392585030604,
+   "max_deg": 33.26343453684792,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 4.575191882621545,
+   "uneq_p95_deg": 13.374995060739103,
+   "params": 8,
+   "tau_ns": []
+  },
+  "L31": {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 2.7931701765657087,
+   "p95_deg": 8.409919714254082,
+   "max_deg": 38.16350298205707,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 3.49172029818561,
+   "uneq_p95_deg": 8.99807315009885,
+   "params": 20,
+   "tau_ns": [
+    2.54,
+    0.94
+   ]
+  }
+ },
+ "P1_stage_a_loro": {
+  "L26": {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 2.2190161552422523,
+   "p95_deg": 7.30736387772187,
+   "max_deg": 40.13114637641107,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 2.7739748248306872,
+   "uneq_p95_deg": 8.131989375967382,
+   "params": 27,
+   "tau_ns": [
+    2.55,
+    0.92
+   ]
+  },
+  "L30": {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 3.5151527380449186,
+   "p95_deg": 12.23571509170111,
+   "max_deg": 34.2052968464638,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 4.39426507902406,
+   "uneq_p95_deg": 13.166617358796927,
+   "params": 8,
+   "tau_ns": []
+  },
+  "L31": {
+   "n": 3389,
+   "coverage": 1.0,
+   "baseline_mae_deg": 6.647185660866149,
+   "mae_deg": 2.535376578542264,
+   "p95_deg": 7.878211852698998,
+   "max_deg": 38.82453340527573,
+   "n_uneq": 2711,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 8.30959505889907,
+   "uneq_mae_deg": 3.1694545277313653,
+   "uneq_p95_deg": 8.560730678004667,
+   "params": 20,
+   "tau_ns": [
+    2.55,
+    0.93
+   ]
+  }
+ },
+ "P1_pooled_lofo": {
+  "L26": {
+   "n": 4641,
+   "coverage": 1.0,
+   "baseline_mae_deg": 5.555916410913222,
+   "mae_deg": 2.1086739684526257,
+   "p95_deg": 6.6864046405013955,
+   "max_deg": 36.72853773984933,
+   "n_uneq": 3895,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 6.6200277440432,
+   "uneq_mae_deg": 2.512543231730073,
+   "uneq_p95_deg": 7.149255435115946,
+   "params": 38,
+   "tau_ns": [
+    2.54,
+    0.92
+   ]
+  },
+  "L30": {
+   "n": 4641,
+   "coverage": 1.0,
+   "baseline_mae_deg": 5.555916410913222,
+   "mae_deg": 2.985278781832309,
+   "p95_deg": 11.387557325667998,
+   "max_deg": 33.817397598014146,
+   "n_uneq": 3895,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 6.6200277440432,
+   "uneq_mae_deg": 3.5570420607146978,
+   "uneq_p95_deg": 12.152183969957163,
+   "params": 9,
+   "tau_ns": []
+  },
+  "L31": {
+   "n": 4641,
+   "coverage": 1.0,
+   "baseline_mae_deg": 5.555916410913222,
+   "mae_deg": 2.260609284955337,
+   "p95_deg": 7.363006389674158,
+   "max_deg": 37.010119144921234,
+   "n_uneq": 3895,
+   "coverage_uneq": 1.0,
+   "baseline_uneq_mae_deg": 6.6200277440432,
+   "uneq_mae_deg": 2.6935783546797745,
+   "uneq_p95_deg": 7.812151690527436,
+   "params": 21,
+   "tau_ns": [
+    2.54,
+    0.92
+   ]
+  }
+ },
+ "P2_pooled_loband_AG_only": {
+  "L26": {
+   "n": 4641,
+   "coverage": 0.8052143934496876,
+   "baseline_mae_deg": 5.555916410913222,
+   "mae_deg": 5.357971172412536,
+   "p95_deg": 18.250988121020434,
+   "max_deg": 34.040474546708126,
+   "n_uneq": 3895,
+   "coverage_uneq": 0.7709884467265725,
+   "baseline_uneq_mae_deg": 6.6200277440432,
+   "uneq_mae_deg": 6.384170529182691,
+   "uneq_p95_deg": 18.470295972351124,
+   "params": 38,
+   "tau_ns": [
+    2.54,
+    0.94
+   ]
+  },
+  "L30": {
+   "n": 4641,
+   "coverage": 0.8957121310062487,
+   "baseline_mae_deg": 5.555916410913222,
+   "mae_deg": 5.08880319769119,
+   "p95_deg": 18.10907012946316,
+   "max_deg": 34.5249171772393,
+   "n_uneq": 3895,
+   "coverage_uneq": 0.8757381258023107,
+   "baseline_uneq_mae_deg": 6.6200277440432,
+   "uneq_mae_deg": 6.063449458404317,
+   "uneq_p95_deg": 18.426588135211425,
+   "params": 9,
+   "tau_ns": []
+  },
+  "L31": {
+   "n": 4641,
+   "coverage": 0.8957121310062487,
+   "baseline_mae_deg": 5.555916410913222,
+   "mae_deg": 5.959784663614699,
+   "p95_deg": 19.264005908397237,
+   "max_deg": 52.99491635844921,
+   "n_uneq": 3895,
+   "coverage_uneq": 0.8757381258023107,
+   "baseline_uneq_mae_deg": 6.6200277440432,
+   "uneq_mae_deg": 7.101247913693409,
+   "uneq_p95_deg": 19.868415141282597,
+   "params": 21,
+   "tau_ns": [
+    2.54,
+    0.94
+   ]
+  }
+ },
+ "P3_rule5_regime_pooled": {
+  "n_cells": 672,
+  "baseline_mae_deg": 0.6486519219731737,
+  "L26": {
+   "mae_deg": 1.616307134011856,
+   "max_deg": 9.146291465672167,
+   "mean_injected_deg": 1.3616809819933873,
+   "frac_made_worse": 0.8139880952380952
+  },
+  "L30": {
+   "mae_deg": 0.6486519219731737,
+   "max_deg": 7.0962361722932865,
+   "mean_injected_deg": 0.0,
+   "frac_made_worse": 0.0
+  },
+  "L31": {
+   "mae_deg": 0.6486519219731737,
+   "max_deg": 7.0962361722932865,
+   "mean_injected_deg": 0.0,
+   "frac_made_worse": 0.0
+  }
+ },
+ "decision": {
+  "P1_within_band_default": "L26",
+  "P1_lowest_error_rung": "L26",
+  "P1_rungs_within_0p1_deg": [
+   "L26"
+  ],
+  "P2_cross_band": {
+   "L26": {
+    "margin_vs_baseline_uneq_deg": 0.23585721486050915,
+    "coverage": 0.8052143934496876,
+    "passes": false
+   },
+   "L30": {
+    "margin_vs_baseline_uneq_deg": 0.5565782856388832,
+    "coverage": 0.8957121310062487,
+    "passes": false
+   },
+   "L31": {
+    "margin_vs_baseline_uneq_deg": -0.481220169650209,
+    "coverage": 0.8957121310062487,
+    "passes": false
+   }
+  },
+  "P2_any_rung_passes": false,
+  "P2_cross_band_default": "FAIL CLOSED (anchor only)",
+  "P3_L30_better_in_rule5_regime": true,
+  "P3_ship_L30_as_second_rung": true
+ }
+}

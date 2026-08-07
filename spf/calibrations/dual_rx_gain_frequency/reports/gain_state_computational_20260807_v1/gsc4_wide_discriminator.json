@@ -1,0 +1,501 @@
+{
+ "source": "committed model_matrix.json, frequency_specific_additive_gain_per_radio",
+ "convention": "ANCHORED H(f,g) = [D(g,26)-D(26,g)]/2 in degrees, reconstructed from fitted arm coefficients",
+ "caveats": [
+  "fitted cell values, not frames; the underlying fit's own residual is 0.514 deg MAE in-sample / 0.713 deg leave-one-epoch-out, so this reconstruction has that much measurement noise smoothed out",
+  "different session and dates from the A-G campaign; independent corroboration only, never pooled with the campaign H statistics",
+  "no epoch structure in the committed file, so no leave-one-epoch-out and no directly measured repeatability floor"
+ ],
+ "n_steps": 6678,
+ "n_clusters": 106,
+ "by_class": {
+  "lna": {
+   "n": 318,
+   "median_abs_deg": 7.983027336245421,
+   "mean_abs_deg": 8.646963040973608,
+   "p90_abs_deg": 17.045281923346888,
+   "max_abs_deg": 26.26335268119825,
+   "n_clusters": 106
+  },
+  "mixer": {
+   "n": 730,
+   "median_abs_deg": 1.0849640577635777,
+   "mean_abs_deg": 1.8390098857247528,
+   "p90_abs_deg": 4.772268786156422,
+   "max_abs_deg": 11.211717663087466,
+   "n_clusters": 106
+  },
+  "tia": {
+   "n": 106,
+   "median_abs_deg": 0.24017647857621194,
+   "mean_abs_deg": 0.42918169702145936,
+   "p90_abs_deg": 1.081192044290646,
+   "max_abs_deg": 2.9356512407670055,
+   "n_clusters": 106
+  },
+  "lpf_only": {
+   "n": 5524,
+   "median_abs_deg": 0.1795536246762457,
+   "mean_abs_deg": 0.2846001505910021,
+   "p90_abs_deg": 0.6756215276485174,
+   "max_abs_deg": 3.1288189196968395,
+   "n_clusters": 106
+  }
+ },
+ "vs_same_dataset_lpf_only_floor": {
+  "lna": {
+   "median_ratio_vs_lpf_only": 44.46040758374925,
+   "cluster_bootstrap_ci95": [
+    35.324206969578356,
+    53.98362006401036
+   ],
+   "n_bootstrap": 4000,
+   "mannwhitney_p": 4.750271251502826e-185
+  },
+  "mixer": {
+   "median_ratio_vs_lpf_only": 6.0425628261188455,
+   "cluster_bootstrap_ci95": [
+    5.108804103502984,
+    7.513231542548682
+   ],
+   "n_bootstrap": 4000,
+   "mannwhitney_p": 2.229771498385533e-228
+  },
+  "tia": {
+   "median_ratio_vs_lpf_only": 1.3376309111513383,
+   "cluster_bootstrap_ci95": [
+    0.9173159620111258,
+    1.8512984194064495
+   ],
+   "n_bootstrap": 4000,
+   "mannwhitney_p": 0.007228513282760815
+  }
+ },
+ "per_band": {
+  "low": {
+   "lna": {
+    "n": 84,
+    "median_abs_deg": 5.834348951006394,
+    "mean_abs_deg": 6.982085430343551,
+    "p90_abs_deg": 12.136952780027382,
+    "max_abs_deg": 26.26335268119825
+   },
+   "mixer": {
+    "n": 84,
+    "median_abs_deg": 1.6307132078995497,
+    "mean_abs_deg": 1.6525953030534222,
+    "p90_abs_deg": 2.3451629780931205,
+    "max_abs_deg": 2.902337027404864
+   },
+   "tia": {
+    "n": 28,
+    "median_abs_deg": 0.13998102130233933,
+    "mean_abs_deg": 0.25501430047203427,
+    "p90_abs_deg": 0.7030397526153804,
+    "max_abs_deg": 0.8761313853636525
+   },
+   "lpf_only": {
+    "n": 1568,
+    "median_abs_deg": 0.16745837034043703,
+    "mean_abs_deg": 0.23902189348630018,
+    "p90_abs_deg": 0.5350198331819586,
+    "max_abs_deg": 2.3391999169855096
+   }
+  },
+  "middle": {
+   "lna": {
+    "n": 138,
+    "median_abs_deg": 5.873676425120835,
+    "mean_abs_deg": 8.149757351041707,
+    "p90_abs_deg": 17.172649052157986,
+    "max_abs_deg": 19.503319039681625
+   },
+   "mixer": {
+    "n": 230,
+    "median_abs_deg": 2.372998983071474,
+    "mean_abs_deg": 2.3483707505433893,
+    "p90_abs_deg": 4.793034094060233,
+    "max_abs_deg": 7.095198005982061
+   },
+   "tia": {
+    "n": 46,
+    "median_abs_deg": 0.16835976741480518,
+    "mean_abs_deg": 0.23245415079230664,
+    "p90_abs_deg": 0.4445471493508715,
+    "max_abs_deg": 0.7410723269821002
+   },
+   "lpf_only": {
+    "n": 2484,
+    "median_abs_deg": 0.13866671368838102,
+    "mean_abs_deg": 0.21709462038222857,
+    "p90_abs_deg": 0.522684261407576,
+    "max_abs_deg": 1.644639714547075
+   }
+  },
+  "high": {
+   "lna": {
+    "n": 96,
+    "median_abs_deg": 11.657992171443476,
+    "mean_abs_deg": 10.818464129552012,
+    "p90_abs_deg": 17.172571942680534,
+    "max_abs_deg": 18.625633571789713
+   },
+   "mixer": {
+    "n": 416,
+    "median_abs_deg": 0.8012356115785417,
+    "mean_abs_deg": 1.5950335060038523,
+    "p90_abs_deg": 5.379831009687027,
+    "max_abs_deg": 11.211717663087466
+   },
+   "tia": {
+    "n": 32,
+    "median_abs_deg": 0.7998656830981261,
+    "mean_abs_deg": 0.8643740167066132,
+    "p90_abs_deg": 1.735564388865759,
+    "max_abs_deg": 2.9356512407670055
+   },
+   "lpf_only": {
+    "n": 1472,
+    "median_abs_deg": 0.31297382795852835,
+    "mean_abs_deg": 0.44706648495157686,
+    "p90_abs_deg": 1.0286986120653936,
+    "max_abs_deg": 3.1288189196968395
+   }
+  }
+ },
+ "lna_transitions_detail": {
+  "high 22->23 dB  LNA 0->1  MIX 4->4  TIA 1->1  LPF 13->0  RF_DC 0->1": {
+   "n": 32,
+   "median_abs_deg": 3.9025404507403643,
+   "mean_abs_deg": 5.216200826054665,
+   "p90_abs_deg": 13.301898798189528,
+   "max_abs_deg": 18.571192935064474,
+   "signed_median_deg": 3.9025404507403643
+  },
+  "high 25->26 dB  LNA 1->2  MIX 4->4  TIA 1->1  LPF 2->0  RF_DC 0->1": {
+   "n": 32,
+   "median_abs_deg": 11.48215963832105,
+   "mean_abs_deg": 11.010846780687537,
+   "p90_abs_deg": 12.542093751194944,
+   "max_abs_deg": 13.220430032833473,
+   "signed_median_deg": -11.48215963832105
+  },
+  "high 40->41 dB  LNA 2->3  MIX 4->4  TIA 1->1  LPF 14->14  RF_DC 0->1": {
+   "n": 32,
+   "median_abs_deg": 16.77520602328797,
+   "mean_abs_deg": 16.22834478191384,
+   "p90_abs_deg": 17.599173665183756,
+   "max_abs_deg": 18.625633571789713,
+   "signed_median_deg": -16.77520602328797
+  },
+  "low 30->31 dB  LNA 0->1  MIX 4->4  TIA 1->1  LPF 11->0  RF_DC 0->1": {
+   "n": 28,
+   "median_abs_deg": 10.085269587325342,
+   "mean_abs_deg": 10.221350558563342,
+   "p90_abs_deg": 18.24296249760003,
+   "max_abs_deg": 26.26335268119825,
+   "signed_median_deg": -7.719084737527318
+  },
+  "low 32->33 dB  LNA 1->2  MIX 4->4  TIA 1->1  LPF 1->0  RF_DC 0->1": {
+   "n": 28,
+   "median_abs_deg": 5.589974603166645,
+   "mean_abs_deg": 5.774124170334709,
+   "p90_abs_deg": 9.47774100076129,
+   "max_abs_deg": 10.944441407851782,
+   "signed_median_deg": 5.589974603166645
+  },
+  "low 51->52 dB  LNA 2->3  MIX 4->4  TIA 1->1  LPF 18->14  RF_DC 0->1": {
+   "n": 28,
+   "median_abs_deg": 4.497920004551677,
+   "mean_abs_deg": 4.950781562132605,
+   "p90_abs_deg": 9.362603800162624,
+   "max_abs_deg": 10.635716367816045,
+   "signed_median_deg": -4.233894171033615
+  },
+  "middle 29->30 dB  LNA 0->1  MIX 4->4  TIA 1->1  LPF 11->1  RF_DC 0->1": {
+   "n": 46,
+   "median_abs_deg": 3.2912894987987427,
+   "mean_abs_deg": 4.953802772605849,
+   "p90_abs_deg": 11.2080606771936,
+   "max_abs_deg": 19.503319039681625,
+   "signed_median_deg": 2.0561898413280724
+  },
+  "middle 31->32 dB  LNA 1->2  MIX 4->4  TIA 1->1  LPF 2->0  RF_DC 0->1": {
+   "n": 46,
+   "median_abs_deg": 4.3115581400834255,
+   "mean_abs_deg": 5.202073087754367,
+   "p90_abs_deg": 9.677720841602987,
+   "max_abs_deg": 10.805460649633744,
+   "signed_median_deg": -4.00380376403187
+  },
+  "middle 49->50 dB  LNA 2->3  MIX 4->4  TIA 1->1  LPF 17->14  RF_DC 0->1": {
+   "n": 46,
+   "median_abs_deg": 16.11831979518121,
+   "mean_abs_deg": 14.293396192764906,
+   "p90_abs_deg": 18.209890671534836,
+   "max_abs_deg": 19.361213880544504,
+   "signed_median_deg": -16.11831979518121
+  }
+ },
+ "named_2p4ghz_lna_transitions": {
+  "2411 MHz 29->30 dB": [
+   [
+    "R17",
+    1.4092
+   ],
+   [
+    "R18",
+    1.086
+   ]
+  ],
+  "2411 MHz 31->32 dB": [
+   [
+    "R17",
+    -4.0642
+   ],
+   [
+    "R18",
+    -3.6983
+   ]
+  ],
+  "2411 MHz 49->50 dB": [
+   [
+    "R17",
+    -16.313
+   ],
+   [
+    "R18",
+    -16.4281
+   ]
+  ],
+  "2411.95 MHz 29->30 dB": [
+   [
+    "R17",
+    1.2982
+   ],
+   [
+    "R18",
+    1.2518
+   ]
+  ],
+  "2411.95 MHz 31->32 dB": [
+   [
+    "R17",
+    -4.0309
+   ],
+   [
+    "R18",
+    -3.9767
+   ]
+  ],
+  "2411.95 MHz 49->50 dB": [
+   [
+    "R17",
+    -16.0988
+   ],
+   [
+    "R18",
+    -16.1378
+   ]
+  ],
+  "2412 MHz 29->30 dB": [
+   [
+    "R17",
+    1.4533
+   ],
+   [
+    "R18",
+    1.0438
+   ]
+  ],
+  "2412 MHz 31->32 dB": [
+   [
+    "R17",
+    -4.3971
+   ],
+   [
+    "R18",
+    -4.1559
+   ]
+  ],
+  "2412 MHz 49->50 dB": [
+   [
+    "R17",
+    -16.2313
+   ],
+   [
+    "R18",
+    -16.1487
+   ]
+  ],
+  "2437 MHz 29->30 dB": [
+   [
+    "R17",
+    0.8403
+   ],
+   [
+    "R18",
+    0.8153
+   ]
+  ],
+  "2437 MHz 31->32 dB": [
+   [
+    "R17",
+    -3.3659
+   ],
+   [
+    "R18",
+    -3.5604
+   ]
+  ],
+  "2437 MHz 49->50 dB": [
+   [
+    "R17",
+    -15.427
+   ],
+   [
+    "R18",
+    -15.1535
+   ]
+  ],
+  "2464 MHz 29->30 dB": [
+   [
+    "R17",
+    1.336
+   ],
+   [
+    "R18",
+    2.0624
+   ]
+  ],
+  "2464 MHz 31->32 dB": [
+   [
+    "R17",
+    -3.6259
+   ],
+   [
+    "R18",
+    -3.4756
+   ]
+  ],
+  "2464 MHz 49->50 dB": [
+   [
+    "R17",
+    -14.2985
+   ],
+   [
+    "R18",
+    -14.4739
+   ]
+  ],
+  "2467 MHz 29->30 dB": [
+   [
+    "R17",
+    1.6346
+   ],
+   [
+    "R18",
+    2.05
+   ]
+  ],
+  "2467 MHz 31->32 dB": [
+   [
+    "R17",
+    -3.7449
+   ],
+   [
+    "R18",
+    -2.4881
+   ]
+  ],
+  "2467 MHz 49->50 dB": [
+   [
+    "R17",
+    -14.4098
+   ],
+   [
+    "R18",
+    -14.1038
+   ]
+  ],
+  "2467.1 MHz 29->30 dB": [
+   [
+    "R17",
+    1.8646
+   ],
+   [
+    "R18",
+    2.0323
+   ]
+  ],
+  "2467.1 MHz 31->32 dB": [
+   [
+    "R17",
+    -3.3727
+   ],
+   [
+    "R18",
+    -3.1667
+   ]
+  ],
+  "2467.1 MHz 49->50 dB": [
+   [
+    "R17",
+    -13.9771
+   ],
+   [
+    "R18",
+    -14.3582
+   ]
+  ]
+ },
+ "lna_with_lpf_frozen": {
+  "definition": "LNA word moves; MIXER, TIA and LPF all frozen; only the RF_DC_CAL flag co-moves",
+  "n": 32,
+  "median_abs_deg": 16.77520602328797,
+  "mean_abs_deg": 16.22834478191384,
+  "p90_abs_deg": 17.599173665183756,
+  "max_abs_deg": 18.625633571789713,
+  "n_clusters": 32,
+  "transitions": [
+   "high 40->41 dB LNA 2->3"
+  ]
+ },
+ "h_tia_decision": {
+  "rule": "E-GSC1: if h_tia is separately identifiable and its magnitude sits at or below the campaign's 0.355-0.368 deg measured noise floor, drop it and re-declare L26 with one fewer family",
+  "identifiable_here": true,
+  "median_abs_dH_deg": 0.24017647857621194,
+  "campaign_noise_floor_deg": [
+   0.355,
+   0.368
+  ],
+  "at_or_below_floor": true,
+  "distinguishable_from_same_dataset_lpf_floor": true,
+  "verdict": "DROP h_tia: identifiable but its magnitude is at or below the campaign's measured per-step noise floor",
+  "detail": {
+   "high 13->14 dB  TIA 0->1  LPF 15->10  RF_DC 0->1": {
+    "n": 32,
+    "median_abs_deg": 0.7998656830981261,
+    "mean_abs_deg": 0.8643740167066132,
+    "p90_abs_deg": 1.735564388865759,
+    "max_abs_deg": 2.9356512407670055
+   },
+   "low 24->25 dB  TIA 0->1  LPF 16->11  RF_DC 0->1": {
+    "n": 28,
+    "median_abs_deg": 0.13998102130233933,
+    "mean_abs_deg": 0.25501430047203427,
+    "p90_abs_deg": 0.7030397526153804,
+    "max_abs_deg": 0.8761313853636525
+   },
+   "middle 22->23 dB  TIA 0->1  LPF 16->11  RF_DC 0->1": {
+    "n": 46,
+    "median_abs_deg": 0.16835976741480518,
+    "mean_abs_deg": 0.23245415079230664,
+    "p90_abs_deg": 0.4445471493508715,
+    "max_abs_deg": 0.7410723269821002
+   }
+  }
+ },
+ "tia_only_transitions_exist": true,
+ "published_whole_survey_1db_step_median_abs_deg": 0.30372050447069876
+}
