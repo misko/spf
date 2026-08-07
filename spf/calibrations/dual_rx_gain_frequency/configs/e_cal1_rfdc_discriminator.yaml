@@ -1,0 +1,112 @@
+# E-CAL1 arm 1 — RF-DC vs RF-state discriminator, high band only.
+#
+# Resolves the one named attribution hole in the gain-state model: `RF_DC_CAL`
+# (gain-table byte 2 bit 5) is set on exactly the rows that begin a new
+# LNA/mixer/TIA state, so "the LMT words changed" and "the RF-DC correction was
+# re-run" are confounded in nearly every capture. Every claim of the form "the
+# mixer word moves the phase" currently has to be read as "the RF-state
+# transition, INCLUDING any RF-DC correction it triggers".
+#
+# The high table has two rows where RF_DC_CAL toggles with the LMT words frozen:
+#     row 11 = -3 dB   (sampled, but only at n=4 rising edges, low SNR)
+#     row 23 = +9 dB   (NEVER sampled -- 8 and 9 dB appear at no high-band LO in
+#                       any stage of either campaign)
+# This config samples the row-23 edge, which sits at much better SNR.
+#
+#     8 dB  -> row 22, LMT (0,2,0), RF_DC_CAL 0
+#     9 dB  -> row 23, LMT (0,2,0), RF_DC_CAL 1     <-- the discriminating edge
+#    10 dB  -> row 24, LMT (0,2,0), RF_DC_CAL 0
+#
+# Decision rule (docs/future_experiments.md E-CAL1): with the sem driven under
+# 0.35 deg, a step at +9 dB comparable to the 2.664 deg median mixer step means
+# the RF-DC machinery injects phase on its own and the model needs an
+# RF_DC_CAL-indexed term. A step at or below 0.35 deg closes the attribution to
+# the LNA/mixer/TIA network. Report the sem alongside the estimate.
+#
+# NOTE ON EPOCHS. The source docs disagree on the per-step standard error at 3
+# epochs: REPORT.md section 3.3 gives 0.355-0.368 deg, future_experiments.md
+# E-CAL1 gives 0.54-0.81 deg with no derivation. This config uses 25 epochs,
+# which reaches sem <= 0.35 deg under the pessimistic reading (0.81 * sqrt(3/25)
+# = 0.28 deg) and is cheap enough that there is no reason to economise.
+#
+# ARM 2 IS NOT IN THIS CONFIG AND CANNOT CURRENTLY BE RUN. E-CAL1's second arm
+# repeats with `rf_dc_offset_tracking_en = 0` to A/B the tracking loop directly.
+# That attribute is read-only in the current code (dc_offset.py only snapshots
+# it), and `rf_dc_calibration_policy` is hard-restricted to
+# `before_each_frequency_block` by config.py. Arm 2 needs a small code change
+# first: a write path for the attribute plus config plumbing.
+data-version: 7
+
+pluto-firmware:
+  release-tag: v0.38-plutoplus-spf-gain-rssi-fingerprint-v3
+  device-fw: v0.38-plutoplus-spf-gain-rssi-fingerprint-v2-8-gf53d
+  asset-name: plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-rssi-fingerprint-v3/plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu
+  image-sha256: 86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191
+  firmware-git-sha: f53dd006c26677a256520b86b7c864100ccd62d2
+  gadget-git-sha: 2072e1d0823ef6db3bc141dd733a90d76e23fc33
+  boot-mode: qspi
+
+calibration:
+  # High table only (LO > 4000 MHz). 4001 MHz sits just inside the band edge,
+  # 5766 MHz matches the existing F_neg row-11 measurement for comparability.
+  frequencies-hz:
+    - 4001000000
+    - 5100000000
+    - 5766000000
+
+  # Additive cross about a 5 dB reference. 5 dB is chosen because it is below
+  # the whole {8,9,10} triple, so every measured step is an increase from the
+  # reference and no cell crosses an LNA or mixer boundary.
+  gains-db:
+    - 5
+    - 8
+    - 9
+    - 10
+  schedule-design: additive_cross
+  schedule-reference-gain-db: 5
+
+  repetitions: 25
+
+  sample-rate-hz: 30000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000
+  tone-search-width-hz: 25000
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
+  require-preflight-tone: true
+  random-seed: 2026080801
+
+  # This is a LOW-GAIN experiment (5-10 dB RX). The tone must still clear
+  # min-tone-dbfs at 5 dB, which is well below the 26 dB reference every prior
+  # campaign used, so TX is targeted at the top of this gain set rather than at
+  # 26 dB. Run the pilot check in the runbook before committing 25 epochs.
+  tx-source: fpga_dds
+  tx-gain-db: 0
+  tx-gain-policy: adaptive_max_rx_gain
+  tx-reference-rx-gain-db: 10
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 16384
+
+  min-quality-valid-per-cell: 20
+  max-across-repeat-phase-std-deg: 5
+
+  setup-label: two-pluto-tx2-30db-split-rx1-rx2
+  notes: >-
+    E-CAL1 arm 1. TX2 -> 30 dB attenuator -> two-way splitter -> RX1/RX2.
+    Unchanged harness throughout; no connector operations between epochs.
+
+  quality:
+    min-tone-snr-db: -10
+    min-tone-dbfs: -75
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5
