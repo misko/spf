@@ -12,6 +12,7 @@ import termios
 import threading
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -232,6 +233,35 @@ RC_ULTRASONIC_MAX_SAMPLE_GAP_SECONDS = 1.5
 STALL_PROGRESS_RADIUS_M = 3.0  # displacement that counts as "it moved"
 STALL_DETECT_SECONDS = 10.0  # no progress for this long == stalled
 STALL_MANUAL_SECONDS = 40.0  # recovery only: give up, hand to the operator
+# The same invariant, but for a rover the autopilot is commanding to NEUTRAL
+# throttle while a destination is still outstanding -- the parked-in-GUIDED
+# failure (see _stall_verdict). It has to be longer than STALL_DETECT_SECONDS
+# for two independent reasons:
+#   * stop_vehicle() produces a real coast-down, up to ~12 m over 25 s, so the
+#     rover keeps moving for a while after the throttle goes neutral; and
+#   * a waypoint pivot legitimately shows motor-off for several seconds while
+#     the rover turns in place and covers no ground.
+# Sized from the 2026-08-07 captures, by two independent measurements that
+# disagree about the worst healthy case -- so this takes the larger one.
+#
+#   (a) Replaying every GUIDED, planner-driven second of the seventeen captures
+#       with usable GPS through _stall_verdict itself: the longest window in
+#       which a HEALTHY rover failed to clear STALL_PROGRESS_RADIUS_M was
+#       11.5 s. This is the watchdog's own semantics -- windows are split
+#       wherever real motion resets the anchor -- so it is the number that
+#       actually binds.
+#   (b) A cruder upper bound over all 23 logs: the longest unbroken run of
+#       GUIDED samples with the motor commanded off, ignoring anchor resets
+#       entirely, was 20.0 s (RO3 00:08:06). It cannot bind, because a rover
+#       creeping past the radius inside that run resets the clock -- but it is
+#       measured rather than modelled, and it is nearly twice (a).
+#
+# The three parked tails ran 70.9 / 203.4 / 240.9 s, so the populations are
+# separated by a factor of three either way. 30.0 clears (b) by 1.5x and (a) by
+# 2.6x while still catching the SHORTEST real incident with 2.4x to spare. The
+# asymmetry is deliberate: a false stall sends an operator across a field after
+# a healthy rover, and this watchdog's whole credibility is that it does not.
+STALL_PARKED_SECONDS = 30.0
 # Leg length, both reverse and lateral. MUST exceed WP_RADIUS (5.0 in
 # rover3_base_parameters.params) or the maneuver silently does nothing:
 # ArduPilot judges arrival on WP_RADIUS, so a target 3 m away is already
@@ -251,6 +281,38 @@ STALL_MAX_ESCAPES = 3  # escapes without real recovery before handing over
 STALL_RECOVERED_M = 3 * STALL_ESCAPE_DISTANCE_M
 STALL_MANUAL_ATTEMPTS = 3  # set_mode("MANUAL") retries before giving up loudly
 STALL_MANUAL_RETRY_SECONDS = 2.0
+
+# DO_REPOSITION's param2 flags word. Bit 0 tells the autopilot it may change
+# mode to honour the destination; ArduPilot's Rover/GCS_Mavlink.cpp
+# handle_command_int_do_reposition() reads it as
+#
+#   const bool change_modes = ((int32_t)packet.param2 &
+#         MAV_DO_REPOSITION_FLAGS_CHANGE_MODE) == MAV_DO_REPOSITION_FLAGS_CHANGE_MODE;
+#   if (!rover.control_mode->in_guided_mode() && !change_modes) {
+#       return MAV_RESULT_DENIED;
+#   }
+#
+# so with param2=0 -- what this file sent until 2026-08-07 -- every waypoint
+# issued while the vehicle was in anything but GUIDED was refused before the
+# destination was even read. That is not a corner case: the EKF failsafe parks
+# the rover in HOLD, _escape_jam passes through HOLD deliberately, and a capture
+# abort sends HOLD itself.
+#
+# Taken from pymavlink's enum rather than written as a literal, and the value
+# was read out of the firmware the rovers actually run
+# (csmisko/ardupilotspf:latest, common.xml entry value="1") rather than from
+# memory. What really pins it is
+# tests/test_in_simulator.py::test_a_reposition_out_of_hold_is_accepted_and_drives,
+# which proves the flag against that firmware instead of against a constant.
+REPOSITION_CHANGE_MODE = mavutil.mavlink.MAV_DO_REPOSITION_FLAGS_CHANGE_MODE
+
+# A command answered with either of these was not refused. IN_PROGRESS is an
+# interim ack (long-running commands send it before a final result), so treating
+# it as a failure would cry wolf on every one of them.
+COMMAND_RESULTS_OK = (
+    mavutil.mavlink.MAV_RESULT_ACCEPTED,
+    mavutil.mavlink.MAV_RESULT_IN_PROGRESS,
+)
 
 # _stall_verdict outcomes.
 STALL_OK = "ok"
@@ -690,6 +752,44 @@ def lookup_exact(x, table):
     return [y for y in table if x == getattr(mavutil.mavlink, y)]
 
 
+def _enum_name(enum, value, prefix):
+    """MAVLink enum value -> name, falling back to the raw number.
+
+    Never raises. These names exist to make a log line readable, and an id this
+    build of pymavlink has not heard of is exactly when the line matters most.
+    """
+    entry = mavutil.mavlink.enums.get(enum, {}).get(value)
+    if entry is None:
+        return f"{prefix}{value}"
+    return entry.name
+
+
+def mav_command_name(command):
+    return _enum_name("MAV_CMD", command, "MAV_CMD_")
+
+
+def mav_result_name(result):
+    return _enum_name("MAV_RESULT", result, "MAV_RESULT_")
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    """The vehicle's answer to one command, kept by command NAME.
+
+    Keyed by name and not by number so that a caller, a log line and a test all
+    say the same thing. `at` is wall clock because it is compared against the
+    log, not against the stall watchdog's monotonic clock.
+    """
+
+    command: str
+    result: str
+    at: float
+
+    @property
+    def accepted(self):
+        return self.result == "MAV_RESULT_ACCEPTED"
+
+
 class Drone:
     def __init__(
         self,
@@ -707,6 +807,7 @@ class Drone:
         stall_detect_seconds=STALL_DETECT_SECONDS,
         stall_manual_seconds=STALL_MANUAL_SECONDS,
         stall_progress_radius_m=STALL_PROGRESS_RADIUS_M,
+        stall_parked_seconds=STALL_PARKED_SECONDS,
     ):
         self.connection = connection
         self.connection_factory = connection_factory
@@ -721,6 +822,8 @@ class Drone:
         self.heading = 0
         self.gps_time = 0
         self.time_since_boot = 0
+        # Latest COMMAND_ACK per command name; see handle_COMMAND_ACK.
+        self.command_results = {}
         self.distance_finder = distance_finder
         self.ignore_mode = ignore_mode
         if self.distance_finder is not None:
@@ -743,11 +846,18 @@ class Drone:
         )
 
         self.motor_active = False
+        # Owned by move_to_point, not by the stall state: it is "the planner
+        # has issued a destination and has not reached it yet", which is what
+        # makes a motionless rover a fault rather than a rover with nothing to
+        # do. Deliberately NOT reset by _initialize_stall_state, so a stall
+        # re-initialisation can never silently disarm the watchdog.
+        self._destination_outstanding = False
         self.crash_detect = crash_detect
         self.crash_recovery = crash_recovery
         self.stall_detect_seconds = float(stall_detect_seconds)
         self.stall_manual_seconds = float(stall_manual_seconds)
         self.stall_progress_radius_m = float(stall_progress_radius_m)
+        self.stall_parked_seconds = float(stall_parked_seconds)
         self._initialize_stall_state()
         self._initialize_motion_stop_state()
         self._rc_triggers = _build_rc_triggers()
@@ -1263,6 +1373,7 @@ class Drone:
         self._stall_last_escape_at = None
         self._stall_escape_left = True
         self._stall_escapes = 0
+        self._stall_motor_was_off = False
 
     def _stall_radius(self):
         return getattr(self, "stall_progress_radius_m", STALL_PROGRESS_RADIUS_M)
@@ -1273,6 +1384,10 @@ class Drone:
         self._stall_anchor = self.gps
         self._stall_anchor_at = time.monotonic() if now is None else now
         self._stall_last_escape_at = None
+        # Which deadline the next window gets is decided per window, so the
+        # "the motor was commanded off at some point in here" memory has to die
+        # with the window it belongs to.
+        self._stall_motor_was_off = False
 
     def _stall_verdict(self):
         """OK / ESCAPE / MANUAL for the current position and elapsed time.
@@ -1301,6 +1416,7 @@ class Drone:
             self._initialize_stall_state()
         detect_seconds = getattr(self, "stall_detect_seconds", STALL_DETECT_SECONDS)
         manual_seconds = getattr(self, "stall_manual_seconds", STALL_MANUAL_SECONDS)
+        parked_seconds = getattr(self, "stall_parked_seconds", STALL_PARKED_SECONDS)
         radius_m = getattr(
             self, "stall_progress_radius_m", STALL_PROGRESS_RADIUS_M
         )
@@ -1330,10 +1446,55 @@ class Drone:
             self._reset_stall_anchor()
             return STALL_OK
 
-        driving = (
-            self.armed and self.motor_active and self.mav_mode == "ROVER_MODE_GUIDED"
+        # The gate used to include `self.motor_active`, and that single term
+        # made the watchdog structurally incapable of catching the failure it
+        # was written for. motor_active is False EXACTLY when the autopilot
+        # commands neutral throttle (handle_SERVO_OUTPUT_RAW: servo1_raw ==
+        # servo3_raw == 1500) -- and commanded-neutral throttle IS the
+        # signature. ModeGuided::_enter() calls start_stop()
+        # (Rover/mode_guided.cpp:3-20, :392), which sets SubMode::Stop, and
+        # stop_vehicle() (Rover/mode.cpp:336-363) then pins both channels at
+        # 1500 while the rover sits on a destination the firmware has thrown
+        # away. start_stop() has exactly two call sites, both in _enter(), so
+        # every re-entry into GUIDED -- an operator's CH8 handback, most of all
+        # -- produces it, on every ArduRover >= 4.2.0. The old gate therefore
+        # re-anchored its own clock on precisely the state it was watching for:
+        # zero stall lines across rover 1's 15.6-minute and rover 4's
+        # 17.2-minute dead tails on 2026-08-07, while the same code fired
+        # correctly eleven times that night on motor_active=True jams.
+        #
+        # So progress is now read from GPS alone, and the gate asks only
+        # whether the rover is SUPPOSED to be going somewhere:
+        #   armed + GUIDED            -- the Pi's commands can take effect at
+        #                                all. This is also the live half of
+        #                                planner_control_loss_reason(): if the
+        #                                operator has CH8'd to MANUAL the mode
+        #                                is not GUIDED and nothing here fires.
+        #   _destination_outstanding  -- move_to_point issued a destination and
+        #                                has not reached it, so standing still
+        #                                is a fault rather than a rover with
+        #                                nothing to do.
+        # (Connection health, the third part of that question, is already
+        # covered by the heartbeat-staleness guard above.)
+        #
+        # Deliberately NOT `planner_in_control`: that flag is the run_planner
+        # LATCH, and run_planner clears it before move_to_home() drives the
+        # rover back (mavlink_radio_collection waits on planner_is_still_driving
+        # precisely so the two do not fight). Gating on it would switch the
+        # watchdog off for the entire return leg -- an unattended drive across
+        # the same field, where a jam has nobody watching it and move_to_home
+        # would just burn its 300 s max_wait. _destination_outstanding is set by
+        # move_to_point, which is the ONE function that drives to a point, so it
+        # covers the planner and the return home alike.
+        #
+        # Servo output has not been discarded -- it decides how long to wait,
+        # not whether to look. See the threshold below.
+        driving_to_a_destination = (
+            self.armed
+            and self.mav_mode == "ROVER_MODE_GUIDED"
+            and getattr(self, "_destination_outstanding", False)
         )
-        if not driving:
+        if not driving_to_a_destination:
             self._reset_stall_anchor()
             return STALL_OK
 
@@ -1350,8 +1511,36 @@ class Drone:
             self._reset_stall_anchor(now=now)
             return STALL_OK
 
+        # Two deadlines, chosen by whether the motor was EVER commanded off
+        # since the anchor -- not by what it is doing this instant. Sticky is
+        # the whole point: a waypoint pivot shows motor-off for several seconds
+        # (measured 6.00-9.66 s on the clean 2026-08-07 captures) and then
+        # drives away, and a "current sample" rule would hand that window the
+        # 10 s deadline the moment the throttle came back, firing on a rover
+        # accelerating out of a legitimate turn. One-way and therefore safe:
+        # any motor-off sample buys the whole window the longer deadline, and
+        # real motion clears it for free by resetting the anchor.
+        #
+        # A window that was motor-on throughout keeps the original 10 s, so by
+        # construction this change cannot make a motor-on jam fire LATER than
+        # it used to. Note what that is and is not: it is an argument from the
+        # code path, NOT a measurement. The offline replay built for this fix
+        # reproduced 0 of the 11 real 2026-08-07 firings in its "before" arm
+        # (and invented one on a capture whose log has no STALL line at all),
+        # so the replay can size the parked threshold -- which only needs the
+        # dwell distribution -- but it cannot testify about firing times.
+        # Anyone claiming those eleven are bit-for-bit untouched needs a
+        # harness that can first reproduce them.
+        if not self.motor_active:
+            self._stall_motor_was_off = True
+        detect_threshold = (
+            parked_seconds
+            if getattr(self, "_stall_motor_was_off", False)
+            else detect_seconds
+        )
+
         stalled_seconds = now - self._stall_anchor_at
-        if stalled_seconds < detect_seconds:
+        if stalled_seconds < detect_threshold:
             return STALL_OK
         if not getattr(self, "crash_recovery", False):
             return STALL_MANUAL
@@ -1583,13 +1772,50 @@ class Drone:
         self.raise_if_connection_failed()
         if self._motion_stop_requested.is_set():
             self._try_enter_abort_hold()
+            self._destination_outstanding = False
             return MOVE_ABORTED
         self.reposition(lat=point[1], long=point[0])
+        # From here until the target is reached, standing still is a fault and
+        # not merely an idle rover -- which is what lets _stall_verdict stop
+        # asking the servos whether the vehicle is meant to be moving. Set
+        # AFTER reposition() so a raising send cannot arm the watchdog against
+        # a destination the vehicle was never given.
+        self._destination_outstanding = True
         # The stall anchor is deliberately NOT reset here. It is owned by
         # _stall_verdict and reset only by real motion, so the clock survives
         # across the waypoints an escape abandons -- which is what makes the
         # escalation to MANUAL reachable at all.
         last_message = None
+        # ArduPilot THROWS THIS DESTINATION AWAY on every re-entry into GUIDED.
+        # ModeGuided::_enter() calls start_stop() (Rover/mode_guided.cpp:3-20),
+        # start_stop() sets SubMode::Stop (:392), and stop_vehicle() pins both
+        # throttle channels at exactly 1500 (Rover/mode.cpp:336-363).
+        # start_stop() has no call site outside _enter(), so SubMode::Stop is
+        # reachable ONLY this way -- and re-entering GUIDED is exactly what the
+        # operator's CH8 switch does on the way back from a MANUAL excursion.
+        # Behaviour of every ArduRover >= 4.2.0, not a rover-specific fault.
+        #
+        # So the mode is latched and the destination re-issued on every
+        # observed transition INTO GUIDED. RO1 on 2026-08-07 is what this
+        # costs otherwise: one waypoint held for 939 s after a takeover, 1101
+        # of 3000 records written parked, and nothing in the log to show for it
+        # -- armed, GUIDED, EKF healthy, motionless.
+        #
+        # The stall watchdog cannot cover this, which is why the recovery lives
+        # here rather than there: `driving` above requires motor_active, and
+        # motor_active is False precisely when the autopilot commands neutral
+        # throttle, so this failure resets the watchdog's own anchor on every
+        # tick and its clock never starts.
+        #
+        # EDGE-triggered, deliberately, following the MOVE_SKIPPED re-issue in
+        # move_to_home rather than inventing a periodic refresh. An
+        # unconditional 1 Hz refresh was measured and costs no ground speed in
+        # SITL (14.949 vs 14.944 m/s steady state; 4.953 vs 4.950 s per 60 m
+        # leg, n=4 each -- numbers in docs/learnings.md), so the case against it
+        # is not speed: it is that SITL's link is a local TCP socket while the
+        # fleet's is a shared 915 MHz radio, where a command per second is real
+        # airtime spent to buy exactly what one command per handback buys.
+        last_mode = self.mav_mode
         while self.distance_to_target(point) > self.tolerance_in_m:
             self.raise_if_connection_failed()
             if self._motion_stop_requested.is_set():
@@ -1598,7 +1824,24 @@ class Drone:
                     "Aborted active waypoint after capture failure; target=%s",
                     point,
                 )
+                # HOLD was just requested, so nothing is driving anywhere; a
+                # watchdog left armed here would report the deliberate stop.
+                self._destination_outstanding = False
                 return MOVE_ABORTED
+            # Outside the distance_finder guard below on purpose, same as the
+            # stall check: the field runs --no-ultrasonic, so anything inside
+            # that guard is dead code on a real rover.
+            observed_mode = self.mav_mode
+            if observed_mode != last_mode:
+                if observed_mode == "ROVER_MODE_GUIDED":
+                    logging.warning(
+                        "Re-entered GUIDED (was %s); re-issuing the destination "
+                        "%s, which ArduPilot discarded on mode entry",
+                        last_mode,
+                        point,
+                    )
+                    self.reposition(lat=point[1], long=point[0])
+                last_mode = observed_mode
             # Outside the distance_finder guard below on purpose: the stall
             # watchdog must work with --no-ultrasonic, unlike the "Are we
             # sleeping somwehere?" heuristic it supersedes.
@@ -1642,6 +1885,11 @@ class Drone:
         # be reached, because every abandoned waypoint would buy a fresh window.
         self._reset_stall_anchor()
         self._stall_escapes = 0
+        # Nothing is outstanding until run_planner issues the next waypoint,
+        # and the gap between legs is exactly where a rover is allowed to sit
+        # still. MOVE_SKIPPED deliberately does NOT clear it, for the same
+        # reason it does not reset the anchor.
+        self._destination_outstanding = False
         return MOVE_REACHED
 
     def run_planner(self):
@@ -1741,6 +1989,12 @@ class Drone:
                 # time.sleep(2)
 
         self.planner_in_control = False
+        # A MOVE_SKIPPED on the last waypoint leaves a destination outstanding
+        # that nobody is driving to any more. Harmless today -- _stall_verdict
+        # is only reached from inside move_to_point -- but a stale True here
+        # would arm the watchdog against a parked, finished rover the moment
+        # anything else consults it.
+        self._destination_outstanding = False
 
     def _wait_for_mode(self, expected_mode, tone, message, poll_interval=2.0):
         """Wait for operator mode changes without making the buzzer critical."""
@@ -1956,7 +2210,29 @@ class Drone:
             )
         # self.ack("COMMAND_ACK")
 
-    def reposition(self, lat, long):
+    def reposition(self, lat, long, change_mode=None):
+        """Send the vehicle to one destination, and let it switch to GUIDED.
+
+        The flags word is the point (see REPOSITION_CHANGE_MODE): without it
+        the autopilot answers MAV_RESULT_DENIED to every waypoint issued from
+        HOLD, which is where the EKF failsafe, _escape_jam and a capture abort
+        all leave the rover. Since handle_COMMAND_ACK was a bare `pass` at the
+        time, every one of those refusals was silent.
+
+        MANUAL is the one mode this will NOT drag the vehicle out of, and that
+        exclusion is a safety interlock rather than caution. MANUAL means an
+        operator is holding CH8 and driving; ArduPilot's MODE_CH only re-applies
+        on switch MOVEMENT (the mechanism _hand_over_to_manual depends on), so a
+        GCS-forced GUIDED would take the rover out of the operator's hands and
+        leave it there until they thought to flick the switch twice. A waypoint
+        refused while a human is driving is the correct outcome -- and now a
+        logged one.
+
+        `change_mode` overrides the decision for callers that know better;
+        None means decide from the mode the heartbeat last reported.
+        """
+        if change_mode is None:
+            change_mode = self.mav_mode != "ROVER_MODE_MANUAL"
         # self.connection.mav.command_long_send(
         #    self.connection.target_system,
         #    self.connection.target_component,
@@ -1980,7 +2256,7 @@ class Drone:
                 0,  # not used
                 0,  # not used
                 -1,  # default ground speed
-                0,  # reposition flags
+                REPOSITION_CHANGE_MODE if change_mode else 0,  # reposition flags
                 0,  # loiter radius, 0 is ignore
                 math.nan,  # yaw
                 int(lat * 1e7),
@@ -2098,10 +2374,31 @@ class Drone:
             self.ekf_healthy = False
 
     def handle_COMMAND_ACK(self, msg):
-        # logging.info(f"COMMAND ACK {str(msg)}")
-        # if msg.command in self.mav_cmd_num2name:
-        #    logging.info(f"COMMAND {self.mav_cmd_num2name[msg.command]}")
-        pass
+        """Record what the vehicle said about a command, and shout if it refused.
+
+        This was a bare `pass`, which made a refused command and an obeyed one
+        the same observable event -- silence -- for everything this controller
+        sends: every waypoint, every arm(), every mode-adjacent command. The
+        DENIED repositions that defect F3 is about could have been read off the
+        wire from the first flight; nobody was listening.
+
+        Refusals are logged, not raised. This runs on the receive loop, where an
+        exception tears the link down (see process_messages), and a rejected
+        buzzer must never do that. The result is also kept as STATE so a caller
+        can check its own command afterwards rather than scrape the log.
+        """
+        if not hasattr(self, "command_results"):
+            # Same defensiveness as _initialize_stall_state's callers: a
+            # hand-built or partially constructed Drone must not kill the
+            # receive loop over a missing attribute.
+            self.command_results = {}
+        name = mav_command_name(msg.command)
+        result = mav_result_name(msg.result)
+        self.command_results[name] = CommandResult(
+            command=name, result=result, at=time.time()
+        )
+        if msg.result not in COMMAND_RESULTS_OK:
+            logging.error("Vehicle refused %s: %s", name, result)
 
     def handle_PARAM_VALUE(self, msg):
         # print("param", msg.param_id)

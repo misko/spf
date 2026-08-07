@@ -25,6 +25,7 @@ from spf.mavlink.mavlink_controller import (
     DEFAULT_MAVLINK_RECONNECT_BACKOFF_SECONDS,
     STALL_DETECT_SECONDS,
     STALL_MANUAL_SECONDS,
+    STALL_PARKED_SECONDS,
     STALL_PROGRESS_RADIUS_M,
     Drone,
     connect_with_heartbeat,
@@ -316,6 +317,17 @@ def parse_args():
         help="no progress for this long counts as a stall",
     )
     parser.add_argument(
+        "--stall-parked-seconds",
+        type=float,
+        default=STALL_PARKED_SECONDS,
+        help=(
+            "no progress for this long counts as a stall when the autopilot is "
+            "commanding NEUTRAL throttle -- the parked-in-GUIDED case, which "
+            "needs longer than --stall-detect-seconds because stop_vehicle() "
+            "coasts and waypoint pivots are legitimately motor-off"
+        ),
+    )
+    parser.add_argument(
         "--stall-manual-seconds",
         type=float,
         default=STALL_MANUAL_SECONDS,
@@ -439,6 +451,7 @@ if __name__ == "__main__":
             stall_detect_seconds=args.stall_detect_seconds,
             stall_manual_seconds=args.stall_manual_seconds,
             stall_progress_radius_m=args.stall_progress_radius_m,
+            stall_parked_seconds=args.stall_parked_seconds,
         )
         drone.process_message(initial_heartbeat)
         drone.start()
@@ -453,6 +466,7 @@ if __name__ == "__main__":
             stall_detect_seconds=args.stall_detect_seconds,
             stall_manual_seconds=args.stall_manual_seconds,
             stall_progress_radius_m=args.stall_progress_radius_m,
+            stall_parked_seconds=args.stall_parked_seconds,
         )
 
     next_readiness_tone_at = time.monotonic() + READINESS_TONE_INTERVAL_SECONDS

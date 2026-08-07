@@ -1006,3 +1006,144 @@ are re-armed on every MAVLink reconnect.
 `Restart=`. The switch is only as available as the capture process. Fixing that
 needs a MAVLink router plus an always-on listener; see
 `docs/future_experiments.md`.
+## Rover (2026-08-07): every DO_REPOSITION sent from a non-GUIDED mode was
+## refused by the autopilot, and spf never heard the refusal
+
+`Drone.reposition` sent `MAV_CMD_DO_REPOSITION` with a flags word (param2) of 0.
+ArduPilot's `Rover/GCS_Mavlink.cpp::handle_command_int_do_reposition` opens by
+reading `MAV_DO_REPOSITION_FLAGS_CHANGE_MODE` out of that word and returns
+`MAV_RESULT_DENIED` when the flag is clear and the vehicle is not already in
+GUIDED — before it looks at the destination at all. **Every waypoint issued
+while the rover sat in HOLD was thrown away**, and HOLD is a place the rover
+reaches routinely: the EKF failsafe parks it there, `_escape_jam` passes through
+it deliberately, and a capture abort sends it. Confirmed against the firmware
+the rovers run, in SITL: identical commands, DENIED without the flag and
+ACCEPTED with it.
+
+`handle_COMMAND_ACK` was a bare `pass`, so **nothing in this controller has ever
+checked whether any command was accepted** — waypoints, `arm()`, all of it. A
+refused command and an obeyed one were the same observable event: silence. That
+is why the DENIED repositions could sit in the design from the first flight
+without anyone seeing them, and it is the general lesson: **a command protocol
+with an ack you do not read is a protocol you are not speaking.**
+
+Two conclusions to keep:
+
+- **Set the flag everywhere EXCEPT MANUAL.** MANUAL means an operator is holding
+  CH8 and driving. `MODE_CH` only re-applies on switch MOVEMENT (the same
+  mechanism `_hand_over_to_manual` relies on), so a GCS-forced GUIDED would take
+  the rover out of the operator's hands and keep it there until they thought to
+  flick the switch twice. From MANUAL the refusal is the correct outcome — it is
+  now a logged one.
+- **A refused command is logged, never raised.** `handle_COMMAND_ACK` runs on
+  the receive loop, where an exception tears the link down; a rejected buzzer
+  must not do that. The result is also kept as state (`Drone.command_results`,
+  keyed by command name) so a caller can check its own command instead of
+  scraping the log.
+
+## Rover (2026-08-07): a command the autopilot forgets is not a command — reissue
+## the GUIDED destination whenever the vehicle re-enters GUIDED
+
+The primary fix for the 939 s strand, and the one that makes the two entries
+below backstops rather than the front line: `move_to_point` now latches
+`mav_mode` and re-sends `reposition()` on every observed transition **into**
+`ROVER_MODE_GUIDED`. `move_to_home` already had exactly this idiom on
+`MOVE_SKIPPED`; the repo had the right pattern in one place and not the other.
+
+**Edge-triggered, not periodic.** An unconditional 1 Hz refresh was measured
+and costs no ground speed in SITL (14.949 vs 14.944 m/s), so the case against
+it is not performance: SITL's link is a local TCP socket while the fleet's is a
+shared 915 MHz radio, where a command per second is real airtime bought to do
+what one command per handback already does. The edge-trigger is also
+**load-bearing for the COMMAND_ACK logging** added alongside it — a periodic
+refresh would emit one "refused" ERROR per tick for the whole time an operator
+held MANUAL. Do not "simplify" it into a periodic refresh later.
+
+The generalization is the durable part: **fire-and-forget is only safe for
+commands the receiver cannot forget.** This controller sends every command that
+way — `reposition`, `arm`, `disarm`, `set_mode`, `reverse`, `do_mission` — and
+`handle_COMMAND_ACK` was a bare `pass`, so no rejection or loss could reach the
+planner. Any command whose effect can be discarded by a state change on the far
+side needs either re-assertion or an acknowledgement, and preferably both.
+
+## Rover (2026-08-07): the stall watchdog re-anchored its clock on exactly the
+## failure it existed to detect
+
+ArduPilot throws the GUIDED destination away on every **re-entry** into GUIDED.
+`ModeGuided::_enter()` calls `start_stop()` (`Rover/mode_guided.cpp:3-20`,
+`:392`), which sets `SubMode::Stop`; `stop_vehicle()` (`Rover/mode.cpp:336-363`)
+then holds `servo1_raw == servo3_raw == 1500`. `start_stop()` has exactly two
+call sites, both in `_enter()`, so this state is reachable **only** by
+re-entering GUIDED — which is precisely what an operator's CH8 handback does.
+Every ArduRover >= 4.2.0 behaves this way. `move_to_point` issues its
+DO_REPOSITION once and never re-issues, so the rover then sits on a destination
+the firmware has forgotten, armed, in GUIDED, looking healthy to every signal
+the collector watched. On 2026-08-07 rover 1 held one waypoint for 939 s and
+wrote 1101 of 3000 records parked; rover 4 did the same for 17.2 minutes.
+
+The watchdog could not catch it **by construction**. Its gate was
+
+    driving = armed and motor_active and mav_mode == GUIDED
+
+and `handle_SERVO_OUTPUT_RAW` sets `motor_active` False *iff* both servos read
+1500 — i.e. iff the autopilot is commanding neutral throttle, which **is** the
+failure signature. So `not driving` was true throughout the dead tails and the
+watchdog reset its own anchor every tick: zero stall lines across rover 1's
+15.6-minute and rover 4's 17.2-minute tails, while the same code fired
+correctly eleven times that night on `motor_active=True` jams.
+
+**Generalization, and the reason this went unnoticed for so long: a detector
+must not gate on a signal that the failure it detects also suppresses.** The
+2026-08-03 entry above already identified `motor_active`'s inversion as
+misleading, and the replacement heuristic still carried it into the gate.
+
+The fix reads progress from GPS alone and gates on *intent* instead —
+armed + GUIDED + `_destination_outstanding` ("move_to_point issued a waypoint
+and has not reached it"). **Deliberately not `planner_in_control`:** that flag
+is the `run_planner` latch, and `mavlink_radio_collection` waits for it to go
+False before calling `move_to_home()`, so gating on it would switch the
+watchdog off for the whole unattended drive back. `_destination_outstanding` is
+set inside `move_to_point`, the one function that drives to a point, so it
+covers the planner and the return home alike. Servo output now only chooses the
+deadline:
+
+- motor commanded ON for the whole window: `STALL_DETECT_SECONDS` (10 s,
+  unchanged, so by construction a motor-on jam cannot fire later than before);
+- motor commanded OFF at any point in the window: `STALL_PARKED_SECONDS`
+  (30 s). Longer because `stop_vehicle()` produces a real coast-down and a
+  waypoint pivot is legitimately motor-off for several seconds.
+
+**A caveat on the sizing evidence, because it was nearly overstated.** The
+offline replay reproduced **0 of the 11** real firings from that night in its
+"before" arm, and invented one on a capture whose log contains no `STALL` line.
+So the replay is sound for the thing it was built for — the *dwell*
+distribution, which needs no firing model — and worthless as testimony about
+firing times. "The eleven true detections keep their exact timing" was written
+into both the code and this file on the strength of it, and is not established.
+**A replay that cannot reproduce the known-true events cannot vouch for them.**
+
+**The motor-off memory is sticky for the life of the anchor, not read from the
+current sample.** A pivot runs motor-off for 6.00-9.66 s in the field; a
+"current sample" rule would hand that window the 10 s deadline the instant the
+throttle returned and fire on a rover accelerating out of a legitimate turn.
+
+Sizing evidence — replaying the recorded `(mav_mode, motor_active, GPS, time)`
+traces of all seventeen 2026-08-07 captures with usable GPS through the real
+`_stall_verdict` (`aug6/`, read-only):
+
+| population | captures | longest no-progress window in GUIDED |
+|---|---|---|
+| healthy | 14 | **11.5 s** (next: 10.0, 10.0, 9.5) |
+| parked in GUIDED | 3 | 44 s, 135.5 s, 136 s |
+
+Nothing in the whole night falls between 11.5 s and 16 s, so the two
+populations are cleanly separated and 25 s sits with better than 2x margin over
+the worst healthy window. New firings on the fourteen healthy captures: **zero**.
+Rover 3's `01_27_43` capture turned out to be a **third** instance of the same
+defect, undiagnosed at the time.
+
+Corollary for the SITL crash suite: `--stall-parked-seconds` must be scaled
+alongside `--stall-detect-seconds`, and
+`test_healthy_driving_is_never_called_a_stall` must use the **production** value
+for it — the arc-from-a-standstill that test exists to protect is itself a
+motor-off window, so a compressed parked deadline makes it fail.

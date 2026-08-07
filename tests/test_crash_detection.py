@@ -80,12 +80,22 @@ def _drone(monkeypatch, *, crash_detect=True, crash_recovery=False, **overrides)
     drone.motor_active = True
     drone.mav_mode = "ROVER_MODE_GUIDED"
     drone.armed = True
+    # _destination_outstanding is "move_to_point issued a destination and has
+    # not reached it", and it replaces motor_active in the watchdog's gate:
+    # servo output can no longer answer "is this rover meant to be moving",
+    # because commanded-neutral throttle is the failure signature rather than
+    # proof of idleness (see _stall_verdict). planner_in_control is NOT in that
+    # gate -- move_to_home drives with it clear -- but run_planner maintains it,
+    # so the fixture carries it for the tests that drive the planner loop.
+    drone.planner_in_control = True
+    drone._destination_outstanding = True
     drone.connection_failure = None
     drone.planner_should_move = True
     drone.crash_detect = crash_detect
     drone.crash_recovery = crash_recovery
     drone.stall_detect_seconds = 10.0
     drone.stall_manual_seconds = 40.0
+    drone.stall_parked_seconds = 25.0
 
     drone.reposition = _Recorder(drone)
     drone.reverse = _Recorder(drone)
@@ -229,10 +239,13 @@ def test_gps_jitter_under_the_radius_does_not_reset_the_clock(monkeypatch):
     "attribute,value",
     [
         ("armed", False),
-        ("motor_active", False),
         ("mav_mode", "ROVER_MODE_MANUAL"),
         ("mav_mode", "ROVER_MODE_HOLD"),
         ("crash_detect", False),
+        # A rover between waypoints has nothing to be failing to do, and is
+        # allowed to sit still forever. This replaces the motor_active term
+        # that used to live in this list.
+        ("_destination_outstanding", False),
     ],
 )
 def test_never_trips_unless_actually_driving(monkeypatch, attribute, value):
@@ -242,6 +255,109 @@ def test_never_trips_unless_actually_driving(monkeypatch, attribute, value):
 
     drone.clock.now += 600.0
     assert drone._stall_verdict() == STALL_OK
+
+
+# ------------------------------------------------ parked in GUIDED (rover 1) ---
+#
+# ArduPilot discards the GUIDED destination on every RE-ENTRY into GUIDED:
+# ModeGuided::_enter() -> start_stop() (Rover/mode_guided.cpp:3-20, :392) sets
+# SubMode::Stop, and stop_vehicle() (Rover/mode.cpp:336-363) then holds
+# servo1_raw == servo3_raw == 1500. Present in every ArduRover >= 4.2.0, and
+# reached by exactly the thing operators do all night: flip CH8 to MANUAL and
+# back. On 2026-08-07 rover 1 then held ONE waypoint for 939 s and wrote 1101
+# of 3000 records parked.
+#
+# The watchdog was blind to it by construction: handle_SERVO_OUTPUT_RAW sets
+# motor_active False precisely when both channels read 1500, and the old gate
+# required motor_active, so the failure state reset the clock that was supposed
+# to be counting it. Zero stall lines across rover 1's 15.6-minute and rover
+# 4's 17.2-minute dead tails, against eleven correct firings the same night.
+
+
+def test_a_rover_parked_at_neutral_throttle_is_a_stall(monkeypatch):
+    """The whole defect, in one assertion: motor off must no longer be an alibi."""
+
+    drone = _drone(monkeypatch, motor_active=False)
+    drone._reset_stall_anchor()
+
+    # Longer than the motor-ON threshold, because a coast-down and a waypoint
+    # pivot both look like this for several seconds.
+    drone.clock.now += 24.5
+    assert drone._stall_verdict() == STALL_OK
+    drone.clock.now += 1.0
+    assert drone._stall_verdict() == STALL_MANUAL
+
+
+def test_the_parked_threshold_is_sticky_across_a_pivot(monkeypatch):
+    """A pivot then an acceleration must not be judged on the 10 s deadline.
+
+    The clean 2026-08-07 captures contain GUIDED pivots that run motor-off for
+    6.00-9.66 s against the 10.0 s motor-on threshold. If the threshold were
+    picked from the CURRENT sample, the first motor-on tick after a 9.6 s pivot
+    would already be past 10 s of no progress and the watchdog would fire on a
+    rover pulling out of a legitimate turn. The motor-off memory is therefore
+    one-way for the life of the anchor.
+    """
+
+    drone = _drone(monkeypatch, motor_active=False)
+    drone._reset_stall_anchor()
+
+    drone.clock.now += 9.6  # the longest pivot measured in the field
+    assert drone._stall_verdict() == STALL_OK
+
+    drone.motor_active = True  # throttle comes back, rover starts rolling
+    for _ in range(10):
+        drone.clock.now += 1.0
+        assert drone._stall_verdict() == STALL_OK, (
+            "the 10 s motor-on deadline was applied to a window that contained "
+            "a motor-off pivot"
+        )
+
+
+def test_real_motion_clears_the_parked_memory(monkeypatch):
+    """Covering ground re-anchors, and the next window starts motor-on again."""
+
+    drone = _drone(monkeypatch, motor_active=False)
+    drone._reset_stall_anchor()
+    drone.clock.now += 9.0
+    assert drone._stall_verdict() == STALL_OK
+
+    drone.gps = _at(north_m=12.0)  # clear of STALL_PROGRESS_RADIUS_M
+    drone.motor_active = True
+    assert drone._stall_verdict() == STALL_OK
+
+    # Fresh window, motor on throughout: the original 10 s applies, so the
+    # eleven true detections of 2026-08-07 keep their timing.
+    drone.clock.now += 9.9
+    assert drone._stall_verdict() == STALL_OK
+    drone.clock.now += 0.2
+    assert drone._stall_verdict() == STALL_MANUAL
+
+
+def test_the_watchdog_still_covers_the_drive_home(monkeypatch):
+    """run_planner has exited, but move_to_home is still driving the rover.
+
+    mavlink_radio_collection waits for planner_is_still_driving() to go False
+    and only THEN calls move_to_home(), so the whole return leg runs with the
+    planner_in_control latch clear. Gating on that latch would have switched
+    the watchdog off for an unattended drive back across the same field, where
+    move_to_home would simply burn its 300 s max_wait on a jammed rover.
+    """
+
+    drone = _drone(monkeypatch, planner_in_control=False, motor_active=False)
+    drone._reset_stall_anchor()
+
+    drone.clock.now += 25.1
+    assert drone._stall_verdict() == STALL_MANUAL
+
+
+def test_a_motor_on_jam_still_trips_at_ten_seconds(monkeypatch):
+    """The longer deadline is for the parked case only, never a blanket delay."""
+
+    drone = _drone(monkeypatch)  # motor_active True throughout
+    drone._reset_stall_anchor()
+    drone.clock.now += 10.1
+    assert drone._stall_verdict() == STALL_MANUAL
 
 
 # --------------------------------------------------------------- flag matrix ---

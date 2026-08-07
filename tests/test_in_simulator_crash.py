@@ -75,6 +75,12 @@ root_dir = os.path.dirname(os.path.dirname(spf.__file__))
 STALL_DETECT_SECONDS = 3.0
 STALL_MANUAL_SECONDS = 12.0
 STALL_PROGRESS_RADIUS_M = 1.0  # 1.0 m / 3 s = 0.33 m/s, matching production
+# Scaled by the same 2.5x production uses (25 s against 10 s), for the same
+# reason the radius is scaled: what these tests reproduce is a RATIO, and
+# leaving the parked deadline at its 25 s default while the motor-on one is
+# compressed to 3 s would mean any jam that shows a single motor-off sample
+# waits eight times longer than the test's own timeouts allow.
+STALL_PARKED_SECONDS = 7.5
 
 # The crash suite must run the simulator in REAL TIME, unlike
 # test_in_simulator.py which uses -S 5.
@@ -251,6 +257,7 @@ def collector_command(
     detect_seconds=None,
     manual_seconds=None,
     radius_m=None,
+    parked_seconds=None,
 ):
     # --drone-uri is explicit: tests/rover_config.yaml hardcodes
     # tcp:127.0.0.1:14591, which on the CI box is the developer's own sim.
@@ -264,6 +271,7 @@ def collector_command(
         f"{'--crash-recovery' if crash_recovery else '--no-crash-recovery'} "
         f"--stall-detect-seconds {detect_seconds or STALL_DETECT_SECONDS} "
         f"--stall-manual-seconds {manual_seconds or STALL_MANUAL_SECONDS} "
+        f"--stall-parked-seconds {parked_seconds or STALL_PARKED_SECONDS} "
         f"--stall-progress-radius-m {radius_m or STALL_PROGRESS_RADIUS_M}"
     )
 
@@ -495,6 +503,13 @@ def test_healthy_driving_is_never_called_a_stall(crash_simulator):
     that reads as a stall; at the real 3 m / 10 s it has ample room. Scaling the
     radius with the time is not sufficient, which is why this one case pays the
     ~50 s.
+
+    ALL FOUR thresholds are the production ones, including the parked deadline,
+    and that last one is not bookkeeping. The arc-from-a-standstill this test
+    was written for is exactly a motor-off window, so it is judged on
+    STALL_PARKED_SECONDS rather than STALL_DETECT_SECONDS -- handing it the
+    compressed 7.5 s this file uses elsewhere reproduces the very mistake the
+    docstring above warns about, and it does fail that way (observed).
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         with Capture(
@@ -503,6 +518,7 @@ def test_healthy_driving_is_never_called_a_stall(crash_simulator):
             detect_seconds=mavlink_controller.STALL_DETECT_SECONDS,
             manual_seconds=mavlink_controller.STALL_MANUAL_SECONDS,
             radius_m=mavlink_controller.STALL_PROGRESS_RADIUS_M,
+            parked_seconds=mavlink_controller.STALL_PARKED_SECONDS,
         ) as capture:
             set_mode("manual", crash_simulator.command)
             start_driving(capture)
