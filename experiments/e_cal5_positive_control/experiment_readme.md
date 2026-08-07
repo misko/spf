@@ -2,6 +2,7 @@
 
 **Status:** pre-registered 2026-08-07, to run on the unchanged E-CAL1 harness.
 **Est. bench time:** ~25 min for both radios (1,050 frames).
+**Results:** [`RESULTS.md`](RESULTS.md)
 **Closes:** the stated limitation of
 [E-CAL1 arm 1](../../spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/REPORT.md)
 and [arm 2](../../spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_arm2_rfdc_tracking_20260807_v1/REPORT.md).

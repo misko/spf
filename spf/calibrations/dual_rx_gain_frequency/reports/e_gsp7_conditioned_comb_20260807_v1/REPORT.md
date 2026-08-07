@@ -115,6 +115,13 @@ transfer performance (3.863°). **If fleet delays are trusted enough to freeze,
 the committed coefficients are trusted enough to use** — so the sparse refit earns
 its keep only where a genuinely local fit is needed, not as a default.
 
+**Like-for-like, on chosen-10's own held-out set** (same 101 LOs, same 7.476°
+baseline, 100% coverage, n = 3030): the committed coefficients score **3.818°**
+(4.772° unequal-gain) against chosen-10 frozen's **4.950°** (6.188°). The committed
+model wins by **1.13° MAE** with no refit at all. This is the comparison the
+recommendation rests on, computed on identical rows rather than on each arm's own set.
+
+
 ## 6. Acceptance gates
 
 | Gate | Requirement | Result |

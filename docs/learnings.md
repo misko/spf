@@ -278,9 +278,14 @@ ten-frequency calibration.
   collinear on that comb; freezing removes the escape route. **Never freeze the delays
   without checking the comb's conditioning first.**
 
-- **Even so, prefer the committed coefficients.** Scored with no refit on that same fresh
-  capture they give 3.86° (1.93× — replicating the ~1.9× transfer ratio above on an
-  independent session), beating the best ten-LO refit at 4.95°. If fleet delays are
+- **Even so, prefer the committed coefficients — do not refit sparsely by default.**
+  Scored on chosen-10's *own* held-out set (identical 101 LOs, same 7.476° baseline,
+  n = 3030), the committed `l26_pooled_v1` gives **3.818°** against the best ten-LO
+  refit's **4.950°** — better by **1.13° MAE with no refit at all**, and 1.93× over
+  baseline across the full capture, replicating the ~1.9× transfer ratio above on an
+  independent session. The sparse-refit logic is also self-undermining: if fleet delays
+  are trusted enough to freeze, the committed coefficients are trusted enough to use.
+  A sparse refit earns its keep only where a genuinely *local* fit is required. If fleet delays are
   trusted enough to freeze, the committed coefficients are trusted enough to use.
   Report: `reports/e_gsp7_conditioned_comb_20260807_v1/`. Caveat: E-GSP7's held-out LOs
   are *within-session*, so it establishes identifiability, not session-to-session

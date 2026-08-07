@@ -2,6 +2,7 @@
 
 **Status:** pre-registered 2026-08-07, capture pending in the same session.
 **Est. bench time:** ~80–120 min for both radios (3,330 frames).
+**Results:** [`RESULTS.md`](RESULTS.md)
 **Queue entry:** derived from the E-GSC decision ledger row *"Is a sparse protocol
 now recommendable? **Not yet** — it needs a prospective sparse capture with the
 comb chosen by conditioning"*

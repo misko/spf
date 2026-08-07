@@ -7,6 +7,7 @@ runbook defects found in execution:
 Arm 2 was **unblocked in code and RUN on 2026-08-07** — also null (+0.019° ± 0.082),
 so the tracking loop is not the source either. See
 [Arm 2](#arm-2--unblocked-and-run-2026-08-07).
+**Results:** [`RESULTS.md`](RESULTS.md)
 **Bench time (actual):** ~25 min of capture for both radios, plus audits, pilot and validation.
 **Queue entry:** [`docs/future_experiments.md` → E-CAL1](../../docs/future_experiments.md)
 
