@@ -1,0 +1,38 @@
+{
+  "capture_date": "2026-08-07",
+  "compared_against": "reports/e_cal1_rfdc_20260807_v1 (arm 1, same harness, same session)",
+  "datasets": {
+    "artifacts/dual_rx_gain_frequency/e_cal1_arm2_20260807/1040007c4a94000211000b009186843ef2/calibration.v7.zarr": {
+      "rf_dc_offset_tracking_en_observed": "{\"voltage0\": \"0\", \"voltage1\": \"0\"}",
+      "rf_dc_offset_tracking_en_requested": "0",
+      "scalar_input_sha256": "fa1602a186573975c838dd05c6c0afe92b315fb155629d503c560d4570256af6"
+    },
+    "artifacts/dual_rx_gain_frequency/e_cal1_arm2_20260807/104000bac4950008230026001b440a003a/calibration.v7.zarr": {
+      "rf_dc_offset_tracking_en_observed": "{\"voltage0\": \"0\", \"voltage1\": \"0\"}",
+      "rf_dc_offset_tracking_en_requested": "0",
+      "scalar_input_sha256": "527a377d15c1bce3c38b8db4d859caac7b5e939683b46dd6efe9d8c7e3148269"
+    }
+  },
+  "experiment": "E-CAL1 arm 2 (RF-DC tracking loop A/B)",
+  "inputs_sha256": {
+    "artifacts/dual_rx_gain_frequency/e_cal1_arm2_20260807/1040007c4a94000211000b009186843ef2/validation.json": "4934e8cb0e9e2ffd9d040f39903454e2e7c5767d3804541306fcc3665ca70969",
+    "artifacts/dual_rx_gain_frequency/e_cal1_arm2_20260807/104000bac4950008230026001b440a003a/validation.json": "9b5492ed825942b8d31d11efe789bde3ed7aa24822cf17ab6d9605d9af0e73f9",
+    "artifacts/dual_rx_gain_frequency/e_cal1_arm2_20260807/gain_table_audit.json": "62402e5b83ae12f5f5f9062f6ab95c69a41d0d6841617bd5728b54d99c320689",
+    "artifacts/dual_rx_gain_frequency/e_cal1_arm2_20260807/gain_table_audit_final.json": "e9e1953d95692827ccad595b79ed31c392a48ff115a01d81b587c008a3572ef6",
+    "artifacts/dual_rx_gain_frequency/e_cal1_arm2_20260807/run_result.json": "96e05bf6252051dc888f09b5a3f19a3952c4770a6c693e6361a2d46c60fe95ef",
+    "spf/calibrations/dual_rx_gain_frequency/configs/e_cal1_arm2_rfdc_tracking.yaml": "457f36e06ad8c15d1eb06070f97cc4e605f423dccf28f6378162c1b33334bf07",
+    "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/analyze.py": "16cc06bf3e0253f5a78e7c62720c1d3442574adfc530b7a6310618f1a135da9a",
+    "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/results.json": "2c31ccf12d6befe40b949f6e383b4d3ea060ddb624d57806f79ad8d05709e23d"
+  },
+  "outputs_sha256": {
+    "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_arm2_rfdc_tracking_20260807_v1/REPORT.md": "4f56ec76ac095f6353ff0f5de8dca1f3c5a73e71f8de74286dc7941480c19459",
+    "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_arm2_rfdc_tracking_20260807_v1/results.json": "1f1911670c96a9567a772f06f7760a77f51d9f6538abb38de18b601bc1c067c3"
+  },
+  "radios": {
+    "R17": "104000bac4950008230026001b440a003a",
+    "R18": "1040007c4a94000211000b009186843ef2"
+  },
+  "session": "e_cal1_arm2_20260807",
+  "spf_git_dirty_at_capture": false,
+  "spf_git_sha": "70d84b899f2e1bc15ed67838f200de24a459c13d"
+}

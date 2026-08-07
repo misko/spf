@@ -182,8 +182,14 @@ like-for-like 1 dB steps make the point without modelling: the step that *raises
 **Finding 2 no longer needs the "including any RF-DC correction it triggers" hedge.** Report,
 code and hashes in `reports/e_cal1_rfdc_20260807_v1/`. This supersedes the older ≲0.7° bound
 from the excluded `F_neg` stage (n = 4 rising edges), which it is consistent with.
-Caveat: arm 2 (`rf_dc_offset_tracking_en = 0`) is unrun, so *which part* of the RF-DC
-machinery is quiet is unidentified; row 11 (−3 dB) was not resampled. The code blocker on
+**Arm 2 ran the same day and is also null:** with the continuous RF-DC tracking loop
+pinned off (verified by chip readback), the excess is **+0.019° ± 0.082**, CI
+[−0.258°, +0.250°] — arm 1 minus arm 2 is +0.050° ± 0.113 (t = 0.44), no detectable
+difference. So the tracking loop specifically is not the source either
+(`reports/e_cal1_arm2_rfdc_tracking_20260807_v1/`; note R18 misses the strict gate on one
+marginal cell, 5.15° against a 5° circstd threshold). Caveat: row 11 (−3 dB) was not
+resampled, and the one-shot `calib_mode = rf_dc_offs` calibration fired in both arms, so
+it is common-mode and cancels rather than being tested. The code blocker on
 arm 2 was removed on 2026-08-07 (config knob + verified write path + tests; the AD9361
 driver can accept that attribute write without applying it, so the write is read back and a
 mismatch aborts the capture). Arm 2 nonetheless partitions a quantity already measured as

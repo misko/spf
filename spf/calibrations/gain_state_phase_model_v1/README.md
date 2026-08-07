@@ -509,8 +509,8 @@ Stated plainly, because a "mechanistic" label can oversell:
   **§3.2 can be read as a plain RF-state result**; the earlier hedge ("including
   any RF-DC correction it triggers") is retired, as is the weaker ≲0.7° bound from
   the excluded `F_neg` stage. Report: `dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/`.
-  Still open: arm 2 (`rf_dc_offset_tracking_en = 0`) is unrun — unblocked in code
-  on 2026-08-07 — so *which part* of the RF-DC machinery is quiet is unidentified.
+  Arm 2 (`rf_dc_offset_tracking_en = 0`) also ran on 2026-08-07 and is likewise null
+  (+0.019° ± 0.082), so the continuous tracking loop is not the source either.
 - **Digital gain is excluded by measurement, not assumption.** Byte 2 bits 4:0
   are identically zero on all 231 rows — re-verified by this package's test
   suite — which is what licenses reading bit 5 as `RF_DC_CAL`.

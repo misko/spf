@@ -4,9 +4,9 @@
 (+0.069° ± 0.077 against the 2.664° mixer step). Result, deviations and the four
 runbook defects found in execution:
 [`reports/e_cal1_rfdc_20260807_v1/REPORT.md`](../../spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/REPORT.md).
-Arm 2 was **unblocked in code on 2026-08-07** and is ready but unrun — see
-[Arm 2](#arm-2--unblocked-2026-08-07-not-yet-run) for what changed and why it is
-low priority.
+Arm 2 was **unblocked in code and RUN on 2026-08-07** — also null (+0.019° ± 0.082),
+so the tracking loop is not the source either. See
+[Arm 2](#arm-2--unblocked-and-run-2026-08-07).
 **Bench time (actual):** ~25 min of capture for both radios, plus audits, pilot and validation.
 **Queue entry:** [`docs/future_experiments.md` → E-CAL1](../../docs/future_experiments.md)
 
@@ -357,7 +357,7 @@ state and different dates.
 | **Connector movement** | A re-mate can move the >4 GHz band by 12–34°, dwarfing the ~0.35° effect. | Single unchanged-harness session; no operations between audits. |
 | **Assuming the LPF is silent** | The 8→9 step also moves the LPF word. | The LPF-only floor is measured in the same dataset and subtracted, not assumed. |
 
-## Arm 2 — unblocked 2026-08-07, not yet run
+## Arm 2 — unblocked and run 2026-08-07
 
 **The code blocker is gone.** It was: `rf_dc_offset_tracking_en` was read-only
 (`dc_offset.py` only snapshotted it) and `rf_dc_calibration_policy` was
@@ -385,14 +385,21 @@ Adding the knob does **not** change any existing config's run signature — a
 config that leaves it unset is omitted from `as_json()`, verified byte-identical
 against unmodified HEAD, so every pre-existing dataset still resumes.
 
-**Before running arm 2, read this.** Arm 1 measured the *total* RF-DC
-contribution at +0.069° ± 0.077. Arm 2 partitions a quantity already
-indistinguishable from zero, so it can essentially only return "also zero", and
-it **cannot** discriminate between "the tracking loop is quiet" and "this harness
-cannot see RF-DC effects at all". Only a **positive control** — inject a known
-perturbation, confirm the pipeline recovers it at the expected magnitude — can
-close that. Sequence the positive control first; run arm 2 to close the
-mechanism for its own sake, not for the primary question.
+**RESULT (2026-08-07):** arm 2 ran on the unchanged harness immediately after arm 1
+and returned **+0.019° ± 0.082**, CI [−0.258°, +0.250°]. Arm 1 minus arm 2 is
++0.050° ± 0.113 (t = 0.44) — no detectable difference. The tracking loop is not
+the source either. The pin was verified by chip readback, recorded in V7 as
+requested `0` / observed `{voltage0: 0, voltage1: 0}` on both radios. R18 misses
+the strict gate on one marginal cell (5.15° against a 5° circstd threshold, the
+same low-SNR cell as arm 1). Report:
+[`e_cal1_arm2_rfdc_tracking_20260807_v1`](../../spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_arm2_rfdc_tracking_20260807_v1/REPORT.md).
+
+This was the predicted outcome and was pre-registered as such: arm 2 partitions a
+quantity already indistinguishable from zero, so it could essentially only return
+"also zero". **It still cannot discriminate** between "the tracking loop is quiet"
+and "this harness cannot see RF-DC effects at all" — only a **positive control**
+(inject a known perturbation, confirm the pipeline recovers it) can close that,
+and it remains unrun.
 
 Also still unsampled: the row-11 (−3 dB) edge, which still rests on the ≲0.7°
 `F_neg` bound.

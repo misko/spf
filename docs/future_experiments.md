@@ -4,7 +4,7 @@ Queued, concrete experiments with motivation, design, and decision rules. Read t
 with `docs/learnings.md` (the findings that motivate these). When an experiment runs,
 record the outcome in `learnings.md` and mark it here.
 
-## E-CAL1 — resolve the RF-DC vs RF-state confound — ✅ **ARM 1 COMPLETE (2026-08-07)**
+## E-CAL1 — resolve the RF-DC vs RF-state confound — ✅ **BOTH ARMS COMPLETE (2026-08-07)**
 
 **Outcome: H₀ — the RF-DC machinery injects no resolvable phase.** The row-23 (+9 dB)
 edge was sampled at 2 radios × 3 high-band LOs × 25 epochs (1050 frames, all gates
@@ -17,8 +17,10 @@ everywhere. Report, code and hashes:
 `spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/`;
 learning recorded in `docs/learnings.md` L10.
 
-**Arm 2 — unblocked 2026-08-07, ready but unrun, LOW priority.** The code blocker is
-fixed: `rf_dc_offset_tracking_en` is now a tri-state config knob with a **verified**
+**Arm 2 — RUN 2026-08-07. Also null: +0.019° ± 0.082**, CI [−0.258°, +0.250°]; arm 1
+minus arm 2 is +0.050° ± 0.113 (t = 0.44), so the continuous tracking loop is not the
+source either. Report: `reports/e_cal1_arm2_rfdc_tracking_20260807_v1/` (R18 misses the
+strict gate on one marginal cell). The code blocker was fixed first: `rf_dc_offset_tracking_en` is now a tri-state config knob with a **verified**
 write path (the driver can accept that attribute write without applying it, so it is
 read back and a mismatch aborts the capture), `never` joins the calibration-policy
 enum, both states are recorded in V7, and the config is
@@ -26,12 +28,12 @@ enum, both states are recorded in V7, and the config is
 12 unit tests plus 4 hardware tests (`--radio-hardware --radio-rf-dc-tracking`), the
 latter run green against both radios. Existing run signatures are unchanged.
 
-It is low priority because it partitions a quantity arm 1 already measured as
-indistinguishable from zero: it can essentially only return "also zero", and it cannot
-separate "the tracking loop is quiet" from "this harness cannot see RF-DC effects at
-all". **Run a positive control first** — inject a known perturbation and confirm the
-pipeline recovers it at the expected magnitude. That is the experiment that would turn
-arm 1's null from "we saw nothing" into "we saw nothing, and we would have seen it".
+As predicted, it returned "also zero" — it partitioned a quantity arm 1 had already
+measured as indistinguishable from zero. **It still cannot separate "the tracking loop is
+quiet" from "this harness cannot see RF-DC effects at all".** The **positive control**
+remains the open, and now highest-value, follow-up: inject a known perturbation and
+confirm the pipeline recovers it at the expected magnitude. That is what would turn both
+arms' nulls from "we saw nothing" into "we saw nothing, and we would have seen it".
 
 Also unrun: the row-11 (−3 dB) edge, still resting on the ≲0.7° `F_neg` bound.
 
