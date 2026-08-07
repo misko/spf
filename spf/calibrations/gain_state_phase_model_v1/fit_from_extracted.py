@@ -15,14 +15,30 @@ number is 17.92 against a random-10 median of 2.35 -- roughly 1 comb in 2000 is
 worse. Random ten-point combs reach 4.30 deg.
 
 ``check_comb_conditioning()`` below computes that number, and ``fit()`` warns
-when it is bad. Two practical rules follow:
+when it is bad. **E-GSP7 then tested all of this prospectively on a fresh 111-LO
+capture (2026-08-07), and the rules that came out are sharper and partly
+counter-intuitive:**
 
-* With the delays **free**, ~16 LOs are needed before a refit reliably beats
-  anchor-only. With them **frozen** at fleet values, ~8 suffice, and a
-  well-conditioned ten-point comb recovers ~73% of the dense-fit improvement.
-  Prefer freezing ``tau_seconds`` from a committed set over refitting them.
-* Those figures come from subsampling one dense capture. No bench-time
-  reduction is licensed until a sparse comb is captured prospectively.
+1. **Do not refit sparsely by default. Use the committed coefficients.** Scored
+   on the same held-out LOs, the committed ``l26_pooled_v1`` with **no refit at
+   all** gives **3.818°** against a well-chosen sparse refit's **4.950°**. The
+   sparse-refit logic is also self-undermining: if the fleet delays are trusted
+   enough to freeze, the committed coefficients are trusted enough to use. A
+   sparse refit earns its keep only where a genuinely *local* fit is required.
+
+2. **Never freeze the delays without checking the conditioning first.** Freezing
+   is not a safe default — it is an amplifier. On a well-conditioned ten-point
+   comb it helps enormously (8.35 → 4.95). On the aliased E-CAL3 comb it is
+   *catastrophic*: 9.37 → **23.50°**, which is 3.2x WORSE than applying no model
+   at all. With the delays free the fit can escape by moving tau somewhere less
+   collinear; freezing removes that escape route and locks in the aliasing.
+
+3. **A sparse comb calibrates only as a conjunction** — chosen by conditioning
+   **and** fitted with frozen delays. Drop either and it is worse than nothing.
+   With delays free, ~16 LOs are needed before a refit reliably beats
+   anchor-only; with them frozen on a *good* comb, ~8 suffice and ten points
+   recover ~70% of the dense-fit improvement (predicted 73.4% retrospectively,
+   measured 70.4% prospectively).
 
     python -m spf.calibrations.gain_state_phase_model_v1.fit_from_extracted \
         --extracted /path/to/extracted \
@@ -185,12 +201,18 @@ def check_comb_conditioning(
                     }
                 )
     any_aliased = any(a["aliased"] for a in aliases)
+    # NB the BAD branch must NOT advise freezing. E-GSP7 measured freezing on an
+    # aliased comb at 23.50 deg -- 3.2x worse than applying no model at all --
+    # because it removes the fit's escape route. Freezing is only safe once the
+    # conditioning passes.
     if cond > 10 or any_aliased:
-        verdict = "BAD - refit will be unidentifiable; freeze the delays"
+        verdict = ("BAD - do NOT refit from this comb, and do NOT freeze the "
+                   "delays on it; use committed coefficients instead")
     elif cond > 5:
-        verdict = "MARGINAL - prefer frozen delays"
+        verdict = ("MARGINAL - prefer the committed coefficients; if you must "
+                   "refit, freeze the delays and validate against held-out LOs")
     else:
-        verdict = "ok"
+        verdict = "ok - safe to freeze the delays and refit if a local fit is needed"
     return {
         "n_los": int(len(los)),
         "condition_number": cond,
@@ -275,8 +297,12 @@ def main() -> None:
                   f"components are not separable here.")
     if cond["condition_number"] > 10:
         print("  This comb is worse-conditioned than ~99.9% of random combs of "
-              "the same size.\n  Refitting the delays from it will not work -- "
-              "freeze them from a committed set.")
+              "the same size.\n"
+              "  Refitting from it will not work, and FREEZING THE DELAYS ON IT "
+              "IS WORSE STILL --\n"
+              "  E-GSP7 measured 23.50 deg that way, 3.2x worse than applying no "
+              "model at all.\n"
+              "  Use the committed coefficients instead.")
 
     if args.holdout != "none":
         keyed = {"frequency": f["lo_hz"], "epoch": f["epoch"],

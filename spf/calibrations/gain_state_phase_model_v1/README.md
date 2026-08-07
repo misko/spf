@@ -375,8 +375,9 @@ step by exactly which audited word it changes:
 
   There is even one perfectly clean case, with no other word co-moving:
   **high band, 40→41 dB moves LNA 2→3 with MIXER, TIA and LPF all frozen**,
-  worth 16.775° over 32 clusters. Only `RF_DC_CAL` co-moves, and that is
-  independently bounded at ≲0.7°.
+  worth 16.775° over 32 clusters. Only `RF_DC_CAL` co-moves, and that is now
+  **directly measured at +0.069° ± 0.077** (E-CAL1, 2026-08-07) — not merely
+  bounded — so the step is the LNA word.
 
   So the LNA's role no longer rests on four 9 dB steps and an inference from the
   ripple. These are a different experiment on different dates and remain **not
@@ -506,6 +507,24 @@ Stated plainly, because a "mechanistic" label can oversell:
   8 → 9 → 10 dB and only the LPF word and `RF_DC_CAL` move — and measures the
   RF-DC contribution at **+0.069° ± 0.077** (cluster-robust 95% CI
   [−0.168°, +0.392°]; 2 radios × 3 LOs × 25 epochs) against the 2.664° mixer step.
+  **Arm 2 (2026-08-07) is also null** — with the continuous RF-DC tracking loop
+  disabled and the state verified by chip readback, +0.019° ± 0.082, and
+  arm 1 − arm 2 is +0.050° ± 0.113 (t = 0.44). The tracking loop is not the
+  source either.
+
+  **And the null is informative, not merely empty.** E-CAL5 ran a positive
+  control on the same harness the same day: a known 1 dB MIXER step measures
+  **7.434° ± 0.097** against a **0.440°/dB** floor from the same capture —
+  **16.9×**, resolved in all six (radio, LO) cells including the weak
+  R18 @ 5100 MHz one. An H₁-sized 2.664° effect would therefore have shown at
+  **34.5σ** (arm 1) / **32.4σ** (arm 2). The RF-DC machinery is *quiet*, not
+  invisible to this chain.
+
+  The cleanest evidence needs no modelling at all: 8→9 and 9→10 are both 1 dB
+  steps with the LMT words frozen, so identical noise — and the step that
+  **raises** `RF_DC_CAL` (median |ΔH| 0.320°) is *smaller* than the one that
+  **lowers** it (0.446°). A flag injecting phase cannot produce that ordering.
+
   **§3.2 can be read as a plain RF-state result**; the earlier hedge ("including
   any RF-DC correction it triggers") is retired, as is the weaker ≲0.7° bound from
   the excluded `F_neg` stage. Report: `dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/`.
@@ -671,21 +690,45 @@ individually unidentifiable. That comb's ripple-basis condition number is
 **17.92** against a random-ten-point median of **2.35**; roughly 1 comb in 2000
 is worse. *Random* ten-point combs reach **4.30°**.
 
-**Two rules follow, and `fit_from_extracted.py` now enforces the first:**
+**E-GSP7 then captured a sparse comb prospectively (2026-08-07, 111 LOs,
+3,330 frames, combs pre-registered before the first frame) and confirmed all of
+it — with one important correction.**
 
-1. **Check the conditioning before capturing a sparse comb.**
-   `check_comb_conditioning()` returns the condition number and flags aliasing;
-   the fitting CLI warns automatically.
-2. **Freeze the delays rather than refitting them.** With delays free, ~16 LOs
-   are needed before a refit reliably beats anchor-only. With them frozen at
-   fleet values, ~8 suffice, and a well-conditioned ten-point comb recovers
-   **73.4%** of the dense-fit-achievable improvement (4.299° against an 8.355°
-   baseline, winning 24/24 subsets).
+| Arm | cond | free delays | frozen delays | baseline |
+|---|---:|---:|---:|---:|
+| chosen-10 | 1.09 | 8.352 ✗ | **4.950 ✓** | 7.476 |
+| ecal3-10 *(control)* | 17.92 | 9.369 ✗ | **23.503 ✗✗** | 7.280 |
+| chosen-16 | 1.05 | **5.573 ✓** | 5.285 ✓ | 7.717 |
+| committed coefficients, **no refit** | — | **3.863** | — | 7.451 |
+
+Four predictions landed: E-CAL3's failure ratio (1.281 predicted → **1.287**
+measured), the frozen-delay recovery (73.4% → **70.4%**), `N* = 16`, and the
+~1.9× transfer ratio (**1.93×**). Every arm ran at 100% state coverage, so
+nothing here is a coverage artifact — the only difference between the two
+ten-point combs is *where the LOs sit*.
+
+**Three rules follow, and `fit_from_extracted.py` enforces them:**
+
+1. **Do not refit sparsely by default — use the committed coefficients.** On
+   chosen-10's own held-out set, the committed `l26_pooled_v1` with no refit
+   gives **3.818°** against chosen-10-frozen's **4.950°**. The sparse-refit
+   argument is self-undermining: if the fleet delays are trusted enough to
+   freeze, the committed coefficients are trusted enough to use.
+2. **Check the conditioning before capturing a sparse comb.**
+   `check_comb_conditioning()` returns the condition number and flags aliasing.
+3. **Never freeze the delays without checking the conditioning first.** This is
+   the correction, and it inverts the naive advice. Freezing is not a safe
+   default — it is an *amplifier*. On the well-conditioned comb it helps
+   (8.35 → 4.95); on the aliased one it is **catastrophic** (9.37 → **23.50°**,
+   3.2× worse than applying no model at all). With the delays free the fit can
+   escape by moving `τ` somewhere less collinear; freezing removes that escape
+   route and locks the aliasing in.
 
 So the architecture the source report recommended — learn the nonlinear basis
-once fleet-wide, fit only the linear terms per unit — is validated. But all of
-that is retrospective subsampling of one dense capture: **no bench-time
-reduction is licensed until a sparse comb is captured prospectively.**
+once fleet-wide, fit only the linear terms per unit — is validated **as a
+conjunction**: a sparse comb calibrates only if it is both chosen by
+conditioning *and* fitted with frozen delays. Drop either and it is worse than
+doing nothing.
 
 ### 4.4 Unseen radios — what is radio-specific? Nothing but the anchor
 
