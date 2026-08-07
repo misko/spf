@@ -472,3 +472,48 @@ def test_the_write_path_still_refuses_an_armed_vehicle_one_layer_down():
     # And the boot path must turn that refusal into a stop, not a shrug.
     launcher = (ROVER_ROOT / "drone_run.sh").read_text()
     assert 'die "Vehicle parameter or compass policy verification failed."' in launcher
+
+
+def test_a_per_rover_parameter_override_file_is_applied_last():
+    """S-9's blocker: rover3_*.params are the FLEET files, applied to every
+    rover, so nothing could be true of one rover only.
+
+    Appended LAST because a repeated key must win, not lose.
+    """
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    sync = launcher.split("sync_vehicle_configuration() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert 'rover${rover_id}_overrides.params' in sync
+    assert sync.index("rover3_rc_servo_parameters.params") < sync.index(
+        'param_sources+=("$overrides")'
+    ), "the override must be appended after the fleet files, not before"
+    assert '[[ -f "$overrides" ]]' in sync, "absent overrides must not break the boot"
+
+
+def test_the_override_merge_relies_on_last_wins_and_says_so():
+    """With pymavlink's own MAVParmDict this would NOT be last-wins, and a
+    first-wins merge leaves verification permanently unable to converge -- the
+    boot would die every time. The project's class is the one that makes
+    concatenation safe."""
+    import tempfile
+    from pathlib import Path as _Path
+
+    from spf.mavlink.mavparm import MAVParmDict
+
+    live = MAVParmDict()
+    live["FOO"] = 2.0
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _Path(tmp) / "merged.params"
+        path.write_text("FOO 1.0\nFOO 2.0\n")  # base, then override
+        assert live.diff(str(path)) == 0, (
+            "the LAST occurrence must win, or an override can never take effect"
+        )
+
+        path.write_text("FOO 2.0\nFOO 1.0\n")  # override, then base
+        assert live.diff(str(path)) == 1, "first-wins would defeat the mechanism"
+
+
+def test_no_override_file_is_shipped_yet():
+    """The mechanism, not a guess. Which compass slots rover 4 should declare is
+    a statement about that vehicle's hardware."""
+    assert not list(ROVER_ROOT.glob("rover*_overrides.params"))

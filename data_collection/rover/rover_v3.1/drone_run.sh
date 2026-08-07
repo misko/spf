@@ -506,10 +506,32 @@ sync_vehicle_configuration() {
         return 0
     fi
     vehicle_arm_state_gate
+    # Despite their names, rover3_*.params are the FLEET files -- every rover
+    # gets them, with __ROVER_ID__ substituted. So until now there was no way to
+    # express anything true of one rover only, which is what blocked S-9
+    # (rover 4's phantom COMPASS_PRIO2/3 slots).
+    #
+    # An optional rover<N>_overrides.params is appended LAST. Concatenation is
+    # enough because spf/mavlink/mavparm.py's MAVParmDict.load() builds a dict,
+    # so a repeated key is last-wins and diff() compares against that merged
+    # view -- verified, because with pymavlink's own MAVParmDict it would not
+    # be, and a first-wins merge would leave verification permanently unable to
+    # converge and die on every boot.
+    #
+    # This ships the MECHANISM only. No rover has an overrides file yet: which
+    # compass slots rover 4 should actually declare is a statement about that
+    # vehicle's hardware, not something to infer from here.
+    local param_sources=(
+        "${SCRIPT_DIR}/rover3_base_parameters.params"
+        "${SCRIPT_DIR}/rover3_rc_servo_parameters.params"
+    )
+    local overrides="${SCRIPT_DIR}/rover${rover_id}_overrides.params"
+    if [[ -f "$overrides" ]]; then
+        param_sources+=("$overrides")
+        printf 'Applying per-rover parameter overrides: %s\n' "$overrides"
+    fi
     sed "s/__ROVER_ID__/${rover_id}/g" \
-        < <(cat \
-            "${SCRIPT_DIR}/rover3_base_parameters.params" \
-            "${SCRIPT_DIR}/rover3_rc_servo_parameters.params") \
+        < <(cat "${param_sources[@]}") \
         >"$PARAMS_FILE"
     # A normal boot uses one complete download for managed-parameter verification,
     # compass inventory logging, and policy. Changed parameters get one additional
