@@ -665,17 +665,27 @@ ensure_clock_verified_before_capture() {
     return 0
 }
 
-# The armed check that the SPF_BOOT_VALIDATE_ONLY removal took with it. Nothing
-# else asserted armed==false before parameter writes, and some parameters take
-# effect immediately -- writing them to a rover whose RC arm switch is on is not
-# something anyone should discover from the resulting motion.
+# An armed-state check before parameter sync.
 #
-# It WARNS rather than dying, deliberately. Dying would add a new way to strand
-# a rover in the field on an operator error that the boot path has tolerated
-# silently for its whole life, and that trade should be made on evidence: the
-# journal is correctly stamped now (the clock sync moved above the compass
-# gate), so how often this actually fires is about to become knowable. Flip
-# SPF_REQUIRE_DISARMED_FOR_PARAM_SYNC=1 once it is.
+# NOT, as the removed read_only_vehicle_gate's comment claimed, the last line of
+# defence: prepare_vehicle_parameters() has refused writes to an armed vehicle
+# since 5ec2c0e (2026-08-01) and survived the SPF_BOOT_VALIDATE_ONLY removal
+# untouched. That refusal raises, and sync_vehicle_configuration turns it into a
+# die. So an armed rover whose parameters DIFFER already stops the boot today.
+#
+# What was actually unreported is the narrower case: an armed rover whose
+# parameters already MATCH. No write happens, so nothing is unsafe and nothing
+# said anything -- the rover simply drove off with its arm switch already on and
+# no record of it. This warns about that, and gives the armed-and-differing case
+# a diagnosis by name instead of a generic verification failure.
+#
+# It WARNS rather than dying, deliberately. The dangerous case -- an armed
+# vehicle about to be WRITTEN to -- is already fatal one layer down, so dying
+# here would only add a new way to strand a rover for the harmless case, on an
+# operator error the boot path has tolerated silently for its whole life. That
+# trade should be made on evidence: the journal is correctly stamped now (the
+# clock sync moved above the compass gate), so how often this fires is about to
+# become knowable. Flip SPF_REQUIRE_DISARMED_FOR_PARAM_SYNC=1 once it is.
 #
 # Failing to READ the status is not treated as armed. A missing heartbeat here
 # is a different fault with its own handling downstream, and inferring "armed"

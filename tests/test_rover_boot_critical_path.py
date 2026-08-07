@@ -412,12 +412,18 @@ def test_the_clock_is_synced_before_the_compass_gate_can_reboot():
 
 
 def test_the_armed_check_is_wired_back_into_the_boot_path():
-    """S-7. Removing SPF_BOOT_VALIDATE_ONLY took the only armed==false assertion
-    with it, and some parameters take effect immediately -- writing them to a
-    rover whose RC arm switch is on should not be discovered from the motion."""
+    """S-7, as corrected.
+
+    The removed function's comment claimed it was the last armed==false
+    assertion. It was not: prepare_vehicle_parameters() has refused writes to an
+    armed vehicle since 5ec2c0e and survived the flag removal, so an armed rover
+    whose parameters DIFFER already stops the boot. The real gap is the armed
+    rover whose parameters already MATCH -- no write, nothing unsafe, and
+    nothing said anything.
+    """
     launcher = (ROVER_ROOT / "drone_run.sh").read_text()
 
-    assert "read_only_vehicle_gate" not in launcher, "dead function should be gone"
+    assert "read_only_vehicle_gate() {" not in launcher, "dead function should be gone"
     sync = launcher.split("sync_vehicle_configuration() {", 1)[1].split("\n}\n", 1)[0]
     assert "vehicle_arm_state_gate" in sync
     assert sync.index("vehicle_arm_state_gate") < sync.index("$PARAMS_FILE"), (
@@ -449,3 +455,20 @@ def test_a_status_read_failure_is_not_treated_as_armed():
     unreadable = gate.split("--status-json", 1)[1].split("if [[", 1)[0]
     assert "return 0" in unreadable, "an unreadable status must not block the boot"
     assert "arm state unknown" in unreadable
+
+
+def test_the_write_path_still_refuses_an_armed_vehicle_one_layer_down():
+    """The reason the boot-path gate can warn instead of dying.
+
+    If this ever stops being true, warn-by-default becomes the wrong default.
+    """
+    source = (REPO_ROOT / "spf/mavlink/mavlink_controller.py").read_text()
+    prepare = source.split("def prepare_vehicle_parameters(", 1)[1].split(
+        "\n\ndef ", 1
+    )[0]
+
+    assert "if drone.armed:" in prepare
+    assert "refusing managed parameter writes" in prepare
+    # And the boot path must turn that refusal into a stop, not a shrug.
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    assert 'die "Vehicle parameter or compass policy verification failed."' in launcher
