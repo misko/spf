@@ -77,6 +77,7 @@ It is read-only and answers the three questions that have actually cost us time 
 | `rover doctor` | full health check (start here) |
 | `rover ardupilot prearm` | pre-arm health and every failing check |
 | `rover ardupilot compass` | which compass slots are used for yaw |
+| `rover ardupilot rc` | live RC channel values — what the FC hears from the radio |
 | `rover ardupilot motor-test --wheels-raised --arm` | throttle ladder — see §3.7 |
 | `rover radio status` | attached Plutos + ready-manifest state |
 | `sudo rover radio firmware` | running firmware per radio, by USB serial |

@@ -126,7 +126,7 @@ usage: rover <command> [options]
 
 commands:
   doctor      one-screen health check: git, services, journal, hardware, disk
-  ardupilot   flight controller: prearm, compass, motor-test, flash  (alias: ap)
+  ardupilot   flight controller: prearm, compass, rc, motor-test  (alias: ap)
   radio       Plutos: status, firmware, preflight, capture
   sitl        simulator on the base station: status, up, down
   stage       copy captures off a rover WITH their .yaml/.log sidecars
