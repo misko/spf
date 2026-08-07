@@ -243,6 +243,11 @@ statement about *held-out prediction error*, not about parameter equality — se
 
 ### 3.3 What actually moves the phase
 
+> **2026-08-07:** the "including any RF-DC correction it triggers" caveat that §6.2
+> attaches to this section has since been discharged by E-CAL1 arm 1
+> (`reports/e_cal1_rfdc_20260807_v1/`): RF-DC contributes +0.069° ± 0.077. The
+> attributions below are RF-state attributions, full stop. Numbers unchanged.
+
 Stages F (12 gains, 6 LOs) and E (14 gains, 2 LOs) give adjacent 1 dB steps.
 Splitting them by exactly which audited word the step changes:
 
@@ -603,6 +608,13 @@ either campaign** (only 10 dB does). §7's verdict stays "confounded", and the
 LNA/mixer/TIA attribution in §3.3 should be read as "the RF-state transition,
 including any RF-DC correction it triggers".
 
+> **Superseded 2026-08-07 by E-CAL1 arm 1** — `reports/e_cal1_rfdc_20260807_v1/`.
+> The row-23 (+9 dB) edge this section calls unsampled was sampled: the RF-DC
+> contribution is **+0.069° ± 0.077** (95% CI [−0.168°, +0.392°]) against the
+> 2.664° mixer step. The confound is resolved in the direction this section
+> predicted, and the hedge above no longer applies. The result and the reasoning
+> in this report are unchanged; only the open question is now closed.
+
 ### 6.3 Recommended follow-up captures
 
 Each is cheap relative to a full survey and each resolves a named ambiguity.
@@ -644,7 +656,7 @@ Full designs and decision rules are in `docs/future_experiments.md` (E-CAL1..E-C
 | Can it predict an unmeasured requested gain? | **Partly — 90% coverage vs 48%** | §5.3, dropping the LPF categorical |
 | Does a stored model survive a session boundary? | **Partly — no model reaches its within-session error** | §5.4: even the 1356-parameter LUT degrades 0.62° → 2.74° A→G |
 | Does it extrapolate across a gain-table band? | **No** | §6.1: ≤8% better than baseline, worse than baseline in the low band |
-| Is the RF-state attribution clean? | **No — still confounded with RF-DC recalibration** | §6.2: bounded at ≲0.7° by the excluded `F_neg` stage (n=4–24); the high-SNR row-23 arm was never sampled |
+| Is the RF-state attribution clean? | **No — still confounded with RF-DC recalibration** *(closed 2026-08-07: **yes**, see note)* | §6.2: bounded at ≲0.7° by the excluded `F_neg` stage (n=4–24); the high-SNR row-23 arm was never sampled — since sampled by E-CAL1 arm 1, RF-DC = +0.069° ± 0.077 (`reports/e_cal1_rfdc_20260807_v1/`) |
 | Should this replace the per-frequency LUT? | **No** | §8: the LUT remains the accuracy reference (0.62° vs 2.08° LOEO) where dense per-frequency calibration exists |
 
 ---
@@ -917,7 +929,9 @@ rather than overwrite them.
 - The `RF_DC_CAL` confound of §6.2 is bounded at ≲0.7° by existing `F_neg` data
   at 5766/5866 MHz but is not resolved to the 0.35° level; the LNA/mixer/TIA
   attribution should be read as "the RF-state transition, including any RF-DC
-  correction it triggers".
+  correction it triggers". *(Resolved 2026-08-07 by E-CAL1 arm 1 — RF-DC is
+  +0.069° ± 0.077, so this limitation no longer stands; see
+  `reports/e_cal1_rfdc_20260807_v1/`.)*
 - `params` counts non-zero design columns, not estimable rank; the signed-indicator
   design is rank-deficient by construction, and L26's rank on stage A is 14.
   Predictions are invariant to this, parameter *counts* are an upper bound.

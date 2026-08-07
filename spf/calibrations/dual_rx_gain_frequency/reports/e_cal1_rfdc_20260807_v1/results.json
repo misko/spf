@@ -1,0 +1,599 @@
+{
+  "cluster_ci": {
+    "lpf_only_8_to_10": {
+      "ci95_high_deg": 0.9937343503947513,
+      "ci95_low_deg": 0.21002704480101528,
+      "n_clusters": 6,
+      "point_mean_abs_deg": 0.5189843815829916
+    },
+    "rfdc_falling_9_to_10": {
+      "ci95_high_deg": 1.7840446550287374,
+      "ci95_low_deg": 0.3875293941916022,
+      "n_clusters": 6,
+      "point_mean_abs_deg": 0.9726208754654113
+    },
+    "rfdc_rising_8_to_9": {
+      "ci95_high_deg": 1.5298109551466557,
+      "ci95_low_deg": 0.28861778675151856,
+      "n_clusters": 6,
+      "point_mean_abs_deg": 0.7991821304599042
+    }
+  },
+  "decision": {
+    "decision_estimate_deg": 0.06871983197020168,
+    "decision_sem_deg": 0.07731698580171867,
+    "gate_deg": 0.35,
+    "mixer_reference_deg": 2.664,
+    "raw_step_max_cell_sem_deg": 0.6704032977274962,
+    "sem_basis": "second-difference estimator, cells with >=20 valid epochs",
+    "verdict": "rf_dc_contributes_no_resolvable_phase"
+  },
+  "experiment": "E-CAL1 arm 1 (RF-DC vs RF-state discriminator)",
+  "lpf_only_floor_deg": {
+    "magnitude_of_mean_deg": 0.19653696260101464,
+    "mean_abs_deg": 0.5189843815829916,
+    "median_abs_deg": 0.2287690383385052,
+    "n": 144,
+    "sem_of_abs_deg": 0.06264575890508865,
+    "signed_mean_deg": 0.19653696260101464,
+    "signed_sem_deg": 0.07441709326991398,
+    "std_deg": 0.8930051192389679
+  },
+  "mann_whitney_rfdc_vs_lpf": {
+    "n_a": 142,
+    "n_b": 144,
+    "p": 0.00999289341643527,
+    "u": 12026.0
+  },
+  "per_cluster_sem": {
+    "lpf_only_8_to_10": {
+      "max_sem_deg": 0.45471020432301,
+      "median_sem_deg": 0.0885838597897581,
+      "per_cluster_sem_deg": [
+        0.05295819712757797,
+        0.45471020432301,
+        0.1704310108301224,
+        0.031452410141645334,
+        0.030321953244746465,
+        0.12420952245193821
+      ]
+    },
+    "rfdc_falling_9_to_10": {
+      "max_sem_deg": 0.8715360381905302,
+      "median_sem_deg": 0.1730348282135046,
+      "per_cluster_sem_deg": [
+        0.09246342725313811,
+        0.8715360381905302,
+        0.375497841791019,
+        0.04383585105154342,
+        0.05862295208413613,
+        0.2536062291738711
+      ]
+    },
+    "rfdc_rising_8_to_9": {
+      "max_sem_deg": 0.6704032977274962,
+      "median_sem_deg": 0.1015322745908526,
+      "per_cluster_sem_deg": [
+        0.053762176568900436,
+        0.6704032977274962,
+        0.33524105756306943,
+        0.05209287122913191,
+        0.06646123129287784,
+        0.13660331788882735
+      ]
+    }
+  },
+  "per_radio": {
+    "1040007c4a94000211000b009186843ef2": {
+      "n_epoch_curves": 74,
+      "per_lo": {
+        "4001000000": {
+          "lpf_only_8_to_10": {
+            "magnitude_of_mean_deg": 0.027724430831025475,
+            "mean_abs_deg": 0.17080509484408563,
+            "median_abs_deg": 0.09463661945754442,
+            "n": 25,
+            "sem_of_abs_deg": 0.04026162310040056,
+            "signed_mean_deg": -0.027724430831025475,
+            "signed_sem_deg": 0.05295819712757797,
+            "std_deg": 0.26479098563788983
+          },
+          "rfdc_falling_9_to_10": {
+            "magnitude_of_mean_deg": 0.04233598577813577,
+            "mean_abs_deg": 0.2802754673835427,
+            "median_abs_deg": 0.1254867808107605,
+            "n": 25,
+            "sem_of_abs_deg": 0.07315099884834561,
+            "signed_mean_deg": -0.04233598577813577,
+            "signed_sem_deg": 0.09246342725313811,
+            "std_deg": 0.46231713626569054
+          },
+          "rfdc_rising_8_to_9": {
+            "magnitude_of_mean_deg": 0.01311287588391517,
+            "mean_abs_deg": 0.18888796438610725,
+            "median_abs_deg": 0.10885999583420052,
+            "n": 25,
+            "sem_of_abs_deg": 0.03756228357133141,
+            "signed_mean_deg": -0.01311287588391517,
+            "signed_sem_deg": 0.053762176568900436,
+            "std_deg": 0.26881088284450216
+          }
+        },
+        "5100000000": {
+          "lpf_only_8_to_10": {
+            "magnitude_of_mean_deg": 0.9141333111141252,
+            "mean_abs_deg": 1.6861129391669012,
+            "median_abs_deg": 1.3574942747747663,
+            "n": 19,
+            "sem_of_abs_deg": 0.3086140636729304,
+            "signed_mean_deg": 0.9141333111141252,
+            "signed_sem_deg": 0.45471020432301,
+            "std_deg": 1.9820358292407323
+          },
+          "rfdc_falling_9_to_10": {
+            "magnitude_of_mean_deg": 0.6774148151486341,
+            "mean_abs_deg": 2.929912543630473,
+            "median_abs_deg": 2.897464876250927,
+            "n": 17,
+            "sem_of_abs_deg": 0.5017285354338286,
+            "signed_mean_deg": 0.6774148151486341,
+            "signed_sem_deg": 0.8715360381905302,
+            "std_deg": 3.593435141991903
+          },
+          "rfdc_rising_8_to_9": {
+            "magnitude_of_mean_deg": 1.7204678947736771,
+            "mean_abs_deg": 2.6737465946237586,
+            "median_abs_deg": 2.5903657588965903,
+            "n": 17,
+            "sem_of_abs_deg": 0.4331669878888548,
+            "signed_mean_deg": 1.7204678947736771,
+            "signed_sem_deg": 0.6704032977274962,
+            "std_deg": 2.764143608292871
+          }
+        },
+        "5766000000": {
+          "lpf_only_8_to_10": {
+            "magnitude_of_mean_deg": 0.01911239799452693,
+            "mean_abs_deg": 0.6970605602501898,
+            "median_abs_deg": 0.6006179000540606,
+            "n": 25,
+            "sem_of_abs_deg": 0.0938956348742777,
+            "signed_mean_deg": 0.01911239799452693,
+            "signed_sem_deg": 0.1704310108301224,
+            "std_deg": 0.8521550541506121
+          },
+          "rfdc_falling_9_to_10": {
+            "magnitude_of_mean_deg": 0.5942543082871018,
+            "mean_abs_deg": 1.6081425244860186,
+            "median_abs_deg": 1.5815031371506245,
+            "n": 25,
+            "sem_of_abs_deg": 0.21899228529130807,
+            "signed_mean_deg": -0.5942543082871018,
+            "signed_sem_deg": 0.375497841791019,
+            "std_deg": 1.8774892089550952
+          },
+          "rfdc_rising_8_to_9": {
+            "magnitude_of_mean_deg": 0.6324791042761556,
+            "mean_abs_deg": 1.4586820986943496,
+            "median_abs_deg": 1.3482776394435712,
+            "n": 25,
+            "sem_of_abs_deg": 0.20099273955779492,
+            "signed_mean_deg": 0.6324791042761556,
+            "signed_sem_deg": 0.33524105756306943,
+            "std_deg": 1.6762052878153473
+          }
+        }
+      },
+      "rfdc_excess": {
+        "magnitude_of_mean_deg": 0.3633274215081444,
+        "mean_abs_deg": 1.090995111838327,
+        "median_abs_deg": 0.74145287837653,
+        "n": 65,
+        "sem_of_abs_deg": 0.13365097425831726,
+        "signed_mean_deg": 0.3633274215081444,
+        "signed_sem_deg": 0.18546684448170242,
+        "std_deg": 1.4952815039750873
+      },
+      "rfdc_excess_per_lo": {
+        "4001000000": {
+          "magnitude_of_mean_deg": 0.014611554947109277,
+          "mean_abs_deg": 0.18202466057712882,
+          "median_abs_deg": 0.10895979062312143,
+          "n": 25,
+          "sem_of_abs_deg": 0.03929011175088844,
+          "signed_mean_deg": 0.014611554947109277,
+          "signed_sem_deg": 0.05399405394492597,
+          "std_deg": 0.26997026972462984
+        },
+        "5100000000": {
+          "magnitude_of_mean_deg": 0.5277883911540655,
+          "mean_abs_deg": 2.021303738002517,
+          "median_abs_deg": 1.6669399351392893,
+          "n": 15,
+          "sem_of_abs_deg": 0.31353091660288585,
+          "signed_mean_deg": 0.5277883911540655,
+          "signed_sem_deg": 0.608471804414715,
+          "std_deg": 2.356601165134968
+        },
+        "5766000000": {
+          "magnitude_of_mean_deg": 0.6133667062816267,
+          "mean_abs_deg": 1.4417803874010113,
+          "median_abs_deg": 1.3183961741114132,
+          "n": 25,
+          "sem_of_abs_deg": 0.16342542570534127,
+          "signed_mean_deg": 0.6133667062816267,
+          "signed_sem_deg": 0.31248338912697743,
+          "std_deg": 1.562416945634887
+        }
+      },
+      "steps": {
+        "lpf_only_8_to_10": {
+          "magnitude_of_mean_deg": 0.24859756652544815,
+          "mean_abs_deg": 0.7787360466888117,
+          "median_abs_deg": 0.4590816093362653,
+          "n": 69,
+          "sem_of_abs_deg": 0.1166864673534543,
+          "signed_mean_deg": 0.24859756652544815,
+          "signed_sem_deg": 0.14705435336893094,
+          "std_deg": 1.2215252008403488
+        },
+        "rfdc_falling_9_to_10": {
+          "magnitude_of_mean_deg": 0.06565232080752477,
+          "mean_abs_deg": 1.4480442244545833,
+          "median_abs_deg": 0.8129423889907991,
+          "n": 67,
+          "sem_of_abs_deg": 0.19751964027165547,
+          "signed_mean_deg": -0.06565232080752477,
+          "signed_sem_deg": 0.2659302254149367,
+          "std_deg": 2.1767327077248178
+        },
+        "rfdc_rising_8_to_9": {
+          "magnitude_of_mean_deg": 0.6676434316560973,
+          "mean_abs_deg": 1.2931782639644078,
+          "median_abs_deg": 0.7302549443075675,
+          "n": 67,
+          "sem_of_abs_deg": 0.17773796008003362,
+          "signed_mean_deg": 0.6676434316560973,
+          "signed_sem_deg": 0.22399790016878462,
+          "std_deg": 1.8335018330401696
+        }
+      }
+    },
+    "104000bac4950008230026001b440a003a": {
+      "n_epoch_curves": 75,
+      "per_lo": {
+        "4001000000": {
+          "lpf_only_8_to_10": {
+            "magnitude_of_mean_deg": 0.09994292394278315,
+            "mean_abs_deg": 0.13451924052334885,
+            "median_abs_deg": 0.08948987104579785,
+            "n": 25,
+            "sem_of_abs_deg": 0.02552389441328535,
+            "signed_mean_deg": 0.09994292394278315,
+            "signed_sem_deg": 0.031452410141645334,
+            "std_deg": 0.15726205070822666
+          },
+          "rfdc_falling_9_to_10": {
+            "magnitude_of_mean_deg": 0.0341084713757345,
+            "mean_abs_deg": 0.16386574340821713,
+            "median_abs_deg": 0.09524869116789773,
+            "n": 25,
+            "sem_of_abs_deg": 0.02917573910430265,
+            "signed_mean_deg": -0.0341084713757345,
+            "signed_sem_deg": 0.04383585105154342,
+            "std_deg": 0.2191792552577171
+          },
+          "rfdc_rising_8_to_9": {
+            "magnitude_of_mean_deg": 0.23399431926130076,
+            "mean_abs_deg": 0.2802940381492533,
+            "median_abs_deg": 0.28743628514715563,
+            "n": 25,
+            "sem_of_abs_deg": 0.0414912677630399,
+            "signed_mean_deg": 0.23399431926130076,
+            "signed_sem_deg": 0.05209287122913191,
+            "std_deg": 0.26046435614565955
+          }
+        },
+        "5100000000": {
+          "lpf_only_8_to_10": {
+            "magnitude_of_mean_deg": 0.012594843836241227,
+            "mean_abs_deg": 0.11479938438174543,
+            "median_abs_deg": 0.09160110835176732,
+            "n": 25,
+            "sem_of_abs_deg": 0.019414161286148122,
+            "signed_mean_deg": -0.012594843836241227,
+            "signed_sem_deg": 0.030321953244746465,
+            "std_deg": 0.15160976622373232
+          },
+          "rfdc_falling_9_to_10": {
+            "magnitude_of_mean_deg": 0.032508463388770455,
+            "mean_abs_deg": 0.23730710325260015,
+            "median_abs_deg": 0.24667386381054507,
+            "n": 25,
+            "sem_of_abs_deg": 0.03367847433399466,
+            "signed_mean_deg": -0.032508463388770455,
+            "signed_sem_deg": 0.05862295208413613,
+            "std_deg": 0.29311476042068063
+          },
+          "rfdc_rising_8_to_9": {
+            "magnitude_of_mean_deg": 0.007318775716288011,
+            "mean_abs_deg": 0.276514691375316,
+            "median_abs_deg": 0.22875639791528088,
+            "n": 25,
+            "sem_of_abs_deg": 0.035120908000534835,
+            "signed_mean_deg": 0.007318775716288011,
+            "signed_sem_deg": 0.06646123129287784,
+            "std_deg": 0.3323061564643892
+          }
+        },
+        "5766000000": {
+          "lpf_only_8_to_10": {
+            "magnitude_of_mean_deg": 0.3585755408650656,
+            "mean_abs_deg": 0.5907199241518175,
+            "median_abs_deg": 0.4405700516026805,
+            "n": 25,
+            "sem_of_abs_deg": 0.0790301949000271,
+            "signed_mean_deg": 0.3585755408650656,
+            "signed_sem_deg": 0.12420952245193821,
+            "std_deg": 0.6210476122596911
+          },
+          "rfdc_falling_9_to_10": {
+            "magnitude_of_mean_deg": 0.7969196571138382,
+            "mean_abs_deg": 1.242555204444436,
+            "median_abs_deg": 1.1414976183539465,
+            "n": 25,
+            "sem_of_abs_deg": 0.16262487140930665,
+            "signed_mean_deg": 0.7969196571138382,
+            "signed_sem_deg": 0.2536062291738711,
+            "std_deg": 1.2680311458693556
+          },
+          "rfdc_rising_8_to_9": {
+            "magnitude_of_mean_deg": 0.07976857538370687,
+            "mean_abs_deg": 0.5168280240630744,
+            "median_abs_deg": 0.3876076375117589,
+            "n": 25,
+            "sem_of_abs_deg": 0.0882947276076618,
+            "signed_mean_deg": -0.07976857538370687,
+            "signed_sem_deg": 0.13660331788882735,
+            "std_deg": 0.6830165894441367
+          }
+        }
+      },
+      "rfdc_excess": {
+        "magnitude_of_mean_deg": 0.09479303379257589,
+        "mean_abs_deg": 0.37445119032803914,
+        "median_abs_deg": 0.24848035049285594,
+        "n": 75,
+        "sem_of_abs_deg": 0.048368771594274426,
+        "signed_mean_deg": -0.09479303379257589,
+        "signed_sem_deg": 0.06413181016283462,
+        "std_deg": 0.5553977679169583
+      },
+      "rfdc_excess_per_lo": {
+        "4001000000": {
+          "magnitude_of_mean_deg": 0.13405139531851715,
+          "mean_abs_deg": 0.16394431158501124,
+          "median_abs_deg": 0.1254294822744364,
+          "n": 25,
+          "sem_of_abs_deg": 0.030938736265006494,
+          "signed_mean_deg": 0.13405139531851715,
+          "signed_sem_deg": 0.03644681647875033,
+          "std_deg": 0.18223408239375166
+        },
+        "5100000000": {
+          "magnitude_of_mean_deg": 0.019913619552526674,
+          "mean_abs_deg": 0.2353512941379242,
+          "median_abs_deg": 0.2337454683210642,
+          "n": 25,
+          "sem_of_abs_deg": 0.026759086881641414,
+          "signed_mean_deg": 0.019913619552526674,
+          "signed_sem_deg": 0.05484024105924048,
+          "std_deg": 0.2742012052962024
+        },
+        "5766000000": {
+          "magnitude_of_mean_deg": 0.4383441162487715,
+          "mean_abs_deg": 0.7240579652611819,
+          "median_abs_deg": 0.6828919894552334,
+          "n": 25,
+          "sem_of_abs_deg": 0.11055400776210685,
+          "signed_mean_deg": -0.4383441162487715,
+          "signed_sem_deg": 0.16143199032185115,
+          "std_deg": 0.8071599516092558
+        }
+      },
+      "steps": {
+        "lpf_only_8_to_10": {
+          "magnitude_of_mean_deg": 0.14864120699053585,
+          "mean_abs_deg": 0.2800128496856373,
+          "median_abs_deg": 0.14184692609538915,
+          "n": 75,
+          "sem_of_abs_deg": 0.03794153745797039,
+          "signed_mean_deg": 0.14864120699053585,
+          "signed_sem_deg": 0.04690998383324117,
+          "std_deg": 0.4062523769070418
+        },
+        "rfdc_falling_9_to_10": {
+          "magnitude_of_mean_deg": 0.24343424078311102,
+          "mean_abs_deg": 0.5479093503684176,
+          "median_abs_deg": 0.3244389194844116,
+          "n": 75,
+          "sem_of_abs_deg": 0.07966347018611258,
+          "signed_mean_deg": 0.24343424078311102,
+          "signed_sem_deg": 0.09799119474441637,
+          "std_deg": 0.8486286399585276
+        },
+        "rfdc_rising_8_to_9": {
+          "magnitude_of_mean_deg": 0.05384817319796065,
+          "mean_abs_deg": 0.3578789178625479,
+          "median_abs_deg": 0.2962182087344236,
+          "n": 75,
+          "sem_of_abs_deg": 0.03651036301969239,
+          "signed_mean_deg": 0.05384817319796065,
+          "signed_sem_deg": 0.054996336864881666,
+          "std_deg": 0.47628224840074157
+        }
+      }
+    }
+  },
+  "pooled": {
+    "lpf_only_8_to_10": {
+      "magnitude_of_mean_deg": 0.19653696260101464,
+      "mean_abs_deg": 0.5189843815829916,
+      "median_abs_deg": 0.2287690383385052,
+      "n": 144,
+      "sem_of_abs_deg": 0.06264575890508865,
+      "signed_mean_deg": 0.19653696260101464,
+      "signed_sem_deg": 0.07441709326991398,
+      "std_deg": 0.8930051192389679
+    },
+    "rfdc_falling_9_to_10": {
+      "magnitude_of_mean_deg": 0.09759762369457162,
+      "mean_abs_deg": 0.9726208754654113,
+      "median_abs_deg": 0.445837574172534,
+      "n": 142,
+      "sem_of_abs_deg": 0.10866330778299478,
+      "signed_mean_deg": 0.09759762369457162,
+      "signed_sem_deg": 0.13582826583768,
+      "std_deg": 1.6185805904146227
+    },
+    "rfdc_rising_8_to_9": {
+      "magnitude_of_mean_deg": 0.34345579514651814,
+      "mean_abs_deg": 0.7991821304599042,
+      "median_abs_deg": 0.32045896439876764,
+      "n": 142,
+      "sem_of_abs_deg": 0.09430092351978213,
+      "signed_mean_deg": 0.34345579514651814,
+      "signed_sem_deg": 0.11218639009689403,
+      "std_deg": 1.3368551265795754
+    }
+  },
+  "reference_gain_db": 5,
+  "rfdc_excess_second_difference": {
+    "cluster_ci_signed": {
+      "ci95_high_deg": 0.39225007011470947,
+      "ci95_low_deg": -0.16765972723249034,
+      "n_clusters": 6,
+      "signed_mean_deg": 0.11790574902561567
+    },
+    "definition": "H(9) - circular_mean[H(8), H(10)]; LPF ramp cancels",
+    "per_cluster": {
+      "0a003a@4001000000": {
+        "magnitude_of_mean_deg": 0.13405139531851715,
+        "mean_abs_deg": 0.16394431158501124,
+        "median_abs_deg": 0.1254294822744364,
+        "n": 25,
+        "sem_of_abs_deg": 0.030938736265006494,
+        "signed_mean_deg": 0.13405139531851715,
+        "signed_sem_deg": 0.03644681647875033,
+        "std_deg": 0.18223408239375166
+      },
+      "0a003a@5100000000": {
+        "magnitude_of_mean_deg": 0.019913619552526674,
+        "mean_abs_deg": 0.2353512941379242,
+        "median_abs_deg": 0.2337454683210642,
+        "n": 25,
+        "sem_of_abs_deg": 0.026759086881641414,
+        "signed_mean_deg": 0.019913619552526674,
+        "signed_sem_deg": 0.05484024105924048,
+        "std_deg": 0.2742012052962024
+      },
+      "0a003a@5766000000": {
+        "magnitude_of_mean_deg": 0.4383441162487715,
+        "mean_abs_deg": 0.7240579652611819,
+        "median_abs_deg": 0.6828919894552334,
+        "n": 25,
+        "sem_of_abs_deg": 0.11055400776210685,
+        "signed_mean_deg": -0.4383441162487715,
+        "signed_sem_deg": 0.16143199032185115,
+        "std_deg": 0.8071599516092558
+      },
+      "843ef2@4001000000": {
+        "magnitude_of_mean_deg": 0.014611554947109277,
+        "mean_abs_deg": 0.18202466057712882,
+        "median_abs_deg": 0.10895979062312143,
+        "n": 25,
+        "sem_of_abs_deg": 0.03929011175088844,
+        "signed_mean_deg": 0.014611554947109277,
+        "signed_sem_deg": 0.05399405394492597,
+        "std_deg": 0.26997026972462984
+      },
+      "843ef2@5100000000": {
+        "magnitude_of_mean_deg": 0.5277883911540655,
+        "mean_abs_deg": 2.021303738002517,
+        "median_abs_deg": 1.6669399351392893,
+        "n": 15,
+        "sem_of_abs_deg": 0.31353091660288585,
+        "signed_mean_deg": 0.5277883911540655,
+        "signed_sem_deg": 0.608471804414715,
+        "std_deg": 2.356601165134968
+      },
+      "843ef2@5766000000": {
+        "magnitude_of_mean_deg": 0.6133667062816267,
+        "mean_abs_deg": 1.4417803874010113,
+        "median_abs_deg": 1.3183961741114132,
+        "n": 25,
+        "sem_of_abs_deg": 0.16342542570534127,
+        "signed_mean_deg": 0.6133667062816267,
+        "signed_sem_deg": 0.31248338912697743,
+        "std_deg": 1.562416945634887
+      }
+    },
+    "pooled": {
+      "magnitude_of_mean_deg": 0.11790574902561567,
+      "mean_abs_deg": 0.70713229674353,
+      "median_abs_deg": 0.3424499002463143,
+      "n": 140,
+      "sem_of_abs_deg": 0.07351521996950085,
+      "signed_mean_deg": 0.11790574902561567,
+      "signed_sem_deg": 0.09434965167821607,
+      "std_deg": 1.1163601336719697
+    },
+    "quality_restricted": {
+      "clusters_dropped": [
+        "843ef2@5100000000"
+      ],
+      "clusters_kept": [
+        "843ef2@4001000000",
+        "843ef2@5766000000",
+        "0a003a@4001000000",
+        "0a003a@5100000000",
+        "0a003a@5766000000"
+      ],
+      "magnitude_of_mean_deg": 0.06871983197020168,
+      "mean_abs_deg": 0.5494317237924514,
+      "median_abs_deg": 0.3066804483679669,
+      "n": 125,
+      "sem_of_abs_deg": 0.0598458245360729,
+      "signed_mean_deg": 0.06871983197020168,
+      "signed_sem_deg": 0.07731698580171867,
+      "std_deg": 0.8644301803401451
+    }
+  },
+  "rfdc_step_deg": {
+    "magnitude_of_signed_mean": 0.34345579514651814,
+    "mean_abs": 0.7991821304599042,
+    "median_abs": 0.32045896439876764
+  },
+  "rfdc_step_sem_deg": {
+    "max_per_radio_lo_cell": 0.6704032977274962,
+    "median_per_radio_lo_cell": 0.1015322745908526,
+    "pooled_all_cells": 0.11218639009689403
+  },
+  "steps_measured": {
+    "lpf_only_8_to_10": {
+      "from_db": 8,
+      "per_db_divisor": 2,
+      "to_db": 10
+    },
+    "rfdc_falling_9_to_10": {
+      "from_db": 9,
+      "per_db_divisor": 1,
+      "to_db": 10
+    },
+    "rfdc_rising_8_to_9": {
+      "from_db": 8,
+      "per_db_divisor": 1,
+      "to_db": 9
+    }
+  }
+}

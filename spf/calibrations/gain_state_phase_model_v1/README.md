@@ -498,15 +498,19 @@ Stated plainly, because a "mechanistic" label can oversell:
   §2.4.
 - **The fitted delays are effective electrical group delays.** They do not
   identify a specific cable, trace, or filter.
-- **The RF-state attribution is still confounded with RF-DC recalibration.**
-  `RF_DC_CAL` (byte 2 bit 5) is set on exactly the rows that begin a new
-  LNA/mixer/TIA state. The excluded `F_neg` stage bounds an RF-DC-only step at
-  **≲0.7°** (n=24, median 0.722°) against a **4.364°** LMT step at the same LOs
-  (Mann-Whitney p = 0.849 for RF-DC-only vs LPF-only, i.e. indistinguishable;
-  p = 1.0e-5 for the LMT change vs everything else). At n=4 rising edges it does
-  not resolve the attribution to the 0.35° level. **Read §3.2 as "the RF-state
-  transition, including any RF-DC correction it triggers."** **E-CAL1** closes
-  this.
+- **The RF-state attribution is clean — RF-DC recalibration contributes no
+  resolvable phase.** *(E-CAL1 arm 1, 2026-08-07.)* `RF_DC_CAL` (byte 2 bit 5) is
+  set on exactly the rows that begin a new LNA/mixer/TIA state, which confounded
+  the two. E-CAL1 sampled the one high-band edge that separates them — row 23
+  (+9 dB), where the LMT words are frozen at (LNA 0, MIX 2, TIA 0) across
+  8 → 9 → 10 dB and only the LPF word and `RF_DC_CAL` move — and measures the
+  RF-DC contribution at **+0.069° ± 0.077** (cluster-robust 95% CI
+  [−0.168°, +0.392°]; 2 radios × 3 LOs × 25 epochs) against the 2.664° mixer step.
+  **§3.2 can be read as a plain RF-state result**; the earlier hedge ("including
+  any RF-DC correction it triggers") is retired, as is the weaker ≲0.7° bound from
+  the excluded `F_neg` stage. Report: `dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/`.
+  Still open: arm 2 (`rf_dc_offset_tracking_en = 0`) is unrun — unblocked in code
+  on 2026-08-07 — so *which part* of the RF-DC machinery is quiet is unidentified.
 - **Digital gain is excluded by measurement, not assumption.** Byte 2 bits 4:0
   are identically zero on all 231 rows — re-verified by this package's test
   suite — which is what licenses reading bit 5 as `RF_DC_CAL`.
@@ -877,13 +881,16 @@ Where dense per-frequency calibration exists and the frequency will not change,
 - **No adjacent-1 dB LNA transition was measured in the campaign** — though
   three were measured at 2.4 GHz by a different experiment (§3.2). Within the
   campaign the LNA's role rests on four 9 dB steps and on the ripple.
-- **Gains 8 and 9 dB appear at no high-band LO in any stage of either campaign**,
-  which is what blocks the high-SNR arm of the RF-DC discriminator.
+- ~~**Gains 8 and 9 dB appear at no high-band LO in any stage of either
+  campaign**, which is what blocks the high-SNR arm of the RF-DC
+  discriminator.~~ **Closed 2026-08-07:** E-CAL1 arm 1 sampled exactly that
+  high-SNR row-23 edge at three high-band LOs.
 
 **Attribution**
 
-- **The RF-state vs RF-DC-recalibration confound is bounded, not resolved**
-  (§3.6).
+- ~~**The RF-state vs RF-DC-recalibration confound is bounded, not resolved**~~
+  **Resolved 2026-08-07** by E-CAL1 arm 1: RF-DC contributes +0.069° ± 0.077
+  against the 2.664° mixer step (§3.6).
 - **Fitted delays are effective electrical group delays**, not physical lengths.
 - **The pad/jumper causal chain is supportive, not proven.** Stage C failed
   repeatability and the A→D restoration failed above 4 GHz; stages B, C and D

@@ -1,9 +1,20 @@
 # E-CAL1 — RF-DC vs RF-state discriminator
 
-**Status:** ready to run. Arm 1 only; arm 2 is blocked on a code change (see
-[Known blockers](#known-blockers)).
-**Est. bench time:** ~8 minutes of capture per radio, plus audit and pilot.
+**Status:** ✅ **arm 1 RUN 2026-08-07 — H₀ upheld, RF-DC injects no resolvable phase**
+(+0.069° ± 0.077 against the 2.664° mixer step). Result, deviations and the four
+runbook defects found in execution:
+[`reports/e_cal1_rfdc_20260807_v1/REPORT.md`](../../spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/REPORT.md).
+Arm 2 was **unblocked in code on 2026-08-07** and is ready but unrun — see
+[Arm 2](#arm-2--unblocked-2026-08-07-not-yet-run) for what changed and why it is
+low priority.
+**Bench time (actual):** ~25 min of capture for both radios, plus audits, pilot and validation.
 **Queue entry:** [`docs/future_experiments.md` → E-CAL1](../../docs/future_experiments.md)
+
+> **Before re-running this, read §6 of the report.** The step-2 audit command below
+> points at `configs/spectroscopy_campaign.yaml`, which pins the *campaign* firmware
+> and therefore fails closed against this experiment's v3 firmware; and running that
+> audit under `sudo` makes the session directory root-owned, which then breaks the
+> capture in step 3.
 
 ---
 
@@ -274,9 +285,57 @@ auditable, and must state explicitly whether the 0.35° gate was reached.
 - `spf/calibrations/gain_state_phase_model_v1/README.md` §3.6.
 - `docs/future_experiments.md` — mark E-CAL1 completed with the outcome.
 
+## 6bis. RESULTS — arm 1, run 2026-08-07
+
+Session `e_cal1_20260807`, SPF `3fe21e7` (clean). Full report, code and input
+hashes:
+[`reports/e_cal1_rfdc_20260807_v1/`](../../spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/REPORT.md).
+
+**H₀ upheld — the RF-DC machinery injects no resolvable phase.**
+
+| Quantity | Result |
+|---|---|
+| RF-DC contribution at row 23 | **+0.069° ± 0.077** (sem) |
+| Cluster-robust 95% CI | **[−0.168°, +0.392°]** over 6 (radio, LO) clusters |
+| Compared against | **2.664°** median mixer step → ≈7× below H₁ at the CI's upper edge |
+| Decision-rule branch reached | **"≤ 0.35° with sem < 0.35°"** — no resolvable phase |
+| Frames | 1050/1050 (525 per radio), 21/21 cells both radios |
+
+The estimator is the second difference `H(9) − mid[H(8), H(10)]`. Because the LPF
+word steps linearly 10 → 11 → 12 across 8 → 9 → 10 while the LMT words stay
+frozen, this is algebraically the pre-registered "8→9 step against the LPF-only
+floor from this dataset" comparison — formed pairwise inside each epoch, so the
+per-cell common-mode noise cancels instead of being carried. The unpaired form
+agrees: +0.147° ± 0.135 against the paired +0.118° ± 0.094 (all cells).
+
+**The cleanest evidence needs no modelling.** 8→9 and 9→10 are both 1 dB steps
+with the LMT words frozen, so they carry identical noise. The step that *raises*
+`RF_DC_CAL` (median |ΔH| **0.320°**) is *smaller* than the one that *lowers* it
+(**0.446°**). A flag injecting phase cannot produce that ordering.
+
+**All gates passed:** tables byte-identical pre/post (high = `90d34d61…`, and
+identical under the new v3 firmware), strict validation from stored IQ, harness
+unchanged, provenance recorded with `dirty = False`.
+
+**Do not quote `mann_whitney_rfdc_vs_lpf` (p = 0.010) as an effect.** It compares
+a 1 dB step against a *halved* 2 dB step, which shrinks the LPF noise by two
+(std 1.786° raw → 0.893° halved, against 1.337° for 8→9). It detects a difference
+in spread, not location. §4.2 of the report explains it.
+
+**One cell excluded, on a pre-registered basis.** R18 @ 5100 MHz kept only 15 of
+25 epochs and had std 2.76° — the cell the step-1 pilot had already flagged as
+weakest. It fails `min-quality-valid-per-cell: 20`. It is not an RF-DC effect:
+the LPF-only step is elevated in lockstep there (0.914°), so the excursion tracks
+cell SNR, not the flag.
+
+**Four runbook defects were found in execution** — see §6 of the report. Two of
+them will block anyone who re-runs this; they are summarised in the warning at
+the top of this file.
+
 ## 7. Decision rule
 
 Pre-registered. Do not renegotiate after seeing the data.
+**Outcome: row 1 — see [§6bis](#6bis-results--arm-1-run-2026-08-07).**
 
 | Measured 8→9 dB \|ΔH\| | Conclusion |
 |---|---|
@@ -298,15 +357,42 @@ state and different dates.
 | **Connector movement** | A re-mate can move the >4 GHz band by 12–34°, dwarfing the ~0.35° effect. | Single unchanged-harness session; no operations between audits. |
 | **Assuming the LPF is silent** | The 8→9 step also moves the LPF word. | The LPF-only floor is measured in the same dataset and subtracted, not assumed. |
 
-## Known blockers
+## Arm 2 — unblocked 2026-08-07, not yet run
 
-**Arm 2 cannot currently be run.** The queue entry specifies a second arm
-repeating with `rf_dc_offset_tracking_en = 0`, to A/B the tracking loop directly.
-That attribute is **read-only** in the current code — `dc_offset.py` only
-snapshots it into a register record — and `rf_dc_calibration_policy` is
-hard-restricted to `before_each_frequency_block` by `config.py`, which raises on
-any other value.
+**The code blocker is gone.** It was: `rf_dc_offset_tracking_en` was read-only
+(`dc_offset.py` only snapshotted it) and `rf_dc_calibration_policy` was
+hard-restricted to `before_each_frequency_block` by `config.py`. Both are fixed:
 
-Arm 2 needs a write path for the attribute plus config plumbing before it can
-run. Arm 1 alone answers the primary question (does RF-DC inject phase); arm 2
-would identify *which part* of the RF-DC machinery is responsible.
+| Piece | Where |
+|---|---|
+| `rf_dc_offset_tracking_en` config knob, tri-state (`null` = leave driver default) | `config.py` |
+| `never` added to `RF_DC_CALIBRATION_POLICIES` — still fail-closed on anything else | `config.py` |
+| `apply_rf_dc_offset_tracking()` — writes both channels, **reads back, raises on mismatch**; re-asserted after `run_rf_dc_calibration()` and `configure_frequency()` | `hardware.py` |
+| `rf_dc_offset_tracking_en_requested` / `_observed` recorded in V7 | `dataset.py`, `runner.py` |
+| Arm-2 config, arm-1's schedule byte-for-byte | `configs/e_cal1_arm2_rfdc_tracking.yaml` |
+| 12 unit tests | `tests/test_dual_rx_gain_frequency_rf_dc_tracking.py` |
+| 4 hardware tests, `--radio-hardware --radio-rf-dc-tracking` | `tests/radio_hardware/test_rf_dc_tracking_hardware.py` |
+
+The readback is the load-bearing part. The AD9361 driver can accept an attribute
+write without applying it, and it re-asserts tracking across `calib_mode` writes
+and LO retunes. An unverified write would let arm 2 report "disabling tracking
+changed nothing" when tracking was never disabled — **a false null
+indistinguishable from a real one**, on precisely the question arm 2 exists to
+answer. The hardware tests were run against both radios on 2026-08-07 and pass:
+the write reaches silicon on this firmware and survives both hazards.
+
+Adding the knob does **not** change any existing config's run signature — a
+config that leaves it unset is omitted from `as_json()`, verified byte-identical
+against unmodified HEAD, so every pre-existing dataset still resumes.
+
+**Before running arm 2, read this.** Arm 1 measured the *total* RF-DC
+contribution at +0.069° ± 0.077. Arm 2 partitions a quantity already
+indistinguishable from zero, so it can essentially only return "also zero", and
+it **cannot** discriminate between "the tracking loop is quiet" and "this harness
+cannot see RF-DC effects at all". Only a **positive control** — inject a known
+perturbation, confirm the pipeline recovers it at the expected magnitude — can
+close that. Sequence the positive control first; run arm 2 to close the
+mechanism for its own sake, not for the primary question.
+
+Also still unsampled: the row-11 (−3 dB) edge, which still rests on the ≲0.7°
+`F_neg` bound.

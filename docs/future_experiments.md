@@ -4,12 +4,42 @@ Queued, concrete experiments with motivation, design, and decision rules. Read t
 with `docs/learnings.md` (the findings that motivate these). When an experiment runs,
 record the outcome in `learnings.md` and mark it here.
 
-## E-CAL1 — resolve the RF-DC vs RF-state confound (partly bounded already)
+## E-CAL1 — resolve the RF-DC vs RF-state confound — ✅ **ARM 1 COMPLETE (2026-08-07)**
 
-**Set up and ready to run:** [`experiments/e_cal1_rfdc_discriminator/`](../experiments/e_cal1_rfdc_discriminator/experiment_readme.md)
+**Outcome: H₀ — the RF-DC machinery injects no resolvable phase.** The row-23 (+9 dB)
+edge was sampled at 2 radios × 3 high-band LOs × 25 epochs (1050 frames, all gates
+passed). With the LPF ramp differenced out pairwise, `H(9) − mid[H(8), H(10)]` =
+**+0.069° ± 0.077**, cluster-robust 95% CI [−0.168°, +0.392°], against the 2.664°
+median mixer step. The like-for-like check is starker still: the step that *raises*
+`RF_DC_CAL` (median |ΔH| 0.320°) is *smaller* than the one that *lowers* it (0.446°).
+The attribution closes to the LNA/mixer/TIA network and the hedge is retired
+everywhere. Report, code and hashes:
+`spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/`;
+learning recorded in `docs/learnings.md` L10.
+
+**Arm 2 — unblocked 2026-08-07, ready but unrun, LOW priority.** The code blocker is
+fixed: `rf_dc_offset_tracking_en` is now a tri-state config knob with a **verified**
+write path (the driver can accept that attribute write without applying it, so it is
+read back and a mismatch aborts the capture), `never` joins the calibration-policy
+enum, both states are recorded in V7, and the config is
+`configs/e_cal1_arm2_rfdc_tracking.yaml` (arm 1's schedule byte-for-byte). Covered by
+12 unit tests plus 4 hardware tests (`--radio-hardware --radio-rf-dc-tracking`), the
+latter run green against both radios. Existing run signatures are unchanged.
+
+It is low priority because it partitions a quantity arm 1 already measured as
+indistinguishable from zero: it can essentially only return "also zero", and it cannot
+separate "the tracking loop is quiet" from "this harness cannot see RF-DC effects at
+all". **Run a positive control first** — inject a known perturbation and confirm the
+pipeline recovers it at the expected magnitude. That is the experiment that would turn
+arm 1's null from "we saw nothing" into "we saw nothing, and we would have seen it".
+
+Also unrun: the row-11 (−3 dB) edge, still resting on the ≲0.7° `F_neg` bound.
+
+**Design (as run):** [`experiments/e_cal1_rfdc_discriminator/`](../experiments/e_cal1_rfdc_discriminator/experiment_readme.md)
 — purpose, hypothesis, schematic, parts list, commands, outputs and gates. Config at
 `spf/calibrations/dual_rx_gain_frequency/configs/e_cal1_rfdc_discriminator.yaml`
-(validated: 525 frames per radio, ~8 min). Arm 2 is blocked on a code change.
+(validated: 525 frames per radio; actual bench time ~25 min for both radios).
+See the report's §6 for four runbook defects found while executing it.
 
 **Motivation (L10).** Gain-table byte 2 bit 5 is `RF_DC_CAL`, and it is set on exactly the
 rows that begin a new LNA/mixer/TIA state. So "the LMT words changed" and "the RF-DC
@@ -493,14 +523,13 @@ independently of the ripple.
 - If the shift is not linear in `f`, it is not a delay change and the mechanism is
   something else.
 
-## E-GSP4 — E-CAL1, unchanged, and still the top attribution gap
+## E-GSP4 — E-CAL1 — ✅ **CLOSED 2026-08-07**
 
-**Do not redesign; it is specified above.** Restated here only to place it in the
-programme: every statement of the form "the mixer word moves the phase" must currently be
-read as "the RF-state transition, *including any RF-DC correction it triggers*", because
-`RF_DC_CAL` is set on exactly the rows that begin a new LNA/mixer/TIA state. The bound is
-≲0.7° against a 4.364° LMT step, from n=4 rising edges — not enough to reach the 0.35°
-decision rule. Until E-CAL1 runs, the mechanism has a named hole in it.
+This was the programme's top attribution gap: every statement of the form "the mixer word
+moves the phase" had to be read as "the RF-state transition, *including any RF-DC
+correction it triggers*". **It is no longer a hole.** E-CAL1 arm 1 measured the RF-DC
+contribution at +0.069° ± 0.077 (see the E-CAL1 entry above), superseding the ≲0.7°
+n=4 bound. Statements about the mixer word are now plain RF-state statements.
 
 ## E-GSP5 — fleet breadth, with harness build as a deliberate variable
 

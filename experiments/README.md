@@ -27,7 +27,7 @@ append-only convention.
 
 | Experiment | Question | Status |
 |---|---|---|
-| [e_cal1_rfdc_discriminator](e_cal1_rfdc_discriminator/experiment_readme.md) | Does the RF-DC calibration machinery inject phase on its own, or is the step entirely the LNA/mixer/TIA network? | ready to run |
+| [e_cal1_rfdc_discriminator](e_cal1_rfdc_discriminator/experiment_readme.md) | Does the RF-DC calibration machinery inject phase on its own, or is the step entirely the LNA/mixer/TIA network? | ✅ arm 1 run 2026-08-07 — entirely the LNA/mixer/TIA network; RF-DC is +0.069° ± 0.077 (95% CI [−0.168, +0.392]) vs the 2.664° mixer step. Arm 2 unblocked in code, ready but unrun and low priority |
 | [e_gsp2_pad_sweep](e_gsp2_pad_sweep/experiment_readme.md) | Is the frequency ripple actually a harness reflection? | needs parts |
 
 Designs and decision rules for the wider programme are in

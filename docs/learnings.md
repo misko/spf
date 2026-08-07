@@ -159,11 +159,29 @@ figure is the *anchored-per-radio* number, not a no-correction number.)
 
 **Gain-table byte 2 bit 5 is `RF_DC_CAL`, not digital gain.** Digital gain is identically
 zero on all 231 rows of all three tables, so it cannot contribute phase. The flag is set on
-exactly the rows that begin a new LNA/mixer/TIA state, which confounds an RF-state phase
-step with an RF-DC-recalibration step. The excluded `F_neg` stage bounds any RF-DC-only
-step at **≲0.7°** (n = 24, median 0.722°) against a 4.36° LMT step at the same LOs, but at
-n = 4 rising edges it does not resolve the attribution to the 0.35° level. Read finding 2
-as "the RF-state transition, including any RF-DC correction it triggers"; E-CAL1 closes it.
+exactly the rows that begin a new LNA/mixer/TIA state, which confounded an RF-state phase
+step with an RF-DC-recalibration step.
+
+**E-CAL1 closed this on 2026-08-07: the RF-DC machinery injects no resolvable phase, so
+finding 2 is a clean RF-state result.** High-table row 23 (+9 dB) is the discriminating
+edge — across 8 → 9 → 10 dB the LMT words are frozen at (LNA 0, MIX 2, TIA 0) and only the
+LPF word (10 → 11 → 12) and `RF_DC_CAL` (0 → 1 → 0) move. Differencing the LPF ramp out
+pairwise within each epoch, `H(9) − mid[H(8), H(10)]` is **+0.069° ± 0.077** (cluster-robust
+95% CI [−0.168°, +0.392°]; 2 radios × 3 high-band LOs × 25 epochs, 1050 frames), against the
+**2.664°** median mixer step — a factor of ≈7 below H₁ even at the CI's upper edge. The two
+like-for-like 1 dB steps make the point without modelling: the step that *raises*
+`RF_DC_CAL` (median |ΔH| 0.320°) is *smaller* than the one that *lowers* it (0.446°).
+**Finding 2 no longer needs the "including any RF-DC correction it triggers" hedge.** Report,
+code and hashes in `reports/e_cal1_rfdc_20260807_v1/`. This supersedes the older ≲0.7° bound
+from the excluded `F_neg` stage (n = 4 rising edges), which it is consistent with.
+Caveat: arm 2 (`rf_dc_offset_tracking_en = 0`) is unrun, so *which part* of the RF-DC
+machinery is quiet is unidentified; row 11 (−3 dB) was not resampled. The code blocker on
+arm 2 was removed on 2026-08-07 (config knob + verified write path + tests; the AD9361
+driver can accept that attribute write without applying it, so the write is read back and a
+mismatch aborts the capture). Arm 2 nonetheless partitions a quantity already measured as
+indistinguishable from zero — prefer a **positive control** that proves the pipeline can
+detect an injected perturbation, which is the only thing that separates "the loop is quiet"
+from "this harness cannot see RF-DC effects at all".
 
 **What to do.** Given a measured equal-gain anchor at the operating LO, a **27-parameter
 universal** model (`H(state)` + two LNA-state-indexed ripples) predicts an unmeasured
