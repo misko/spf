@@ -737,11 +737,24 @@ main() {
         bash "${SCRIPT_DIR}/device_mapping.sh" >"$DEVICE_MAPPING"
     fi
 
-    sync_vehicle_configuration
+    # BEFORE the compass gate, not after it. reboot_rover_for_absent_compass
+    # never returns, so a rover cycling on an absent compass used to reboot
+    # without ever reaching the clock sync -- every journal line from every
+    # iteration stamped with the stale Pi clock, and that journal is exactly
+    # what the loop has to be diagnosed from.
+    #
+    # Nothing here depends on parameter sync: --get-time needs only a heartbeat
+    # and a GPS fix. Ordinary boots take the same total time either way, since
+    # both steps run regardless. A no-sky boot now spends its GPS timeout
+    # before the gate rather than after, which is the price of a correctly
+    # stamped log.
+    #
     # Guarded, not bare: sync_gps_time now reports failure, and under `set -e` a
     # bare call would abort the boot. An unverified clock is loud but not fatal
-    # -- the capture still cannot start until the planner has GPS anyway.
+    # -- the capture still cannot start until the planner has GPS anyway, and
+    # ensure_clock_verified_before_capture still gates the naming.
     sync_gps_time boot || printf 'Continuing with an unverified system clock.\n' >&2
+    sync_vehicle_configuration
     printf 'performance\n' | sudo tee \
         /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null
 

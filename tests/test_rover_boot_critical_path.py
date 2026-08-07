@@ -392,3 +392,20 @@ def test_the_stall_knobs_are_visible_in_the_plan():
     assert "stall_detect_seconds=" in plan
     assert "stall_manual_seconds=" in plan
     assert "stall_progress_radius_m=" in plan
+
+
+def test_the_clock_is_synced_before_the_compass_gate_can_reboot():
+    """reboot_rover_for_absent_compass never returns.
+
+    With the sync after the gate, a rover cycling on an absent compass rebooted
+    without ever setting its clock -- so every journal line from every iteration
+    carried the stale Pi clock, and that journal is exactly what the loop has to
+    be diagnosed from.
+    """
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    body = launcher.split("\nmain() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert body.index("sync_gps_time boot") < body.index("sync_vehicle_configuration"), (
+        "the GPS clock sync must run before the compass gate, which can reboot "
+        "the rover and never return"
+    )
