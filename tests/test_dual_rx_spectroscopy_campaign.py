@@ -5,6 +5,7 @@ import pytest
 import yaml
 
 from spf.calibrations.dual_rx_gain_frequency.config import CalibrationConfig
+from spf.calibrations.gain_state_phase_model_v1 import default_tables
 from spf.calibrations.dual_rx_gain_frequency.runner import load_calibration_document
 from spf.calibrations.dual_rx_gain_frequency.spectroscopy_campaign import (
     CampaignError,
@@ -22,6 +23,7 @@ MANIFEST = (
     REPO_ROOT
     / "spf/calibrations/dual_rx_gain_frequency/configs/spectroscopy_campaign.yaml"
 )
+FOLLOWUP_MANIFEST = MANIFEST.with_name("gain_state_followups.yaml")
 
 
 def test_spectroscopy_campaign_renders_exact_normalized_design(tmp_path):
@@ -50,6 +52,59 @@ def test_spectroscopy_campaign_renders_exact_normalized_design(tmp_path):
 
     serialized = json.loads((tmp_path / "campaign_plan.json").read_text())
     assert serialized == plan
+
+
+def test_gain_state_followups_render_preregistered_design(tmp_path):
+    plan = render_campaign(FOLLOWUP_MANIFEST, tmp_path, seconds_per_frame=0.928)
+    by_id = {stage["id"]: stage for stage in plan["stages"]}
+
+    assert plan["measurements_per_radio"] == 2_117
+    assert plan["measurements_all_radios"] == 4_234
+    assert by_id["rate_pilot"]["measurements_per_radio"] == 50
+    assert by_id["E_CAL3_PROSPECTIVE_DENSE"]["frequencies"] == 113
+    assert by_id["E_CAL3_PROSPECTIVE_DENSE"]["measurements_per_radio"] == 1_695
+    assert by_id["E_CAL3_TRAIN_REPEAT"]["frequencies"] == 10
+    assert by_id["E_CAL3_TRAIN_REPEAT"]["measurements_per_radio"] == 150
+    assert by_id["E_CAL2_LOW"]["measurements_per_radio"] == 117
+    assert by_id["E_CAL2_MIDDLE"]["measurements_per_radio"] == 39
+    assert by_id["E_CAL2_HIGH"]["measurements_per_radio"] == 66
+
+    contract = plan["analysis_contract"]
+    training = set(contract["e-cal3"]["training-frequencies-hz"])
+    _, dense = load_calibration_document(
+        Path(by_id["E_CAL3_PROSPECTIVE_DENSE"]["config_path"])
+    )
+    _, repeated = load_calibration_document(
+        Path(by_id["E_CAL3_TRAIN_REPEAT"]["config_path"])
+    )
+    assert training == set(repeated.frequencies_hz)
+    assert training < set(dense.frequencies_hz)
+    assert len(set(dense.frequencies_hz) - training) == 103
+    assert contract["e-cal2"]["expected-measurements-per-radio"] == 222
+
+
+def test_e_cal2_gain_sets_bracket_every_lna_boundary(tmp_path):
+    plan = render_campaign(FOLLOWUP_MANIFEST, tmp_path)
+    by_id = {stage["id"]: stage for stage in plan["stages"]}
+    tables = default_tables()
+
+    for stage_id, band in (
+        ("E_CAL2_LOW", "low"),
+        ("E_CAL2_MIDDLE", "middle"),
+        ("E_CAL2_HIGH", "high"),
+    ):
+        _, config = load_calibration_document(Path(by_id[stage_id]["config_path"]))
+        scheduled = set(config.gains_db)
+        low, high = tables.gain_range_db(band)
+        boundaries = []
+        previous = tables.state(band, low)
+        for gain in range(low + 1, high + 1):
+            current = tables.state(band, gain)
+            if current.lna != previous.lna:
+                boundaries.append((gain - 1, gain))
+            previous = current
+        assert boundaries
+        assert all({left, right} <= scheduled for left, right in boundaries)
 
 
 def test_campaign_frequency_expansion_fails_on_duplicate_coordinates(

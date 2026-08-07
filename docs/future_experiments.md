@@ -45,20 +45,26 @@ LNA/mixer/TIA network. Report the sem alongside the estimate so the power is aud
 
 **Motivation (L10).** Band portability failed: train on two gain-table bands, predict the
 third, and no model beats baseline by more than 8%. Part of that is genuine frequency
-extrapolation, but part is a coverage hole — **LNA index 1 was never measured at any
-frequency** across the whole campaign, and LNA index 3 only in the high band.
+extrapolation, but part is a campaign coverage hole — **LNA index 1 was never measured
+in the A–G campaign**, and LNA index 3 was measured there only in the high band. The
+separate 2.4 GHz integer-gain experiments reach LNA index 1 at two middle-band LOs, but
+cannot make the frequency-spanning model band-portable.
 
-**Second motivation.** The 1 dB-step statistic that underpins L10 finding 2 contains
-**zero LNA transitions** — the only LNA changes measured anywhere in the campaign are four
-9 dB steps. The mixer's role is established (7.8× the LPF floor); the LNA's rests entirely
-on those multi-dB steps and on the ripple. Sampling an adjacent-1 dB LNA step would test
-the LNA claim directly for the first time.
+**Second motivation.** The A–G campaign's 1 dB-step statistic contains **zero LNA
+transitions** — its only LNA changes are four 9 dB steps. Existing 2.4 GHz integer-gain
+data already show adjacent LNA 1→2 and 2→3 steps of 2.6–16.7°, so the claim is not
+untested repository-wide. Reanalyse that committed data first; the new capture is needed
+to span all three gain-table bands and separate coverage from frequency extrapolation.
 
-**Design.** The requested gains that visit LNA 1 are 31–32 dB (low table), 30–31 dB
-(middle), 23–25 dB (high); LNA 3 is 52 dB (low), 50 dB (middle), 41 dB (high). Add
-{29,30,31,32,33} and {49,50,51,52,53} to the existing 6-LO operating set, additive-cross,
-3 epochs — this brackets every LNA boundary with adjacent 1 dB steps. Then re-run the
-pooled leave-one-gain-table-band-out in
+**Design.** Use band-specific probe gains so every transition is actually bracketed:
+
+- low-band LOs: {30,31,32,33,51,52};
+- middle-band LOs: {29,30,31,32,49,50};
+- high-band LOs: {22,23,25,26,40,41}.
+
+Run these on the existing 6-LO operating set, additive-cross around 26 dB, 3 epochs.
+This is 222 frames per radio: 74 cells per epoch across the three low-, one middle-,
+and two high-band LOs. Then re-run the pooled leave-one-gain-table-band-out in
 `reports/gain_state_phase_model_20260802_v1/analysis/run_band.py`.
 
 **Decision rule.** If leave-one-band-out drops below ~3° MAE at ≥90% coverage, the
@@ -72,13 +78,19 @@ not a coverage limit — and every operating band must be sampled directly.
 from 96 MHz to ~690 MHz, implying a ~10-point comb suffices for the gain-dependent term.
 That is a retrospective subsample of one dense capture, not a prospective test.
 
-**Design.** Capture a fresh 10-point comb (≈400, 1000, 1600, 2200, 2800, 3400, 4100, 4700,
-5300, 5900 MHz) with the stage-A gain set, fit the recommended 27-parameter model, and
-score it against the *existing* dense stage-A/G cells at the 103 frequencies not captured.
+**Design.** In one uninterrupted, randomized session, capture the full 113-LO stage-A
+comb but pre-register ≈{400, 1000, 1600, 2200, 2800, 3400, 4100, 4700, 5300, 5900} MHz
+as the only ten training LOs. Fit the 27-column stage-A model using those ten LOs and
+score it only on the other 103 LOs from that same session. Interleave equal-gain anchors
+and repeat the ten training LOs at the end so early-to-late drift is measured separately.
+This one prospective validation still pays the dense-capture cost; if it passes, later
+radio calibrations need only the ten-point comb.
 
-**Decision rule.** Held-out MAE ≤3° at 100% coverage confirms the ~12× calibration-time
-reduction. Anything above ~4° means the dense comb is doing more than estimating the two
-shared ripple delays, and the subsample result was optimistic.
+**Decision rule.** Held-out unequal-gain MAE ≤3° at 100% stage-A coverage, with the
+early/end training-comb drift inside the unchanged-harness repeatability bound, confirms
+the ~12× calibration-time reduction. Anything above ~4° after accounting for measured
+drift means the retrospective subsample was optimistic. Do not test against an older
+session: §4.6 already shows that would confound comb sparsity with session drift.
 
 ## E-CAL4 — is the arm asymmetry a cable-length difference?
 
@@ -86,13 +98,21 @@ shared ripple delays, and the subsample result was optimistic.
 arm-specific. The reflection mechanism predicts that residual is itself a ripple whose delay
 equals the RX1/RX2 external path-length difference.
 
-**Design.** Repeat stage A after inserting a known, characterised length (e.g. 15 cm) on
-RX1 only. Predict: `A(f,g) = D(g,26) + D(26,g)` gains a ripple component at the delay
-implied by that length, while `H(f,g)` is comparatively unchanged.
+**Design.** Use a VNA-characterised length (e.g. 15 cm, with measured group delay over
+the whole band) on treated-radio RX1 only. Run an ABABA sequence without changing the
+untreated arms: original baseline → jumper → restored baseline → jumper → restored
+baseline. Record connector torque and pre-register whether the spectral prediction uses
+one-way or round-trip delay. Then run the separate RX1↔RX2 cable-swap discriminator.
+Predict: `A(f,g) = D(g,26) + D(26,g)` gains the same treatment-specific ripple component
+during both jumper insertions, while `H(f,g)` and the control arms remain comparatively
+unchanged.
 
-**Decision rule.** A matching shift in the `A` spectrum confirms the external-reflection
-mechanism *and* gives a way to measure harness asymmetry in situ. This is the cheap version
-of the cable-swap test that `FREQUENCY_SCOUT_20260727.md` already proposed and never ran.
+**Decision rule.** Both jumper stages must show the pre-registered component, both
+restorations must return within unchanged-harness repeatability, and the component must
+be absent from the untreated arms. The cable-swap result must follow/reverse with the
+external path rather than remain attached to the radio. Any failed restoration leaves
+the physical attribution inconclusive. This is the controlled version of the cable-swap
+test that `FREQUENCY_SCOUT_20260727.md` proposed and never ran.
 
 ## E-IF1 — 2×2 IF / BBDC-tracking capture matrix  (highest value per hour)
 

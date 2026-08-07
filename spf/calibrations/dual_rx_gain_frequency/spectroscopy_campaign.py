@@ -297,6 +297,10 @@ def render_campaign(
         "measurements_per_radio": total_per_radio,
         "measurements_all_radios": total_per_radio * int(campaign["expected-radios"]),
     }
+    if "analysis-contract" in campaign:
+        if not isinstance(campaign["analysis-contract"], dict):
+            raise ValueError("analysis-contract must be a YAML mapping")
+        result["analysis_contract"] = copy.deepcopy(campaign["analysis-contract"])
     if seconds_per_frame is not None:
         result["estimated_capture_seconds"] = (
             result["measurements_all_radios"] * seconds_per_frame

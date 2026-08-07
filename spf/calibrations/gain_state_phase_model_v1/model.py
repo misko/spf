@@ -66,7 +66,8 @@ class UnsupportedGainState(Exception):
     """
 
     def __init__(self, message: str, *, arm: int | None = None,
-                 field_name: str | None = None, level: int | None = None):
+                 field_name: str | None = None,
+                 level: int | float | None = None):
         super().__init__(message)
         self.arm = arm
         self.field_name = field_name
@@ -74,7 +75,7 @@ class UnsupportedGainState(Exception):
 
 
 def wrap(x: float) -> float:
-    """Wrap radians to (-pi, pi]."""
+    """Wrap radians to the half-open interval ``[-pi, pi)``."""
     return (x + math.pi) % (2 * math.pi) - math.pi
 
 
@@ -88,6 +89,9 @@ class Prediction:
     state_rx1: HardwareState | None
     state_rx2: HardwareState | None
     reason: str = ""
+    unsupported_arm: int | None = None
+    unsupported_field: str | None = None
+    unsupported_level: int | float | None = None
 
     @property
     def residual_deg(self) -> float:
@@ -242,8 +246,8 @@ class GainStatePhaseModel:
     def predict(
         self,
         lo_hz: float,
-        gain_rx1_db: int,
-        gain_rx2_db: int,
+        gain_rx1_db: int | float,
+        gain_rx2_db: int | float,
         *,
         rf_hz: float | None = None,
         apply_rf_state_guard: bool = True,
@@ -256,13 +260,46 @@ class GainStatePhaseModel:
         for exactness against the source analysis).
         """
         band = band_for_lo(lo_hz)
-        s1 = self.tables.state(band, int(gain_rx1_db))
-        s2 = self.tables.state(band, int(gain_rx2_db))
-        for arm, st, g in ((1, s1, gain_rx1_db), (2, s2, gain_rx2_db)):
+        gains: list[int] = []
+        for arm, value in ((1, gain_rx1_db), (2, gain_rx2_db)):
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                return Prediction(
+                    0.0,
+                    False,
+                    False,
+                    None,
+                    None,
+                    f"RX{arm} gain {value!r} is not a numeric integer dB value",
+                    unsupported_arm=arm,
+                    unsupported_field="gain_db",
+                )
+            if not math.isfinite(numeric) or not numeric.is_integer():
+                return Prediction(
+                    0.0,
+                    False,
+                    False,
+                    None,
+                    None,
+                    f"RX{arm} gain {value!r} is not an integer dB value",
+                    unsupported_arm=arm,
+                    unsupported_field="gain_db",
+                    unsupported_level=numeric,
+                )
+            gains.append(int(numeric))
+
+        gain1, gain2 = gains
+        s1 = self.tables.state(band, gain1)
+        s2 = self.tables.state(band, gain2)
+        for arm, st, g in ((1, s1, gain1), (2, s2, gain2)):
             if st is None:
                 return Prediction(
                     0.0, False, False, s1, s2,
                     f"RX{arm} gain {g} dB is outside the {band} gain table",
+                    unsupported_arm=arm,
+                    unsupported_field="gain_db",
+                    unsupported_level=g,
                 )
         for arm, st in ((1, s1), (2, s2)):
             miss = self._missing(st)
@@ -270,6 +307,9 @@ class GainStatePhaseModel:
                 return Prediction(
                     0.0, False, False, s1, s2,
                     f"RX{arm} invokes {miss[0]}={miss[1]}, which the fit never estimated",
+                    unsupported_arm=arm,
+                    unsupported_field=miss[0],
+                    unsupported_level=miss[1],
                 )
 
         if apply_rf_state_guard and s1.rf_words == s2.rf_words:
@@ -286,12 +326,17 @@ class GainStatePhaseModel:
             d += (a1 - a2) * c + (b1 - b2) * s
         return Prediction(d, True, False, s1, s2, "ok")
 
-    def predict_residual_rad(self, lo_hz: float, gain_rx1_db: int,
-                             gain_rx2_db: int, **kw) -> float:
+    def predict_residual_rad(self, lo_hz: float, gain_rx1_db: int | float,
+                             gain_rx2_db: int | float, **kw) -> float:
         """``D`` in radians. Raises ``UnsupportedGainState`` if not supported."""
         p = self.predict(lo_hz, gain_rx1_db, gain_rx2_db, **kw)
         if not p.supported:
-            raise UnsupportedGainState(p.reason)
+            raise UnsupportedGainState(
+                p.reason,
+                arm=p.unsupported_arm,
+                field_name=p.unsupported_field,
+                level=p.unsupported_level,
+            )
         return p.residual_rad
 
     def correct_measured_phase(
@@ -299,8 +344,8 @@ class GainStatePhaseModel:
         measured_phase_rad: float,
         anchor_phase_rad: float,
         lo_hz: float,
-        gain_rx1_db: int,
-        gain_rx2_db: int,
+        gain_rx1_db: int | float,
+        gain_rx2_db: int | float,
         **kw,
     ) -> float:
         """Apply the full two-term correction and wrap.

@@ -734,7 +734,9 @@ LUT reaches **0.713°** LOEO with **1.31–1.36°** on genuinely off-axis gain p
 
 **What this model adds is not a lower number than curve transfer.** It is a
 mechanistic parameterisation that also covers unmeasured frequencies and
-unmeasured requested gains, at 27 universal parameters.
+unmeasured requested gains, at 27 stage-A columns (38 in the wider-coverage
+pooled default). These designs have rank 14 and 29 respectively; only signed
+differences, not individual coefficients, are identified.
 
 Where dense per-frequency calibration exists and the frequency will not change,
 `frequency_specific_additive_gain_per_radio` remains more accurate (0.62° vs
@@ -859,11 +861,11 @@ attribution to the LNA/mixer/TIA network. Report the sem alongside the estimate.
 coverage hole? And does an adjacent-1 dB LNA step behave as the mechanism
 predicts?
 
-*Design:* the requested gains that visit LNA 1 are 31–32 dB (low), 30–31
-(middle), 23–25 (high); LNA 3 is 52 dB (low), 50 (middle), 41 (high). Add
-{29,30,31,32,33} and {49,50,51,52,53} to the existing 6-LO operating set,
-additive-cross, 3 epochs — this brackets every LNA boundary with adjacent 1 dB
-steps. Then re-run the pooled leave-one-gain-table-band-out.
+*Design:* use band-specific probes so every LNA boundary is actually bracketed:
+low `{30,31,32,33,51,52}`, middle `{29,30,31,32,49,50}`, and high
+`{22,23,25,26,40,41}` dB. Run them at the existing six operating LOs,
+additive-cross around 26 dB, 3 epochs (222 frames per radio), then re-run the
+pooled leave-one-gain-table-band-out.
 
 *Decision rule:* if leave-one-band-out drops below ~3° MAE at ≥90% coverage, the
 hardware-state parameterisation is genuinely band-portable and a single fleet
@@ -889,28 +891,35 @@ extrapolation limit and every operating band must be sampled directly.
 *Question:* is the ~12× calibration-time reduction of §4.3 real, or an artifact
 of subsampling one dense capture?
 
-*Design:* capture a fresh 10-point comb (≈400, 1000, 1600, 2200, 2800, 3400,
-4100, 4700, 5300, 5900 MHz) with the stage-A gain set, fit the recommended model,
-and score it against the *existing* dense stage-A/G cells at the 103 frequencies
-not captured.
+*Design:* in one uninterrupted randomized session, capture the full 113-LO
+stage-A comb while pre-registering ≈{400, 1000, 1600, 2200, 2800, 3400, 4100,
+4700, 5300, 5900} MHz as the only training LOs. Fit only those ten and score only
+the other 103 LOs from that same session. Interleave equal-gain anchors and
+repeat the training comb at the end to measure drift. Do not test against an
+older A/G session: §4.6 shows that would confound comb sparsity with session
+drift.
 
-*Decision rule:* held-out MAE ≤3° at 100% coverage confirms the reduction.
-Anything above ~4° means the dense comb is doing more than estimating the two
-shared ripple delays, and the subsample result was optimistic.
+*Decision rule:* held-out unequal-gain MAE ≤3° at 100% stage-A coverage, with
+early/end drift inside the unchanged-harness repeatability bound, confirms the
+reduction. Anything above ~4° after accounting for measured drift means the
+subsample result was optimistic.
 
 ### E-CAL4 — is the arm asymmetry a cable-length difference?
 
 *Question:* is the residual 1.3–6.0% arm-specific term (§3.1) the external
 RX1/RX2 path-length difference?
 
-*Design:* repeat stage A after inserting a known, **characterised** length (e.g.
-15 cm) on RX1 only. Predict: `A(f,g) = D(g,26) + D(26,g)` gains a ripple
-component at the delay implied by that length, while `H(f,g)` is comparatively
-unchanged.
+*Design:* place a VNA-characterised length (e.g. 15 cm, including measured group
+delay over the band) on treated-radio RX1 only. Run original → jumper → restored
+→ jumper → restored, recording connector torque and pre-registering the one-way
+versus round-trip delay convention. Both jumper stages must produce the predicted
+treatment-specific component, both restorations must return within baseline
+repeatability, and neither untreated arm may acquire it. Then run the separate
+RX1↔RX2 cable-swap discriminator.
 
-*Decision rule:* a matching shift in the `A` spectrum confirms the
-external-reflection mechanism *and* gives a way to measure harness asymmetry in
-situ.
+*Decision rule:* repeatable matching shifts plus successful restorations confirm
+the external-reflection mechanism and provide an in-situ harness-asymmetry
+measurement. Any failed restoration leaves physical attribution inconclusive.
 
 > The A–G campaign's stage C already inserted a 30 cm jumper on RX1, and it did
 > add the expected 1356–1494 ps of one-way delay. But the jumper was
@@ -1015,6 +1024,11 @@ p.reason      # 'RX1 invokes lna=1, which the fit never estimated'
 Unsupported cells never silently return zero. `predict_residual_rad()` and
 `correct_measured_phase()` raise `UnsupportedGainState`; `predict()` returns a
 `Prediction` with `supported=False`.
+
+Requested gains must be integer dB values, matching the calibrated table rows.
+Integer-valued floats such as `26.0` are accepted; fractional values are refused
+rather than silently truncated or rounded. Raised `UnsupportedGainState`
+instances retain the offending arm, field, and level for structured logging.
 
 ### Refit it
 

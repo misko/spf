@@ -1,0 +1,171 @@
+schema: spf.calibration.dual_rx_gain_frequency.spectroscopy_campaign
+schema-version: 1
+base-config: spectroscopy_campaign_base.yaml
+expected-radios: 2
+
+rate-gate:
+  stage: rate_pilot
+  maximum-seconds-per-recorded-frame: 1.3
+  action-on-fail: stop-before-e-cal3
+
+# These pins match spectroscopy_campaign_base.yaml. The table bytes are the
+# independently audited FULL tables committed with gain_state_phase_model_v1.
+gain-table-audit:
+  firmware-git-sha: f53dd006c26677a256520b86b7c864100ccd62d2
+  gadget-git-sha: 2072e1d0823ef6db3bc141dd733a90d76e23fc33
+  image-sha256: 86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191
+  bands:
+    - name: low
+      probe-frequency-hz: 1300000000
+      expected-start-hz: 0
+      expected-end-hz: 1300000000
+      expected-type: FULL
+      expected-rows: 77
+      expected-table-sha256: b3a66c34e11db2fd1aa25fa4910d56fb644b5a355d3fac39d027edb698d77b00
+    - name: middle
+      probe-frequency-hz: 1301000000
+      expected-start-hz: 1300000000
+      expected-end-hz: 4000000000
+      expected-type: FULL
+      expected-rows: 77
+      expected-table-sha256: 8644770dc52f4fbef2b6c6bc5e2677f3678ea00d5c7abb51495b705820faaa74
+    - name: high
+      probe-frequency-hz: 4001000000
+      expected-start-hz: 4000000000
+      expected-end-hz: 6000000000
+      expected-type: FULL
+      expected-rows: 77
+      expected-table-sha256: 90d34d61e8612277529dccfc3323f6c684c2bc36b7670dff078e009eb84a1143
+
+analysis-contract:
+  e-cal3:
+    capture-stage: E_CAL3_PROSPECTIVE_DENSE
+    end-repeat-stage: E_CAL3_TRAIN_REPEAT
+    training-frequencies-hz:
+      - 400000000
+      - 1000000000
+      - 1600000000
+      - 2200000000
+      - 2800000000
+      - 3400000000
+      - 4100000000
+      - 4700000000
+      - 5300000000
+      - 5900000000
+    validation-rule: all capture-stage frequencies not in training-frequencies-hz
+    scoring-population: unequal-gain cells
+    pass:
+      maximum-mae-deg: 3.0
+      required-coverage: 1.0
+      require-end-repeat-inside-baseline-bound: true
+    fail:
+      minimum-mae-deg-after-drift-accounting: 4.0
+  e-cal2:
+    stages: [E_CAL2_LOW, E_CAL2_MIDDLE, E_CAL2_HIGH]
+    expected-measurements-per-radio: 222
+    pass:
+      maximum-leave-one-band-out-mae-deg: 3.0
+      minimum-coverage: 0.9
+
+frequency-sets:
+  rate-pilot:
+    values-hz:
+      - 400000000
+      - 1000000000
+      - 1300000000
+      - 1301000000
+      - 2400000000
+      - 4000000000
+      - 4001000000
+      - 5100000000
+      - 5766000000
+      - 5900000000
+  spectroscopy:
+    range-hz:
+      start: 400000000
+      stop-inclusive: 5900000000
+      step: 50000000
+    add-hz: [1301000000, 4001000000]
+  coarse-training:
+    values-hz:
+      - 400000000
+      - 1000000000
+      - 1600000000
+      - 2200000000
+      - 2800000000
+      - 3400000000
+      - 4100000000
+      - 4700000000
+      - 5300000000
+      - 5900000000
+  e-cal2-low: [868000000, 915000000, 1280000000]
+  e-cal2-middle: [2412000000]
+  e-cal2-high: [5766000000, 5866000000]
+
+gain-sets:
+  baseline: [5, 26, 45]
+  e-cal2-low: [26, 30, 31, 32, 33, 51, 52]
+  e-cal2-middle: [26, 29, 30, 31, 32, 49, 50]
+  e-cal2-high: [22, 23, 25, 26, 40, 41]
+
+stages:
+  - id: rate_pilot
+    description: Ten-LO one-epoch timing and unchanged-harness preflight.
+    frequency-set: rate-pilot
+    gain-set: baseline
+    repetitions: 1
+    schedule-reference-gain-db: 26
+    min-quality-valid-per-cell: 1
+    random-seed: 2026080701
+    setup-label: gain_state_followups_rate_pilot
+    operator-checkpoint: Confirm the original 30 dB attenuator and splitter harness on both radios; do not re-mate any RX connector after this checkpoint.
+
+  - id: E_CAL3_PROSPECTIVE_DENSE
+    description: Same-session prospective sparse-comb validation; only the ten preregistered LOs may train the model.
+    requires: [rate_pilot]
+    frequency-set: spectroscopy
+    gain-set: baseline
+    schedule-reference-gain-db: 26
+    random-seed: 2026080702
+    setup-label: E_CAL3_prospective_dense_original_harness
+    operator-checkpoint: Verify the original harness remains untouched after rate_pilot and record radio temperatures.
+
+  - id: E_CAL3_TRAIN_REPEAT
+    description: End-of-session repeat of the ten preregistered training LOs for drift measurement only.
+    requires: [E_CAL3_PROSPECTIVE_DENSE]
+    frequency-set: coarse-training
+    gain-set: baseline
+    schedule-reference-gain-db: 26
+    random-seed: 2026080703
+    setup-label: E_CAL3_training_comb_end_repeat
+    operator-checkpoint: Do not touch the RF harness between E_CAL3_PROSPECTIVE_DENSE and this repeat; record radio temperatures.
+
+  - id: E_CAL2_LOW
+    description: Bracket every low-table LNA boundary with adjacent integer gains.
+    requires: [E_CAL3_TRAIN_REPEAT]
+    frequency-set: e-cal2-low
+    gain-set: e-cal2-low
+    schedule-reference-gain-db: 26
+    random-seed: 2026080704
+    setup-label: E_CAL2_low_lna_boundary_fill
+    operator-checkpoint: Original harness must remain untouched; confirm 868, 915, and 1280 MHz use the audited low table.
+
+  - id: E_CAL2_MIDDLE
+    description: Bracket every middle-table LNA boundary with adjacent integer gains.
+    requires: [E_CAL2_LOW]
+    frequency-set: e-cal2-middle
+    gain-set: e-cal2-middle
+    schedule-reference-gain-db: 26
+    random-seed: 2026080705
+    setup-label: E_CAL2_middle_lna_boundary_fill
+    operator-checkpoint: Original harness must remain untouched; confirm 2412 MHz uses the audited middle table.
+
+  - id: E_CAL2_HIGH
+    description: Bracket every high-table LNA boundary with adjacent integer gains.
+    requires: [E_CAL2_MIDDLE]
+    frequency-set: e-cal2-high
+    gain-set: e-cal2-high
+    schedule-reference-gain-db: 26
+    random-seed: 2026080706
+    setup-label: E_CAL2_high_lna_boundary_fill
+    operator-checkpoint: Original harness must remain untouched; confirm 5766 and 5866 MHz use the audited high table.

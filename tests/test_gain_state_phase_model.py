@@ -19,7 +19,7 @@ from spf.calibrations.gain_state_phase_model_v1 import (
     band_for_lo,
     default_tables,
 )
-from spf.calibrations.gain_state_phase_model_v1.model import COEFFICIENT_DIR
+from spf.calibrations.gain_state_phase_model_v1.model import COEFFICIENT_DIR, wrap
 
 COEFFICIENT_SETS = ["l26_pooled_v1", "l26_stage_a_v1", "l30_pooled_v1", "l31_pooled_v1"]
 
@@ -170,17 +170,49 @@ def test_out_of_table_gain_fails_closed(l26):
     assert "outside" in p.reason
 
 
+def test_fractional_requested_gain_fails_closed_instead_of_truncating(l26):
+    p = l26.predict(2_412e6, 26.9, 26)
+    assert not p.supported
+    assert p.residual_rad == 0.0
+    assert p.unsupported_arm == 1
+    assert p.unsupported_field == "gain_db"
+    assert p.unsupported_level == pytest.approx(26.9)
+    assert "not an integer" in p.reason
+
+    with pytest.raises(UnsupportedGainState) as raised:
+        l26.predict_residual_rad(2_412e6, 26.9, 26)
+    assert raised.value.arm == 1
+    assert raised.value.field_name == "gain_db"
+    assert raised.value.level == pytest.approx(26.9)
+
+
+def test_integer_valued_float_gain_is_accepted(l26):
+    assert l26.predict(2_412e6, 45.0, 26.0).supported
+
+
 def test_unmeasured_lna_state_fails_closed(l26):
     p = l26.predict(2_412e6, 30, 26)
     assert not p.supported
     assert "lna=1" in p.reason
+    assert p.unsupported_arm == 1
+    assert p.unsupported_field == "lna"
+    assert p.unsupported_level == 1
 
 
 def test_raising_api_raises_rather_than_returning_zero(l26):
-    with pytest.raises(UnsupportedGainState):
+    with pytest.raises(UnsupportedGainState) as raised:
         l26.predict_residual_rad(2_412e6, 30, 26)
+    assert raised.value.arm == 1
+    assert raised.value.field_name == "lna"
+    assert raised.value.level == 1
     with pytest.raises(UnsupportedGainState):
         l26.correct_measured_phase(0.1, 0.0, 2_412e6, 30, 26)
+
+
+def test_wrap_uses_documented_half_open_interval():
+    assert wrap(-math.pi) == pytest.approx(-math.pi)
+    assert wrap(math.pi) == pytest.approx(-math.pi)
+    assert -math.pi <= wrap(11 * math.pi) < math.pi
 
 
 def test_supported_gain_list_is_a_strict_subset_of_the_table(l26, tables):
@@ -233,7 +265,7 @@ def test_correction_subtracts_anchor_and_residual_then_wraps(l26):
 def test_correction_result_is_always_wrapped(l26):
     got = l26.correct_measured_phase(math.radians(179.0), math.radians(-179.0),
                                      2_412e6, 45, 26)
-    assert -math.pi < got <= math.pi
+    assert -math.pi <= got < math.pi
 
 
 # ----------------------------------------------------------------------- fit
