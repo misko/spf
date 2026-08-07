@@ -162,12 +162,14 @@ class CalibrationV7Writer:
         identity: SdrDeviceIdentity,
         yaml_config: dict[str, Any],
         resume: bool = True,
+        rf_dc_tracking_observed: dict[str, str | None] | None = None,
     ):
         self.path = Path(path)
         self.config = config
         self.schedule = schedule
         self.identity = identity
         self.yaml_config = yaml_config
+        self.rf_dc_tracking_observed = rf_dc_tracking_observed
         self.signature = _run_signature(config, identity, yaml_config)
         data_path = self.path / "data.mdb"
         if data_path.exists():
@@ -215,6 +217,18 @@ class CalibrationV7Writer:
                 "calibration_run_signature": self.signature,
                 "lmdb_write_policy": "map_async_block_sync",
                 "phase_convention": PHASE_CONVENTION,
+                # Request and confirmation are separate fields, as with
+                # ``firmware_verified``: a claim that the RF-DC tracking loop
+                # was pinned is only worth as much as the chip's readback.
+                "rf_dc_calibration_policy": self.config.rf_dc_calibration_policy,
+                "rf_dc_offset_tracking_en_requested": (
+                    "unset"
+                    if self.config.rf_dc_offset_tracking_en is None
+                    else str(int(self.config.rf_dc_offset_tracking_en))
+                ),
+                "rf_dc_offset_tracking_en_observed": json.dumps(
+                    self.rf_dc_tracking_observed, sort_keys=True
+                ),
                 **_software_provenance(),
             }
         )

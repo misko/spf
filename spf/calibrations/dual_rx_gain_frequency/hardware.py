@@ -131,6 +131,59 @@ class DirectUsbLoopbackRadio:
             if "quadrature_tracking_en" in channel.attrs:
                 channel.attrs["quadrature_tracking_en"].value = "1"
 
+        self.apply_rf_dc_offset_tracking()
+
+    RF_DC_TRACKING_ATTR = "rf_dc_offset_tracking_en"
+
+    def _read_rf_dc_offset_tracking(self) -> dict[str, str | None]:
+        """Observed per-channel state of the continuous RF-DC tracking loop."""
+
+        observed = {}
+        for channel_name in ("voltage0", "voltage1"):
+            channel = self.sdr._ctrl.find_channel(channel_name, is_output=False)
+            attribute = channel.attrs.get(self.RF_DC_TRACKING_ATTR)
+            observed[channel_name] = None if attribute is None else attribute.value
+        return observed
+
+    def apply_rf_dc_offset_tracking(self) -> dict[str, str | None]:
+        """Force the RF-DC tracking loop to the configured state and verify it.
+
+        The write is verified by reading the attribute back, and a mismatch is
+        a hard error. The AD9361 driver silently ignores some attribute writes
+        depending on chip state, and it re-asserts tracking across
+        ``calib_mode`` writes and LO retunes. An unverified write would let a
+        capture claim the tracking loop was disabled when it was never touched
+        -- a false null indistinguishable from a real one on exactly the
+        question this knob exists to answer.
+        """
+
+        requested = self.config.rf_dc_offset_tracking_en
+        if requested is not None:
+            desired = "1" if requested else "0"
+            for channel_name in ("voltage0", "voltage1"):
+                channel = self.sdr._ctrl.find_channel(channel_name, is_output=False)
+                attribute = channel.attrs.get(self.RF_DC_TRACKING_ATTR)
+                if attribute is None:
+                    raise RuntimeError(
+                        f"{self.serial}: {channel_name} does not expose "
+                        f"{self.RF_DC_TRACKING_ATTR}; this firmware cannot run a "
+                        "capture that pins the RF-DC tracking loop"
+                    )
+                attribute.value = desired
+            observed = self._read_rf_dc_offset_tracking()
+            mismatched = {
+                name: value
+                for name, value in observed.items()
+                if value != desired
+            }
+            if mismatched:
+                raise RuntimeError(
+                    f"{self.serial}: RF-DC tracking readback does not match the "
+                    f"requested {desired}: {mismatched}"
+                )
+            return observed
+        return self._read_rf_dc_offset_tracking()
+
     def _prime_iio_rx_dma(self) -> None:
         """Initialize RX DMA after an LO retune and relinquish it to direct USB."""
 
@@ -195,6 +248,9 @@ class DirectUsbLoopbackRadio:
             raise RuntimeError("RX LO readback mismatch")
         if abs(int(self.sdr.tx_lo) - int(lo_frequency_hz)) >= 10:
             raise RuntimeError("TX LO readback mismatch")
+        # An LO retune can cross a gain-table band edge and re-assert the
+        # driver's tracking defaults, so the pinned state is re-verified here.
+        self.apply_rf_dc_offset_tracking()
         if start_tone:
             self.start_tone()
         time.sleep(self.config.frequency_settle_seconds)
@@ -224,6 +280,9 @@ class DirectUsbLoopbackRadio:
         if self._tone_active:
             raise RuntimeError("RF-DC calibration requires TX to be stopped")
         self.sdr._ctrl.attrs["calib_mode"].value = "rf_dc_offs"
+        # The one-shot calibration is a separate mechanism from the tracking
+        # loop, but the driver may re-enable tracking as a side effect of it.
+        self.apply_rf_dc_offset_tracking()
 
     def start_tone(
         self,

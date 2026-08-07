@@ -124,6 +124,15 @@ def pytest_addoption(parser):
         help="enable deliberate direct-USB daemon crash/rebind tests",
     )
     group.addoption(
+        "--radio-rf-dc-tracking",
+        action="store_true",
+        help=(
+            "enable tests that WRITE the AD9361 RF-DC tracking state; they "
+            "restore the pre-test value, but they mutate chip configuration "
+            "shared with every capture on this bench"
+        ),
+    )
+    group.addoption(
         "--radio-report-dir",
         type=Path,
         default=None,
@@ -141,6 +150,7 @@ def pytest_collection_modifyitems(config, items):
     interrupt_enabled = config.getoption("--radio-interrupt", default=False)
     soak_enabled = config.getoption("--radio-soak", default=False)
     crash_recovery_enabled = config.getoption("--radio-crash-recovery", default=False)
+    rf_dc_tracking_enabled = config.getoption("--radio-rf-dc-tracking", default=False)
     hardware_skip = pytest.mark.skip(
         reason="requires explicit --radio-hardware and attached Pluto hardware"
     )
@@ -149,6 +159,9 @@ def pytest_collection_modifyitems(config, items):
     soak_skip = pytest.mark.skip(reason="requires explicit --radio-soak")
     crash_recovery_skip = pytest.mark.skip(
         reason="requires explicit --radio-crash-recovery"
+    )
+    rf_dc_tracking_skip = pytest.mark.skip(
+        reason="requires explicit --radio-rf-dc-tracking"
     )
     for item in items:
         if "radio_hardware" in item.keywords and not hardware_enabled:
@@ -161,6 +174,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(soak_skip)
         if "radio_crash_recovery" in item.keywords and not crash_recovery_enabled:
             item.add_marker(crash_recovery_skip)
+        if "radio_rf_dc_tracking" in item.keywords and not rf_dc_tracking_enabled:
+            item.add_marker(rf_dc_tracking_skip)
 
 
 def _discover_attached_plutos() -> list[AttachedPluto]:

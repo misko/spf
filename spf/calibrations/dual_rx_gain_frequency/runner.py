@@ -242,6 +242,7 @@ def run_calibration(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     identities = {}
+    rf_dc_tracking_observed = {}
     for serial in serials:
         with radio_factory(serial, config) as radio:
             available = set(radio.available_gains())
@@ -251,6 +252,10 @@ def run_calibration(
                     f"{serial}: requested unavailable gains {unavailable}"
                 )
             identities[serial] = radio.identity()
+            # Read back what the chip actually reports, so the dataset records
+            # the achieved RF-DC tracking state rather than only the request.
+            reader = getattr(radio, "_read_rf_dc_offset_tracking", None)
+            rf_dc_tracking_observed[serial] = reader() if reader else None
 
     with ExitStack() as stack:
         writers = {
@@ -262,6 +267,7 @@ def run_calibration(
                     identity=identities[serial],
                     yaml_config=yaml_document,
                     resume=True,
+                    rf_dc_tracking_observed=rf_dc_tracking_observed.get(serial),
                 )
             )
             for serial in serials

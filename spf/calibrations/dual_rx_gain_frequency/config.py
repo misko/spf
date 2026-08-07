@@ -10,6 +10,16 @@ from typing import Iterable
 
 from spf.bench.dual_rx_phase import ToneQualityThresholds
 
+#: Supported values for ``rf_dc_calibration_policy``.
+#:
+#: ``before_each_frequency_block`` runs the driver's one-shot RF-DC
+#: initialization calibration (``calib_mode = rf_dc_offs``) at the top of every
+#: frequency block. ``never`` suppresses it entirely, which is what E-CAL1 arm 2
+#: needs in order to A/B the RF-DC machinery. These are two distinct mechanisms:
+#: the one-shot calibration here, and the continuous tracking loop gated by
+#: ``rf_dc_offset_tracking_en`` below.
+RF_DC_CALIBRATION_POLICIES = ("before_each_frequency_block", "never")
+
 
 @dataclass(frozen=True)
 class ScheduleEntry:
@@ -52,6 +62,12 @@ class CalibrationConfig:
     discard_frames_after_gain: int = 1
     max_retries: int = 1
     rf_dc_calibration_policy: str = "before_each_frequency_block"
+    # Tri-state. ``None`` leaves the AD9361 driver default untouched and only
+    # records what it was, so every config written before this knob existed
+    # keeps byte-identical behaviour *and* an unchanged run signature (see
+    # ``as_json``). ``True``/``False`` force the per-channel continuous RF-DC
+    # tracking loop and require the chip to read that value back.
+    rf_dc_offset_tracking_en: bool | None = None
     require_preflight_tone: bool = True
     random_seed: int = 20260727
     tx_source: str = "fpga_dds"
@@ -124,11 +140,15 @@ class CalibrationConfig:
             raise ValueError("settling times cannot be negative")
         if self.discard_frames_after_gain < 0 or self.max_retries < 0:
             raise ValueError("discard and retry counts cannot be negative")
-        if self.rf_dc_calibration_policy != "before_each_frequency_block":
+        if self.rf_dc_calibration_policy not in RF_DC_CALIBRATION_POLICIES:
             raise ValueError(
                 "unsupported RF-DC calibration policy: "
                 f"{self.rf_dc_calibration_policy}"
             )
+        if self.rf_dc_offset_tracking_en is not None and not isinstance(
+            self.rf_dc_offset_tracking_en, bool
+        ):
+            raise ValueError("rf_dc_offset_tracking_en must be a bool or null")
         if not 1 <= self.min_quality_valid_per_cell <= self.repetitions:
             raise ValueError("minimum valid count must fit within the epochs")
         if self.max_across_repeat_phase_std_deg <= 0:
@@ -179,6 +199,13 @@ class CalibrationConfig:
         result["held_out_gain_pairs"] = [
             list(pair) for pair in self.held_out_gain_pairs
         ]
+        # A knob left at the driver default did not shape the capture, so it
+        # must not shape the run signature either: `_run_signature` hashes this
+        # document, and emitting a null here would change the signature of every
+        # config written before the knob existed, breaking resume on datasets
+        # that are byte-for-byte unaffected by it.
+        if result.get("rf_dc_offset_tracking_en") is None:
+            result.pop("rf_dc_offset_tracking_en", None)
         return result
 
     def tx_gain_for(self, gain_rx1_db: int, gain_rx2_db: int) -> float:

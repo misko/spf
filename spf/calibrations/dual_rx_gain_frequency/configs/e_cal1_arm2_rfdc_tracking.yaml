@@ -1,0 +1,111 @@
+# E-CAL1 arm 2 -- RF-DC tracking loop A/B, high band only.
+#
+# Arm 1 (e_cal1_rfdc_discriminator.yaml, run 2026-08-07) measured the TOTAL
+# RF-DC contribution at the row-23 (+9 dB) edge as +0.069 +/- 0.077 deg against
+# the 2.664 deg median mixer step, and closed the RF-state attribution. See
+# reports/e_cal1_rfdc_20260807_v1/.
+#
+# Arm 2 partitions that total. Two distinct mechanisms hide inside "the RF-DC
+# machinery", and arm 1 could not separate them:
+#
+#   1. the one-shot initialization calibration  -- `calib_mode = rf_dc_offs`,
+#      driven by `rf-dc-calibration-policy`
+#   2. the continuous tracking loop             -- `rf_dc_offset_tracking_en`
+#
+# This config pins (2) OFF while leaving (1) exactly as arm 1 ran it, so the
+# difference between the two datasets isolates the tracking loop.
+#
+# READ THIS BEFORE RUNNING. Arm 2 partitions a quantity that arm 1 already
+# measured as indistinguishable from zero, so its expected information is LOW:
+# it can essentially only return "also zero". It cannot discriminate between
+# "the tracking loop is quiet" and "this harness cannot see RF-DC effects at
+# all" -- only a positive control (inject a known perturbation, confirm the
+# pipeline recovers it at the expected magnitude) can do that. Prefer the
+# positive control first. Arm 2 is worth running mainly to close the mechanism
+# for its own sake.
+#
+# COMPARABILITY IS THE WHOLE POINT. Every scheduling field below is copied
+# byte-for-byte from arm 1 -- same LOs, same gains, same reference, same epoch
+# count, same random seed, same quality gates. Arm 2 is a BETWEEN-dataset
+# comparison against the arm-1 capture, so any schedule drift confounds it.
+# The ONLY intended difference is `rf-dc-offset-tracking-en: false`.
+#
+# The runner verifies the pin by reading the attribute back off the chip and
+# raises on mismatch, and the dataset records both the request and the observed
+# per-channel state (`rf_dc_offset_tracking_en_requested` / `..._observed`).
+# Without that readback a silently-ignored write would produce a null result
+# for the wrong reason -- indistinguishable from a real one.
+data-version: 7
+
+pluto-firmware:
+  release-tag: v0.38-plutoplus-spf-gain-rssi-fingerprint-v3
+  device-fw: v0.38-plutoplus-spf-gain-rssi-fingerprint-v2-8-gf53d
+  asset-name: plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-rssi-fingerprint-v3/plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu
+  image-sha256: 86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191
+  firmware-git-sha: f53dd006c26677a256520b86b7c864100ccd62d2
+  gadget-git-sha: 2072e1d0823ef6db3bc141dd733a90d76e23fc33
+  boot-mode: qspi
+
+calibration:
+  frequencies-hz:
+    - 4001000000
+    - 5100000000
+    - 5766000000
+
+  gains-db:
+    - 5
+    - 8
+    - 9
+    - 10
+  schedule-design: additive_cross
+  schedule-reference-gain-db: 5
+
+  repetitions: 25
+
+  sample-rate-hz: 30000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000
+  tone-search-width-hz: 25000
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+
+  # Mechanism 1, unchanged from arm 1 -- this is the control, not the variable.
+  rf-dc-calibration-policy: before_each_frequency_block
+  # Mechanism 2, the variable. Verified by readback; the run aborts on mismatch.
+  rf-dc-offset-tracking-en: false
+
+  require-preflight-tone: true
+  random-seed: 2026080801
+
+  tx-source: fpga_dds
+  tx-gain-db: 0
+  tx-gain-policy: adaptive_max_rx_gain
+  tx-reference-rx-gain-db: 10
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 16384
+
+  min-quality-valid-per-cell: 20
+  max-across-repeat-phase-std-deg: 5
+
+  setup-label: two-pluto-tx2-30db-split-rx1-rx2
+  notes: >-
+    E-CAL1 arm 2. RF-DC continuous tracking loop pinned OFF; one-shot RF-DC
+    initialization calibration left as arm 1 ran it. TX2 -> 30 dB attenuator ->
+    two-way splitter -> RX1/RX2. Unchanged harness throughout; no connector
+    operations between epochs. Compare against the arm-1 dataset
+    (artifacts/dual_rx_gain_frequency/e_cal1_20260807).
+
+  quality:
+    min-tone-snr-db: -10
+    min-tone-dbfs: -75
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5
