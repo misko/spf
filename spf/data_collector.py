@@ -876,6 +876,15 @@ class DataCollector:
         lost_seconds = getattr(self, "planner_control_lost_seconds", None)
         if lost_seconds is not None:
             zarr.attrs["planner_control_lost_seconds"] = float(lost_seconds)
+        # Seconds recorded while the vehicle did not know where it was -- GPS or
+        # compass unhealthy, or an unhappy EKF. A separate number from the one
+        # above on purpose: "nobody was driving" and "we were driving blind" are
+        # different faults, and gps_lat/gps_long/heading are the ground truth
+        # these records are labelled with, so the second kind is wrong rather
+        # than merely uninformative.
+        blind_seconds = getattr(self, "navigation_unhealthy_seconds", None)
+        if blind_seconds is not None:
+            zarr.attrs["navigation_unhealthy_seconds"] = float(blind_seconds)
         if self.collection_error is not None:
             if self.capture_incident_id is not None:
                 zarr.attrs["capture_incident_id"] = self.capture_incident_id

@@ -1,13 +1,16 @@
 import glob
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
 import time
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 import pytest
+from pymavlink import mavutil
 
 import docker
 import spf.mavlink.mavlink_controller
@@ -326,3 +329,272 @@ def test_guided_mode_moving_and_recording(adrupilot_simulator):
             if not np.isfinite(z["receivers/r0"][key]).all():
                 keys_with_nans.append(key)
         assert len(keys_with_nans) == 0
+
+        # An undisturbed run must SAY it was undisturbed. Absent attributes are
+        # indistinguishable from a capture written by an older build, so the
+        # zeroes are the evidence -- and writing them here proves the whole
+        # path from the drone's live state to the artifact, at no extra sim time.
+        assert z.attrs["planner_control_lost_seconds"] == 0.0
+        assert z.attrs["navigation_unhealthy_seconds"] == 0.0
+
+
+# ---------------------------------------------- interrupting a guided run ----
+#
+# A capture is only usable while two things hold: the planner is driving, and
+# the vehicle knows where it is. Both fail routinely in the field -- an
+# operator takes MANUAL, a GPS drops out, a compass goes unhealthy -- and on
+# 2026-08-07 the collector noticed none of it and recorded straight through.
+#
+# These tests interrupt a real ArduPilot mid-GUIDED, then put it back, and
+# require the collector to both notice and RESUME. Recovery is half the point:
+# a capture that stops trusting itself permanently after one transient blip is
+# no more usable than one that never noticed.
+
+SIM_PARAM_TIMEOUT = 30
+
+
+def sim_param_set(port, name, value):
+    """Set one SITL parameter, and confirm the vehicle echoed the new value.
+
+    param_set_send rather than the controller's --load-params: loading a whole
+    parameter file against this sim takes ~25s, which is longer than the
+    interruptions these tests are trying to time.
+
+    The connection is opened and closed around each call on purpose. Each sim
+    endpoint is a single-client `tcpin` server, so holding one open here would
+    lock out set_mode()'s subprocess and the failure would look like a hang.
+    """
+    connection = mavutil.mavlink_connection(f"tcp:127.0.0.1:{port}")
+    try:
+        connection.wait_heartbeat(timeout=SIM_PARAM_TIMEOUT)
+        connection.mav.param_set_send(
+            connection.target_system,
+            connection.target_component,
+            name.encode(),
+            float(value),
+            mavutil.mavlink.MAV_PARAM_TYPE_REAL32,
+        )
+        deadline = time.time() + SIM_PARAM_TIMEOUT
+        while time.time() < deadline:
+            message = connection.recv_match(
+                type="PARAM_VALUE", blocking=True, timeout=5
+            )
+            if message is not None and message.param_id == name:
+                return message.param_value
+        raise TimeoutError(f"{name} was never echoed back after being set to {value}")
+    finally:
+        connection.close()
+
+
+@dataclass(frozen=True)
+class Interruption:
+    """One way a guided run gets interrupted, and how it is expected to read.
+
+    `lost_marker`/`resumed_marker` are the collector's own log lines, because
+    those are what an operator standing in a field actually sees.
+    """
+
+    name: str
+    inject: Callable[[int], None]
+    clear: Callable[[int], None]
+    lost_marker: str
+    resumed_marker: str
+
+
+INTERRUPTIONS = [
+    # The rover 4 case: the operator flips CH8 and drives it himself. A
+    # designed interlock, not a fault -- but the capture must stop counting
+    # those records as planner-driven.
+    Interruption(
+        name="operator_takes_manual",
+        inject=lambda port: set_mode("manual", port),
+        clear=lambda port: set_mode("guided", port),
+        lost_marker="PLANNER CONTROL LOST",
+        resumed_marker="PLANNER CONTROL RESUMED",
+    ),
+    # gps_lat/gps_long are the ground truth every record is labelled with, so
+    # recording through a GPS dropout produces confidently mislabelled data.
+    #
+    # Observed here: ArduPilot drops the rover into HOLD on the EKF failsafe,
+    # so this trips PLANNER CONTROL LOST as well -- correctly, since nobody is
+    # driving either. Only the navigation markers are asserted because the
+    # control half does NOT come back on its own: restoring GPS leaves the
+    # vehicle in HOLD, and the planner only recovers via the stall watchdog's
+    # handover, which waits for an operator. That is by design -- an EKF
+    # failsafe should not silently resume itself -- but it does mean a GPS
+    # dropout in the field ends the capture's useful portion until someone
+    # intervenes.
+    Interruption(
+        name="gps_loss",
+        inject=lambda port: sim_param_set(port, "SIM_GPS_DISABLE", 1),
+        clear=lambda port: sim_param_set(port, "SIM_GPS_DISABLE", 0),
+        lost_marker="NAVIGATION UNHEALTHY",
+        resumed_marker="NAVIGATION RECOVERED",
+    ),
+    # The rover 4 boot fault, now mid-run: heading feeds the ground truth too.
+    Interruption(
+        name="compass_loss",
+        inject=lambda port: sim_param_set(port, "SIM_MAG1_FAIL", 1),
+        clear=lambda port: sim_param_set(port, "SIM_MAG1_FAIL", 0),
+        lost_marker="NAVIGATION UNHEALTHY",
+        resumed_marker="NAVIGATION RECOVERED",
+    ),
+]
+
+
+def _run_until_interrupted_and_resumed(endpoints, interruption, backstop_seconds=300):
+    """Drive a real capture through inject -> notice -> clear -> resume.
+
+    Returns the collector's output lines. The capture is stopped as soon as the
+    resume is seen rather than run to completion: what is under test is the
+    transition, and every extra second here is a second of CI.
+    """
+    set_mode("manual", endpoints.command, sleep_time=10)
+    collector = mavlink_radio_collection_base_command(endpoints.collect)
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # No shell: terminate() has to reach python itself, not an intervening
+        # /bin/sh that would leave the capture running and the test hanging.
+        command = shlex.split(
+            f"{collector} -r circle --temp {tmpdirname} -s {backstop_seconds}"
+        )
+        outputs = []
+        stage = "waiting_for_guided"
+        with subprocess.Popen(
+            command,
+            env=get_env(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        ) as process:
+            try:
+                for line in process.stdout:
+                    outputs.append(line)
+                    print(line, end="")
+
+                    if (
+                        stage == "waiting_for_guided"
+                        and "waiting for rover to move into guided mode..." in line
+                    ):
+                        set_mode("guided", endpoints.command)
+                        stage = "guided"
+                    elif (
+                        stage == "guided"
+                        and "MavRadioCollection: Planner has started controling" in line
+                    ):
+                        # Interrupt only once recording is actually under way;
+                        # before that there is nothing to record through.
+                        print(f"INJECTING {interruption.name}")
+                        interruption.inject(endpoints.command)
+                        stage = "injected"
+                    elif stage == "injected" and interruption.lost_marker in line:
+                        print(f"CLEARING {interruption.name}")
+                        interruption.clear(endpoints.command)
+                        stage = "cleared"
+                    elif stage == "cleared" and interruption.resumed_marker in line:
+                        stage = "resumed"
+                        break
+            finally:
+                process.terminate()
+                try:
+                    process.wait(timeout=60)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=30)
+
+    return stage, outputs
+
+
+@pytest.mark.parametrize(
+    "interruption", INTERRUPTIONS, ids=lambda i: i.name
+)
+def test_a_guided_run_notices_an_interruption_and_resumes(
+    adrupilot_simulator, interruption
+):
+    stage, outputs = _run_until_interrupted_and_resumed(
+        adrupilot_simulator, interruption
+    )
+    transcript = "".join(outputs)
+
+    assert stage != "waiting_for_guided", "the collector never asked for guided mode"
+    assert stage != "guided", (
+        "recording never started, so the interruption was never injected"
+    )
+    assert interruption.lost_marker in transcript, (
+        f"{interruption.name} was injected and the capture recorded straight "
+        f"through it -- no {interruption.lost_marker!r} in the log"
+    )
+    assert interruption.resumed_marker in transcript, (
+        f"{interruption.name} was cleared but the capture never recovered -- no "
+        f"{interruption.resumed_marker!r} in the log. A capture that never "
+        "trusts itself again after one blip is as unusable as one that never "
+        "noticed."
+    )
+    assert stage == "resumed"
+
+
+def test_the_operator_can_hand_control_back_and_forth_repeatedly(adrupilot_simulator):
+    """One takeover is the easy case; the flag must not latch after the first.
+
+    `planner_in_control` used to be a latch set once by run_planner. Reading
+    the mode live means every handback works, not just the first -- and the
+    screenshots from 2026-08-07 show the switch being worked repeatedly.
+    """
+    set_mode("manual", adrupilot_simulator.command, sleep_time=10)
+    collector = mavlink_radio_collection_base_command(adrupilot_simulator.collect)
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        command = shlex.split(f"{collector} -r circle --temp {tmpdirname} -s 300")
+        outputs = []
+        stage = "waiting_for_guided"
+        cycles_wanted = 2
+        losses = 0
+        resumes = 0
+        with subprocess.Popen(
+            command,
+            env=get_env(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        ) as process:
+            try:
+                for line in process.stdout:
+                    outputs.append(line)
+                    print(line, end="")
+                    if (
+                        stage == "waiting_for_guided"
+                        and "waiting for rover to move into guided mode..." in line
+                    ):
+                        set_mode("guided", adrupilot_simulator.command)
+                        stage = "driving"
+                    elif (
+                        stage == "driving"
+                        and "MavRadioCollection: Planner has started controling" in line
+                    ):
+                        set_mode("manual", adrupilot_simulator.command)
+                        stage = "took_manual"
+                    elif stage == "took_manual" and "PLANNER CONTROL LOST" in line:
+                        losses += 1
+                        set_mode("guided", adrupilot_simulator.command)
+                        stage = "gave_back"
+                    elif stage == "gave_back" and "PLANNER CONTROL RESUMED" in line:
+                        resumes += 1
+                        if resumes >= cycles_wanted:
+                            break
+                        set_mode("manual", adrupilot_simulator.command)
+                        stage = "took_manual"
+            finally:
+                process.terminate()
+                try:
+                    process.wait(timeout=60)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=30)
+
+    assert losses >= cycles_wanted, (
+        f"only {losses} of {cycles_wanted} takeovers were noticed; the control "
+        "signal latched after the first"
+    )
+    assert resumes >= cycles_wanted, (
+        f"only {resumes} of {cycles_wanted} handbacks resumed the capture"
+    )

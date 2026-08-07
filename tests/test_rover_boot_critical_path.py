@@ -320,3 +320,75 @@ def test_removed_flags_fail_closed_instead_of_being_ignored():
     plan = launcher.split("print_plan() {", 1)[1].split("\n}\n", 1)[0]
     assert "boot_validate_only=" not in plan
     assert "run_once=" not in plan
+
+
+def test_the_stall_knobs_reach_the_collector_from_the_boot_path():
+    """run_capture() built a fixed argument list that omitted them entirely.
+
+    mavlink_radio_collection.py has accepted --stall-detect-seconds,
+    --stall-manual-seconds and --stall-progress-radius-m all along, but nothing
+    on the boot path could pass one. Retuning the watchdog after a field session
+    meant editing this script on four rovers.
+    """
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+
+    for knob in (
+        "SPF_STALL_DETECT_SECONDS",
+        "SPF_STALL_MANUAL_SECONDS",
+        "SPF_STALL_PROGRESS_RADIUS_M",
+    ):
+        assert knob in launcher, f"{knob} is not readable from the environment"
+
+    capture = launcher.split("run_capture() {", 1)[1].split("\n}\n", 1)[0]
+    assert 'stall_args[@]+"${stall_args[@]}"' in capture, (
+        "the stall flags must reach the collector, and the +expansion is "
+        "required: an empty array under `set -u` is an unbound variable"
+    )
+
+    for flag in (
+        "--stall-detect-seconds",
+        "--stall-manual-seconds",
+        "--stall-progress-radius-m",
+    ):
+        assert flag in launcher
+
+
+def test_an_unset_stall_knob_passes_no_flag_at_all():
+    """Defaults keep exactly one home -- the collector's argparse.
+
+    Mirroring the numbers here is how the boot path and the `rover` CLI drift
+    apart; the empty default means an unset knob is genuinely absent rather
+    than re-specified.
+    """
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+
+    assert 'STALL_DETECT_SECONDS="${SPF_STALL_DETECT_SECONDS:-}"' in launcher
+    assert 'STALL_MANUAL_SECONDS="${SPF_STALL_MANUAL_SECONDS:-}"' in launcher
+    assert 'STALL_PROGRESS_RADIUS_M="${SPF_STALL_PROGRESS_RADIUS_M:-}"' in launcher
+    assert "stall_args=()" in launcher
+
+
+def test_a_zero_stall_knob_is_refused():
+    """`--stall-detect-seconds 0` stalls every waypoint instantly, and the rover
+    spends the session escaping jams that are not there. Absent is safe; zero
+    is not."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    block = launcher.split("for stall_knob in", 1)[1].split("\ndone\n", 1)[0]
+
+    assert '"$stall_knob_value" =~ [1-9]' in block, (
+        "a decimal of all zeroes (0, 0.0, 0.00) must be refused"
+    )
+    assert "must be a positive number" in block
+    # `[[ ... ]] && continue` returns nonzero for every knob that IS set, which
+    # under `set -e` aborts the boot -- the repeat gotcha in this script.
+    assert '[[ -z "$stall_knob_value" ]] && continue' not in block
+    assert 'if [[ -n "$stall_knob_value" ]]; then' in block
+
+
+def test_the_stall_knobs_are_visible_in_the_plan():
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    plan = launcher.split("print_plan() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert "stall_detect_seconds=" in plan
+    assert "stall_manual_seconds=" in plan
+    assert "stall_progress_radius_m=" in plan

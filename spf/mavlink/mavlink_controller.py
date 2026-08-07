@@ -244,6 +244,15 @@ MOVE_REACHED = "reached"
 MOVE_SKIPPED = "skipped"
 MOVE_ABORTED = "aborted"
 
+# Sensors whose failure makes the vehicle's own position and heading untrue.
+# gps_lat/gps_long/heading ARE the ground truth a capture is labelled with, so
+# a record written while one of these is unhealthy is not merely uninformative
+# -- it is wrong, and nothing downstream can tell.
+NAVIGATION_SENSORS = (
+    "MAV_SYS_STATUS_SENSOR_GPS",
+    "MAV_SYS_STATUS_SENSOR_3D_MAG",
+)
+
 
 class _RCHoldInterlock:
     """Debounce a destructive RC action and require an intentional release."""
@@ -1013,8 +1022,78 @@ class Drone:
                 mavutil.mavlink.MAV_SEVERITY_CRITICAL, text.encode()
             )
 
+    def planner_control_loss_reason(self):
+        """Why the planner is not driving the vehicle right now, or None.
+
+        `planner_in_control` alone is a LATCH: run_planner sets it True before
+        its first move and clears it only on return or MOVE_ABORTED. Nothing
+        clears it when the operator takes MANUAL -- so on 2026-08-07 rover 4
+        recorded 258 snapshots of a vehicle sitting still under an operator's
+        thumb, and the takeover accounting added for that incident could never
+        observe it, because the signal it watches never moved.
+
+        Mode is therefore read live from the heartbeat. That also makes resume
+        automatic: hand control back and this returns None again with no state
+        to unwind, whether the handback came from the operator's switch or from
+        _hand_over_to_manual's own wait.
+        """
+
+        if not self.planner_in_control:
+            return "the planner is not driving"
+        if (
+            getattr(self, "connection_factory", None) is not None
+            and not self.connection_healthy
+        ):
+            return "the MAVLink connection is not healthy"
+        if not self.ignore_mode and self.mav_mode != "ROVER_MODE_GUIDED":
+            return f"the vehicle is in {self.mav_mode}, not GUIDED"
+        return None
+
     def is_planner_in_control(self):
-        return self.planner_in_control
+        return self.planner_control_loss_reason() is None
+
+    def planner_is_still_driving(self):
+        """Has run_planner left its driving section yet?
+
+        The LATCH, deliberately: unlike is_planner_in_control() this ignores
+        the live mode. Callers waiting for the planner thread to finish before
+        they park the vehicle must not stop waiting merely because the operator
+        happens to be holding MANUAL at that moment -- the planner is still in
+        its loop and would race whatever they do next.
+        """
+        return bool(self.planner_in_control)
+
+    def unhealthy_navigation_sensors(self):
+        """Enabled navigation sensors the flight controller reports unhealthy.
+
+        Enabled-but-unhealthy, never merely absent: a sensor the airframe does
+        not have is not a fault, and treating it as one would mark every
+        capture bad forever.
+        """
+
+        enabled = set(getattr(self, "sensors_enabled", None) or ())
+        healthy = set(getattr(self, "sensors_health", None) or ())
+        return tuple(
+            sensor
+            for sensor in NAVIGATION_SENSORS
+            if sensor in enabled and sensor not in healthy
+        )
+
+    def navigation_health_warning(self):
+        """Why this vehicle's reported position/heading is untrustworthy, or None.
+
+        Deliberately NOT folded into planner_control_loss_reason. "Nobody was
+        driving" and "we were driving but did not know where we were" are
+        different facts with different fixes, and one number that means either
+        one can be acted on for neither.
+        """
+
+        unhealthy = self.unhealthy_navigation_sensors()
+        if unhealthy:
+            return "unhealthy navigation sensors: " + ", ".join(sorted(unhealthy))
+        if not self.ekf_healthy:
+            return "the EKF is not healthy"
+        return None
 
     def get_position_bearing_and_time(self):
         return {"gps": self.gps, "heading": self.heading, "gps_time": self.gps_time}

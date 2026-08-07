@@ -45,8 +45,12 @@ READINESS_TONE_INTERVAL_SECONDS = 15.0
 ANNOYING_TONES_DISABLE_PATH = Path.home() / "disable_annoying_tones"
 
 
-class PlannerControlLost(RuntimeError):
-    """The planner stopped driving while a capture was still recording."""
+# Losing planner control does NOT raise. A takeover is a designed interlock --
+# the stall handover depends on it -- and CAPTURE_RESTART_ATTEMPTS defaults to
+# 1, so raising would end a session after two of them. The capture keeps
+# running and declares how much of itself was recorded degraded.
+LOST = "lost"
+RECOVERED = "recovered"
 
 
 def planner_control_lost(drone) -> bool:
@@ -68,37 +72,55 @@ def planner_control_lost(drone) -> bool:
     return not drone.is_planner_in_control()
 
 
-class PlannerControlTracker:
-    """How much of a capture was recorded while the planner was NOT driving.
+def navigation_unhealthy(drone) -> str:
+    """Why the vehicle's position/heading is untrustworthy right now, or "".
 
-    Records written during an operator takeover are not corrupt -- the IQ and
-    the GPS are both accurate -- they simply describe a stationary vehicle, so
-    they carry no bearing diversity and bias any aggregate built from them.
+    Separate from planner control on purpose. A takeover means nobody was
+    driving; a GPS or compass failure means we WERE driving and did not know
+    where we were. Both make records unusable, for different reasons and with
+    different fixes, so they are counted separately.
+    """
+    if drone is None:
+        return ""
+    return drone.navigation_health_warning() or ""
+
+
+class LostIntervalTracker:
+    """How much of a capture was recorded in a degraded state, and how often.
+
+    Used twice: once for "the planner was not driving" (an operator in MANUAL,
+    a stall handover, a dropped link) and once for "the vehicle did not know
+    where it was" (GPS or compass unhealthy, EKF unhappy).
 
     Aborting the capture instead would be the wrong trade: a takeover is a
     designed interlock (the stall handover depends on it), and
     CAPTURE_RESTART_ATTEMPTS defaults to 1, so two takeovers would end a
     session. So the capture keeps running and declares how much of itself was
-    recorded standing still, which is a thing analysis can filter on. Without
-    this the only trace is a flat bearing track someone puzzles over months
-    later.
+    recorded degraded, which is a thing analysis can filter on. Without this
+    the only trace is a flat bearing track someone puzzles over months later.
     """
 
     def __init__(self):
         self.lost_seconds = 0.0
-        self.takeovers = 0
+        self.episodes = 0
         self._lost_since = None
 
-    def update(self, control_lost: bool, now: float) -> bool:
-        """Feed one observation. Returns True on the edge INTO a takeover."""
-        if control_lost and self._lost_since is None:
+    def update(self, lost: bool, now: float) -> str:
+        """Feed one observation. Returns the edge crossed: "", LOST or RECOVERED.
+
+        RECOVERED is reported, not just recorded, because a degraded capture
+        that never comes back and one that recovers in four seconds want very
+        different responses from whoever is standing in the field.
+        """
+        if lost and self._lost_since is None:
             self._lost_since = now
-            self.takeovers += 1
-            return True
-        if not control_lost and self._lost_since is not None:
+            self.episodes += 1
+            return LOST
+        if not lost and self._lost_since is not None:
             self.lost_seconds += now - self._lost_since
             self._lost_since = None
-        return False
+            return RECOVERED
+        return ""
 
     def finish(self, now: float) -> None:
         """Close an interval still open when the capture ended.
@@ -571,8 +593,10 @@ if __name__ == "__main__":
     )
 
     capture_failure = None
-    planner_control_tracker = PlannerControlTracker()
+    planner_control_tracker = LostIntervalTracker()
+    navigation_tracker = LostIntervalTracker()
     data_collector.planner_control_lost_seconds = 0.0
+    data_collector.navigation_unhealthy_seconds = 0.0
     try:
         with capture_signal_handlers(data_collector):
             data_collector.start()
@@ -587,17 +611,48 @@ if __name__ == "__main__":
                     # through an operator takeover writing snapshots of a
                     # stationary rover. Watch it for the whole capture instead.
                     now = time.time()
-                    if planner_control_tracker.update(
-                        planner_control_lost(None if args.fake_drone else drone), now
-                    ):
+                    vehicle = None if args.fake_drone else drone
+                    edge = planner_control_tracker.update(
+                        planner_control_lost(vehicle), now
+                    )
+                    if edge == LOST:
                         logging.error(
-                            "PLANNER CONTROL LOST: the vehicle is no longer under "
-                            "planner control, but this capture is still recording. "
-                            "These records describe a STATIONARY rover; filter them "
-                            "on planner_control_lost_seconds."
+                            "PLANNER CONTROL LOST: %s, but this capture is still "
+                            "recording. These records describe a STATIONARY rover; "
+                            "filter them on planner_control_lost_seconds.",
+                            vehicle.planner_control_loss_reason(),
+                        )
+                    elif edge == RECOVERED:
+                        logging.warning(
+                            "PLANNER CONTROL RESUMED after %.0fs; the capture "
+                            "continues.",
+                            planner_control_tracker.lost_seconds,
                         )
                     data_collector.planner_control_lost_seconds = (
                         planner_control_tracker.lost_seconds
+                    )
+                    # Separately: were we driving but lost track of where we
+                    # were? gps_lat/gps_long/heading are the ground truth, so a
+                    # record written with an unhealthy GPS or compass is wrong
+                    # rather than merely uninformative.
+                    warning = navigation_unhealthy(vehicle)
+                    edge = navigation_tracker.update(bool(warning), now)
+                    if edge == LOST:
+                        logging.error(
+                            "NAVIGATION UNHEALTHY: %s, but this capture is still "
+                            "recording. The gps/heading ground truth in these "
+                            "records may be WRONG; filter them on "
+                            "navigation_unhealthy_seconds.",
+                            warning,
+                        )
+                    elif edge == RECOVERED:
+                        logging.warning(
+                            "NAVIGATION RECOVERED after %.0fs; the capture "
+                            "continues.",
+                            navigation_tracker.lost_seconds,
+                        )
+                    data_collector.navigation_unhealthy_seconds = (
+                        navigation_tracker.lost_seconds
                     )
                     time.sleep(0.5)
             except BaseException as error:
@@ -608,16 +663,29 @@ if __name__ == "__main__":
             # Close a takeover still open at the end: rover 4 was still in
             # MANUAL as its capture kept advancing, so the final interval has no
             # closing edge to observe.
-            planner_control_tracker.finish(now=time.time())
+            closed_at = time.time()
+            planner_control_tracker.finish(now=closed_at)
+            navigation_tracker.finish(now=closed_at)
             data_collector.planner_control_lost_seconds = (
                 planner_control_tracker.lost_seconds
             )
-            if planner_control_tracker.takeovers:
+            data_collector.navigation_unhealthy_seconds = (
+                navigation_tracker.lost_seconds
+            )
+            if planner_control_tracker.episodes:
                 logging.error(
                     "Capture recorded %.0fs across %d takeover(s) with no planner "
                     "control; those records describe a stationary rover.",
                     planner_control_tracker.lost_seconds,
-                    planner_control_tracker.takeovers,
+                    planner_control_tracker.episodes,
+                )
+            if navigation_tracker.episodes:
+                logging.error(
+                    "Capture recorded %.0fs across %d episode(s) of unhealthy "
+                    "navigation; the gps/heading ground truth in those records "
+                    "may be wrong.",
+                    navigation_tracker.lost_seconds,
+                    navigation_tracker.episodes,
                 )
             data_collector.done()
     except BaseException as error:
@@ -658,8 +726,14 @@ if __name__ == "__main__":
 
     if not args.fake_drone:
         # wait for it to release control back, that happens when this goes false
+        #
+        # The latch, not is_planner_in_control(): this waits for the planner
+        # THREAD to leave its loop before the parking below starts commanding
+        # the vehicle. The live signal goes false the moment an operator takes
+        # MANUAL, which would end this wait while run_planner was still issuing
+        # repositions -- and then park and planner would fight over the rover.
         seconds_to_wait = 60
-        while seconds_to_wait > 0 and drone.is_planner_in_control():
+        while seconds_to_wait > 0 and drone.planner_is_still_driving():
             time.sleep(2)
             seconds_to_wait -= 2
 

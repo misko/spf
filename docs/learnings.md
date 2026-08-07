@@ -802,3 +802,49 @@ report all the failures at once.** One-at-a-time discovery turns a five-minute
 fix into an afternoon of rerun-and-wait. `v7_tx_rx_merge.py` now checks all RX
 sidecars up front and lists every missing one; `--dry-run` reports them too, but
 still prints the GPS-overlap map first so the trip is not wasted.
+
+## Rover (2026-08-06): "the planner is in control" was a latch, so the collector
+## recorded straight through every operator takeover
+
+`Drone.planner_in_control` was set once by `run_planner` before its first move
+and cleared only on return or `MOVE_ABORTED`. **Nothing cleared it when the
+vehicle left GUIDED.** On 2026-08-07 rover 4 advanced 320 → 578 of 3000 records
+with the mode column reading MANUAL: the rover was standing still under an
+operator's thumb and the capture kept writing snapshots whose `gps_lat`/
+`gps_long` barely changed — and those are exactly the fields `rx_pos`/`tx_pos`
+ground truth is derived from.
+
+The trap is that the takeover ACCOUNTING added for that incident tested green
+while being completely inert. Its tests fed the tracker synthetic `control_lost`
+booleans and asserted the arithmetic; nothing asserted that the real signal ever
+went false. **A watchdog's tests must exercise the thing it watches, not just
+the bookkeeping downstream of it.**
+
+Mode is now read live from the heartbeat, which also makes resume free: hand
+control back and control returns with no state to unwind. Verified in SITL
+against a real ArduPilot — loss detected in ~1s, resume in ~3s, across repeated
+handbacks.
+
+Two further conclusions from building it:
+
+- **"Nobody was driving" and "we were driving blind" are different faults and
+  get different counters.** A GPS or compass failure leaves the planner driving
+  a vehicle that does not know where it is, which makes records *wrong* rather
+  than merely uninformative. Captures now carry both
+  `planner_control_lost_seconds` and `navigation_unhealthy_seconds`. One number
+  meaning either thing could be acted on for neither.
+- **Enabled-but-unhealthy, never merely absent.** A sensor the airframe does not
+  have is not a fault; gating on presence alone would mark every capture bad
+  forever.
+
+A GPS dropout is not self-healing. SITL shows ArduPilot dropping the rover into
+HOLD on the EKF failsafe, and restoring GPS leaves it in HOLD — the planner only
+recovers through the stall watchdog's handover, which waits for an operator.
+That is the right behaviour (an EKF failsafe should not silently resume itself)
+but it means a GPS dropout in the field ends the useful portion of that capture
+until someone intervenes.
+
+Keep the latch as well as the live signal: post-capture parking waits for
+`run_planner` to actually EXIT (`planner_is_still_driving()`), and using the
+live signal there would end the wait the instant an operator took MANUAL, with
+parking and planner then fighting over the rover.

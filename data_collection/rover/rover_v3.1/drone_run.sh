@@ -101,6 +101,15 @@ COMPASS_REBOOT_DELAY_S="${SPF_COMPASS_REBOOT_DELAY_S:-20}"
 COMPASS_REBOOT_ENABLE="${SPF_COMPASS_REBOOT_ENABLE:-1}"
 GPS_TIME_SYNC_ATTEMPTS="${SPF_GPS_TIME_SYNC_ATTEMPTS:-3}"
 GPS_TIME_TIMEOUT_S="${SPF_GPS_TIME_TIMEOUT:-180}"
+# Stall watchdog tuning. Empty means "whatever the collector's own defaults
+# are", so the numbers keep exactly one home; setting a knob passes the flag
+# through explicitly. mavlink_radio_collection.py has accepted these three
+# flags all along, but run_capture() built a fixed argument list that omitted
+# them -- so retuning the watchdog in the field meant editing this script on
+# four rovers, and the 0.3 m/s implied speed floor was not adjustable at all.
+STALL_DETECT_SECONDS="${SPF_STALL_DETECT_SECONDS:-}"
+STALL_MANUAL_SECONDS="${SPF_STALL_MANUAL_SECONDS:-}"
+STALL_PROGRESS_RADIUS_M="${SPF_STALL_PROGRESS_RADIUS_M:-}"
 
 if [[ "$PYTHON" == */* ]]; then
     [[ -x "$PYTHON" ]] || die "Python environment is unavailable: ${PYTHON}"
@@ -168,6 +177,36 @@ firmware_image_sha256="${config_values[11]}"
     die "SPF_COMPASS_GATE_RETRIES must be a non-negative integer."
 [[ "$COMPASS_REBOOT_DELAY_S" =~ ^[0-9]+$ ]] ||
     die "SPF_COMPASS_REBOOT_DELAY_S must be a non-negative integer."
+# Positive decimals, and only when set. A stall knob at 0 is worse than absent:
+# `--stall-detect-seconds 0` makes every waypoint stall instantly and the rover
+# spends the session escaping jams that are not there.
+for stall_knob in \
+    "SPF_STALL_DETECT_SECONDS:${STALL_DETECT_SECONDS}" \
+    "SPF_STALL_MANUAL_SECONDS:${STALL_MANUAL_SECONDS}" \
+    "SPF_STALL_PROGRESS_RADIUS_M:${STALL_PROGRESS_RADIUS_M}"; do
+    stall_knob_value="${stall_knob#*:}"
+    # `if`, not `[[ ... ]] && continue`: under `set -e` that compound returns
+    # nonzero for every knob that IS set, and aborts the boot.
+    if [[ -n "$stall_knob_value" ]]; then
+        # A decimal, with at least one nonzero digit -- which rules out 0, 0.0
+        # and 0.00 without shelling out to arithmetic.
+        [[ "$stall_knob_value" =~ ^[0-9]+(\.[0-9]+)?$ &&
+            "$stall_knob_value" =~ [1-9] ]] ||
+            die "${stall_knob%%:*} must be a positive number, got: ${stall_knob_value}"
+    fi
+done
+unset stall_knob stall_knob_value
+
+stall_args=()
+if [[ -n "$STALL_DETECT_SECONDS" ]]; then
+    stall_args+=(--stall-detect-seconds "$STALL_DETECT_SECONDS")
+fi
+if [[ -n "$STALL_MANUAL_SECONDS" ]]; then
+    stall_args+=(--stall-manual-seconds "$STALL_MANUAL_SECONDS")
+fi
+if [[ -n "$STALL_PROGRESS_RADIUS_M" ]]; then
+    stall_args+=(--stall-progress-radius-m "$STALL_PROGRESS_RADIUS_M")
+fi
 
 print_plan() {
     printf '%s\n' \
@@ -192,7 +231,10 @@ print_plan() {
         "compass_reboot_enable=${COMPASS_REBOOT_ENABLE}" \
         "compass_reboot_delay_s=${COMPASS_REBOOT_DELAY_S}" \
         "gps_time_sync_attempts=${GPS_TIME_SYNC_ATTEMPTS}" \
-        "gps_time_timeout_s=${GPS_TIME_TIMEOUT_S}"
+        "gps_time_timeout_s=${GPS_TIME_TIMEOUT_S}" \
+        "stall_detect_seconds=${STALL_DETECT_SECONDS:-<collector default>}" \
+        "stall_manual_seconds=${STALL_MANUAL_SECONDS:-<collector default>}" \
+        "stall_progress_radius_m=${STALL_PROGRESS_RADIUS_M:-<collector default>}"
 }
 
 case "${1:-}" in
@@ -652,7 +694,8 @@ run_capture() {
         --status-file "$CAPTURE_STATUS_FILE" \
         "$crash_detect_flag" \
         "$crash_recovery_flag" \
-        "$ultrasonic_flag" &
+        "$ultrasonic_flag" \
+        ${stall_args[@]+"${stall_args[@]}"} &
     capture_pid=$!
     "$PYTHON" -m spf.capture_watchdog monitor \
         --pid "$capture_pid" \
