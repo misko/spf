@@ -1,9 +1,28 @@
 """Refit the gain-state model from extracted campaign scalars.
 
 This is the path to use when new calibration data arrives -- an E-CAL2 LNA fill,
-a fifth radio, a fresh coarse comb -- and you want coefficients that cover the
-new states. It reads only the small ``.npz`` scalar extracts produced by the
-source analysis' ``extract.py``, never the multi-GB V7 stores directly.
+a fifth radio, a denser comb -- and you want coefficients that cover the new
+states. It reads only the small ``.npz`` scalar extracts produced by the source
+analysis' ``extract.py``, never the multi-GB V7 stores directly.
+
+**Do not refit from a sparse comb without checking its conditioning.** E-CAL3
+refitted this model from ten uniformly spaced LOs and got 11.61 deg on the
+held-out frequencies -- worse than the 9.06 deg anchor-only baseline, i.e. worse
+than shipping no model at all. The cause was not the point count but the
+*spacing*: at 600 MHz steps, ``600e6 * (tau1 - tau2) = 0.984`` cycles, so the two
+ripple components alias onto each other. That comb's ripple-basis condition
+number is 17.92 against a random-10 median of 2.35 -- roughly 1 comb in 2000 is
+worse. Random ten-point combs reach 4.30 deg.
+
+``check_comb_conditioning()`` below computes that number, and ``fit()`` warns
+when it is bad. Two practical rules follow:
+
+* With the delays **free**, ~16 LOs are needed before a refit reliably beats
+  anchor-only. With them **frozen** at fleet values, ~8 suffice, and a
+  well-conditioned ten-point comb recovers ~73% of the dense-fit improvement.
+  Prefer freezing ``tau_seconds`` from a committed set over refitting them.
+* Those figures come from subsampling one dense capture. No bench-time
+  reduction is licensed until a sparse comb is captured prospectively.
 
     python -m spf.calibrations.gain_state_phase_model_v1.fit_from_extracted \
         --extracted /path/to/extracted \
@@ -121,6 +140,65 @@ def circ_stats(err_rad: np.ndarray) -> dict[str, float]:
     }
 
 
+def check_comb_conditioning(
+    lo_hz, tau_seconds=(2.56e-9, 0.92e-9)
+) -> dict:
+    """Condition number of the ripple basis on this LO set.
+
+    The ripple basis is ``[cos(2*pi*f*tau_k), sin(2*pi*f*tau_k)]`` for each
+    delay. When the LO spacing makes the two delays indistinguishable the basis
+    becomes near-singular and the refit is unidentifiable no matter how good the
+    data is -- which is exactly how the E-CAL3 ten-point comb failed.
+
+    Returns the condition number, the per-pair alias fraction (how many whole
+    cycles of ``tau_i - tau_j`` fit in one LO step -- near an integer is bad),
+    and a verdict. Reference points: the E-CAL3 comb scored 17.92, the median
+    random ten-point comb scores 2.35.
+    """
+    los = np.unique(np.asarray(lo_hz, dtype=float))
+    cols = []
+    for t in tau_seconds:
+        cols.append(np.cos(2 * np.pi * los * t))
+        cols.append(np.sin(2 * np.pi * los * t))
+    basis = np.column_stack(cols)
+    cond = float(np.linalg.cond(basis))
+
+    aliases = []
+    if len(los) > 1:
+        step = float(np.median(np.diff(los)))
+        for i, ti in enumerate(tau_seconds):
+            for tj in tau_seconds[i + 1:]:
+                cycles = step * abs(ti - tj)
+                # Aliasing needs the LO step to advance the beat between the two
+                # delays by a whole NON-ZERO number of cycles. Near zero means
+                # the beat is oversampled, which is the healthy case -- the dense
+                # 50 MHz comb sits at 0.082 cycles/step and is fine.
+                nearest = round(cycles)
+                aliased = nearest >= 1 and abs(cycles - nearest) < 0.1
+                aliases.append(
+                    {
+                        "delay_pair_ns": [ti * 1e9, tj * 1e9],
+                        "cycles_per_lo_step": cycles,
+                        "nearest_integer": int(nearest),
+                        "distance_from_integer": abs(cycles - nearest),
+                        "aliased": bool(aliased),
+                    }
+                )
+    any_aliased = any(a["aliased"] for a in aliases)
+    if cond > 10 or any_aliased:
+        verdict = "BAD - refit will be unidentifiable; freeze the delays"
+    elif cond > 5:
+        verdict = "MARGINAL - prefer frozen delays"
+    else:
+        verdict = "ok"
+    return {
+        "n_los": int(len(los)),
+        "condition_number": cond,
+        "aliasing": aliases,
+        "verdict": verdict,
+    }
+
+
 def evaluate(f: dict, folds, *, n_ripples: int, ref_name: str) -> dict:
     """Fit per fold on the training rows only and score the held-out rows.
 
@@ -184,6 +262,21 @@ def main() -> None:
           f"LOs={len(np.unique(f['lo_hz']))}  "
           f"gains={sorted(set(f['g1'].tolist()) | set(f['g2'].tolist()))}")
     print(f"baseline D (anchor only): {circ_stats(f['D'])}")
+
+    cond = check_comb_conditioning(f["lo_hz"])
+    print(f"\ncomb conditioning: kappa={cond['condition_number']:.2f}  "
+          f"({cond['n_los']} LOs)  -> {cond['verdict']}")
+    for a in cond["aliasing"]:
+        if a["aliased"]:
+            print(f"  WARNING: delays {a['delay_pair_ns'][0]:.2f}/"
+                  f"{a['delay_pair_ns'][1]:.2f} ns alias at this LO spacing "
+                  f"({a['cycles_per_lo_step']:.3f} cycles per step, i.e. ~"
+                  f"{a['nearest_integer']} whole cycle(s)). The two ripple "
+                  f"components are not separable here.")
+    if cond["condition_number"] > 10:
+        print("  This comb is worse-conditioned than ~99.9% of random combs of "
+              "the same size.\n  Refitting the delays from it will not work -- "
+              "freeze them from a committed set.")
 
     if args.holdout != "none":
         keyed = {"frequency": f["lo_hz"], "epoch": f["epoch"],

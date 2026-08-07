@@ -35,6 +35,12 @@ Everything here is derived from
 `docs/learnings.md` entry **L10** (the distilled conclusion). Verification of
 every number reproduced here is in [`PROVENANCE.md`](PROVENANCE.md).
 
+The 2026-08-07 prospective captures (E-CAL2, E-CAL3) and the follow-up
+computational analysis have since revised several conclusions. Those live in
+[`../dual_rx_gain_frequency/reports/gain_state_computational_20260807_v1/`](../dual_rx_gain_frequency/reports/gain_state_computational_20260807_v1/)
+and in §8.1 of the source report; the affected sections below carry the updates
+inline.
+
 > **Prospective status (2026-08-07):** the committed L26 model reduces the
 > anchor-only error from 9.06° to about 4.8° on a fresh 103-LO holdout, but a new
 > fit using only ten pre-registered LOs is worse than anchor-only. The earlier
@@ -118,9 +124,18 @@ D(f, g1, g2) = H(s1) − H(s2)
   H(s) = h_lna[LNA] + h_mix[MIXER] + h_tia[TIA] + h_lpf[LPF]
 ```
 
-The delays are grid-searched, not assumed, and land in the same place on both
-radios and across every fold. They differ slightly between fits, so quote the
-set you are actually using rather than a single canonical pair:
+The delays are grid-searched, not assumed. **`τ1` is solid; `τ2` is not.** `τ1`
+reproduces at 2.54–2.56 ns on both radios, across every A–G fold, and
+independently on the 53-LO wide survey. `τ2` does **not** reproduce on the wide
+survey — it collapses to the grid edge there, so the second ripple component
+rests on the A–G comb alone. Treat it as provisional.
+
+Note also that the two ripple slots are **exchangeable**: in refits below 32 LOs
+they swap between 42% and 75% of the time. Sort the fitted pair before comparing
+across fits, or you will read a slot swap as a delay change.
+
+The fitted values differ slightly between fits, so quote the set you are actually
+using rather than a single canonical pair:
 
 | Coefficient set | τ1 | τ2 |
 |---|---:|---:|
@@ -352,14 +367,22 @@ step by exactly which audited word it changes:
   | **31→32 dB** | **LNA 1→2**, LPF | **−2.6° to −4.4°** |
   | **49→50 dB** | **LNA 2→3**, LPF | **−14.3° to −16.7°** |
 
-  Every one of these is an RF-word step accompanied by an LPF move, and an
-  LPF-only step is worth 0.343°, so the RF word dominates in each. The mixer
-  steps land at the same order as the campaign's 2.664° median. The LNA steps
-  are 2.6–16.7° — far larger, as the ripple mechanism implies. The source report
-  does not cite these; they are a different experiment on different dates, so
-  they are **not poolable with the campaign's `H` statistics as-is**, but they
-  are direct adjacent-1 dB LNA evidence that no longer needs a new capture.
-  See E-CAL2 in §6.
+  **This is now settled, from committed data.** The 2026-08-07 computational
+  re-analysis recovered **318 adjacent-1 dB LNA transitions** from the wide
+  survey's committed coefficients, spanning 53 LOs and all three bands: median
+  **7.983°** against a same-dataset LPF-only floor of **0.180°** — a ratio of
+  **44.46×** (CI [35.32, 53.98]).
+
+  There is even one perfectly clean case, with no other word co-moving:
+  **high band, 40→41 dB moves LNA 2→3 with MIXER, TIA and LPF all frozen**,
+  worth 16.775° over 32 clusters. Only `RF_DC_CAL` co-moves, and that is
+  independently bounded at ≲0.7°.
+
+  So the LNA's role no longer rests on four 9 dB steps and an inference from the
+  ripple. These are a different experiment on different dates and remain **not
+  poolable with the campaign's `H` statistics**, and the 0.180° floor is a
+  *fitted* floor with measurement noise already smoothed out — but the effect is
+  44× it, so the conclusion is not fragile.
 
 **The cleanest single demonstration** is stage E. Across 27→40 dB at 5100 and
 5766 MHz the audited state never leaves `(LNA 2, MIX 4, TIA 1)` — only the
@@ -452,11 +475,15 @@ error**, not about parameter equality. §3.1 shows the fitted curves diverge abo
 
 Stated plainly, because a "mechanistic" label can oversell:
 
-- **`h_tia` earns nothing, and on stage A it is not even identified.** The
-  source report states it "is separately identified but fits to −0.20 ± 0.42°",
-  and that removing it moves every holdout number by ≤0.01°. The second half
-  holds. The first does not hold on stage A, and I could not reconcile the
-  quoted value with the shipped coefficients, so use them rather than it:
+- **`h_tia` should be dropped. It is unidentified on stage A and negligible
+  where it *is* identified.** This was open when the package shipped and is now
+  resolved. On the wide survey — where every integer gain breaks the stage-A
+  collinearity — `h_tia` measures **0.240°**, below the 0.355–0.368° noise floor,
+  and removing it moves every holdout by **≤0.092°**. It buys nothing.
+
+  It is retained in the shipped coefficients only because dropping it changes the
+  model and therefore needs a new provenance-named set under the append-only
+  rule, not an edit to these files. Until then, do not read it:
 
   On stage A the TIA family is **perfectly collinear with MIXER = 1** — TIA 0
   occurs only at 5 dB, which is also the only MIX 1 cell, in all three bands.
@@ -610,8 +637,12 @@ universally across both radios.
 ![calibration cost](figures/fig7_calibration_cost.png)
 
 *Why L26 rather than the more accurate L27: on a dense comb L27 (red) wins, but
-past ~690 MHz gaps it diverges badly while L26 (green) stays flat. The shaded
-region is where a deployable comb would actually live.*
+past ~690 MHz gaps it diverges badly while L26 (green) stays flat.*
+
+***Read the axis carefully.** This is the error when one gap is held out and the
+fit keeps the rest of the dense comb. It is a robustness-to-a-missing-interval
+result, **not** a sparse-calibration result. E-CAL3 tested the sparse claim
+prospectively and rejected it — see above.*
 
 The retrospective error is **flat from 96 MHz to ~690 MHz held-out gaps** when
 the fit still has the rest of the dense comb available. That demonstrates
@@ -622,8 +653,35 @@ can identify the nonlinear frequency basis.
 Fitting L26 from exactly ten pre-registered LOs gave 11.61° MAE on the other 103
 LOs, versus 9.06° for the anchor alone. Applying the already committed dense-fit
 coefficients gave 4.79–4.80° MAE, so useful frequency structure transfers, but
-not at the claimed ≤3° precision. Sparse calibration now requires a frequency
-basis learned from dense fleet data and an identifiability-optimised LO set.
+not at the claimed ≤3° precision.
+
+**The cause is now known, and it was computable before the capture.** The failure
+was the comb's *spacing*, not its point count. At 600 MHz steps,
+
+```text
+600 MHz × (τ1 − τ2) = 600 MHz × 1.64 ns = 0.984 cycles
+```
+
+— one whole cycle, so the two ripple components alias onto each other and become
+individually unidentifiable. That comb's ripple-basis condition number is
+**17.92** against a random-ten-point median of **2.35**; roughly 1 comb in 2000
+is worse. *Random* ten-point combs reach **4.30°**.
+
+**Two rules follow, and `fit_from_extracted.py` now enforces the first:**
+
+1. **Check the conditioning before capturing a sparse comb.**
+   `check_comb_conditioning()` returns the condition number and flags aliasing;
+   the fitting CLI warns automatically.
+2. **Freeze the delays rather than refitting them.** With delays free, ~16 LOs
+   are needed before a refit reliably beats anchor-only. With them frozen at
+   fleet values, ~8 suffice, and a well-conditioned ten-point comb recovers
+   **73.4%** of the dense-fit-achievable improvement (4.299° against an 8.355°
+   baseline, winning 24/24 subsets).
+
+So the architecture the source report recommended — learn the nonlinear basis
+once fleet-wide, fit only the linear terms per unit — is validated. But all of
+that is retrospective subsampling of one dense capture: **no bench-time
+reduction is licensed until a sparse comb is captured prospectively.**
 
 ### 4.4 Unseen radios — what is radio-specific? Nothing but the anchor
 
@@ -721,11 +779,14 @@ not by itself open up much of this grid — widening the **requested-gain** set 
 the operating LOs would. (The 51 supported gains per band is a coincidence of
 75−24 and 73−22, not a shared cause.)*
 
-Part of this is a **coverage hole**, not only an extrapolation limit: within the
-A–G campaign **LNA index 1 was never measured at any frequency**, and LNA index 3
-only in the high band. (The 2.4 GHz integer-gain runs do reach LNA 1, but at two
-LOs in one band — not enough to make a frequency-spanning fit band-portable.)
-**E-CAL2** separates the two causes.
+**E-CAL2 has now separated the two causes, and it is not a coverage hole.** The
+2026-08-07 capture filled the missing gain states, and the 2026-08-07 re-analysis
+re-ran leave-one-band-out with **all four LNA levels present in all three
+bands**. It is still **3.727°** at 95.7% coverage.
+
+Band non-portability is therefore confirmed as a genuine **frequency-
+extrapolation limit**. Every operating band must be sampled directly; no amount
+of gain-state coverage fixes it.
 
 ### 4.8 Versus the per-frequency LUT — different jobs
 
@@ -1035,6 +1096,19 @@ corrected = model.correct_measured_phase(
 )
 ```
 
+> **Two things to know before you rely on a prediction.**
+>
+> **Cross-band prediction fails closed.** Nothing in the ladder cleared the
+> promotion bar for predicting across an unmeasured gain-table band, so the model
+> refuses rather than guessing. If your operating LO is in a band you have not
+> calibrated, this model has nothing for you — sample that band.
+>
+> **Coverage is narrower than it looks near unusual gain states.** On the E-CAL2
+> state-fill cells the shipped coefficients refuse **32–68%** of cells, and where
+> they do predict they score 7.2846° against the anchor's 7.3434° — i.e. barely
+> better than nothing. That is correct fail-closed behaviour, but check
+> `supported_gains_db()` for your operating point rather than assuming coverage.
+
 `predict()` returns the full story rather than a bare number — whether the cell
 was supported, whether the rule-5 guard fired, the decoded hardware state of each
 arm, and a human-readable reason:
@@ -1056,7 +1130,11 @@ instances retain the offending arm, field, and level for structured logging.
 
 ### Refit it
 
-When new data arrives — an E-CAL2 LNA fill, a fifth radio, a fresh coarse comb:
+When new data arrives — an E-CAL2 LNA fill, a fifth radio, a denser comb.
+**Check the comb's conditioning first** (the tool now does this automatically and
+warns): E-CAL3 refitted from ten uniformly spaced LOs and got 11.61° against a
+9.06° anchor-only baseline — worse than shipping nothing. Prefer freezing
+`tau_seconds` from a committed set over refitting them.
 
 ```bash
 python -m spf.calibrations.gain_state_phase_model_v1.fit_from_extracted \

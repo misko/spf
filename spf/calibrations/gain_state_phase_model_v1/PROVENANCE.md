@@ -11,7 +11,8 @@ reference implementation deliberately differs from the source pipeline.
 | Source analysis (model ladder, mechanism, holdouts) | [`../dual_rx_gain_frequency/reports/gain_state_phase_model_20260802_v1/`](../dual_rx_gain_frequency/reports/gain_state_phase_model_20260802_v1/) |
 | Source campaign (A–G controlled spectroscopy, 2026-07-30) | [`../dual_rx_gain_frequency/reports/spectroscopy_campaign_20260730_v1/`](../dual_rx_gain_frequency/reports/spectroscopy_campaign_20260730_v1/) |
 | Distilled conclusion | [`docs/learnings.md`](../../../docs/learnings.md) entry **L10** |
-| Queued follow-ups | [`docs/future_experiments.md`](../../../docs/future_experiments.md) **E-CAL1**–**E-CAL4** |
+| Queued follow-ups | [`docs/future_experiments.md`](../../../docs/future_experiments.md) **E-CAL1**–**E-CAL4**, **E-GSC1–5**, **E-GSP1–6** |
+| Prospective validation + follow-up analysis (2026-08-07) | [`../dual_rx_gain_frequency/reports/gain_state_computational_20260807_v1/`](../dual_rx_gain_frequency/reports/gain_state_computational_20260807_v1/) and §8.1 of the source report |
 | Raw V7/LMDB stores (read-only, outside Git) | `/mnt/qnap01/mouse9911/share/spf_campaigns/spectroscopy_20260730_full{,_r2}` |
 | Gain-table audit (source of `gain_tables_audited.json`) | `.../spectroscopy_20260730_full_r2/gain_table_audit.json` |
 

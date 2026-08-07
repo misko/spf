@@ -448,17 +448,19 @@ def fig_calibration_cost(out: Path):
     ax.axvspan(0, 690, color=C_MODEL, alpha=0.07)
     ax.set_ylim(1.2, 10.6)
     # no leader line: at this aspect ratio an arrow reads as another data series
-    ax.text(2850, 10.2,
-            "shaded: error is flat out to ~690 MHz gaps —\n"
-            "a ~10-point comb recovers essentially all of\n"
-            "the 113-point comb's benefit",
-            fontsize=8, color="#2a6f5a", va="top", ha="right")
+    ax.text(2850, 10.4,
+            "RETROSPECTIVE: error is flat out to ~690 MHz gaps\n"
+            "when the fit keeps the rest of the dense comb.\n"
+            "This does NOT mean a 10-point comb can be fitted:\n"
+            "E-CAL3 tried and got 11.61° (worse than no model),\n"
+            "because its 600 MHz spacing aliases the two ripples.",
+            fontsize=7.6, color="#8a2f2f", va="top", ha="right")
     ax.set_xscale("log")
     ax.set_xlabel("held-out frequency gap  [MHz, log scale]")
     ax.set_ylabel("held-out MAE  [deg]")
-    ax.set_title("Calibration cost: error vs how coarse the frequency comb is.\n"
-                 "L27 (red) wins on a dense comb but is unstable at 690–1400 MHz "
-                 "gaps (3.5° / 7.6° vs L26's 2.5° / 2.9°).", loc="left")
+    ax.set_title("Calibration cost, RETROSPECTIVE: error vs held-out frequency gap,\n"
+                 "fitting on the remaining dense comb. Not a sparse-calibration "
+                 "result — see the annotation.", loc="left")
     leg = ax.legend(fontsize=7.2, loc="upper left", frameon=True,
                     framealpha=0.96, edgecolor="#cccccc")
     leg.get_frame().set_facecolor("white")

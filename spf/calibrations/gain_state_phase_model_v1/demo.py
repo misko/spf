@@ -143,7 +143,10 @@ def main() -> None:
     print("\n  For reference: with a per-frequency equal-gain anchor already applied,")
     print("  changing the gain pair still costs 6.65 deg MAE / 18.4 deg P95 /")
     print("  41.6 deg max if you do nothing. L26 takes that to 2.26 deg MAE at an")
-    print("  unmeasured frequency and 2.22 deg at an unmeasured radio.")
+    print("  unmeasured frequency and 2.22 deg at an unmeasured radio -- but those")
+    print("  are dense-comb CROSS-VALIDATION figures. Prospectively, on a fresh")
+    print("  103-LO capture, the committed coefficients score 4.8 deg against a")
+    print("  9.06 deg anchor-only baseline. Treat 4.8 deg as the number to plan on.")
     print(f"\n{RULE}\nSee README.md for the physical backing, the full performance")
     print(f"tables, the limitations, and the queued follow-up experiments.\n{RULE}")
 
