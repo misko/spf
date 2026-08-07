@@ -110,6 +110,8 @@ GPS_TIME_TIMEOUT_S="${SPF_GPS_TIME_TIMEOUT:-180}"
 STALL_DETECT_SECONDS="${SPF_STALL_DETECT_SECONDS:-}"
 STALL_MANUAL_SECONDS="${SPF_STALL_MANUAL_SECONDS:-}"
 STALL_PROGRESS_RADIUS_M="${SPF_STALL_PROGRESS_RADIUS_M:-}"
+# Warn by default; see vehicle_arm_state_gate for why this is not fatal yet.
+REQUIRE_DISARMED_FOR_PARAM_SYNC="${SPF_REQUIRE_DISARMED_FOR_PARAM_SYNC:-0}"
 
 if [[ "$PYTHON" == */* ]]; then
     [[ -x "$PYTHON" ]] || die "Python environment is unavailable: ${PYTHON}"
@@ -234,7 +236,8 @@ print_plan() {
         "gps_time_timeout_s=${GPS_TIME_TIMEOUT_S}" \
         "stall_detect_seconds=${STALL_DETECT_SECONDS:-<collector default>}" \
         "stall_manual_seconds=${STALL_MANUAL_SECONDS:-<collector default>}" \
-        "stall_progress_radius_m=${STALL_PROGRESS_RADIUS_M:-<collector default>}"
+        "stall_progress_radius_m=${STALL_PROGRESS_RADIUS_M:-<collector default>}" \
+        "require_disarmed_for_param_sync=${REQUIRE_DISARMED_FOR_PARAM_SYNC}"
 }
 
 case "${1:-}" in
@@ -502,6 +505,7 @@ sync_vehicle_configuration() {
         verify_compass_policy_read_only
         return 0
     fi
+    vehicle_arm_state_gate
     sed "s/__ROVER_ID__/${rover_id}/g" \
         < <(cat \
             "${SCRIPT_DIR}/rover3_base_parameters.params" \
@@ -661,25 +665,46 @@ ensure_clock_verified_before_capture() {
     return 0
 }
 
-# CURRENTLY UNREFERENCED. Its only caller was the SPF_BOOT_VALIDATE_ONLY branch,
-# removed above -- so this is now the one assertion the boot path has LOST:
-# nothing else checks armed==false before parameter writes and the mission loop.
-# Kept, not deleted, because that gap is worth closing deliberately rather than
-# by accident. Wiring it into the normal boot path would add a new die-on-boot
-# condition (a rover booted with the RC arm switch on), which is a behaviour
-# change that should be made on purpose.
-read_only_vehicle_gate() {
-    local status_file
+# The armed check that the SPF_BOOT_VALIDATE_ONLY removal took with it. Nothing
+# else asserted armed==false before parameter writes, and some parameters take
+# effect immediately -- writing them to a rover whose RC arm switch is on is not
+# something anyone should discover from the resulting motion.
+#
+# It WARNS rather than dying, deliberately. Dying would add a new way to strand
+# a rover in the field on an operator error that the boot path has tolerated
+# silently for its whole life, and that trade should be made on evidence: the
+# journal is correctly stamped now (the clock sync moved above the compass
+# gate), so how often this actually fires is about to become knowable. Flip
+# SPF_REQUIRE_DISARMED_FOR_PARAM_SYNC=1 once it is.
+#
+# Failing to READ the status is not treated as armed. A missing heartbeat here
+# is a different fault with its own handling downstream, and inferring "armed"
+# from silence would strand rovers for the one reason this is trying to avoid.
+vehicle_arm_state_gate() {
+    local status_file state
     status_file="$(mktemp /tmp/spf-mavlink-status.XXXXXX)"
     trap 'rm -f -- "${status_file:-}"' RETURN
-    "$PYTHON" "$MAVLINK_CONTROLLER" --status-json "$status_file"
-    "$PYTHON" -c \
+    if ! "$PYTHON" "$MAVLINK_CONTROLLER" --status-json "$status_file"; then
+        printf 'WARNING: no MAVLink status before parameter sync; arm state unknown.\n' >&2
+        return 0
+    fi
+    if ! state="$("$PYTHON" -c \
         'import json,sys; s=json.load(open(sys.argv[1])); '\
-'assert s["armed"] is False, "vehicle is armed"; '\
-'print("PASS: real MAVLink heartbeat received; vehicle is disarmed; mode="+s["mav_mode"])' \
-        "$status_file"
-    rm -f -- "$status_file"
-    trap - RETURN
+'print(("ARMED" if s["armed"] else "DISARMED")+" mode="+str(s["mav_mode"]))' \
+        "$status_file")"; then
+        printf 'WARNING: could not parse vehicle status before parameter sync.\n' >&2
+        return 0
+    fi
+    if [[ "$state" == ARMED* ]]; then
+        if is_true "$REQUIRE_DISARMED_FOR_PARAM_SYNC"; then
+            die "Vehicle is ARMED before parameter sync (${state}); disarm and reboot."
+        fi
+        printf 'WARNING: vehicle is ARMED before parameter sync (%s).\n' "$state" >&2
+        printf '  Parameters are about to be written to an armed rover; check the RC\n' >&2
+        printf '  arm switch. SPF_REQUIRE_DISARMED_FOR_PARAM_SYNC=1 makes this fatal.\n' >&2
+        return 0
+    fi
+    printf 'PASS: real MAVLink heartbeat received; vehicle is disarmed; %s\n' "$state"
 }
 
 run_capture() {

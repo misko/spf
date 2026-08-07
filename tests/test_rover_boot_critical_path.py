@@ -409,3 +409,43 @@ def test_the_clock_is_synced_before_the_compass_gate_can_reboot():
         "the GPS clock sync must run before the compass gate, which can reboot "
         "the rover and never return"
     )
+
+
+def test_the_armed_check_is_wired_back_into_the_boot_path():
+    """S-7. Removing SPF_BOOT_VALIDATE_ONLY took the only armed==false assertion
+    with it, and some parameters take effect immediately -- writing them to a
+    rover whose RC arm switch is on should not be discovered from the motion."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+
+    assert "read_only_vehicle_gate" not in launcher, "dead function should be gone"
+    sync = launcher.split("sync_vehicle_configuration() {", 1)[1].split("\n}\n", 1)[0]
+    assert "vehicle_arm_state_gate" in sync
+    assert sync.index("vehicle_arm_state_gate") < sync.index("$PARAMS_FILE"), (
+        "the arm state must be checked BEFORE the parameters are written"
+    )
+
+
+def test_an_armed_vehicle_warns_by_default_rather_than_stranding_the_rover():
+    """Dying here would add a new way to strand a rover in the field on an
+    operator error the boot path has tolerated silently for its whole life. The
+    journal is correctly stamped now, so how often it fires is about to become
+    knowable; the knob is how that decision gets made on evidence."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    gate = launcher.split("vehicle_arm_state_gate() {", 1)[1].split("\n}\n", 1)[0]
+
+    assert 'REQUIRE_DISARMED_FOR_PARAM_SYNC="${SPF_REQUIRE_DISARMED_FOR_PARAM_SYNC:-0}"' \
+        in launcher, "must default to warn, not die"
+    assert 'is_true "$REQUIRE_DISARMED_FOR_PARAM_SYNC"' in gate, "=1 must be fatal"
+    assert "die " in gate
+    assert "WARNING: vehicle is ARMED" in gate
+
+
+def test_a_status_read_failure_is_not_treated_as_armed():
+    """Inferring "armed" from a missing heartbeat would strand rovers for
+    exactly the reason the warn-by-default choice is trying to avoid."""
+    launcher = (ROVER_ROOT / "drone_run.sh").read_text()
+    gate = launcher.split("vehicle_arm_state_gate() {", 1)[1].split("\n}\n", 1)[0]
+
+    unreadable = gate.split("--status-json", 1)[1].split("if [[", 1)[0]
+    assert "return 0" in unreadable, "an unreadable status must not block the boot"
+    assert "arm state unknown" in unreadable
