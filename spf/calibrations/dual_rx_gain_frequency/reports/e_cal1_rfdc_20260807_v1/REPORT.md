@@ -210,6 +210,14 @@ which cell would go bad.
   `RF_DC_CAL` edge with frozen LMT words — was not resampled; the ≲0.7° bound from
   the excluded `F_neg` stage still stands as the only evidence there, and this result
   is consistent with it.
+- **Demonstrated sensitivity — CLOSED 2026-08-07 by E-CAL5**
+  (`../e_cal5_positive_control_20260807_v1/`). This report's null rested on a noise
+  floor rather than on a demonstration that the chain can see an effect of the size H₁
+  predicted. E-CAL5 measured a known 1 dB MIXER step on the same harness with this same
+  estimator at **7.434° ± 0.097** against a **0.440°/dB** floor — **16.9×**, resolved in
+  all six (radio, LO) cells. Against this report's sem of 0.077°, an H₁-sized 2.664°
+  effect would have appeared at **34.5σ**. **The null above is informative about the
+  physics: the RF-DC machinery is quiet, not invisible to this measurement.**
 - **The 25-epoch power question is settled empirically.** The source documents
   disagreed (§3.3 of the 2026-08-02 report: 0.355–0.368°; `future_experiments.md`
   E-CAL1: 0.54–0.81°). Measured here: per-cell sem on the second difference is

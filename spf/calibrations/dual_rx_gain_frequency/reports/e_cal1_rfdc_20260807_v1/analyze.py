@@ -37,8 +37,13 @@ STEPS = {
 RNG_SEED = 2026080801
 
 
-def load_epoch_h(path: Path) -> dict:
-    """H(g) per (LO, epoch), in radians, from one radio's dataset."""
+def load_epoch_h(path: Path, gain_set=(5, 8, 9, 10)) -> dict:
+    """H(g) per (LO, epoch), in radians, from one radio's dataset.
+
+    ``gain_set`` defaults to E-CAL1's set, so arm 1 and arm 2 are unaffected. It is
+    a parameter because E-CAL5 reuses this estimator over a different gain set
+    and silently produced empty series when the list was hardcoded.
+    """
     zarr = zarr_open_from_lmdb_store(str(path), mode="r")
     try:
         receiver = zarr["receivers/r0"]
@@ -63,7 +68,7 @@ def load_epoch_h(path: Path) -> dict:
             if anchor is None:
                 continue
             curve: dict[int, float] = {}
-            for gain in (5, 8, 9, 10):
+            for gain in gain_set:
                 forward = cells.get((lo_hz, ep, gain, REFERENCE_GAIN))
                 reverse = cells.get((lo_hz, ep, REFERENCE_GAIN, gain))
                 if forward is None or reverse is None:

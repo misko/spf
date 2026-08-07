@@ -29,11 +29,15 @@ enum, both states are recorded in V7, and the config is
 latter run green against both radios. Existing run signatures are unchanged.
 
 As predicted, it returned "also zero" — it partitioned a quantity arm 1 had already
-measured as indistinguishable from zero. **It still cannot separate "the tracking loop is
-quiet" from "this harness cannot see RF-DC effects at all".** The **positive control**
-remains the open, and now highest-value, follow-up: inject a known perturbation and
-confirm the pipeline recovers it at the expected magnitude. That is what would turn both
-arms' nulls from "we saw nothing" into "we saw nothing, and we would have seen it".
+measured as indistinguishable from zero.
+
+**The positive control (E-CAL5) ran the same day and closes the gap.** ✅ A 1 dB MIXER step
+of independently established magnitude measures **7.434° ± 0.097** against a **0.440°/dB**
+floor from the same capture — **16.9×**, resolved in all six (radio, LO) cells. An H₁-sized
+2.664° effect would therefore have appeared at **34.5σ** (arm 1) / **32.4σ** (arm 2).
+**Both nulls are now informative about the physics**: the RF-DC machinery is quiet, not
+invisible to this chain. Report: `reports/e_cal5_positive_control_20260807_v1/`; design in
+`experiments/e_cal5_positive_control/`.
 
 Also unrun: the row-11 (−3 dB) edge, still resting on the ≲0.7° `F_neg` bound.
 

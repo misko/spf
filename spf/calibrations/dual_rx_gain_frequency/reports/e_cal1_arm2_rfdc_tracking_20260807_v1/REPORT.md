@@ -100,6 +100,11 @@ from
 
 > "this harness cannot see RF-DC effects at all".
 
+**CLOSED 2026-08-07 by E-CAL5** (`../e_cal5_positive_control_20260807_v1/`): a known
+mixer step measures 7.434° ± 0.097 against a 0.440°/dB floor from the same capture — 16.9× —
+so an H₁-sized 2.664° effect would have appeared at 32.4σ against this arm's sem. **This null
+is informative about the physics.**
+
 Only a **positive control** closes that: inject a perturbation of known magnitude and
 confirm the pipeline recovers it. Until that runs, the honest statement is "no RF-DC
 effect was detected by a measurement whose sensitivity to such an effect is inferred from

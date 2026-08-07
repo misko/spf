@@ -22,9 +22,11 @@
     "experiments/e_cal1_rfdc_discriminator/experiment_readme.md": "ed537f4e91e16a8644e809085b18f6a674e01f46a061e2741238bbd205cc1368",
     "spf/calibrations/dual_rx_gain_frequency/configs/e_cal1_rfdc_discriminator.yaml": "58d46b5c2d8537eab56c8565124a806bba8873111c0b831a8028f25595d88d38"
   },
+  "note_analyze_py_rehashed": "analyze.py gained a `gain_set` parameter on 2026-08-07 so E-CAL5 could reuse this estimator over a different gain set. The default reproduces arm 1 and arm 2 bit-identically (verified); only the file hash changed.",
   "outputs_sha256": {
-    "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/REPORT.md": "fd9e8ab0749647ba4b282fb8c923e6a7c307909c896c7af5ce201d1f74be6d14",
-    "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/analyze.py": "16cc06bf3e0253f5a78e7c62720c1d3442574adfc530b7a6310618f1a135da9a",
+    "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/REPORT.md": "b8a41a0d71f571b4e95ff8179d27b9430a73487e7f4ba195ef00bc81aa8ba518",
+    "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/__pycache__/analyze.cpython-311.pyc": "95295c229ac6179ece70dc9c315f3c0c90dd259d14b8e208ebf9d2d70d897732",
+    "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/analyze.py": "f61b925866be76d39639a5087949ac28b57eb6970f2ff73556c16cb33014ca29",
     "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/e_cal1_gain_table_audit.yaml": "bef6d787a8e0d0ba8775b768688d257cf374fc35172901b1cf754ed95f15fa55",
     "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/e_cal1_pilot.yaml": "dfc1c55be3031fdcdc4e6b910c58de0f435288625307e30c260bccd283ba514f",
     "spf/calibrations/dual_rx_gain_frequency/reports/e_cal1_rfdc_20260807_v1/results.json": "2c31ccf12d6befe40b949f6e383b4d3ea060ddb624d57806f79ad8d05709e23d"

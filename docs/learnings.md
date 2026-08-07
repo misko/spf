@@ -182,6 +182,8 @@ like-for-like 1 dB steps make the point without modelling: the step that *raises
 **Finding 2 no longer needs the "including any RF-DC correction it triggers" hedge.** Report,
 code and hashes in `reports/e_cal1_rfdc_20260807_v1/`. This supersedes the older ≲0.7° bound
 from the excluded `F_neg` stage (n = 4 rising edges), which it is consistent with.
+**E-CAL5 (positive control, same day, same harness) demonstrates the measurement could have seen an RF-DC effect.** A 1 dB step that changes the MIXER word (high-table rows 19→20, 5→6 dB) measures **7.434° ± 0.097** against a **0.440°/dB** LPF floor from the same capture — **16.9×**, cluster CI [6.788, 8.173], resolved in all six (radio, LO) cells including the weak R18 @ 5100 MHz one. So an H₁-sized 2.664° RF-DC effect would have appeared at **34.5σ** (arm 1) / **32.4σ** (arm 2). **Both nulls are therefore informative: the RF-DC machinery is quiet, not invisible to this chain.** Report: `reports/e_cal5_positive_control_20260807_v1/`.
+
 **Arm 2 ran the same day and is also null:** with the continuous RF-DC tracking loop
 pinned off (verified by chip readback), the excess is **+0.019° ± 0.082**, CI
 [−0.258°, +0.250°] — arm 1 minus arm 2 is +0.050° ± 0.113 (t = 0.44), no detectable

@@ -60,6 +60,7 @@ STEPS = {
     "mixer_5_to_6": (5, 6, 1),
     "lpf_only_8_to_10": (8, 10, 2),
 }
+GAIN_SET = (5, 6, 8, 10)   # must match the config; arm 1 default omits 6
 CAMPAIGN_MIXER_MEDIAN_DEG = 2.664
 GATE_RATIO = 5.0
 GATE_ABS_DEG = 1.5
@@ -82,7 +83,7 @@ def main() -> int:
 
     for path in datasets:
         serial = path.parent.name
-        curves = A1.load_epoch_h(path)
+        curves = A1.load_epoch_h(path, gain_set=GAIN_SET)
         radio = {"n_epoch_curves": len(curves), "steps": {}, "per_lo": {}}
         for name, (low, high, per_db) in STEPS.items():
             series = A1.step_series(curves, low, high, per_db)
