@@ -23,7 +23,9 @@ corrected = wrap( measured_RX1_minus_RX2 − anchor(serial, LO, session) − D )
 | **Radio-specific state** | one measured anchor per (serial, exact LO, session) — a measurement, not a parameter |
 | **No correction at all** | 14.2–14.8° MAE |
 | **Anchor alone** | 6.65° MAE / 18.4° P95 / 41.6° max (8.31° on unequal-gain cells) |
-| **This model, unmeasured frequency** | **2.26° MAE / 7.54° P95** (2.83° unequal-gain) |
+| **This model, unmeasured frequency (dense-comb cross-validation)** | **2.26° MAE / 7.54° P95** (2.83° unequal-gain) |
+| **Committed model, prospective 103-LO test** | **4.79–4.80° MAE / 14.37–14.56° P95** |
+| **Model refitted from exactly 10 LOs** | **11.61° MAE / 41.52° P95 — rejected** |
 | **This model, unmeasured radio** | **2.22° MAE**, 100% coverage |
 | **Dense per-frequency LUT, known cell** | 0.62–0.90° — still the accuracy reference |
 
@@ -32,6 +34,14 @@ Everything here is derived from
 (the analysis), the 2026-07-30 A–G spectroscopy campaign (the data), and
 `docs/learnings.md` entry **L10** (the distilled conclusion). Verification of
 every number reproduced here is in [`PROVENANCE.md`](PROVENANCE.md).
+
+> **Prospective status (2026-08-07):** the committed L26 model reduces the
+> anchor-only error from 9.06° to about 4.8° on a fresh 103-LO holdout, but a new
+> fit using only ten pre-registered LOs is worse than anchor-only. The earlier
+> 2.26° result trained on a dense set with frequencies or frequency blocks held
+> out; it did not demonstrate that ten LOs can identify the model. Use L26 only
+> as a lower-confidence unseen-LO fallback. Use the exact-frequency LUT for
+> precision correction. Full results are in the source report's §8.1.
 
 ---
 
@@ -603,14 +613,17 @@ universally across both radios.
 past ~690 MHz gaps it diverges badly while L26 (green) stays flat. The shaded
 region is where a deployable comb would actually live.*
 
-The error is **flat from 96 MHz to ~690 MHz gaps**. The shared ripple delay is
-estimated globally, so a coarse comb still pins it.
+The retrospective error is **flat from 96 MHz to ~690 MHz held-out gaps** when
+the fit still has the rest of the dense comb available. That demonstrates
+interpolation across a missing interval; it does not show that a ten-point comb
+can identify the nonlinear frequency basis.
 
-**Practical consequence: a ~10-point comb over 400–5900 MHz recovers essentially
-all of the benefit of the 113-point comb** for the gain-dependent term — a ~12×
-reduction in calibration time. Beyond ~1.4 GHz gaps it degrades, and the richer
-L27 becomes unstable. This is a *retrospective subsample* of one dense capture;
-**E-CAL3** is the prospective test.
+**Prospective consequence:** E-CAL3 rejected the proposed ~10-point calibration.
+Fitting L26 from exactly ten pre-registered LOs gave 11.61° MAE on the other 103
+LOs, versus 9.06° for the anchor alone. Applying the already committed dense-fit
+coefficients gave 4.79–4.80° MAE, so useful frequency structure transfers, but
+not at the claimed ≤3° precision. Sparse calibration now requires a frequency
+basis learned from dense fleet data and an identifiability-optimised LO set.
 
 ### 4.4 Unseen radios — what is radio-specific? Nothing but the anchor
 
@@ -857,6 +870,11 @@ attribution to the LNA/mixer/TIA network. Report the sem alongside the estimate.
 
 ### E-CAL2 — fill the unmeasured LNA states, then retest band portability
 
+**Status 2026-08-07: complete; precision gate failed.** The targeted capture
+filled the missing states. L26 coverage rose from 80.52% to 91.50%, but augmented
+leave-one-band-out MAE was 5.58°; L30 reached 100% coverage at 4.83°. The failure
+is therefore genuine cross-band extrapolation, not merely missing gain states.
+
 *Question:* is the band-portability failure (§4.7) an extrapolation limit or a
 coverage hole? And does an adjacent-1 dB LNA step behave as the mechanism
 predicts?
@@ -887,6 +905,12 @@ extrapolation limit and every operating band must be sampled directly.
 > the band-portability retest.
 
 ### E-CAL3 — prospective coarse-comb confirmation
+
+**Status 2026-08-07: complete; ten-LO claim rejected.** The exact ten-LO L26
+refit gave 11.61° MAE on 103 untouched LOs. The committed dense-fit coefficients
+gave 4.79–4.80° MAE. A mid-run TX2/DDS failure required a verified reboot, but a
+pre-reboot-only analysis still gave 11.57° MAE, so the reboot did not cause the
+model failure. See the source report's §8.1.
 
 *Question:* is the ~12× calibration-time reduction of §4.3 real, or an artifact
 of subsampling one dense capture?

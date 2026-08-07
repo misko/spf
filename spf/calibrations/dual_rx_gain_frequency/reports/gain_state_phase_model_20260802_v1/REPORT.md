@@ -72,6 +72,15 @@ generalises".**
    interpolates within a measured frequency span; it does not extrapolate across
    an unmeasured multi-GHz span.
 
+> **Prospective update, 2026-08-07:** item 5 describes the original dense-data
+> cross-validation, not the performance of a model fitted from only ten
+> frequencies. E-CAL3 has now tested that stronger claim prospectively. A fresh
+> ten-frequency L26 fit scored **11.61° MAE / 41.52° P95** on the other 103 LOs,
+> worse than the **9.06°** anchor-only baseline. The previously fitted L26
+> coefficients still improved the same data to **4.79–4.80° MAE**, so the model
+> contains transferable structure, but the claimed ≤3° sparse-comb calibration
+> is rejected. Section 8.1 gives the full result and revised operating policy.
+
 ![mechanism](fig1_mechanism.png)
 
 ---
@@ -629,8 +638,8 @@ Full designs and decision rules are in `docs/future_experiments.md` (E-CAL1..E-C
 | Is the frequency dependence a delay? | **No — a reflection ripple** | §3.4: τ = 2.54 and 0.88–0.92 ns; a pure delay term (L11) gains only 0.21° over L08 |
 | Does ripple amplitude follow the LNA state? | **Yes, including the inversion at 4 GHz** | §3.4: 1.1–10.7° when ΔLNA ≠ 0, 0.11–0.36° when ΔLNA = 0, both radios |
 | Does the mechanism beat an unconstrained basis? | **Yes** | §4: L29 (45 p, free amplitudes) is worse than L16 (21 p) at every holdout |
-| Can the model predict an unmeasured frequency? | **Yes, by interpolation, given an anchor** | §5.1: 2.26° (L26) LOFO, 2.47° across a 690 MHz gap |
-| How coarse may the comb be? | **~690 MHz gaps; ~10 points over 400–5900 MHz** | §5.1 table, flat 96 → 688 MHz |
+| Can the model predict an unmeasured frequency? | **Partly, as a lower-confidence fallback given an anchor** | §8.1: shipped L26 improves 9.06° → 4.79–4.80° prospectively, but misses the ≤3° precision gate |
+| How coarse may the comb be? | **Ten uniform points are insufficient to refit L26** | §8.1: exact ten-LO fit gives 11.61° MAE; the earlier 2.26° result trained on nearly all remaining dense LOs |
 | Which parameters are radio-specific? | **None; only the measured anchor** | §5.2: per-radio families change LOEO by ≤0.014° and give an unseen radio no coverage |
 | Can it predict an unmeasured requested gain? | **Partly — 90% coverage vs 48%** | §5.3, dropping the LPF categorical |
 | Does a stored model survive a session boundary? | **Partly — no model reaches its within-session error** | §5.4: even the 1356-parameter LUT degrades 0.62° → 2.74° A→G |
@@ -642,10 +651,12 @@ Full designs and decision rules are in `docs/future_experiments.md` (E-CAL1..E-C
 
 ## 8. Recommended model
 
-For deployment, `L26`: **27 universal parameters**, 100% coverage under LOEO,
-LOFO, LOBLK and LORO, robust to a ~690 MHz frequency gap. It fails closed under
-whole-band extrapolation (§6.1) and must not be deployed across an unmeasured
-gain-table band.
+For deployment at an **unmeasured LO**, `L26` is a lower-confidence fallback:
+**27 universal parameters**, 100% prospective stage-A coverage, and 4.79–4.80°
+prospective MAE when the committed coefficients are used. It must be paired with
+a current-session equal-gain anchor, and it must not be advertised as a ≤3°
+precision correction. It fails closed under whole-band extrapolation (§6.1) and
+must not be deployed across an unmeasured gain-table band.
 
 ```
 D(f, g1, g2) = H(s1) − H(s2)  +  Σ_{k=1,2} [ a_k(l1) − a_k(l2) ]·cos(2πf τ_k)
@@ -702,6 +713,103 @@ change, the existing `frequency_specific_additive_gain_per_radio` LUT remains
 more accurate (0.62° vs 2.08° LOEO) and should stay the accuracy reference. The
 model here is for the case that LUT cannot serve: **a frequency, or a radio, that
 was never calibrated.**
+
+---
+
+### 8.1 Prospective E-CAL2/E-CAL3 result — 2026-08-07
+
+The follow-up campaign is stored at:
+
+```text
+/mnt/qnap01/mouse9911/share/spf_campaigns/gain_state_followups_20260807_v1
+```
+
+It contains 12 V7 stores (approximately 890 MB) from radios `.17`
+(`104000bac4950008230026001b440a003a`) and `.18`
+(`1040007c4a94000211000b009186843ef2`). Both radios passed initial and final
+full-table audits with identical 77-row LOW/MIDDLE/HIGH table hashes. The rate
+pilot completed 100/100 frames at 0.932 s/frame. E-CAL3 completed 3390/3390
+scheduled frames; 3389 passed the analysis quality gates. Its end repeat
+completed 300/300 frames at 0.877 s/frame. E-CAL2 completed 444/444 frames.
+
+#### E-CAL3: the exact ten-frequency refit fails
+
+The ten pre-registered training LOs were 400, 1000, 1600, 2200, 2800, 3400,
+4100, 4700, 5300 and 5900 MHz. The other 103 LOs were held out completely, and
+only unequal-gain cells were scored.
+
+| Predictor | Parameters | Coverage | Held-out MAE | Held-out P95 |
+|---|---:|---:|---:|---:|
+| Current-session equal-gain anchor only | 0 | 100% | 9.06° | — |
+| L26 refitted from exactly 10 LOs | 27 | 100% | 11.61° | 41.52° |
+| Committed `l26_stage_a_v1` coefficients | 27 | 100% | 4.79° | 14.37° |
+| Committed `l26_pooled_v1` coefficients | 38 stored | 100% | 4.80° | 14.56° |
+
+The ten-LO refit estimated effective delays of 4.15 ns and 0.16 ns rather than
+the committed 2.56 ns and 0.92 ns. Fixing those delays did not rescue the sparse
+fit: fixed stage-A delays gave 30.79° MAE and fixed pooled delays gave 12.93°.
+The nonlinear delays and ripple amplitudes are not identifiable from ten
+uniformly spaced LOs in the present parameterisation.
+
+This corrects a retrospective-methodology interpretation. `run_comb.py` used
+leave-frequency-**block**-out: each fold held out one contiguous block while
+training on most of the other dense frequencies. It measured robustness to a
+wide missing interval, but it did **not** simulate fitting from only ten LOs.
+The earlier 2.26° LOFO and ~690 MHz gap results remain valid for dense-comb
+cross-validation; they do not establish a ten-point calibration protocol.
+
+One `.17` TX2/DDS handoff became persistently silent near 1.85 GHz. USB and IIO
+enumeration remained healthy, but four recovery attempts and four immediate
+resume attempts failed, so both radios were rebooted and the exact firmware,
+ports and gain tables were reverified before resuming without duplicate cells.
+That makes the strict “uninterrupted session” acceptance condition inconclusive,
+but it does not explain the model failure: fitting and scoring only pre-reboot
+data still gave 11.57° MAE. Pre/post-reboot common-cell drift was 0.82° MAE
+(3.04° P95), and dense-to-end-repeat drift was 0.49° MAE (1.80° P95), close to
+the prior unchanged-harness repeatability bound.
+
+#### E-CAL2: missing states are filled, but bands still do not transfer
+
+Adding the 444 targeted LNA-state frames raised pooled leave-one-band-out
+coverage from 80.52% to 91.50% for L26. Its MAE nevertheless changed from 5.36°
+to 5.58° (LOW 3.97°, MIDDLE 4.47°, HIGH 7.69°), against a 5.71° augmented
+anchor-only baseline. L30 reaches 100% coverage and 4.83° MAE (LOW 4.94°,
+MIDDLE 3.97°, HIGH 5.59°). L31 also reaches 100% coverage but gives 10.75° MAE.
+
+Therefore the missing-state coverage hole is closed, while the ≤3°
+cross-gain-table-band portability claim is rejected. Every operating band must
+be sampled directly for precision work.
+
+#### Revised correction policy
+
+1. At an exact calibrated LO, use the serial-specific, per-frequency additive
+   LUT plus a current-session equal-gain anchor. This remains the precision path.
+2. At an unseen LO, use the current-session anchor alone, or use the committed
+   L26 coefficients only as an explicitly lower-confidence fallback. The
+   prospective evidence supports roughly 4.8° mean error, not ≤3°.
+3. Never refit L26 from ten uniformly spaced LOs. Learn the nonlinear frequency
+   basis from dense fleet data, then fit only identifiable linear terms on a
+   deliberately selected sparse calibration set.
+4. Do not transfer across an unmeasured gain-table band. Sample LOW, MIDDLE and
+   HIGH directly when all three bands are required.
+5. Preserve fail-closed hardware-state lookup and the live anchor requirement.
+
+#### Next experiments
+
+1. Repair and stress-test the TX2/DDS handoff before repeating E-CAL3; the repeat
+   must complete without a radio reboot to satisfy the original protocol.
+2. Fit the full model ladder to the new prospective observations, including
+   anchor-only, committed L26, L30/L31, regularised fixed-basis variants and the
+   exact-frequency LUT reference.
+3. Estimate a stable frequency basis from all dense fleet data, keeping delays
+   fixed during per-radio calibration. Evaluate it with radio-, session- and
+   contiguous-frequency-block holdouts.
+4. Select sparse calibration LOs by identifiability (for example D-optimal
+   design), forcing gain-table boundaries, ripple extrema and production LOs
+   into the set. Validate the chosen set prospectively before reducing bench
+   time.
+5. Promote only results that beat both anchor-only and the committed 4.8° L26
+   fallback on untouched frequencies and sessions.
 
 ---
 

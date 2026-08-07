@@ -43,6 +43,13 @@ LNA/mixer/TIA network. Report the sem alongside the estimate so the power is aud
 
 ## E-CAL2 — fill the unmeasured LNA states, then retest band portability
 
+**Status (2026-08-07): completed; precision gate failed.** The 444-frame targeted
+capture filled the missing states. L26 coverage rose to 91.50% but its augmented
+leave-one-band-out MAE was 5.58°; L30 reached 100% coverage at 4.83°. Missing
+state coverage is no longer the main explanation: every required gain-table band
+must be sampled directly for precision correction. See §8.1 of the
+gain-state-phase-model report.
+
 **Motivation (L10).** Band portability failed: train on two gain-table bands, predict the
 third, and no model beats baseline by more than 8%. Part of that is genuine frequency
 extrapolation, but part is a campaign coverage hole — **LNA index 1 was never measured
@@ -73,6 +80,14 @@ cover 400–5900 MHz. If it stays near baseline, band portability is an extrapol
 not a coverage limit — and every operating band must be sampled directly.
 
 ## E-CAL3 — prospective coarse-comb confirmation
+
+**Status (2026-08-07): completed; ten-LO claim rejected.** A fit using exactly
+the ten pre-registered training LOs gave 11.61° MAE on the other 103 LOs, worse
+than the 9.06° anchor-only baseline. The committed dense-fit L26 coefficients
+gave 4.79–4.80° MAE. A pre-reboot-only analysis reproduced the failure at
+11.57°, so the mid-run TX2/DDS recovery reboot is not its cause. The earlier
+comb analysis held out blocks while training on most remaining dense LOs; it was
+not an exact ten-frequency calibration simulation.
 
 **Motivation (L10).** Subsampling the 113-point comb shows held-out error is flat for gaps
 from 96 MHz to ~690 MHz, implying a ~10-point comb suffices for the gain-dependent term.
