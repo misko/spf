@@ -736,7 +736,7 @@ vehicle_arm_state_gate() {
         printf '  arm switch. SPF_REQUIRE_DISARMED_FOR_PARAM_SYNC=1 makes this fatal.\n' >&2
         return 0
     fi
-    printf 'PASS: real MAVLink heartbeat received; vehicle is disarmed; %s\n' "$state"
+    printf 'PASS: real MAVLink heartbeat received; vehicle is %s\n' "$state"
 }
 
 run_capture() {
