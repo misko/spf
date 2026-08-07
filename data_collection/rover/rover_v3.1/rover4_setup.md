@@ -701,8 +701,11 @@ wheels clear of the ground:
   `rover3_base_parameters.params` sets `MODE4=11`/`MODE6=15`; the README's older
   ordering is wrong and has already caused confusion once (see `docs/learnings.md`,
   2026-07-23).
-- **CH9 (SH)** shuts the Pi down only after a release, then a >2 s hold while
-  disarmed.
+- **CH9 (SH)** shuts the Pi down on a single press, armed or not — it safes the
+  vehicle first (motion stop, HOLD, disarm, each bounded at 2 s) and powers off
+  regardless of whether those succeed. The one precondition is that the handler
+  must have seen the switch released since the link came up, so test it by
+  releasing SH first.
 - **CH7 (SD)** reboots the FC — confirm before trusting it, it also kills the
   collector in the lower band.
 
