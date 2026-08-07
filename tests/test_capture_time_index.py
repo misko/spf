@@ -213,3 +213,90 @@ def test_an_unreadable_capture_is_recorded_rather_than_aborting_the_scan(tmp_pat
     assert payload["counts"] == {"UNREADABLE": 1}
     assert payload["filename_timezone"] == FLEET_TIMEZONE
     assert status == 2, "a scan needing a human must not exit 0"
+
+
+# ------------------------------------------- bench vs mission captures (S-5) ---
+#
+# A --fake-drone capture has no vehicle, so it has no GPS and never had a UTC to
+# lose. Reporting that as NO_GPS_TIME beside a mission capture that LOST its
+# time makes the alarming case indistinguishable from the expected one -- and
+# the first campaign scan surfaced three of them, all bench runs.
+
+
+class _AttrStore(dict):
+    def __init__(self, attrs, receivers):
+        super().__init__({"receivers": receivers})
+        self.attrs = attrs
+
+
+def _no_gps_store(attrs):
+    return _AttrStore(attrs, {"r0": {"gps_timestamp": np.zeros(4)}})
+
+
+def _inspect_with(monkeypatch, store, name="rover_2026_08_01_00_06_05_x.zarr"):
+    from spf.scripts import capture_time_index
+
+    monkeypatch.setattr(
+        capture_time_index, "zarr_open_from_lmdb_store", lambda *a, **k: store
+    )
+    return capture_time_index.inspect_capture(Path(name), LONDON, 300.0)
+
+
+def test_a_fake_drone_capture_is_not_reported_as_having_lost_its_time(monkeypatch):
+    record = _inspect_with(monkeypatch, _no_gps_store({"vehicle_present": False}))
+
+    assert record.verdict == "BENCH_NO_VEHICLE"
+    assert record.vehicle_present is False
+
+
+def test_a_mission_capture_with_no_gps_time_is_still_alarming(monkeypatch):
+    record = _inspect_with(monkeypatch, _no_gps_store({"vehicle_present": True}))
+
+    assert record.verdict == "NO_GPS_TIME"
+
+
+def test_a_capture_written_before_the_attribute_existed_falls_back(monkeypatch):
+    """Honest, not silent: an old bench capture still reports NO_GPS_TIME rather
+    than being quietly excused."""
+    record = _inspect_with(monkeypatch, _no_gps_store({}))
+
+    assert record.verdict == "NO_GPS_TIME"
+    assert record.vehicle_present is None
+
+
+def test_a_scan_of_only_bench_captures_does_not_fail_the_pipeline(tmp_path):
+    """BENCH_NO_VEHICLE is an expected outcome, so it must not exit non-zero."""
+    from spf.scripts.capture_time_index import main
+
+    import spf.scripts.capture_time_index as module
+
+    root = tmp_path / "bench"
+    (root / "a.zarr").mkdir(parents=True)
+    output = tmp_path / "cache" / "index.json"
+
+    original = module.zarr_open_from_lmdb_store
+    module.zarr_open_from_lmdb_store = lambda *a, **k: _no_gps_store(
+        {"vehicle_present": False}
+    )
+    try:
+        status = main([str(root), "--output", str(output)])
+    finally:
+        module.zarr_open_from_lmdb_store = original
+
+    assert json.loads(output.read_text())["counts"] == {"BENCH_NO_VEHICLE": 1}
+    assert status == 0
+
+
+def test_the_collector_records_whether_there_was_a_vehicle():
+    """The attribute has to reach the artifact, or the tool can never use it."""
+    import inspect
+
+    from spf.data_collector import DataCollector
+
+    source = inspect.getsource(DataCollector._mark_capture_state)
+    assert "vehicle_present" in source
+
+    collection = (
+        Path(__file__).resolve().parents[1] / "spf/mavlink_radio_collection.py"
+    ).read_text()
+    assert "data_collector.vehicle_present = not args.fake_drone" in collection

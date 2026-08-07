@@ -1,10 +1,14 @@
 """Recover the true UTC start of captures whose FILENAME carries a wrong time.
 
 Between 2026-07-30 and 2026-08-05, `system_clock_is_plausible` let a rover keep
-an unsynced clock whenever it already looked "plausible", so 19 of 47 campaign
-captures were NAMED from a stale Pi clock. The recorded `gps_timestamp` inside
-each store came from MAVLink `SYSTEM_TIME` and is unaffected, so nothing was
-lost -- but the name is what every human and half the tooling sorts by.
+an unsynced clock whenever it already looked "plausible", so campaigns captures
+were NAMED from a stale Pi clock. The recorded `gps_timestamp` inside each store
+came from MAVLink `SYSTEM_TIME` and is unaffected, so nothing was lost -- but
+the name is what every human and half the tooling sorts by.
+
+How many is a question for this tool, not for a comment: the first run over
+aug1/aug2/aug4/aug4_excluded/aug5/aug6 found 14 misdated of 55, which is not the
+"19 of 47" that had been estimated by hand.
 
 RAW DATA IS IMMUTABLE. This never renames, never opens a store for writing, and
 refuses to place its output inside a directory it scanned. It emits a sidecar
@@ -67,6 +71,8 @@ class CaptureTime:
     receivers_read: int
     verdict: str
     detail: str = ""
+    # None for captures written before the collector recorded this.
+    vehicle_present: bool | None = None
 
 
 def _first_gps_epoch(store) -> tuple[float | None, int]:
@@ -131,9 +137,24 @@ def inspect_capture(
         record.detail = f"{type(error).__name__}: {error}"
         return record
 
+    # S-5: a --fake-drone bench capture has no vehicle, so it has no GPS and
+    # never had a UTC to lose. Reporting that as NO_GPS_TIME alongside a mission
+    # capture that LOST its time makes the alarming case indistinguishable from
+    # the expected one. Captures written before this attribute existed have no
+    # opinion, and fall back to NO_GPS_TIME -- which is honest, not silent.
+    vehicle_present = store.attrs.get("vehicle_present")
+    record.vehicle_present = vehicle_present
+
     true_epoch, receivers_read = _first_gps_epoch(store)
     record.receivers_read = receivers_read
     if true_epoch is None:
+        if vehicle_present is False:
+            record.verdict = "BENCH_NO_VEHICLE"
+            record.detail = (
+                "--fake-drone capture: no vehicle, so no GPS and no UTC to "
+                "recover. Its name is the Pi clock and nothing else."
+            )
+            return record
         record.verdict = "NO_GPS_TIME"
         record.detail = (
             "no gps_timestamp at or after the 2025 floor in any receiver; this "
@@ -261,7 +282,7 @@ def main(argv=None) -> int:
         logging.info("  %-11s %d", verdict, counts[verdict])
 
     # Non-zero when something needs a human, so a scan can gate a pipeline.
-    return 0 if set(counts) <= {"OK"} else 2
+    return 0 if set(counts) <= {"OK", "BENCH_NO_VEHICLE"} else 2
 
 
 if __name__ == "__main__":

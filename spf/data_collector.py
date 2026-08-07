@@ -885,6 +885,13 @@ class DataCollector:
         blind_seconds = getattr(self, "navigation_unhealthy_seconds", None)
         if blind_seconds is not None:
             zarr.attrs["navigation_unhealthy_seconds"] = float(blind_seconds)
+        # Whether this capture had a vehicle at all. A --fake-drone bench run has
+        # no GPS, so its store carries no UTC and its name is the Pi clock and
+        # nothing else -- expected for a diagnostic, alarming for a mission
+        # capture, and until now indistinguishable in the artifact.
+        vehicle_present = getattr(self, "vehicle_present", None)
+        if vehicle_present is not None:
+            zarr.attrs["vehicle_present"] = bool(vehicle_present)
         if self.collection_error is not None:
             if self.capture_incident_id is not None:
                 zarr.attrs["capture_incident_id"] = self.capture_incident_id

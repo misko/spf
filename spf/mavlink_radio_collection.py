@@ -597,6 +597,13 @@ if __name__ == "__main__":
     navigation_tracker = LostIntervalTracker()
     data_collector.planner_control_lost_seconds = 0.0
     data_collector.navigation_unhealthy_seconds = 0.0
+    # S-5: a --fake-drone capture has no vehicle, so it has no GPS and its
+    # zarr carries no UTC at all -- its name is the Pi's clock and nothing else.
+    # That is fine for a bench diagnostic and fatal to confuse with a mission
+    # capture that LOST its time, which is the alarming case. Nothing in the
+    # artifact distinguished them, so capture_time_index had to report both as
+    # "no GPS time" and let a human guess.
+    data_collector.vehicle_present = not args.fake_drone
     try:
         with capture_signal_handlers(data_collector):
             data_collector.start()
