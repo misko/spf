@@ -68,6 +68,49 @@ def planner_control_lost(drone) -> bool:
     return not drone.is_planner_in_control()
 
 
+class PlannerControlTracker:
+    """How much of a capture was recorded while the planner was NOT driving.
+
+    Records written during an operator takeover are not corrupt -- the IQ and
+    the GPS are both accurate -- they simply describe a stationary vehicle, so
+    they carry no bearing diversity and bias any aggregate built from them.
+
+    Aborting the capture instead would be the wrong trade: a takeover is a
+    designed interlock (the stall handover depends on it), and
+    CAPTURE_RESTART_ATTEMPTS defaults to 1, so two takeovers would end a
+    session. So the capture keeps running and declares how much of itself was
+    recorded standing still, which is a thing analysis can filter on. Without
+    this the only trace is a flat bearing track someone puzzles over months
+    later.
+    """
+
+    def __init__(self):
+        self.lost_seconds = 0.0
+        self.takeovers = 0
+        self._lost_since = None
+
+    def update(self, control_lost: bool, now: float) -> bool:
+        """Feed one observation. Returns True on the edge INTO a takeover."""
+        if control_lost and self._lost_since is None:
+            self._lost_since = now
+            self.takeovers += 1
+            return True
+        if not control_lost and self._lost_since is not None:
+            self.lost_seconds += now - self._lost_since
+            self._lost_since = None
+        return False
+
+    def finish(self, now: float) -> None:
+        """Close an interval still open when the capture ended.
+
+        Rover 4 on 2026-08-07 was still in MANUAL as the capture kept
+        advancing, so the final takeover has no closing edge to observe.
+        """
+        if self._lost_since is not None:
+            self.lost_seconds += now - self._lost_since
+            self._lost_since = None
+
+
 def maybe_play_readiness_wait_tone(
     drone,
     *,
@@ -528,6 +571,8 @@ if __name__ == "__main__":
     )
 
     capture_failure = None
+    planner_control_tracker = PlannerControlTracker()
+    data_collector.planner_control_lost_seconds = 0.0
     try:
         with capture_signal_handlers(data_collector):
             data_collector.start()
@@ -537,12 +582,43 @@ if __name__ == "__main__":
                     #     for x in nn_ds: # x[1]['paired'].shape  / torch.Size([1, 65])
                     #         pass
                     check_exit()
+                    # is_planner_in_control() used to be read once, to decide
+                    # when to START, and never again -- so a capture ran on
+                    # through an operator takeover writing snapshots of a
+                    # stationary rover. Watch it for the whole capture instead.
+                    now = time.time()
+                    if planner_control_tracker.update(
+                        planner_control_lost(None if args.fake_drone else drone), now
+                    ):
+                        logging.error(
+                            "PLANNER CONTROL LOST: the vehicle is no longer under "
+                            "planner control, but this capture is still recording. "
+                            "These records describe a STATIONARY rover; filter them "
+                            "on planner_control_lost_seconds."
+                        )
+                    data_collector.planner_control_lost_seconds = (
+                        planner_control_tracker.lost_seconds
+                    )
                     time.sleep(0.5)
             except BaseException as error:
                 # Connection-health failures and explicit run limits occur in
                 # the main thread. Route them through the same writer/radio
                 # cleanup path as receiver-thread failures.
                 data_collector.request_stop(error)
+            # Close a takeover still open at the end: rover 4 was still in
+            # MANUAL as its capture kept advancing, so the final interval has no
+            # closing edge to observe.
+            planner_control_tracker.finish(now=time.time())
+            data_collector.planner_control_lost_seconds = (
+                planner_control_tracker.lost_seconds
+            )
+            if planner_control_tracker.takeovers:
+                logging.error(
+                    "Capture recorded %.0fs across %d takeover(s) with no planner "
+                    "control; those records describe a stationary rover.",
+                    planner_control_tracker.lost_seconds,
+                    planner_control_tracker.takeovers,
+                )
             data_collector.done()
     except BaseException as error:
         # DataCollector has stopped RX, muted TX, persisted the exact incomplete

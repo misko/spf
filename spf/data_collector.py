@@ -869,6 +869,13 @@ class DataCollector:
         zarr.attrs["capture_records_written_by_receiver"] = list(
             self.records_written_by_receiver
         )
+        # Seconds of this capture recorded while the planner was NOT driving --
+        # an operator in MANUAL, or a stall handover. Those records describe a
+        # stationary vehicle, so analysis needs to be able to filter them. Set
+        # by mavlink_radio_collection; absent on paths that have no vehicle.
+        lost_seconds = getattr(self, "planner_control_lost_seconds", None)
+        if lost_seconds is not None:
+            zarr.attrs["planner_control_lost_seconds"] = float(lost_seconds)
         if self.collection_error is not None:
             if self.capture_incident_id is not None:
                 zarr.attrs["capture_incident_id"] = self.capture_incident_id

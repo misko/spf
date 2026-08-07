@@ -22,6 +22,7 @@ import itertools
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from spf.mavlink.mavlink_controller import MOVE_REACHED, Drone
 
@@ -129,3 +130,71 @@ def test_a_fake_drone_capture_is_never_gated_on_planner_control():
     from spf.mavlink_radio_collection import planner_control_lost
 
     assert planner_control_lost(None) is False
+
+
+# ------------------------------------------- accounting for lost control ------
+#
+# Detection alone does not help if nothing records WHEN control was lost. The
+# records written during a takeover are not corrupt -- the IQ and the GPS are
+# both accurate -- they simply describe a stationary vehicle, so they carry no
+# bearing diversity and bias any aggregate. The capture must therefore say how
+# much of itself was recorded that way, so it can be filtered rather than
+# discovered by someone puzzling over a flat bearing track months later.
+
+
+def _tracker():
+    from spf.mavlink_radio_collection import PlannerControlTracker
+
+    return PlannerControlTracker()
+
+
+def test_a_capture_with_continuous_control_reports_no_lost_time():
+    t = _tracker()
+    for tick in range(10):
+        t.update(control_lost=False, now=float(tick))
+    assert t.lost_seconds == 0.0
+    assert t.takeovers == 0
+
+
+def test_lost_time_is_accumulated_across_a_takeover():
+    t = _tracker()
+    t.update(control_lost=False, now=0.0)
+    t.update(control_lost=True, now=10.0)   # takeover begins
+    t.update(control_lost=True, now=25.0)
+    t.update(control_lost=False, now=40.0)  # control returns
+    t.update(control_lost=False, now=50.0)
+
+    assert t.takeovers == 1
+    assert t.lost_seconds == pytest.approx(30.0)
+
+
+def test_multiple_takeovers_are_counted_separately():
+    t = _tracker()
+    for now, lost in [(0, False), (5, True), (10, False), (20, True), (25, False)]:
+        t.update(control_lost=lost, now=float(now))
+
+    assert t.takeovers == 2
+    assert t.lost_seconds == pytest.approx(10.0)
+
+
+def test_a_takeover_still_open_at_the_end_is_counted():
+    """Rover 4 was still in MANUAL when the capture kept advancing."""
+    t = _tracker()
+    t.update(control_lost=False, now=0.0)
+    t.update(control_lost=True, now=10.0)
+    t.finish(now=45.0)
+
+    assert t.takeovers == 1
+    assert t.lost_seconds == pytest.approx(35.0)
+
+
+def test_the_capture_records_how_much_of_it_had_no_planner_control():
+    """The number has to reach the artifact, or nobody will ever see it."""
+    import inspect
+
+    from spf.data_collector import DataCollector
+
+    source = inspect.getsource(DataCollector._mark_capture_state)
+    assert "planner_control_lost_seconds" in source, (
+        "the zarr must carry how long the planner was not driving"
+    )

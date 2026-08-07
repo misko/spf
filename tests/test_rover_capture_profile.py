@@ -72,8 +72,13 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
     environment.update(
         {
             "PYTHONPATH": str(REPO_ROOT),
+            # Without this the launcher sources its siblings from /home/pi/spf
+            # and dies anywhere but a rover -- which is what kept this test, and
+            # therefore CI, red for 20+ runs.
+            "SPF_REPO_ROOT": str(REPO_ROOT),
             "SPF_PYTHON": sys.executable,
             "SPF_ROVER_ID_FILE": str(rover_id_file),
+            "SPF_PROFILE_ENV": str(tmp_path / "no-profile-env"),
             "SPF_SKIP_SELF_UPDATE": "1",
         }
     )

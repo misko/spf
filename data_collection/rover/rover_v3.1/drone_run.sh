@@ -7,7 +7,15 @@
 
 set -euo pipefail
 
-readonly REPO_ROOT="/home/pi/spf"
+# Overridable for the same reason PROFILE_ENV and ROVER_ID_FILE are: the script
+# sources its own siblings through SCRIPT_DIR, so with this hardcoded it can only
+# run on a rover. test_boot_launcher_prints_canonical_v7_plan_without_hardware
+# invokes `--print-plan` from a checkout and died on
+#   line 110: /home/pi/spf/.../rover_env_defaults.sh: No such file or directory
+# which left CI red for 20+ consecutive runs -- long enough that it masked a real
+# unbound-variable defect in print_plan that reached every rover (37f2a00).
+# Same seam update_spf_before_boot.sh already uses as SPF_UPDATE_REPO_ROOT.
+readonly REPO_ROOT="${SPF_REPO_ROOT:-/home/pi/spf}"
 readonly SCRIPT_DIR="${REPO_ROOT}/data_collection/rover/rover_v3.1"
 # Overridable so tests can point the profile at a tempdir instead of /etc,
 # mirroring the SPF_ROVER_CONFIG seam the `rover` CLI already provides.
