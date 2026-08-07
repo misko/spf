@@ -1,8 +1,14 @@
 # E-LNK1 — transport × sample-rate comparison on R18
 
-**Status:** designed 2026-08-07, not yet run. Arms A–C are runnable on the current
-setup; **arm D needs an Ethernet cable plugged into the Pluto+** (see
-[§5](#5-feasibility-what-blocks-what)).
+**Status:** ✅ **throughput arms run 2026-08-07 — see [`RESULTS.md`](RESULTS.md).** All
+four arms including real Gigabit Ethernet. The phase-agreement (metric 5) and CPU
+(metric 4) arms are **not** yet run.
+
+> **Arm D was unblocked during execution.** The RJ45 link was up at 1000 Mb/s all
+> along; nothing answered its DHCP request, so avahi had self-assigned
+> `169.254.11.116`. A `udhcpc` lease put it on the host LAN at `192.168.1.174`.
+> The lease is non-persistent — no permanent change was made to the radio.
+
 **Est. bench time:** ~45–60 min for arms A–C; +30 min and a reconfiguration for arm D.
 **Radio:** R18 `1040007c4a94000211000b009186843ef2` (historical `.18`), USB port `1-1.2`.
 
@@ -31,7 +37,7 @@ once. This design separates them.
 | **A — direct-USB** | USB 2.0 | **SPF bulk** (`PlutoDirectUsbReceiver`) | ✅ production path |
 | **B — IIO/USB** | USB 2.0 | libiio USB backend (`usb:1.67.5`) | ✅ |
 | **C — IIO/IP over RNDIS** | **USB 2.0** (`usb0` gadget) | libiio IP | ✅ needs address disambiguation |
-| **D — IIO/IP over Ethernet** | **RJ45** (`eth0`) | libiio IP | ❌ **no cable** (`carrier = 0`) |
+| **D — IIO/IP over Ethernet** | **RJ45** (`eth0`) | libiio IP | ✅ *(cabled and leased during execution)* |
 
 Read across the table:
 
@@ -43,12 +49,13 @@ Read across the table:
 > means arm C, and **arm C is not Ethernet** — `eth1`/`eth2` are `rndis_host`
 > USB-gadget interfaces, so IP traffic to 192.168.2.1 rides *the same USB cable* as
 > arm A. Comparing A against C and calling it "USB vs Ethernet" would measure the
-> IP stack and attribute the result to the wire. **Only arm D is Ethernet**, and it
-> is the one that is not currently cabled.
+> IP stack and attribute the result to the wire. **Only arm D is Ethernet.** It was cabled during
+> execution, and the results confirm the trap was real: RNDIS performed like USB
+> (14.0 MB/s) because it *is* USB, while real Ethernet reached 23.3 MB/s.
 
 ## 3. Hypotheses
 
-**H1 (medium).** USB 2.0 High Speed caps at ~35–40 MB/s in practice. Two RX
+**H1 (medium) — REFUTED, see RESULTS.md.** USB 2.0 High Speed caps at ~35–40 MB/s in practice. Two RX
 channels of 16-bit I/Q is 8 bytes per sample instant, so **~4.4–5.0 MS/s is the
 continuous-streaming ceiling on any USB-borne arm (A, B, C)**. Gigabit Ethernet
 (arm D) has ~8× the headroom and should reach the AD9361's full 61.44 MS/s, making
@@ -102,11 +109,14 @@ thermal drift cannot alias onto a transport.
 
 Three concrete blockers, all discovered while designing this:
 
-**5.1 Arm D has no cable.** The Pluto+ exposes a real `eth0`, but
-`/sys/class/net/eth0/carrier = 0` and `speed = -1`. Arm D needs an RJ45 run to a
-switch on the capture host's network, plus a static address on the Pluto
-(`fw_setenv ipaddr`) — **a persistent, reboot-surviving change to a calibrated
-radio**. Record the before/after `fw_printenv` and revert it afterwards.
+**5.1 Arm D needed a cable — RESOLVED 2026-08-07.** The RJ45 was connected during
+execution and the link came up at **1000 Mb/s** immediately. The apparent "not
+online" symptom was purely addressing: no DHCP server answered on that segment at
+first, so avahi self-assigned `169.254.11.116`, unreachable from the host LAN.
+`udhcpc -i eth0` obtained `192.168.1.174` from the LAN's server. **No `fw_setenv`
+and no reboot were needed**, so the persistent-change risk anticipated here never
+materialised. The lease does not survive a reboot; make it static only if the
+Ethernet path is to be kept.
 
 **5.2 Both Plutos answer at 192.168.2.1.** The host holds 192.168.2.10 on *both*
 `eth1` and `eth2`, so `iio_info -s` discovers only one IP context — R17's — and
@@ -141,7 +151,7 @@ rest on survives — but confirm with a pre/post gain-table audit anyway.
 |        o===[ arm C: RNDIS usb0 -> IIO over IP  ]============> host  (eth1)   |
 |                                                                             |
 |   RJ45 o---[ arm D: real eth0 -> IIO over IP   ]------------> switch --> host|
-|            ^^^ NOT CURRENTLY CABLED (carrier = 0)                           |
+|            ^^^ cabled 2026-08-07: link 1000 Mb/s, DHCP 192.168.1.174         |
 +-----------------------------------------------------------------------------+
 ```
 

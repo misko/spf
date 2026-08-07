@@ -1,0 +1,24 @@
+{
+  "per_arm_ceiling_mbytes_s": {
+    "direct-usb": 18.871463908391632,
+    "iio-eth": 24.16163617362023,
+    "iio-rndis": 14.648389662662186,
+    "iio-usb": 14.96277544445725
+  },
+  "radio_max_sample_rate_hz": 30000000,
+  "sweep_buffer_samples": 65536,
+  "tuned_524288_buffer_30MSps_mbytes_s": {
+    "direct-usb": {
+      "mean": 23.33,
+      "sd": 1.86
+    },
+    "iio-eth": {
+      "mean": 23.27,
+      "sd": 0.21
+    },
+    "iio-rndis": {
+      "mean": 13.99,
+      "sd": 0.09
+    }
+  }
+}
