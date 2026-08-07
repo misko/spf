@@ -13,6 +13,7 @@ import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime
+from types import SimpleNamespace
 
 import numpy as np
 from haversine import Unit, haversine
@@ -189,15 +190,34 @@ tones = {
     "readiness-wait": "MFT240L8 G P8 G",
     # Three long descending notes, deliberately unlike the GPS/check tones.
     "radio-missing": "MFT180L4 A F D P2",
+    # Rising then held: the operator's confirmation that CH9 was accepted and
+    # the Pi is going down. Must be distinguishable from "failure" at a
+    # distance, because it is the last thing the rover says.
+    "shutdown": "MFT180L8 C E G L2 > C",
 }
 tones = {k: v.replace(" ", "").encode() for k, v in tones.items()}
 
 LOG_ERASE = 121
 
 RC_SHUTDOWN_THRESHOLD = 1500
-RC_SHUTDOWN_HOLD_SECONDS = 2.0
-RC_SHUTDOWN_MAX_SAMPLE_GAP_SECONDS = 1.5
-RC_SHUTDOWN_MIN_HIGH_SAMPLES = 3
+RC_REBOOT_THRESHOLD = 1000
+RC_COMPASS_THRESHOLD = 1500
+# Samples above threshold before a press counts. 1 is deliberate: a level test
+# needs no clock, so the trigger behaves identically at 0.5 Hz and 10 Hz --
+# which a timed gesture cannot. Raise to 2 to trade ~250ms at 4 Hz for immunity
+# to a single corrupt frame; both SBUS and MAVLink already checksum, so 1 is
+# the honest default.
+RC_PRESS_CONFIRM_SAMPLES = 1
+# Bounds on the pre-halt vehicle-safing sequence. Both exist to be exceeded
+# safely: a failed HOLD or a failed disarm must never prevent the poweroff,
+# because the operator's fallback when the switch is ignored is pulling the
+# battery on a live rover -- which is the failure this whole path removes.
+RC_SHUTDOWN_HOLD_TIMEOUT_SECONDS = 2.0
+RC_SHUTDOWN_DISARM_TIMEOUT_SECONDS = 2.0
+# Ask the flight controller for the RC rate we want rather than inheriting
+# whatever SR*_RC_CHAN each FC happens to carry -- that parameter is in no
+# enforced .params file, so it is per-rover luck.
+RC_CHANNELS_INTERVAL_US = 100_000
 RC_ULTRASONIC_LOW_THRESHOLD = 1000
 RC_ULTRASONIC_HIGH_THRESHOLD = 1500
 RC_ULTRASONIC_STABLE_SAMPLES = 3
@@ -254,69 +274,83 @@ NAVIGATION_SENSORS = (
 )
 
 
-class _RCHoldInterlock:
-    """Debounce a destructive RC action and require an intentional release."""
+class _RCPressTrigger:
+    """Fire once per press of an RC switch, never on one that was already high.
 
-    def __init__(
-        self,
-        *,
-        threshold,
-        hold_seconds,
-        max_sample_gap_seconds,
-        min_high_samples,
-    ):
+    Deliberately level-triggered and clockless. The interlock this replaced
+    required a >2s continuous hold, measured with time.monotonic() at the
+    moment each frame was *processed* -- so it depended on the RC stream rate
+    (below ~0.67 Hz the 1.5s gap window reset on every sample and no hold could
+    ever complete) and on the message loop not stalling (a loop that stalls and
+    then drains buffered frames collapses a genuine 2s hold to ~10ms). Neither
+    dependency is observable from the cockpit, and both fail silently. A level
+    test has neither: one frame above threshold is one frame above threshold at
+    any rate, in any burst.
+
+    `released_seen` is the single bit of memory kept, and it carries the whole
+    safety argument. A receiver on failsafe Hold keeps reporting the last
+    values it saw, so a process that connects mid-press -- or after the
+    operator's last act before walking away was a press -- would otherwise act
+    on a press nobody is making. Since the capture process restarts on every
+    capture iteration, that is a shutdown boot-loop, not a rare edge. SH is
+    spring-loaded, so in normal use this bit is set within one frame and the
+    operator never perceives it.
+    """
+
+    def __init__(self, label, threshold, confirm_samples=RC_PRESS_CONFIRM_SAMPLES):
+        self.label = label
         self.threshold = threshold
-        self.hold_seconds = hold_seconds
-        self.max_sample_gap_seconds = max_sample_gap_seconds
-        self.min_high_samples = min_high_samples
+        self.confirm_samples = confirm_samples
         self._released_seen = False
-        self._high_since = None
-        self._last_high_at = None
         self._high_samples = 0
         self._latched = False
+        self._warned_stale_high = False
 
-    def _reset_hold(self):
-        self._high_since = None
-        self._last_high_at = None
-        self._high_samples = 0
-
-    def update(self, *, value, now, permitted):
+    def update(self, value):
         if value <= self.threshold:
             self._released_seen = True
-            self._latched = False
-            self._reset_hold()
-            return False, 0.0
+            self._high_samples = 0
+            self._latched = False  # re-arm for the next press
+            return False
 
-        if self._latched or not self._released_seen:
-            return False, 0.0
+        if not self._released_seen:
+            # Once, not once per frame: at 10 Hz this would otherwise bury the
+            # journal, and the condition can persist for the life of the link.
+            if not self._warned_stale_high:
+                logging.warning(
+                    "RC %s has been high since connect; ignoring it until the "
+                    "switch is released (stale failsafe values, or a switch "
+                    "left up, look exactly like a press)",
+                    self.label,
+                )
+                self._warned_stale_high = True
+            return False
 
-        if not permitted:
-            # A switch held while the rover is unsafe must be released before
-            # it can begin a later shutdown request.
-            self._released_seen = False
-            self._reset_hold()
-            return False, 0.0
+        if self._latched:
+            return False
 
-        if (
-            self._last_high_at is None
-            or now - self._last_high_at > self.max_sample_gap_seconds
-        ):
-            self._high_since = now
-            self._high_samples = 1
-        else:
-            self._high_samples += 1
-
-        self._last_high_at = now
-        held_seconds = now - self._high_since
-        if (
-            held_seconds >= self.hold_seconds
-            and self._high_samples >= self.min_high_samples
-        ):
+        self._high_samples += 1
+        if self._high_samples >= self.confirm_samples:
             self._latched = True
-            self._reset_hold()
-            return True, held_seconds
+            return True
+        return False
 
-        return False, held_seconds
+
+def _build_rc_triggers():
+    """One press trigger per destructive RC channel.
+
+    CH7 and CH10 share the trigger rather than testing their raw value inline,
+    which is not cosmetic: `elif msg.chan7_raw > 1000: reboot(); sys.exit(1)`
+    fires for any resting value in (1000, 1500] -- a centred 3-position switch
+    reads 1500 -- and had nothing to latch it, so it re-fired on every frame.
+    The only thing keeping that quiet was CH7 happening to rest at <=1000.
+    """
+
+    return SimpleNamespace(
+        shutdown=_RCPressTrigger("CH9 (shutdown)", RC_SHUTDOWN_THRESHOLD),
+        reboot=_RCPressTrigger("CH7 (reboot)", RC_REBOOT_THRESHOLD),
+        compass=_RCPressTrigger("CH10 (compass calibration)", RC_COMPASS_THRESHOLD),
+    )
 
 
 class _RCStableSwitch:
@@ -716,12 +750,7 @@ class Drone:
         self.stall_progress_radius_m = float(stall_progress_radius_m)
         self._initialize_stall_state()
         self._initialize_motion_stop_state()
-        self._rc_shutdown_interlock = _RCHoldInterlock(
-            threshold=RC_SHUTDOWN_THRESHOLD,
-            hold_seconds=RC_SHUTDOWN_HOLD_SECONDS,
-            max_sample_gap_seconds=RC_SHUTDOWN_MAX_SAMPLE_GAP_SECONDS,
-            min_high_samples=RC_SHUTDOWN_MIN_HIGH_SAMPLES,
-        )
+        self._rc_triggers = _build_rc_triggers()
 
         self.ekf_healthy = False
         self.disable_distance_finder = False
@@ -896,10 +925,50 @@ class Drone:
                     connection.sysid_state[connection.sysid].mav_type
                 )
             self.process_message(heartbeat)
+            # A reconnect means the switch positions during the outage are
+            # unknown, and a receiver on failsafe Hold will report whatever it
+            # last saw. Re-arming the press triggers forces a fresh release
+            # before any destructive channel can act on the new link.
+            self._rc_triggers = _build_rc_triggers()
+            self._request_rc_channel_rate()
             logging.info(
                 "MAVLink reconnected after a fresh flight-controller heartbeat"
             )
             return True
+
+    def _request_rc_channel_rate(self, interval_us=RC_CHANNELS_INTERVAL_US):
+        """Ask the FC for the RC_CHANNELS rate we want, rather than inherit one.
+
+        SR*_RC_CHAN is in no enforced .params file, so the rate is per-rover
+        luck -- rover 3's dump has 4 Hz on SERIAL0 and 1 Hz on SERIAL2. The
+        press trigger works at any rate by construction, so this is latency and
+        uniformity, not correctness. Advisory: a failure must not stop the
+        receive loop from starting.
+        """
+
+        try:
+            with self._command_connection(allow_replacement=True) as connection:
+                connection.mav.command_long_send(
+                    connection.target_system,
+                    connection.target_component,
+                    mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+                    0,
+                    mavutil.mavlink.MAVLINK_MSG_ID_RC_CHANNELS,
+                    interval_us,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                )
+            return True
+        except Exception as error:
+            logging.warning(
+                "Could not request an RC_CHANNELS rate; falling back to "
+                "whatever SR*_RC_CHAN this flight controller carries: %s",
+                error,
+            )
+            return False
 
     def set_and_start_planner(self, planner):
         self.planner = planner
@@ -1013,6 +1082,8 @@ class Drone:
 
     # motion interface
     def start(self):
+        if not self.fake:
+            self._request_rc_channel_rate()
         self.message_loop_thread.start()
         return self
 
@@ -1221,7 +1292,7 @@ class Drone:
         what moves the anchor.
         """
 
-        # getattr throughout, matching the _rc_shutdown_interlock pattern: a
+        # getattr throughout, matching the _rc_triggers pattern: a
         # reconnected or hand-built Drone must not crash the motion loop over a
         # missing attribute.
         if not getattr(self, "crash_detect", True):
@@ -2126,51 +2197,142 @@ class Drone:
         # print(msg.to_dict())
         pass
 
-    def handle_RC_CHANNELS(self, msg):
-        if not hasattr(self, "_rc_shutdown_interlock"):
-            self._rc_shutdown_interlock = _RCHoldInterlock(
-                threshold=RC_SHUTDOWN_THRESHOLD,
-                hold_seconds=RC_SHUTDOWN_HOLD_SECONDS,
-                max_sample_gap_seconds=RC_SHUTDOWN_MAX_SAMPLE_GAP_SECONDS,
-                min_high_samples=RC_SHUTDOWN_MIN_HIGH_SAMPLES,
-            )
-        now = time.monotonic()
-        shutdown_requested, held_seconds = self._rc_shutdown_interlock.update(
-            value=msg.chan9_raw,
-            now=now,
-            permitted=not self.armed and not self.motor_active,
+    def _rc_shutdown(self, msg):
+        """Safe the vehicle, then power the Pi down. Every wait is bounded.
+
+        Vehicle state is an ACTION here, not a veto. It used to be a veto --
+        `permitted = not armed and not motor_active` -- which meant the switch
+        did nothing during a capture, because the planner arms the vehicle and
+        re-arms it within 0.1s of any operator disarm. Worse, the veto branch
+        cleared the release bit, so a press while armed poisoned the *next*
+        attempt too. The operator's fallback when a shutdown switch ignores
+        them is pulling the battery on a live rover, which is the mechanism
+        behind the fleet's 32 unclean shutdowns (field report 2026-08-05, D1/D2)
+        and every unfinalised capture that came with them.
+
+        So nothing below may prevent the poweroff. HOLD and disarm are
+        attempted, bounded, and logged; whatever their outcome, the Pi goes
+        down. Refusing to halt is the failure being removed, not a safe default.
+        """
+
+        logging.warning(
+            "RC shutdown accepted: ch9_raw=%d armed=%s motor_active=%s mode=%s",
+            msg.chan9_raw,
+            self.armed,
+            self.motor_active,
+            self.mav_mode,
         )
-        if shutdown_requested:
-            logging.warning(
-                "RC shutdown accepted: ch9_raw=%d held=%.3fs armed=%s motor_active=%s",
-                msg.chan9_raw,
-                held_seconds,
-                self.armed,
-                self.motor_active,
+        # Advisory, and deliberately before the safing sequence: the operator
+        # needs to know the press registered even if MAVLink then goes away.
+        try:
+            self.send_status("RC SHUTDOWN: safing vehicle and powering down")
+        except Exception as error:
+            logging.warning("RC shutdown status text failed: %s", error)
+        self.buzzer(tones["shutdown"])
+
+        self._rc_shutdown_safe_vehicle()
+
+        # poweroff, not halt: halt parks the CPU with the rails still up and
+        # the battery still draining. systemd SIGTERMs the units on the way
+        # down, which is what closes the zarr through capture_signal_handlers.
+        try:
+            result = subprocess.run(["sudo", "poweroff"], check=False)
+        except (OSError, subprocess.SubprocessError) as error:
+            logging.exception("RC shutdown command failed: %s", error)
+        else:
+            if result.returncode != 0:
+                logging.error(
+                    "RC shutdown command failed with return code %d",
+                    result.returncode,
+                )
+
+    def _rc_shutdown_safe_vehicle(self):
+        """Best-effort HOLD + disarm ahead of a poweroff. Never raises."""
+
+        # request_motion_stop/wait_for_abort_hold is the existing cooperative
+        # stop used at capture teardown -- it clears planner_should_move, so
+        # the planner stops issuing repositions instead of racing the disarm
+        # below. Reusing it is why an operator's CH5 disarm loses today and
+        # this one does not.
+        try:
+            self.request_motion_stop(reason="RC shutdown (CH9)")
+            self.wait_for_abort_hold(
+                timeout_seconds=RC_SHUTDOWN_HOLD_TIMEOUT_SECONDS
             )
-            try:
-                result = subprocess.run(["sudo", "shutdown", "0"], check=False)
-            except (OSError, subprocess.SubprocessError) as error:
-                logging.exception("RC shutdown command failed: %s", error)
-            else:
-                if result.returncode != 0:
-                    logging.error(
-                        "RC shutdown command failed with return code %d",
-                        result.returncode,
-                    )
+        except Exception as error:
+            logging.error("RC shutdown could not stop planner motion: %s", error)
+
+        if not self.armed:
+            return
+
+        try:
+            self.disarm()
+        except Exception as error:
+            logging.error("RC shutdown disarm command failed: %s", error)
+            return
+
+        deadline = time.monotonic() + RC_SHUTDOWN_DISARM_TIMEOUT_SECONDS
+        while self.armed and time.monotonic() < deadline:
+            # Pump heartbeats inline rather than sleeping. handle_RC_CHANNELS
+            # runs ON the receive loop thread, and self.armed is only ever set
+            # by handle_HEARTBEAT on that same thread -- so a plain sleep here
+            # blocks the one loop that could observe the disarm, and the wait
+            # could never do anything but time out.
+            if not self._pump_one_heartbeat(timeout_seconds=0.2):
+                break
+        if self.armed:
+            logging.error(
+                "RC shutdown: vehicle still armed after %.1fs; powering down anyway",
+                RC_SHUTDOWN_DISARM_TIMEOUT_SECONDS,
+            )
+        else:
+            logging.warning("RC shutdown: vehicle disarmed before poweroff")
+
+    def _pump_one_heartbeat(self, *, timeout_seconds):
+        """Process one HEARTBEAT from inside the receive loop. False to stop.
+
+        Safe only because the sole caller already runs on the receive loop
+        thread, so nothing else is reading this connection concurrently.
+        Non-heartbeat messages queued behind it are discarded by recv_match,
+        which is acceptable here and only here: the Pi is powering off.
+        """
+
+        try:
+            with self._connection_lock:
+                connection = self.connection
+            heartbeat = connection.recv_match(
+                type="HEARTBEAT", blocking=True, timeout=timeout_seconds
+            )
+        except Exception as error:
+            logging.warning("RC shutdown could not read a heartbeat: %s", error)
+            return False
+        if heartbeat is not None:
+            self.process_message(heartbeat)
+        return True
+
+    def handle_RC_CHANNELS(self, msg):
+        # getattr/hasattr, matching the pattern used throughout: a reconnected
+        # or hand-built Drone must not crash the receive loop over a missing
+        # attribute.
+        if not hasattr(self, "_rc_triggers"):
+            self._rc_triggers = _build_rc_triggers()
+        triggers = self._rc_triggers
+
+        if triggers.shutdown.update(msg.chan9_raw):
+            self._rc_shutdown(msg)
             # An accepted shutdown owns this RC message. Do not combine it
             # with reboot, compass-calibration, or distance-finder actions.
             return
-        if msg.chan10_raw > 1500:  # run compass calibration
+
+        if triggers.compass.update(msg.chan10_raw):
             self.run_compass_calibration()
-        if msg.chan7_raw > 1500:
-            # reboot ardupilot
-            logging.info("Request force reboot")
-            self.reboot(force=True)
-        elif msg.chan7_raw > 1000:
-            logging.info("Request reboot")
-            self.reboot()
-            sys.exit(1)
+
+        if triggers.reboot.update(msg.chan7_raw):
+            force = msg.chan7_raw > RC_SHUTDOWN_THRESHOLD
+            logging.info("Request %sreboot", "force " if force else "")
+            self.reboot(force=force)
+            if not force:
+                sys.exit(1)
         # If --no-ultrasonic omitted the sensor entirely, ignore RC12. This
         # prevents reconnect/default channel values from producing misleading
         # ENABLE/DISABLE messages for hardware that is not in use.
@@ -2186,7 +2348,11 @@ class Drone:
             )
         disabled = self._ultrasonic_rc_switch.update(
             value=msg.chan12_raw,
-            now=now,
+            # The ultrasonic switch keeps its clock: it debounces a *setting*,
+            # where a wrong answer is recoverable, so consecutive-sample
+            # stability is worth the rate dependency. The destructive channels
+            # above deliberately have no clock at all.
+            now=time.monotonic(),
         )
         if disabled is None:
             return

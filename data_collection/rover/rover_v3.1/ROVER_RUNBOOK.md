@@ -446,13 +446,13 @@ physical receiver moved between models.
 | — | CH6 (S2 pot) | `RC6_OPTION 300` (Scripting1) — **inert**, no Lua script in-tree | FC (no-op) |
 | Reboot FC | **CH7 (SD)** | >1500 force-reboot FC; 1000–1500 soft reboot **+ kills the collector** (`sys.exit(1)`) | Pi |
 | Flight mode | **CH8 (SA)** | 3-pos → MODE slots 1/4/6 = **Manual(0) / RTL(11) / Guided(15)** | FC (`MODE_CH 8`) |
-| Shutdown | **CH9 (SH)** | release once, then hold >1500 for 2 s while disarmed and motors inactive → power off the Pi | Pi |
+| Shutdown | **CH9 (SH)** | one press >1500 → safe the vehicle, then power off the Pi. Works armed or driving | Pi |
 | Mag cal | **CH10 (SC)** | start compass/mag calibration | Pi |
 | Ultrasonic | **CH12** (switch id not recorded in-tree) | >1000 disable / ≤1000 enable obstacle stop | Pi |
 
 > ⚠ **CH8 mode order.** The order above — **Manual / RTL / Guided** — is what the boot-enforced `rover3_base_parameters.params` sets (`MODE4=11`, `MODE6=15`) and what the operator field guide shows. The README's older "[Manual, Guided, RTL]" and the Jun-2024 `rover3_idX_parameters.params` dumps (`MODE4=15`, `MODE6=11`) have Guided/RTL **swapped**, and `spf/ardupilot/ardupilot_setup.md` predates both (`MODE4=10` = Auto). Since the boot param gate is non-fatal (§13.4), verify on the bench after any FC/param change: flip SA to mid and confirm the mode reads **RTL** (not Guided) before trusting the switch in the field.
 
-> The in-code RC handler `handle_RC_CHANNELS` reads raw channels 7/9/10/12. CH9 is fail-closed: the handler must first observe the switch released, then receive at least three continuous high samples spanning 2 seconds while the rover is disarmed and its motors are inactive; it latches after one shutdown request until release. An accepted CH9 request owns that RC message, so CH7/CH10/CH12 actions from the same packet are suppressed. If the OS shutdown command fails, the failure is logged and a release plus a new complete hold is required before retrying. CH7>1500 → force reboot, 1000<CH7≤1500 → reboot + `sys.exit(1)`; CH10>1500 → compass cal; CH12>1000 → disable ultrasonic. CH5/CH8 are FC-consumed (all other `RCx_OPTION` are 0) — the Pi only observes their effects via HEARTBEAT. Confirm the transmitter mapping matches these before powering on (see Safety §10).
+> The in-code RC handler `handle_RC_CHANNELS` reads raw channels 7/9/10/12. CH9, CH7 and CH10 are level-triggered by `_RCPressTrigger`: one sample above threshold fires the action, and it latches until the switch is released. There is no clock and no hold, so behaviour is identical at 0.5 Hz and 10 Hz and unaffected by a stalled receive loop. The single precondition is that the trigger must have seen the switch **released** at least once since the link came up — a receiver on failsafe Hold reports the last values it saw, and acting on those would power the rover down on every capture restart. A switch high at connect logs `has been high since connect` once and is ignored until released; the triggers are re-armed on every reconnect. CH9 does not consult vehicle state: it requests a planner motion stop, waits up to 2 s for HOLD, disarms and waits up to 2 s for confirmation, then runs `sudo poweroff` regardless of the outcome — every step bounded and logged. An accepted CH9 request owns that RC message, so CH7/CH10/CH12 actions from the same packet are suppressed. CH7>1500 → force reboot, 1000<CH7≤1500 → reboot + `sys.exit(1)`; CH10>1500 → compass cal; CH12>1000 → disable ultrasonic (still debounced over three consecutive samples — it sets a recoverable *setting*, not a destructive action). CH5/CH8 are FC-consumed (all other `RCx_OPTION` are 0) — the Pi only observes their effects via HEARTBEAT. Confirm the transmitter mapping matches these before powering on (see Safety §10).
 
 ### 3.6 ArduPilot calibration sequence
 
@@ -1179,7 +1179,7 @@ lsusb | grep ADALM | wc -l                                                      
 
 ### Controller safety catalog (MC / MP)
 
-- **MC-1 / KI#18 [DRIVE-CRITICAL]** CH9 shutdown now requires a release, a continuous 2-second hold with at least three samples, and a disarmed/inactive rover; it triggers only once until release. CH7 reboot and CH10 compass-calibration actions still have no equivalent hold interlock, so treat their transmitter mappings as safety-critical.
+- **MC-1 / KI#18 [DRIVE-CRITICAL]** CH9 shutdown is a single press: one sample >1500 safes the vehicle and powers off the Pi, armed or not. It latches until release, and ignores a switch that was already high when the link came up. CH7 reboot and CH10 magcal now share the same press trigger, which closes the hazard where a CH7 resting anywhere in (1000, 1500] — a centred 3-position switch reads 1500 — rebooted the FC on every frame. Treat all three transmitter mappings as safety-critical.
 - **MC-2** `is_planner_in_control` reads a lazy attr → AttributeError if called before `set_and_start_planner`; current order is safe.
 - **MC-3 / KI#44 [DRIVE-CRITICAL, PARTLY MITIGATED 2026-08-03]** `move_to_point` loops `while distance>tolerance` with **no timeout/abort** — an unreachable/blocked target hangs the planner thread forever. (:436) The stall watchdog (§17) now covers the case that actually bit us — a jammed rover stops covering ground and is handed to the operator in MANUAL — but the loop still has no overall deadline, so a rover that keeps *moving* without ever arriving still hangs.
 - **MC-4 / KI#40 [DRIVE-CRITICAL, silently-wrong]** `healthy_ekf_flag` ORs `EKF_POS_HORIZ_REL` twice and **omits `EKF_POS_HORIZ_ABS`** — the arm/ready gate accepts a relative-only EKF, so the rover can arm and drive absolute lat/long waypoints before the absolute fix converges. Verify absolute GPS/EKF health out-of-band. (:264–268)
@@ -1523,11 +1523,11 @@ The Pi's `handle_RC_CHANNELS` (L897-917) only acts on **CH7/9/10/12** (companion
 | CH8 | (RC) | **Flight mode** Manual/RTL/Guided (slots 1/4/6, §3.5) | ArduPilot FC (Pi reads `mav_mode`) |
 | CH7 | `>1500` | Force-reboot the **FC** (`MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN` p1=1) | Pi (L902-905) |
 | CH7 | `>1000 & ≤1500` | Soft-reboot FC then **`sys.exit(1)`** (kills the Pi collector) | Pi (L906-909) |
-| CH9 | release, then `>1500` continuously for ≥2 s while disarmed and motors inactive | **Power off the Pi** (`sudo shutdown 0`), once until release | Pi |
+| CH9 | one sample `>1500`, after the switch has been seen released | **Safe the vehicle, then power off the Pi** (`sudo poweroff`), once until release | Pi |
 | CH10 | `>1500` | Start **compass/mag calibration** (`MAV_CMD_DO_START_MAG_CAL`) | Pi (L900-901) |
 | CH12 | `>1000` disable / `≤1000` enable | Toggle **ultrasonic** avoidance (`disable_distance_finder`) | Pi (L910-917) |
 
-⚠ These run on the MAVLink message thread. CH9 has the release/hold/safe-state interlock described above; CH7 and CH10 do not yet have the same protection (MC-1 / §10).
+⚠ These run on the MAVLink message thread. CH9, CH7 and CH10 all share the `_RCPressTrigger` release latch described above. None of them is available when no `Drone` message loop is running — during `wait_for_radios`, between capture iterations, or after `mavlink_controller.service` exits (the unit carries no `Restart=`).
 
 ### 14.5 Ultrasonic safety stop
 

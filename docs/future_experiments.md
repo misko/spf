@@ -686,6 +686,43 @@ radios+aux 5.1V/5A, <10 mVpp at radio ports). Adds INA226 battery telemetry over
 power-cycling hung Plutos. Next: KiCad schematic capture per DESIGN.md; bring-up plan
 included in the doc.
 
+## E-HW3 — always-on RC listener: MAVLink router + dedicated service
+
+- **Motivation:** learnings 2026-08-07 — the CH9 shutdown (and CH7 reboot, CH10 magcal)
+  live inside `handle_RC_CHANNELS`, which only runs while a `Drone` message loop exists.
+  That means the capture process. So the switch is inert during `wait_for_radios` (up to
+  600 s), between capture iterations, and permanently after `drone_run.sh` returns —
+  `mavlink_controller.service` carries no `Restart=`. The level-trigger fix makes the
+  switch work *whenever a loop runs*; it does not make a loop run. An operator standing
+  at an idle or failed rover still has no way to power it down cleanly, which is the
+  root of D1/D2 (32 unclean shutdowns) and S25 (unfinalised captures).
+- **Root constraint:** the FC serial port has exactly one owner — `ardu_cli` refuses to
+  open it while `mavlink_controller.service` is up. Every software fix is really "how do
+  we get a second consumer of `RC_CHANNELS`".
+- **Design:** `mavlink-routerd` (or mavproxy) owns `/dev/serial/by-id/usb-ArduPilot*`
+  and fans out to local UDP. The capture connects to UDP (`drone-uri` already accepts
+  `udpin:`/`tcp:`, so this is config, not code), and a small `spf-rc-actions.service`
+  with `Restart=always` subscribes alongside it and owns the destructive channels.
+  Secondary win: `rover ardupilot rc` becomes runnable *during* a capture, removing the
+  catch-22 where diagnosing the switch requires stopping the service that implements it.
+- **Cost:** new daemon + unit on every rover, boot ordering, `drone-uri` churn across
+  capture configs, and rework (mostly deletion) of the service-ownership guard in
+  `ardu_cli`. Provisioning, `rover doctor`, and `rover audit` all need to know about it.
+- **Alternatives considered and rejected for now:** a long-lived Python supervisor
+  (loses capture crash isolation, very high cost); systemd-arbitrated exclusive access
+  (races at every capture start/stop); receiver PWM → Pi GPIO and FC relay → Pi GPIO
+  (both survive more failures, including a wedged FC, but need a hardware rollout across
+  four rovers). A physical shutdown button remains worth doing independently — it is the
+  only option that survives loss of the RC link, and E-HW2's power board already
+  specifies the GPIO handshake for it.
+- **Decision rule:** if the level-trigger fix proves the switch reliable whenever a
+  capture is running, do this next; if CH9 turns out to be unreliable even inside a live
+  loop, diagnose that first — the fault would be below MAVLink and a router will not
+  help.
+- **Also queued with it:** add `SR*_RC_CHAN` to the enforced parameter set. `Drone` now
+  requests its own `RC_CHANNELS` interval, so this is defence in depth rather than a
+  dependency.
+
 ## E-TR1 — effective-spacing sidecar training experiment
 
 - **Motivation:** learnings L5 — `rx_spacing_input` is nominal, wrong by up to 2.1× for

@@ -880,3 +880,64 @@ Generalization: **when a check is claimed to be "the last line of defence",
 verify that claim before acting on it.** Both the code comment and a field
 report repeated it, and the fix was designed around restoring a safety property
 that had never been lost.
+
+## Rover (2026-08-07): a destructive RC switch that failed silently in the one
+## state operators used it — and a timed gesture is the wrong primitive here
+
+The CH9 shutdown switch stopped working in the field. Not intermittently — it
+did nothing whether it was toggled repeatedly or held. Root cause was two
+layers deep and neither was visible from the cockpit.
+
+**The gate was a veto, and it vetoed the normal case.** `handle_RC_CHANNELS`
+computed `permitted = not armed and not motor_active` and discarded the request
+when false. But the planner arms the vehicle for the whole of a capture and
+re-arms within 0.1 s of any operator disarm (`move_to_point`), so `permitted`
+was false exactly when an operator reached for the switch. Worse, the deny
+branch cleared the interlock's `released_seen` bit, so a press while armed
+poisoned the *next* attempt too. Nothing was logged on any of these paths — the
+handler logged only on acceptance — so a switch that had been dead for a week
+left no trace at all.
+
+**The gesture depended on the transport in ways nobody could see.** The
+interlock required ≥3 high samples spanning ≥2 s, with a 1.5 s max gap, timed
+with `time.monotonic()` at the moment each frame was *processed*. That silently
+required an `RC_CHANNELS` stream faster than ~0.67 Hz — and `SR*_RC_CHAN` is in
+no enforced `.params` file, so the rate was per-rover luck. It also required the
+receive loop never to stall: a loop that stalls and then drains buffered frames
+collapses a genuine 2 s hold to milliseconds of processing time, and the hold
+can never complete.
+
+The fix is a level trigger with one bit of memory (`_RCPressTrigger`): one
+sample above threshold fires, latched until release. No clock, so behaviour is
+identical at 0.5 Hz and 10 Hz and under any burst. Vehicle state became an
+**action** instead of a veto — motion stop, HOLD, disarm, each bounded at 2 s
+and each logged, then `sudo poweroff` regardless of outcome.
+
+Three generalizations worth keeping:
+
+- **For a destructive control, refusing to act is not the safe default.** The
+  operator's fallback when a shutdown switch ignores them is pulling the battery
+  on a live rover — which is the mechanism behind the fleet's 32 unclean
+  shutdowns (field report 2026-08-05, D1/D2) and every unfinalised capture that
+  came with them. Safing the vehicle first and powering down anyway is strictly
+  safer than a veto.
+- **Never measure an operator's gesture with the consumer's processing clock.**
+  If a gesture must be timed, time it from the frame (`RC_CHANNELS` carries
+  `time_boot_ms`) or count samples. Better: choose a predicate that needs no
+  clock at all.
+- **A rejected destructive action must log why.** This cost a week of the switch
+  being dead with an empty journal, and the field report that recommended "use
+  the CH9 shutdown switch" was written against a switch that no longer worked.
+
+The one bit that must survive any redesign is `released_seen`: a receiver on
+failsafe Hold reports the last values it saw, and the capture process restarts
+on every capture iteration — so acting on a switch that was already high at
+connect is a shutdown boot-loop, not a rare edge. It is also why the triggers
+are re-armed on every MAVLink reconnect.
+
+**Still open:** none of this runs when no `Drone` message loop exists — during
+`wait_for_radios` (up to 600 s), between capture iterations, or after
+`drone_run.sh` returns, since `mavlink_controller.service` carries no
+`Restart=`. The switch is only as available as the capture process. Fixing that
+needs a MAVLink router plus an always-on listener; see
+`docs/future_experiments.md`.
