@@ -76,6 +76,33 @@ def pytest_addoption(parser):
         help="frames per receiver in the hardware-backed V7 Zarr test",
     )
     group.addoption(
+        "--radio-gain-series-v3",
+        action="store_true",
+        help="enable protocol-v3 sample-associated gain-series hardware gates",
+    )
+    group.addoption(
+        "--radio-gain-observation-interval",
+        type=int,
+        default=2048,
+        help="requested samples between protocol-v3 gain observations",
+    )
+    group.addoption(
+        "--radio-gain-observation-capacity",
+        type=int,
+        default=256,
+        help="fixed protocol-v3 gain-observation slots per frame",
+    )
+    group.addoption(
+        "--radio-direct-ip",
+        action="store_true",
+        help="enable direct-IP hardware parity gates",
+    )
+    group.addoption(
+        "--radio-direct-ip-host",
+        default=None,
+        help="unique LAN address of the selected Pluto direct-IP gadget",
+    )
+    group.addoption(
         "--radio-interrupt",
         action="store_true",
         help="enable the real collector interruption/finalization test",
@@ -147,6 +174,8 @@ def pytest_collection_modifyitems(config, items):
     # fail-closed (skipped) rather than aborting collection with ValueError.
     hardware_enabled = config.getoption("--radio-hardware", default=False)
     zarr_enabled = config.getoption("--radio-zarr", default=False)
+    gain_series_enabled = config.getoption("--radio-gain-series-v3", default=False)
+    direct_ip_enabled = config.getoption("--radio-direct-ip", default=False)
     interrupt_enabled = config.getoption("--radio-interrupt", default=False)
     soak_enabled = config.getoption("--radio-soak", default=False)
     crash_recovery_enabled = config.getoption("--radio-crash-recovery", default=False)
@@ -155,6 +184,10 @@ def pytest_collection_modifyitems(config, items):
         reason="requires explicit --radio-hardware and attached Pluto hardware"
     )
     zarr_skip = pytest.mark.skip(reason="requires explicit --radio-zarr")
+    gain_series_skip = pytest.mark.skip(
+        reason="requires explicit --radio-gain-series-v3"
+    )
+    direct_ip_skip = pytest.mark.skip(reason="requires explicit --radio-direct-ip")
     interrupt_skip = pytest.mark.skip(reason="requires explicit --radio-interrupt")
     soak_skip = pytest.mark.skip(reason="requires explicit --radio-soak")
     crash_recovery_skip = pytest.mark.skip(
@@ -168,6 +201,10 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(hardware_skip)
         if "radio_zarr" in item.keywords and not zarr_enabled:
             item.add_marker(zarr_skip)
+        if "radio_gain_series_v3" in item.keywords and not gain_series_enabled:
+            item.add_marker(gain_series_skip)
+        if "radio_direct_ip" in item.keywords and not direct_ip_enabled:
+            item.add_marker(direct_ip_skip)
         if "radio_interrupt" in item.keywords and not interrupt_enabled:
             item.add_marker(interrupt_skip)
         if "radio_soak" in item.keywords and not soak_enabled:

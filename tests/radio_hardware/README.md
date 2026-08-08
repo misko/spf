@@ -63,6 +63,32 @@ This surgical Zarr test is not a substitute for the production-YAML,
 fake-drone capture in the Rover pre-field checklist; that remains the final
 collector acceptance gate.
 
+Protocol-v3 gain-series firmware has a separate fail-closed gate. It validates
+the FPGA sample counter, sample-bracketed gain observations, IQ alignment, and
+continuous frame sequences on every selected USB radio:
+
+```bash
+pytest tests/radio_hardware/test_gain_series_v3_hardware.py \
+  --radio-hardware \
+  --radio-gain-series-v3 \
+  --radio-expected-count=2 \
+  --radio-samples=524288 \
+  --radio-frames-per-request=3 \
+  --radio-gain-observation-interval=2048 \
+  --radio-gain-observation-capacity=256 \
+  --radio-report-dir=/tmp/spf-radio-report
+```
+
+The direct-IP parity test is independently opt-in. Select one Pluto with a
+unique reachable IP address and add:
+
+```bash
+--radio-direct-ip --radio-direct-ip-host=192.168.1.163
+```
+
+These flags must only be used after RAM-booting a protocol-v3 candidate. The
+currently promoted protocol-v2 image is expected to reject the test.
+
 Exercise a single graceful SIGTERM against the real production collector,
 verify its partial LMDB-Zarr, and immediately reclaim both radios:
 
