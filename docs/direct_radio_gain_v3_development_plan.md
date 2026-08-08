@@ -26,12 +26,13 @@ The radios are identified only by serial number:
 | Fixture | Serial | USB port path | Additional IP path |
 | --- | --- | --- | --- |
 | A (`.17` historical label) | `104000bac4950008230026001b440a003a` | `1.1` | USB network; duplicate `192.168.2.1` address |
-| B (`.18` historical label) | `1040007c4a94000211000b009186843ef2` | `1.2` | `192.168.1.174` |
+| B (`.18` historical label) | `1040007c4a94000211000b009186843ef2` | `1.2` | LAN DHCP; `192.168.1.163` when last checked (previously `.174`) |
 
 Only one TX2 may be active at a time. Never connect a transmitter directly to
 an RX input. The two USB-network functions both use `192.168.2.1`, so they are
-not a valid two-radio IP test without separate network namespaces. Use the
-unique `192.168.1.174` path for the first direct-IP hardware gate.
+not a valid two-radio IP test without separate network namespaces. Discover
+the unique LAN address by serial with `iio_info -s` for the first direct-IP
+hardware gate; do not pin its DHCP address as identity.
 
 ## Architecture decisions
 
@@ -255,6 +256,11 @@ records; it must not change the USB/IP transport contract.
   write/reopen validation passed on both radios. Three-frame sequences were
   `[0, 1, 2]` for each serial; single-frame elapsed times were 0.458 and
   0.450 seconds.
+- Read-only probes of ADC register `0x800000B8` on both production-v2 radios
+  returned zero on five reads with 10 ms spacing. The old FPGA image therefore
+  does not expose the required advancing sample counter; meaningful v3 gain
+  observation testing requires the candidate bitstream and cannot be faked by
+  replacing only the ARM daemon.
 - The direct-IP daemon now serves `SIC1` capabilities and finite v3 START/STOP,
   uses the common v3 frame serializer and gain sampler, and wraps complete
   inner frames in `SIP1` fragments. The worker does not begin capture until the
