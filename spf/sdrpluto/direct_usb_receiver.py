@@ -23,10 +23,14 @@ from spf.sdrpluto.direct_usb_protocol import (
     COMMAND_TARGET_RX,
     HEADER_BYTES,
     HEADER_BYTES_V2,
+    HEADER_PREFIX_BYTES_V3,
+    GAIN_EVENT_BYTES,
+    GAIN_OBSERVATION_BYTES,
     HARDWARE_IDENTITY_BYTES,
     RUNTIME_STATUS_BYTES,
     VERSION_V1,
     VERSION_V2,
+    VERSION_V3,
     CapabilityFlags,
     DirectUsbRxFrame,
     GadgetCapabilitiesV1,
@@ -40,6 +44,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     RxFrameParser,
     pack_start_request_v1,
     pack_start_request_v2,
+    pack_start_request_v3,
 )
 
 
@@ -177,6 +182,9 @@ class PlutoDirectUsbReceiver:
         port_path: tuple[int, ...] | None = None,
         bulk_chunk_bytes: int = DEFAULT_BULK_CHUNK_BYTES,
         protocol_version: int = VERSION_V1,
+        gain_observation_interval_samples: int = 32768,
+        gain_observation_capacity: int = 32,
+        gain_event_capacity: int = 0,
         reconnect_attempts: int = DEFAULT_RECONNECT_ATTEMPTS,
         reconnect_delay_seconds: float = DEFAULT_RECONNECT_DELAY_SECONDS,
         reconnect_attestor: Callable[[], None] | None = None,
@@ -185,8 +193,14 @@ class PlutoDirectUsbReceiver:
             raise ValueError("serial or physical USB port_path is required")
         if bulk_chunk_bytes <= 0:
             raise ValueError("bulk_chunk_bytes must be positive")
-        if protocol_version not in (VERSION_V1, VERSION_V2):
+        if protocol_version not in (VERSION_V1, VERSION_V2, VERSION_V3):
             raise ValueError(f"unsupported direct USB protocol {protocol_version}")
+        if gain_observation_interval_samples <= 0:
+            raise ValueError("gain observation interval must be positive")
+        if gain_observation_capacity <= 0:
+            raise ValueError("gain observation capacity must be positive")
+        if gain_event_capacity < 0:
+            raise ValueError("gain event capacity must be non-negative")
         if reconnect_attempts <= 0:
             raise ValueError("reconnect_attempts must be positive")
         if reconnect_delay_seconds < 0:
@@ -195,6 +209,9 @@ class PlutoDirectUsbReceiver:
         self.requested_port_path = port_path
         self.bulk_chunk_bytes = bulk_chunk_bytes
         self.protocol_version = protocol_version
+        self.gain_observation_interval_samples = gain_observation_interval_samples
+        self.gain_observation_capacity = gain_observation_capacity
+        self.gain_event_capacity = gain_event_capacity
         self.reconnect_attempts = reconnect_attempts
         self.reconnect_delay_seconds = reconnect_delay_seconds
         self.reconnect_attestor = reconnect_attestor
@@ -639,27 +656,52 @@ class PlutoDirectUsbReceiver:
             | MetadataFeatures.HEADER_CRC32
             | MetadataFeatures.SAMPLE_SEQUENCE
         )
-        if self.protocol_version == VERSION_V2:
+        if self.protocol_version in (VERSION_V2, VERSION_V3):
             features |= (
                 MetadataFeatures.GAIN_DB_ENDPOINTS
                 | MetadataFeatures.RSSI_ENDPOINT_SNAPSHOTS
             )
+        if self.protocol_version == VERSION_V3:
+            features |= (
+                MetadataFeatures.GAIN_OBSERVATION_SERIES
+                | MetadataFeatures.HARDWARE_SAMPLE_COUNTER
+            )
         if features & capabilities.supported_features != features:
             raise ProtocolError("gadget is missing required metadata features")
-        pack_start_request = (
-            pack_start_request_v1
-            if self.protocol_version == VERSION_V1
-            else pack_start_request_v2
-        )
-        request = pack_start_request(
-            requested_features=features,
-            enabled_scan_mask=0x0F,
-            samples_per_channel=samples_per_channel,
-            frame_count=frame_count,
-        )
-        header_bytes = (
-            HEADER_BYTES if self.protocol_version == VERSION_V1 else HEADER_BYTES_V2
-        )
+        if self.protocol_version == VERSION_V1:
+            request = pack_start_request_v1(
+                requested_features=features,
+                enabled_scan_mask=0x0F,
+                samples_per_channel=samples_per_channel,
+                frame_count=frame_count,
+            )
+            header_bytes = HEADER_BYTES
+        elif self.protocol_version == VERSION_V2:
+            request = pack_start_request_v2(
+                requested_features=features,
+                enabled_scan_mask=0x0F,
+                samples_per_channel=samples_per_channel,
+                frame_count=frame_count,
+            )
+            header_bytes = HEADER_BYTES_V2
+        else:
+            request = pack_start_request_v3(
+                requested_features=features,
+                enabled_scan_mask=0x0F,
+                samples_per_channel=samples_per_channel,
+                frame_count=frame_count,
+                gain_observation_interval_samples=(
+                    self.gain_observation_interval_samples
+                ),
+                gain_observation_capacity=self.gain_observation_capacity,
+                gain_event_capacity=self.gain_event_capacity,
+            )
+            header_bytes = (
+                HEADER_PREFIX_BYTES_V3
+                + self.gain_observation_capacity * GAIN_OBSERVATION_BYTES
+                + self.gain_event_capacity * GAIN_EVENT_BYTES
+                + 4
+            )
         return request, header_bytes + samples_per_channel * 8
 
     def _mark_terminal_recovery_failure(self, error: Exception) -> None:

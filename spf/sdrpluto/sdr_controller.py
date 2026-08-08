@@ -56,6 +56,30 @@ class PlutoRxBuffer:
     rssi_metadata_valid: bool
     rssi_start_read_duration_ns: int
     rssi_end_read_duration_ns: int
+    gain_observation_interval_samples: int = 0
+    gain_observation_sample_bounds: np.ndarray = dataclasses.field(
+        default_factory=lambda: np.empty((0, 2), dtype=np.uint64)
+    )
+    gain_observation_index: np.ndarray = dataclasses.field(
+        default_factory=lambda: np.empty((0, 2), dtype=np.uint8)
+    )
+    gain_observation_db: np.ndarray = dataclasses.field(
+        default_factory=lambda: np.empty((0, 2), dtype=np.float32)
+    )
+    gain_observation_valid: np.ndarray = dataclasses.field(
+        default_factory=lambda: np.empty(0, dtype=np.bool_)
+    )
+    gain_observation_read_duration_ns: np.ndarray = dataclasses.field(
+        default_factory=lambda: np.empty(0, dtype=np.uint32)
+    )
+    gain_observation_overflow_count: int = 0
+    gain_event_sample_sequence: np.ndarray = dataclasses.field(
+        default_factory=lambda: np.empty(0, dtype=np.uint64)
+    )
+    gain_event_flags: np.ndarray = dataclasses.field(
+        default_factory=lambda: np.empty(0, dtype=np.uint16)
+    )
+    gain_event_overflow_count: int = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -182,7 +206,72 @@ def _legacy_rx_buffer(signal_matrix, rssis, gains) -> PlutoRxBuffer:
         rssi_metadata_valid=False,
         rssi_start_read_duration_ns=0,
         rssi_end_read_duration_ns=0,
+        gain_observation_interval_samples=0,
+        gain_observation_sample_bounds=np.empty((0, 2), dtype=np.uint64),
+        gain_observation_index=np.empty((0, 2), dtype=np.uint8),
+        gain_observation_db=np.empty((0, 2), dtype=np.float32),
+        gain_observation_valid=np.empty(0, dtype=np.bool_),
+        gain_observation_read_duration_ns=np.empty(0, dtype=np.uint32),
+        gain_observation_overflow_count=0,
+        gain_event_sample_sequence=np.empty(0, dtype=np.uint64),
+        gain_event_flags=np.empty(0, dtype=np.uint16),
+        gain_event_overflow_count=0,
     )
+
+
+def _gain_series_arrays(metadata):
+    from spf.sdrpluto.direct_usb_protocol import RadioMetadataV3
+
+    if not isinstance(metadata, RadioMetadataV3):
+        return {
+            "gain_observation_interval_samples": 0,
+            "gain_observation_sample_bounds": np.empty((0, 2), dtype=np.uint64),
+            "gain_observation_index": np.empty((0, 2), dtype=np.uint8),
+            "gain_observation_db": np.empty((0, 2), dtype=np.float32),
+            "gain_observation_valid": np.empty(0, dtype=np.bool_),
+            "gain_observation_read_duration_ns": np.empty(0, dtype=np.uint32),
+            "gain_observation_overflow_count": 0,
+            "gain_event_sample_sequence": np.empty(0, dtype=np.uint64),
+            "gain_event_flags": np.empty(0, dtype=np.uint16),
+            "gain_event_overflow_count": 0,
+        }
+    observations = metadata.gain_observations
+    gain_db = np.asarray(
+        [[item.rx1_gain_db, item.rx2_gain_db] for item in observations],
+        dtype=np.float32,
+    ).reshape((-1, 2))
+    gain_db[gain_db == -128] = np.nan
+    return {
+        "gain_observation_interval_samples": (
+            metadata.gain_observation_interval_samples
+        ),
+        "gain_observation_sample_bounds": np.asarray(
+            [
+                [item.sample_sequence_before, item.sample_sequence_after]
+                for item in observations
+            ],
+            dtype=np.uint64,
+        ).reshape((-1, 2)),
+        "gain_observation_index": np.asarray(
+            [[item.rx1_gain_index, item.rx2_gain_index] for item in observations],
+            dtype=np.uint8,
+        ).reshape((-1, 2)),
+        "gain_observation_db": gain_db,
+        "gain_observation_valid": np.asarray(
+            [item.valid for item in observations], dtype=np.bool_
+        ),
+        "gain_observation_read_duration_ns": np.asarray(
+            [item.read_duration_ns for item in observations], dtype=np.uint32
+        ),
+        "gain_observation_overflow_count": (metadata.gain_observation_overflow_count),
+        "gain_event_sample_sequence": np.asarray(
+            [item.sample_sequence for item in metadata.gain_events], dtype=np.uint64
+        ),
+        "gain_event_flags": np.asarray(
+            [int(item.flags) for item in metadata.gain_events], dtype=np.uint16
+        ),
+        "gain_event_overflow_count": metadata.gain_event_overflow_count,
+    }
 
 
 def bladerf_serial_to_info():
@@ -246,6 +335,9 @@ class ReceiverConfig(Config):
         rx_transport="iio",
         direct_usb_protocol_version=1,
         direct_usb_frame_count_per_request=1,
+        direct_usb_gain_observation_interval_samples=32768,
+        direct_usb_gain_observation_capacity=32,
+        direct_usb_gain_event_capacity=0,
         direct_usb_require_gain_metadata=True,
         direct_usb_serial=None,
         direct_usb_port_path=None,
@@ -273,6 +365,11 @@ class ReceiverConfig(Config):
         self.rx_transport = rx_transport
         self.direct_usb_protocol_version = direct_usb_protocol_version
         self.direct_usb_frame_count_per_request = direct_usb_frame_count_per_request
+        self.direct_usb_gain_observation_interval_samples = (
+            direct_usb_gain_observation_interval_samples
+        )
+        self.direct_usb_gain_observation_capacity = direct_usb_gain_observation_capacity
+        self.direct_usb_gain_event_capacity = direct_usb_gain_event_capacity
         self.direct_usb_require_gain_metadata = direct_usb_require_gain_metadata
         self.direct_usb_serial = direct_usb_serial
         self.direct_usb_port_path = direct_usb_port_path
@@ -368,6 +465,13 @@ def rx_config_from_receiver_yaml(receiver_yaml):
         rx_transport=receiver_yaml.get("rx-transport", "iio"),
         direct_usb_protocol_version=direct_usb.get("protocol-version", 1),
         direct_usb_frame_count_per_request=direct_usb.get("frame-count-per-request", 1),
+        direct_usb_gain_observation_interval_samples=direct_usb.get(
+            "gain-observation-interval-samples", 32768
+        ),
+        direct_usb_gain_observation_capacity=direct_usb.get(
+            "gain-observation-capacity", 32
+        ),
+        direct_usb_gain_event_capacity=direct_usb.get("gain-event-capacity", 0),
         direct_usb_require_gain_metadata=direct_usb.get("require-gain-metadata", True),
         direct_usb_serial=direct_usb.get("serial"),
         direct_usb_port_path=direct_usb_port_path,
@@ -984,6 +1088,7 @@ class PPlus:
             rssi_metadata_valid=False,
             rssi_start_read_duration_ns=0,
             rssi_end_read_duration_ns=0,
+            **_gain_series_arrays(metadata),
         )
 
     def _direct_v2_rx_buffer(self, signal_matrix, metadata):
@@ -998,12 +1103,20 @@ class PPlus:
             ],
             dtype=np.int32,
         )
+        gain_series = _gain_series_arrays(metadata)
+        observation_indices = gain_series["gain_observation_index"]
+        if observation_indices.shape[0]:
+            gain_index_start = observation_indices[0]
+            gain_index_end = observation_indices[-1]
+        else:
+            gain_index_start = np.full(2, 0xFF, dtype=np.uint8)
+            gain_index_end = np.full(2, 0xFF, dtype=np.uint8)
         return PlutoRxBuffer(
             signal_matrix=signal_matrix,
             rssis=np.asarray(metadata.rssi_db_end, dtype=np.float64),
             gains=np.asarray(metadata.gain_db_end, dtype=np.float64),
-            gain_index_start=np.full(2, 0xFF, dtype=np.uint8),
-            gain_index_end=np.full(2, 0xFF, dtype=np.uint8),
+            gain_index_start=gain_index_start,
+            gain_index_end=gain_index_end,
             gain_metadata_valid=metadata.gain_metadata_valid,
             gain_endpoints_equal=np.asarray(
                 metadata.gain_endpoints_equal, dtype=np.bool_
@@ -1023,6 +1136,7 @@ class PPlus:
             rssi_metadata_valid=metadata.rssi_metadata_valid,
             rssi_start_read_duration_ns=metadata.rssi_start_read_duration_ns,
             rssi_end_read_duration_ns=metadata.rssi_end_read_duration_ns,
+            **gain_series,
         )
 
     def soft_reset_radio(self):
@@ -1360,8 +1474,8 @@ class PPlus:
             raise SdrCleanupError(failures)
 
     def _open_direct_rx(self):
-        if self.rx_config.direct_usb_protocol_version not in (1, 2):
-            raise ValueError("SPF supports direct USB metadata protocol v1 or v2")
+        if self.rx_config.direct_usb_protocol_version not in (1, 2, 3):
+            raise ValueError("SPF supports direct USB metadata protocol v1, v2, or v3")
         if self.rx_config.direct_usb_frame_count_per_request <= 0:
             raise ValueError("direct USB frame-count-per-request must be positive")
         iio_serial = self._iio_hardware_serial()
@@ -1389,6 +1503,13 @@ class PPlus:
             serial=serial,
             port_path=port_path,
             protocol_version=self.rx_config.direct_usb_protocol_version,
+            gain_observation_interval_samples=(
+                self.rx_config.direct_usb_gain_observation_interval_samples
+            ),
+            gain_observation_capacity=(
+                self.rx_config.direct_usb_gain_observation_capacity
+            ),
+            gain_event_capacity=self.rx_config.direct_usb_gain_event_capacity,
             reconnect_attestor=self._attest_direct_usb_reconnect,
         )
         self.direct_rx.open()

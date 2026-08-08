@@ -59,12 +59,21 @@ def normalize_capture_config(config: dict[str, Any]) -> dict[str, Any]:
         if explicit_protocol not in (
             None,
             V7_CONTRACT.direct_usb_protocol_version,
+            3,
         ):
             raise ValueError(
-                "data-version: 7 requires direct-USB protocol version 2; "
+                "data-version: 7 supports direct-USB protocol version 2 or 3; "
                 f"receivers[{index}] requests {explicit_protocol!r}"
             )
-        direct_usb["protocol-version"] = V7_CONTRACT.direct_usb_protocol_version
+        direct_usb.setdefault(
+            "protocol-version", V7_CONTRACT.direct_usb_protocol_version
+        )
+        if direct_usb["protocol-version"] == 3:
+            direct_usb.setdefault("gain-observation-interval-samples", 32768)
+            # One frame nominally contains 16 observations at the default
+            # interval; retain headroom for reads that straddle a boundary.
+            direct_usb.setdefault("gain-observation-capacity", 32)
+            direct_usb.setdefault("gain-event-capacity", 0)
 
         explicit_metadata = direct_usb.get("require-gain-metadata")
         if explicit_metadata is False:
@@ -113,7 +122,9 @@ def validate_transport_schema(config: dict[str, Any]) -> None:
                 "direct_usb protocol v2 requires data-version: 4 "
                 "(compatibility) or 7 (full metadata)"
             )
-        if protocol_version not in (1, 2):
+        if protocol_version == 3 and data_version != 7:
+            raise ValueError("direct_usb protocol v3 requires data-version: 7")
+        if protocol_version not in (1, 2, 3):
             raise ValueError(
                 f"unsupported direct_usb protocol version: {protocol_version}"
             )

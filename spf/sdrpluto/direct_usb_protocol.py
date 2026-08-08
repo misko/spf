@@ -17,6 +17,7 @@ from typing import Final
 MAGIC: Final[int] = 0x314D4753  # little-endian bytes: b"SGM1"
 VERSION_V1: Final[int] = 1
 VERSION_V2: Final[int] = 2
+VERSION_V3: Final[int] = 3
 # Kept as the v1 value for source compatibility with the first implementation.
 VERSION: Final[int] = VERSION_V1
 GAIN_INDEX_INVALID: Final[int] = 0xFF
@@ -38,8 +39,11 @@ RUNTIME_STATUS_MAGIC: Final[int] = 0x31545353  # b"SST1"
 RUNTIME_STATUS_VERSION: Final[int] = 1
 START_REQUEST_MAGIC: Final[int] = 0x31534753  # b"SGS1"
 START_REQUEST_MAGIC_V2: Final[int] = 0x32534753  # b"SGS2"
+START_REQUEST_MAGIC_V3: Final[int] = 0x33534753  # b"SGS3"
 MAX_FINITE_FRAMES: Final[int] = 16
 MAX_SAMPLES_PER_CHANNEL: Final[int] = 0xFFFFFFFF // 8
+MAX_GAIN_OBSERVATIONS: Final[int] = 256
+MAX_GAIN_EVENTS: Final[int] = 256
 
 
 class ProtocolError(ValueError):
@@ -72,6 +76,9 @@ class MetadataFlags(enum.IntFlag):
     RSSI_END_VALID = 1 << 16
     RSSI_READ_FAILED = 1 << 17
     GAIN_DB_VALUES = 1 << 18
+    GAIN_OBSERVATIONS_VALID = 1 << 19
+    GAIN_OBSERVATION_OVERFLOW = 1 << 20
+    HARDWARE_SAMPLE_COUNTER_VALID = 1 << 21
 
 
 class MetadataFeatures(enum.IntFlag):
@@ -81,6 +88,20 @@ class MetadataFeatures(enum.IntFlag):
     FPGA_GAIN_EVENTS = 1 << 3
     GAIN_DB_ENDPOINTS = 1 << 4
     RSSI_ENDPOINT_SNAPSHOTS = 1 << 5
+    GAIN_OBSERVATION_SERIES = 1 << 6
+    HARDWARE_SAMPLE_COUNTER = 1 << 7
+
+
+class GainObservationFlags(enum.IntFlag):
+    VALID = 1 << 0
+    SAMPLE_INTERVAL_VALID = 1 << 1
+
+
+class GainEventFlags(enum.IntFlag):
+    RX1_CHANGED = 1 << 0
+    RX2_CHANGED = 1 << 1
+    RX1_LOCKED = 1 << 2
+    RX2_LOCKED = 1 << 3
 
 
 class CapabilityFlags(enum.IntFlag):
@@ -130,6 +151,8 @@ KNOWN_FEATURES: Final[MetadataFeatures] = (
     | MetadataFeatures.FPGA_GAIN_EVENTS
     | MetadataFeatures.GAIN_DB_ENDPOINTS
     | MetadataFeatures.RSSI_ENDPOINT_SNAPSHOTS
+    | MetadataFeatures.GAIN_OBSERVATION_SERIES
+    | MetadataFeatures.HARDWARE_SAMPLE_COUNTER
 )
 KNOWN_FLAGS: Final[MetadataFlags] = (
     MetadataFlags.START_VALID
@@ -151,6 +174,9 @@ KNOWN_FLAGS: Final[MetadataFlags] = (
     | MetadataFlags.RSSI_END_VALID
     | MetadataFlags.RSSI_READ_FAILED
     | MetadataFlags.GAIN_DB_VALUES
+    | MetadataFlags.GAIN_OBSERVATIONS_VALID
+    | MetadataFlags.GAIN_OBSERVATION_OVERFLOW
+    | MetadataFlags.HARDWARE_SAMPLE_COUNTER_VALID
 )
 
 
@@ -167,15 +193,28 @@ _HEADER_V2_STRUCT: Final[struct.Struct] = struct.Struct(
 )
 HEADER_BYTES_V2: Final[int] = _HEADER_V2_STRUCT.size
 assert HEADER_BYTES_V2 == 96
+_HEADER_V2_PREFIX_STRUCT: Final[struct.Struct] = struct.Struct(
+    "<IHHIIQQQIIIHBbbbbBIIIIHHHHII"
+)
+assert _HEADER_V2_PREFIX_STRUCT.size == 92
+_HEADER_V3_EXTENSION_STRUCT: Final[struct.Struct] = struct.Struct("<IHHHHHHIIII")
+HEADER_PREFIX_BYTES_V3: Final[int] = (
+    _HEADER_V2_PREFIX_STRUCT.size + _HEADER_V3_EXTENSION_STRUCT.size
+)
+assert HEADER_PREFIX_BYTES_V3 == 124
+_GAIN_OBSERVATION_STRUCT: Final[struct.Struct] = struct.Struct("<QQIHBBbbHI")
+GAIN_OBSERVATION_BYTES: Final[int] = _GAIN_OBSERVATION_STRUCT.size
+assert GAIN_OBSERVATION_BYTES == 32
+_GAIN_EVENT_STRUCT: Final[struct.Struct] = struct.Struct("<QHHI")
+GAIN_EVENT_BYTES: Final[int] = _GAIN_EVENT_STRUCT.size
+assert GAIN_EVENT_BYTES == 16
 _CAPABILITIES_STRUCT: Final[struct.Struct] = struct.Struct("<IHHHHIIIII")
 CAPABILITIES_BYTES: Final[int] = _CAPABILITIES_STRUCT.size
 assert CAPABILITIES_BYTES == 32
 _HARDWARE_IDENTITY_STRUCT: Final[struct.Struct] = struct.Struct("<IHHIIQ40s")
 HARDWARE_IDENTITY_BYTES: Final[int] = _HARDWARE_IDENTITY_STRUCT.size
 assert HARDWARE_IDENTITY_BYTES == 64
-_RUNTIME_STATUS_STRUCT: Final[struct.Struct] = struct.Struct(
-    "<IHHHHiII16s16sQQ14I"
-)
+_RUNTIME_STATUS_STRUCT: Final[struct.Struct] = struct.Struct("<IHHHHiII16s16sQQ14I")
 RUNTIME_STATUS_BYTES: Final[int] = _RUNTIME_STATUS_STRUCT.size
 assert RUNTIME_STATUS_BYTES == 128
 _START_REQUEST_STRUCT: Final[struct.Struct] = struct.Struct("<IHHIIIIII")
@@ -509,6 +548,55 @@ def pack_start_request_v2(
     )
 
 
+def pack_start_request_v3(
+    *,
+    requested_features: MetadataFeatures,
+    enabled_scan_mask: int,
+    samples_per_channel: int,
+    frame_count: int,
+    gain_observation_interval_samples: int,
+    gain_observation_capacity: int,
+    gain_event_capacity: int = 0,
+) -> bytes:
+    required_features = (
+        MetadataFeatures.GAIN_ENDPOINT_SNAPSHOTS
+        | MetadataFeatures.HEADER_CRC32
+        | MetadataFeatures.SAMPLE_SEQUENCE
+        | MetadataFeatures.GAIN_DB_ENDPOINTS
+        | MetadataFeatures.RSSI_ENDPOINT_SNAPSHOTS
+        | MetadataFeatures.GAIN_OBSERVATION_SERIES
+        | MetadataFeatures.HARDWARE_SAMPLE_COUNTER
+    )
+    if requested_features != required_features:
+        raise ProtocolError(
+            f"protocol v3 requires feature mask 0x{int(required_features):08x}"
+        )
+    if enabled_scan_mask != 0x0F:
+        raise ProtocolError("protocol v3 requires scan mask 0x0000000f")
+    if not 1 <= samples_per_channel <= MAX_SAMPLES_PER_CHANNEL:
+        raise ProtocolError("samples_per_channel is outside the v3 limit")
+    if not 1 <= frame_count <= MAX_FINITE_FRAMES:
+        raise ProtocolError("frame_count is outside the v3 finite limit")
+    if not 1 <= gain_observation_interval_samples <= samples_per_channel:
+        raise ProtocolError("gain observation interval is outside the frame")
+    if not 1 <= gain_observation_capacity <= MAX_GAIN_OBSERVATIONS:
+        raise ProtocolError("gain observation capacity is outside the v3 limit")
+    if not 0 <= gain_event_capacity <= MAX_GAIN_EVENTS:
+        raise ProtocolError("gain event capacity is outside the v3 limit")
+    capacities = gain_observation_capacity | (gain_event_capacity << 16)
+    return _START_REQUEST_STRUCT.pack(
+        START_REQUEST_MAGIC_V3,
+        VERSION_V3,
+        START_REQUEST_BYTES,
+        int(requested_features),
+        enabled_scan_mask,
+        samples_per_channel,
+        frame_count,
+        gain_observation_interval_samples,
+        capacities,
+    )
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class GainMetadataV1:
     features: MetadataFeatures
@@ -834,8 +922,308 @@ class RadioMetadataV2:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class GainObservationV3:
+    """One paired gain read bracketed by the ADC hardware sample counter."""
+
+    sample_sequence_before: int
+    sample_sequence_after: int
+    read_duration_ns: int
+    flags: GainObservationFlags
+    rx1_gain_index: int = GAIN_INDEX_INVALID
+    rx2_gain_index: int = GAIN_INDEX_INVALID
+    rx1_gain_db: int = GAIN_DB_INVALID
+    rx2_gain_db: int = GAIN_DB_INVALID
+
+    @property
+    def valid(self) -> bool:
+        required = (
+            GainObservationFlags.VALID | GainObservationFlags.SAMPLE_INTERVAL_VALID
+        )
+        return self.flags & required == required
+
+    def pack(self) -> bytes:
+        _validate_gain_observation(self)
+        return _GAIN_OBSERVATION_STRUCT.pack(
+            self.sample_sequence_before,
+            self.sample_sequence_after,
+            self.read_duration_ns,
+            int(self.flags),
+            self.rx1_gain_index,
+            self.rx2_gain_index,
+            self.rx1_gain_db,
+            self.rx2_gain_db,
+            0,
+            0,
+        )
+
+    @classmethod
+    def unpack(cls, payload: bytes | bytearray | memoryview) -> "GainObservationV3":
+        if len(payload) != GAIN_OBSERVATION_BYTES:
+            raise ProtocolError("gain observation record has the wrong size")
+        (
+            sample_sequence_before,
+            sample_sequence_after,
+            read_duration_ns,
+            flags,
+            rx1_gain_index,
+            rx2_gain_index,
+            rx1_gain_db,
+            rx2_gain_db,
+            reserved0,
+            reserved1,
+        ) = _GAIN_OBSERVATION_STRUCT.unpack(payload)
+        if reserved0 or reserved1:
+            raise ProtocolError("gain observation reserved fields must be zero")
+        observation = cls(
+            sample_sequence_before=sample_sequence_before,
+            sample_sequence_after=sample_sequence_after,
+            read_duration_ns=read_duration_ns,
+            flags=GainObservationFlags(flags),
+            rx1_gain_index=rx1_gain_index,
+            rx2_gain_index=rx2_gain_index,
+            rx1_gain_db=rx1_gain_db,
+            rx2_gain_db=rx2_gain_db,
+        )
+        _validate_gain_observation(observation)
+        return observation
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class GainEventV3:
+    """A future FPGA CTRL_OUT event on the same counter as the IQ stream."""
+
+    sample_sequence: int
+    flags: GainEventFlags
+
+    def pack(self) -> bytes:
+        _validate_uint("event sample_sequence", self.sample_sequence, 64)
+        unknown = int(self.flags) & ~int(
+            GainEventFlags.RX1_CHANGED
+            | GainEventFlags.RX2_CHANGED
+            | GainEventFlags.RX1_LOCKED
+            | GainEventFlags.RX2_LOCKED
+        )
+        if unknown:
+            raise ProtocolError(f"unknown gain-event flags: 0x{unknown:04x}")
+        if not self.flags & (GainEventFlags.RX1_CHANGED | GainEventFlags.RX2_CHANGED):
+            raise ProtocolError("gain event must identify a changed receiver")
+        return _GAIN_EVENT_STRUCT.pack(self.sample_sequence, int(self.flags), 0, 0)
+
+    @classmethod
+    def unpack(cls, payload: bytes | bytearray | memoryview) -> "GainEventV3":
+        if len(payload) != GAIN_EVENT_BYTES:
+            raise ProtocolError("gain event record has the wrong size")
+        sample_sequence, flags, reserved0, reserved1 = _GAIN_EVENT_STRUCT.unpack(
+            payload
+        )
+        if reserved0 or reserved1:
+            raise ProtocolError("gain event reserved fields must be zero")
+        event = cls(sample_sequence=sample_sequence, flags=GainEventFlags(flags))
+        event.pack()
+        return event
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RadioMetadataV3(RadioMetadataV2):
+    """Radio metadata with sample-counter-bracketed gain observations."""
+
+    gain_observation_interval_samples: int = 0
+    gain_observation_capacity: int = 0
+    gain_event_capacity: int = 0
+    gain_observation_overflow_count: int = 0
+    gain_event_overflow_count: int = 0
+    gain_observations: tuple[GainObservationV3, ...] = ()
+    gain_events: tuple[GainEventV3, ...] = ()
+
+    @property
+    def header_bytes(self) -> int:
+        return (
+            HEADER_PREFIX_BYTES_V3
+            + self.gain_observation_capacity * GAIN_OBSERVATION_BYTES
+            + self.gain_event_capacity * GAIN_EVENT_BYTES
+            + 4
+        )
+
+    def pack(self) -> bytes:
+        _validate_metadata_v3(self)
+        prefix = _HEADER_V2_PREFIX_STRUCT.pack(
+            *_fields_for_pack_v2_prefix(
+                self, version=VERSION_V3, header_bytes=self.header_bytes
+            )
+        )
+        extension = _HEADER_V3_EXTENSION_STRUCT.pack(
+            self.gain_observation_interval_samples,
+            len(self.gain_observations),
+            self.gain_observation_capacity,
+            GAIN_OBSERVATION_BYTES,
+            len(self.gain_events),
+            self.gain_event_capacity,
+            GAIN_EVENT_BYTES,
+            self.gain_observation_overflow_count,
+            self.gain_event_overflow_count,
+            0,
+            0,
+        )
+        observation_bytes = b"".join(item.pack() for item in self.gain_observations)
+        observation_bytes += bytes(
+            (self.gain_observation_capacity - len(self.gain_observations))
+            * GAIN_OBSERVATION_BYTES
+        )
+        event_bytes = b"".join(item.pack() for item in self.gain_events)
+        event_bytes += bytes(
+            (self.gain_event_capacity - len(self.gain_events)) * GAIN_EVENT_BYTES
+        )
+        without_crc = prefix + extension + observation_bytes + event_bytes + bytes(4)
+        crc32 = zlib.crc32(without_crc) & 0xFFFFFFFF
+        return without_crc[:-4] + struct.pack("<I", crc32)
+
+    @classmethod
+    def unpack(cls, header: bytes | bytearray | memoryview) -> "RadioMetadataV3":
+        if len(header) < HEADER_PREFIX_BYTES_V3 + 4:
+            raise ProtocolError("short protocol v3 metadata header")
+        prefix = _HEADER_V2_PREFIX_STRUCT.unpack_from(header)
+        (
+            magic,
+            version,
+            header_bytes,
+            features,
+            flags,
+            stream_id,
+            buffer_sequence,
+            first_sample_sequence,
+            samples_per_channel,
+            iq_payload_bytes,
+            enabled_scan_mask,
+            sample_format,
+            channel_count,
+            rx1_gain_db_start,
+            rx2_gain_db_start,
+            rx1_gain_db_end,
+            rx2_gain_db_end,
+            reserved0,
+            gain_start_read_duration_ns,
+            gain_end_read_duration_ns,
+            rx1_first_change_sample,
+            rx2_first_change_sample,
+            rx1_rssi_start_qdb,
+            rx2_rssi_start_qdb,
+            rx1_rssi_end_qdb,
+            rx2_rssi_end_qdb,
+            rssi_start_read_duration_ns,
+            rssi_end_read_duration_ns,
+        ) = prefix
+        if magic != MAGIC or version != VERSION_V3:
+            raise ProtocolError("bad protocol v3 identity")
+        if reserved0:
+            raise ProtocolError("protocol v3 reserved0 must be zero")
+        if len(header) < header_bytes:
+            raise ProtocolError(
+                f"short protocol v3 header: got {len(header)}, need {header_bytes}"
+            )
+        extension = _HEADER_V3_EXTENSION_STRUCT.unpack_from(
+            header, _HEADER_V2_PREFIX_STRUCT.size
+        )
+        (
+            observation_interval,
+            observation_count,
+            observation_capacity,
+            observation_record_bytes,
+            event_count,
+            event_capacity,
+            event_record_bytes,
+            observation_overflow_count,
+            event_overflow_count,
+            reserved1,
+            reserved2,
+        ) = extension
+        if reserved1 or reserved2:
+            raise ProtocolError("protocol v3 extension reserved fields must be zero")
+        if observation_record_bytes != GAIN_OBSERVATION_BYTES:
+            raise ProtocolError("unsupported gain observation record size")
+        if event_record_bytes != GAIN_EVENT_BYTES:
+            raise ProtocolError("unsupported gain event record size")
+        expected_header_bytes = (
+            HEADER_PREFIX_BYTES_V3
+            + observation_capacity * observation_record_bytes
+            + event_capacity * event_record_bytes
+            + 4
+        )
+        if header_bytes != expected_header_bytes:
+            raise ProtocolError(
+                f"protocol v3 header size mismatch: {header_bytes} != {expected_header_bytes}"
+            )
+        crc_input = bytearray(memoryview(header)[:header_bytes])
+        received_crc32 = struct.unpack_from("<I", crc_input, header_bytes - 4)[0]
+        crc_input[-4:] = bytes(4)
+        calculated_crc32 = zlib.crc32(crc_input) & 0xFFFFFFFF
+        if received_crc32 != calculated_crc32:
+            raise ProtocolError("protocol v3 metadata CRC mismatch")
+
+        offset = HEADER_PREFIX_BYTES_V3
+        observations = []
+        for index in range(observation_count):
+            end = offset + GAIN_OBSERVATION_BYTES
+            observations.append(GainObservationV3.unpack(header[offset:end]))
+            offset = end
+        unused_observation_bytes = (
+            observation_capacity - observation_count
+        ) * GAIN_OBSERVATION_BYTES
+        if any(header[offset : offset + unused_observation_bytes]):
+            raise ProtocolError("unused gain observation records must be zero")
+        offset += unused_observation_bytes
+        events = []
+        for index in range(event_count):
+            end = offset + GAIN_EVENT_BYTES
+            events.append(GainEventV3.unpack(header[offset:end]))
+            offset = end
+        unused_event_bytes = (event_capacity - event_count) * GAIN_EVENT_BYTES
+        if any(header[offset : offset + unused_event_bytes]):
+            raise ProtocolError("unused gain event records must be zero")
+
+        try:
+            parsed_format = SampleFormat(sample_format)
+        except ValueError as exc:
+            raise ProtocolError(f"unsupported sample format: {sample_format}") from exc
+        metadata = cls(
+            features=MetadataFeatures(features),
+            flags=MetadataFlags(flags),
+            stream_id=stream_id,
+            buffer_sequence=buffer_sequence,
+            first_sample_sequence=first_sample_sequence,
+            samples_per_channel=samples_per_channel,
+            iq_payload_bytes=iq_payload_bytes,
+            enabled_scan_mask=enabled_scan_mask,
+            sample_format=parsed_format,
+            channel_count=channel_count,
+            rx1_gain_db_start=rx1_gain_db_start,
+            rx2_gain_db_start=rx2_gain_db_start,
+            rx1_gain_db_end=rx1_gain_db_end,
+            rx2_gain_db_end=rx2_gain_db_end,
+            gain_start_read_duration_ns=gain_start_read_duration_ns,
+            gain_end_read_duration_ns=gain_end_read_duration_ns,
+            rx1_first_change_sample=rx1_first_change_sample,
+            rx2_first_change_sample=rx2_first_change_sample,
+            rx1_rssi_start_qdb=rx1_rssi_start_qdb,
+            rx2_rssi_start_qdb=rx2_rssi_start_qdb,
+            rx1_rssi_end_qdb=rx1_rssi_end_qdb,
+            rx2_rssi_end_qdb=rx2_rssi_end_qdb,
+            rssi_start_read_duration_ns=rssi_start_read_duration_ns,
+            rssi_end_read_duration_ns=rssi_end_read_duration_ns,
+            gain_observation_interval_samples=observation_interval,
+            gain_observation_capacity=observation_capacity,
+            gain_event_capacity=event_capacity,
+            gain_observation_overflow_count=observation_overflow_count,
+            gain_event_overflow_count=event_overflow_count,
+            gain_observations=tuple(observations),
+            gain_events=tuple(events),
+        )
+        _validate_metadata_v3(metadata)
+        return metadata
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class DirectUsbRxFrame:
-    metadata: GainMetadataV1 | RadioMetadataV2
+    metadata: GainMetadataV1 | RadioMetadataV2 | RadioMetadataV3
     iq_payload: bytes
 
 
@@ -849,15 +1237,19 @@ class RxFrameParser:
     """
 
     def __init__(self, protocol_version: int = VERSION_V1) -> None:
-        if protocol_version not in (VERSION_V1, VERSION_V2):
+        if protocol_version not in (VERSION_V1, VERSION_V2, VERSION_V3):
             raise ProtocolError(f"unsupported parser protocol: {protocol_version}")
         self.protocol_version = protocol_version
-        self.header_bytes = (
-            HEADER_BYTES_V1 if protocol_version == VERSION_V1 else HEADER_BYTES_V2
-        )
-        self.metadata_type = (
-            GainMetadataV1 if protocol_version == VERSION_V1 else RadioMetadataV2
-        )
+        self.header_bytes = {
+            VERSION_V1: HEADER_BYTES_V1,
+            VERSION_V2: HEADER_BYTES_V2,
+            VERSION_V3: HEADER_PREFIX_BYTES_V3 + 4,
+        }[protocol_version]
+        self.metadata_type = {
+            VERSION_V1: GainMetadataV1,
+            VERSION_V2: RadioMetadataV2,
+            VERSION_V3: RadioMetadataV3,
+        }[protocol_version]
         self._buffer = bytearray()
         self._expected_stream_id: int | None = None
         self._expected_buffer_sequence: int | None = None
@@ -876,13 +1268,26 @@ class RxFrameParser:
 
         try:
             while len(self._buffer) >= self.header_bytes:
-                metadata = self.metadata_type.unpack(self._buffer[: self.header_bytes])
-                frame_bytes = self.header_bytes + metadata.iq_payload_bytes
+                current_header_bytes = self.header_bytes
+                if self.protocol_version == VERSION_V3:
+                    magic, version, current_header_bytes = struct.unpack_from(
+                        "<IHH", self._buffer
+                    )
+                    if magic != MAGIC or version != VERSION_V3:
+                        raise ProtocolError("bad protocol v3 frame identity")
+                    if not HEADER_PREFIX_BYTES_V3 + 4 <= current_header_bytes <= 0xFFFF:
+                        raise ProtocolError("invalid protocol v3 header size")
+                    if len(self._buffer) < current_header_bytes:
+                        break
+                metadata = self.metadata_type.unpack(
+                    self._buffer[:current_header_bytes]
+                )
+                frame_bytes = current_header_bytes + metadata.iq_payload_bytes
                 if len(self._buffer) < frame_bytes:
                     break
 
                 self._validate_sequence(metadata)
-                payload = bytes(self._buffer[self.header_bytes : frame_bytes])
+                payload = bytes(self._buffer[current_header_bytes:frame_bytes])
                 del self._buffer[:frame_bytes]
                 frames.append(DirectUsbRxFrame(metadata=metadata, iq_payload=payload))
         except ProtocolError:
@@ -897,7 +1302,9 @@ class RxFrameParser:
             self.reset()
             raise ProtocolError(f"stream ended with {remaining} unframed bytes")
 
-    def _validate_sequence(self, metadata: GainMetadataV1 | RadioMetadataV2) -> None:
+    def _validate_sequence(
+        self, metadata: GainMetadataV1 | RadioMetadataV2 | RadioMetadataV3
+    ) -> None:
         if self._expected_stream_id is None:
             self._expected_stream_id = metadata.stream_id
             if metadata.buffer_sequence != 0:
@@ -924,7 +1331,10 @@ class RxFrameParser:
 
         if metadata.flags & MetadataFlags.SAMPLE_SEQUENCE_VALID:
             if self._expected_first_sample_sequence is None:
-                if metadata.first_sample_sequence != 0:
+                if (
+                    self.protocol_version != VERSION_V3
+                    and metadata.first_sample_sequence != 0
+                ):
                     raise ProtocolError(
                         "new stream must begin at sample sequence 0, "
                         f"got {metadata.first_sample_sequence}"
@@ -974,11 +1384,13 @@ def _fields_for_pack(metadata: GainMetadataV1, crc32: int) -> tuple[int, ...]:
     )
 
 
-def _fields_for_pack_v2(metadata: RadioMetadataV2, crc32: int) -> tuple[int, ...]:
+def _fields_for_pack_v2_prefix(
+    metadata: RadioMetadataV2, *, version: int, header_bytes: int
+) -> tuple[int, ...]:
     return (
         MAGIC,
-        VERSION_V2,
-        HEADER_BYTES_V2,
+        version,
+        header_bytes,
         int(metadata.features),
         int(metadata.flags),
         metadata.stream_id,
@@ -1004,8 +1416,137 @@ def _fields_for_pack_v2(metadata: RadioMetadataV2, crc32: int) -> tuple[int, ...
         metadata.rx2_rssi_end_qdb,
         metadata.rssi_start_read_duration_ns,
         metadata.rssi_end_read_duration_ns,
-        crc32,
     )
+
+
+def _fields_for_pack_v2(metadata: RadioMetadataV2, crc32: int) -> tuple[int, ...]:
+    return _fields_for_pack_v2_prefix(
+        metadata, version=VERSION_V2, header_bytes=HEADER_BYTES_V2
+    ) + (crc32,)
+
+
+def _validate_gain_observation(observation: GainObservationV3) -> None:
+    for name, value, bits in (
+        ("sample_sequence_before", observation.sample_sequence_before, 64),
+        ("sample_sequence_after", observation.sample_sequence_after, 64),
+        ("read_duration_ns", observation.read_duration_ns, 32),
+        ("flags", int(observation.flags), 16),
+        ("rx1_gain_index", observation.rx1_gain_index, 8),
+        ("rx2_gain_index", observation.rx2_gain_index, 8),
+    ):
+        _validate_uint(name, value, bits)
+    unknown_flags = int(observation.flags) & ~int(
+        GainObservationFlags.VALID | GainObservationFlags.SAMPLE_INTERVAL_VALID
+    )
+    if unknown_flags:
+        raise ProtocolError(f"unknown gain-observation flags: 0x{unknown_flags:04x}")
+    interval_valid = bool(
+        observation.flags & GainObservationFlags.SAMPLE_INTERVAL_VALID
+    )
+    if (
+        interval_valid
+        and observation.sample_sequence_after < observation.sample_sequence_before
+    ):
+        raise ProtocolError("gain observation sample interval runs backwards")
+    if not interval_valid and (
+        observation.sample_sequence_before or observation.sample_sequence_after
+    ):
+        raise ProtocolError("invalid gain observation interval must be zero")
+    for name in ("rx1_gain_db", "rx2_gain_db"):
+        value = getattr(observation, name)
+        if not isinstance(value, int) or not -128 <= value <= 127:
+            raise ProtocolError(f"{name} is outside int8: {value!r}")
+    for name in ("rx1_gain_index", "rx2_gain_index"):
+        value = getattr(observation, name)
+        if value != GAIN_INDEX_INVALID and value > 0x7F:
+            raise ProtocolError(f"{name} is not a seven-bit gain index")
+    gains_valid = bool(observation.flags & GainObservationFlags.VALID)
+    indices = (observation.rx1_gain_index, observation.rx2_gain_index)
+    gains_db = (observation.rx1_gain_db, observation.rx2_gain_db)
+    sentinels_absent = all(value != GAIN_INDEX_INVALID for value in indices) and all(
+        value != GAIN_DB_INVALID for value in gains_db
+    )
+    if gains_valid != sentinels_absent:
+        raise ProtocolError("gain observation validity disagrees with sentinels")
+    if gains_valid and not interval_valid:
+        raise ProtocolError("valid gain observation requires a sample interval")
+
+
+def _validate_metadata_v3(metadata: RadioMetadataV3) -> None:
+    _validate_metadata_v2(metadata)
+    required_features = (
+        MetadataFeatures.GAIN_OBSERVATION_SERIES
+        | MetadataFeatures.HARDWARE_SAMPLE_COUNTER
+        | MetadataFeatures.SAMPLE_SEQUENCE
+    )
+    if metadata.features & required_features != required_features:
+        raise ProtocolError("protocol v3 is missing gain-series/counter features")
+    required_flags = (
+        MetadataFlags.GAIN_OBSERVATIONS_VALID
+        | MetadataFlags.HARDWARE_SAMPLE_COUNTER_VALID
+        | MetadataFlags.SAMPLE_SEQUENCE_VALID
+    )
+    if metadata.flags & required_flags != required_flags:
+        raise ProtocolError("protocol v3 gain-series/counter metadata is not valid")
+    if (
+        not 1
+        <= metadata.gain_observation_interval_samples
+        <= metadata.samples_per_channel
+    ):
+        raise ProtocolError("protocol v3 observation interval is outside the frame")
+    if not 1 <= metadata.gain_observation_capacity <= MAX_GAIN_OBSERVATIONS:
+        raise ProtocolError("protocol v3 observation capacity is invalid")
+    if not 0 <= metadata.gain_event_capacity <= MAX_GAIN_EVENTS:
+        raise ProtocolError("protocol v3 event capacity is invalid")
+    if len(metadata.gain_observations) > metadata.gain_observation_capacity:
+        raise ProtocolError("gain observation count exceeds capacity")
+    if not metadata.gain_observations:
+        raise ProtocolError("protocol v3 requires at least one gain observation")
+    if len(metadata.gain_events) > metadata.gain_event_capacity:
+        raise ProtocolError("gain event count exceeds capacity")
+    _validate_uint(
+        "gain_observation_overflow_count",
+        metadata.gain_observation_overflow_count,
+        32,
+    )
+    _validate_uint("gain_event_overflow_count", metadata.gain_event_overflow_count, 32)
+    observation_overflow = bool(
+        metadata.flags & MetadataFlags.GAIN_OBSERVATION_OVERFLOW
+    )
+    if observation_overflow != (metadata.gain_observation_overflow_count > 0):
+        raise ProtocolError("gain observation overflow flag/count disagree")
+    event_overflow = bool(metadata.flags & MetadataFlags.FPGA_EVENT_OVERFLOW)
+    if event_overflow != (metadata.gain_event_overflow_count > 0):
+        raise ProtocolError("gain event overflow flag/count disagree")
+
+    frame_start = metadata.first_sample_sequence
+    frame_end = frame_start + metadata.samples_per_channel
+    previous_before = None
+    for observation in metadata.gain_observations:
+        _validate_gain_observation(observation)
+        if (
+            previous_before is not None
+            and observation.sample_sequence_before < previous_before
+        ):
+            raise ProtocolError("gain observations are not ordered")
+        previous_before = observation.sample_sequence_before
+        if observation.flags & GainObservationFlags.SAMPLE_INTERVAL_VALID:
+            if not (
+                observation.sample_sequence_after >= frame_start
+                and observation.sample_sequence_before < frame_end
+            ):
+                raise ProtocolError("gain observation does not overlap its IQ frame")
+    previous_event = None
+    for event in metadata.gain_events:
+        event.pack()
+        if not frame_start <= event.sample_sequence < frame_end:
+            raise ProtocolError("gain event is outside its IQ frame")
+        if previous_event is not None and event.sample_sequence < previous_event:
+            raise ProtocolError("gain events are not ordered")
+        previous_event = event.sample_sequence
+    events_feature = bool(metadata.features & MetadataFeatures.FPGA_GAIN_EVENTS)
+    if bool(metadata.gain_event_capacity or metadata.gain_events) != events_feature:
+        raise ProtocolError("gain event capacity disagrees with FPGA feature")
 
 
 def _validate_metadata_v2(metadata: RadioMetadataV2) -> None:

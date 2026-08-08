@@ -15,6 +15,7 @@ from spf.dataset.v6_data import (
 )
 from spf.dataset.v7_data import (
     v7rx_2x_keys,
+    v7rx_keys,
     v7rx_scalar_keys,
     v7rx_new_dataset,
 )
@@ -154,9 +155,9 @@ def testv4_data_create():
         )
         for time_idx in range(timesteps):
             for receiver_idx in range(2):
-                z.receivers[f"r{receiver_idx}"].signal_matrix[time_idx, :] = (
-                    random_signal_matrix(2 * buffer_size).reshape(2, buffer_size)
-                )
+                z.receivers[f"r{receiver_idx}"].signal_matrix[
+                    time_idx, :
+                ] = random_signal_matrix(2 * buffer_size).reshape(2, buffer_size)
                 for k in v4rx_f64_keys:
                     z.receivers[f"r{receiver_idx}"][k][time_idx] = np.random.rand()
                 for k in v4rx_2xf64_keys:
@@ -177,9 +178,9 @@ def testv5_data_create():
         )
         for time_idx in range(timesteps):
             for receiver_idx in range(2):
-                z.receivers[f"r{receiver_idx}"].signal_matrix[time_idx, :] = (
-                    random_signal_matrix(2 * buffer_size).reshape(2, buffer_size)
-                )
+                z.receivers[f"r{receiver_idx}"].signal_matrix[
+                    time_idx, :
+                ] = random_signal_matrix(2 * buffer_size).reshape(2, buffer_size)
                 for k in v5rx_f64_keys:
                     z.receivers[f"r{receiver_idx}"][k][time_idx] = np.random.rand()
                 for k in v5rx_2xf64_keys:
@@ -270,6 +271,27 @@ def testv7_data_create_and_radio_metadata_round_trip():
             receiver[key][1] = expected_2x[key]
 
         assert z.attrs["radio_metadata_schema_version"] == 2
+        assert z.attrs["gain_series_schema_version"] == 1
+        assert "gain_observation_index" not in v7rx_keys()
+        assert "gain_observation_index" in v7rx_keys(include_gain_series=True)
+        receiver["gain_observation_count"][1] = 2
+        receiver["gain_observation_interval_samples"][1] = 32768
+        receiver["gain_observation_sample_bounds"][1, :2] = [
+            [0x100000000, 0x100001D4C],
+            [0x100008000, 0x100009D4C],
+        ]
+        receiver["gain_observation_index"][1, :2] = [[42, 43], [41, 43]]
+        receiver["gain_observation_db"][1, :2] = [[20.0, 21.0], [19.0, 21.0]]
+        receiver["gain_observation_valid"][1, :2] = [True, True]
+        receiver["gain_observation_read_duration_ns"][1, :2] = [500000, 510000]
+        assert receiver["gain_observation_count"][1] == 2
+        assert receiver["gain_observation_interval_samples"][1] == 32768
+        np.testing.assert_array_equal(
+            receiver["gain_observation_index"][1, :2], [[42, 43], [41, 43]]
+        )
+        np.testing.assert_allclose(
+            receiver["gain_observation_db"][1, :2], [[20.0, 21.0], [19.0, 21.0]]
+        )
         for key in v7rx_scalar_keys:
             assert receiver[key][1] == expected_scalar[key]
         for key in v7rx_2x_keys:

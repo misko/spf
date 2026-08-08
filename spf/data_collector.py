@@ -23,7 +23,14 @@ from tqdm import tqdm
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
 from spf.dataset.v6_data import v6rx_2x_keys, v6rx_scalar_keys, v6rx_new_dataset
-from spf.dataset.v7_data import v7rx_2x_keys, v7rx_scalar_keys, v7rx_new_dataset
+from spf.dataset.v7_data import (
+    V7_GAIN_EVENT_CAPACITY,
+    V7_GAIN_OBSERVATION_CAPACITY,
+    v7rx_2x_keys,
+    v7rx_gain_series_scalar_keys,
+    v7rx_scalar_keys,
+    v7rx_new_dataset,
+)
 from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import (
     beamformer_given_steering,
@@ -259,6 +266,16 @@ class DataSnapshotV7(DataSnapshotV6):
     rssi_metadata_valid: bool = False
     rssi_start_read_duration_ns: int = 0
     rssi_end_read_duration_ns: int = 0
+    gain_observation_interval_samples: int = 0
+    gain_observation_sample_bounds: Optional[np.ndarray] = None
+    gain_observation_index: Optional[np.ndarray] = None
+    gain_observation_db: Optional[np.ndarray] = None
+    gain_observation_valid: Optional[np.ndarray] = None
+    gain_observation_read_duration_ns: Optional[np.ndarray] = None
+    gain_observation_overflow_count: int = 0
+    gain_event_sample_sequence: Optional[np.ndarray] = None
+    gain_event_flags: Optional[np.ndarray] = None
+    gain_event_overflow_count: int = 0
 
 
 @dataclass
@@ -522,6 +539,22 @@ class ThreadedRXRaw(ThreadedRX):
                 rssi_metadata_valid=sdr_rx["rssi_metadata_valid"],
                 rssi_start_read_duration_ns=sdr_rx["rssi_start_read_duration_ns"],
                 rssi_end_read_duration_ns=sdr_rx["rssi_end_read_duration_ns"],
+                gain_observation_interval_samples=sdr_rx[
+                    "gain_observation_interval_samples"
+                ],
+                gain_observation_sample_bounds=sdr_rx["gain_observation_sample_bounds"],
+                gain_observation_index=sdr_rx["gain_observation_index"],
+                gain_observation_db=sdr_rx["gain_observation_db"],
+                gain_observation_valid=sdr_rx["gain_observation_valid"],
+                gain_observation_read_duration_ns=sdr_rx[
+                    "gain_observation_read_duration_ns"
+                ],
+                gain_observation_overflow_count=sdr_rx[
+                    "gain_observation_overflow_count"
+                ],
+                gain_event_sample_sequence=sdr_rx["gain_event_sample_sequence"],
+                gain_event_flags=sdr_rx["gain_event_flags"],
+                gain_event_overflow_count=sdr_rx["gain_event_overflow_count"],
             )
         return self.snapshot_class(**snapshot_kwargs)
 
@@ -1257,6 +1290,60 @@ class DroneDataCollectorRawV7(DroneDataCollectorRaw):
             receiver_z[key][record_idx] = getattr(data, key)
         for key in v7rx_2x_keys:
             receiver_z[key][record_idx] = getattr(data, key)
+        observations = np.asarray(data.gain_observation_valid, dtype=np.bool_)
+        observation_count = observations.size
+        if observation_count > V7_GAIN_OBSERVATION_CAPACITY:
+            raise ValueError(
+                "gain observation count exceeds V7 storage capacity: "
+                f"{observation_count} > {V7_GAIN_OBSERVATION_CAPACITY}"
+            )
+        events = np.asarray(data.gain_event_flags, dtype=np.uint16)
+        event_count = events.size
+        if event_count > V7_GAIN_EVENT_CAPACITY:
+            raise ValueError(
+                "gain event count exceeds V7 storage capacity: "
+                f"{event_count} > {V7_GAIN_EVENT_CAPACITY}"
+            )
+        scalar_values = {
+            "gain_observation_count": observation_count,
+            "gain_observation_interval_samples": (
+                data.gain_observation_interval_samples
+            ),
+            "gain_observation_overflow_count": (data.gain_observation_overflow_count),
+            "gain_event_count": event_count,
+            "gain_event_overflow_count": data.gain_event_overflow_count,
+        }
+        for key in v7rx_gain_series_scalar_keys:
+            receiver_z[key][record_idx] = scalar_values[key]
+
+        bounds = np.full(
+            (V7_GAIN_OBSERVATION_CAPACITY, 2), np.iinfo(np.uint64).max, np.uint64
+        )
+        indices = np.full((V7_GAIN_OBSERVATION_CAPACITY, 2), 0xFF, dtype=np.uint8)
+        gains_db = np.full((V7_GAIN_OBSERVATION_CAPACITY, 2), np.nan, dtype=np.float32)
+        valid = np.zeros(V7_GAIN_OBSERVATION_CAPACITY, dtype=np.bool_)
+        durations = np.zeros(V7_GAIN_OBSERVATION_CAPACITY, dtype=np.uint32)
+        if observation_count:
+            bounds[:observation_count] = data.gain_observation_sample_bounds
+            indices[:observation_count] = data.gain_observation_index
+            gains_db[:observation_count] = data.gain_observation_db
+            valid[:observation_count] = observations
+            durations[:observation_count] = data.gain_observation_read_duration_ns
+        receiver_z["gain_observation_sample_bounds"][record_idx] = bounds
+        receiver_z["gain_observation_index"][record_idx] = indices
+        receiver_z["gain_observation_db"][record_idx] = gains_db
+        receiver_z["gain_observation_valid"][record_idx] = valid
+        receiver_z["gain_observation_read_duration_ns"][record_idx] = durations
+
+        event_sequences = np.full(
+            V7_GAIN_EVENT_CAPACITY, np.iinfo(np.uint64).max, dtype=np.uint64
+        )
+        event_flags = np.zeros(V7_GAIN_EVENT_CAPACITY, dtype=np.uint16)
+        if event_count:
+            event_sequences[:event_count] = data.gain_event_sample_sequence
+            event_flags[:event_count] = events
+        receiver_z["gain_event_sample_sequence"][record_idx] = event_sequences
+        receiver_z["gain_event_flags"][record_idx] = event_flags
 
 
 # V5 data format

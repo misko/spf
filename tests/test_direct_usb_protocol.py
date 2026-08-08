@@ -11,6 +11,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     FIRST_CHANGE_UNAVAILABLE,
     HEADER_BYTES,
     HEADER_BYTES_V2,
+    GAIN_OBSERVATION_BYTES,
     RUNTIME_STATUS_BYTES,
     RUNTIME_STATUS_MAGIC,
     RUNTIME_STATUS_VERSION,
@@ -18,7 +19,10 @@ from spf.sdrpluto.direct_usb_protocol import (
     CapabilityFlags,
     GadgetCapabilitiesV1,
     GainMetadataV1,
+    GainObservationFlags,
+    GainObservationV3,
     RadioMetadataV2,
+    RadioMetadataV3,
     MetadataFeatures,
     MetadataFlags,
     ProtocolError,
@@ -30,6 +34,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     SampleFormat,
     pack_start_request_v1,
     pack_start_request_v2,
+    pack_start_request_v3,
 )
 
 
@@ -124,6 +129,139 @@ def metadata_v2(
         rssi_start_read_duration_ns=1400,
         rssi_end_read_duration_ns=1500,
     )
+
+
+def metadata_v3(
+    *,
+    buffer_sequence=0,
+    first_sample_sequence=1_000_000,
+    samples_per_channel=32768,
+    stream_id=0x123456789ABCDEF0,
+):
+    observations = (
+        GainObservationV3(
+            sample_sequence_before=first_sample_sequence - 64,
+            sample_sequence_after=first_sample_sequence + 14000,
+            read_duration_ns=490_000,
+            flags=(
+                GainObservationFlags.VALID | GainObservationFlags.SAMPLE_INTERVAL_VALID
+            ),
+            rx1_gain_index=42,
+            rx2_gain_index=43,
+            rx1_gain_db=20,
+            rx2_gain_db=21,
+        ),
+        GainObservationV3(
+            sample_sequence_before=first_sample_sequence + 32000,
+            sample_sequence_after=first_sample_sequence + 32767,
+            read_duration_ns=27_000,
+            flags=(
+                GainObservationFlags.VALID | GainObservationFlags.SAMPLE_INTERVAL_VALID
+            ),
+            rx1_gain_index=41,
+            rx2_gain_index=43,
+            rx1_gain_db=19,
+            rx2_gain_db=21,
+        ),
+    )
+    return RadioMetadataV3(
+        features=(
+            MetadataFeatures.GAIN_ENDPOINT_SNAPSHOTS
+            | MetadataFeatures.HEADER_CRC32
+            | MetadataFeatures.SAMPLE_SEQUENCE
+            | MetadataFeatures.GAIN_DB_ENDPOINTS
+            | MetadataFeatures.RSSI_ENDPOINT_SNAPSHOTS
+            | MetadataFeatures.GAIN_OBSERVATION_SERIES
+            | MetadataFeatures.HARDWARE_SAMPLE_COUNTER
+        ),
+        flags=(
+            MetadataFlags.START_VALID
+            | MetadataFlags.END_VALID
+            | MetadataFlags.SAMPLE_SEQUENCE_VALID
+            | MetadataFlags.GAIN_FULL_TABLE_MODE
+            | MetadataFlags.GAIN_DB_VALUES
+            | MetadataFlags.RSSI_START_VALID
+            | MetadataFlags.RSSI_END_VALID
+            | MetadataFlags.RX1_ENDPOINT_CHANGED
+            | MetadataFlags.GAIN_OBSERVATIONS_VALID
+            | MetadataFlags.HARDWARE_SAMPLE_COUNTER_VALID
+        ),
+        stream_id=stream_id,
+        buffer_sequence=buffer_sequence,
+        first_sample_sequence=first_sample_sequence,
+        samples_per_channel=samples_per_channel,
+        iq_payload_bytes=samples_per_channel * 8,
+        enabled_scan_mask=0x0F,
+        sample_format=SampleFormat.CS16_LE_TIME_INTERLEAVED,
+        channel_count=2,
+        rx1_gain_db_start=20,
+        rx2_gain_db_start=21,
+        rx1_gain_db_end=19,
+        rx2_gain_db_end=21,
+        gain_start_read_duration_ns=490_000,
+        gain_end_read_duration_ns=27_000,
+        rx1_first_change_sample=FIRST_CHANGE_UNAVAILABLE,
+        rx2_first_change_sample=FIRST_CHANGE_UNAVAILABLE,
+        rx1_rssi_start_qdb=401,
+        rx2_rssi_start_qdb=402,
+        rx1_rssi_end_qdb=403,
+        rx2_rssi_end_qdb=404,
+        rssi_start_read_duration_ns=1400,
+        rssi_end_read_duration_ns=1500,
+        gain_observation_interval_samples=32768,
+        gain_observation_capacity=4,
+        gain_observations=observations,
+    )
+
+
+def test_v3_gain_series_round_trip_and_arbitrary_hardware_sequence():
+    expected = metadata_v3()
+    packed = expected.pack()
+    assert expected.header_bytes == 124 + 4 * GAIN_OBSERVATION_BYTES + 4
+    assert len(packed) == expected.header_bytes
+    assert RadioMetadataV3.unpack(packed) == expected
+    parser = RxFrameParser(protocol_version=3)
+    wire = expected.pack() + bytes(expected.iq_payload_bytes)
+    parsed = []
+    for chunk_start in range(0, len(wire), 137):
+        parsed.extend(parser.feed(wire[chunk_start : chunk_start + 137]))
+    parser.finish()
+    assert len(parsed) == 1
+    assert parsed[0].metadata == expected
+
+
+def test_v3_rejects_observation_outside_frame_and_crc_damage():
+    original = metadata_v3()
+    with pytest.raises(ProtocolError, match="at least one"):
+        dataclasses.replace(original, gain_observations=()).pack()
+    outside = dataclasses.replace(
+        original.gain_observations[0],
+        sample_sequence_before=original.first_sample_sequence - 1000,
+        sample_sequence_after=original.first_sample_sequence - 1,
+    )
+    with pytest.raises(ProtocolError, match="does not overlap"):
+        dataclasses.replace(
+            original,
+            gain_observations=(outside, original.gain_observations[1]),
+        ).pack()
+    damaged = bytearray(original.pack())
+    damaged[130] ^= 1
+    with pytest.raises(ProtocolError, match="CRC"):
+        RadioMetadataV3.unpack(damaged)
+
+
+def test_v3_start_request_negotiates_series_shape():
+    features = metadata_v3().features
+    request = pack_start_request_v3(
+        requested_features=features,
+        enabled_scan_mask=0x0F,
+        samples_per_channel=524288,
+        frame_count=1,
+        gain_observation_interval_samples=32768,
+        gain_observation_capacity=16,
+    )
+    assert request[:4] == b"SGS3"
+    assert struct.unpack_from("<II", request, 24) == (32768, 16)
 
 
 def test_v2_header_golden_vector_and_legacy_units():

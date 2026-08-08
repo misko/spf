@@ -48,6 +48,20 @@ class _DirectOnlyPPlus:
             rssi_metadata_valid=True,
             rssi_start_read_duration_ns=1300,
             rssi_end_read_duration_ns=1400,
+            gain_observation_interval_samples=4,
+            gain_observation_sample_bounds=np.array(
+                [[72, 73], [75, 76]], dtype=np.uint64
+            ),
+            gain_observation_index=np.array([[42, 43], [41, 43]], dtype=np.uint8),
+            gain_observation_db=np.array([[20, 40], [19, 40]], dtype=np.float32),
+            gain_observation_valid=np.array([True, True]),
+            gain_observation_read_duration_ns=np.array(
+                [500_000, 510_000], dtype=np.uint32
+            ),
+            gain_observation_overflow_count=0,
+            gain_event_sample_sequence=np.array([], dtype=np.uint64),
+            gain_event_flags=np.array([], dtype=np.uint16),
+            gain_event_overflow_count=0,
         )
 
     def rssis(self):
@@ -95,6 +109,12 @@ def test_v7_collector_preserves_gain_rssi_and_stream_metadata():
     assert snapshot.stream_id == 123
     assert snapshot.buffer_sequence == 9
     assert snapshot.sample_sequence == 72
+    assert snapshot.gain_observation_interval_samples == 4
+    np.testing.assert_array_equal(
+        snapshot.gain_observation_sample_bounds, [[72, 73], [75, 76]]
+    )
+    np.testing.assert_array_equal(snapshot.gain_observation_index, [[42, 43], [41, 43]])
+    np.testing.assert_array_equal(snapshot.gain_observation_db, [[20, 40], [19, 40]])
 
 
 def test_direct_collector_does_not_hide_a_failed_frame_with_retry():
