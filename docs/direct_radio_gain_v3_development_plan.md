@@ -272,14 +272,16 @@ records; it must not change the USB/IP transport contract.
   - common USB/frame/gain library: `0df6c86f8fc9`;
   - direct-IP daemon: `02f8efa395e4`;
   - Buildroot: `424d9fe5717f`;
-  - firmware source graph/build entry point: `614e30c43`.
+  - firmware source graph/build entry point: `88fcaac06`.
   Every source pin is reachable and agrees with its firmware gitlink.
 
 On the x86-64 build host, use the committed entry point rather than an ad-hoc
 Make invocation:
 
 ```bash
+git submodule sync --recursive
 git submodule update --init --recursive
+scripts/test_gain_series_hdl.sh
 scripts/build_gain_series_candidate.sh preflight
 scripts/build_gain_series_candidate.sh rootfs
 scripts/build_gain_series_candidate.sh image
@@ -289,6 +291,12 @@ The `image` target requires Vivado 2022.2 but no longer requires Vitis/`xsct`;
 `xsct` is used only for bootloader/FSBL artifacts, which this project does not
 flash. The script checks architecture, source pins, submodules, tools, disk
 space and Vivado version, and never flashes hardware.
+
+The lightweight `iverilog` gate exercises asynchronous ADC/DMA clocks and
+verifies that every ARM-visible low-32 counter value is a coherent source
+sample, including across a counter carry. It currently passes with 43 coherent
+updates in the test window. This is not a substitute for Vivado timing/CDC
+reports, which remain part of the image-build gate.
 
 ## Remaining critical path
 
