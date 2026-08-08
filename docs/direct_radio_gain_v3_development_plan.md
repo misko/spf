@@ -255,3 +255,31 @@ records; it must not change the USB/IP transport contract.
   write/reopen validation passed on both radios. Three-frame sequences were
   `[0, 1, 2]` for each serial; single-frame elapsed times were 0.458 and
   0.450 seconds.
+- The direct-IP daemon now serves `SIC1` capabilities and finite v3 START/STOP,
+  uses the common v3 frame serializer and gain sampler, and wraps complete
+  inner frames in `SIP1` fragments. The worker does not begin capture until the
+  STARTED response has been sent.
+- The native daemon and focused tests build with `-Wall -Wextra -Werror`.
+  Protocol, production-frame fragmentation, shared-frame pipeline, real-socket
+  negotiation, idempotent retry, request-ID conflict, and failed-IIO-startup
+  behavior pass. A failed startup is reported and the daemon remains usable.
+- Focused Python direct-IP tests pass: `28 passed`. The host requests a large
+  UDP receive buffer, rejects partial/corrupt frames, and always attempts STOP.
+- Candidate source graph:
+  - common USB/frame/gain library: `4c97c31e5aeb`;
+  - direct-IP daemon: `02f8efa395e4`;
+  - Buildroot: `9205cda82645`;
+  - firmware source graph: `9ada28f96`.
+  Every source pin is reachable and agrees with its firmware gitlink.
+
+## Remaining critical path
+
+| Order | Work | Pass condition | Current state |
+| --- | --- | --- | --- |
+| 1 | ARM/Buildroot package build | Both gadget packages compile against the staged common libraries and the rootfs contains the expected binaries/headers | Pending; no configured cross-toolchain exists on this ARM host |
+| 2 | x86-64 FPGA/firmware build | Reproducible candidate image embeds the pinned source manifest and required sample-counter HDL | Deferred to the dedicated x86-64 development server |
+| 3 | RAM boot one radio | Firmware enumerates, IIO configuration works, and v3 USB returns ordered overlapping gain observations | Pending image |
+| 4 | Direct-IP parity on `.18` | The same v3 inner-frame metadata and IQ pass over `192.168.1.174` with continuous sequences and zero fragment loss | Pending image |
+| 5 | Two-radio USB acceptance | 100 production frames per radio plus V7 write/reopen pass concurrently | Pending one-radio gates |
+| 6 | Recovery and soak | Repeated restart/rollback and one-hour tests expose all loss and show no growth or contention | Pending acceptance |
+| 7 | Promotion | Release asset, hashes, source SHAs, configs, and deployment documentation are pinned only after every prior gate passes | Prohibited until green |
