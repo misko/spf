@@ -691,7 +691,10 @@ class PlutoDirectUsbReceiver:
                 samples_per_channel=samples_per_channel,
                 frame_count=frame_count,
                 gain_observation_interval_samples=(
-                    self.gain_observation_interval_samples
+                    min(
+                        self.gain_observation_interval_samples,
+                        samples_per_channel,
+                    )
                 ),
                 gain_observation_capacity=self.gain_observation_capacity,
                 gain_event_capacity=self.gain_event_capacity,

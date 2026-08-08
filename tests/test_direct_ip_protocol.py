@@ -114,6 +114,7 @@ def test_v3_start_started_and_stop_control_round_trip():
         ({"data_port": 0}, "data port"),
         ({"max_datagram_bytes": IP_FRAGMENT_HEADER_BYTES}, "datagram size"),
         ({"gain_observation_interval_samples": 0}, "observation interval"),
+        ({"gain_observation_interval_samples": 524_289}, "observation interval"),
         ({"gain_observation_capacity": 0}, "observation capacity"),
         (
             {

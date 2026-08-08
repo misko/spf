@@ -195,7 +195,10 @@ class PlutoDirectIpReceiver:
             samples_per_channel=samples_per_channel,
             frame_count=frame_count,
             gain_observation_interval_samples=(
-                self.gain_observation_interval_samples
+                min(
+                    self.gain_observation_interval_samples,
+                    samples_per_channel,
+                )
                 if self.protocol_version == VERSION_V3
                 else 0
             ),

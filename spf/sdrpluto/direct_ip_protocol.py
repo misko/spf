@@ -731,7 +731,11 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
             )
             if message.features & required != required:
                 raise ProtocolError("direct-IP v3 START lacks gain-series features")
-            if message.gain_observation_interval_samples <= 0:
+            if not (
+                1
+                <= message.gain_observation_interval_samples
+                <= message.samples_per_channel
+            ):
                 raise ProtocolError("direct-IP v3 observation interval is invalid")
             if not (1 <= message.gain_observation_capacity <= MAX_GAIN_OBSERVATIONS):
                 raise ProtocolError("direct-IP v3 observation capacity is invalid")
