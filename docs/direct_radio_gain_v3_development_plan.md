@@ -259,17 +259,20 @@ records; it must not change the USB/IP transport contract.
   uses the common v3 frame serializer and gain sampler, and wraps complete
   inner frames in `SIP1` fragments. The worker does not begin capture until the
   STARTED response has been sent.
-- The native daemon and focused tests build with `-Wall -Wextra -Werror`.
+- The native daemons and focused tests build with `-Wall -Wextra -Werror`.
   Protocol, production-frame fragmentation, shared-frame pipeline, real-socket
   negotiation, idempotent retry, request-ID conflict, and failed-IIO-startup
   behavior pass. A failed startup is reported and the daemon remains usable.
+  AddressSanitizer/UndefinedBehaviorSanitizer passes the 13 USB/common tests and
+  both direct-IP protocol/pipeline tests. That gate found and fixed an
+  uninitialized scheduler-helper return value before cross-compilation.
 - Focused Python direct-IP tests pass: `28 passed`. The host requests a large
   UDP receive buffer, rejects partial/corrupt frames, and always attempts STOP.
 - Candidate source graph:
-  - common USB/frame/gain library: `4c97c31e5aeb`;
+  - common USB/frame/gain library: `0df6c86f8fc9`;
   - direct-IP daemon: `02f8efa395e4`;
-  - Buildroot: `9205cda82645`;
-  - firmware source graph: `9ada28f96`.
+  - Buildroot: `424d9fe5717f`;
+  - firmware source graph: `d18479b17`.
   Every source pin is reachable and agrees with its firmware gitlink.
 
 ## Remaining critical path
