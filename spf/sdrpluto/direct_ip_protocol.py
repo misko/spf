@@ -58,10 +58,13 @@ class IpControlType(enum.IntEnum):
 class IpControlFlags(enum.IntFlag):
     FINITE_RX = 1 << 0
     IDEMPOTENT_REQUESTS = 1 << 1
+    TIME_ANCHOR = 1 << 2
 
 
 KNOWN_IP_CONTROL_FLAGS: Final[IpControlFlags] = (
-    IpControlFlags.FINITE_RX | IpControlFlags.IDEMPOTENT_REQUESTS
+    IpControlFlags.FINITE_RX
+    | IpControlFlags.IDEMPOTENT_REQUESTS
+    | IpControlFlags.TIME_ANCHOR
 )
 
 

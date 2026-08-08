@@ -56,6 +56,17 @@ class PlutoRxBuffer:
     rssi_metadata_valid: bool
     rssi_start_read_duration_ns: int
     rssi_end_read_duration_ns: int
+    sample_counter_end_exclusive: int = 0
+    sample_time_valid: bool = False
+    sample_time_monotonic_start_ns: int = 0
+    sample_time_monotonic_end_ns: int = 0
+    sample_time_realtime_start_ns: int = 0
+    sample_time_realtime_end_ns: int = 0
+    sample_time_uncertainty_ns: int = 0
+    sample_time_fitted_rate_hz: float = float("nan")
+    sample_time_anchor_count: int = 0
+    sample_time_max_round_trip_ns: int = 0
+    sample_time_rate_tolerance_ppm: float = float("nan")
     gain_observation_interval_samples: int = 0
     gain_observation_sample_bounds: np.ndarray = dataclasses.field(
         default_factory=lambda: np.empty((0, 2), dtype=np.uint64)
@@ -947,6 +958,8 @@ class PPlus:
         self._last_direct_gains = None
         self._last_direct_rssis = None
         self._last_direct_metadata = None
+        self._direct_time_anchors = []
+        self._last_direct_sample_time = None
         self.set_config(rx_config=rx_config, tx_config=tx_config)
         self.phase_calibration = phase_calibration
 
@@ -984,6 +997,7 @@ class PPlus:
         from spf.sdrpluto.direct_usb_receiver import iq_payload_to_complex64
 
         if self._direct_frame_stream is None:
+            self._refresh_direct_time_anchors()
             frame_count = self.rx_config.direct_usb_frame_count_per_request
             self._direct_frame_stream = self.direct_rx.stream_frames(
                 samples_per_channel=self.rx_config.buffer_size,
@@ -1025,10 +1039,90 @@ class PPlus:
                     f"unexpected sequence {extra_frame.metadata.buffer_sequence}"
                 )
         metadata = frame.metadata
+        # Take a second anchor immediately after every yielded frame. USB EP0
+        # remains independent of the bulk stream, so this also brackets frames
+        # inside a multi-frame request instead of extrapolating from startup.
+        self._refresh_direct_time_anchors()
+        self._last_direct_sample_time = self._fit_direct_sample_time(metadata)
         signal_matrix = iq_payload_to_complex64(
             frame.iq_payload, metadata.samples_per_channel
         )
         return signal_matrix, metadata
+
+    def _refresh_direct_time_anchors(self):
+        """Refresh the GNSS-free sample-counter to host-clock observations."""
+
+        from spf.sdrpluto.direct_usb_protocol import VERSION_V3
+
+        if (
+            self.direct_rx is None
+            or self.rx_config is None
+            or getattr(self.rx_config, "direct_usb_protocol_version", 1) != VERSION_V3
+        ):
+            return
+        count = 8 if not self._direct_time_anchors else 1
+        for index in range(count):
+            self._direct_time_anchors.append(self.direct_rx.query_time_anchor())
+            if index + 1 < count:
+                time.sleep(0.005)
+        newest = self._direct_time_anchors[-1].host_monotonic_after_ns
+        # At 61.44 MS/s the low counter half-range is about 35 seconds. A
+        # ten-second window stays unambiguous at every supported rate.
+        cutoff = newest - 10_000_000_000
+        self._direct_time_anchors = [
+            item
+            for item in self._direct_time_anchors[-32:]
+            if item.host_monotonic_after_ns >= cutoff
+        ]
+
+    def _fit_direct_sample_time(self, metadata):
+        from spf.sdrpluto.direct_usb_protocol import (
+            MetadataFlags,
+            RadioMetadataV3,
+        )
+        from spf.sdrpluto.sample_clock import (
+            DEFAULT_SAMPLE_CLOCK_RATE_TOLERANCE_PPM,
+            capture_host_realtime_mapping,
+            fit_sample_clock,
+        )
+
+        if not isinstance(metadata, RadioMetadataV3):
+            return None
+        if not metadata.flags & MetadataFlags.HARDWARE_SAMPLE_COUNTER_VALID:
+            raise RuntimeError("protocol v3 frame lacks a valid FPGA sample counter")
+        if len(self._direct_time_anchors) < 2:
+            raise RuntimeError("protocol v3 has insufficient host time anchors")
+        extended = [
+            item.extend_near(metadata.first_sample_sequence)
+            for item in self._direct_time_anchors
+        ]
+        fit = fit_sample_clock(
+            extended,
+            nominal_sample_rate_hz=self.rx_config.sample_rate,
+            maximum_rate_error_ppm=DEFAULT_SAMPLE_CLOCK_RATE_TOLERANCE_PPM,
+        )
+        realtime = capture_host_realtime_mapping()
+        sample_start = metadata.first_sample_sequence
+        sample_end = sample_start + metadata.samples_per_channel
+        monotonic_start = fit.host_monotonic_ns(sample_start)
+        monotonic_end = fit.host_monotonic_ns(sample_end)
+        return {
+            "sample_counter_end_exclusive": sample_end,
+            "sample_time_valid": True,
+            "sample_time_monotonic_start_ns": monotonic_start,
+            "sample_time_monotonic_end_ns": monotonic_end,
+            "sample_time_realtime_start_ns": realtime.realtime_ns(monotonic_start),
+            "sample_time_realtime_end_ns": realtime.realtime_ns(monotonic_end),
+            "sample_time_uncertainty_ns": max(
+                fit.uncertainty_ns_at(sample_start),
+                fit.uncertainty_ns_at(sample_end),
+            )
+            + realtime.uncertainty_ns,
+            "sample_time_fitted_rate_hz": fit.fitted_sample_rate_hz,
+            "sample_time_anchor_count": fit.anchor_count,
+            "sample_time_max_round_trip_ns": fit.maximum_round_trip_ns,
+            "sample_time_rate_tolerance_ppm": fit.maximum_rate_error_ppm,
+        }
 
     def _cache_direct_legacy_values(self, metadata):
         from spf.sdrpluto.direct_usb_protocol import RadioMetadataV2
@@ -1104,6 +1198,7 @@ class PPlus:
             dtype=np.int32,
         )
         gain_series = _gain_series_arrays(metadata)
+        sample_time = self._last_direct_sample_time or {}
         observation_indices = gain_series["gain_observation_index"]
         if observation_indices.shape[0]:
             gain_index_start = observation_indices[0]
@@ -1136,6 +1231,7 @@ class PPlus:
             rssi_metadata_valid=metadata.rssi_metadata_valid,
             rssi_start_read_duration_ns=metadata.rssi_start_read_duration_ns,
             rssi_end_read_duration_ns=metadata.rssi_end_read_duration_ns,
+            **sample_time,
             **gain_series,
         )
 
@@ -1276,6 +1372,8 @@ class PPlus:
         self._last_direct_gains = None
         self._last_direct_rssis = None
         self._last_direct_metadata = None
+        self._direct_time_anchors = []
+        self._last_direct_sample_time = None
         # disable the channels before changing
         # self.sdr.rx_enabled_channels = []
         # assert len(self.sdr.rx_enabled_channels) == 0
@@ -1463,6 +1561,8 @@ class PPlus:
         self._last_direct_gains = None
         self._last_direct_rssis = None
         self._last_direct_metadata = None
+        self._direct_time_anchors = []
+        self._last_direct_sample_time = None
         try:
             self.sdr.rx_destroy_buffer()
         except (AttributeError, TypeError):

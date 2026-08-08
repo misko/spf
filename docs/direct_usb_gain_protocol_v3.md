@@ -65,11 +65,41 @@ off-frame observations, inconsistent overflow state, and sequence regressions.
 The V7 Zarr writer stores counts plus bounded arrays, using explicit sentinel
 padding. V1 and v2 decoding remain unchanged.
 
-Direct USB carries one complete v3 frame in one bulk transfer. The direct-IP
-implementation should fragment and reassemble the exact same frame bytes; it
-must not define a second radio-metadata schema. A versioned UDP fragment header
-needs 32-bit fragment indices/counts and byte offsets because a 4 MiB IQ frame
-cannot fit the existing IP gadget's 8-bit packet counters.
+Direct USB carries one complete v3 frame in one bulk transfer. Direct IP
+fragments and reassembles the exact same frame bytes; it does not define a
+second radio-metadata schema. Its versioned UDP fragment header uses 32-bit
+fragment indices/counts and byte offsets because a 4 MiB IQ frame cannot fit
+the original IP gadget's 8-bit packet counters.
+
+## GNSS-free frame time
+
+Protocol v3 also exposes one common, CRC-protected `GET_TIME_ANCHOR` record on
+the USB and IP control planes. The host brackets each request with
+`CLOCK_MONOTONIC`, while the Pluto brackets its coherent FPGA counter read with
+local `CLOCK_MONOTONIC_RAW`. No GNSS, PPS, enclosure change, or extra wire is
+required.
+
+The authoritative frame boundaries remain:
+
+```text
+start = frame.first_sample_sequence
+end_exclusive = start + frame.samples_per_channel
+```
+
+Every yielded frame is bracketed by host time anchors before and immediately
+after capture, including frames in a multi-frame request. An affine fit
+discovers the actual FPGA counter rate, so it remains valid if that rate differs
+from the configured AD9361 rate because of FPGA decimation. A conservative
+100 ppm allowance remains for any boundary that falls outside the retained
+anchor window.
+
+V7 stores the exact counter boundaries, estimated host monotonic and realtime
+boundaries, fitted counter rate, anchor count, maximum round trip, and an
+explicit uncertainty. `sample_time_realtime_*` names the Pi's
+`CLOCK_REALTIME`; it is not a claim that the Pi clock is synchronized to UTC.
+The promotion gate initially requires at most 5 ms uncertainty. Hardware
+results—not the protocol definition—will determine whether that threshold can
+be tightened to the expected sub-millisecond range.
 
 ## HDL alignment path
 
@@ -95,6 +125,7 @@ boundaries and is not acceptable.
 | HDL CDC | Coherent-counter simulation passes; Vivado validates IP and block design | Do not create a DFU |
 | RAM boot | Both radios enumerate standard IIO and direct USB; v2 still captures | Roll back RAM image |
 | Counter identity | GPIO low word agrees with each inline timestamp modulo 2^32 and advances monotonically | Disable protocol v3 |
+| GNSS-free time | USB and IP anchors bracket each test frame; exact counter boundaries round-trip through V7; reported uncertainty is at most 5 ms | Keep legacy timestamps and do not promote timing fields |
 | Observation coverage | Every frame has at least one valid overlapping observation; no unexplained overflow | Fail the capture closed |
 | IQ integrity | Channel order, payload length, first sample, and phase match v2 baseline | Reject candidate firmware |
 | Throughput | 100-frame and soak captures have no sequence gaps, USB errors, or queue drops at production settings | Keep v2 in production |

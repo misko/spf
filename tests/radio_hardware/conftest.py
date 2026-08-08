@@ -47,6 +47,21 @@ def pytest_addoption(parser):
         help="samples per channel in each direct-USB hardware frame",
     )
     group.addoption(
+        "--radio-sample-rate",
+        type=float,
+        default=30_000_000.0,
+        help=(
+            "nominal device sample rate used only if the sample-clock gate "
+            "cannot estimate the actual FPGA counter rate"
+        ),
+    )
+    group.addoption(
+        "--radio-time-anchor-max-uncertainty-ms",
+        type=float,
+        default=5.0,
+        help="maximum accepted GNSS-free frame-time uncertainty",
+    )
+    group.addoption(
         "--radio-cycles",
         type=int,
         default=10,

@@ -18,11 +18,14 @@ from spf.dataset.v7_data import (
     v7rx_2x_keys,
     v7rx_gain_series_scalar_keys,
     v7rx_new_dataset,
+    v7rx_sample_time_scalar_keys,
     v7rx_scalar_keys,
 )
+from spf.sdrpluto.direct_ip_protocol import IpControlFlags
 from spf.sdrpluto.sdr_controller import _gain_series_arrays
 from spf.sdrpluto.direct_ip_receiver import PlutoDirectIpReceiver
 from spf.sdrpluto.direct_usb_protocol import (
+    CapabilityFlags,
     GainObservationFlags,
     MetadataFeatures,
     MetadataFlags,
@@ -33,6 +36,11 @@ from spf.sdrpluto.direct_usb_receiver import (
     iq_payload_to_complex64,
 )
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
+from spf.sdrpluto.sample_clock import (
+    DEFAULT_SAMPLE_CLOCK_RATE_TOLERANCE_PPM,
+    capture_host_realtime_mapping,
+    fit_sample_clock,
+)
 
 
 pytestmark = [pytest.mark.radio_hardware, pytest.mark.radio_gain_series_v3]
@@ -127,6 +135,41 @@ def _assert_contiguous_frames(frames, samples: int) -> None:
     assert len({frame.metadata.stream_id for frame in frames}) == 1
 
 
+def _sample_clock_report(anchors, frames, sample_rate_hz: float) -> dict:
+    reference = frames[0].metadata.first_sample_sequence
+    fit = fit_sample_clock(
+        [anchor.extend_near(reference) for anchor in anchors],
+        nominal_sample_rate_hz=sample_rate_hz,
+        maximum_rate_error_ppm=DEFAULT_SAMPLE_CLOCK_RATE_TOLERANCE_PPM,
+    )
+    first_sample = frames[0].metadata.first_sample_sequence
+    end_sample = (
+        frames[-1].metadata.first_sample_sequence
+        + frames[-1].metadata.samples_per_channel
+    )
+    realtime = capture_host_realtime_mapping()
+    uncertainty_ns = (
+        max(fit.uncertainty_ns_at(first_sample), fit.uncertainty_ns_at(end_sample))
+        + realtime.uncertainty_ns
+    )
+    monotonic_start = fit.host_monotonic_ns(first_sample)
+    monotonic_end = fit.host_monotonic_ns(end_sample)
+    return {
+        "sample_counter_end_exclusive": end_sample,
+        "sample_time_valid": True,
+        "sample_time_monotonic_start_ns": monotonic_start,
+        "sample_time_monotonic_end_ns": monotonic_end,
+        "sample_time_realtime_start_ns": realtime.realtime_ns(monotonic_start),
+        "sample_time_realtime_end_ns": realtime.realtime_ns(monotonic_end),
+        "sample_time_uncertainty_ns": uncertainty_ns,
+        "sample_time_fitted_rate_hz": fit.fitted_sample_rate_hz,
+        "sample_time_rate_tolerance_ppm": fit.maximum_rate_error_ppm,
+        "sample_time_anchor_count": fit.anchor_count,
+        "sample_time_max_round_trip_ns": fit.maximum_round_trip_ns,
+        "maximum_midpoint_residual_ns": fit.maximum_midpoint_residual_ns,
+    }
+
+
 def _iq_power_dbfs(signal: np.ndarray) -> np.ndarray:
     power = np.mean(np.abs(signal.astype(np.complex64)) ** 2, axis=1)
     with np.errstate(divide="ignore"):
@@ -147,7 +190,9 @@ def _first_change(metadata: RadioMetadataV3) -> np.ndarray:
     )
 
 
-def _write_v3_record(receiver_z, record_index: int, frame, samples: int) -> None:
+def _write_v3_record(
+    receiver_z, record_index: int, frame, samples: int, sample_time: dict
+) -> None:
     metadata = frame.metadata
     assert isinstance(metadata, RadioMetadataV3)
     signal = iq_payload_to_complex64(frame.iq_payload, samples)
@@ -177,6 +222,8 @@ def _write_v3_record(receiver_z, record_index: int, frame, samples: int) -> None
         receiver_z[key][record_index] = scalar_values[key]
     for key in v7rx_2x_keys:
         receiver_z[key][record_index] = two_values[key]
+    for key in v7rx_sample_time_scalar_keys:
+        receiver_z[key][record_index] = sample_time[key]
     receiver_z["system_timestamp"][record_index] = time.time()
     receiver_z["rssis"][record_index] = metadata.rssi_db_end
     receiver_z["gains"][record_index] = metadata.gain_db_end
@@ -231,6 +278,10 @@ def test_v3_usb_gain_observations(attached_plutos, pytestconfig, radio_report_di
     frames_per_request = pytestconfig.getoption("--radio-frames-per-request")
     interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
     capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
+    sample_rate_hz = pytestconfig.getoption("--radio-sample-rate")
+    max_uncertainty_ns = int(
+        pytestconfig.getoption("--radio-time-anchor-max-uncertainty-ms") * 1_000_000
+    )
     assert frames_per_request > 0
     report = {"transport": "direct_usb", "radios": []}
     for radio in attached_plutos:
@@ -253,20 +304,29 @@ def test_v3_usb_gain_observations(attached_plutos, pytestconfig, radio_report_di
                 receiver.capabilities.supported_features & V3_REQUIRED_FEATURES
                 == V3_REQUIRED_FEATURES
             ), f"radio {radio.serial} is missing required protocol-v3 features"
-            frames = list(
-                receiver.stream_frames(
-                    samples_per_channel=samples,
-                    frame_count=frames_per_request,
-                    queue_depth=1,
-                )
+            assert receiver.capabilities.capability_flags & CapabilityFlags.TIME_ANCHOR
+            anchors = [receiver.query_time_anchor() for _ in range(8)]
+            frames = []
+            stream = receiver.stream_frames(
+                samples_per_channel=samples,
+                frame_count=frames_per_request,
+                queue_depth=1,
             )
+            for frame in stream:
+                frames.append(frame)
+                # Exercise EP0 time anchors while the finite bulk stream is
+                # still active, matching PPlus for multi-frame requests.
+                anchors.append(receiver.query_time_anchor())
         assert len(frames) == frames_per_request
         _assert_contiguous_frames(frames, samples)
+        sample_clock = _sample_clock_report(anchors, frames, sample_rate_hz)
+        assert sample_clock["sample_time_uncertainty_ns"] <= max_uncertainty_ns
         report["radios"].append(
             {
                 "serial": radio.serial,
                 "port_path": list(radio.port_path),
                 "frames": [_validate_v3_frame(frame, samples) for frame in frames],
+                "sample_clock": sample_clock,
             }
         )
     (radio_report_dir / "gain_series_v3_usb.json").write_text(
@@ -282,22 +342,32 @@ def test_v3_direct_ip_uses_the_same_inner_frame(pytestconfig, radio_report_dir):
     samples = pytestconfig.getoption("--radio-samples")
     interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
     capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
+    sample_rate_hz = pytestconfig.getoption("--radio-sample-rate")
+    max_uncertainty_ns = int(
+        pytestconfig.getoption("--radio-time-anchor-max-uncertainty-ms") * 1_000_000
+    )
     with PlutoDirectIpReceiver(
         remote_host=host,
         protocol_version=3,
         gain_observation_interval_samples=interval,
         gain_observation_capacity=capacity,
     ) as receiver:
+        assert receiver.capabilities.flags & IpControlFlags.TIME_ANCHOR
+        anchors = [receiver.query_time_anchor() for _ in range(8)]
         capture = receiver.capture(samples_per_channel=samples, frame_count=1)
+        anchors.append(receiver.query_time_anchor())
     assert capture.duplicate_fragment_count == 0
     assert capture.expired_frame_count == 0
     assert capture.rejected_frame_count == 0
     assert len(capture.frames) == 1
+    sample_clock = _sample_clock_report(anchors, capture.frames, sample_rate_hz)
+    assert sample_clock["sample_time_uncertainty_ns"] <= max_uncertainty_ns
     report = {
         "transport": "direct_ip",
         "host": host,
         "elapsed_seconds": capture.elapsed_seconds,
         "frame": _validate_v3_frame(capture.frames[0], samples),
+        "sample_clock": sample_clock,
     }
     (radio_report_dir / "gain_series_v3_direct_ip.json").write_text(
         json.dumps(report, indent=2) + "\n"
@@ -312,10 +382,15 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
     frame_count = pytestconfig.getoption("--radio-zarr-frames")
     interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
     capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
+    sample_rate_hz = pytestconfig.getoption("--radio-sample-rate")
+    max_uncertainty_ns = int(
+        pytestconfig.getoption("--radio-time-anchor-max-uncertainty-ms") * 1_000_000
+    )
     assert 0 < frame_count
     assert capacity <= V7_GAIN_OBSERVATION_CAPACITY
 
     frames_by_radio = []
+    sample_times_by_radio = []
     identities = []
     for radio in attached_plutos:
         with PlutoDirectUsbReceiver(
@@ -331,6 +406,8 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
             )
             identities.append(receiver.query_hardware_identity())
             frames = []
+            sample_times = []
+            anchors = [receiver.query_time_anchor() for _ in range(8)]
             for _ in range(frame_count):
                 capture = receiver.capture(
                     samples_per_channel=samples,
@@ -340,7 +417,13 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
                 frame = capture.frames[0]
                 _validate_v3_frame(frame, samples)
                 frames.append(frame)
+                anchors.append(receiver.query_time_anchor())
+                anchors = anchors[-32:]
+                sample_time = _sample_clock_report(anchors, [frame], sample_rate_hz)
+                assert sample_time["sample_time_uncertainty_ns"] <= max_uncertainty_ns
+                sample_times.append(sample_time)
             frames_by_radio.append(tuple(frames))
+            sample_times_by_radio.append(tuple(sample_times))
 
     path = tmp_path / "hardware_gain_series_v3.zarr"
     zarr = v7rx_new_dataset(
@@ -360,8 +443,14 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
     zarr.attrs["rx_transport"] = "direct_usb"
     zarr.attrs["direct_usb_protocol_version"] = 3
     try:
-        for receiver_index, (radio, identity, frames) in enumerate(
-            zip(attached_plutos, identities, frames_by_radio, strict=True)
+        for receiver_index, (radio, identity, frames, sample_times) in enumerate(
+            zip(
+                attached_plutos,
+                identities,
+                frames_by_radio,
+                sample_times_by_radio,
+                strict=True,
+            )
         ):
             receiver_z = zarr[f"receivers/r{receiver_index}"]
             receiver_z.attrs["sdr_family"] = "pluto"
@@ -369,8 +458,10 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
             receiver_z.attrs["usb_port_path"] = list(radio.port_path)
             receiver_z.attrs["gadget_build_id"] = identity.gadget_build_id
             receiver_z.attrs["fpga_device_dna"] = identity.fpga_device_dna
-            for record_index, frame in enumerate(frames):
-                _write_v3_record(receiver_z, record_index, frame, samples)
+            for record_index, (frame, sample_time) in enumerate(
+                zip(frames, sample_times, strict=True)
+            ):
+                _write_v3_record(receiver_z, record_index, frame, samples, sample_time)
         zarr.attrs["capture_records_written_by_receiver"] = [frame_count] * len(
             attached_plutos
         )
@@ -382,6 +473,7 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
     try:
         assert reopened.attrs["radio_metadata_schema_version"] == 2
         assert reopened.attrs["gain_series_schema_version"] == 1
+        assert reopened.attrs["sample_time_schema_version"] == 1
         assert reopened.attrs["capture_status"] == "complete"
         assert reopened.attrs["rx_transport"] == "direct_usb"
         assert reopened.attrs["direct_usb_protocol_version"] == 3
@@ -439,5 +531,17 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
                 receiver_z["buffer_sequence"][:], np.zeros(frame_count)
             )
             assert np.any(receiver_z["signal_matrix"][:] != 0)
+            assert np.all(receiver_z["sample_time_valid"][:])
+            np.testing.assert_array_equal(
+                receiver_z["sample_counter_end_exclusive"][:],
+                receiver_z["sample_sequence"][:] + samples,
+            )
+            assert np.all(
+                receiver_z["sample_time_monotonic_end_ns"][:]
+                > receiver_z["sample_time_monotonic_start_ns"][:]
+            )
+            assert np.all(
+                receiver_z["sample_time_uncertainty_ns"][:] <= max_uncertainty_ns
+            )
     finally:
         reopened.store.close()

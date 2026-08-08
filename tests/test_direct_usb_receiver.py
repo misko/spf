@@ -26,6 +26,8 @@ from spf.sdrpluto.direct_usb_protocol import (
     ErrorSubsystem,
     RuntimeState,
     RuntimeStatusFlags,
+    TimeAnchorFlags,
+    TimeAnchorV1,
     SampleFormat,
 )
 from spf.sdrpluto.direct_usb_receiver import (
@@ -77,12 +79,14 @@ class _FakeHandle:
     def __init__(self, wire):
         self.wire = wire
         self.control_writes = []
+        self.control_reads = []
         self.bulk_read_sizes = []
 
     def controlWrite(self, *args, **kwargs):
         self.control_writes.append((args, kwargs))
 
     def controlRead(self, *args, **kwargs):
+        self.control_reads.append((args, kwargs))
         return self.wire
 
     def bulkRead(self, endpoint, size, timeout):
@@ -139,6 +143,52 @@ def _finite_capabilities(maximum_frames=16):
         max_finite_frames=maximum_frames,
         capability_flags=CapabilityFlags.FINITE_RX,
     )
+
+
+def test_usb_time_anchor_brackets_control_exchange():
+    anchor = TimeAnchorV1(
+        flags=(
+            TimeAnchorFlags.COUNTER_INTERVAL_VALID
+            | TimeAnchorFlags.MONOTONIC_INTERVAL_VALID
+            | TimeAnchorFlags.COUNTER_LOW32
+            | TimeAnchorFlags.COUNTER_ADVANCED
+        ),
+        request_id=1,
+        radio_monotonic_before_ns=1000,
+        sample_counter_before=100,
+        sample_counter_after=103,
+        radio_monotonic_after_ns=1200,
+    )
+    receiver = PlutoDirectUsbReceiver(serial="test", protocol_version=3)
+    receiver._handle = _FakeHandle(anchor.pack())
+    receiver._identity = DirectUsbIdentity(
+        serial="test",
+        bus=1,
+        address=2,
+        port_path=(1,),
+        interface=6,
+        bulk_in_endpoint=0x81,
+        bulk_out_endpoint=0x01,
+    )
+    receiver._capabilities = GadgetCapabilitiesV1(
+        protocol_min=3,
+        protocol_max=3,
+        supported_features=MetadataFeatures.HARDWARE_SAMPLE_COUNTER,
+        max_samples_per_channel=524288,
+        max_finite_frames=16,
+        capability_flags=(CapabilityFlags.FINITE_RX | CapabilityFlags.TIME_ANCHOR),
+    )
+
+    measurement = receiver.query_time_anchor()
+
+    assert measurement.anchor == anchor
+    assert measurement.transport == "direct_usb"
+    assert measurement.round_trip_ns >= 0
+    assert receiver._handle.control_writes == []
+    control_args, control_kwargs = receiver._handle.control_reads[0]
+    assert control_args[2] == 1  # 16-bit request ID in wValue
+    assert control_args[3] == 6  # FunctionFS interface remains in wIndex
+    assert control_kwargs["timeout"] > 0
 
 
 def test_open_quiesce_stops_and_drains_orphaned_bulk_data():

@@ -1,4 +1,4 @@
-"""SPF v7 schema for direct-USB v2 endpoints and bounded v3 gain series."""
+"""SPF v7 schema for direct RX metadata extensions."""
 
 import numpy as np
 
@@ -43,6 +43,24 @@ v7rx_gain_series_scalar_keys = {
     "gain_event_overflow_count": np.uint32,
 }
 
+# Protocol-v3 frames carry an exact FPGA sample counter.  These fields retain
+# that exact counter domain and the independently measured, GNSS-free mapping
+# into the Raspberry Pi clocks.  Keeping this as an optional schema extension
+# lets existing protocol-v2 V7 captures remain readable.
+v7rx_sample_time_scalar_keys = {
+    "sample_counter_end_exclusive": np.uint64,
+    "sample_time_valid": np.bool_,
+    "sample_time_monotonic_start_ns": np.uint64,
+    "sample_time_monotonic_end_ns": np.uint64,
+    "sample_time_realtime_start_ns": np.uint64,
+    "sample_time_realtime_end_ns": np.uint64,
+    "sample_time_uncertainty_ns": np.uint64,
+    "sample_time_fitted_rate_hz": np.float64,
+    "sample_time_anchor_count": np.uint16,
+    "sample_time_max_round_trip_ns": np.uint64,
+    "sample_time_rate_tolerance_ppm": np.float32,
+}
+
 
 def v7rx_gain_series_keys():
     return list(v7rx_gain_series_scalar_keys) + [
@@ -56,7 +74,11 @@ def v7rx_gain_series_keys():
     ]
 
 
-def v7rx_keys(*, include_gain_series=False):
+def v7rx_sample_time_keys():
+    return list(v7rx_sample_time_scalar_keys)
+
+
+def v7rx_keys(*, include_gain_series=False, include_sample_time=False):
     """Return required fields without breaking protocol-v2 V7 captures.
 
     The gain series is an optional, independently versioned V7 extension.
@@ -73,6 +95,8 @@ def v7rx_keys(*, include_gain_series=False):
     )
     if include_gain_series:
         keys += v7rx_gain_series_keys()
+    if include_sample_time:
+        keys += v7rx_sample_time_keys()
     return keys
 
 
@@ -101,6 +125,18 @@ def v7rx_new_dataset(
     # backward-compatible extension.
     z.attrs["radio_metadata_schema_version"] = 2
     z.attrs["gain_series_schema_version"] = 1
+    z.attrs["sample_time_schema_version"] = 1
+    z.attrs["sample_counter_end_semantics"] = "exclusive"
+    z.attrs[
+        "sample_time_clock_domain"
+    ] = "Pluto FPGA sample counter mapped to host CLOCK_MONOTONIC"
+    z.attrs[
+        "sample_time_realtime_clock"
+    ] = "host CLOCK_REALTIME; UTC accuracy is not asserted"
+    z.attrs["sample_time_uncertainty_semantics"] = (
+        "conservative host mapping bound: anchor half-RTT plus fit residual "
+        "and monotonic-to-realtime bracket uncertainty"
+    )
     for receiver_idx in range(n_receivers):
         receiver_z = z[f"receivers/r{receiver_idx}"]
         for key, dtype in v7rx_scalar_keys.items():
@@ -120,6 +156,14 @@ def v7rx_new_dataset(
                 compressor=None,
             )
         for key, dtype in v7rx_gain_series_scalar_keys.items():
+            receiver_z.create_dataset(
+                key,
+                shape=(timesteps,),
+                dtype=dtype,
+                chunks=(timesteps,),
+                compressor=None,
+            )
+        for key, dtype in v7rx_sample_time_scalar_keys.items():
             receiver_z.create_dataset(
                 key,
                 shape=(timesteps,),

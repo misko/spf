@@ -16,6 +16,7 @@ from spf.dataset.v6_data import (
 from spf.dataset.v7_data import (
     v7rx_2x_keys,
     v7rx_keys,
+    v7rx_sample_time_scalar_keys,
     v7rx_scalar_keys,
     v7rx_new_dataset,
 )
@@ -265,15 +266,33 @@ def testv7_data_create_and_radio_metadata_round_trip():
             "first_gain_change_sample": [-1, -1],
             "iq_power_dbfs": [-18.5, -19.0],
         }
+        expected_sample_time = {
+            "sample_counter_end_exclusive": 7 * 16 + 16,
+            "sample_time_valid": True,
+            "sample_time_monotonic_start_ns": 123_000_000,
+            "sample_time_monotonic_end_ns": 123_016_000,
+            "sample_time_realtime_start_ns": 1_723_000_000_000_000_000,
+            "sample_time_realtime_end_ns": 1_723_000_000_000_016_000,
+            "sample_time_uncertainty_ns": 225_000,
+            "sample_time_fitted_rate_hz": 1_000_000.25,
+            "sample_time_anchor_count": 8,
+            "sample_time_max_round_trip_ns": 310_000,
+            "sample_time_rate_tolerance_ppm": 100.0,
+        }
         for key in v7rx_scalar_keys:
             receiver[key][1] = expected_scalar[key]
         for key in v7rx_2x_keys:
             receiver[key][1] = expected_2x[key]
+        for key in v7rx_sample_time_scalar_keys:
+            receiver[key][1] = expected_sample_time[key]
 
         assert z.attrs["radio_metadata_schema_version"] == 2
         assert z.attrs["gain_series_schema_version"] == 1
+        assert z.attrs["sample_time_schema_version"] == 1
         assert "gain_observation_index" not in v7rx_keys()
         assert "gain_observation_index" in v7rx_keys(include_gain_series=True)
+        assert "sample_time_valid" not in v7rx_keys()
+        assert "sample_time_valid" in v7rx_keys(include_sample_time=True)
         receiver["gain_observation_count"][1] = 2
         receiver["gain_observation_interval_samples"][1] = 32768
         receiver["gain_observation_sample_bounds"][1, :2] = [
@@ -296,6 +315,8 @@ def testv7_data_create_and_radio_metadata_round_trip():
             assert receiver[key][1] == expected_scalar[key]
         for key in v7rx_2x_keys:
             np.testing.assert_allclose(receiver[key][1], expected_2x[key])
+        for key in v7rx_sample_time_scalar_keys:
+            assert receiver[key][1] == expected_sample_time[key]
 
 
 def test_lmdb_async_resume_matches_initial_capture_write_flags():

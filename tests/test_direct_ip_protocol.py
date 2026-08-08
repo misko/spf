@@ -50,7 +50,11 @@ def test_control_capabilities_round_trip():
     capabilities = IpControlMessageV1(
         message_type=IpControlType.CAPABILITIES,
         request_id=41,
-        flags=IpControlFlags.FINITE_RX | IpControlFlags.IDEMPOTENT_REQUESTS,
+        flags=(
+            IpControlFlags.FINITE_RX
+            | IpControlFlags.IDEMPOTENT_REQUESTS
+            | IpControlFlags.TIME_ANCHOR
+        ),
         protocol_min=1,
         protocol_max=3,
         features=(

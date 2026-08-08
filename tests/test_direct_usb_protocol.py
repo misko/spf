@@ -6,6 +6,8 @@ import zlib
 import numpy as np
 import pytest
 
+from spf.sdrpluto.sdr_controller import PPlus
+
 from spf.sdrpluto.direct_usb_protocol import (
     CAPABILITIES_BYTES,
     FIRST_CHANGE_UNAVAILABLE,
@@ -16,6 +18,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     RUNTIME_STATUS_MAGIC,
     RUNTIME_STATUS_VERSION,
     START_REQUEST_BYTES,
+    TIME_ANCHOR_BYTES,
     CapabilityFlags,
     GadgetCapabilitiesV1,
     GainMetadataV1,
@@ -30,12 +33,16 @@ from spf.sdrpluto.direct_usb_protocol import (
     RuntimeState,
     RuntimeStatusFlags,
     RuntimeStatusV1,
+    TimeAnchorFlags,
+    TimeAnchorV1,
     RxFrameParser,
     SampleFormat,
     pack_start_request_v1,
     pack_start_request_v2,
     pack_start_request_v3,
+    pack_time_anchor_query,
 )
+from spf.sdrpluto.sample_clock import HostTimeAnchorMeasurement
 
 
 def metadata(
@@ -164,6 +171,7 @@ def metadata_v3(
             rx2_gain_db=21,
         ),
     )
+
     return RadioMetadataV3(
         features=(
             MetadataFeatures.GAIN_ENDPOINT_SNAPSHOTS
@@ -212,6 +220,62 @@ def metadata_v3(
         gain_observation_capacity=4,
         gain_observations=observations,
     )
+
+
+def test_spf_frame_time_fit_uses_observed_fpga_rate_not_device_rate():
+    meta = metadata_v3()
+    actual_counter_rate = 3_750_000.0
+    first_anchor_counter = meta.first_sample_sequence - 100_000
+    second_anchor_counter = (
+        meta.first_sample_sequence + meta.samples_per_channel + 100_000
+    )
+
+    def measurement(request_id, counter):
+        host_midpoint = int(
+            5_000_000_000 + (counter - first_anchor_counter) * 1e9 / actual_counter_rate
+        )
+        anchor = TimeAnchorV1(
+            flags=(
+                TimeAnchorFlags.COUNTER_INTERVAL_VALID
+                | TimeAnchorFlags.MONOTONIC_INTERVAL_VALID
+                | TimeAnchorFlags.COUNTER_LOW32
+                | TimeAnchorFlags.COUNTER_ADVANCED
+            ),
+            request_id=request_id,
+            radio_monotonic_before_ns=request_id * 1_000_000,
+            sample_counter_before=counter & 0xFFFFFFFF,
+            sample_counter_after=(counter + 2) & 0xFFFFFFFF,
+            radio_monotonic_after_ns=request_id * 1_000_000 + 1000,
+        )
+        return HostTimeAnchorMeasurement(
+            anchor=anchor,
+            host_monotonic_before_ns=host_midpoint - 100_000,
+            host_monotonic_after_ns=host_midpoint + 100_000,
+            transport="test",
+        )
+
+    radio = PPlus.__new__(PPlus)
+    # This deliberately differs by 8x from the FPGA counter rate. The observed
+    # anchors are authoritative; the configured rate is only a fallback.
+    radio.rx_config = type("RxConfig", (), {"sample_rate": 30_000_000})()
+    radio._direct_time_anchors = [
+        measurement(1, first_anchor_counter),
+        measurement(2, second_anchor_counter),
+    ]
+
+    result = radio._fit_direct_sample_time(meta)
+
+    assert result["sample_counter_end_exclusive"] == (
+        meta.first_sample_sequence + meta.samples_per_channel
+    )
+    assert result["sample_time_fitted_rate_hz"] == pytest.approx(
+        actual_counter_rate, rel=1e-5
+    )
+    expected_duration_ns = meta.samples_per_channel * 1e9 / actual_counter_rate
+    assert result["sample_time_monotonic_end_ns"] - result[
+        "sample_time_monotonic_start_ns"
+    ] == pytest.approx(expected_duration_ns, abs=2)
+    assert result["sample_time_uncertainty_ns"] < 1_000_000
 
 
 def test_v3_gain_series_round_trip_and_arbitrary_hardware_sequence():
@@ -658,6 +722,56 @@ def test_runtime_status_response_matches_c_layout():
     assert status.start_count == 10
     assert status.stop_timeout_count == 21
     assert status.worker_heartbeat_age_ms == 22
+
+
+def test_time_anchor_records_match_c_golden_and_wrap_safely():
+    query = pack_time_anchor_query(request_id=0x0102030405060708)
+    assert query.hex() == "5354513118000100080706050403020100000000055b3187"
+
+    anchor = TimeAnchorV1(
+        flags=(
+            TimeAnchorFlags.COUNTER_INTERVAL_VALID
+            | TimeAnchorFlags.MONOTONIC_INTERVAL_VALID
+            | TimeAnchorFlags.COUNTER_LOW32
+            | TimeAnchorFlags.COUNTER_ADVANCED
+        ),
+        request_id=7,
+        radio_monotonic_before_ns=1000,
+        sample_counter_before=0xFFFFFFF0,
+        sample_counter_after=0x10,
+        radio_monotonic_after_ns=2000,
+    )
+    payload = anchor.pack()
+    assert len(payload) == TIME_ANCHOR_BYTES == 64
+    assert payload.hex() == (
+        "53544131400001000f000000000000000700000000000000"
+        "e803000000000000f0ffffff000000001000000000000000"
+        "d0070000000000000000000040df4b9e"
+    )
+    assert TimeAnchorV1.unpack(payload) == anchor
+    assert anchor.counter_delta == 32
+    assert anchor.radio_interval_ns == 1000
+
+
+@pytest.mark.parametrize("offset", [0, 4, 6, 8, 12, 56, 60])
+def test_corrupt_time_anchor_is_rejected(offset):
+    anchor = TimeAnchorV1(
+        flags=(
+            TimeAnchorFlags.COUNTER_INTERVAL_VALID
+            | TimeAnchorFlags.MONOTONIC_INTERVAL_VALID
+            | TimeAnchorFlags.COUNTER_LOW32
+            | TimeAnchorFlags.COUNTER_ADVANCED
+        ),
+        request_id=1,
+        radio_monotonic_before_ns=10,
+        sample_counter_before=100,
+        sample_counter_after=101,
+        radio_monotonic_after_ns=20,
+    )
+    payload = bytearray(anchor.pack())
+    payload[offset] ^= 0x80
+    with pytest.raises(ProtocolError):
+        TimeAnchorV1.unpack(payload)
 
 
 @pytest.mark.parametrize(

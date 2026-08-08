@@ -28,6 +28,7 @@ from spf.dataset.v7_data import (
     V7_GAIN_OBSERVATION_CAPACITY,
     v7rx_2x_keys,
     v7rx_gain_series_scalar_keys,
+    v7rx_sample_time_scalar_keys,
     v7rx_scalar_keys,
     v7rx_new_dataset,
 )
@@ -266,6 +267,17 @@ class DataSnapshotV7(DataSnapshotV6):
     rssi_metadata_valid: bool = False
     rssi_start_read_duration_ns: int = 0
     rssi_end_read_duration_ns: int = 0
+    sample_counter_end_exclusive: int = 0
+    sample_time_valid: bool = False
+    sample_time_monotonic_start_ns: int = 0
+    sample_time_monotonic_end_ns: int = 0
+    sample_time_realtime_start_ns: int = 0
+    sample_time_realtime_end_ns: int = 0
+    sample_time_uncertainty_ns: int = 0
+    sample_time_fitted_rate_hz: float = float("nan")
+    sample_time_anchor_count: int = 0
+    sample_time_max_round_trip_ns: int = 0
+    sample_time_rate_tolerance_ppm: float = float("nan")
     gain_observation_interval_samples: int = 0
     gain_observation_sample_bounds: Optional[np.ndarray] = None
     gain_observation_index: Optional[np.ndarray] = None
@@ -539,6 +551,17 @@ class ThreadedRXRaw(ThreadedRX):
                 rssi_metadata_valid=sdr_rx["rssi_metadata_valid"],
                 rssi_start_read_duration_ns=sdr_rx["rssi_start_read_duration_ns"],
                 rssi_end_read_duration_ns=sdr_rx["rssi_end_read_duration_ns"],
+                sample_counter_end_exclusive=sdr_rx["sample_counter_end_exclusive"],
+                sample_time_valid=sdr_rx["sample_time_valid"],
+                sample_time_monotonic_start_ns=sdr_rx["sample_time_monotonic_start_ns"],
+                sample_time_monotonic_end_ns=sdr_rx["sample_time_monotonic_end_ns"],
+                sample_time_realtime_start_ns=sdr_rx["sample_time_realtime_start_ns"],
+                sample_time_realtime_end_ns=sdr_rx["sample_time_realtime_end_ns"],
+                sample_time_uncertainty_ns=sdr_rx["sample_time_uncertainty_ns"],
+                sample_time_fitted_rate_hz=sdr_rx["sample_time_fitted_rate_hz"],
+                sample_time_anchor_count=sdr_rx["sample_time_anchor_count"],
+                sample_time_max_round_trip_ns=sdr_rx["sample_time_max_round_trip_ns"],
+                sample_time_rate_tolerance_ppm=sdr_rx["sample_time_rate_tolerance_ppm"],
                 gain_observation_interval_samples=sdr_rx[
                     "gain_observation_interval_samples"
                 ],
@@ -1289,6 +1312,8 @@ class DroneDataCollectorRawV7(DroneDataCollectorRaw):
         for key in v7rx_scalar_keys:
             receiver_z[key][record_idx] = getattr(data, key)
         for key in v7rx_2x_keys:
+            receiver_z[key][record_idx] = getattr(data, key)
+        for key in v7rx_sample_time_scalar_keys:
             receiver_z[key][record_idx] = getattr(data, key)
         observations = np.asarray(data.gain_observation_valid, dtype=np.bool_)
         observation_count = observations.size

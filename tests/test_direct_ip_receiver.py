@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import random
 import socket
+import struct
 import threading
 
 import pytest
@@ -26,6 +27,9 @@ from spf.sdrpluto.direct_usb_protocol import (
     ProtocolError,
     RadioMetadataV3,
     SampleFormat,
+    TIME_ANCHOR_QUERY_MAGIC,
+    TimeAnchorFlags,
+    TimeAnchorV1,
 )
 
 
@@ -109,6 +113,7 @@ class _SyntheticIpGadget:
         self.bad_started_echo = bad_started_echo
         self.start_request_count = 0
         self.stop_request_count = 0
+        self.time_anchor_request_count = 0
         self.error: Exception | None = None
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -133,6 +138,27 @@ class _SyntheticIpGadget:
                     payload, peer = self.control.recvfrom(4096)
                 except TimeoutError:
                     continue
+                if (
+                    len(payload) == 24
+                    and struct.unpack_from("<I", payload)[0] == TIME_ANCHOR_QUERY_MAGIC
+                ):
+                    self.time_anchor_request_count += 1
+                    request_id = struct.unpack_from("<Q", payload, 8)[0]
+                    anchor = TimeAnchorV1(
+                        flags=(
+                            TimeAnchorFlags.COUNTER_INTERVAL_VALID
+                            | TimeAnchorFlags.MONOTONIC_INTERVAL_VALID
+                            | TimeAnchorFlags.COUNTER_LOW32
+                            | TimeAnchorFlags.COUNTER_ADVANCED
+                        ),
+                        request_id=request_id,
+                        radio_monotonic_before_ns=1_000_000,
+                        sample_counter_before=0xFFFFFFF0,
+                        sample_counter_after=0x10,
+                        radio_monotonic_after_ns=1_001_000,
+                    )
+                    self.control.sendto(anchor.pack(), peer)
+                    continue
                 request = IpControlMessageV1.unpack(payload)
                 if request.message_type == IpControlType.QUERY_CAPABILITIES:
                     response = IpControlMessageV1(
@@ -141,6 +167,7 @@ class _SyntheticIpGadget:
                         flags=(
                             IpControlFlags.FINITE_RX
                             | IpControlFlags.IDEMPOTENT_REQUESTS
+                            | IpControlFlags.TIME_ANCHOR
                         ),
                         protocol_min=2,
                         protocol_max=3,
@@ -229,6 +256,26 @@ def test_finite_v3_capture_retries_control_and_parses_common_inner_frames():
         assert capture.rejected_frame_count == 0
         assert gadget.start_request_count == 2
         assert gadget.stop_request_count == 1
+    finally:
+        gadget.close()
+
+
+def test_direct_ip_time_anchor_uses_common_record_and_host_bracket():
+    gadget = _SyntheticIpGadget(drop_first_start_reply=False)
+    gadget.start()
+    try:
+        receiver = PlutoDirectIpReceiver(
+            remote_host="127.0.0.1",
+            remote_control_port=gadget.control_port,
+            control_timeout_seconds=0.05,
+        )
+        with receiver:
+            measurement = receiver.query_time_anchor()
+        assert measurement.transport == "direct_ip"
+        assert measurement.anchor.sample_counter_before == 0xFFFFFFF0
+        assert measurement.anchor.counter_delta == 32
+        assert measurement.round_trip_ns >= 0
+        assert gadget.time_anchor_request_count == 1
     finally:
         gadget.close()
 

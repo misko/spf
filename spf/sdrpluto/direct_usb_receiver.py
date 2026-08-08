@@ -18,6 +18,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     COMMAND_GET_CAPABILITIES,
     COMMAND_GET_HARDWARE_IDENTITY,
     COMMAND_GET_STATUS,
+    COMMAND_GET_TIME_ANCHOR,
     COMMAND_START_RX_V1,
     COMMAND_STOP,
     COMMAND_TARGET_RX,
@@ -28,6 +29,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     GAIN_OBSERVATION_BYTES,
     HARDWARE_IDENTITY_BYTES,
     RUNTIME_STATUS_BYTES,
+    TIME_ANCHOR_BYTES,
     VERSION_V1,
     VERSION_V2,
     VERSION_V3,
@@ -38,6 +40,7 @@ from spf.sdrpluto.direct_usb_protocol import (
     HardwareIdentityFlags,
     RuntimeStatusFlags,
     RuntimeStatusV1,
+    TimeAnchorV1,
     MetadataFeatures,
     MetadataFlags,
     ProtocolError,
@@ -224,6 +227,7 @@ class PlutoDirectUsbReceiver:
         self._terminal_recovery_error: Exception | None = None
         self._detached_kernel_driver = False
         self._active_stream: Generator[DirectUsbRxFrame, None, None] | None = None
+        self._next_time_anchor_request_id = 1
 
     @property
     def identity(self) -> DirectUsbIdentity:
@@ -1023,6 +1027,41 @@ class PlutoDirectUsbReceiver:
             timeout=USB_CONTROL_TIMEOUT_MS,
         )
         return RuntimeStatusV1.unpack(payload)
+
+    def query_time_anchor(self):
+        """Bracket one coherent FPGA-counter observation on the host clock."""
+
+        from spf.sdrpluto.sample_clock import HostTimeAnchorMeasurement
+
+        handle = self._require_handle()
+        identity = self.identity
+        if not (self.capabilities.capability_flags & CapabilityFlags.TIME_ANCHOR):
+            raise ProtocolError("gadget does not advertise time-anchor support")
+        request_id = self._next_time_anchor_request_id
+        self._next_time_anchor_request_id = (request_id + 1) & 0xFFFF
+        if self._next_time_anchor_request_id == 0:
+            self._next_time_anchor_request_id = 1
+        host_before_ns = time.monotonic_ns()
+        payload = handle.controlRead(
+            usb1.ENDPOINT_IN | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
+            COMMAND_GET_TIME_ANCHOR,
+            request_id,
+            identity.interface,
+            TIME_ANCHOR_BYTES,
+            timeout=USB_CONTROL_TIMEOUT_MS,
+        )
+        host_after_ns = time.monotonic_ns()
+        anchor = TimeAnchorV1.unpack(payload)
+        if anchor.request_id != request_id:
+            raise ProtocolError(
+                "time-anchor response request ID does not match USB request"
+            )
+        return HostTimeAnchorMeasurement(
+            anchor=anchor,
+            host_monotonic_before_ns=host_before_ns,
+            host_monotonic_after_ns=host_after_ns,
+            transport="direct_usb",
+        )
 
     def _capture_sync_for_test(
         self,

@@ -137,10 +137,17 @@ def _first_invalid_reason(receiver, index: int, previous: dict | None) -> str | 
     return None
 
 
-def valid_receiver_prefix(receiver, *, include_gain_series=False) -> tuple[int, str]:
+def valid_receiver_prefix(
+    receiver, *, include_gain_series=False, include_sample_time=False
+) -> tuple[int, str]:
     """Independently count contiguous fully valid records for one receiver."""
 
-    required = set(v7rx_keys(include_gain_series=include_gain_series))
+    required = set(
+        v7rx_keys(
+            include_gain_series=include_gain_series,
+            include_sample_time=include_sample_time,
+        )
+    )
     missing = required - set(receiver.keys())
     if missing:
         raise ValueError(f"receiver is missing V7 fields: {sorted(missing)}")
@@ -199,13 +206,16 @@ def recover_capture(
         ]:
             raise ValueError(f"receiver groups are not contiguous: {receiver_names}")
         include_gain_series = source.attrs.get("gain_series_schema_version") == 1
+        include_sample_time = source.attrs.get("sample_time_schema_version") == 1
         detected = []
         stopping_reasons = []
         serials = []
         for receiver_name in receiver_names:
             receiver = source.receivers[receiver_name]
             prefix, stopping_reason = valid_receiver_prefix(
-                receiver, include_gain_series=include_gain_series
+                receiver,
+                include_gain_series=include_gain_series,
+                include_sample_time=include_sample_time,
             )
             detected.append(prefix)
             stopping_reasons.append(stopping_reason)
@@ -272,7 +282,10 @@ def recover_capture(
             source_receiver = source.receivers[receiver_name]
             destination_receiver = destination.receivers[receiver_name]
             destination_receiver.attrs.update(dict(source_receiver.attrs))
-            for key in v7rx_keys(include_gain_series=include_gain_series):
+            for key in v7rx_keys(
+                include_gain_series=include_gain_series,
+                include_sample_time=include_sample_time,
+            ):
                 destination_receiver[key][:] = source_receiver[key][:common_prefix]
     finally:
         if destination is not None:

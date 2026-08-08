@@ -30,6 +30,7 @@ COMMAND_GET_CAPABILITIES: Final[int] = 0x12
 COMMAND_START_RX_V1: Final[int] = 0x13
 COMMAND_GET_HARDWARE_IDENTITY: Final[int] = 0x14
 COMMAND_GET_STATUS: Final[int] = 0x15
+COMMAND_GET_TIME_ANCHOR: Final[int] = 0x16
 COMMAND_TARGET_RX: Final[int] = 0
 
 CAPABILITIES_MAGIC: Final[int] = 0x50434753  # b"SGCP"
@@ -37,6 +38,9 @@ HARDWARE_IDENTITY_MAGIC: Final[int] = 0x31464853  # b"SHF1"
 HARDWARE_IDENTITY_VERSION: Final[int] = 1
 RUNTIME_STATUS_MAGIC: Final[int] = 0x31545353  # b"SST1"
 RUNTIME_STATUS_VERSION: Final[int] = 1
+TIME_ANCHOR_QUERY_MAGIC: Final[int] = 0x31515453  # b"STQ1"
+TIME_ANCHOR_MAGIC: Final[int] = 0x31415453  # b"STA1"
+TIME_ANCHOR_VERSION: Final[int] = 1
 START_REQUEST_MAGIC: Final[int] = 0x31534753  # b"SGS1"
 START_REQUEST_MAGIC_V2: Final[int] = 0x32534753  # b"SGS2"
 START_REQUEST_MAGIC_V3: Final[int] = 0x33534753  # b"SGS3"
@@ -109,6 +113,14 @@ class CapabilityFlags(enum.IntFlag):
     DUMMY_GAINS = 1 << 1
     HARDWARE_IDENTITY = 1 << 2
     STATUS = 1 << 3
+    TIME_ANCHOR = 1 << 4
+
+
+class TimeAnchorFlags(enum.IntFlag):
+    COUNTER_INTERVAL_VALID = 1 << 0
+    MONOTONIC_INTERVAL_VALID = 1 << 1
+    COUNTER_LOW32 = 1 << 2
+    COUNTER_ADVANCED = 1 << 3
 
 
 class HardwareIdentityFlags(enum.IntFlag):
@@ -217,6 +229,12 @@ assert HARDWARE_IDENTITY_BYTES == 64
 _RUNTIME_STATUS_STRUCT: Final[struct.Struct] = struct.Struct("<IHHHHiII16s16sQQ14I")
 RUNTIME_STATUS_BYTES: Final[int] = _RUNTIME_STATUS_STRUCT.size
 assert RUNTIME_STATUS_BYTES == 128
+_TIME_ANCHOR_QUERY_STRUCT: Final[struct.Struct] = struct.Struct("<IHHQII")
+TIME_ANCHOR_QUERY_BYTES: Final[int] = _TIME_ANCHOR_QUERY_STRUCT.size
+assert TIME_ANCHOR_QUERY_BYTES == 24
+_TIME_ANCHOR_STRUCT: Final[struct.Struct] = struct.Struct("<IHHIIQQQQQII")
+TIME_ANCHOR_BYTES: Final[int] = _TIME_ANCHOR_STRUCT.size
+assert TIME_ANCHOR_BYTES == 64
 _START_REQUEST_STRUCT: Final[struct.Struct] = struct.Struct("<IHHIIIIII")
 START_REQUEST_BYTES: Final[int] = _START_REQUEST_STRUCT.size
 assert START_REQUEST_BYTES == 32
@@ -270,6 +288,7 @@ class GadgetCapabilitiesV1:
             | CapabilityFlags.DUMMY_GAINS
             | CapabilityFlags.HARDWARE_IDENTITY
             | CapabilityFlags.STATUS
+            | CapabilityFlags.TIME_ANCHOR
         )
         unknown_capability_flags = capability_flags & ~int(known_capability_flags)
         if unknown_capability_flags:
@@ -474,6 +493,162 @@ class RuntimeStatusV1:
             stop_timeout_count=stop_timeout_count,
             worker_heartbeat_age_ms=worker_heartbeat_age_ms,
         )
+
+
+def pack_time_anchor_query(*, request_id: int) -> bytes:
+    """Build the transport-neutral direct-IP time-anchor query record."""
+
+    _validate_uint("request_id", request_id, 64)
+    if request_id == 0:
+        raise ProtocolError("time-anchor request ID must be non-zero")
+    without_crc = _TIME_ANCHOR_QUERY_STRUCT.pack(
+        TIME_ANCHOR_QUERY_MAGIC,
+        TIME_ANCHOR_QUERY_BYTES,
+        TIME_ANCHOR_VERSION,
+        request_id,
+        0,
+        0,
+    )
+    crc32 = zlib.crc32(without_crc) & 0xFFFFFFFF
+    return _TIME_ANCHOR_QUERY_STRUCT.pack(
+        TIME_ANCHOR_QUERY_MAGIC,
+        TIME_ANCHOR_QUERY_BYTES,
+        TIME_ANCHOR_VERSION,
+        request_id,
+        0,
+        crc32,
+    )
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class TimeAnchorV1:
+    """One counter observation bracketed on the radio and by the host.
+
+    The wire record contains only the coherent low 32 counter bits. A caller
+    must extend them near an inline 64-bit frame counter before fitting time.
+    """
+
+    flags: TimeAnchorFlags
+    request_id: int
+    radio_monotonic_before_ns: int
+    sample_counter_before: int
+    sample_counter_after: int
+    radio_monotonic_after_ns: int
+
+    @property
+    def counter_delta(self) -> int:
+        return (self.sample_counter_after - self.sample_counter_before) & 0xFFFFFFFF
+
+    @property
+    def radio_interval_ns(self) -> int:
+        return self.radio_monotonic_after_ns - self.radio_monotonic_before_ns
+
+    def pack(self) -> bytes:
+        fields = self._pack_fields(crc32=0)
+        without_crc = _TIME_ANCHOR_STRUCT.pack(*fields)
+        crc32 = zlib.crc32(without_crc) & 0xFFFFFFFF
+        payload = _TIME_ANCHOR_STRUCT.pack(*self._pack_fields(crc32=crc32))
+        self._validate()
+        return payload
+
+    def _pack_fields(self, *, crc32: int) -> tuple[int, ...]:
+        return (
+            TIME_ANCHOR_MAGIC,
+            TIME_ANCHOR_BYTES,
+            TIME_ANCHOR_VERSION,
+            int(self.flags),
+            0,
+            self.request_id,
+            self.radio_monotonic_before_ns,
+            self.sample_counter_before,
+            self.sample_counter_after,
+            self.radio_monotonic_after_ns,
+            0,
+            crc32,
+        )
+
+    def _validate(self) -> None:
+        required = (
+            TimeAnchorFlags.COUNTER_INTERVAL_VALID
+            | TimeAnchorFlags.MONOTONIC_INTERVAL_VALID
+            | TimeAnchorFlags.COUNTER_LOW32
+        )
+        known = required | TimeAnchorFlags.COUNTER_ADVANCED
+        if self.flags & ~known:
+            raise ProtocolError(
+                f"unknown time-anchor flags: 0x{int(self.flags & ~known):08x}"
+            )
+        if self.flags & required != required:
+            raise ProtocolError("time anchor lacks required validity flags")
+        for name, value, bits in (
+            ("request_id", self.request_id, 64),
+            ("radio_monotonic_before_ns", self.radio_monotonic_before_ns, 64),
+            ("sample_counter_before", self.sample_counter_before, 64),
+            ("sample_counter_after", self.sample_counter_after, 64),
+            ("radio_monotonic_after_ns", self.radio_monotonic_after_ns, 64),
+        ):
+            _validate_uint(name, value, bits)
+        if self.request_id == 0:
+            raise ProtocolError("time-anchor request ID must be non-zero")
+        if self.sample_counter_before >> 32 or self.sample_counter_after >> 32:
+            raise ProtocolError("time anchor must carry only low 32 counter bits")
+        if self.radio_monotonic_after_ns < self.radio_monotonic_before_ns:
+            raise ProtocolError("time-anchor radio monotonic interval regressed")
+        if self.counter_delta >= 0x80000000:
+            raise ProtocolError("time-anchor counter interval is ambiguous")
+        advanced = bool(self.flags & TimeAnchorFlags.COUNTER_ADVANCED)
+        if advanced != (self.counter_delta != 0):
+            raise ProtocolError("time-anchor advanced flag disagrees with counter")
+
+    @classmethod
+    def unpack(cls, payload: bytes | bytearray | memoryview) -> "TimeAnchorV1":
+        if len(payload) != TIME_ANCHOR_BYTES:
+            raise ProtocolError(
+                "time-anchor response size mismatch: "
+                f"got {len(payload)}, expected {TIME_ANCHOR_BYTES}"
+            )
+        values = _TIME_ANCHOR_STRUCT.unpack(payload)
+        (
+            magic,
+            message_bytes,
+            version,
+            flags,
+            reserved0,
+            request_id,
+            radio_monotonic_before_ns,
+            sample_counter_before,
+            sample_counter_after,
+            radio_monotonic_after_ns,
+            reserved1,
+            received_crc32,
+        ) = values
+        if magic != TIME_ANCHOR_MAGIC:
+            raise ProtocolError(f"bad time-anchor magic: 0x{magic:08x}")
+        if message_bytes != TIME_ANCHOR_BYTES:
+            raise ProtocolError(f"unsupported time-anchor size: {message_bytes}")
+        if version != TIME_ANCHOR_VERSION:
+            raise ProtocolError(f"unsupported time-anchor version: {version}")
+        if reserved0 or reserved1:
+            raise ProtocolError("time-anchor reserved fields must be zero")
+        crc_input = bytearray(payload)
+        crc_input[-4:] = b"\x00\x00\x00\x00"
+        calculated_crc32 = zlib.crc32(crc_input) & 0xFFFFFFFF
+        if received_crc32 != calculated_crc32:
+            raise ProtocolError(
+                "time-anchor CRC mismatch: "
+                f"received 0x{received_crc32:08x}, "
+                f"calculated 0x{calculated_crc32:08x}"
+            )
+        anchor = cls(
+            flags=TimeAnchorFlags(flags),
+            request_id=request_id,
+            radio_monotonic_before_ns=radio_monotonic_before_ns,
+            sample_counter_before=sample_counter_before,
+            sample_counter_after=sample_counter_after,
+            radio_monotonic_after_ns=radio_monotonic_after_ns,
+        )
+        anchor._validate()
+        return anchor
 
 
 def pack_start_request_v1(

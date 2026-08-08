@@ -102,9 +102,7 @@ def test_recovery_copies_verified_prefix_without_modifying_source(tmp_path):
         strict_validator=validate,
     )
 
-    assert validation_calls == [
-        (output.with_name(output.name + ".recovery.tmp"), 1, 1)
-    ]
+    assert validation_calls == [(output.with_name(output.name + ".recovery.tmp"), 1, 1)]
     assert report["common_prefix_records"] == 1
     assert report["detected_valid_records_by_receiver"] == [1]
     assert report["source_data_sha256"] == source_hash

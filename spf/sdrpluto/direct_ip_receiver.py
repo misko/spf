@@ -24,6 +24,9 @@ from spf.sdrpluto.direct_usb_protocol import (
     MetadataFeatures,
     ProtocolError,
     RxFrameParser,
+    TIME_ANCHOR_BYTES,
+    TimeAnchorV1,
+    pack_time_anchor_query,
 )
 
 
@@ -317,6 +320,74 @@ class PlutoDirectIpReceiver:
                 | MetadataFeatures.HARDWARE_SAMPLE_COUNTER
             )
         return features
+
+    def query_time_anchor(self):
+        """Bracket one FPGA-counter observation over acknowledged UDP."""
+
+        from spf.sdrpluto.direct_ip_protocol import (
+            IP_CONTROL_BYTES,
+            IpControlFlags,
+            IpControlMessageV1,
+            IpControlType,
+        )
+        from spf.sdrpluto.sample_clock import HostTimeAnchorMeasurement
+
+        if not self.capabilities.flags & IpControlFlags.TIME_ANCHOR:
+            raise ProtocolError("direct-IP gadget does not advertise time anchors")
+        control = self._require_control_socket()
+        last_error: Exception | None = None
+        for _attempt in range(self.control_attempts):
+            # A retry uses a fresh request. Reusing an idempotently cached radio
+            # observation would place it outside this attempt's host bracket.
+            request_id = self._request_id()
+            payload = pack_time_anchor_query(request_id=request_id)
+            host_before_ns = time.monotonic_ns()
+            control.send(payload)
+            try:
+                response_payload = control.recv(MAX_CONTROL_DATAGRAM_BYTES)
+            except TimeoutError as error:
+                last_error = error
+                continue
+            host_after_ns = time.monotonic_ns()
+            if len(response_payload) == IP_CONTROL_BYTES:
+                response = IpControlMessageV1.unpack(response_payload)
+                if (
+                    response.request_id == request_id
+                    and response.message_type == IpControlType.ERROR
+                ):
+                    raise DirectIpTransportError(
+                        "direct-IP gadget rejected time-anchor request: "
+                        f"{response.status}"
+                    )
+                last_error = ProtocolError(
+                    "unexpected direct-IP control response to time-anchor query"
+                )
+                continue
+            if len(response_payload) != TIME_ANCHOR_BYTES:
+                last_error = ProtocolError(
+                    "direct-IP time-anchor response has unexpected size"
+                )
+                continue
+            try:
+                anchor = TimeAnchorV1.unpack(response_payload)
+            except ProtocolError as error:
+                last_error = error
+                continue
+            if anchor.request_id != request_id:
+                last_error = ProtocolError(
+                    "direct-IP time-anchor response request ID does not match"
+                )
+                continue
+            return HostTimeAnchorMeasurement(
+                anchor=anchor,
+                host_monotonic_before_ns=host_before_ns,
+                host_monotonic_after_ns=host_after_ns,
+                transport="direct_ip",
+            )
+        raise DirectIpTransportError(
+            "direct-IP time-anchor query was not acknowledged after "
+            f"{self.control_attempts} attempts"
+        ) from last_error
 
     def _request_id(self) -> int:
         value = self._next_request_id
