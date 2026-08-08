@@ -89,6 +89,11 @@ unique reachable IP address and add:
 These flags must only be used after RAM-booting a protocol-v3 candidate. The
 currently promoted protocol-v2 image is expected to reject the test.
 
+Add `--radio-zarr --radio-zarr-frames=3` to the USB command to write and
+reopen a hardware-backed V7 store. That gate verifies observation counts,
+sample-counter bounds, explicit sentinel padding, serial/USB identity, FPGA
+DNA, gadget build ID, IQ shape, and protocol/transport provenance.
+
 Exercise a single graceful SIGTERM against the real production collector,
 verify its partial LMDB-Zarr, and immediately reclaim both radios:
 

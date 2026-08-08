@@ -7,10 +7,20 @@ explicitly supplies ``--radio-gain-series-v3`` and, for IP, ``--radio-direct-ip`
 from __future__ import annotations
 
 import json
+import time
 
 import numpy as np
 import pytest
 
+from spf.dataset.v7_data import (
+    V7_GAIN_EVENT_CAPACITY,
+    V7_GAIN_OBSERVATION_CAPACITY,
+    v7rx_2x_keys,
+    v7rx_gain_series_scalar_keys,
+    v7rx_new_dataset,
+    v7rx_scalar_keys,
+)
+from spf.sdrpluto.sdr_controller import _gain_series_arrays
 from spf.sdrpluto.direct_ip_receiver import PlutoDirectIpReceiver
 from spf.sdrpluto.direct_usb_protocol import (
     GainObservationFlags,
@@ -22,6 +32,7 @@ from spf.sdrpluto.direct_usb_receiver import (
     PlutoDirectUsbReceiver,
     iq_payload_to_complex64,
 )
+from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 
 
 pytestmark = [pytest.mark.radio_hardware, pytest.mark.radio_gain_series_v3]
@@ -116,6 +127,105 @@ def _assert_contiguous_frames(frames, samples: int) -> None:
     assert len({frame.metadata.stream_id for frame in frames}) == 1
 
 
+def _iq_power_dbfs(signal: np.ndarray) -> np.ndarray:
+    power = np.mean(np.abs(signal.astype(np.complex64)) ** 2, axis=1)
+    with np.errstate(divide="ignore"):
+        return (10.0 * np.log10(power / (2.0 * 2048.0**2))).astype(np.float32)
+
+
+def _first_change(metadata: RadioMetadataV3) -> np.ndarray:
+    return np.asarray(
+        [
+            -1
+            if metadata.rx1_first_change_sample == 0xFFFFFFFF
+            else metadata.rx1_first_change_sample,
+            -1
+            if metadata.rx2_first_change_sample == 0xFFFFFFFF
+            else metadata.rx2_first_change_sample,
+        ],
+        dtype=np.int32,
+    )
+
+
+def _write_v3_record(receiver_z, record_index: int, frame, samples: int) -> None:
+    metadata = frame.metadata
+    assert isinstance(metadata, RadioMetadataV3)
+    signal = iq_payload_to_complex64(frame.iq_payload, samples)
+    receiver_z["signal_matrix"][record_index] = signal
+    scalar_values = {
+        "gain_metadata_valid": metadata.gain_metadata_valid,
+        "rssi_metadata_valid": metadata.rssi_metadata_valid,
+        "gain_metadata_flags": int(metadata.flags),
+        "stream_id": metadata.stream_id,
+        "buffer_sequence": metadata.buffer_sequence,
+        "sample_sequence": metadata.first_sample_sequence,
+        "gain_start_read_duration_ns": metadata.gain_start_read_duration_ns,
+        "gain_end_read_duration_ns": metadata.gain_end_read_duration_ns,
+        "rssi_start_read_duration_ns": metadata.rssi_start_read_duration_ns,
+        "rssi_end_read_duration_ns": metadata.rssi_end_read_duration_ns,
+    }
+    two_values = {
+        "gain_db_start": metadata.gain_db_start,
+        "gain_db_end": metadata.gain_db_end,
+        "rssi_db_start": metadata.rssi_db_start,
+        "rssi_db_end": metadata.rssi_db_end,
+        "gain_endpoints_equal": metadata.gain_endpoints_equal,
+        "first_gain_change_sample": _first_change(metadata),
+        "iq_power_dbfs": _iq_power_dbfs(signal),
+    }
+    for key in v7rx_scalar_keys:
+        receiver_z[key][record_index] = scalar_values[key]
+    for key in v7rx_2x_keys:
+        receiver_z[key][record_index] = two_values[key]
+    receiver_z["system_timestamp"][record_index] = time.time()
+    receiver_z["rssis"][record_index] = metadata.rssi_db_end
+    receiver_z["gains"][record_index] = metadata.gain_db_end
+
+    gain_series = _gain_series_arrays(metadata)
+    observation_count = len(metadata.gain_observations)
+    event_count = len(metadata.gain_events)
+    scalar_series = {
+        "gain_observation_count": observation_count,
+        "gain_observation_interval_samples": (
+            metadata.gain_observation_interval_samples
+        ),
+        "gain_observation_overflow_count": (metadata.gain_observation_overflow_count),
+        "gain_event_count": event_count,
+        "gain_event_overflow_count": metadata.gain_event_overflow_count,
+    }
+    for key in v7rx_gain_series_scalar_keys:
+        receiver_z[key][record_index] = scalar_series[key]
+
+    bounds = np.full(
+        (V7_GAIN_OBSERVATION_CAPACITY, 2),
+        np.iinfo(np.uint64).max,
+        dtype=np.uint64,
+    )
+    indices = np.full((V7_GAIN_OBSERVATION_CAPACITY, 2), 0xFF, dtype=np.uint8)
+    gain_db = np.full((V7_GAIN_OBSERVATION_CAPACITY, 2), np.nan, dtype=np.float32)
+    valid = np.zeros(V7_GAIN_OBSERVATION_CAPACITY, dtype=np.bool_)
+    durations = np.zeros(V7_GAIN_OBSERVATION_CAPACITY, dtype=np.uint32)
+    bounds[:observation_count] = gain_series["gain_observation_sample_bounds"]
+    indices[:observation_count] = gain_series["gain_observation_index"]
+    gain_db[:observation_count] = gain_series["gain_observation_db"]
+    valid[:observation_count] = gain_series["gain_observation_valid"]
+    durations[:observation_count] = gain_series["gain_observation_read_duration_ns"]
+    receiver_z["gain_observation_sample_bounds"][record_index] = bounds
+    receiver_z["gain_observation_index"][record_index] = indices
+    receiver_z["gain_observation_db"][record_index] = gain_db
+    receiver_z["gain_observation_valid"][record_index] = valid
+    receiver_z["gain_observation_read_duration_ns"][record_index] = durations
+
+    event_sequences = np.full(
+        V7_GAIN_EVENT_CAPACITY, np.iinfo(np.uint64).max, dtype=np.uint64
+    )
+    event_flags = np.zeros(V7_GAIN_EVENT_CAPACITY, dtype=np.uint16)
+    event_sequences[:event_count] = gain_series["gain_event_sample_sequence"]
+    event_flags[:event_count] = gain_series["gain_event_flags"]
+    receiver_z["gain_event_sample_sequence"][record_index] = event_sequences
+    receiver_z["gain_event_flags"][record_index] = event_flags
+
+
 def test_v3_usb_gain_observations(attached_plutos, pytestconfig, radio_report_dir):
     samples = pytestconfig.getoption("--radio-samples")
     frames_per_request = pytestconfig.getoption("--radio-frames-per-request")
@@ -192,3 +302,142 @@ def test_v3_direct_ip_uses_the_same_inner_frame(pytestconfig, radio_report_dir):
     (radio_report_dir / "gain_series_v3_direct_ip.json").write_text(
         json.dumps(report, indent=2) + "\n"
     )
+
+
+@pytest.mark.radio_zarr
+def test_v3_gain_series_round_trips_through_v7_zarr(
+    attached_plutos, pytestconfig, tmp_path
+):
+    samples = pytestconfig.getoption("--radio-samples")
+    frame_count = pytestconfig.getoption("--radio-zarr-frames")
+    interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
+    capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
+    assert 0 < frame_count
+    assert capacity <= V7_GAIN_OBSERVATION_CAPACITY
+
+    frames_by_radio = []
+    identities = []
+    for radio in attached_plutos:
+        with PlutoDirectUsbReceiver(
+            serial=radio.serial,
+            protocol_version=3,
+            gain_observation_interval_samples=interval,
+            gain_observation_capacity=capacity,
+        ) as receiver:
+            assert (
+                receiver.capabilities.protocol_min
+                <= 3
+                <= receiver.capabilities.protocol_max
+            )
+            identities.append(receiver.query_hardware_identity())
+            frames = []
+            for _ in range(frame_count):
+                capture = receiver.capture(
+                    samples_per_channel=samples,
+                    frame_count=1,
+                )
+                assert len(capture.frames) == 1
+                frame = capture.frames[0]
+                _validate_v3_frame(frame, samples)
+                frames.append(frame)
+            frames_by_radio.append(tuple(frames))
+
+    path = tmp_path / "hardware_gain_series_v3.zarr"
+    zarr = v7rx_new_dataset(
+        filename=str(path),
+        timesteps=frame_count,
+        buffer_size=samples,
+        n_receivers=len(attached_plutos),
+        config={
+            "data-version": 7,
+            "test": "attached-radio protocol-v3 gain-series round trip",
+        },
+        chunk_size=1,
+        compressor=None,
+    )
+    zarr.attrs["capture_status"] = "in_progress"
+    zarr.attrs["capture_records_written_by_receiver"] = [0] * len(attached_plutos)
+    zarr.attrs["rx_transport"] = "direct_usb"
+    zarr.attrs["direct_usb_protocol_version"] = 3
+    try:
+        for receiver_index, (radio, identity, frames) in enumerate(
+            zip(attached_plutos, identities, frames_by_radio, strict=True)
+        ):
+            receiver_z = zarr[f"receivers/r{receiver_index}"]
+            receiver_z.attrs["sdr_family"] = "pluto"
+            receiver_z.attrs["sdr_serial"] = radio.serial
+            receiver_z.attrs["usb_port_path"] = list(radio.port_path)
+            receiver_z.attrs["gadget_build_id"] = identity.gadget_build_id
+            receiver_z.attrs["fpga_device_dna"] = identity.fpga_device_dna
+            for record_index, frame in enumerate(frames):
+                _write_v3_record(receiver_z, record_index, frame, samples)
+        zarr.attrs["capture_records_written_by_receiver"] = [frame_count] * len(
+            attached_plutos
+        )
+        zarr.attrs["capture_status"] = "complete"
+    finally:
+        zarr.store.close()
+
+    reopened = zarr_open_from_lmdb_store(str(path), mode="r")
+    try:
+        assert reopened.attrs["radio_metadata_schema_version"] == 2
+        assert reopened.attrs["gain_series_schema_version"] == 1
+        assert reopened.attrs["capture_status"] == "complete"
+        assert reopened.attrs["rx_transport"] == "direct_usb"
+        assert reopened.attrs["direct_usb_protocol_version"] == 3
+        for receiver_index, (radio, source_frames) in enumerate(
+            zip(attached_plutos, frames_by_radio, strict=True)
+        ):
+            receiver_z = reopened[f"receivers/r{receiver_index}"]
+            assert receiver_z.attrs["sdr_serial"] == radio.serial
+            assert tuple(receiver_z.attrs["usb_port_path"]) == radio.port_path
+            assert len(receiver_z.attrs["gadget_build_id"]) == 40
+            assert receiver_z["signal_matrix"].shape == (
+                frame_count,
+                2,
+                samples,
+            )
+            counts = receiver_z["gain_observation_count"][:]
+            assert np.all(counts > 0)
+            assert np.all(counts <= capacity)
+            for record_index, source_frame in enumerate(source_frames):
+                source = source_frame.metadata
+                count = int(counts[record_index])
+                expected_indices = [
+                    [item.rx1_gain_index, item.rx2_gain_index]
+                    for item in source.gain_observations
+                ]
+                expected_bounds = [
+                    [item.sample_sequence_before, item.sample_sequence_after]
+                    for item in source.gain_observations
+                ]
+                np.testing.assert_array_equal(
+                    receiver_z["gain_observation_index"][record_index, :count],
+                    expected_indices,
+                )
+                np.testing.assert_array_equal(
+                    receiver_z["gain_observation_sample_bounds"][record_index, :count],
+                    expected_bounds,
+                )
+                assert np.all(
+                    receiver_z["gain_observation_valid"][record_index, :count]
+                )
+                assert not np.any(
+                    receiver_z["gain_observation_valid"][record_index, count:]
+                )
+                assert np.all(
+                    receiver_z["gain_observation_index"][record_index, count:] == 0xFF
+                )
+                assert np.all(
+                    receiver_z["gain_observation_sample_bounds"][record_index, count:]
+                    == np.iinfo(np.uint64).max
+                )
+            sample_sequences = receiver_z["sample_sequence"][:]
+            assert np.all(np.diff(sample_sequences.astype(object)) > 0)
+            assert len(set(receiver_z["stream_id"][:].tolist())) == frame_count
+            np.testing.assert_array_equal(
+                receiver_z["buffer_sequence"][:], np.zeros(frame_count)
+            )
+            assert np.any(receiver_z["signal_matrix"][:] != 0)
+    finally:
+        reopened.store.close()
