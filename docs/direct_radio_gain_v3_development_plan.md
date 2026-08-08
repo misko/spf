@@ -243,8 +243,9 @@ records; it must not change the USB/IP transport contract.
 - Protocol-v2 concurrent direct-USB capture passed on both radios with small
   and `2**19`-sample frames.
 - A short production-sized V7 store passed write/reopen validation.
-- The existing direct-IP gadget returned dual-channel IQ through
-  `192.168.1.174`; this proves the legacy transport only, not v3 metadata.
+- The existing direct-IP gadget returned dual-channel IQ through its unique
+  LAN address (`192.168.1.163` when last checked); this proves the legacy
+  transport only, not v3 metadata.
 - Synthetic `SIP1` reassembly passes production-size, reorder, duplicate, loss,
   corruption, overlap, and resource-bound tests.
 - An initial RF probe found TX2/DDS silent on both fixtures. Rebooting each
@@ -274,12 +275,21 @@ records; it must not change the USB/IP transport contract.
   uninitialized scheduler-helper return value before cross-compilation.
 - Focused Python direct-IP tests pass: `28 passed`. The host requests a large
   UDP receive buffer, rejects partial/corrupt frames, and always attempts STOP.
+- The current focused pre-build regression passed `13/13` common/USB native
+  tests, `2/2` direct-IP native tests, and `181/181` Python USB/IP protocol and
+  receiver tests. Both attached production-v2 radios also passed all six
+  bounded concurrent direct-USB regression gates after the host changes.
 - Candidate source graph:
   - common USB/frame/gain library: `0df6c86f8fc9`;
-  - direct-IP daemon: `02f8efa395e4`;
-  - Buildroot: `424d9fe5717f`;
-  - firmware source graph/build entry point: `88fcaac06`.
+  - direct-IP daemon: `4cf0df9259fe`;
+  - Buildroot: `d748b5643b4b`;
+  - firmware source graph/build entry point: `8a657f5ef`.
   Every source pin is reachable and agrees with its firmware gitlink.
+- The opt-in protocol-v3 hardware gate now covers USB observations, direct-IP
+  inner-frame parity, and a hardware-backed V7 write/reopen with observation
+  counts, sample-counter bounds, sentinel padding, FPGA DNA and gadget build
+  identity. It remains fail-closed on the attached production-v2 radios, which
+  advertise only protocol range `1..2`.
 
 On the x86-64 build host, use the committed entry point rather than an ad-hoc
 Make invocation:
@@ -296,7 +306,8 @@ scripts/build_gain_series_candidate.sh image
 The `image` target requires Vivado 2022.2 but no longer requires Vitis/`xsct`;
 `xsct` is used only for bootloader/FSBL artifacts, which this project does not
 flash. The script checks architecture, source pins, submodules, tools, disk
-space and Vivado version, and never flashes hardware.
+space and Vivado version, cleans and rebuilds the pinned HDL/XSA before
+packaging, and never flashes hardware.
 
 The lightweight `iverilog` gate exercises asynchronous ADC/DMA clocks and
 verifies that every ARM-visible low-32 counter value is a coherent source
@@ -311,7 +322,7 @@ reports, which remain part of the image-build gate.
 | 1 | ARM/Buildroot package build | Both gadget packages compile against the staged common libraries and the rootfs contains the expected binaries/headers | Pending; no configured cross-toolchain exists on this ARM host |
 | 2 | x86-64 FPGA/firmware build | Reproducible candidate image embeds the pinned source manifest and required sample-counter HDL | Deferred to the dedicated x86-64 development server |
 | 3 | RAM boot one radio | Firmware enumerates, IIO configuration works, and v3 USB returns ordered overlapping gain observations | Pending image |
-| 4 | Direct-IP parity on `.18` | The same v3 inner-frame metadata and IQ pass over `192.168.1.174` with continuous sequences and zero fragment loss | Pending image |
+| 4 | Direct-IP parity on `.18` | The same v3 inner-frame metadata and IQ pass over its serial-verified unique LAN address with continuous sequences and zero fragment loss | Pending image |
 | 5 | Two-radio USB acceptance | 100 production frames per radio plus V7 write/reopen pass concurrently | Pending one-radio gates |
 | 6 | Recovery and soak | Repeated restart/rollback and one-hour tests expose all loss and show no growth or contention | Pending acceptance |
 | 7 | Promotion | Release asset, hashes, source SHAs, configs, and deployment documentation are pinned only after every prior gate passes | Prohibited until green |
