@@ -159,6 +159,39 @@ def test_receiver_yaml_supports_per_channel_manual_gains():
     assert config.gain_control_modes == ["manual", "manual"]
 
 
+def test_receiver_yaml_selects_protocol_v3_gain_series_parameters():
+    receiver = {
+        "f-carrier": 2_412_000_000,
+        "bandwidth": 3_000_000,
+        "f-sampling": 3_000_000,
+        "rx-gain": -3,
+        "rx-gain-mode": "slow_attack",
+        "buffer-size": 524_288,
+        "f-intermediate": 100_000,
+        "receiver-uri": "pluto://usb:test",
+        "antenna-spacing-m": 0.05075,
+        "theta-in-pis": 0,
+        "rx-buffers": 4,
+        "rx-transport": "direct_usb",
+        "direct-usb": {
+            "protocol-version": 3,
+            "frame-count-per-request": 1,
+            "gain-observation-interval-samples": 2_048,
+            "gain-observation-capacity": 256,
+            "gain-event-capacity": 0,
+        },
+    }
+
+    config = rx_config_from_receiver_yaml(receiver)
+
+    assert config.rx_transport == "direct_usb"
+    assert config.direct_usb_protocol_version == 3
+    assert config.direct_usb_frame_count_per_request == 1
+    assert config.direct_usb_gain_observation_interval_samples == 2_048
+    assert config.direct_usb_gain_observation_capacity == 256
+    assert config.direct_usb_gain_event_capacity == 0
+
+
 def test_receiver_yaml_legacy_gain_is_still_applied_to_both_channels():
     receiver = {
         "f-carrier": 5_766_000_000,
