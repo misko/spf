@@ -134,11 +134,15 @@ def test_v3_usb_gain_observations(attached_plutos, pytestconfig, radio_report_di
                 receiver.capabilities.protocol_min
                 <= 3
                 <= receiver.capabilities.protocol_max
+            ), (
+                f"radio {radio.serial} is not running protocol-v3 firmware: "
+                f"advertised range is v{receiver.capabilities.protocol_min}.."
+                f"v{receiver.capabilities.protocol_max}"
             )
             assert (
                 receiver.capabilities.supported_features & V3_REQUIRED_FEATURES
                 == V3_REQUIRED_FEATURES
-            )
+            ), f"radio {radio.serial} is missing required protocol-v3 features"
             frames = list(
                 receiver.stream_frames(
                     samples_per_channel=samples,
