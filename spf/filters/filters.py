@@ -4,8 +4,8 @@ import numpy as np
 import torch
 import tqdm
 from filterpy.common import Q_discrete_white_noise
-from filterpy.monte_carlo import systematic_resample
 
+from spf.filters.resample import systematic_resample
 from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm_pi
 
 
@@ -311,6 +311,9 @@ class ParticleFilter(SPFFilter):
     ):
         self.generator = torch.Generator()
         self.generator.manual_seed(seed)
+        # Resampling needs its own stream. Before this existed it read numpy's
+        # process-global RNG, so `seed` did not actually determine the run.
+        self.np_rng = np.random.default_rng(seed)
         self.particles = create_gaussian_particles_xy(
             mean, std, N, generator=self.generator
         )
@@ -339,7 +342,9 @@ class ParticleFilter(SPFFilter):
 
                 # resample if too few effective particles
                 if neff(self.weights) < N / 2:
-                    indexes = torch.as_tensor(systematic_resample(self.weights.numpy()))
+                    indexes = torch.as_tensor(
+                        systematic_resample(self.weights.numpy(), rng=self.np_rng)
+                    )
                     resample_from_index(self.particles, self.weights, indexes)
 
             if self.dim0_is_angular:
