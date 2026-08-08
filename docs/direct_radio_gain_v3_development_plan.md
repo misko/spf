@@ -246,7 +246,12 @@ records; it must not change the USB/IP transport contract.
   `192.168.1.174`; this proves the legacy transport only, not v3 metadata.
 - Synthetic `SIP1` reassembly passes production-size, reorder, duplicate, loss,
   corruption, overlap, and resource-bound tests.
-- The RF probe currently fails on both fixtures because TX2/DDS is silent. The
-  same serials and fixtures previously passed at approximately 67-72 dB
-  TX-on/off separation, so a clean power-cycle and re-probe is required before
-  RF acceptance resumes.
+- An initial RF probe found TX2/DDS silent on both fixtures. Rebooting each
+  Pluto OS (without reflashing or removing USB power) cleared that runtime
+  state. Both radios then passed at 868 MHz on handoff attempt 1, with the tone
+  at approximately `+100.245 kHz`, valid quality checks, and RX1/RX2 TX-on/off
+  separation of `71.64/75.74 dB` and `71.94/68.73 dB` respectively.
+- After recovery, concurrent protocol-v2 `2**19`-sample capture and V7
+  write/reopen validation passed on both radios. Three-frame sequences were
+  `[0, 1, 2]` for each serial; single-frame elapsed times were 0.458 and
+  0.450 seconds.
