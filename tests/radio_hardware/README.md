@@ -89,6 +89,20 @@ unique reachable IP address and add:
 These flags must only be used after RAM-booting a protocol-v3 candidate. The
 currently promoted protocol-v2 image is expected to reject the test.
 
+Run the complete ordered, receive-only candidate campaign with:
+
+```bash
+tests/radio_hardware/run_gain_series_v3_candidate.sh /path/to/candidate-pluto.dfu
+```
+
+Pass the uniquely addressed Pluto as a second argument to include direct-IP
+parity, for example `192.168.1.163`. The runner verifies the image checksum,
+records a protocol-v2 baseline, checks persistent 2R2T configuration, RAM-loads
+the exact attached radio count, re-runs v2 compatibility, then runs v3 USB,
+production-sized V7 Zarr, optional IP, and final identity gates. It never
+writes QSPI or enables TX. A failure leaves the volatile candidate running for
+inspection and prints the explicit rollback command.
+
 Add `--radio-zarr --radio-zarr-frames=3` to the USB command to write and
 reopen a hardware-backed V7 store. That gate verifies observation counts,
 sample-counter bounds, explicit sentinel padding, serial/USB identity, FPGA
