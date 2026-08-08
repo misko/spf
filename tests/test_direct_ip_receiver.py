@@ -269,6 +269,11 @@ def test_missing_data_times_out_explicitly_and_stops_stream():
         gadget.close()
 
 
+def test_receive_buffer_must_be_positive():
+    with pytest.raises(ValueError, match="receive buffer"):
+        PlutoDirectIpReceiver(remote_host="127.0.0.1", data_receive_buffer_bytes=0)
+
+
 def test_bad_started_echo_fails_closed_and_stops_assigned_stream():
     gadget = _SyntheticIpGadget(
         send_frames=False,

@@ -31,6 +31,7 @@ DEFAULT_DIRECT_IP_CONTROL_PORT = 30_432
 DEFAULT_CONTROL_TIMEOUT_SECONDS = 0.5
 DEFAULT_FRAME_TIMEOUT_SECONDS = 10.0
 DEFAULT_CONTROL_ATTEMPTS = 3
+DEFAULT_DATA_RECEIVE_BUFFER_BYTES = 16 * 1024 * 1024
 MAX_CONTROL_DATAGRAM_BYTES = 4096
 
 
@@ -69,6 +70,7 @@ class PlutoDirectIpReceiver:
         gain_observation_interval_samples: int = 32_768,
         gain_observation_capacity: int = 32,
         gain_event_capacity: int = 0,
+        data_receive_buffer_bytes: int = DEFAULT_DATA_RECEIVE_BUFFER_BYTES,
         control_timeout_seconds: float = DEFAULT_CONTROL_TIMEOUT_SECONDS,
         frame_timeout_seconds: float = DEFAULT_FRAME_TIMEOUT_SECONDS,
         control_attempts: int = DEFAULT_CONTROL_ATTEMPTS,
@@ -83,6 +85,8 @@ class PlutoDirectIpReceiver:
             raise ValueError("direct-IP timeouts must be positive")
         if control_attempts <= 0:
             raise ValueError("direct-IP control attempts must be positive")
+        if data_receive_buffer_bytes <= 0:
+            raise ValueError("direct-IP receive buffer must be positive")
         self.remote_host = remote_host
         self.remote_control_port = int(remote_control_port)
         self.local_host = local_host
@@ -91,6 +95,7 @@ class PlutoDirectIpReceiver:
         self.gain_observation_interval_samples = int(gain_observation_interval_samples)
         self.gain_observation_capacity = int(gain_observation_capacity)
         self.gain_event_capacity = int(gain_event_capacity)
+        self.data_receive_buffer_bytes = int(data_receive_buffer_bytes)
         self.control_timeout_seconds = float(control_timeout_seconds)
         self.frame_timeout_seconds = float(frame_timeout_seconds)
         self.control_attempts = int(control_attempts)
@@ -129,6 +134,11 @@ class PlutoDirectIpReceiver:
         try:
             control.connect(remote)
             control.settimeout(self.control_timeout_seconds)
+            data.setsockopt(
+                socket.SOL_SOCKET,
+                socket.SO_RCVBUF,
+                self.data_receive_buffer_bytes,
+            )
             data.bind((self.local_host, 0))
             data.settimeout(min(0.25, self.frame_timeout_seconds))
             self._control_socket = control
