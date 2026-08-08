@@ -272,8 +272,23 @@ records; it must not change the USB/IP transport contract.
   - common USB/frame/gain library: `0df6c86f8fc9`;
   - direct-IP daemon: `02f8efa395e4`;
   - Buildroot: `424d9fe5717f`;
-  - firmware source graph: `d18479b17`.
+  - firmware source graph/build entry point: `614e30c43`.
   Every source pin is reachable and agrees with its firmware gitlink.
+
+On the x86-64 build host, use the committed entry point rather than an ad-hoc
+Make invocation:
+
+```bash
+git submodule update --init --recursive
+scripts/build_gain_series_candidate.sh preflight
+scripts/build_gain_series_candidate.sh rootfs
+scripts/build_gain_series_candidate.sh image
+```
+
+The `image` target requires Vivado 2022.2 but no longer requires Vitis/`xsct`;
+`xsct` is used only for bootloader/FSBL artifacts, which this project does not
+flash. The script checks architecture, source pins, submodules, tools, disk
+space and Vivado version, and never flashes hardware.
 
 ## Remaining critical path
 
