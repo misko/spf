@@ -7,7 +7,7 @@ import pickle
 import torch
 import tqdm
 
-from spf.scripts.run_filters_on_data_b2 import get_all_items_by_bucket
+from spf.filters.run_filters_on_data_b2 import get_all_items_by_bucket
 
 
 def read_pkl(pkl_fn):

@@ -1,0 +1,68 @@
+# Rover 2026 merged v7 -- one setting per filter family, ~8 jobs per dataset.
+#
+# Purpose: prove the harness runs end to end against this corpus before spending
+# hours on the coarse grid. Run it on a single dataset first.
+#
+#   python spf/filters/run_filters_on_data.py \
+#     -d /mnt/qnap01/mouse9911/rovers_2026/merged/<one>.zarr \
+#     --empirical-pkl-fn empirical_dists/full.pkl \
+#     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/smoke \
+#     --config spf/filters/configs/rover2026_smoke.yaml \
+#     --results-backend local --parallel 24
+#
+# NOTE 3 of the 48 merged stores are RO4 at d/lambda = 0.90397, which has no
+# entry in empirical_dists/full.pkl. get_empirical_dist does an exact key
+# lookup, so every empirical (non-NN) filter raises KeyError on those. Either
+# run create_empirical_p_dist.py to add the spacing, or restrict the empirical
+# families to the 0.673 and 0.827 stores.
+precompute_caches:
+  3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
+
+runs:
+  - run_EKF_single_theta_single_radio:
+      phi_std: [10.0]
+      p: [5.0]
+      noise_std: [0.001]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [10.0]
+      p: [5.0]
+      noise_std: [0.001]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_single_radio:
+      N: [128 * 32]
+      theta_err: [0.01]
+      theta_dot_err: [0.01]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_dual_radio:
+      N: [128 * 32]
+      theta_err: [0.01]
+      theta_dot_err: [0.01]
+      segmentation_version: [3.7]
+  - run_PF_xy_dual_radio:
+      N: [128 * 8]
+      pos_err: [15]
+      vel_err: [0.5]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_single_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128 * 32]
+      theta_err: [0.01]
+      theta_dot_err: [0.01]
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128 * 32]
+      theta_err: [0.01]
+      theta_dot_err: [0.01]
+      # absolute=True scores against a DIFFERENT ground truth (north-referenced
+      # rather than craft-relative). The report keeps them in separate frames;
+      # never read the two side by side as a like-for-like comparison.
+      absolute: [True, False]
