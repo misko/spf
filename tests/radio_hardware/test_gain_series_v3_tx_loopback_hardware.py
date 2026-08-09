@@ -42,6 +42,27 @@ TX_CORE_REGISTERS = {
     "timestamp_discard_count": 0xB8,
     "timestamp_interval_control": 0xBC,
 }
+TX_PIPELINE_DEBUG_SELECT = 1 << 0
+TX_PIPELINE_DMA_FLAGS = (
+    "transfer_request_seen",
+    "upstream_valid_seen",
+    "upstream_ready_seen",
+    "fifo_write_seen",
+    "fifo_full_seen",
+    "fifo_write_reset_busy_seen",
+    "fifo_write_possible_seen",
+    "fifo_reset_released_seen",
+)
+TX_PIPELINE_DAC_FLAGS = (
+    "downstream_ready_seen",
+    "fifo_read_seen",
+    "downstream_valid_seen",
+    "fifo_nonempty_seen",
+    "fifo_read_reset_busy_seen",
+    "fifo_read_possible_seen",
+    "transfer_start_seen",
+    "upack_reset_released_seen",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -141,17 +162,66 @@ def _configuration_readback(radio: DirectUsbLoopbackRadio) -> dict:
     }
 
 
+def _decode_tx_pipeline_debug(value: int) -> dict:
+    dma = (value >> 24) & 0xFF
+    dac = (value >> 16) & 0xFF
+    return {
+        "raw": value,
+        "dma_raw": dma,
+        "dac_raw": dac,
+        "timestamp_discard_count_low16": value & 0xFFFF,
+        "dma": {
+            name: bool(dma & (1 << bit))
+            for bit, name in enumerate(TX_PIPELINE_DMA_FLAGS)
+        },
+        "dac": {
+            name: bool(dac & (1 << bit))
+            for bit, name in enumerate(TX_PIPELINE_DAC_FLAGS)
+        },
+    }
+
+
 def _tx_core_diagnostics(radio: DirectUsbLoopbackRadio) -> dict:
-    """Capture read-only TX core state without masking the RF test result."""
+    """Capture TX core state, including RC7's selectable debug page.
+
+    DAC GPIO output bit 0 is unused by production firmware. RC7 routes it to
+    a diagnostics mux only; restoring the original register value in ``finally``
+    keeps this probe observational even when a read fails.
+    """
 
     try:
         device = radio.sdr._ctx.find_device("cf-ad9361-dds-core-lpc")
         if device is None:
             return {"error": "cf-ad9361-dds-core-lpc not found"}
-        return {
+        result = {
             name: int(device.reg_read(address))
             for name, address in TX_CORE_REGISTERS.items()
         }
+        original_control = result["timestamp_interval_control"]
+        try:
+            device.reg_write(
+                TX_CORE_REGISTERS["timestamp_interval_control"],
+                original_control | TX_PIPELINE_DEBUG_SELECT,
+            )
+            debug_value = int(
+                device.reg_read(TX_CORE_REGISTERS["timestamp_discard_count"])
+            )
+            result["tx_pipeline_debug"] = _decode_tx_pipeline_debug(debug_value)
+        except Exception as error:
+            result["tx_pipeline_debug_error"] = (
+                f"{type(error).__name__}: {error}"
+            )
+        finally:
+            try:
+                device.reg_write(
+                    TX_CORE_REGISTERS["timestamp_interval_control"],
+                    original_control,
+                )
+            except Exception as error:
+                result["tx_pipeline_debug_restore_error"] = (
+                    f"{type(error).__name__}: {error}"
+                )
+        return result
     except Exception as error:  # Diagnostic evidence must not replace RF QC.
         return {"error": f"{type(error).__name__}: {error}"}
 
