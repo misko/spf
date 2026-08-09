@@ -335,6 +335,69 @@ def test_v3_usb_gain_observations(attached_plutos, pytestconfig, radio_report_di
     )
 
 
+def test_v3_repeated_fresh_usb_starts(attached_plutos, pytestconfig, radio_report_dir):
+    """Catch intermittent loss between the first two blocks of a new stream.
+
+    A long steady stream cannot detect startup-only DMA backlog.  Each cycle
+    therefore creates a new receiver, negotiates protocol v3, issues a fresh
+    START, and requires the first frames to be exactly contiguous.
+    """
+
+    samples = pytestconfig.getoption("--radio-samples")
+    frame_count = pytestconfig.getoption("--radio-frames-per-request")
+    cycles = pytestconfig.getoption("--radio-cycles")
+    interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
+    capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
+    assert cycles > 0
+    assert frame_count >= 2, "startup continuity requires at least two frames"
+
+    report = {
+        "transport": "direct_usb",
+        "purpose": "repeated_fresh_stream_start_continuity",
+        "cycles_per_radio": cycles,
+        "frames_per_cycle": frame_count,
+        "radios": [],
+    }
+    for radio in attached_plutos:
+        streams = []
+        for cycle in range(cycles):
+            with PlutoDirectUsbReceiver(
+                serial=radio.serial,
+                protocol_version=3,
+                gain_observation_interval_samples=interval,
+                gain_observation_capacity=capacity,
+            ) as receiver:
+                frames = list(
+                    receiver.stream_frames(
+                        samples_per_channel=samples,
+                        frame_count=frame_count,
+                        queue_depth=1,
+                    )
+                )
+            assert len(frames) == frame_count
+            _assert_contiguous_frames(frames, samples)
+            validated = [_validate_v3_frame(frame, samples) for frame in frames]
+            streams.append(
+                {
+                    "cycle": cycle,
+                    "stream_id": validated[0]["stream_id"],
+                    "first_sample_sequences": [
+                        frame["first_sample_sequence"] for frame in validated
+                    ],
+                }
+            )
+        report["radios"].append(
+            {
+                "serial": radio.serial,
+                "port_path": list(radio.port_path),
+                "streams": streams,
+            }
+        )
+    (radio_report_dir / "gain_series_v3_repeated_starts.json").write_text(
+        json.dumps(report, indent=2) + "\n"
+    )
+
+
 def _simultaneous_v3_stream(
     serial: str,
     *,

@@ -36,6 +36,7 @@ Environment:
                                (default: /home/pi/spf-virtualenv/bin/python)
   SPF_V3_PRODUCTION_RECORDS    V7 records per radio (default: 100)
   SPF_V3_TX_BOOT_EPOCHS        Independent RAM-boot TX epochs (default: 3)
+  SPF_V3_STARTUP_STRESS_CYCLES Fresh v3 STARTs per radio (default: 100)
   SPF_V3_REPORT_ROOT           Artifact directory (default: timestamped /tmp)
 
 The script loads only volatile RAM and never writes QSPI. TX remains disabled
@@ -100,6 +101,7 @@ readonly EXPECTED_RADIOS="${SPF_V3_EXPECTED_RADIOS:-2}"
 readonly PYTHON="${SPF_V3_PYTHON:-/home/pi/spf-virtualenv/bin/python}"
 readonly PRODUCTION_RECORDS="${SPF_V3_PRODUCTION_RECORDS:-100}"
 readonly TX_BOOT_EPOCHS="${SPF_V3_TX_BOOT_EPOCHS:-3}"
+readonly STARTUP_STRESS_CYCLES="${SPF_V3_STARTUP_STRESS_CYCLES:-100}"
 readonly REPORT_ROOT="${SPF_V3_REPORT_ROOT:-/tmp/spf-gain-series-v3-$(date -u +%Y%m%dT%H%M%SZ)}"
 readonly STATE_ROOT="${REPORT_ROOT}/firmware-state"
 readonly WITH_TX_LOOPBACK="$with_tx_loopback"
@@ -112,6 +114,8 @@ readonly LOOPBACK_ATTENUATION_DB="$loopback_attenuation_db"
     die "SPF_V3_PRODUCTION_RECORDS must be positive"
 [[ "$TX_BOOT_EPOCHS" =~ ^[1-9][0-9]*$ ]] ||
     die "SPF_V3_TX_BOOT_EPOCHS must be positive"
+[[ "$STARTUP_STRESS_CYCLES" =~ ^[1-9][0-9]*$ ]] ||
+    die "SPF_V3_STARTUP_STRESS_CYCLES must be positive"
 [[ -x "$PYTHON" ]] || die "test Python is not executable: $PYTHON"
 [[ -f "$MULTI_LOADER" ]] || die "multi-radio loader is missing"
 [[ -f "$TEST_FILE" ]] || die "protocol-v3 hardware tests are missing"
@@ -187,9 +191,10 @@ common_loader_args=(
     --expected-count "$EXPECTED_RADIOS"
 )
 
-printf 'image=%s\nsha256=%s\nexpected_radios=%s\nreport_root=%s\nwith_tx_loopback=%s\nloopback_attenuation_db=%s\ntx_boot_epochs=%s\n' \
+printf 'image=%s\nsha256=%s\nexpected_radios=%s\nreport_root=%s\nwith_tx_loopback=%s\nloopback_attenuation_db=%s\ntx_boot_epochs=%s\nstartup_stress_cycles=%s\n' \
     "$IMAGE" "$actual_sha" "$EXPECTED_RADIOS" "$REPORT_ROOT" \
-    "$WITH_TX_LOOPBACK" "$LOOPBACK_ATTENUATION_DB" "$TX_BOOT_EPOCHS"
+    "$WITH_TX_LOOPBACK" "$LOOPBACK_ATTENUATION_DB" "$TX_BOOT_EPOCHS" \
+    "$STARTUP_STRESS_CYCLES"
 run_logged iio-before iio_info -s
 
 if [[ "$WITH_TX_LOOPBACK" -eq 1 ]]; then
@@ -255,12 +260,14 @@ run_logged candidate-v2-compatibility \
 run_logged candidate-v3-usb-smoke \
     "$PYTHON" -m pytest -q \
     "${TEST_FILE}::test_v3_usb_gain_observations" \
+    "${TEST_FILE}::test_v3_repeated_fresh_usb_starts" \
     "${TEST_FILE}::test_v3_simultaneous_usb_streams" \
     --radio-hardware \
     --radio-gain-series-v3 \
     --radio-expected-count="$EXPECTED_RADIOS" \
     --radio-samples=32768 \
     --radio-frames-per-request=3 \
+    --radio-cycles="$STARTUP_STRESS_CYCLES" \
     --radio-gain-observation-interval=2048 \
     --radio-gain-observation-capacity=256 \
     --radio-report-dir="${REPORT_ROOT}/candidate-v3-smoke-report"
