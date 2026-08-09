@@ -409,15 +409,22 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
             sample_times = []
             anchors = [receiver.query_time_anchor() for _ in range(8)]
             for _ in range(frame_count):
-                capture = receiver.capture(
+                stream = receiver.stream_frames(
                     samples_per_channel=samples,
                     frame_count=1,
+                    queue_depth=1,
                 )
-                assert len(capture.frames) == 1
-                frame = capture.frames[0]
-                _validate_v3_frame(frame, samples)
-                frames.append(frame)
-                anchors.append(receiver.query_time_anchor())
+                try:
+                    frame = next(stream)
+                    _validate_v3_frame(frame, samples)
+                    frames.append(frame)
+                    # Bracket the yielded frame before advancing the finite
+                    # generator into its STOP/cleanup path.
+                    anchors.append(receiver.query_time_anchor())
+                    with pytest.raises(StopIteration):
+                        next(stream)
+                finally:
+                    stream.close()
                 anchors = anchors[-32:]
                 sample_time = _sample_clock_report(anchors, [frame], sample_rate_hz)
                 assert sample_time["sample_time_uncertainty_ns"] <= max_uncertainty_ns

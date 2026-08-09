@@ -988,6 +988,40 @@ def test_spf_returns_one_frame_at_a_time_from_one_finite_stream_group():
     assert radio._direct_frames_remaining == 0
 
 
+def test_spf_takes_final_frame_anchor_before_finite_stream_teardown():
+    events = []
+    parser = RxFrameParser(protocol_version=1)
+    frames = parser.feed(_valid_wire_frame(sequence=0))
+    parser.finish()
+
+    class OrderedReceiver:
+        def stream_frames(self, **_kwargs):
+            def one_frame():
+                try:
+                    events.append("yield")
+                    yield frames[0]
+                finally:
+                    events.append("stop")
+
+            return one_frame()
+
+    radio = PPlus.__new__(PPlus)
+    radio.rx_config = type(
+        "RxConfig",
+        (),
+        {"buffer_size": 8, "direct_usb_frame_count_per_request": 1},
+    )()
+    radio.direct_rx = OrderedReceiver()
+    radio._direct_frame_stream = None
+    radio._direct_frames_remaining = 0
+    radio._refresh_direct_time_anchors = lambda: events.append("anchor")
+    radio._fit_direct_sample_time = lambda _metadata: events.append("fit")
+
+    radio._capture_direct_frame()
+
+    assert events == ["anchor", "yield", "anchor", "fit", "stop"]
+
+
 def test_partial_transfer_submission_is_cancelled_before_start():
     handle = _FailSecondSubmitHandle(
         [_valid_wire_frame(sequence=0), _valid_wire_frame(sequence=1)]

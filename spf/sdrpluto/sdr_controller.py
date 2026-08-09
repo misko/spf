@@ -1017,6 +1017,27 @@ class PPlus:
             self._direct_frames_remaining = 0
             raise
         self._direct_frames_remaining -= 1
+
+        metadata = frame.metadata
+        # Sample the EP0 time anchor while the finite bulk generator is still
+        # paused at its yielded frame.  Advancing a completed generator runs
+        # its STOP/finally path; FunctionFS may acknowledge that OUT control
+        # transfer before the radio worker has finished its bounded cleanup,
+        # making the immediately following anchor appear tens of milliseconds
+        # wide.  Bracketing here keeps the frame-time uncertainty tied to the
+        # live stream rather than to teardown latency.
+        try:
+            self._refresh_direct_time_anchors()
+            self._last_direct_sample_time = self._fit_direct_sample_time(metadata)
+        except BaseException:
+            try:
+                stream.close()
+            except Exception:
+                logging.exception("failed to close direct USB frame stream")
+            self._direct_frame_stream = None
+            self._direct_frames_remaining = 0
+            raise
+
         if self._direct_frames_remaining == 0:
             try:
                 extra_frame = next(stream)
@@ -1038,12 +1059,6 @@ class PPlus:
                     "direct USB frame stream exceeded its requested finite count: "
                     f"unexpected sequence {extra_frame.metadata.buffer_sequence}"
                 )
-        metadata = frame.metadata
-        # Take a second anchor immediately after every yielded frame. USB EP0
-        # remains independent of the bulk stream, so this also brackets frames
-        # inside a multi-frame request instead of extrapolating from startup.
-        self._refresh_direct_time_anchors()
-        self._last_direct_sample_time = self._fit_direct_sample_time(metadata)
         signal_matrix = iq_payload_to_complex64(
             frame.iq_payload, metadata.samples_per_channel
         )
