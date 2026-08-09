@@ -30,11 +30,16 @@ radios were returned to the preserved production firmware after testing.
 - DFU SHA-256: `4caca323f35f4e7852add5d5b35637c84c10a74f7cbb49ecb82e49328f2e872a`
 - Candidate device-fw: `v0.38-plutoplus-spf-gain-series-v4-rc2-27-g8fd49`
 - Boot mode tested: volatile DFU/RAM only
+- Hardware-qualified prerelease tag: `v0.38-plutoplus-spf-gain-series-v4-rc11`
+- Prerelease: <https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-series-v4-rc11>
 
 The freshly downloaded outer bundle sidecar, every entry in the internal
 `SHA256SUMS`, and every entry in `PAYLOAD_SHA256SUMS` passed. GitHub's separate
 verification job downloaded the exact artifact, verified it, and published a
-build-provenance attestation.
+build-provenance attestation. After hardware qualification, the exact tested
+bundle and DFU were published as the RC11 prerelease and downloaded again into
+a fresh directory. The bundle sidecar passed and the downloaded DFU retained
+the expected SHA-256 above.
 
 ## Bench fixture
 
@@ -294,9 +299,10 @@ Final post-rollback checks:
 
 ## Promotion recommendation
 
-RC11 has passed the hardware candidate gates. Do not rebuild or substitute a
-different binary during promotion. Publish and pin the exact tested DFU hash,
-retain the current production image as rollback, then perform the existing
-controlled persistent-flash rollout. Protocol-v3 consumers must continue to
-interpret ARM observations as sample-bracketed, best-effort measurements—not
-sample-exact proof that AGC was stable between observations.
+RC11 has passed the hardware candidate gates and the exact tested bytes are
+published in the hardware-qualified prerelease above. Do not rebuild or
+substitute a different binary during promotion. Pin the tested release tag and
+DFU hash, retain the current production image as rollback, then perform the
+existing controlled persistent-flash rollout. Protocol-v3 consumers must
+continue to interpret ARM observations as sample-bracketed, best-effort
+measurements—not sample-exact proof that AGC was stable between observations.
