@@ -703,6 +703,8 @@ def test_boot_preparation_uses_configured_boot_mode_with_environment_override():
     override = 'RAM_LOAD_OVERRIDE="${SPF_PLUTO_RAM_LOAD:-}"'
     ram_gate = 'if is_true "$ram_load"; then'
     load = 'run_loader load-all "$attached_radios"'
+    mute = '"$PYTHON" -m spf.scripts.mute_pluto_tx'
+    mapping = 'mapping_tmp="$(mktemp /run/spf-device-mapping.XXXXXX)"'
 
     assert ensure in boot_script
     assert config_mode in boot_script
@@ -711,11 +713,19 @@ def test_boot_preparation_uses_configured_boot_mode_with_environment_override():
     assert ram_gate in boot_script
     # The volatile path remains isolated from persistent QSPI preparation.
     assert load in boot_script
+    assert mute in boot_script
     assert (
         boot_script.index(ram_gate)
         < boot_script.index(load)
         < boot_script.index(ensure)
     )
+    # Every firmware transition restores TX attenuation defaults. A verified
+    # mute is mandatory before device mapping and the ready manifest, so a mute
+    # failure cannot authorize collection.
+    assert boot_script.index(ensure) < boot_script.index(mute)
+    assert boot_script.index(mute) < boot_script.index(mapping)
+    assert boot_script.index(mute) < boot_script.index("manifest_args=(")
+    assert 'rm -f -- "$READY_FILE" "$TX_MUTE_FILE"' in boot_script
     # The per-boot ssh check-config-all was removed (it raced the shared-IP ssh);
     # a wrong AD9361/2r2t config is still caught by verify-all's dual-RX check.
     assert "run_loader check-config-all" not in boot_script

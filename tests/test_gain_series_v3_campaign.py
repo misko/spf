@@ -104,6 +104,10 @@ def test_gain_series_candidate_campaign_orders_volatile_gates(tmp_path):
         cursor += 1
     assert all("provision-config-all" not in command for command in commands)
     assert all("ensure_pluto_qspi" not in command for command in commands)
+    load_index = next(
+        index for index, command in enumerate(commands) if "load-all" in command
+    )
+    assert "spf.scripts.mute_pluto_tx" in commands[load_index + 1]
     assert (report / "baseline-v2.log").is_file()
     assert (report / "candidate-v3-production-zarr.log").is_file()
 
@@ -174,6 +178,9 @@ def test_gain_series_candidate_campaign_requires_explicit_tx_and_mutes(tmp_path)
         command for command in commands if "spf.scripts.mute_pluto_tx" in command
     ]
     assert len(mute_commands) >= 5
+    for load_command in load_commands:
+        load_index = commands.index(load_command)
+        assert "spf.scripts.mute_pluto_tx" in commands[load_index + 1]
     for epoch in range(1, 4):
         assert (report / f"candidate-v3-tx2-loopback-epoch-{epoch}.log").is_file()
 
@@ -252,6 +259,10 @@ done
 
     assert result.returncode == 0, result.stderr
     assert "candidate-v3-direct-ip" in result.stdout
+    assert any(
+        "test_v3_direct_ip_survives_malformed_control_datagrams" in command
+        for command in trace.read_text().splitlines()
+    )
     assert any(
         "test_v3_direct_ip_uses_the_same_inner_frame" in command
         for command in trace.read_text().splitlines()

@@ -163,19 +163,17 @@ trap rollback_hint ERR
 
 mute_tx_on_exit() {
     local rc=$?
-    if [[ "$WITH_TX_LOOPBACK" -eq 1 ]]; then
-        set +e
-        "$PYTHON" -m spf.scripts.mute_pluto_tx \
-            --expected-count "$EXPECTED_RADIOS" \
-            --output "${REPORT_ROOT}/tx-mute-on-exit.json" \
-            >>"${REPORT_ROOT}/tx-mute-on-exit.log" 2>&1
-        local mute_rc=$?
-        set -e
-        if [[ "$mute_rc" -ne 0 ]]; then
-            printf 'ERROR: final TX mute verification failed; inspect %s\n' \
-                "${REPORT_ROOT}/tx-mute-on-exit.log" >&2
-            [[ "$rc" -ne 0 ]] || rc="$mute_rc"
-        fi
+    set +e
+    "$PYTHON" -m spf.scripts.mute_pluto_tx \
+        --expected-count "$EXPECTED_RADIOS" \
+        --output "${REPORT_ROOT}/tx-mute-on-exit.json" \
+        >>"${REPORT_ROOT}/tx-mute-on-exit.log" 2>&1
+    local mute_rc=$?
+    set -e
+    if [[ "$mute_rc" -ne 0 ]]; then
+        printf 'ERROR: final TX mute verification failed; inspect %s\n' \
+            "${REPORT_ROOT}/tx-mute-on-exit.log" >&2
+        [[ "$rc" -ne 0 ]] || rc="$mute_rc"
     fi
     trap - EXIT
     exit "$rc"
@@ -197,12 +195,10 @@ printf 'image=%s\nsha256=%s\nexpected_radios=%s\nreport_root=%s\nwith_tx_loopbac
     "$STARTUP_STRESS_CYCLES"
 run_logged iio-before iio_info -s
 
-if [[ "$WITH_TX_LOOPBACK" -eq 1 ]]; then
-    run_logged pre-campaign-tx-mute \
-        "$PYTHON" -m spf.scripts.mute_pluto_tx \
-        --expected-count "$EXPECTED_RADIOS" \
-        --output "${REPORT_ROOT}/pre-campaign-tx-mute.json"
-fi
+run_logged pre-campaign-tx-mute \
+    "$PYTHON" -m spf.scripts.mute_pluto_tx \
+    --expected-count "$EXPECTED_RADIOS" \
+    --output "${REPORT_ROOT}/pre-campaign-tx-mute.json"
 
 run_logged baseline-v2 \
     "$PYTHON" -m pytest -q "$BASELINE_TEST" \
@@ -224,6 +220,10 @@ if [[ "$WITH_TX_LOOPBACK" -eq 1 ]]; then
         run_logged "ram-load-epoch-${epoch}" \
             sudo -n "$PYTHON" "$MULTI_LOADER" load-all \
             "${common_loader_args[@]}"
+        run_logged "post-load-tx-mute-epoch-${epoch}" \
+            "$PYTHON" -m spf.scripts.mute_pluto_tx \
+            --expected-count "$EXPECTED_RADIOS" \
+            --output "${REPORT_ROOT}/post-load-tx-mute-epoch-${epoch}.json"
         run_logged "iio-after-ram-load-epoch-${epoch}" iio_info -s
         run_logged "candidate-v3-tx2-loopback-epoch-${epoch}" \
             "$PYTHON" -m pytest -q "$TX_TEST_FILE" \
@@ -244,6 +244,10 @@ else
     run_logged ram-load \
         sudo -n "$PYTHON" "$MULTI_LOADER" load-all \
         "${common_loader_args[@]}"
+    run_logged post-load-tx-mute \
+        "$PYTHON" -m spf.scripts.mute_pluto_tx \
+        --expected-count "$EXPECTED_RADIOS" \
+        --output "${REPORT_ROOT}/post-load-tx-mute.json"
     run_logged iio-after-ram-load iio_info -s
 fi
 
@@ -300,6 +304,7 @@ if [[ -n "$DIRECT_IP_HOST" ]]; then
         "$DIRECT_IP_HOST" "$resolved_direct_ip_host" "$direct_ip_serial"
     run_logged candidate-v3-direct-ip \
         "$PYTHON" -m pytest -q \
+        "${TEST_FILE}::test_v3_direct_ip_survives_malformed_control_datagrams" \
         "${TEST_FILE}::test_v3_direct_ip_uses_the_same_inner_frame" \
         --radio-hardware \
         --radio-gain-series-v3 \

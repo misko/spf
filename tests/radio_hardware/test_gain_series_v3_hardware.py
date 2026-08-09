@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import socket
 import time
 
 import numpy as np
@@ -24,7 +25,10 @@ from spf.dataset.v7_data import (
 )
 from spf.sdrpluto.direct_ip_protocol import IpControlFlags
 from spf.sdrpluto.sdr_controller import _gain_series_arrays
-from spf.sdrpluto.direct_ip_receiver import PlutoDirectIpReceiver
+from spf.sdrpluto.direct_ip_receiver import (
+    DEFAULT_DIRECT_IP_CONTROL_PORT,
+    PlutoDirectIpReceiver,
+)
 from spf.sdrpluto.direct_usb_protocol import (
     CapabilityFlags,
     GainObservationFlags,
@@ -479,6 +483,47 @@ def test_v3_simultaneous_usb_streams(attached_plutos, pytestconfig, radio_report
         )
     (radio_report_dir / "gain_series_v3_simultaneous_usb.json").write_text(
         json.dumps(results, indent=2) + "\n"
+    )
+
+
+@pytest.mark.radio_direct_ip
+def test_v3_direct_ip_survives_malformed_control_datagrams(
+    pytestconfig, radio_report_dir
+):
+    host = pytestconfig.getoption("--radio-direct-ip-host")
+    if not host:
+        pytest.fail("--radio-direct-ip-host is required with --radio-direct-ip")
+
+    # RC11 returned a fatal epoll status for an undersized legacy envelope,
+    # terminating the direct-IP daemon. Exercise boundary lengths and unknown
+    # magic before proving that a valid capability exchange still succeeds.
+    malformed = (
+        b"",
+        b"x",
+        b"xyz",
+        b"test",
+        bytes.fromhex("504c544f"),  # legacy magic without its 8-byte header
+        bytes.fromhex("efbeadde") + bytes(76),
+    )
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        for datagram in malformed:
+            probe.sendto(datagram, (host, DEFAULT_DIRECT_IP_CONTROL_PORT))
+    time.sleep(0.1)
+
+    with PlutoDirectIpReceiver(remote_host=host) as receiver:
+        assert receiver.capabilities.flags & IpControlFlags.FINITE_RX
+
+    (radio_report_dir / "gain_series_v3_direct_ip_malformed.json").write_text(
+        json.dumps(
+            {
+                "host": host,
+                "control_port": DEFAULT_DIRECT_IP_CONTROL_PORT,
+                "malformed_lengths": [len(item) for item in malformed],
+                "valid_capability_query_afterwards": True,
+            },
+            indent=2,
+        )
+        + "\n"
     )
 
 
