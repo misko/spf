@@ -46,7 +46,7 @@ TX_PIPELINE_DEBUG_SELECT = 1 << 0
 TX_PIPELINE_DMA_FLAGS = (
     "transfer_request_seen",
     "upstream_valid_seen",
-    "upstream_ready_seen",
+    "timestamp_enabled_seen",
     "fifo_write_seen",
     "fifo_full_seen",
     "fifo_write_reset_busy_seen",
