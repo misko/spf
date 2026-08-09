@@ -64,6 +64,20 @@ def _env_is_true(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _usb_parent(sysfs_name: str) -> str:
+    """Return the physical USB parent that owns a device port.
+
+    Linux names a device below a hub as ``BUS-ROOT.DOWNSTREAM``.  Devices on
+    the same immediate parent must not all be sent through a runtime -> DFU
+    transition at once: some commodity hubs fail that burst with protocol
+    error -71 and temporarily lose every downstream device.
+    """
+
+    if "." in sysfs_name:
+        return sysfs_name.rsplit(".", 1)[0]
+    return sysfs_name.split("-", 1)[0]
+
+
 def _read(path: Path) -> str:
     return path.read_text().strip()
 
@@ -908,29 +922,48 @@ class MultiPlutoFirmwareManager:
         """Load every radio's RAM image.
 
         The two dominant boot-time costs are the two sequential embedded-Linux
-        reboots each radio performs. Each radio is fully isolated — DFU is
-        targeted by physical USB path (``dfu-util -p <sysfs>``) and every SSH
-        runs in its own network namespace — so the loads run concurrently by
-        default, roughly halving the wall-clock on a 2-radio rover. Set
-        ``SPF_PLUTO_SEQUENTIAL_LOAD=1`` to fall back to serial loading if
-        simultaneous USB re-enumeration is ever seen to interfere.
+        reboots each radio performs. DFU is targeted by physical USB path and
+        SSH runs in a serial-specific network namespace, but the physical hub
+        is still shared. Radios below one parent hub are therefore serialized;
+        independent USB parents may load concurrently. Set
+        ``SPF_PLUTO_SEQUENTIAL_LOAD=1`` to serialize every radio.
         """
         if len(devices) < 2 or _env_is_true("SPF_PLUTO_SEQUENTIAL_LOAD"):
             for device in devices:
                 self._load_device(device)
             return
 
+        groups: dict[str, list[UsbPluto]] = {}
+        for device in devices:
+            groups.setdefault(_usb_parent(device.sysfs_name), []).append(device)
+
+        if len(groups) == 1:
+            parent, group = next(iter(groups.items()))
+            print(
+                f"Serializing {len(group)} RAM loads on shared USB parent "
+                f"{parent}",
+                flush=True,
+            )
+            for device in group:
+                self._load_device(device)
+            return
+
+        def load_group(group: list[UsbPluto]) -> None:
+            for device in group:
+                self._load_device(device)
+
         errors: dict[str, BaseException] = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(devices)) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(groups)) as pool:
             futures = {
-                pool.submit(self._load_device, device): device for device in devices
+                pool.submit(load_group, group): group for group in groups.values()
             }
             for future in concurrent.futures.as_completed(futures):
-                device = futures[future]
+                group = futures[future]
                 try:
                     future.result()
                 except BaseException as error:  # noqa: BLE001
-                    errors[device.serial] = error
+                    for device in group:
+                        errors[device.serial] = error
         if errors:
             raise FirmwareError(
                 "parallel RAM load failed: "

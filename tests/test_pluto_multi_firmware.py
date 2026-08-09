@@ -561,6 +561,39 @@ def test_direct_firmware_is_reloaded_instead_of_only_trusted(tmp_path, monkeypat
     assert ("verify", "SERIAL_A") in calls
 
 
+def test_ram_loads_below_one_usb_hub_are_serialized(tmp_path, monkeypatch):
+    manager = _manager(tmp_path)
+    devices = [
+        UsbPluto("SERIAL_A", "1-1.1", 1, "1.1", True, 8),
+        UsbPluto("SERIAL_B", "1-1.2", 1, "1.2", True, 9),
+    ]
+    calls = []
+    monkeypatch.setattr(
+        manager,
+        "_load_device",
+        lambda device: calls.append(device.serial),
+    )
+    monkeypatch.setattr(
+        "spf.scripts.pluto_multi_firmware.concurrent.futures.ThreadPoolExecutor",
+        lambda *args, **kwargs: pytest.fail(
+            "shared-hub RAM loads must not enter the parallel executor"
+        ),
+    )
+
+    manager._load_devices(devices)
+
+    assert calls == ["SERIAL_A", "SERIAL_B"]
+
+
+def test_usb_parent_groups_nested_and_root_ports():
+    from spf.scripts.pluto_multi_firmware import _usb_parent
+
+    assert _usb_parent("1-1.1") == "1-1"
+    assert _usb_parent("1-1.2") == "1-1"
+    assert _usb_parent("1-1.2.3") == "1-1.2"
+    assert _usb_parent("1-2") == "1"
+
+
 def test_preload_backup_is_immutable_across_repeated_ram_boots(
     tmp_path, monkeypatch
 ):
