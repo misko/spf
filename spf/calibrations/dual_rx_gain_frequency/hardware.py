@@ -290,6 +290,21 @@ class DirectUsbLoopbackRadio:
         # loop, but the driver may re-enable tracking as a side effect of it.
         self.apply_rf_dc_offset_tracking()
 
+    def run_tx_quadrature_calibration(self) -> None:
+        """Force the supported AD9361 TX quadrature calibration.
+
+        A successful IIO/LO configuration can occasionally leave the RF TX
+        path silent while ENSM, LO-power, attenuation, and RF-port readbacks
+        all look correct. The failure persists across TX buffer and DDS
+        restarts in the same context. The driver's explicit ``tx_quad``
+        calibration repairs that state deterministically, so every newly
+        armed calibration tone runs it while TX is muted.
+        """
+
+        if self._tone_active:
+            raise RuntimeError("TX quadrature calibration requires TX to be stopped")
+        self.sdr._ctrl.attrs["calib_mode"].value = "tx_quad"
+
     def start_tone(
         self,
         tx_channel: int = 1,
@@ -309,20 +324,28 @@ class DirectUsbLoopbackRadio:
         if float(tone_hz) != self.config.tone_offset_hz:
             raise ValueError("FPGA DDS tone offset must be an integer number of Hz")
         dds_scale = float(self.config.tx_digital_amplitude) / float(2**15)
-        self.sdr.disable_dds()
-        self.sdr.tx_destroy_buffer()
-        self.sdr.tx_cyclic_buffer = False
-        self.sdr.tx_hardwaregain_chan0 = float(tx_gain_db) if tx_channel == 0 else -80
-        self.sdr.tx_hardwaregain_chan1 = float(tx_gain_db) if tx_channel == 1 else -80
-        self.sdr.tx_enabled_channels = []
-        self.sdr.dds_single_tone(tone_hz, dds_scale, channel=tx_channel)
-        self._tone_active = True
-        self._active_tx_gain = float(tx_gain_db)
-        if prime_after_arm:
-            # Some Pluto+ runtime states require one IIO RX completion after
-            # DDS arm before the first direct RX START. The runner negotiates
-            # this at every block using a direct-USB tone preflight.
-            self._prime_iio_rx_dma()
+        try:
+            self.run_tx_quadrature_calibration()
+            self.sdr.disable_dds()
+            self.sdr.tx_destroy_buffer()
+            self.sdr.tx_cyclic_buffer = False
+            self.sdr.tx_hardwaregain_chan0 = (
+                float(tx_gain_db) if tx_channel == 0 else -80
+            )
+            self.sdr.tx_hardwaregain_chan1 = (
+                float(tx_gain_db) if tx_channel == 1 else -80
+            )
+            self.sdr.tx_enabled_channels = []
+            self.sdr.dds_single_tone(tone_hz, dds_scale, channel=tx_channel)
+            self._tone_active = True
+            self._active_tx_gain = float(tx_gain_db)
+            if prime_after_arm:
+                # Some Pluto+ runtime states require one IIO RX completion
+                # after DDS arm before the first direct RX START.
+                self._prime_iio_rx_dma()
+        except Exception:
+            self.stop_tone()
+            raise
 
     def stop_tone(self) -> None:
         if not hasattr(self, "sdr"):
