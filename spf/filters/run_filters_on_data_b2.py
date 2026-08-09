@@ -22,7 +22,7 @@ from spf.s3_utils import (
     get_b2_client,
     list_b2_objects,
 )
-from spf.scripts.run_filters_on_data import generate_configs_to_run, run_filter_jobs
+from spf.filters.run_filters_on_data import generate_configs_to_run, run_filter_jobs
 
 
 def get_parser():
@@ -314,6 +314,10 @@ def main():
                                 if os.path.basename(local_zarr_fn) in x
                             ]
                         ),
+                        # explicit: run_filter_jobs now defaults to the local
+                        # sink, and this driver's whole purpose is the shared
+                        # DynamoDB table that its reporter reads back
+                        results_backend="dynamodb",
                     )
                 except Exception as e:
                     print("Failed to process", str(e))

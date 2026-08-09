@@ -1,14 +1,11 @@
 import argparse
 import logging
 import os
-import pickle
 import random
 import time
-from decimal import Decimal
 from functools import partial
 from multiprocessing import Pool
 
-import boto3
 import torch
 import tqdm
 import yaml
@@ -24,30 +21,10 @@ from spf.filters.particle_dualradioXY_filter import PFXYDualRadio
 from spf.filters.particle_single_radio_filter import PFSingleThetaSingleRadio
 from spf.filters.particle_single_radio_nn_filter import PFSingleThetaSingleRadioNN
 from spf.s3_utils import b2_file_to_local_with_cache, b2path_to_bucket_and_path
+from spf.filters.results_store import make_results_store
 from spf.utils import get_md5_of_file
 
 checkpoints_cache_dir = None
-
-
-def float_to_decimal(obj):
-    """
-    Recursively convert all floating point values in a dict, list, or float
-    to Decimal for DynamoDB.
-    """
-    if isinstance(obj, float):
-        # Convert float to a string, then to Decimal to avoid precision issues
-        return Decimal(str(obj))
-    elif isinstance(obj, dict):
-        for k, v in obj.items():
-            obj[k] = float_to_decimal(v)
-        return obj
-    elif isinstance(obj, list):
-        for i, v in enumerate(obj):
-            obj[i] = float_to_decimal(v)
-        return obj
-    else:
-        # For other types (int, str, bool, None, Decimal, etc.), return as-is
-        return obj
 
 
 def args_to_str(args):
@@ -68,19 +45,25 @@ def fake_runner(ds, **kwargs):
         a = ds[idx][0]
 
 
-def run_jobs_with_one_dataset(kwargs, checkpoints_cache_dir, already_processed=[]):
-
-    dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table("filter_metrics")
+def run_jobs_with_one_dataset(
+    kwargs, checkpoints_cache_dir, already_processed=[], results_backend="local"
+):
     # b2_reset_cache()  # different processes need different folders for cache
     result_fns = []
+    store = None  # built lazily: a fully-skipped dataset should touch no sink
 
     for fn, fn_kwargs in kwargs["jobs"]:
         precompute_cache = fn_kwargs.pop("precompute_cache")
         segmentation_version = fn_kwargs.pop("segmentation_version")
 
         original_b2_paths = {}
-        if "checkpoint_fn" in fn_kwargs:
+        # Only b2:// checkpoints need fetching. b2path_to_bucket_and_path on a
+        # local path yields an empty bucket and the config fetch below then tries
+        # to download "b2:///mnt/...", so without this guard a local checkpoint
+        # cannot be used at all.
+        if "checkpoint_fn" in fn_kwargs and str(fn_kwargs["checkpoint_fn"]).startswith(
+            "b2://"
+        ):
 
             b2_checkpoint_fn = fn_kwargs["checkpoint_fn"]
             local_checkpoint_fn = b2_file_to_local_with_cache(
@@ -141,40 +124,26 @@ def run_jobs_with_one_dataset(kwargs, checkpoints_cache_dir, already_processed=[
             segmentation_version=segmentation_version,
         ) as ds:
 
-            use_file_system = False
-            if use_file_system:
+            fn_kwargs["ds"] = ds
+            new_results = fn(**fn_kwargs)
+            for result in new_results:
+                # NOTE: deliberately not storing result_fn_without_workdir on the
+                # result. It embeds the dataset basename, and the reporter builds
+                # its grouping key from every non-metric field -- storing it puts
+                # each dataset in its own group and defeats the cross-dataset
+                # averaging the report exists to do.
+                result["ds_fn"] = kwargs["ds_fn"]
+                result["segmentation_version"] = segmentation_version
+                result["precompute_cache"] = precompute_cache
+                # report the b2 path the job was configured with, not the local
+                # cache copy it was actually read from
+                for replace_key, replace_value in original_b2_paths.items():
+                    if replace_key in result:
+                        result[replace_key] = replace_value
 
-                os.makedirs(os.path.dirname(result_fn), exist_ok=True)
-                if not os.path.exists(result_fn):
-                    fn_kwargs["ds"] = ds
-                    new_results = fn(**fn_kwargs)
-                    for result in new_results:
-                        result["full_name"] = result_fn_without_workdir
-                        result["ds_fn"] = kwargs["ds_fn"]
-                        result["segmentation_version"] = segmentation_version
-                        result["precompute_cache"] = precompute_cache
-                    # dump to file
-                    pickle.dump(new_results, open(result_fn + ".tmp", "wb"))
-                    os.rename(result_fn + ".tmp", result_fn)
-                    assert os.path.exists(result_fn)
-            else:
-
-                fn_kwargs["ds"] = ds
-                new_results = fn(**fn_kwargs)
-                for result in new_results:
-                    result["ds_fn"] = kwargs["ds_fn"]
-                    result["segmentation_version"] = segmentation_version
-                    result["precompute_cache"] = precompute_cache
-                    for replace_key, replace_value in original_b2_paths.items():
-                        if replace_key in result:
-                            result[replace_key] = replace_value
-                table.put_item(
-                    Item={
-                        "bucket": workdir,
-                        "full_name": result_fn_without_workdir,
-                        "results": float_to_decimal(new_results),
-                    }
-                )
+            if store is None:
+                store = make_results_store(results_backend, workdir)
+            store.put(result_fn_without_workdir, new_results)
 
             result_fns.append(result_fn)
 
@@ -624,12 +593,18 @@ def generate_configs_to_run(
 
 
 def run_filter_jobs(
-    jobs, nparallel, debug=False, checkpoints_cache_dir=None, already_processed=[]
+    jobs,
+    nparallel,
+    debug=False,
+    checkpoints_cache_dir=None,
+    already_processed=[],
+    results_backend="local",
 ):
     f = partial(
         run_jobs_with_one_dataset,
         checkpoints_cache_dir=checkpoints_cache_dir,
         already_processed=already_processed,
+        results_backend=results_backend,
     )
     if debug:
         _ = list(
@@ -710,6 +685,31 @@ if __name__ == "__main__":
             type=str,
             required=True,
         )
+        parser.add_argument(
+            "--results-backend",
+            type=str,
+            choices=["local", "dynamodb"],
+            default="local",
+            help=(
+                "local (default): one results.pkl per job under --work-dir, which "
+                "is what run_filters_report.py reads. dynamodb: put_item into the "
+                "'filter_metrics' table -- needs AWS credentials and writes to the "
+                "network."
+            ),
+        )
+        parser.add_argument(
+            "--checkpoints-cache-dir",
+            type=str,
+            default=None,
+            required=False,
+            help="local cache for b2:// checkpoints; unused for local paths",
+        )
+        parser.add_argument(
+            "--resume",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="skip jobs already present in the results store",
+        )
 
         return parser
 
@@ -728,4 +728,18 @@ if __name__ == "__main__":
         seed=args.seed,
         empirical_pkl_fn=args.empirical_pkl_fn,
     )
-    run_filter_jobs(jobs)
+    already_processed = []
+    if args.resume:
+        already_processed = make_results_store(
+            args.results_backend, args.work_dir
+        ).already_processed()
+        if already_processed:
+            logging.info(f"resuming: {len(already_processed)} results already present")
+    run_filter_jobs(
+        jobs,
+        nparallel=args.parallel,
+        debug=args.debug,
+        checkpoints_cache_dir=args.checkpoints_cache_dir,
+        already_processed=already_processed,
+        results_backend=args.results_backend,
+    )

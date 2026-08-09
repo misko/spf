@@ -7,6 +7,8 @@ import pickle
 import torch
 import tqdm
 
+from spf.filters.labels import ds_fn_to_movement
+
 
 def read_pkl(pkl_fn):
     return pickle.load(open(pkl_fn, "rb"))
@@ -43,18 +45,8 @@ def merge_results(results, header):
     for _results in results:
         for result in _results:
             result = result.copy()
-            # _ty = result.pop("type")
-            _fn = result.pop("ds_fn").lower()
-            movement = ""
-            if "circle" in _fn:
-                movement = "circle"
-            elif "bounce" in _fn:
-                movement = "bounce"
-            elif "calibrate" in _fn:
-                movement = "calibrate"
-            else:
-                raise ValueError(f"Cannot figure out movement {_fn}")
-            result["movement"] = movement
+            _fn = result.pop("ds_fn")
+            result["movement"] = ds_fn_to_movement(_fn, result.get("routine"))
             key = result_to_tuple(result, header)
             if key not in merged:
                 merged[key] = []
