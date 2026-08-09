@@ -8,6 +8,7 @@ to state the physical attenuation on the command line.
 from __future__ import annotations
 
 import json
+import math
 import time
 
 import numpy as np
@@ -208,9 +209,7 @@ def _tx_core_diagnostics(radio: DirectUsbLoopbackRadio) -> dict:
             )
             result["tx_pipeline_debug"] = _decode_tx_pipeline_debug(debug_value)
         except Exception as error:
-            result["tx_pipeline_debug_error"] = (
-                f"{type(error).__name__}: {error}"
-            )
+            result["tx_pipeline_debug_error"] = f"{type(error).__name__}: {error}"
         finally:
             try:
                 device.reg_write(
@@ -218,24 +217,210 @@ def _tx_core_diagnostics(radio: DirectUsbLoopbackRadio) -> dict:
                     original_control,
                 )
             except Exception as error:
-                result["tx_pipeline_debug_restore_error"] = (
-                    f"{type(error).__name__}: {error}"
-                )
+                result[
+                    "tx_pipeline_debug_restore_error"
+                ] = f"{type(error).__name__}: {error}"
         return result
     except Exception as error:  # Diagnostic evidence must not replace RF QC.
         return {"error": f"{type(error).__name__}: {error}"}
 
 
-def _write_report(radio_report_dir, report: dict) -> None:
-    (radio_report_dir / "gain_series_v3_tx2_loopback.json").write_text(
-        json.dumps(report, indent=2) + "\n"
-    )
+def _write_report(
+    radio_report_dir,
+    report: dict,
+    filename: str = "gain_series_v3_tx2_loopback.json",
+) -> None:
+    (radio_report_dir / filename).write_text(json.dumps(report, indent=2) + "\n")
 
 
 def _gain_values(metadata: RadioMetadataV3) -> np.ndarray:
     return np.asarray(
         [[item.rx1_gain_db, item.rx2_gain_db] for item in metadata.gain_observations],
         dtype=np.float64,
+    )
+
+
+def _single_channel_tone_metrics(
+    signal: np.ndarray,
+    *,
+    sample_rate_hz: int,
+    tone_hz: int,
+    transient_samples: int,
+) -> dict:
+    """Measure a digitally looped tone without requiring both RX channels."""
+
+    raw = signal[:, transient_samples:].astype(np.complex128, copy=False)
+    raw = raw - np.mean(raw, axis=1, keepdims=True)
+    sample_index = np.arange(raw.shape[1], dtype=np.float64)
+    carrier = np.exp(2j * np.pi * tone_hz * sample_index / sample_rate_hz)
+    coefficient = np.mean(raw * np.conj(carrier)[None, :], axis=1)
+    fitted = coefficient[:, None] * carrier[None, :]
+    residual_power = np.mean(np.abs(raw - fitted) ** 2, axis=1)
+    tone_power = np.abs(coefficient) ** 2
+    numerical_floor = np.finfo(np.float64).tiny
+    tone_dbfs = 10.0 * np.log10(
+        np.maximum(tone_power, numerical_floor) / float(2048**2)
+    )
+    tone_snr_db = 10.0 * np.log10(
+        np.maximum(tone_power, numerical_floor)
+        / np.maximum(residual_power, numerical_floor)
+    )
+    strongest_channel = int(np.argmax(tone_power))
+    phase_step = np.angle(
+        np.sum(raw[strongest_channel, 1:] * np.conj(raw[strongest_channel, :-1]))
+    )
+    measured_frequency_hz = float(phase_step * sample_rate_hz / (2.0 * np.pi))
+    return {
+        "tone_dbfs": tone_dbfs.tolist(),
+        "tone_snr_db": tone_snr_db.tolist(),
+        "strongest_channel": strongest_channel,
+        "measured_frequency_hz": measured_frequency_hz,
+        "frequency_error_hz": measured_frequency_hz - tone_hz,
+    }
+
+
+def test_v3_cyclic_tx_reaches_dac_with_timestamping_disabled(
+    attached_plutos, pytestconfig, radio_report_dir
+):
+    """Exercise the DMA/timestamp-FIFO path that FPGA DDS bypasses."""
+
+    attenuation = pytestconfig.getoption("--radio-tx-loopback-attenuation-db")
+    if attenuation is None or attenuation < MINIMUM_LOOPBACK_ATTENUATION_DB:
+        pytest.fail(
+            "cyclic TX requires an explicitly declared attenuated loopback of "
+            f"at least {MINIMUM_LOOPBACK_ATTENUATION_DB:g} dB"
+        )
+
+    samples = pytestconfig.getoption("--radio-tx-samples")
+    sample_rate_hz = pytestconfig.getoption("--radio-tx-sample-rate")
+    bandwidth_hz = pytestconfig.getoption("--radio-tx-bandwidth")
+    lo_hz = pytestconfig.getoption("--radio-tx-lo-hz")
+    tone_hz = int(pytestconfig.getoption("--radio-tx-tone-hz"))
+    nominal_tx_gain = pytestconfig.getoption("--radio-tx-gain-db")
+    interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
+    capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
+    period_samples = sample_rate_hz // math.gcd(sample_rate_hz, abs(tone_hz))
+    waveform_samples = period_samples * math.ceil(16_384 / period_samples)
+    waveform_index = np.arange(waveform_samples, dtype=np.float64)
+    waveform = (
+        8192 * np.exp(2j * np.pi * tone_hz * waveform_index / sample_rate_hz)
+    ).astype(np.complex64)
+    config = CalibrationConfig(
+        frequencies_hz=(lo_hz,),
+        gains_db=MANUAL_GAINS_DB,
+        repetitions=1,
+        sample_rate_hz=sample_rate_hz,
+        bandwidth_hz=bandwidth_hz,
+        buffer_size=samples,
+        tone_offset_hz=tone_hz,
+        transient_samples=min(1_024, samples // 16),
+        phase_segments=8,
+        settle_seconds=0.1,
+        frequency_settle_seconds=0.25,
+        discard_frames_after_gain=0,
+        rf_dc_calibration_policy="never",
+        require_preflight_tone=False,
+        tx_gain_db=nominal_tx_gain,
+        min_quality_valid_per_cell=1,
+        setup_label="protocol_v3_internal_cyclic_tx",
+    )
+    report = {
+        "attenuation_db": attenuation,
+        "lo_hz": lo_hz,
+        "sample_rate_hz": sample_rate_hz,
+        "tone_hz": tone_hz,
+        "waveform_samples": waveform_samples,
+        "radios": [],
+    }
+
+    for attached in attached_plutos:
+        with DirectUsbLoopbackRadio(
+            attached.serial,
+            config,
+            direct_protocol_version=3,
+            direct_receiver_options={
+                "gain_observation_interval_samples": interval,
+                "gain_observation_capacity": capacity,
+            },
+        ) as radio:
+            loopback = radio.sdr._ctrl.debug_attrs["loopback"]
+            original_loopback = loopback.value
+            try:
+                radio.configure_frequency(lo_hz, start_tone=False)
+                radio.set_gains(*MANUAL_GAINS_DB)
+                loopback.value = "1"
+                radio.sdr.disable_dds()
+                radio.sdr.tx_destroy_buffer()
+                radio.sdr.tx_cyclic_buffer = True
+                radio.sdr.tx_enabled_channels = [1]
+                radio.sdr.tx_hardwaregain_chan0 = -80
+                radio.sdr.tx_hardwaregain_chan1 = nominal_tx_gain
+                radio.sdr.tx(waveform)
+                radio._prime_iio_rx_dma()
+                time.sleep(0.25)
+                frame = _capture_frames(radio, samples, 1)[0]
+                metadata = _validate_metadata(frame, samples, interval)
+                _assert_manual_gain_metadata(metadata)
+                metrics = _single_channel_tone_metrics(
+                    _signal(frame, samples),
+                    sample_rate_hz=sample_rate_hz,
+                    tone_hz=tone_hz,
+                    transient_samples=config.transient_samples,
+                )
+                diagnostics = _tx_core_diagnostics(radio)
+                result = {
+                    "serial": attached.serial,
+                    "port_path": list(attached.port_path),
+                    "tone_metrics": metrics,
+                    "tx_core_diagnostics": diagnostics,
+                }
+                report["radios"].append(result)
+                _write_report(
+                    radio_report_dir,
+                    report,
+                    "gain_series_v3_internal_cyclic_tx.json",
+                )
+
+                strongest = metrics["strongest_channel"]
+                assert metrics["tone_dbfs"][strongest] >= -25.0, metrics
+                assert metrics["tone_snr_db"][strongest] >= 20.0, metrics
+                assert abs(metrics["frequency_error_hz"]) <= 250.0, metrics
+                assert diagnostics["timestamp_interval_control"] == 0
+                assert diagnostics["timestamp_discard_count"] == 0, diagnostics
+                debug = diagnostics["tx_pipeline_debug"]
+                required_dma = (
+                    "transfer_request_seen",
+                    "upstream_valid_seen",
+                    "fifo_write_seen",
+                    "fifo_write_possible_seen",
+                    "fifo_reset_released_seen",
+                )
+                required_dac = (
+                    "downstream_ready_seen",
+                    "fifo_read_seen",
+                    "downstream_valid_seen",
+                    "fifo_nonempty_seen",
+                    "fifo_read_possible_seen",
+                    "transfer_start_seen",
+                    "upack_reset_released_seen",
+                )
+                assert all(debug["dma"][name] for name in required_dma), debug
+                assert all(debug["dac"][name] for name in required_dac), debug
+                assert not debug["dma"]["timestamp_enabled_seen"], debug
+            finally:
+                try:
+                    radio.sdr.tx_destroy_buffer()
+                    radio.sdr.tx_enabled_channels = []
+                    radio.sdr.tx_hardwaregain_chan0 = -80
+                    radio.sdr.tx_hardwaregain_chan1 = -80
+                    radio.sdr.tx_cyclic_buffer = False
+                finally:
+                    loopback.value = original_loopback
+
+    _write_report(
+        radio_report_dir,
+        report,
+        "gain_series_v3_internal_cyclic_tx.json",
     )
 
 

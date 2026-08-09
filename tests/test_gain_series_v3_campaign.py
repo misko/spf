@@ -2,9 +2,39 @@ import os
 from pathlib import Path
 import subprocess
 
+import numpy as np
+import pytest
+
+from tests.radio_hardware.test_gain_series_v3_tx_loopback_hardware import (
+    _single_channel_tone_metrics,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tests/radio_hardware/run_gain_series_v3_candidate.sh"
+
+
+def test_internal_loopback_tone_metrics_accept_one_active_rx_channel():
+    sample_rate_hz = 3_000_000
+    tone_hz = 100_000
+    samples = 30_000
+    sample_index = np.arange(samples, dtype=np.float64)
+    signal = np.zeros((2, samples), dtype=np.complex64)
+    signal[1] = (
+        512 * np.exp(2j * np.pi * tone_hz * sample_index / sample_rate_hz)
+    ).astype(np.complex64)
+
+    metrics = _single_channel_tone_metrics(
+        signal,
+        sample_rate_hz=sample_rate_hz,
+        tone_hz=tone_hz,
+        transient_samples=1_024,
+    )
+
+    assert metrics["strongest_channel"] == 1
+    assert abs(metrics["frequency_error_hz"]) < 1e-3
+    assert metrics["tone_dbfs"][1] == pytest.approx(-12.0412, abs=1e-3)
+    assert metrics["tone_snr_db"][1] > 70.0
 
 
 def _executable(path: Path, body: str) -> Path:
@@ -130,8 +160,7 @@ def test_gain_series_candidate_campaign_requires_explicit_tx_and_mutes(tmp_path)
     assert len(tx_test) == 3
     assert all("--radio-tx-loopback" in command for command in tx_test)
     assert all(
-        "--radio-tx-loopback-attenuation-db=30" in command
-        for command in tx_test
+        "--radio-tx-loopback-attenuation-db=30" in command for command in tx_test
     )
     load_commands = [command for command in commands if "load-all" in command]
     assert len(load_commands) == 3
@@ -146,9 +175,7 @@ def test_gain_series_candidate_campaign_requires_explicit_tx_and_mutes(tmp_path)
     ]
     assert len(mute_commands) >= 5
     for epoch in range(1, 4):
-        assert (
-            report / f"candidate-v3-tx2-loopback-epoch-{epoch}.log"
-        ).is_file()
+        assert (report / f"candidate-v3-tx2-loopback-epoch-{epoch}.log").is_file()
 
 
 def test_gain_series_candidate_campaign_rejects_unacknowledged_tx(tmp_path):
