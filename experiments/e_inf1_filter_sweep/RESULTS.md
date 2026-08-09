@@ -11,13 +11,33 @@ hypotheses cannot be edited after seeing the data.
 | H3 | median `std(z)` > 1.5 on every corpus (filters overconfident) | _pending_ |
 | H4 | MSE worse at d/λ = 0.904 than at 0.673 | _pending_ |
 
-## Blocking item
+## Blocking item — ✅ RESOLVED 2026-08-09 (`2a07ae0`)
 
-3 of the 48 merged rover stores are RO4 at **d/λ = 0.90397**, which has no entry
-in `empirical_dists/full.pkl`. `get_empirical_dist` is an exact-key lookup, so
-every empirical (non-NN) filter raises `KeyError` on those. Resolve before stage
-2 — either run `create_empirical_p_dist.py` for that spacing, or restrict the
-empirical families to the 0.673 and 0.827 stores and say so here.
+**Use `empirical_dists/full_20260809_v1.pkl`. Not `full.pkl`.**
+
+The gap was larger than first recorded: **17 of 48** merged rover stores, not 3.
+d/λ is derived from antenna spacing **and** carrier frequency, and the 2026 fleet
+changed both — a new carrier (5840 MHz) and a new spacing (0.047 m, RO4) — giving
+3 × 2 = 6 combinations where the old table held only the 2 that existed when it
+was built.
+
+| d/λ | spacing | carrier | in `full.pkl` | stores |
+|---|---|---|---|---|
+| 0.67317 | 0.035 m | 5766 MHz | ✅ | 12 |
+| 0.68181 | 0.035 m | 5840 MHz | ❌ | 3 |
+| 0.82703 | 0.043 m | 5766 MHz | ✅ | 19 |
+| 0.83765 | 0.043 m | 5840 MHz | ❌ | 5 |
+| 0.90397 | 0.047 m | 5766 MHz | ❌ | 6 |
+| 0.91557 | 0.047 m | 5840 MHz | ❌ | 3 |
+
+`full_20260809_v1.pkl` (48 keys, 2,445 datasets) covers **48/48**, verified live
+for every distinct key. Report:
+[`spf/calibrations/empirical_p_dist/reports/empirical_rebuild_20260809_v1/`](../../spf/calibrations/empirical_p_dist/reports/empirical_rebuild_20260809_v1/REPORT.md).
+
+⚠️ **Two existing keys changed.** `PLUTO_0.82703` (24→43 datasets, corr 0.937 vs
+the old table) and `PLUTO_0.67317` (21→33, corr 0.989) now fold in 2026 rover
+data. Empirical-filter results at those spacings are not comparable to anything
+predating `2a07ae0` — including the pilot numbers below, which used `full.pkl`.
 
 ## Pilot observations (single dataset, 2026-08-07)
 

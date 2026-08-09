@@ -88,7 +88,7 @@ python spf/scripts/create_inference_cache.py --device cuda --parallel 2 \
 
 # stage 2/3 -- 24 workers, not 30: throughput peaks at 24 and regresses at 30
 python spf/filters/run_filters_on_data.py -d <datasets> \
-    --empirical-pkl-fn empirical_dists/full.pkl \
+    --empirical-pkl-fn empirical_dists/full_20260809_v1.pkl \
     --work-dir /mnt/qnap01/.../filter_runs/<stage> \
     --config spf/filters/configs/<corpus>_coarse.yaml \
     --results-backend local --parallel 24
@@ -123,14 +123,18 @@ Model: `/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth`
   bad track means the tracker.
 - **H3** — if `std(z) > 1.5` holds, **no downstream component may gate on filter
   variance** until the cause is found, and that becomes its own work item.
-- **H4** — if d/λ = 0.904 is materially worse, the RO4 rovers need re-spacing
-  before further capture, and the 3 affected stores are excluded from training.
+- **H4** — if d/λ = 0.904 is materially worse **after conditioning on frame yield**
+  (see Risks: RO4 yields 36.9% against 65–76%), the RO4 rovers need re-spacing
+  before further capture, and the 9 RO4 stores — 6 at d/λ 0.90397 plus 3 at
+  0.91557 — are excluded from training. A raw MSE gap alone does not settle it.
 
 ## 7. Risks
 
 | Risk | Catch |
 |---|---|
-| 3 RO4 stores at d/λ = 0.904 have no empirical-table entry → `KeyError` in every empirical filter | known; either run `create_empirical_p_dist.py` for that spacing or restrict the empirical families. **Resolve before stage 2.** |
+| ~~RO4 stores have no empirical-table entry → `KeyError`~~ | ✅ **RESOLVED** (`2a07ae0`). It was **17 of 48** stores, not 3: d/λ derives from spacing **and** carrier, and the 2026 fleet added both 5840 MHz and 0.047 m. `empirical_dists/full_20260809_v1.pkl` covers all 48, verified live per key. **Use that table, not `full.pkl`.** |
+| **H4 is confounded with RO4 signal quality** | RO4 yields **36.9%** valid (θ,φ) frames against 65–76% for the other spacings, so "d/λ = 0.904 is worse" and "RO4 captures half the signal" are not separable by MSE alone. Report per-key **yield alongside** MSE; treat H4 as unresolved unless the gap survives conditioning on yield. |
+| Two empirical keys changed under the new table | `PLUTO_0.82703` (24→43 datasets, corr 0.937 vs the old table) and `PLUTO_0.67317` (21→33, corr 0.989) now include 2026 rover data. Empirical-filter numbers at those spacings are **not** comparable to any result predating `2a07ae0`. |
 | The O4 emitter is bursty (60–70% NaN is healthy) so mean-over-all-frames metrics measure the silence | report `median_abs_err` alongside the mean; both are in `metrics.summarize` |
 | Stage 2 sample is unrepresentative | stratify, and record the sample list in the report |
 | Another session is using the box | timings are not a gate here; only stage-2/3 wall clock is affected |

@@ -5,16 +5,21 @@
 #
 #   python spf/filters/run_filters_on_data.py \
 #     -d /mnt/qnap01/mouse9911/rovers_2026/merged/<one>.zarr \
-#     --empirical-pkl-fn empirical_dists/full.pkl \
+#     --empirical-pkl-fn empirical_dists/full_20260809_v1.pkl \
 #     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/smoke \
 #     --config spf/filters/configs/rover2026_smoke.yaml \
 #     --results-backend local --parallel 24
 #
-# NOTE 3 of the 48 merged stores are RO4 at d/lambda = 0.90397, which has no
-# entry in empirical_dists/full.pkl. get_empirical_dist does an exact key
-# lookup, so every empirical (non-NN) filter raises KeyError on those. Either
-# run create_empirical_p_dist.py to add the spacing, or restrict the empirical
-# families to the 0.673 and 0.827 stores.
+# Use full_20260809_v1.pkl, NOT the older empirical_dists/full.pkl. d/lambda is
+# derived from antenna spacing AND carrier frequency, and the 2026 fleet added
+# both a carrier (5840 MHz) and a spacing (0.047 m, RO4) -- so 17 of the 48
+# merged stores land on keys the older table does not contain. get_empirical_dist
+# is an exact-key lookup with no fallback, so those raise KeyError. The failure
+# is lazy: the dataset constructs fine and only fails on first sample access,
+# and it hits anything indexing a sample (`empirical` is not in the harness's
+# skip_fields), not just the empirical filters.
+# full_20260809_v1.pkl covers all 48 -- see
+# spf/calibrations/empirical_p_dist/reports/empirical_rebuild_20260809_v1/.
 precompute_caches:
   3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
 

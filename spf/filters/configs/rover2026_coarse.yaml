@@ -7,7 +7,7 @@
 #
 #   python spf/filters/run_filters_on_data.py \
 #     -d $(cat sample16.txt) \
-#     --empirical-pkl-fn empirical_dists/full.pkl \
+#     --empirical-pkl-fn empirical_dists/full_20260809_v1.pkl \
 #     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/coarse \
 #     --config spf/filters/configs/rover2026_coarse.yaml \
 #     --results-backend local --parallel 24
