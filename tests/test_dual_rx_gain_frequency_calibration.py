@@ -1,6 +1,7 @@
 import json
 import math
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -1041,6 +1042,9 @@ class FakePrimingSdr:
     def __init__(self, config):
         self.config = config
         self.calls = []
+        self._ctrl = SimpleNamespace(
+            attrs={"calib_mode": SimpleNamespace(value=None)}
+        )
         self.tx_hardwaregain_chan0 = -80
         self.tx_hardwaregain_chan1 = -80
         self.tx_enabled_channels = []
@@ -1086,6 +1090,7 @@ def test_dds_tone_supports_negotiated_post_arm_prime_and_gain_updates():
     assert radio.sdr.tx_enabled_channels == []
     assert radio.sdr.tx_cyclic_buffer is False
     assert radio.sdr.tx_hardwaregain_chan1 == -20
+    assert radio.sdr._ctrl.attrs["calib_mode"].value == "tx_quad"
 
     radio.set_tx_gain(-35)
     assert radio.sdr.tx_hardwaregain_chan1 == -35
