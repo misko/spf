@@ -1,4 +1,4 @@
-"""Pluto TX2 loopback and finite direct-USB V2 capture adapter."""
+"""Pluto TX2 loopback and finite direct-USB capture adapter."""
 
 from __future__ import annotations
 
@@ -64,6 +64,8 @@ class DirectUsbLoopbackRadio:
         adi_module=None,
         direct_receiver_class=PlutoDirectUsbReceiver,
         scan_contexts=None,
+        direct_protocol_version: int = 2,
+        direct_receiver_options: dict | None = None,
     ):
         config.validate()
         if adi_module is None:
@@ -81,7 +83,13 @@ class DirectUsbLoopbackRadio:
             raise RuntimeError(
                 f"IIO serial mismatch: requested {serial}, opened {actual_serial}"
             )
-        self.direct = direct_receiver_class(serial=serial, protocol_version=2)
+        self.direct_protocol_version = int(direct_protocol_version)
+        receiver_options = dict(direct_receiver_options or {})
+        self.direct = direct_receiver_class(
+            serial=serial,
+            protocol_version=self.direct_protocol_version,
+            **receiver_options,
+        )
         self.direct.open()
         if self.direct.identity.serial != serial:
             self.direct.close()
@@ -172,9 +180,7 @@ class DirectUsbLoopbackRadio:
                 attribute.value = desired
             observed = self._read_rf_dc_offset_tracking()
             mismatched = {
-                name: value
-                for name, value in observed.items()
-                if value != desired
+                name: value for name, value in observed.items() if value != desired
             }
             if mismatched:
                 raise RuntimeError(
@@ -231,7 +237,7 @@ class DirectUsbLoopbackRadio:
             direct_usb_interface=direct.interface,
             direct_usb_bulk_in_endpoint=direct.bulk_in_endpoint,
             direct_usb_bulk_out_endpoint=direct.bulk_out_endpoint,
-            direct_usb_protocol_version=2,
+            direct_usb_protocol_version=self.direct_protocol_version,
             direct_usb_protocol_min=capabilities.protocol_min,
             direct_usb_protocol_max=capabilities.protocol_max,
             direct_usb_supported_features=int(capabilities.supported_features),

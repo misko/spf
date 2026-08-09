@@ -6,6 +6,7 @@ explicitly supplies ``--radio-gain-series-v3`` and, for IP, ``--radio-direct-ip`
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import time
 
@@ -334,6 +335,78 @@ def test_v3_usb_gain_observations(attached_plutos, pytestconfig, radio_report_di
     )
 
 
+def _simultaneous_v3_stream(
+    serial: str,
+    *,
+    samples: int,
+    frame_count: int,
+    interval: int,
+    capacity: int,
+    sample_rate_hz: float,
+) -> dict:
+    with PlutoDirectUsbReceiver(
+        serial=serial,
+        protocol_version=3,
+        gain_observation_interval_samples=interval,
+        gain_observation_capacity=capacity,
+    ) as receiver:
+        anchors = [receiver.query_time_anchor() for _ in range(8)]
+        frames = []
+        for frame in receiver.stream_frames(
+            samples_per_channel=samples,
+            frame_count=frame_count,
+            queue_depth=1,
+        ):
+            frames.append(frame)
+            anchors.append(receiver.query_time_anchor())
+    _assert_contiguous_frames(frames, samples)
+    return {
+        "serial": serial,
+        "frames": [_validate_v3_frame(frame, samples) for frame in frames],
+        "sample_clock": _sample_clock_report(anchors, frames, sample_rate_hz),
+    }
+
+
+def test_v3_simultaneous_usb_streams(attached_plutos, pytestconfig, radio_report_dir):
+    if len(attached_plutos) < 2:
+        pytest.skip("simultaneous protocol-v3 streaming requires two radios")
+    samples = pytestconfig.getoption("--radio-samples")
+    frame_count = pytestconfig.getoption("--radio-frames-per-request")
+    interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
+    capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
+    sample_rate_hz = pytestconfig.getoption("--radio-sample-rate")
+    max_uncertainty_ns = int(
+        pytestconfig.getoption("--radio-time-anchor-max-uncertainty-ms") * 1_000_000
+    )
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=len(attached_plutos)
+    ) as executor:
+        futures = [
+            executor.submit(
+                _simultaneous_v3_stream,
+                radio.serial,
+                samples=samples,
+                frame_count=frame_count,
+                interval=interval,
+                capacity=capacity,
+                sample_rate_hz=sample_rate_hz,
+            )
+            for radio in attached_plutos
+        ]
+        results = [future.result() for future in futures]
+    assert {result["serial"] for result in results} == {
+        radio.serial for radio in attached_plutos
+    }
+    for result in results:
+        assert len(result["frames"]) == frame_count
+        assert result["sample_clock"]["sample_time_uncertainty_ns"] <= (
+            max_uncertainty_ns
+        )
+    (radio_report_dir / "gain_series_v3_simultaneous_usb.json").write_text(
+        json.dumps(results, indent=2) + "\n"
+    )
+
+
 @pytest.mark.radio_direct_ip
 def test_v3_direct_ip_uses_the_same_inner_frame(pytestconfig, radio_report_dir):
     host = pytestconfig.getoption("--radio-direct-ip-host")
@@ -389,49 +462,6 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
     assert 0 < frame_count
     assert capacity <= V7_GAIN_OBSERVATION_CAPACITY
 
-    frames_by_radio = []
-    sample_times_by_radio = []
-    identities = []
-    for radio in attached_plutos:
-        with PlutoDirectUsbReceiver(
-            serial=radio.serial,
-            protocol_version=3,
-            gain_observation_interval_samples=interval,
-            gain_observation_capacity=capacity,
-        ) as receiver:
-            assert (
-                receiver.capabilities.protocol_min
-                <= 3
-                <= receiver.capabilities.protocol_max
-            )
-            identities.append(receiver.query_hardware_identity())
-            frames = []
-            sample_times = []
-            anchors = [receiver.query_time_anchor() for _ in range(8)]
-            for _ in range(frame_count):
-                stream = receiver.stream_frames(
-                    samples_per_channel=samples,
-                    frame_count=1,
-                    queue_depth=1,
-                )
-                try:
-                    frame = next(stream)
-                    _validate_v3_frame(frame, samples)
-                    frames.append(frame)
-                    # Bracket the yielded frame before advancing the finite
-                    # generator into its STOP/cleanup path.
-                    anchors.append(receiver.query_time_anchor())
-                    with pytest.raises(StopIteration):
-                        next(stream)
-                finally:
-                    stream.close()
-                anchors = anchors[-32:]
-                sample_time = _sample_clock_report(anchors, [frame], sample_rate_hz)
-                assert sample_time["sample_time_uncertainty_ns"] <= max_uncertainty_ns
-                sample_times.append(sample_time)
-            frames_by_radio.append(tuple(frames))
-            sample_times_by_radio.append(tuple(sample_times))
-
     path = tmp_path / "hardware_gain_series_v3.zarr"
     zarr = v7rx_new_dataset(
         filename=str(path),
@@ -449,29 +479,81 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
     zarr.attrs["capture_records_written_by_receiver"] = [0] * len(attached_plutos)
     zarr.attrs["rx_transport"] = "direct_usb"
     zarr.attrs["direct_usb_protocol_version"] = 3
+    expected_by_radio = []
     try:
-        for receiver_index, (radio, identity, frames, sample_times) in enumerate(
-            zip(
-                attached_plutos,
-                identities,
-                frames_by_radio,
-                sample_times_by_radio,
-                strict=True,
-            )
-        ):
+        for receiver_index, radio in enumerate(attached_plutos):
             receiver_z = zarr[f"receivers/r{receiver_index}"]
-            receiver_z.attrs["sdr_family"] = "pluto"
-            receiver_z.attrs["sdr_serial"] = radio.serial
-            receiver_z.attrs["usb_port_path"] = list(radio.port_path)
-            receiver_z.attrs["gadget_build_id"] = identity.gadget_build_id
-            receiver_z.attrs["fpga_device_dna"] = identity.fpga_device_dna
-            for record_index, (frame, sample_time) in enumerate(
-                zip(frames, sample_times, strict=True)
-            ):
-                _write_v3_record(receiver_z, record_index, frame, samples, sample_time)
-        zarr.attrs["capture_records_written_by_receiver"] = [frame_count] * len(
-            attached_plutos
-        )
+            expected_records = []
+            with PlutoDirectUsbReceiver(
+                serial=radio.serial,
+                protocol_version=3,
+                gain_observation_interval_samples=interval,
+                gain_observation_capacity=capacity,
+            ) as receiver:
+                assert (
+                    receiver.capabilities.protocol_min
+                    <= 3
+                    <= receiver.capabilities.protocol_max
+                )
+                identity = receiver.query_hardware_identity()
+                receiver_z.attrs["sdr_family"] = "pluto"
+                receiver_z.attrs["sdr_serial"] = radio.serial
+                receiver_z.attrs["usb_port_path"] = list(radio.port_path)
+                receiver_z.attrs["gadget_build_id"] = identity.gadget_build_id
+                receiver_z.attrs["fpga_device_dna"] = identity.fpga_device_dna
+                anchors = [receiver.query_time_anchor() for _ in range(8)]
+                for record_index in range(frame_count):
+                    stream = receiver.stream_frames(
+                        samples_per_channel=samples,
+                        frame_count=1,
+                        queue_depth=1,
+                    )
+                    try:
+                        frame = next(stream)
+                        _validate_v3_frame(frame, samples)
+                        # Bracket the yielded frame before advancing the finite
+                        # generator into its STOP/cleanup path.
+                        anchors.append(receiver.query_time_anchor())
+                        with pytest.raises(StopIteration):
+                            next(stream)
+                    finally:
+                        stream.close()
+                    anchors = anchors[-32:]
+                    sample_time = _sample_clock_report(anchors, [frame], sample_rate_hz)
+                    assert (
+                        sample_time["sample_time_uncertainty_ns"] <= max_uncertainty_ns
+                    )
+                    _write_v3_record(
+                        receiver_z, record_index, frame, samples, sample_time
+                    )
+                    metadata = frame.metadata
+                    expected_records.append(
+                        {
+                            "indices": np.asarray(
+                                [
+                                    [item.rx1_gain_index, item.rx2_gain_index]
+                                    for item in metadata.gain_observations
+                                ],
+                                dtype=np.uint8,
+                            ),
+                            "bounds": np.asarray(
+                                [
+                                    [
+                                        item.sample_sequence_before,
+                                        item.sample_sequence_after,
+                                    ]
+                                    for item in metadata.gain_observations
+                                ],
+                                dtype=np.uint64,
+                            ),
+                            "sample_sequence": metadata.first_sample_sequence,
+                            "stream_id": metadata.stream_id,
+                        }
+                    )
+                    progress = list(zarr.attrs["capture_records_written_by_receiver"])
+                    progress[receiver_index] = record_index + 1
+                    zarr.attrs["capture_records_written_by_receiver"] = progress
+            expected_by_radio.append(tuple(expected_records))
         zarr.attrs["capture_status"] = "complete"
     finally:
         zarr.store.close()
@@ -484,8 +566,8 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
         assert reopened.attrs["capture_status"] == "complete"
         assert reopened.attrs["rx_transport"] == "direct_usb"
         assert reopened.attrs["direct_usb_protocol_version"] == 3
-        for receiver_index, (radio, source_frames) in enumerate(
-            zip(attached_plutos, frames_by_radio, strict=True)
+        for receiver_index, (radio, expected_records) in enumerate(
+            zip(attached_plutos, expected_by_radio, strict=True)
         ):
             receiver_z = reopened[f"receivers/r{receiver_index}"]
             assert receiver_z.attrs["sdr_serial"] == radio.serial
@@ -499,24 +581,16 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
             counts = receiver_z["gain_observation_count"][:]
             assert np.all(counts > 0)
             assert np.all(counts <= capacity)
-            for record_index, source_frame in enumerate(source_frames):
-                source = source_frame.metadata
+            for record_index, expected in enumerate(expected_records):
                 count = int(counts[record_index])
-                expected_indices = [
-                    [item.rx1_gain_index, item.rx2_gain_index]
-                    for item in source.gain_observations
-                ]
-                expected_bounds = [
-                    [item.sample_sequence_before, item.sample_sequence_after]
-                    for item in source.gain_observations
-                ]
+                assert count == len(expected["indices"])
                 np.testing.assert_array_equal(
                     receiver_z["gain_observation_index"][record_index, :count],
-                    expected_indices,
+                    expected["indices"],
                 )
                 np.testing.assert_array_equal(
                     receiver_z["gain_observation_sample_bounds"][record_index, :count],
-                    expected_bounds,
+                    expected["bounds"],
                 )
                 assert np.all(
                     receiver_z["gain_observation_valid"][record_index, :count]
@@ -532,12 +606,21 @@ def test_v3_gain_series_round_trips_through_v7_zarr(
                     == np.iinfo(np.uint64).max
                 )
             sample_sequences = receiver_z["sample_sequence"][:]
+            np.testing.assert_array_equal(
+                sample_sequences,
+                [item["sample_sequence"] for item in expected_records],
+            )
             assert np.all(np.diff(sample_sequences.astype(object)) > 0)
+            np.testing.assert_array_equal(
+                receiver_z["stream_id"][:],
+                [item["stream_id"] for item in expected_records],
+            )
             assert len(set(receiver_z["stream_id"][:].tolist())) == frame_count
             np.testing.assert_array_equal(
                 receiver_z["buffer_sequence"][:], np.zeros(frame_count)
             )
-            assert np.any(receiver_z["signal_matrix"][:] != 0)
+            for record_index in range(frame_count):
+                assert np.any(receiver_z["signal_matrix"][record_index] != 0)
             assert np.all(receiver_z["sample_time_valid"][:])
             np.testing.assert_array_equal(
                 receiver_z["sample_counter_end_exclusive"][:],

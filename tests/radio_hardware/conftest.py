@@ -118,6 +118,65 @@ def pytest_addoption(parser):
         help="unique LAN address of the selected Pluto direct-IP gadget",
     )
     group.addoption(
+        "--radio-tx-loopback",
+        action="store_true",
+        help="enable explicitly acknowledged, attenuated TX2 loopback tests",
+    )
+    group.addoption(
+        "--radio-tx-loopback-attenuation-db",
+        type=float,
+        default=None,
+        help="physical attenuation from TX2 to each RX input; required for TX tests",
+    )
+    group.addoption(
+        "--radio-tx-lo-hz",
+        type=int,
+        default=2_412_000_000,
+        help="RX/TX LO used by the cabled TX2 loopback test",
+    )
+    group.addoption(
+        "--radio-tx-sample-rate",
+        type=int,
+        default=3_000_000,
+        help="sample rate used by the cabled TX2 loopback test",
+    )
+    group.addoption(
+        "--radio-tx-bandwidth",
+        type=int,
+        default=3_000_000,
+        help="RX/TX RF bandwidth used by the cabled TX2 loopback test",
+    )
+    group.addoption(
+        "--radio-tx-samples",
+        type=int,
+        default=65_536,
+        help="samples per channel in each cabled TX2 loopback frame",
+    )
+    group.addoption(
+        "--radio-tx-tone-hz",
+        type=int,
+        default=100_000,
+        help="FPGA DDS tone offset used by the cabled TX2 loopback test",
+    )
+    group.addoption(
+        "--radio-tx-gain-db",
+        type=float,
+        default=-10.0,
+        help="nominal TX2 hardware gain used by the tone-quality gate",
+    )
+    group.addoption(
+        "--radio-tx-weak-gain-db",
+        type=float,
+        default=-60.0,
+        help="weak TX2 level used to exercise slow-attack AGC",
+    )
+    group.addoption(
+        "--radio-tx-strong-gain-db",
+        type=float,
+        default=0.0,
+        help="strong TX2 level used to exercise slow-attack AGC",
+    )
+    group.addoption(
         "--radio-interrupt",
         action="store_true",
         help="enable the real collector interruption/finalization test",
@@ -191,6 +250,7 @@ def pytest_collection_modifyitems(config, items):
     zarr_enabled = config.getoption("--radio-zarr", default=False)
     gain_series_enabled = config.getoption("--radio-gain-series-v3", default=False)
     direct_ip_enabled = config.getoption("--radio-direct-ip", default=False)
+    tx_loopback_enabled = config.getoption("--radio-tx-loopback", default=False)
     interrupt_enabled = config.getoption("--radio-interrupt", default=False)
     soak_enabled = config.getoption("--radio-soak", default=False)
     crash_recovery_enabled = config.getoption("--radio-crash-recovery", default=False)
@@ -203,6 +263,9 @@ def pytest_collection_modifyitems(config, items):
         reason="requires explicit --radio-gain-series-v3"
     )
     direct_ip_skip = pytest.mark.skip(reason="requires explicit --radio-direct-ip")
+    tx_loopback_skip = pytest.mark.skip(
+        reason="requires explicit --radio-tx-loopback and an attenuated cable"
+    )
     interrupt_skip = pytest.mark.skip(reason="requires explicit --radio-interrupt")
     soak_skip = pytest.mark.skip(reason="requires explicit --radio-soak")
     crash_recovery_skip = pytest.mark.skip(
@@ -220,6 +283,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(gain_series_skip)
         if "radio_direct_ip" in item.keywords and not direct_ip_enabled:
             item.add_marker(direct_ip_skip)
+        if "radio_tx_loopback" in item.keywords and not tx_loopback_enabled:
+            item.add_marker(tx_loopback_skip)
         if "radio_interrupt" in item.keywords and not interrupt_enabled:
             item.add_marker(interrupt_skip)
         if "radio_soak" in item.keywords and not soak_enabled:

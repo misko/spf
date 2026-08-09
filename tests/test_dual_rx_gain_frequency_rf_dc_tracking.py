@@ -139,9 +139,11 @@ class FakeDirectIdentity:
 
 
 class FakeDirectReceiver:
-    def __init__(self, serial, protocol_version=2):
+    def __init__(self, serial, protocol_version=2, **options):
         self.identity = FakeDirectIdentity(serial)
         self.capabilities = FakeCapabilities()
+        self.protocol_version = protocol_version
+        self.options = options
 
     def open(self):
         pass
@@ -179,6 +181,53 @@ def build_radio(config, *, tracking_attr_factory=FakeAttr, serial="SERIAL-A", **
         scan_contexts=lambda: {"usb:1.2.5": f"serial={serial}"},
     )
     return radio, channels, holder["sdr"]
+
+
+def test_loopback_adapter_forwards_protocol_v3_receiver_options():
+    config = small_config()
+    holder = {}
+
+    class RecordingReceiver(FakeDirectReceiver):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            holder["receiver"] = self
+
+    channels = {
+        name: FakeChannel(
+            {
+                "quadrature_tracking_en": FakeAttr("0"),
+                TRACKING_ATTR: FakeAttr(),
+            }
+        )
+        for name in ("voltage0", "voltage1")
+    }
+
+    class FakeAdiModule:
+        @staticmethod
+        def ad9361(uri):
+            return FakeSdr("SERIAL-A", channels)
+
+    radio = DirectUsbLoopbackRadio(
+        "SERIAL-A",
+        config,
+        adi_module=FakeAdiModule,
+        direct_receiver_class=RecordingReceiver,
+        scan_contexts=lambda: {"usb:1.2.5": "serial=SERIAL-A"},
+        direct_protocol_version=3,
+        direct_receiver_options={
+            "gain_observation_interval_samples": 2048,
+            "gain_observation_capacity": 256,
+        },
+    )
+    try:
+        assert holder["receiver"].protocol_version == 3
+        assert holder["receiver"].options == {
+            "gain_observation_interval_samples": 2048,
+            "gain_observation_capacity": 256,
+        }
+        assert radio.identity().direct_usb_protocol_version == 3
+    finally:
+        radio.close()
 
 
 # --------------------------------------------------------------------------

@@ -103,6 +103,44 @@ production-sized V7 Zarr, optional IP, and final identity gates. It never
 writes QSPI or enables TX. A failure leaves the volatile candidate running for
 inspection and prints the explicit rollback command.
 
+### Explicit TX2 loopback release gate
+
+The default campaign remains receive-only. When **every selected radio** has
+TX2 connected through at least 30 dB of physical attenuation and a splitter to
+that same radio's RX1 and RX2, add the explicit TX gate:
+
+```bash
+tests/radio_hardware/run_gain_series_v3_candidate.sh \
+  --with-tx-loopback \
+  --loopback-attenuation-db=30 \
+  /path/to/candidate-pluto.dfu \
+  192.168.1.163
+```
+
+`--radio-hardware` alone can never enable TX. The TX test additionally requires
+`--radio-tx-loopback` and a declared attenuation of at least 30 dB. It tests one
+radio at a time using only TX2 and the FPGA DDS, with TX1 held at -80 dB. The
+gate measures a muted baseline, verifies the +100 kHz tone on RX1 and RX2,
+checks known unequal manual gains against every protocol-v3 observation, steps
+the tone level under slow-attack AGC, and verifies that direct streaming did
+not change LO, sample rate, bandwidth, or gain-control mode.
+
+Both the pytest fixture and the outer campaign runner disable DDS, clear TX
+channels, destroy the TX buffer, and verify TX1/TX2 at -80 dB on exit. A failed
+mute is a campaign failure. The TX gate still never writes QSPI.
+
+To run only the TX stage after a protocol-v3 candidate is already in RAM:
+
+```bash
+pytest -q tests/radio_hardware/test_gain_series_v3_tx_loopback_hardware.py \
+  --radio-hardware --radio-gain-series-v3 --radio-tx-loopback \
+  --radio-tx-loopback-attenuation-db=30 \
+  --radio-expected-count=2 \
+  --radio-gain-observation-interval=2048 \
+  --radio-gain-observation-capacity=256 \
+  --radio-report-dir=/tmp/spf-radio-tx-report
+```
+
 Add `--radio-zarr --radio-zarr-frames=3` to the USB command to write and
 reopen a hardware-backed V7 store. That gate verifies observation counts,
 sample-counter bounds, explicit sentinel padding, serial/USB identity, FPGA
