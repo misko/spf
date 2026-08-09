@@ -624,6 +624,15 @@ class MultiPlutoFirmwareManager:
 
     def _back_up(self, serial: str) -> None:
         self.state_root.mkdir(parents=True, exist_ok=True)
+        existing = sorted(
+            self.state_root.glob(f"*-{serial}-before-ram-boot.txt")
+        )
+        if existing:
+            # Preserve the first known persistent baseline across retries and
+            # repeated RAM-boot epochs. Replacing it with a candidate runtime
+            # would make a later rollback comparison circular.
+            print(f"Preserving pre-load state: {existing[0]}", flush=True)
+            return
         timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
         destination = self.state_root / f"{timestamp}-{serial}-before-ram-boot.txt"
         result = self._ssh(
@@ -633,6 +642,17 @@ class MultiPlutoFirmwareManager:
         )
         destination.write_text(result.stdout)
         print(f"Saved pre-load state: {destination}", flush=True)
+
+    def _preload_device_fw(self, serial: str) -> str:
+        matches = sorted(
+            self.state_root.glob(f"*-{serial}-before-ram-boot.txt")
+        )
+        if len(matches) != 1:
+            raise FirmwareError(
+                f"{serial}: expected one preserved pre-load state in "
+                f"{self.state_root}; found {matches}"
+            )
+        return parse_device_fw_version(matches[0].read_text())
 
     def _read_persistent_state(self, serial: str) -> tuple[str, dict[str, str], str]:
         result = self._ssh(
@@ -1055,10 +1075,19 @@ class MultiPlutoFirmwareManager:
         devices = self._devices()
         for original in devices:
             device = self._device(original.serial)
-            if not device.direct_usb:
-                print(f"{device.serial}: already running QSPI firmware; skipping")
+            expected_version = self._preload_device_fw(device.serial)
+            active_version, _, _ = self._read_persistent_state(device.serial)
+            if active_version == expected_version:
+                print(
+                    f"{device.serial}: already running preserved firmware "
+                    f"{expected_version}; skipping"
+                )
                 continue
-            print(f"{device.serial}: resetting to unchanged QSPI firmware", flush=True)
+            print(
+                f"{device.serial}: resetting {active_version} to preserved "
+                f"firmware {expected_version}",
+                flush=True,
+            )
             try:
                 self._ssh(
                     device.serial,
@@ -1068,15 +1097,32 @@ class MultiPlutoFirmwareManager:
                 )
             except subprocess.TimeoutExpired:
                 pass
+            self._wait_absent(device.sysfs_name, 30)
             self._wait_product(device.sysfs_name, PLUTO_RUNTIME_PRODUCT, 90)
-            self._wait_for_ssh(device.serial)
+            self._wait_for_ssh(device.serial, 60)
             returned = self._device(device.serial)
-            if returned.direct_usb:
+            if (
+                returned.bus != device.bus
+                or returned.port_path != device.port_path
+                or returned.sysfs_name != device.sysfs_name
+            ):
                 raise FirmwareError(
-                    f"{device.serial}: direct interface remains after reset"
+                    f"{device.serial}: returned on unexpected USB identity "
+                    f"{returned.sysfs_name}/bus={returned.bus}/"
+                    f"path={returned.port_path}; expected "
+                    f"{device.sysfs_name}/bus={device.bus}/path={device.port_path}"
                 )
-            print(f"{device.serial}: PASS QSPI rollback", flush=True)
-        print("PASS: all Plutos are running their installed QSPI firmware", flush=True)
+            returned_version, _, _ = self._read_persistent_state(device.serial)
+            if returned_version != expected_version:
+                raise FirmwareError(
+                    f"{device.serial}: reset returned firmware "
+                    f"{returned_version!r}; expected preserved pre-load "
+                    f"version {expected_version!r}"
+                )
+            print(
+                f"{device.serial}: PASS restored {returned_version}", flush=True
+            )
+        print("PASS: all Plutos match their preserved pre-load firmware", flush=True)
 
     def restart_all(self) -> None:
         """Restart every direct-USB Pluto and prove durable identity on return."""

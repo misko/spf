@@ -81,11 +81,36 @@ radios before testing, after testing, and from the outer campaign exit trap.
 ## Firmware follow-up
 
 The failure is below the Python metadata parser. On RC2, both protocol-v2 and
-protocol-v3 direct RX frames lose the DDS tone after the direct streaming path
-starts, while standard pyadi RX can observe the transmitter before that
-handoff. Investigate the RC2 HDL/direct-gadget interaction with the TX DDS and
-DMA ownership. A replacement candidate must pass this same two-radio test
-before promotion.
+protocol-v3 direct RX frames can lose the DDS tone after the direct streaming
+path starts, while standard pyadi RX can observe the transmitter before that
+handoff.
+
+### Hybrid firmware bisection
+
+Two RAM-only FIT images were assembled from already-built production and RC2
+components; no source was rebuilt for this bisection:
+
+| Rootfs/software | FPGA | Result |
+|---|---|---|
+| RC2 | Production | TX passes on both radios |
+| Production | RC2 | One radio passes and one radio fails |
+| RC2 | RC2 | The failed radio can change between boots |
+
+Repeated protocol-v2 captures on a single full-RC2 boot were stable within
+that boot: one radio failed all three epochs while the other passed all three.
+The failure therefore follows the RC2 FPGA image and its boot-time state, not
+the USB/IP gadget userspace or the metadata parser. The routed RC2 design meets
+all declared timing constraints, but its CDC report identifies the new 64-bit
+TX timestamp crossing.
+
+The RC3 bisection candidate retains the new RX sample-counter and metadata HDL
+and reverts only the TX timestamp source-register delta. Its source commit and
+immutable source lock are built by the protected Kalman CI pipeline. RC3 must
+pass three RAM-boot TX epochs on both radios before the longer RX/Zarr campaign.
+A failure at that gate will lead to an explicit reset-sequencing fix for the TX
+asynchronous FIFO rather than a Python workaround.
+
+A replacement candidate must pass this same two-radio test before promotion.
 
 After the campaign, both radios were reset to their unchanged persistent
 production firmware and both TX channels were verified muted at -80 dB.

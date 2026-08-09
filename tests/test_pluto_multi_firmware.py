@@ -561,6 +561,102 @@ def test_direct_firmware_is_reloaded_instead_of_only_trusted(tmp_path, monkeypat
     assert ("verify", "SERIAL_A") in calls
 
 
+def test_preload_backup_is_immutable_across_repeated_ram_boots(
+    tmp_path, monkeypatch
+):
+    manager = _manager(tmp_path)
+    replies = iter(
+        [
+            SimpleNamespace(stdout="device-fw  production-v1\n"),
+            SimpleNamespace(stdout="device-fw  candidate-v2\n"),
+        ]
+    )
+    monkeypatch.setattr(manager, "_ssh", lambda *args, **kwargs: next(replies))
+
+    manager._back_up("SERIAL_A")
+    manager._back_up("SERIAL_A")
+
+    backups = list(manager.state_root.glob("*-SERIAL_A-before-ram-boot.txt"))
+    assert len(backups) == 1
+    assert manager._preload_device_fw("SERIAL_A") == "production-v1"
+
+
+def test_rollback_skips_direct_usb_firmware_when_version_matches_backup(
+    tmp_path, monkeypatch
+):
+    manager = _manager(tmp_path)
+    manager.state_root.mkdir(parents=True)
+    (manager.state_root / "20260809T000000Z-SERIAL_A-before-ram-boot.txt").write_text(
+        "device-fw  production-v1\n"
+    )
+    device = UsbPluto("SERIAL_A", "1-1.1", 1, "1.1", True, 8)
+    monkeypatch.setattr(manager, "_check_root", lambda: None)
+    monkeypatch.setattr(manager, "_devices", lambda: [device])
+    monkeypatch.setattr(manager, "_device", lambda serial: device)
+    monkeypatch.setattr(
+        manager,
+        "_read_persistent_state",
+        lambda serial: ("production-v1", {}, "state"),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_ssh",
+        lambda *args, **kwargs: pytest.fail("matching firmware must not reboot"),
+    )
+
+    manager.rollback_all()
+
+
+def test_rollback_waits_for_disconnect_and_restores_preload_version(
+    tmp_path, monkeypatch
+):
+    manager = _manager(tmp_path)
+    manager.state_root.mkdir(parents=True)
+    (manager.state_root / "20260809T000000Z-SERIAL_A-before-ram-boot.txt").write_text(
+        "device-fw  production-v1\n"
+    )
+    before = UsbPluto("SERIAL_A", "1-1.1", 1, "1.1", True, 8)
+    after = UsbPluto("SERIAL_A", "1-1.1", 1, "1.1", True, 18)
+    versions = iter(["candidate-v2", "production-v1"])
+    calls = []
+    monkeypatch.setattr(manager, "_check_root", lambda: None)
+    monkeypatch.setattr(manager, "_devices", lambda: [before])
+    monkeypatch.setattr(manager, "_device", lambda serial: after)
+    monkeypatch.setattr(
+        manager,
+        "_read_persistent_state",
+        lambda serial: (next(versions), {}, "state"),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_ssh",
+        lambda serial, command, **kwargs: calls.append(("ssh", serial, command)),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_wait_absent",
+        lambda path, timeout: calls.append(("absent", path, timeout)),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_wait_product",
+        lambda path, product, timeout: calls.append(
+            ("product", path, product, timeout)
+        ),
+    )
+    monkeypatch.setattr(
+        manager,
+        "_wait_for_ssh",
+        lambda serial, timeout: calls.append(("wait-ssh", serial, timeout)),
+    )
+
+    manager.rollback_all()
+
+    assert ("absent", "1-1.1", 30) in calls
+    assert ("wait-ssh", "SERIAL_A", 60) in calls
+    assert any(call[0] == "ssh" and "device_reboot reset" in call[2] for call in calls)
+
+
 def test_boot_preparation_uses_configured_boot_mode_with_environment_override():
     boot_script = (
         Path(__file__).resolve().parents[1]
