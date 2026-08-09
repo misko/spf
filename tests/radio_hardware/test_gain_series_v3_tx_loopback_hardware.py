@@ -33,6 +33,15 @@ pytestmark = [
 
 MINIMUM_LOOPBACK_ATTENUATION_DB = 30.0
 MANUAL_GAINS_DB = (20, 35)
+TX_CORE_REGISTERS = {
+    "version": 0x00,
+    "control": 0x40,
+    "configuration": 0x44,
+    "status": 0x5C,
+    "underflow": 0x88,
+    "timestamp_discard_count": 0xB8,
+    "timestamp_interval_control": 0xBC,
+}
 
 
 @pytest.fixture(autouse=True)
@@ -130,6 +139,27 @@ def _configuration_readback(radio: DirectUsbLoopbackRadio) -> dict:
         "tx1_gain_db": float(sdr.tx_hardwaregain_chan0),
         "tx2_gain_db": float(sdr.tx_hardwaregain_chan1),
     }
+
+
+def _tx_core_diagnostics(radio: DirectUsbLoopbackRadio) -> dict:
+    """Capture read-only TX core state without masking the RF test result."""
+
+    try:
+        device = radio.sdr._ctx.find_device("cf-ad9361-dds-core-lpc")
+        if device is None:
+            return {"error": "cf-ad9361-dds-core-lpc not found"}
+        return {
+            name: int(device.reg_read(address))
+            for name, address in TX_CORE_REGISTERS.items()
+        }
+    except Exception as error:  # Diagnostic evidence must not replace RF QC.
+        return {"error": f"{type(error).__name__}: {error}"}
+
+
+def _write_report(radio_report_dir, report: dict) -> None:
+    (radio_report_dir / "gain_series_v3_tx2_loopback.json").write_text(
+        json.dumps(report, indent=2) + "\n"
+    )
 
 
 def _gain_values(metadata: RadioMetadataV3) -> np.ndarray:
@@ -240,6 +270,16 @@ def test_v3_tx2_tone_manual_gain_and_slow_attack_agc(
                 phase_segments=config.phase_segments,
                 thresholds=thresholds,
             )
+            radio_result = {
+                "serial": attached.serial,
+                "port_path": list(attached.port_path),
+                "tone_analysis": tone,
+                "tx_core_diagnostics_active": _tx_core_diagnostics(radio),
+            }
+            report["radios"].append(radio_result)
+            # Preserve a partial report before the mandatory assertion. A
+            # noise-floor failure is precisely when core status is most useful.
+            _write_report(radio_report_dir, report)
             assert tone["quality_valid"], json.dumps(tone, sort_keys=True)
             active_tone_dbfs = _matched_tone_dbfs(
                 active_signal,
@@ -304,21 +344,18 @@ def test_v3_tx2_tone_manual_gain_and_slow_attack_agc(
                 muted_tone_dbfs,
                 active_tone_dbfs,
             )
-            report["radios"].append(
+            radio_result.update(
                 {
-                    "serial": attached.serial,
-                    "port_path": list(attached.port_path),
                     "muted_tone_dbfs": muted_tone_dbfs.tolist(),
                     "active_tone_dbfs": active_tone_dbfs.tolist(),
-                    "tone_analysis": tone,
                     "manual_configuration": manual_readback,
                     "agc_configuration": agc_readback,
                     "weak_gain_db_median": np.median(weak_gains, axis=0).tolist(),
                     "strong_gain_db_median": np.median(strong_gains, axis=0).tolist(),
                     "agc_gain_reduction_db": gain_reduction.tolist(),
+                    "tx_core_diagnostics_muted": _tx_core_diagnostics(radio),
                 }
             )
+            _write_report(radio_report_dir, report)
 
-    (radio_report_dir / "gain_series_v3_tx2_loopback.json").write_text(
-        json.dumps(report, indent=2) + "\n"
-    )
+    _write_report(radio_report_dir, report)
