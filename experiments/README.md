@@ -32,6 +32,7 @@ append-only convention.
 | [e_gsp7_conditioned_comb](e_gsp7_conditioned_comb/experiment_readme.md) | Does a 10-LO comb *chosen by conditioning* calibrate, where E-CAL3's uniform 10-LO comb failed at 11.61°? | ✅ run 2026-08-07 — yes, but only if the delays are ALSO frozen: chosen-10 frozen 4.95° vs the E-CAL3 comb's 23.50°, same session, same coverage |
 | [e_lnk1_transport_sample_rate](e_lnk1_transport_sample_rate/experiment_readme.md) | How do direct-USB, libiio/USB, IIO-over-RNDIS and IIO-over-Ethernet compare across the sample-rate range on `.18` — in throughput, integrity, metadata and measured phase? | ✅ throughput run 2026-08-07 — Ethernet holds up **exactly** as well as USB and no better: both wall at ~23 MB/s (2.9 MS/s), so the limit is the radio, not the link. Ethernet's apparent 28% lead at production buffer size is a buffer-tuning artifact. Phase/CPU metrics not yet run |
 | [e_gsp2_pad_sweep](e_gsp2_pad_sweep/experiment_readme.md) | Is the frequency ripple actually a harness reflection? | needs parts |
+| [e_inf1_filter_sweep](e_inf1_filter_sweep/experiment_readme.md) | How do the current models plus the EKF/PF trackers perform on the 2026 rover corpus versus the frozen val set, and does the reported confidence mean anything? | designed 2026-08-08, tooling landed, not yet run; blocked on the d/λ = 0.904 empirical-table gap |
 
 Designs and decision rules for the wider programme are in
 [`docs/future_experiments.md`](../docs/future_experiments.md).

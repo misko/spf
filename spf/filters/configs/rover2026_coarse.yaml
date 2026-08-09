@@ -1,0 +1,74 @@
+# Rover 2026 merged v7 -- coarse hyperparameter grid for the tuning stage.
+#
+# ~500 jobs per dataset against the shipped grid's 5,926. Run it on a STRATIFIED
+# SAMPLE of ~16 stores (by routine x d/lambda x day), not the whole corpus: the
+# point of this stage is to find the region of good hyperparameters, and the
+# winners then get evaluated on everything.
+#
+#   python spf/filters/run_filters_on_data.py \
+#     -d $(cat sample16.txt) \
+#     --empirical-pkl-fn empirical_dists/full.pkl \
+#     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/coarse \
+#     --config spf/filters/configs/rover2026_coarse.yaml \
+#     --results-backend local --parallel 24
+#
+# Parallelism: 24, not the old default of 30. Measured throughput on this box
+# peaks at 24 workers (8.8x) and REGRESSES at 30 (7.9x) as work spills onto
+# E-cores -- total CPU for the same work rises from 51.7 s to 139 s.
+precompute_caches:
+  3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
+
+runs:
+  # --- EKF: cheap (0.02-0.04 s/run), so it can afford a wider grid
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [20.0, 10.0, 5.0, 2.5, 1.0]
+      p: [5.0, 1.0, 0.1]
+      noise_std: [0.01, 0.001, 0.0001, 0.00001]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [0.0]
+      p: [5.0, 1.0, 0.1]
+      noise_std: [0.01, 0.001, 0.0001, 0.00001]
+      dynamic_R: [1.0, 0.1]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_single_radio:
+      phi_std: [20.0, 10.0, 5.0, 1.0]
+      p: [5.0, 1.0]
+      noise_std: [0.01, 0.001, 0.0001]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+
+  # --- PF: ~0.7 ms per timestep per run at N=8192 and linear in N, so the grid
+  # is deliberately coarse in N. Log-spaced errs: the shipped grid's 12x13 mesh
+  # resolves far finer than the seed-to-seed spread justifies.
+  - run_PF_single_theta_dual_radio:
+      N: [128 * 8, 128 * 32, 128 * 128]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.001, 0.005, 0.02, 0.1]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_single_radio:
+      N: [128 * 8, 128 * 32]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.001, 0.01, 0.1]
+      segmentation_version: [3.7]
+
+  # --- NN PF: the family with the most to gain, and the noisiest (106%
+  # seed-to-seed spread), so keep the grid tight and lean on repeats instead.
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128 * 8, 128 * 32, 128 * 128]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.001, 0.005, 0.02, 0.1]
+      absolute: [True, False]
+  - run_PF_single_theta_single_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128 * 8, 128 * 32]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.001, 0.01, 0.1]
