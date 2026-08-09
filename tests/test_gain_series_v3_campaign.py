@@ -127,14 +127,28 @@ def test_gain_series_candidate_campaign_requires_explicit_tx_and_mutes(tmp_path)
         for command in commands
         if "test_gain_series_v3_tx_loopback_hardware.py" in command
     ]
-    assert len(tx_test) == 1
-    assert "--radio-tx-loopback" in tx_test[0]
-    assert "--radio-tx-loopback-attenuation-db=30" in tx_test[0]
+    assert len(tx_test) == 3
+    assert all("--radio-tx-loopback" in command for command in tx_test)
+    assert all(
+        "--radio-tx-loopback-attenuation-db=30" in command
+        for command in tx_test
+    )
+    load_commands = [command for command in commands if "load-all" in command]
+    assert len(load_commands) == 3
+    first_zarr = next(
+        index
+        for index, command in enumerate(commands)
+        if "test_v3_gain_series_round_trips_through_v7_zarr" in command
+    )
+    assert all(commands.index(command) < first_zarr for command in tx_test)
     mute_commands = [
         command for command in commands if "spf.scripts.mute_pluto_tx" in command
     ]
-    assert len(mute_commands) >= 3
-    assert (report / "candidate-v3-tx2-loopback.log").is_file()
+    assert len(mute_commands) >= 5
+    for epoch in range(1, 4):
+        assert (
+            report / f"candidate-v3-tx2-loopback-epoch-{epoch}.log"
+        ).is_file()
 
 
 def test_gain_series_candidate_campaign_rejects_unacknowledged_tx(tmp_path):

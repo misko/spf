@@ -35,6 +35,7 @@ Environment:
   SPF_V3_PYTHON                Python with SPF test dependencies
                                (default: /home/pi/spf-virtualenv/bin/python)
   SPF_V3_PRODUCTION_RECORDS    V7 records per radio (default: 100)
+  SPF_V3_TX_BOOT_EPOCHS        Independent RAM-boot TX epochs (default: 3)
   SPF_V3_REPORT_ROOT           Artifact directory (default: timestamped /tmp)
 
 The script loads only volatile RAM and never writes QSPI. TX remains disabled
@@ -98,6 +99,7 @@ readonly DIRECT_IP_HOST="${2:-}"
 readonly EXPECTED_RADIOS="${SPF_V3_EXPECTED_RADIOS:-2}"
 readonly PYTHON="${SPF_V3_PYTHON:-/home/pi/spf-virtualenv/bin/python}"
 readonly PRODUCTION_RECORDS="${SPF_V3_PRODUCTION_RECORDS:-100}"
+readonly TX_BOOT_EPOCHS="${SPF_V3_TX_BOOT_EPOCHS:-3}"
 readonly REPORT_ROOT="${SPF_V3_REPORT_ROOT:-/tmp/spf-gain-series-v3-$(date -u +%Y%m%dT%H%M%SZ)}"
 readonly STATE_ROOT="${REPORT_ROOT}/firmware-state"
 readonly WITH_TX_LOOPBACK="$with_tx_loopback"
@@ -108,6 +110,8 @@ readonly LOOPBACK_ATTENUATION_DB="$loopback_attenuation_db"
     die "SPF_V3_EXPECTED_RADIOS must be positive"
 [[ "$PRODUCTION_RECORDS" =~ ^[1-9][0-9]*$ ]] ||
     die "SPF_V3_PRODUCTION_RECORDS must be positive"
+[[ "$TX_BOOT_EPOCHS" =~ ^[1-9][0-9]*$ ]] ||
+    die "SPF_V3_TX_BOOT_EPOCHS must be positive"
 [[ -x "$PYTHON" ]] || die "test Python is not executable: $PYTHON"
 [[ -f "$MULTI_LOADER" ]] || die "multi-radio loader is missing"
 [[ -f "$TEST_FILE" ]] || die "protocol-v3 hardware tests are missing"
@@ -183,9 +187,9 @@ common_loader_args=(
     --expected-count "$EXPECTED_RADIOS"
 )
 
-printf 'image=%s\nsha256=%s\nexpected_radios=%s\nreport_root=%s\nwith_tx_loopback=%s\nloopback_attenuation_db=%s\n' \
+printf 'image=%s\nsha256=%s\nexpected_radios=%s\nreport_root=%s\nwith_tx_loopback=%s\nloopback_attenuation_db=%s\ntx_boot_epochs=%s\n' \
     "$IMAGE" "$actual_sha" "$EXPECTED_RADIOS" "$REPORT_ROOT" \
-    "$WITH_TX_LOOPBACK" "$LOOPBACK_ATTENUATION_DB"
+    "$WITH_TX_LOOPBACK" "$LOOPBACK_ATTENUATION_DB" "$TX_BOOT_EPOCHS"
 run_logged iio-before iio_info -s
 
 if [[ "$WITH_TX_LOOPBACK" -eq 1 ]]; then
@@ -207,10 +211,36 @@ run_logged baseline-v2 \
 run_logged persistent-config \
     sudo -n "$PYTHON" "$MULTI_LOADER" check-config-all \
     "${common_loader_args[@]}"
-run_logged ram-load \
-    sudo -n "$PYTHON" "$MULTI_LOADER" load-all \
-    "${common_loader_args[@]}"
-run_logged iio-after-ram-load iio_info -s
+if [[ "$WITH_TX_LOOPBACK" -eq 1 ]]; then
+    # TX health is the mandatory promotion gate and has exhibited boot-order
+    # failures. Exercise independent FPGA boots before spending time on the
+    # receive, IP, and Zarr stages. The final epoch remains loaded for them.
+    for ((epoch = 1; epoch <= TX_BOOT_EPOCHS; epoch++)); do
+        run_logged "ram-load-epoch-${epoch}" \
+            sudo -n "$PYTHON" "$MULTI_LOADER" load-all \
+            "${common_loader_args[@]}"
+        run_logged "iio-after-ram-load-epoch-${epoch}" iio_info -s
+        run_logged "candidate-v3-tx2-loopback-epoch-${epoch}" \
+            "$PYTHON" -m pytest -q "$TX_TEST_FILE" \
+            --radio-hardware \
+            --radio-gain-series-v3 \
+            --radio-tx-loopback \
+            --radio-tx-loopback-attenuation-db="$LOOPBACK_ATTENUATION_DB" \
+            --radio-expected-count="$EXPECTED_RADIOS" \
+            --radio-gain-observation-interval=2048 \
+            --radio-gain-observation-capacity=256 \
+            --radio-report-dir="${REPORT_ROOT}/candidate-v3-tx-report-epoch-${epoch}"
+        run_logged "post-tx-mute-epoch-${epoch}" \
+            "$PYTHON" -m spf.scripts.mute_pluto_tx \
+            --expected-count "$EXPECTED_RADIOS" \
+            --output "${REPORT_ROOT}/post-tx-mute-epoch-${epoch}.json"
+    done
+else
+    run_logged ram-load \
+        sudo -n "$PYTHON" "$MULTI_LOADER" load-all \
+        "${common_loader_args[@]}"
+    run_logged iio-after-ram-load iio_info -s
+fi
 
 # Protocol v3 must remain backwards compatible with the promoted v2 host path.
 run_logged candidate-v2-compatibility \
@@ -272,23 +302,6 @@ if [[ -n "$DIRECT_IP_HOST" ]]; then
         --radio-gain-observation-interval=2048 \
         --radio-gain-observation-capacity=256 \
         --radio-report-dir="${REPORT_ROOT}/candidate-v3-ip-report"
-fi
-
-if [[ "$WITH_TX_LOOPBACK" -eq 1 ]]; then
-    run_logged candidate-v3-tx2-loopback \
-        "$PYTHON" -m pytest -q "$TX_TEST_FILE" \
-        --radio-hardware \
-        --radio-gain-series-v3 \
-        --radio-tx-loopback \
-        --radio-tx-loopback-attenuation-db="$LOOPBACK_ATTENUATION_DB" \
-        --radio-expected-count="$EXPECTED_RADIOS" \
-        --radio-gain-observation-interval=2048 \
-        --radio-gain-observation-capacity=256 \
-        --radio-report-dir="${REPORT_ROOT}/candidate-v3-tx-report"
-    run_logged post-campaign-tx-mute \
-        "$PYTHON" -m spf.scripts.mute_pluto_tx \
-        --expected-count "$EXPECTED_RADIOS" \
-        --output "${REPORT_ROOT}/post-campaign-tx-mute.json"
 fi
 
 run_logged final-status \

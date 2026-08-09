@@ -100,8 +100,9 @@ parity, for example `192.168.1.163`. The runner verifies the image checksum,
 records a protocol-v2 baseline, checks persistent 2R2T configuration, RAM-loads
 the exact attached radio count, re-runs v2 compatibility, then runs v3 USB,
 production-sized V7 Zarr, optional IP, and final identity gates. It never
-writes QSPI or enables TX. A failure leaves the volatile candidate running for
-inspection and prints the explicit rollback command.
+writes QSPI or enables TX unless the explicit attenuated-loopback option below
+is supplied. A failure leaves the volatile candidate running for inspection
+and prints the explicit rollback command.
 
 ### Explicit TX2 loopback release gate
 
@@ -124,6 +125,12 @@ gate measures a muted baseline, verifies the +100 kHz tone on RX1 and RX2,
 checks known unequal manual gains against every protocol-v3 observation, steps
 the tone level under slow-attack AGC, and verifies that direct streaming did
 not change LO, sample rate, bandwidth, or gain-control mode.
+
+The complete runner performs this mandatory TX gate on three independent
+volatile FPGA boots before any candidate receive/IP/Zarr gates. Override the
+count only when diagnosing a candidate with `SPF_V3_TX_BOOT_EPOCHS`; release
+promotion requires at least three. Each epoch has separate RAM-load, pytest,
+and explicit TX-mute artifacts.
 
 Both the pytest fixture and the outer campaign runner disable DDS, clear TX
 channels, destroy the TX buffer, and verify TX1/TX2 at -80 dB on exit. A failed
