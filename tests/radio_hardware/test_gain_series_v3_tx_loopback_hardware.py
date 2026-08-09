@@ -587,27 +587,50 @@ def test_v3_tx2_tone_manual_gain_and_slow_attack_agc(
             assert agc_readback["sample_rate_hz"] == sample_rate_hz
             assert abs(agc_readback["rx_lo_hz"] - lo_hz) < 10
 
-            # Establish the muted floor last, without re-arming DDS or
-            # handing RX DMA back to pyadi.  This validates that STOP really
-            # suppresses the same +100 kHz path used above.
+            # Establish the muted floor at the same fixed RX gains as its
+            # immediately preceding active reference.  Comparing the original
+            # manual-gain tone against a muted slow-attack frame is invalid:
+            # once TX disappears, AGC raises RX gain toward its maximum and can
+            # lift the tone bin by tens of dB even though DDS is off.
+            radio.sdr.gain_control_mode_chan0 = "manual"
+            radio.sdr.gain_control_mode_chan1 = "manual"
+            radio.set_gains(*MANUAL_GAINS_DB)
+            time.sleep(0.1)
+            pre_mute_active_frame = _capture_frames(radio, samples, 2)[-1]
+            pre_mute_active_metadata = _validate_metadata(
+                pre_mute_active_frame, samples, interval
+            )
+            _assert_manual_gain_metadata(pre_mute_active_metadata)
+            pre_mute_active_tone_dbfs = _matched_tone_dbfs(
+                _signal(pre_mute_active_frame, samples),
+                sample_rate_hz=sample_rate_hz,
+                tone_hz=tone_hz,
+            )
+
+            # Stop without re-arming DDS or handing RX DMA back to pyadi. This
+            # validates that STOP suppresses the same +100 kHz path above.
             radio.stop_tone()
             time.sleep(0.1)
             muted_frame = _capture_frames(radio, samples, 1)[0]
             muted_metadata = _validate_metadata(muted_frame, samples, interval)
+            _assert_manual_gain_metadata(muted_metadata)
             muted_signal = _signal(muted_frame, samples)
             muted_tone_dbfs = _matched_tone_dbfs(
                 muted_signal,
                 sample_rate_hz=sample_rate_hz,
                 tone_hz=tone_hz,
             )
-            assert np.all(active_tone_dbfs - muted_tone_dbfs >= 15.0), (
+            mute_delta_db = pre_mute_active_tone_dbfs - muted_tone_dbfs
+            assert np.all(mute_delta_db >= 15.0), (
                 muted_tone_dbfs,
-                active_tone_dbfs,
+                pre_mute_active_tone_dbfs,
             )
             radio_result.update(
                 {
                     "muted_tone_dbfs": muted_tone_dbfs.tolist(),
                     "active_tone_dbfs": active_tone_dbfs.tolist(),
+                    "pre_mute_active_tone_dbfs": (pre_mute_active_tone_dbfs.tolist()),
+                    "mute_delta_db": mute_delta_db.tolist(),
                     "manual_configuration": manual_readback,
                     "agc_configuration": agc_readback,
                     "weak_gain_db_median": np.median(weak_gains, axis=0).tolist(),
