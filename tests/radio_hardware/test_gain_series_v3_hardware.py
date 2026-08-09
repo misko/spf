@@ -358,21 +358,42 @@ def test_v3_repeated_fresh_usb_starts(attached_plutos, pytestconfig, radio_repor
         "frames_per_cycle": frame_count,
         "radios": [],
     }
+    report_path = radio_report_dir / "gain_series_v3_repeated_starts.json"
     for radio in attached_plutos:
         streams = []
+        radio_result = {
+            "serial": radio.serial,
+            "port_path": list(radio.port_path),
+            "streams": streams,
+        }
+        report["radios"].append(radio_result)
         for cycle in range(cycles):
-            with PlutoDirectUsbReceiver(
-                serial=radio.serial,
-                protocol_version=3,
-                gain_observation_interval_samples=interval,
-                gain_observation_capacity=capacity,
-            ) as receiver:
-                frames = list(
-                    receiver.stream_frames(
-                        samples_per_channel=samples,
-                        frame_count=frame_count,
-                        queue_depth=1,
+            try:
+                with PlutoDirectUsbReceiver(
+                    serial=radio.serial,
+                    protocol_version=3,
+                    gain_observation_interval_samples=interval,
+                    gain_observation_capacity=capacity,
+                ) as receiver:
+                    frames = list(
+                        receiver.stream_frames(
+                            samples_per_channel=samples,
+                            frame_count=frame_count,
+                            queue_depth=1,
+                        )
                     )
+            except Exception as exc:
+                streams.append(
+                    {
+                        "cycle": cycle,
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                    }
+                )
+                report_path.write_text(json.dumps(report, indent=2) + "\n")
+                pytest.fail(
+                    f"{radio.serial}: fresh stream cycle {cycle} failed: {exc}",
+                    pytrace=True,
                 )
             assert len(frames) == frame_count
             _assert_contiguous_frames(frames, samples)
@@ -386,16 +407,7 @@ def test_v3_repeated_fresh_usb_starts(attached_plutos, pytestconfig, radio_repor
                     ],
                 }
             )
-        report["radios"].append(
-            {
-                "serial": radio.serial,
-                "port_path": list(radio.port_path),
-                "streams": streams,
-            }
-        )
-    (radio_report_dir / "gain_series_v3_repeated_starts.json").write_text(
-        json.dumps(report, indent=2) + "\n"
-    )
+            report_path.write_text(json.dumps(report, indent=2) + "\n")
 
 
 def _simultaneous_v3_stream(
