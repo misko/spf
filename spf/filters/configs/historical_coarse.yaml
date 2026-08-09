@@ -1,0 +1,69 @@
+# Historical corpus (frozen val / train) -- coarse hyperparameter grid.
+#
+# Same grid as rover2026_coarse.yaml against the md2 precompute. Run it on a
+# STRATIFIED SAMPLE of ~16 datasets from the frozen val list, never the whole
+# corpus: at a measured 4.155 cpu-s per filter timestep and ~4.14M timesteps in
+# the frozen val set, even this reduced grid over all 565 datasets is days.
+#
+# The precompute cache on md2 is READ-ONLY -- it holds 4.3 TB of unregenerable
+# 3.4/3.5/3.6 caches. New outputs (work dirs, inference caches) go to qnap01.
+#
+# The frozen val list is /mnt/md2/splits/apr17_val_nosig_noroverbounce.txt
+# (565 datasets, 556 with 3.7 precompute).
+precompute_caches:
+  3.7: "/mnt/md2/cache/precompute_cache_3p7"
+
+runs:
+  # --- EKF: cheap (0.02-0.04 s/run), so it can afford a wider grid
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [20.0, 10.0, 5.0, 2.5, 1.0]
+      p: [5.0, 1.0, 0.1]
+      noise_std: [0.01, 0.001, 0.0001, 0.00001]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [0.0]
+      p: [5.0, 1.0, 0.1]
+      noise_std: [0.01, 0.001, 0.0001, 0.00001]
+      dynamic_R: [1.0, 0.1]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_single_radio:
+      phi_std: [20.0, 10.0, 5.0, 1.0]
+      p: [5.0, 1.0]
+      noise_std: [0.01, 0.001, 0.0001]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+
+  # --- PF: ~0.7 ms per timestep per run at N=8192 and linear in N, so the grid
+  # is deliberately coarse in N. Log-spaced errs: the shipped grid's 12x13 mesh
+  # resolves far finer than the seed-to-seed spread justifies.
+  - run_PF_single_theta_dual_radio:
+      N: [128 * 8, 128 * 32, 128 * 128]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.001, 0.005, 0.02, 0.1]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_single_radio:
+      N: [128 * 8, 128 * 32]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.001, 0.01, 0.1]
+      segmentation_version: [3.7]
+
+  # --- NN PF: the family with the most to gain, and the noisiest (106%
+  # seed-to-seed spread), so keep the grid tight and lean on repeats instead.
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/inference_cache_3p7"]
+      N: [128 * 8, 128 * 32, 128 * 128]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.001, 0.005, 0.02, 0.1]
+      absolute: [True, False]
+  - run_PF_single_theta_single_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/inference_cache_3p7"]
+      N: [128 * 8, 128 * 32]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.001, 0.01, 0.1]
