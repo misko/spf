@@ -4,8 +4,7 @@
 
 **PASS for direct USB and bounded one-frame direct IP — RC12 completed the
 two-radio RAM-boot promotion campaign. Continuous multi-frame direct IP is
-rate-limited as documented below and is not qualified at the rover's 3 MS/s
-rate.**
+rate-limited as documented below and is not qualified above 1 MS/s.**
 
 RC12 retains RC11's gain-series, timestamp, USB-startup, and TX fixes and
 hardens the direct-IP control socket against malformed UDP datagrams. The
@@ -179,8 +178,10 @@ The bounded one-frame path was stable:
 
 Continuous finite streaming exposed a transport-rate boundary hidden by the
 original one-frame IP gate. The default 1,472-byte UDP mode deliberately sends
-eight datagrams and then waits 1 ms, or roughly 11.8 MB/s before protocol
-overhead. Dual-channel CS16 requires eight bytes per time sample:
+eight datagrams and then waits 1 ms, or roughly 11.4 MB/s of inner-frame
+payload before lower-layer overhead. Dual-channel CS16 requires eight bytes
+per time sample. This ladder used the hardware test's configured sample rate;
+it was not a reproduction of a production rover configuration:
 
 | Radio sample rate | IQ payload rate | 16 contiguous frames |
 |---:|---:|---|
@@ -191,11 +192,20 @@ overhead. Dual-channel CS16 requires eight bytes per time sample:
 | 1.75–3.0 MS/s | 14.0–24.0 MB/s | Fail closed: sample-sequence gap |
 
 At 1.0 MS/s, a longer 200-START burn-in returned 3,200/3,200 contiguous
-frames, 400 MiB of IQ, with zero failures in 92.9 seconds. At the rover's
-3 MS/s rate, increasing the requested UDP datagram size from 1,472 through
-8,192 bytes did not prevent sequence gaps. Sizes from 16,384 through 65,507
-bytes instead produced whole-frame timeouts, so relying on IP fragmentation is
-not a safe workaround.
+frames, 400 MiB of IQ, with zero failures in 92.9 seconds. At the hardware
+test's 3 MS/s rate, increasing the requested UDP datagram size from 1,472
+through 8,192 bytes did not prevent sequence gaps. Sizes from 16,384 through
+65,507 bytes instead produced whole-frame timeouts, so relying on IP
+fragmentation is not a safe workaround.
+
+The canonical rover production YAMLs configure 30 MS/s, a 524,288-sample
+frame, and one direct frame per request. That is a finite 17.5 ms RF snapshot,
+not a continuous 30 MS/s transport: dual-channel CS16 at 30 MS/s would require
+240 MB/s and cannot fit through either USB 2.0 or 1 GbE. The 1,000-cycle
+one-frame burn-in included a radio booted at 30.72 MS/s and therefore remains
+representative of the bounded production request pattern. Matching direct USB
+means buffering and draining finite snapshots reliably; it does not mean
+claiming an impossible continuous 240 MB/s stream.
 
 Debug output establishes the failure mechanism. While an IP frame is paced to
 the host, DMA and the FPGA sample counter continue advancing. The next queued
@@ -222,10 +232,11 @@ Evidence remains in `/tmp/spf-rc12-ip-burnin-20260810` on the hardware host:
 ## Promotion recommendation
 
 Publish and pin only the exact DFU identified above for the qualified direct-USB
-path. Retain the previous production release and hash as rollback. Do not claim
-continuous direct-IP parity at the rover's 3 MS/s rate; use one-frame bounded
-IP requests or at most the demonstrated 1 MS/s continuous mode until the IP
-transport advertises and enforces a safe rate or is redesigned to avoid stale
-DMA blocks. After SPF CI passes, perform a controlled one-radio QSPI canary,
-reboot it from QSPI, run the V7/USB/TX gates plus the bounded IP gate, and only
-then roll the same bytes to the remaining radios.
+path. Retain the previous production release and hash as rollback. Use
+one-frame bounded IP requests for the current 30 MS/s finite-snapshot pattern,
+or at most the demonstrated 1 MS/s mode when contiguous multi-frame IP is
+required, until the IP transport gains a buffered producer/consumer design and
+an explicit sustained-rate capability. After SPF CI passes, perform a
+controlled one-radio QSPI canary, reboot it from QSPI, run the V7/USB/TX gates
+plus the bounded IP gate, and only then roll the same bytes to the remaining
+radios.
