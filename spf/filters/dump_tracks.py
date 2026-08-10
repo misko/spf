@@ -38,7 +38,7 @@ import numpy as np
 
 from spf.evaluation import calibration, metrics
 from spf.filters.plot_filter_run import open_dataset, run_filter
-from spf.filters.plot_trajectory_comparison import TYPE_TO_FILTER
+from spf.filters.plot_trajectory_comparison import TYPE_TO_FILTER, load_configs
 
 # EKFs are deterministic; a seed axis would write five identical files.
 DETERMINISTIC = ("EKF",)
@@ -48,6 +48,27 @@ def track_filename(output_dir, ds_name, _type, frame, seed):
     return os.path.join(
         output_dir, f"{ds_name}__{_type}__{frame}__seed{seed}.npz"
     )
+
+
+def save_track(out_fn, **arrays):
+    """Write ``arrays`` to exactly ``out_fn``, atomically.
+
+    Via a file HANDLE, not a path: ``np.savez_compressed`` silently appends
+    ``.npz`` to any path that does not already end in it, so passing the
+    temporary name ``<out>.npz.<pid>.tmp`` makes it write
+    ``<out>.npz.<pid>.tmp.npz`` and the rename then fails on a source that was
+    never created. Handed a file object it writes where it is told.
+    """
+    tmp = f"{out_fn}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "wb") as fh:
+            np.savez_compressed(fh, **arrays)
+        os.replace(tmp, out_fn)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+    return out_fn
 
 
 def dump_one(ds, ds_name, key, spec, seed, args):
@@ -71,9 +92,8 @@ def dump_one(ds, ds_name, key, spec, seed, args):
     frame = extras["frame"]
     out_fn = track_filename(args.output_dir, ds_name, _type, frame, seed)
 
-    tmp = f"{out_fn}.{os.getpid()}.tmp"
-    np.savez_compressed(
-        tmp,
+    save_track(
+        out_fn,
         theta=np.asarray(theta, dtype=np.float32),
         sigma=np.asarray(sigma, dtype=np.float32),
         gt=np.asarray(gt, dtype=np.float32),
@@ -83,7 +103,6 @@ def dump_one(ds, ds_name, key, spec, seed, args):
         rx_idx=extras["rx_idx"],
         ds_fn=ds_name,
     )
-    os.replace(tmp, out_fn)
 
     row = metrics.summarize(theta, gt)
     row.update({
@@ -116,8 +135,7 @@ def get_parser():
 if __name__ == "__main__":
     logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
     args = get_parser().parse_args()
-    with open(args.configs) as f:
-        configs = json.load(f)
+    configs = load_configs(args.configs)
     os.makedirs(args.output_dir, exist_ok=True)
 
     rows, failures = [], []
