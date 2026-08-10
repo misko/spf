@@ -46,11 +46,13 @@ runs:
       N: [128 * 8, 128 * 32, 128 * 128]
       theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
       theta_dot_err: [0.001, 0.005, 0.02, 0.1]
+      seed: [0, 1, 2, 3, 4]
       segmentation_version: [3.7]
   - run_PF_single_theta_single_radio:
       N: [128 * 8, 128 * 32]
       theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
       theta_dot_err: [0.001, 0.01, 0.1]
+      seed: [0, 1, 2, 3, 4]
       segmentation_version: [3.7]
 
   # --- NN PF: the family with the most to gain, and the noisiest (106%
@@ -64,6 +66,7 @@ runs:
       theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
       theta_dot_err: [0.001, 0.005, 0.02, 0.1]
       absolute: [True, False]
+      seed: [0, 1, 2, 3, 4]
   - run_PF_single_theta_single_radio_NN:
       checkpoint_fn_and_segmentation_version:
         - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
@@ -72,3 +75,4 @@ runs:
       N: [128 * 8, 128 * 32]
       theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
       theta_dot_err: [0.001, 0.01, 0.1]
+      seed: [0, 1, 2, 3, 4]

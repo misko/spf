@@ -265,6 +265,7 @@ def run_PF_single_theta_single_radio_NN(
     theta_err=0.1,
     theta_dot_err=0.001,
     N=128,
+    seed=0,
 ):
 
     all_metrics = []
@@ -285,6 +286,7 @@ def run_PF_single_theta_single_radio_NN(
             noise_std=torch.tensor([[theta_err, theta_dot_err]]),
             return_particles=False,
             N=N,
+            seed=seed,
         )
         metrics = pf.metrics(trajectory=trajectory)
         metrics["runtime"] = time.time() - start_time
@@ -295,6 +297,7 @@ def run_PF_single_theta_single_radio_NN(
                 "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
+                "seed": seed,
                 "theta_dot_err": theta_dot_err,
                 "N": N,
                 "metrics": metrics,
@@ -315,6 +318,7 @@ def run_PF_single_theta_single_radio(
     theta_err=0.1,
     theta_dot_err=0.001,
     N=128,
+    seed=0,
 ):
 
     all_metrics = []
@@ -328,6 +332,7 @@ def run_PF_single_theta_single_radio(
             noise_std=torch.tensor([[theta_err, theta_dot_err]]),
             return_particles=False,
             N=N,
+            seed=seed,
         )
         metrics = pf.metrics(trajectory=trajectory)
         metrics["runtime"] = time.time() - start_time
@@ -338,6 +343,7 @@ def run_PF_single_theta_single_radio(
                 "rx_wavelength_spacing": ds.rx_wavelength_spacing,
                 "rx_idx": rx_idx,
                 "theta_err": theta_err,
+                "seed": seed,
                 "theta_dot_err": theta_dot_err,
                 "N": N,
                 "metrics": metrics,
@@ -352,7 +358,7 @@ def run_PF_single_theta_single_radio(
 
 
 def run_PF_single_theta_dual_radio(
-    ds, theta_err=0.1, theta_dot_err=0.001, N=128, progress_bar=False
+    ds, theta_err=0.1, theta_dot_err=0.001, N=128, progress_bar=False, seed=0
 ):
     start_time = time.time()
     pf = PFSingleThetaDualRadio(ds=ds)
@@ -363,6 +369,7 @@ def run_PF_single_theta_dual_radio(
         noise_std=torch.tensor([[theta_err, theta_dot_err]]),
         return_particles=False,
         progress_bar=progress_bar,
+        seed=seed,
     )
     metrics = pf.metrics(trajectory=traj_paired)
     metrics["runtime"] = time.time() - start_time
@@ -372,6 +379,7 @@ def run_PF_single_theta_dual_radio(
             "frequency": ds.carrier_frequencies[0],
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
+            "seed": seed,
             "theta_dot_err": theta_dot_err,
             "N": N,
             "metrics": metrics,
@@ -391,6 +399,7 @@ def run_PF_single_theta_dual_radio_NN(
     N=128,
     absolute=False,
     steps=None,
+    seed=0,
 ):
     config_fn = f"{os.path.dirname(checkpoint_fn)}/config.yml"
     start_time = time.time()
@@ -411,6 +420,7 @@ def run_PF_single_theta_dual_radio_NN(
         noise_std=torch.tensor([[theta_err, theta_dot_err]]),
         return_particles=False,
         steps=steps,
+        seed=seed,
     )
     metrics = pf.metrics(trajectory=traj_paired)
     metrics["runtime"] = time.time() - start_time
@@ -420,6 +430,7 @@ def run_PF_single_theta_dual_radio_NN(
             "frequency": ds.carrier_frequencies[0],
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "theta_err": theta_err,
+            "seed": seed,
             "theta_dot_err": theta_dot_err,
             "N": N,
             "metrics": metrics,
@@ -433,7 +444,7 @@ def run_PF_single_theta_dual_radio_NN(
     ]
 
 
-def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
+def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16, seed=0):
 
     start_time = time.time()
     # dual radio dual
@@ -444,6 +455,7 @@ def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
         std=torch.tensor([[0, 200, 200, 0.1, 0.1]]),
         return_particles=False,
         noise_std=torch.tensor([[0, pos_err, pos_err, vel_err, vel_err]]),
+        seed=seed,
     )
     metrics = pf.metrics(trajectory=traj_paired)
     metrics["runtime"] = time.time() - start_time
@@ -453,6 +465,7 @@ def run_PF_xy_dual_radio(ds, pos_err=15, vel_err=0.5, N=128 * 16):
             "frequency": ds.carrier_frequencies[0],
             "rx_wavelength_spacing": ds.rx_wavelength_spacing,
             "vel_err": vel_err,
+            "seed": seed,
             "pos_err": pos_err,
             "N": N,
             "metrics": metrics,

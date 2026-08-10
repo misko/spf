@@ -1,4 +1,6 @@
 import argparse
+import os
+import sys
 from functools import partial
 from multiprocessing import Pool
 
@@ -36,6 +38,19 @@ if __name__ == "__main__":
         parser.add_argument("--parallel", type=int, required=False, default=16)
 
         parser.add_argument("--precompute-cache", type=str, required=True)
+        parser.add_argument(
+            "--empirical-pkl-fn",
+            type=str,
+            default=None,
+            help=(
+                "override the empirical P(theta|phi) table the checkpoint config "
+                "names. Required for captures whose (antenna spacing, carrier) "
+                "postdates that table: the dataset builds a per-sample "
+                "'empirical' field and raises KeyError on a missing key, even "
+                "for models with empirical_input=false that never read it. "
+                "Defaults to whatever the checkpoint config specifies."
+            ),
+        )
         parser.add_argument("--workers", type=int, required=False, default=0)
         parser.add_argument("--device", type=str, required=False, default="cuda")
         parser.add_argument(
@@ -71,6 +86,7 @@ if __name__ == "__main__":
         precompute_cache=args.precompute_cache,
         crash_if_not_cached=False,
         segmentation_version=args.segmentation_version,
+        empirical_data_fn=args.empirical_pkl_fn,
     )
 
     if len(args.datasets) == 1 and args.datasets[0][-4:] == ".txt":
@@ -85,7 +101,6 @@ if __name__ == "__main__":
             )
         )
     else:
-        # list(map(run_fn, args.datasets))
         with Pool(args.parallel) as pool:  # cpu_count())  # cpu_count() // 4)
             results = list(
                 tqdm.tqdm(
@@ -93,4 +108,18 @@ if __name__ == "__main__":
                     total=len(args.datasets),
                 )
             )
-            # list(pool.imap(run_fn, args.datasets))
+
+    # Summarise, and exit non-zero on any failure. Without this the run reports
+    # success having produced a fraction of the caches -- the only trace being
+    # ERROR lines scrolling past inside a progress bar. `--debug` takes the
+    # raising path, so only the pooled path returns (ds_fn, error) pairs.
+    if not args.debug:
+        failures = [(ds, err) for ds, err in results if err is not None]
+        ok = len(results) - len(failures)
+        print(f"\ninference cache: {ok}/{len(results)} built, {len(failures)} failed")
+        if failures:
+            for ds, err in failures[:20]:
+                print(f"  FAILED {os.path.basename(ds)}: {err}")
+            if len(failures) > 20:
+                print(f"  ... and {len(failures) - 20} more")
+            sys.exit(1)

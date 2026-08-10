@@ -131,8 +131,19 @@ def convert_datasets_config_to_inference(
     batch_size=1,
     workers=1,
     v4=False,
+    empirical_data_fn=None,
 ):
+    """Adapt a checkpoint's training datasets block for inference on one dataset.
+
+    ``empirical_data_fn`` overrides the empirical P(theta|phi) table the config
+    was trained with. Needed because the table is inherited from the checkpoint
+    and is otherwise unreachable: a capture whose (spacing, carrier) postdates
+    that table has no key in it, and the dataset raises KeyError building its
+    per-sample ``empirical`` field -- even for models that never read the values.
+    """
     datasets_config = datasets_config.copy()
+    if empirical_data_fn is not None:
+        datasets_config["empirical_data_fn"] = empirical_data_fn
     datasets_config.update(
         {
             "batch_size": batch_size,
@@ -169,7 +180,15 @@ def get_inference_on_ds_noexceptions(
     precompute_cache=None,
     crash_if_not_cached=True,
     segmentation_version=None,
+    empirical_data_fn=None,
 ):
+    """Build one dataset's cache, swallowing errors. Returns (ds_fn, error-or-None).
+
+    The caller needs the outcome, not just a log line: a bulk run over a pool
+    previously reported success while quietly producing a fraction of the caches,
+    because the only trace of a failure was an ERROR line in the middle of a
+    progress bar.
+    """
     try:
         get_nn_inference_on_ds_and_cache(
             ds_fn,
@@ -182,9 +201,12 @@ def get_inference_on_ds_noexceptions(
             precompute_cache=precompute_cache,
             crash_if_not_cached=crash_if_not_cached,
             segmentation_version=segmentation_version,
+            empirical_data_fn=empirical_data_fn,
         )
+        return (ds_fn, None)
     except Exception as e:
         logging.error(f"Failed to process {ds_fn} with {str(e)}")
+        return (ds_fn, f"{type(e).__name__}: {e}")
 
 
 def get_nn_inference_on_ds_and_cache(
@@ -199,6 +221,7 @@ def get_nn_inference_on_ds_and_cache(
     crash_if_not_cached=True,
     segmentation_version=None,
     v4=False,
+    empirical_data_fn=None,
 ):
     if segmentation_version is None:
         logging.warning(
@@ -218,6 +241,7 @@ def get_nn_inference_on_ds_and_cache(
             precompute_cache=precompute_cache,
             segmentation_version=segmentation_version,
             v4=v4,
+            empirical_data_fn=empirical_data_fn,
         )
     config_checksum = get_md5_of_file(config_fn)
     checkpoint_checksum = get_md5_of_file(checkpoint_fn)
@@ -245,6 +269,7 @@ def get_nn_inference_on_ds_and_cache(
         precompute_cache=precompute_cache,
         segmentation_version=segmentation_version,
         v4=v4,
+        empirical_data_fn=empirical_data_fn,
     )
     results = {key: value.numpy() for key, value in results.items()}
     np.savez_compressed(inference_cache_fn + ".tmp", **results)
@@ -262,11 +287,24 @@ def run_nn_inference_on_ds(
     precompute_cache,
     segmentation_version,
     v4=False,
+    empirical_data_fn=None,
 ):
     # load model and model config
     model, config = load_model_and_config_from_config_fn_and_checkpoint(
         config_fn=config_fn, checkpoint_fn=checkpoint_fn, device=device
     )
+
+    if empirical_data_fn is not None and config["global"].get("empirical_input", False):
+        # The inference cache is keyed on (dataset, segmentation, checkpoint md5,
+        # config md5) and NOT on the empirical table. For a model that actually
+        # consumes the table, two tables would therefore share one cache entry and
+        # the second run would silently reuse the first's outputs. Fail instead.
+        raise ValueError(
+            "refusing to override empirical_data_fn for a model with "
+            "empirical_input=true: the inference cache key does not include the "
+            "table, so results built from different tables would collide. Use a "
+            "separate --inference-cache directory if you need this."
+        )
 
     # prepare inference configs
     optim_config = {"device": device, "dtype": torch.float32}
@@ -278,6 +316,7 @@ def run_nn_inference_on_ds(
         precompute_cache=precompute_cache,
         segmentation_version=segmentation_version,
         v4=v4,
+        empirical_data_fn=empirical_data_fn,
     )
     try:
         _, val_dataloader, _ = load_dataloaders(

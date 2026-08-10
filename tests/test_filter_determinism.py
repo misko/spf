@@ -134,3 +134,63 @@ def test_resampling_actually_runs(noise1_n128_obits2, monkeypatch):
         pf, kwargs = build("dual_radio", ds)
         pf.trajectory(seed=0, **kwargs)
     assert len(calls) > 0, "resampling never ran; the determinism tests are vacuous"
+
+
+# ------------------------------------------------- the sweep's seed axis
+#
+# ParticleFilter.trajectory takes a seed, but the run_PF_* wrappers the sweep
+# calls did not pass one, so every job in a grid silently ran seed=0 -- one draw
+# per configuration, against a measured 42-106% draw-to-draw spread. These check
+# the seed reaches the filter and is recorded on the result, so the report can
+# group by it and give mean +- std per configuration.
+
+RUN_PF = [
+    (
+        "run_PF_single_theta_dual_radio",
+        dict(N=512, theta_err=0.01, theta_dot_err=0.01),
+        "mse_craft_theta",
+    ),
+    (
+        "run_PF_single_theta_single_radio",
+        dict(N=512, theta_err=0.01, theta_dot_err=0.01),
+        "mse_single_radio_theta",
+    ),
+    ("run_PF_xy_dual_radio", dict(N=512, pos_err=15, vel_err=0.5), "mse_craft_theta"),
+]
+
+
+@pytest.mark.parametrize("fn_name,kwargs,metric", RUN_PF)
+def test_run_wrapper_honours_seed(noise1_n128_obits2, fn_name, kwargs, metric):
+    import spf.filters.run_filters_on_data as runner
+
+    fn = getattr(runner, fn_name)
+    with open_ds(noise1_n128_obits2) as ds:
+        a = fn(ds=ds, seed=0, **kwargs)[0]["metrics"][metric]
+        b = fn(ds=ds, seed=0, **kwargs)[0]["metrics"][metric]
+        c = fn(ds=ds, seed=1, **kwargs)[0]["metrics"][metric]
+    assert a == b, "same seed must reproduce exactly"
+    assert a != c, "different seed must give a different draw"
+
+
+@pytest.mark.parametrize("fn_name,kwargs,metric", RUN_PF)
+def test_run_wrapper_records_seed(noise1_n128_obits2, fn_name, kwargs, metric):
+    """The reporter keys on every non-metric field, so seed must be on the result."""
+    import spf.filters.run_filters_on_data as runner
+
+    fn = getattr(runner, fn_name)
+    with open_ds(noise1_n128_obits2) as ds:
+        results = fn(ds=ds, seed=3, **kwargs)
+    for result in results:
+        assert result["seed"] == 3
+
+
+def test_ekf_wrappers_carry_no_seed(noise1_n128_obits2):
+    """EKFs are deterministic -- a seed axis would be five identical rows implying
+    a spread that does not exist."""
+    import spf.filters.run_filters_on_data as runner
+
+    with open_ds(noise1_n128_obits2) as ds:
+        results = runner.run_EKF_single_theta_dual_radio(
+            ds=ds, phi_std=10.0, p=5.0, noise_std=0.001, dynamic_R=0.0
+        )
+    assert "seed" not in results[0]
