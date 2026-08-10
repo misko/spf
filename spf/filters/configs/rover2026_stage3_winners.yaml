@@ -1,0 +1,93 @@
+# E-INF1 stage 3 -- the stage-2 winning configuration of each filter family, on
+# ALL 48 merged-v7 rover stores.
+#
+# Stage 2 searched 9,792 configurations on a stratified sample of 16 captures.
+# This confirms the seven winners on the whole corpus. Winners are taken from
+# spf/filters/reports/e_inf1_rover_coarse_20260809_v1/REPORT.md (corpus-mean MSE
+# across 5 seeds), NOT from LEADERBOARD.md -- that table's grouping key includes
+# rx_wavelength_spacing and seed, so its top rows are the single easiest
+# (spacing, seed) cell rather than the corpus winner.
+#
+#   python spf/filters/run_filters_on_data.py \
+#     -d $(cat experiments/e_inf1_filter_sweep/stage3_rover_all_n48.txt) \
+#     --empirical-pkl-fn empirical_dists/full_20260809_v1.pkl \
+#     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/stage3_full \
+#     --config spf/filters/configs/rover2026_stage3_winners.yaml \
+#     --results-backend local --parallel 24
+#
+# NEVER point --work-dir at stage2_coarse or stage2_calib. --resume defaults to
+# true and skips any job whose key already exists, so a stage-3 run into a
+# stage-2 dir would silently do nothing; and --no-resume there would overwrite
+# by key and destroy the pkls backing a committed report.
+#
+# --parallel 24, not the CLI default of 30: measured throughput on this box peaks
+# at 24 workers (8.8x) and REGRESSES at 30 (7.9x) as work spills onto E-cores.
+#
+# Expected: 1,296 result pkls / 1,824 runs. The three single-radio families emit
+# two runs per pkl (rx 0 and rx 1), which is why runs > pkls.
+precompute_caches:
+  3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
+
+runs:
+  # --- EKF. No seed axis: these are deterministic, and run_EKF_* takes no seed
+  # argument at all. Five identical rows would imply a spread that does not exist.
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [0.0]
+      p: [0.1]
+      noise_std: [0.0001]
+      dynamic_R: [0.1]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_single_radio:
+      phi_std: [1.0]
+      p: [1.0]
+      noise_std: [0.0001]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+
+  # --- PF, empirical likelihood
+  - run_PF_single_theta_dual_radio:
+      N: [16384]
+      theta_err: [0.005]
+      theta_dot_err: [0.1]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_single_radio:
+      N: [1024]
+      theta_err: [0.001]
+      theta_dot_err: [0.1]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+
+  # --- PF, NN likelihood. absolute=True and absolute=False are DIFFERENT ground
+  # truth (absolute_north vs craft_relative) and both won their own frame, so
+  # both are carried forward -- with their own winning hyperparameters, which
+  # differ. They are never ranked against each other.
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [4096]
+      theta_err: [0.075]
+      theta_dot_err: [0.005]
+      absolute: [True]
+      seed: [0, 1, 2, 3, 4]
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [16384]
+      theta_err: [0.02]
+      theta_dot_err: [0.1]
+      absolute: [False]
+      seed: [0, 1, 2, 3, 4]
+  - run_PF_single_theta_single_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [1024]
+      theta_err: [0.005]
+      theta_dot_err: [0.1]
+      seed: [0, 1, 2, 3, 4]

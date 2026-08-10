@@ -9,8 +9,59 @@ exists so the hypotheses cannot be edited after seeing the data.
 |---|---|---|
 | H1 | NN dual-radio PF beats empirical on the rover corpus | ✅ **SUPPORTED** — −20.4% craft-relative, −44.4% radio-folded |
 | H2 | best rover MSE ≥ 2× best frozen-val MSE | ❌ **NOT TESTED — withdrawn 2026-08-10 by decision.** See below. |
-| H3 | median `std(z)` > 1.5 on every corpus (filters overconfident) | ⚠️ **UNANSWERABLE AS RUN** — the sweep records no calibration metric. Being fixed; re-run pending. |
+| H3 | median `std(z)` > 1.5 on every corpus (filters overconfident) | ✅ **SUPPORTED** — corpus median 4.43; 92.6% of 9,792 configurations exceed 1.5 |
 | H4 | MSE worse at d/λ = 0.904 than at 0.673 | ⚠️ **NOT RESOLVED** — 3 of 6 spacings have one capture each |
+
+## H3 — SUPPORTED. The filters are overconfident, and it is not marginal (2026-08-10)
+
+Re-ran the identical 16-store sweep with calibration scored inside every theta
+filter (`ed8b054`): 26,112 results, 9,792 configurations, both amended acceptance
+gates passing. Report:
+[`spf/filters/reports/e_inf1_rover_coarse_calib_20260810_v1/`](../../spf/filters/reports/e_inf1_rover_coarse_calib_20260810_v1/).
+
+**Corpus median `std(z)` = 4.43. 92.6% of configurations exceed the 1.5
+threshold.** Per family, `std(z)` averaged across seeds and datasets:
+
+| family | frame | configs | median `std(z)` | > 1.5 |
+|---|---|---|---|---|
+| `PF_single_theta_dual_radio_NN` | `craft_relative` | 1800 | **6.41** | **100%** |
+| `EKF_single_theta_dual_radio` | `craft_relative` | 504 | 5.28 | 83% |
+| `PF_single_theta_single_radio_NN` | `radio_folded` | 1800 | 4.56 | **100%** |
+| `PF_single_theta_dual_radio_NN` | `absolute_north` | 1800 | 4.45 | **100%** |
+| `PF_single_theta_dual_radio` | `craft_relative` | 1800 | 4.42 | 86% |
+| `PF_single_theta_single_radio` | `radio_folded` | 1800 | 3.27 | 90% |
+| `EKF_single_theta_single_radio` | `radio_folded` | 288 | **0.75** | 25% |
+
+Read: the reported σ is typically **4–6× too small**. All three NN particle-filter
+families have **no** honestly-calibrated configuration anywhere in the grid.
+
+**Accuracy and honesty are separate axes.** The most accurate family
+(`PF dual radio NN [abs]`, best MSE 0.050 = 12.8° RMSE) is among the worst
+calibrated. `EKF_single_theta_single_radio` is the only family whose σ is
+conservative — it *overstates* uncertainty (median 0.75, ±1σ coverage 0.81
+against 0.683 nominal) — and it is also mediocre in accuracy.
+
+⚠️ **`std(z)` cannot rank filters by skill, by construction.** A uniform-random
+guesser that honestly reports σ = π/√3 = 1.814 rad scores `std(z)` = 1.00 —
+better calibrated than every filter here. It is a scale-free self-consistency
+check and must always be read alongside MSE against the π²/3 floor.
+
+### Pre-registered consequence, now in force
+
+> **H3** — if `std(z) > 1.5` holds, **no downstream component may gate on filter
+> variance** until the cause is found, and that becomes its own work item.
+
+Any code of the form "act on the bearing only when the filter's variance is low"
+is not doing what it appears to. It would fire most confidently on the NN dual
+radio PF — the family with zero honest configurations.
+
+### The re-run is comparable to the original
+
+MSE reproduces the committed stage-2 report exactly: all 9,792 configuration keys
+matched, max |ΔMSE| = 8.9e-16, 9,250 of 9,792 rows bit-identical. The remaining
+sub-ulp drift is summation order from `report.py`'s unsorted file walk, not a
+behavioural change. So the calibration wiring is confirmed purely additive, and
+H1's numbers stand unchanged.
 
 ## H2 withdrawn — the frozen val corpus cannot answer it (2026-08-10)
 
