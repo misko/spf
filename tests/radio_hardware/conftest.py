@@ -56,6 +56,15 @@ def pytest_addoption(parser):
         ),
     )
     group.addoption(
+        "--radio-direct-ip-burst-sample-rate",
+        type=float,
+        default=20_000_000.0,
+        help=(
+            "RF rate for the contiguous 16-frame direct-IP burn-in; the "
+            "production single-frame/sample-clock gates remain at 30 MS/s"
+        ),
+    )
+    group.addoption(
         "--radio-time-anchor-max-uncertainty-ms",
         type=float,
         default=5.0,

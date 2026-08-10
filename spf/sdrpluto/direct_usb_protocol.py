@@ -1471,6 +1471,49 @@ class RxFrameParser:
 
         return frames
 
+    def parse_complete_frame(
+        self, frame: bytes | bytearray | memoryview
+    ) -> DirectUsbRxFrame:
+        """Parse one already-delimited frame without copying it into staging.
+
+        Direct IP has already reassembled and CRC-checked the complete outer
+        frame. Feeding that 4 MiB allocation through the streaming parser made
+        another full-size staging copy before producing the IQ bytes. This
+        strict entry point preserves all metadata/sequence validation while
+        avoiding that redundant copy.
+        """
+
+        if self._buffer:
+            raise ProtocolError("cannot parse a complete frame with staged bytes")
+        view = memoryview(frame)
+        try:
+            current_header_bytes = self.header_bytes
+            if len(view) < current_header_bytes:
+                raise ProtocolError("complete frame is shorter than its header")
+            if self.protocol_version == VERSION_V3:
+                magic, version, current_header_bytes = struct.unpack_from("<IHH", view)
+                if magic != MAGIC or version != VERSION_V3:
+                    raise ProtocolError("bad protocol v3 frame identity")
+                if not HEADER_PREFIX_BYTES_V3 + 4 <= current_header_bytes <= 0xFFFF:
+                    raise ProtocolError("invalid protocol v3 header size")
+                if len(view) < current_header_bytes:
+                    raise ProtocolError("complete frame is shorter than its header")
+            metadata = self.metadata_type.unpack(view[:current_header_bytes])
+            expected_bytes = current_header_bytes + metadata.iq_payload_bytes
+            if len(view) != expected_bytes:
+                raise ProtocolError(
+                    "complete frame length mismatch: "
+                    f"expected {expected_bytes}, got {len(view)}"
+                )
+            self._validate_sequence(metadata)
+            return DirectUsbRxFrame(
+                metadata=metadata,
+                iq_payload=bytes(view[current_header_bytes:]),
+            )
+        except ProtocolError:
+            self.reset()
+            raise
+
     def finish(self) -> None:
         if self._buffer:
             remaining = len(self._buffer)

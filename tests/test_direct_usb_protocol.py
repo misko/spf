@@ -622,6 +622,18 @@ def test_extra_payload_is_not_silently_accepted():
         parser.finish()
 
 
+def test_complete_frame_fast_path_matches_streaming_parser():
+    wire = frame(metadata())
+    expected = RxFrameParser().feed(wire)[0]
+    assert RxFrameParser().parse_complete_frame(bytearray(wire)) == expected
+
+
+def test_complete_frame_fast_path_rejects_length_mismatch():
+    parser = RxFrameParser()
+    with pytest.raises(ProtocolError, match="complete frame length mismatch"):
+        parser.parse_complete_frame(frame(metadata()) + b"unexpected")
+
+
 def test_missing_required_feature_is_rejected():
     with pytest.raises(ProtocolError, match="GAIN_ENDPOINT_SNAPSHOTS"):
         dataclasses.replace(

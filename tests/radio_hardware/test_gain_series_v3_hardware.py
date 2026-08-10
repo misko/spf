@@ -607,7 +607,9 @@ def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_
     samples = pytestconfig.getoption("--radio-samples")
     frame_count = pytestconfig.getoption("--radio-frames-per-request")
     cycles = pytestconfig.getoption("--radio-cycles")
-    requested_sample_rate_hz = int(pytestconfig.getoption("--radio-sample-rate"))
+    requested_sample_rate_hz = int(
+        pytestconfig.getoption("--radio-direct-ip-burst-sample-rate")
+    )
     interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
     capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
     minimum_mibps = pytestconfig.getoption("--radio-direct-ip-min-payload-mibps")

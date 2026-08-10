@@ -36,7 +36,9 @@ DEFAULT_DIRECT_IP_CONTROL_PORT = 30_432
 DEFAULT_CONTROL_TIMEOUT_SECONDS = 0.5
 DEFAULT_FRAME_TIMEOUT_SECONDS = 10.0
 DEFAULT_CONTROL_ATTEMPTS = 3
-DEFAULT_DATA_RECEIVE_BUFFER_BYTES = 16 * 1024 * 1024
+# One maximum finite request carries 16 dual-CS16 frames of 524,288 samples,
+# or 64 MiB of IQ. Size the requested socket queue for that negotiated bound.
+DEFAULT_DATA_RECEIVE_BUFFER_BYTES = 64 * 1024 * 1024
 MAX_CONTROL_DATAGRAM_BYTES = 4096
 SO_RXQ_OVFL = getattr(socket, "SO_RXQ_OVFL", 40)
 
@@ -319,12 +321,7 @@ class PlutoDirectIpReceiver:
                         f"direct-IP data arrived from unexpected peer {peer[0]}"
                     )
                 for outer in reassembler.feed(datagram_view[:received], peer=peer[0]):
-                    inner_frames = parser.feed(outer.frame)
-                    if len(inner_frames) != 1:
-                        raise ProtocolError(
-                            "one direct-IP outer frame must contain one inner frame"
-                        )
-                    inner = inner_frames[0]
+                    inner = parser.parse_complete_frame(outer.frame)
                     if inner.metadata.stream_id != outer.stream_id:
                         raise ProtocolError("direct-IP inner/outer stream mismatch")
                     if inner.metadata.buffer_sequence != outer.frame_sequence:
