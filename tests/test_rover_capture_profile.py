@@ -99,7 +99,8 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
     assert plan["data_version"] == "7"
     assert plan["capture_status_file"] == "/home/pi/preflight/capture_status.json"
     assert (
-        plan["firmware_release_tag"] == "v0.38-plutoplus-spf-gain-rssi-fingerprint-v3"
+        plan["firmware_release_tag"]
+        == "v0.38-plutoplus-spf-gain-series-v4-rc12"
     )
 
 
@@ -211,30 +212,30 @@ def test_canonical_v7_configs_are_self_contained(
 
 
 @pytest.mark.parametrize("rover_id", [1, 2, 3, 4])
-def test_every_production_rover_pins_supervised_v3_firmware(rover_id):
+def test_every_production_rover_pins_hardware_qualified_rc12(rover_id):
     plan = resolve_capture_plan(rover_id)
     assert (
         plan.firmware_release_tag
-        == "v0.38-plutoplus-spf-gain-rssi-fingerprint-v3"
+        == "v0.38-plutoplus-spf-gain-series-v4-rc12"
     )
     assert (
         plan.firmware_asset_name
-        == "plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu"
+        == "plutoplus-spf-main-fa5f95f0af2a-pluto.dfu"
     )
     assert plan.firmware_image_url == (
         "https://github.com/misko/plutosdr-fw/releases/download/"
-        "v0.38-plutoplus-spf-gain-rssi-fingerprint-v3/"
-        "plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu"
+        "v0.38-plutoplus-spf-gain-series-v4-rc12/"
+        "plutoplus-spf-main-fa5f95f0af2a-pluto.dfu"
     )
     assert plan.firmware_image_sha256 == (
-        "86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191"
+        "2209e23ccc76b9748b0b4435ff706f8edbd7ad0ce1b950ff4065a399d7de52d4"
     )
-    assert plan.firmware_git_sha == "f53dd006c26677a256520b86b7c864100ccd62d2"
-    assert plan.gadget_git_sha == "2072e1d0823ef6db3bc141dd733a90d76e23fc33"
+    assert plan.firmware_git_sha == "fa5f95f0af2a0586c80b54eff7ae04512cb96f7f"
+    assert plan.gadget_git_sha == "e14eae63ac6b7fe51828e85de34a8d4e1c50d49e"
     assert plan.firmware_boot_mode == "qspi"
     assert (
         plan.firmware_device_fw
-        == "v0.38-plutoplus-spf-gain-rssi-fingerprint-v2-8-gf53d"
+        == "v0.38-plutoplus-spf-gain-series-v4-rc11-2-gfa5f9"
     )
 
 
