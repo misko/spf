@@ -22,13 +22,25 @@ V7_CONTRACT = CaptureSchemaContract(
     require_gain_metadata=True,
 )
 
+V7_SHARED_DIRECT_USB_KEYS = frozenset(
+    {
+        "protocol-version",
+        "frame-count-per-request",
+        "gain-observation-interval-samples",
+        "gain-observation-capacity",
+        "gain-event-capacity",
+        "require-gain-metadata",
+    }
+)
+
 
 def normalize_capture_config(config: dict[str, Any]) -> dict[str, Any]:
     """Return a normalized copy with implicit schema requirements materialized.
 
-    Data version 7 is SPF's direct-USB protocol-v2 gain/RSSI schema. Production
-    YAML therefore does not need to repeat transport and protocol under every
-    receiver. Explicit conflicting values are rejected rather than overwritten.
+    Data version 7 is SPF's direct-radio gain/RSSI schema. Protocol v2 remains
+    the compatibility default, while a top-level ``direct-usb`` mapping can
+    select protocol v3 gain-series settings once for every receiver. Explicit
+    conflicting values are rejected rather than overwritten.
     """
 
     normalized = deepcopy(config)
@@ -38,6 +50,16 @@ def normalize_capture_config(config: dict[str, Any]) -> dict[str, Any]:
     receivers = normalized.get("receivers")
     if not isinstance(receivers, list) or not receivers:
         raise ValueError("data-version: 7 requires at least one receiver")
+
+    shared_direct_usb = normalized.get("direct-usb", {})
+    if not isinstance(shared_direct_usb, dict):
+        raise ValueError("data-version: 7 top-level direct-usb must be a mapping")
+    unsupported_shared_keys = set(shared_direct_usb) - V7_SHARED_DIRECT_USB_KEYS
+    if unsupported_shared_keys:
+        raise ValueError(
+            "data-version: 7 top-level direct-usb contains receiver-specific "
+            f"or unsupported fields: {sorted(unsupported_shared_keys)}"
+        )
 
     for index, receiver in enumerate(receivers):
         if not isinstance(receiver, dict):
@@ -54,6 +76,13 @@ def normalize_capture_config(config: dict[str, Any]) -> dict[str, Any]:
         direct_usb = receiver.setdefault("direct-usb", {})
         if not isinstance(direct_usb, dict):
             raise ValueError(f"receivers[{index}].direct-usb must be a mapping")
+        for key, value in shared_direct_usb.items():
+            if key in direct_usb and direct_usb[key] != value:
+                raise ValueError(
+                    f"receivers[{index}].direct-usb.{key} conflicts with "
+                    "the top-level direct-usb default"
+                )
+            direct_usb.setdefault(key, value)
 
         explicit_protocol = direct_usb.get("protocol-version")
         if explicit_protocol not in (

@@ -77,6 +77,24 @@ def test_calibration_firmware_matches_rover_production(config_path: Path):
     )
 
 
+@pytest.mark.parametrize(
+    "config_path", _calibration_configs_with_firmware(), ids=lambda p: p.name
+)
+def test_calibration_direct_usb_protocol_matches_rover_production(
+    config_path: Path,
+):
+    """Calibration and deployment must record the same gain-series metadata."""
+
+    reference = yaml.safe_load(canonical_config_path(REFERENCE_ROVER_ID).read_text())[
+        "direct-usb"
+    ]
+    actual = yaml.safe_load(config_path.read_text()).get("direct-usb")
+    assert actual == reference, (
+        f"{config_path.name} direct-usb settings {actual!r} differ from "
+        f"production {reference!r}"
+    )
+
+
 def test_all_rover_configs_pin_identical_firmware():
     """The three rover configs must agree with each other, or 'the' pin is ambiguous."""
     blocks = {

@@ -1,5 +1,5 @@
 # Canonical Rover 4 production capture.
-# data-version 7 implies direct-USB metadata protocol v2 for every receiver.
+# RC16 uses direct-USB metadata protocol v3 for sample-associated gain series.
 #
 # Antenna spacing is per-rover physical geometry, not a shared default:
 # rover1 = 35 mm, rover2 = 50.75 mm, rover3 = 43 mm, rover4 = 47 mm (fixed).
@@ -70,9 +70,13 @@ routine: bounce
 drone-uri: serial
 dry-run: false
 data-version: 7
+direct-usb:
+  protocol-version: 3
+  gain-observation-interval-samples: 2048
+  gain-observation-capacity: 256
 seconds-per-sample: 0.5
 
 collector:
   type: rover
   version: "3.1"
-  capture-profile: direct_usb_gain_rssi_v2
+  capture-profile: direct_usb_gain_series_v3

@@ -2,9 +2,11 @@
 
 ## Disposition
 
-**PASS for the complete two-radio RAM promotion gate, including direct USB,
-direct IP, TX2 loopback, protocol-v2 compatibility, and V7 Zarr. Proceed to a
-controlled one-radio QSPI canary; do not perform a fleet rollout yet.**
+**PASS for the complete two-radio RAM promotion gate and the controlled
+one-radio persistent-QSPI canary, including direct USB, direct IP, TX2
+loopback, protocol-v2 compatibility, and V7 Zarr. RC16 is hardware-qualified;
+keep the second bench radio on the prior image until the SPF promotion change
+is reviewed and merged.**
 
 RC16 restores maximum finite-burst direct-IP throughput to the same practical
 20–22 MiB/s range measured by direct USB on this host. The exact public-build
@@ -12,10 +14,13 @@ DFU transferred 320 maximum-size frames (1.25 GiB) at 21.33 MiB/s with no
 missing frames, sequence gaps, partial reassemblies, rejected fragments,
 duplicate fragments, or receive-queue overflows.
 
-The candidate was tested only through volatile DFU/RAM boot. QSPI was not
-modified. After testing, both radios were explicitly reset into the preserved
-production QSPI image, TX1/TX2 were verified at `-80 dB`, and the production
-protocol-v2 baseline passed 6/6.
+The complete two-radio campaign used volatile DFU/RAM boot. After it passed,
+both radios were explicitly reset into the preserved production QSPI image,
+TX1/TX2 were verified at `-80 dB`, and the production protocol-v2 baseline
+passed 6/6. The exact release image was then written to the firmware partition
+of one serial-scoped canary. It survived an additional QSPI reboot and passed
+the selected USB, TX, V7, and direct-IP gates. The second radio was not
+persistently modified.
 
 ## Candidate identity
 
@@ -35,7 +40,8 @@ protocol-v2 baseline passed 6/6.
 - DFU: `plutoplus-spf-main-867e18542311-pluto.dfu`
 - DFU SHA-256: `27aca40915fd75fbcabfadef88fee96ff422c6058f83fab8a57a09b8d1eae911`
 - Packaged device-fw: `v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1`
-- Tested boot mode: volatile DFU/RAM only
+- Tested boot modes: volatile DFU/RAM on both radios; persistent QSPI/mtd3 on
+  one canary radio
 
 The GitHub build, independent verification job, adjacent bundle checksum,
 `SHA256SUMS`, and `PAYLOAD_SHA256SUMS` all passed. The packaged gadget binaries
@@ -91,6 +97,55 @@ Key evidence SHA-256 values:
 - malformed direct IP: `0bae317f667521cd7d8aeb1f4f5a8450e837802452ec30948a8ff1dceeb011a2`;
 - direct-IP frame: `3a2ef73877e656b21406a04b64bbc5590455a8d78fd2ea7f5bfe168517c1ea35`;
 - direct-IP maximum burst: `521c21ec99f1cd82773757b3b3c1226fbe9a094226527327a0a67a76c208a02f`.
+
+## Persistent-QSPI canary
+
+Canary evidence root:
+
+`/tmp/spf-gain-series-v4-rc16-qspi-canary-20260810T7b9QnYBA`
+
+The canary was serial `1040007c4a94000211000b009186843ef2` on physical USB
+path `1-1.2`. The release DFU was converted to a firmware-only `pluto.frm` with
+SHA-256
+`8d2623b6f8b5e5fd69d214afed20fe48dce4cd4aa0fe4714fc9825f1dccad415`.
+Only `/dev/sda1` for that serial was mounted, and only `pluto.frm` was copied;
+no zip or `boot.frm` was used.
+
+The QSPI bootloader partition MD5 remained
+`0f7a6f28fc080815d45164316533bcc4` before the write, after the updater reboot,
+and after a second explicit reboot. The firmware partition MD5 became
+`4bf8e04810a984e2550cf02949758665`. Both persistent boots reported the exact
+packaged device-fw and USB gadget build ID. Both `sdr_usb_gadget` and
+`sdr_ip_gadget` were running after the second boot.
+
+| Persistent gate | Result |
+|---|---|
+| Exact device-fw and gadget SHA after updater reboot | Passed |
+| Exact device-fw and gadget SHA after second reboot | Passed |
+| Bootloader/mtd0 hash unchanged | Passed |
+| Protocol-v3 USB observations | Passed |
+| Fresh USB START/STOP stress | 100 cycles passed |
+| Internal cyclic TX and external TX2 loopback | 2 passed |
+| Hardware-backed V7 Zarr | 100 records written and reopened in 1:44 |
+| Malformed direct-IP recovery and common V3 frame | Passed |
+| Maximum direct-IP finite burst | 20 cycles, 320 frames, 1.25 GiB passed |
+| Final host `net.core.rmem_max` | Restored to `212992` |
+| Final TX state | TX1/TX2 `-80 dB` on both radios |
+
+The persistent maximum burst sustained `21.81 MiB/s` aggregate
+(`19.77`–`22.05 MiB/s` per request) with a 256 MiB effective socket queue and
+zero duplicate, expired, rejected, or receive-queue-overflow events.
+
+The reboot also exposed a host discovery ambiguity: the same canary serial was
+reachable through LAN and the Pluto USB-Ethernet `192.168.2.1` route. The LAN
+resolver now filters neighbors by the kernel's actual egress interface. A
+focused test first reproduced the duplicate match, then passed with the fix;
+live resolution selected only the current LAN address.
+
+SPF CI run
+[31367605275](https://github.com/misko/spf/actions/runs/31367605275) passed at
+commit `9710e0347312454d29150e83bbb28af095b78a00`: 1,497 passed, 32 skipped,
+and 2 expected failures.
 
 ## Direct-IP result and root cause
 
@@ -186,10 +241,11 @@ Both hardware radios were finally restored to:
 
 ## Promotion recommendation
 
-1. Publish a release containing only the exact DFU identified above.
-2. Update the production manifest/config pins only after the release asset and
-   its checksums are independently re-downloaded and verified.
-3. Persist the image to one radio, reboot from QSPI, and rerun USB, V7, TX,
-   malformed-IP, and maximum-burst gates.
-4. Keep the prior production DFU and QSPI image as rollback.
-5. Promote to the remaining radios only after the persistent canary passes.
+1. Review and merge the SPF production pin and host transport changes.
+2. Keep the prior production DFU and generated QSPI image as rollback.
+3. Roll RC16 to the remaining radios through the checksum-pinned, mtd3-only
+   boot preparation path.
+4. Verify exact device-fw, gadget SHA, serial/path identity, and TX mute after
+   each radio's first persistent boot.
+5. Retain protocol-v2 compatibility tests; canonical production and active
+   calibration configs now explicitly select protocol v3 gain-series metadata.

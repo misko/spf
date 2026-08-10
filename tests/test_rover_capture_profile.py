@@ -98,10 +98,7 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
     assert plan["rx_transport"] == "direct_usb"
     assert plan["data_version"] == "7"
     assert plan["capture_status_file"] == "/home/pi/preflight/capture_status.json"
-    assert (
-        plan["firmware_release_tag"]
-        == "v0.38-plutoplus-spf-gain-series-v4-rc16"
-    )
+    assert plan["firmware_release_tag"] == "v0.38-plutoplus-spf-gain-series-v4-rc16"
 
 
 def test_every_production_boot_waits_for_firmware_loader_by_default():
@@ -205,6 +202,11 @@ def test_canonical_v7_configs_are_self_contained(
     config = yaml.safe_load(Path(plan.config_path).read_text())
     assert "rx-transport" not in config["receivers"][0]
     assert "direct-usb" not in config["receivers"][0]
+    assert config["direct-usb"] == {
+        "protocol-version": 3,
+        "gain-observation-interval-samples": 2048,
+        "gain-observation-capacity": 256,
+    }
     assert {receiver["antenna-spacing-m"] for receiver in config["receivers"]} == {
         spacing
     }
@@ -214,14 +216,8 @@ def test_canonical_v7_configs_are_self_contained(
 @pytest.mark.parametrize("rover_id", [1, 2, 3, 4])
 def test_every_production_rover_pins_hardware_qualified_rc16(rover_id):
     plan = resolve_capture_plan(rover_id)
-    assert (
-        plan.firmware_release_tag
-        == "v0.38-plutoplus-spf-gain-series-v4-rc16"
-    )
-    assert (
-        plan.firmware_asset_name
-        == "plutoplus-spf-main-867e18542311-pluto.dfu"
-    )
+    assert plan.firmware_release_tag == "v0.38-plutoplus-spf-gain-series-v4-rc16"
+    assert plan.firmware_asset_name == "plutoplus-spf-main-867e18542311-pluto.dfu"
     assert plan.firmware_image_url == (
         "https://github.com/misko/plutosdr-fw/releases/download/"
         "v0.38-plutoplus-spf-gain-series-v4-rc16/"
@@ -233,18 +229,12 @@ def test_every_production_rover_pins_hardware_qualified_rc16(rover_id):
     assert plan.firmware_git_sha == "867e18542311c25f5c1980bbdcfffc823e56f0a2"
     assert plan.gadget_git_sha == "2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552"
     assert plan.firmware_boot_mode == "qspi"
-    assert (
-        plan.firmware_device_fw
-        == "v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1"
-    )
+    assert plan.firmware_device_fw == "v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1"
 
 
 def test_boot_uses_explicit_active_device_version_from_config():
     source = (ROVER_ROOT / "prepare_direct_usb_boot.sh").read_text()
-    assert (
-        'firmware_device_fw="${config_values[15]}"'
-        in source
-    )
+    assert 'firmware_device_fw="${config_values[15]}"' in source
     assert (
         'expected_device_fw="${SPF_PLUTO_EXPECTED_DEVICE_FW:-$firmware_device_fw}"'
         in source

@@ -5,6 +5,11 @@
 # boundaries, and the four existing Rover/VTX 5.8 GHz anchors.
 data-version: 7
 
+direct-usb:
+  protocol-version: 3
+  gain-observation-interval-samples: 2048
+  gain-observation-capacity: 256
+
 pluto-firmware:
   release-tag: v0.38-plutoplus-spf-gain-series-v4-rc16
   device-fw: v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1

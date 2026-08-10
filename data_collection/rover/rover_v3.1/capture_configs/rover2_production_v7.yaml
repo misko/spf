@@ -1,5 +1,5 @@
 # Canonical Rover 2 production capture.
-# data-version 7 implies direct-USB metadata protocol v2 for every receiver.
+# RC16 uses direct-USB metadata protocol v3 for sample-associated gain series.
 # Resting position offset from the fence centroid, metres (east, north).
 # Keeps rovers from converging on the same point at mission start/end.
 # Rover 2 = (+1, -1). Affects start/home/RTL only, never pattern geometry.
@@ -50,9 +50,13 @@ routine: circle
 drone-uri: serial
 dry-run: false
 data-version: 7
+direct-usb:
+  protocol-version: 3
+  gain-observation-interval-samples: 2048
+  gain-observation-capacity: 256
 seconds-per-sample: 0.5
 
 collector:
   type: rover
   version: "3.1"
-  capture-profile: direct_usb_gain_rssi_v2
+  capture-profile: direct_usb_gain_series_v3
