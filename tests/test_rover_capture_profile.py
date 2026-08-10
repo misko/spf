@@ -100,7 +100,7 @@ def test_boot_launcher_prints_canonical_v7_plan_without_hardware(tmp_path):
     assert plan["capture_status_file"] == "/home/pi/preflight/capture_status.json"
     assert (
         plan["firmware_release_tag"]
-        == "v0.38-plutoplus-spf-gain-series-v4-rc12"
+        == "v0.38-plutoplus-spf-gain-series-v4-rc16"
     )
 
 
@@ -212,30 +212,30 @@ def test_canonical_v7_configs_are_self_contained(
 
 
 @pytest.mark.parametrize("rover_id", [1, 2, 3, 4])
-def test_every_production_rover_pins_hardware_qualified_rc12(rover_id):
+def test_every_production_rover_pins_hardware_qualified_rc16(rover_id):
     plan = resolve_capture_plan(rover_id)
     assert (
         plan.firmware_release_tag
-        == "v0.38-plutoplus-spf-gain-series-v4-rc12"
+        == "v0.38-plutoplus-spf-gain-series-v4-rc16"
     )
     assert (
         plan.firmware_asset_name
-        == "plutoplus-spf-main-fa5f95f0af2a-pluto.dfu"
+        == "plutoplus-spf-main-867e18542311-pluto.dfu"
     )
     assert plan.firmware_image_url == (
         "https://github.com/misko/plutosdr-fw/releases/download/"
-        "v0.38-plutoplus-spf-gain-series-v4-rc12/"
-        "plutoplus-spf-main-fa5f95f0af2a-pluto.dfu"
+        "v0.38-plutoplus-spf-gain-series-v4-rc16/"
+        "plutoplus-spf-main-867e18542311-pluto.dfu"
     )
     assert plan.firmware_image_sha256 == (
-        "2209e23ccc76b9748b0b4435ff706f8edbd7ad0ce1b950ff4065a399d7de52d4"
+        "27aca40915fd75fbcabfadef88fee96ff422c6058f83fab8a57a09b8d1eae911"
     )
-    assert plan.firmware_git_sha == "fa5f95f0af2a0586c80b54eff7ae04512cb96f7f"
-    assert plan.gadget_git_sha == "e14eae63ac6b7fe51828e85de34a8d4e1c50d49e"
+    assert plan.firmware_git_sha == "867e18542311c25f5c1980bbdcfffc823e56f0a2"
+    assert plan.gadget_git_sha == "2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552"
     assert plan.firmware_boot_mode == "qspi"
     assert (
         plan.firmware_device_fw
-        == "v0.38-plutoplus-spf-gain-series-v4-rc11-2-gfa5f9"
+        == "v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1"
     )
 
 
