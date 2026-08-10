@@ -1,0 +1,57 @@
+{
+  "hypothesis": "H5",
+  "method": "park RX1 gain either side of the low-power threshold and sample CTRL_OUT7 200 times in a tight builtin loop",
+  "next": "needs the FPGA stage, or a finer level control than 1 dB gain steps",
+  "points": [
+    {
+      "ones": 200,
+      "rx1_gain_db": 20,
+      "samples": 200,
+      "transitions": 0,
+      "us_per_sample": 237
+    },
+    {
+      "ones": 200,
+      "rx1_gain_db": 21,
+      "samples": 200,
+      "transitions": 0,
+      "us_per_sample": 235
+    },
+    {
+      "ones": 0,
+      "rx1_gain_db": 22,
+      "samples": 200,
+      "transitions": 0,
+      "us_per_sample": 235
+    },
+    {
+      "ones": 0,
+      "rx1_gain_db": 23,
+      "samples": 200,
+      "transitions": 0,
+      "us_per_sample": 236
+    },
+    {
+      "ones": 0,
+      "rx1_gain_db": 24,
+      "samples": 200,
+      "transitions": 0,
+      "us_per_sample": 237
+    }
+  ],
+  "prediction": "the low-power bit changes state no faster than one power-measurement period; predicted 256-410 us",
+  "provenance": {
+    "ctrl_out_gpio": "960..967 = CTRL_OUT0..7, read as inputs, 0x035=0x03, 0x036=0xFF",
+    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+    "harness": "TX2 -> 30 dB pad -> bare SMA tee -> RX1/RX2 (tee has ~0 dB port-to-port isolation; see docs/learnings.md harness entry)",
+    "radio_label": "R17",
+    "radio_serial": "104000bac4950008230026001b440a003a",
+    "raw_dir": "artifacts/agc_pin_bringup/20260811_r17_step5_v1",
+    "rx_lo_hz": 867999998,
+    "rx_sample_rate_hz": 3000000,
+    "source": "own TX2 fpga_dds tone at +100 kHz, TX2 hardwaregain 0 dB (full scale)"
+  },
+  "reading": "The bit is a stable level on both sides of a sharp threshold at 22 dB: 200/200 high at 20-21 dB, 0/200 high at 22-24 dB, and zero transitions anywhere. With no dither there is no interval to measure. Two limits compound: the sampler runs at about 237 us against a predicted 256-410 us period, and RX gain is quantised to 1 dB, which is likely too coarse to park the comparator exactly at its trip point where it would dither.",
+  "transitions_observed_total": 0,
+  "verdict": "NOT RESOLVED"
+}

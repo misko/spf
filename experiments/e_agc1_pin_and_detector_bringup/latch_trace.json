@@ -1,0 +1,34 @@
+{
+  "bits_in_overload": "00110100",
+  "blank_observed": false,
+  "caveat": "the k>=3 repeat traces read all-zero rather than all-one because pin control was still armed, so the iio_attr re-arm of RX1 to 52 dB before each repeat was silently ignored (see armed_write_ab.json) and the index walked down 2 per repeat until it fell below the overload point. Only the first two repeats test what was intended.",
+  "control_trace_no_gain_change": "111111111111111111111111111111111111111111111111111111111111",
+  "gain_index_after": 53,
+  "gain_index_before": 55,
+  "hypothesis": "H4",
+  "method": "drive CH1 into large-ADC overload, step the gain down with a CTRL_IN pin edge (a shell-builtin GPIO write, ~100s of us, versus 67 ms for an iio_attr write), then sample CTRL_OUT5 in a tight builtin loop",
+  "next": "belongs to the FPGA stage, alongside the minimum-pulse-width question",
+  "prediction": "an asserted large-overload bit stays high until the gain changes, then returns low for at least the Peak Overload Wait Time",
+  "provenance": {
+    "ctrl_out_gpio": "960..967 = CTRL_OUT0..7, read as inputs, 0x035=0x03, 0x036=0xFF",
+    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+    "harness": "TX2 -> 30 dB pad -> bare SMA tee -> RX1/RX2 (tee has ~0 dB port-to-port isolation; see docs/learnings.md harness entry)",
+    "radio_label": "R17",
+    "radio_serial": "104000bac4950008230026001b440a003a",
+    "raw_dir": "artifacts/agc_pin_bringup/20260811_r17_step5_v1",
+    "rx_lo_hz": 867999998,
+    "rx_sample_rate_hz": 3000000,
+    "source": "own TX2 fpga_dds tone at +100 kHz, TX2 hardwaregain 0 dB (full scale)"
+  },
+  "reading": "No 1->0->1 excursion was seen after the gain step at 322 us sampling granularity. That bounds any post-change blank at under 322 us but neither confirms nor refutes the latch-and-blank behaviour, so open item O-3 stays open. This is the pre-declared H4/H5 resolution limit in section 2, and it is worse than budgeted: reading a GPIO value file costs 322 us, not the 134 us measured on a plain sysfs attribute.",
+  "repeat_traces": [
+    "111111111111111111111111111111",
+    "111111111111111111111111111111",
+    "000000000000000000000000000000",
+    "000000000000000000000000000000",
+    "000000000000000000000000000000"
+  ],
+  "sampler_us_per_sample": 322,
+  "trace_after_gain_step": "111111111111111111111111111111111111111111111111111111111111",
+  "verdict": "NOT RESOLVED"
+}

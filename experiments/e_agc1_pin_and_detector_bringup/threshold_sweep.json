@@ -1,0 +1,146 @@
+{
+  "all_writes_read_modify_write_preserving_bit7": true,
+  "gate": ">=5 points per threshold",
+  "gate_met_for": [
+    "0x114"
+  ],
+  "gate_points_collected": {
+    "0x107": 6,
+    "0x108": 6,
+    "0x114": 6
+  },
+  "method": "for each threshold register value, walk RX1 gain 8..72 dB in 2 dB steps and record the gain at which the predicted bit changes state. Register identity is not assumed: moving a register and seeing only its predicted bit's edge move is the identification.",
+  "not_swept": {
+    "0x104": "LMT overload high threshold",
+    "0x105": "LMT overload low"
+  },
+  "not_swept_reason": "CH1's LMT bit could not be provoked at all on this harness and CH2's only at the very top of the gain range, so an LMT threshold sweep would have had at most one observable point",
+  "per_register": {
+    "0x107": {
+      "finding": "the predicted edge did not move across 6 register values (distinct edges: [44], plus one value at which the bit never asserted). At this drive level the ADC goes from clear to saturated within about 1 dB of gain (small-ADC at 44 dB, large-ADC at 45 dB), so the converter's own saturation, not the programmed threshold, is the binding constraint. The threshold only becomes binding at the top of the swept range.",
+      "identified": false,
+      "points": [
+        {
+          "edge_gain_db": 44,
+          "readback": "0x1b",
+          "wrote": "0x1b"
+        },
+        {
+          "edge_gain_db": 44,
+          "readback": "0x23",
+          "wrote": "0x23"
+        },
+        {
+          "edge_gain_db": 44,
+          "readback": "0x2b",
+          "wrote": "0x2b"
+        },
+        {
+          "edge_gain_db": 44,
+          "readback": "0x33",
+          "wrote": "0x33"
+        },
+        {
+          "edge_gain_db": 44,
+          "readback": "0x3b",
+          "wrote": "0x3b"
+        },
+        {
+          "edge_gain_db": null,
+          "readback": "0x43",
+          "wrote": "0x43"
+        }
+      ],
+      "predicted_bit": "CTRL_OUT4_CH1_small_ADC",
+      "target_state": 1
+    },
+    "0x108": {
+      "finding": "the predicted edge did not move across 6 register values (distinct edges: [46]). At this drive level the ADC goes from clear to saturated within about 1 dB of gain (small-ADC at 44 dB, large-ADC at 45 dB), so the converter's own saturation, not the programmed threshold, is the binding constraint. The threshold only becomes binding at the top of the swept range.",
+      "identified": false,
+      "points": [
+        {
+          "edge_gain_db": 46,
+          "readback": "0x21",
+          "wrote": "0x21"
+        },
+        {
+          "edge_gain_db": 46,
+          "readback": "0x29",
+          "wrote": "0x29"
+        },
+        {
+          "edge_gain_db": 46,
+          "readback": "0x31",
+          "wrote": "0x31"
+        },
+        {
+          "edge_gain_db": 46,
+          "readback": "0x39",
+          "wrote": "0x39"
+        },
+        {
+          "edge_gain_db": 46,
+          "readback": "0x41",
+          "wrote": "0x41"
+        },
+        {
+          "edge_gain_db": 46,
+          "readback": "0x49",
+          "wrote": "0x49"
+        }
+      ],
+      "predicted_bit": "CTRL_OUT5_CH1_large_ADC",
+      "target_state": 1
+    },
+    "0x114": {
+      "finding": "monotonic over 6 points; 0.5 dB per LSB. Confirmed as the low-power threshold.",
+      "identified": true,
+      "lsb_db": 0.5,
+      "points": [
+        {
+          "edge_gain_db": 38,
+          "readback": "0x10",
+          "wrote": "0x10"
+        },
+        {
+          "edge_gain_db": 30,
+          "readback": "0x20",
+          "wrote": "0x20"
+        },
+        {
+          "edge_gain_db": 22,
+          "readback": "0x30",
+          "wrote": "0x30"
+        },
+        {
+          "edge_gain_db": 14,
+          "readback": "0x40",
+          "wrote": "0x40"
+        },
+        {
+          "edge_gain_db": 8,
+          "readback": "0x50",
+          "wrote": "0x50"
+        },
+        {
+          "edge_gain_db": 8,
+          "readback": "0x60",
+          "wrote": "0x60"
+        }
+      ],
+      "predicted_bit": "CTRL_OUT7_CH1_low_power",
+      "target_state": 0
+    }
+  },
+  "provenance": {
+    "ctrl_out_gpio": "960..967 = CTRL_OUT0..7, read as inputs, 0x035=0x03, 0x036=0xFF",
+    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+    "harness": "TX2 -> 30 dB pad -> bare SMA tee -> RX1/RX2 (tee has ~0 dB port-to-port isolation; see docs/learnings.md harness entry)",
+    "radio_label": "R17",
+    "radio_serial": "104000bac4950008230026001b440a003a",
+    "raw_dir": "artifacts/agc_pin_bringup/20260811_r17_step5_v1",
+    "rx_lo_hz": 867999998,
+    "rx_sample_rate_hz": 3000000,
+    "source": "own TX2 fpga_dds tone at +100 kHz, TX2 hardwaregain 0 dB (full scale)"
+  }
+}

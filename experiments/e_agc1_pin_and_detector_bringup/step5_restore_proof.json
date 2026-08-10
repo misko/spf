@@ -1,0 +1,41 @@
+{
+  "all_restored": true,
+  "gate": "every register and pin touched by step 5 returned to its pre-step value",
+  "note": "one earlier attempt at the phase-C sweep was killed by a host-side 2-minute tool timeout, and because the trap did not cover SIGHUP the radio was left with the tone on, 0x035=0x03 and CTRL_OUT exported. It was explicitly restored and verified before continuing, and HUP was added to the trap for every later phase. No CTRL_IN pin was armed at any point during that window.",
+  "phases": {
+    "step5c_map": {
+      "ctrl_out_pins_released": "true",
+      "reg_0x035": "0x0",
+      "restored_dds_raw": "0",
+      "restored_idx": "44:44",
+      "restored_rx_gains": "41.000000:41.000000",
+      "restored_tx2_gain": "-80.000000 dB"
+    },
+    "step5d_thresholds": {
+      "ctrl_out_pins_released": "true",
+      "reg_0x035": "0x0",
+      "restored_0x104": "0x2f restored_0x105=0x3a restored_0x107=0x2b restored_0x108=0x31 restored_0x114=0x30",
+      "restored_dds_raw": "0",
+      "restored_tx2": "-80.000000 dB"
+    },
+    "step5e_h4h5": {
+      "all_pins_released": "true",
+      "reg_0x035": "0x0",
+      "restored_0x0FB": "0x8",
+      "restored_dds_raw": "0",
+      "restored_idx": "44:44",
+      "restored_tx2": "-80.000000 dB"
+    }
+  },
+  "provenance": {
+    "ctrl_out_gpio": "960..967 = CTRL_OUT0..7, read as inputs, 0x035=0x03, 0x036=0xFF",
+    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+    "harness": "TX2 -> 30 dB pad -> bare SMA tee -> RX1/RX2 (tee has ~0 dB port-to-port isolation; see docs/learnings.md harness entry)",
+    "radio_label": "R17",
+    "radio_serial": "104000bac4950008230026001b440a003a",
+    "raw_dir": "artifacts/agc_pin_bringup/20260811_r17_step5_v1",
+    "rx_lo_hz": 867999998,
+    "rx_sample_rate_hz": 3000000,
+    "source": "own TX2 fpga_dds tone at +100 kHz, TX2 hardwaregain 0 dB (full scale)"
+  }
+}

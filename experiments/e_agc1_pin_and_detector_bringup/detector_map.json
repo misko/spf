@@ -1,0 +1,126 @@
+{
+  "acceptance_gate_note": "7/8 bits provoked and attributed. Not provoked: ['CTRL_OUT6 (CH1_large_LMT)']. CH1's large-LMT bit needs more input power than this harness can deliver -- the 30 dB pad plus the tee split leaves the RX ports at about -57 dBm at TX full scale, which reaches ADC overload (via RX gain) but not LMT overload on that arm.",
+  "attribution_clean": true,
+  "bits_not_provoked": [
+    "CTRL_OUT6 (CH1_large_LMT)"
+  ],
+  "bits_provoked": {
+    "CTRL_OUT0": "CH2_small_ADC",
+    "CTRL_OUT1": "CH2_large_ADC",
+    "CTRL_OUT2": "CH2_large_LMT",
+    "CTRL_OUT3": "CH2_low_power",
+    "CTRL_OUT4": "CH1_small_ADC",
+    "CTRL_OUT5": "CH1_large_ADC",
+    "CTRL_OUT7": "CH1_low_power"
+  },
+  "hypothesis": "H3",
+  "method": "differential attribution: sweep one arm's RX gain 10..72 dB in 1 dB steps with the other arm fixed at 41 dB, and record which CTRL_OUT bits change. Attribution does not depend on harness isolation.",
+  "per_sweep": {
+    "sweepA": {
+      "bits_that_changed": [
+        "CH1_large_ADC",
+        "CH1_low_power",
+        "CH1_small_ADC"
+      ],
+      "cross_channel_leak": [],
+      "gain_range_db": [
+        10,
+        72
+      ],
+      "other_arm_fixed_db": 41,
+      "quiescent_bits_no_signal": "10001011",
+      "swept_arm": "RX1",
+      "transitions": [
+        {
+          "bit": "CTRL_OUT7",
+          "from": 1,
+          "gain_db": 22,
+          "signal": "CH1_low_power",
+          "to": 0
+        },
+        {
+          "bit": "CTRL_OUT4",
+          "from": 0,
+          "gain_db": 44,
+          "signal": "CH1_small_ADC",
+          "to": 1
+        },
+        {
+          "bit": "CTRL_OUT5",
+          "from": 0,
+          "gain_db": 45,
+          "signal": "CH1_large_ADC",
+          "to": 1
+        }
+      ]
+    },
+    "sweepB": {
+      "bits_that_changed": [
+        "CH2_large_ADC",
+        "CH2_large_LMT",
+        "CH2_low_power",
+        "CH2_small_ADC"
+      ],
+      "cross_channel_leak": [],
+      "gain_range_db": [
+        10,
+        72
+      ],
+      "other_arm_fixed_db": 41,
+      "quiescent_bits_no_signal": "10001011",
+      "swept_arm": "RX2",
+      "transitions": [
+        {
+          "bit": "CTRL_OUT3",
+          "from": 1,
+          "gain_db": 22,
+          "signal": "CH2_low_power",
+          "to": 0
+        },
+        {
+          "bit": "CTRL_OUT0",
+          "from": 0,
+          "gain_db": 44,
+          "signal": "CH2_small_ADC",
+          "to": 1
+        },
+        {
+          "bit": "CTRL_OUT1",
+          "from": 0,
+          "gain_db": 45,
+          "signal": "CH2_large_ADC",
+          "to": 1
+        },
+        {
+          "bit": "CTRL_OUT2",
+          "from": 0,
+          "gain_db": 72,
+          "signal": "CH2_large_LMT",
+          "to": 1
+        }
+      ]
+    }
+  },
+  "predicted_map": {
+    "CTRL_OUT0": "CH2_small_ADC",
+    "CTRL_OUT1": "CH2_large_ADC",
+    "CTRL_OUT2": "CH2_large_LMT",
+    "CTRL_OUT3": "CH2_low_power",
+    "CTRL_OUT4": "CH1_small_ADC",
+    "CTRL_OUT5": "CH1_large_ADC",
+    "CTRL_OUT6": "CH1_large_LMT",
+    "CTRL_OUT7": "CH1_low_power"
+  },
+  "provenance": {
+    "ctrl_out_gpio": "960..967 = CTRL_OUT0..7, read as inputs, 0x035=0x03, 0x036=0xFF",
+    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+    "harness": "TX2 -> 30 dB pad -> bare SMA tee -> RX1/RX2 (tee has ~0 dB port-to-port isolation; see docs/learnings.md harness entry)",
+    "radio_label": "R17",
+    "radio_serial": "104000bac4950008230026001b440a003a",
+    "raw_dir": "artifacts/agc_pin_bringup/20260811_r17_step5_v1",
+    "rx_lo_hz": 867999998,
+    "rx_sample_rate_hz": 3000000,
+    "source": "own TX2 fpga_dds tone at +100 kHz, TX2 hardwaregain 0 dB (full scale)"
+  },
+  "verdict": "PASS for every bit that could be provoked: each swept arm moved only its own channel's bits, with zero cross-channel leakage"
+}

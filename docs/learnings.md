@@ -1295,10 +1295,39 @@ exactly ±1 over 10 edges with the Peak Overload Wait Time in `0x0FE[4:0]` prese
    luck — `_validate_frame_gain` compares frame gain metadata against the request and
    raises — but any path that writes gain without verifying readback would not notice.
 
-Method note: `iio_attr` needs `-i` for RX channels. Without it the tool matches the
+**The detectors (step 5, R17, tone on).** The predicted `CTRL_OUT` map is confirmed for
+all 7 of 8 bits that could be provoked, by a differential gain sweep — sweeping one arm
+moved only that arm's bits, with **zero cross-channel leakage**. Quiescent pattern with no
+signal is `10001011`: both low-power bits asserted, which is correct, so "any bit high" is
+not a usable safety limit. CH1's large-LMT bit could not be provoked at all, because the
+30 dB pad plus the tee split leaves the RX ports near −57 dBm at TX full scale.
+
+- **The hold band is 22 dB** (low-power de-assert at 22 dB of RX gain, small-ADC assert at
+  44 dB), identical on both arms. This closes **O-2**, and it is 22× wider than the 1 dB
+  at which the pre-registered rule said the policy would oscillate — the change that was
+  called most likely did not happen. It is a *difference* on one arm, so harness loss
+  cancels and the tee does not compromise it.
+- **`0x114` is the low-power threshold at 0.5 dB/LSB**, monotonic over 6 points
+  (0x10→38 dB, 0x20→30, 0x30→22, 0x40→14). By contrast **`0x107`/`0x108` do not move the
+  ADC-overload edges at all** across their swept range: at this drive level the converter
+  goes from clear to saturated inside ~1 dB of gain (small at 44, large at 45), so its own
+  saturation is the binding constraint. The low-power trip point is cleanly programmable
+  over ~30 dB; the ADC overload bits carry almost no graded information.
+- **O-3 is not closeable from userspace, confirmed rather than assumed.** Reading a GPIO
+  *value* file costs **322 µs** — not the 134 µs a plain sysfs attribute costs — against a
+  256–410 µs predicted period. No post-gain-change blank was observed, which bounds it
+  under 322 µs without confirming or refuting it. And the low-power bit is a *stable level*
+  either side of a sharp threshold, 200/200 then 0/200 with zero transitions, so H5 has no
+  dither to time at all. Both belong to the FPGA stage; do not re-attempt from userspace.
+
+Method notes: `iio_attr` needs `-i` for RX channels. Without it the tool matches the
 **output** channel of the same name and returns TX gain (−80 dB on this bench), not RX.
 `0x0FB` has bit 3 set on this build, so a bare `0x03` write really would clear a live
-bit — read-modify-write inside a script with a disarming `EXIT` trap.
+bit — read-modify-write inside a script with a disarming `EXIT` trap, and include **HUP**:
+a host-side timeout killed one run over SSH and an EXIT/INT/TERM-only trap did not fire,
+leaving the tone on and registers modified. Also, the fastest way to step gain when timing
+matters is a `CTRL_IN` GPIO edge (~100s of µs as a shell builtin), not an `iio_attr` write
+(67 ms).
 
 ## Harness (2026-08-10): the dual-RX "splitter" has been a bare tee, which has no
 ## port-to-port isolation — an unmodelled cross-arm coupling in every bench result
