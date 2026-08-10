@@ -1110,12 +1110,6 @@ class MultiPlutoFirmwareManager:
             device = self._device(original.serial)
             expected_version = self._preload_device_fw(device.serial)
             active_version, _, _ = self._read_persistent_state(device.serial)
-            if active_version == expected_version:
-                print(
-                    f"{device.serial}: already running preserved firmware "
-                    f"{expected_version}; skipping"
-                )
-                continue
             print(
                 f"{device.serial}: resetting {active_version} to preserved "
                 f"firmware {expected_version}",

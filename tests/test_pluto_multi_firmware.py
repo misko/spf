@@ -614,7 +614,7 @@ def test_preload_backup_is_immutable_across_repeated_ram_boots(
     assert manager._preload_device_fw("SERIAL_A") == "production-v1"
 
 
-def test_rollback_skips_direct_usb_firmware_when_version_matches_backup(
+def test_rollback_resets_when_version_matches_backup_but_boot_mode_is_unknown(
     tmp_path, monkeypatch
 ):
     manager = _manager(tmp_path)
@@ -634,10 +634,16 @@ def test_rollback_skips_direct_usb_firmware_when_version_matches_backup(
     monkeypatch.setattr(
         manager,
         "_ssh",
-        lambda *args, **kwargs: pytest.fail("matching firmware must not reboot"),
+        lambda serial, command, **kwargs: calls.append(("ssh", serial, command)),
     )
+    monkeypatch.setattr(manager, "_wait_absent", lambda *args: None)
+    monkeypatch.setattr(manager, "_wait_product", lambda *args: None)
+    monkeypatch.setattr(manager, "_wait_for_ssh", lambda *args: None)
+    calls = []
 
     manager.rollback_all()
+
+    assert any("device_reboot reset" in command for _, _, command in calls)
 
 
 def test_rollback_waits_for_disconnect_and_restores_preload_version(
