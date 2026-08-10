@@ -2,9 +2,10 @@
 
 ``run_filters_report.py`` writes CSV, and ``.gitignore`` matches ``**/*.csv``
 (with only the JLC fab files excepted), so a sweep result in that format can
-never be checked in. This writes ``results.json`` plus a ``REPORT.md`` table,
-both of which are tracked, matching the append-only report convention already
-used under ``spf/calibrations/*/reports/<name>_<date>_v1/``.
+never be checked in. This writes ``results.json`` plus a ``LEADERBOARD.md``
+table, both of which are tracked, matching the append-only report convention
+already used under ``spf/calibrations/*/reports/<name>_<date>_v1/``. The
+hand-written ``REPORT.md`` in the same directory is never touched.
 
 It also groups on the angular **frame**, so a craft-relative run and an
 absolute-north run of the same hyperparameters never land in one average.
@@ -50,7 +51,13 @@ def annotate(results):
 
 
 def grouping_keys(results):
-    """Every non-metric field shared by all results, in stable order."""
+    """Every non-metric field shared by all results, in stable order.
+
+    Call this on ONE filter family at a time. Across families the intersection
+    contains no hyperparameter at all -- an EKF result carries phi_std/p, a PF
+    result carries N/theta_err/seed -- so a whole-sweep intersection silently
+    averages every configuration together and the leaderboard ranks nothing.
+    """
     if not results:
         return []
     common = set(results[0])
@@ -63,11 +70,23 @@ def build_report(workdir):
     results = annotate(load_results(workdir))
     if not results:
         raise ValueError(f"no results found under {workdir}")
-    rows = aggregate(results, grouping_keys(results))
+
+    # Group within each filter family. Families have disjoint hyperparameters and
+    # are never ranked against each other anyway -- they get separate tables.
+    by_type = {}
+    for result in results:
+        by_type.setdefault(result.get("type", "unknown"), []).append(result)
+
+    rows = []
+    for _type in sorted(by_type):
+        family = by_type[_type]
+        rows.extend(aggregate(family, grouping_keys(family)))
+
     return {
         "workdir": workdir,
         "n_results": len(results),
         "n_groups": len(rows),
+        "families": {t: len(v) for t, v in sorted(by_type.items())},
         "rows": rows,
     }
 
@@ -152,7 +171,10 @@ def write_report(workdir, output_dir, sort_by=None, top=25):
     json_fn = os.path.join(output_dir, "results.json")
     with open(json_fn, "w") as f:
         json.dump(report, f, indent=2, sort_keys=True)
-    md_fn = os.path.join(output_dir, "REPORT.md")
+    # LEADERBOARD.md, not REPORT.md: the human-written narrative for a run lives
+    # at REPORT.md by repo convention (see spf/calibrations/*/reports/), and a
+    # rerun of this script must never overwrite it.
+    md_fn = os.path.join(output_dir, "LEADERBOARD.md")
     with open(md_fn, "w") as f:
         f.write(report_to_markdown(report, sort_by=sort_by, top=top))
     return json_fn, md_fn

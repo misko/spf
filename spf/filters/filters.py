@@ -5,6 +5,7 @@ import torch
 import tqdm
 from filterpy.common import Q_discrete_white_noise
 
+from spf.evaluation import calibration
 from spf.filters.resample import systematic_resample
 from spf.rf import pi_norm, reduce_theta_to_positive_y, torch_pi_norm_pi
 
@@ -256,6 +257,66 @@ class SPFFilter:
         return {"trajectory": trajectory}
 
 
+def theta_sigma(trajectory):
+    """Per-timestep sigma on theta, in radians.
+
+    The particle filters set ``P_theta`` on every trajectory entry. The EKFs only
+    do so under ``debug=True``, but they always carry the full covariance as
+    ``var``, and ``P_theta`` is just ``var[0, 0]`` there -- so sigma is available
+    for every theta filter without touching the debug gate.
+
+    Both are VARIANCES; sigma is the square root. Raises if neither is present:
+    the six theta families all provide one, so a miss is a programming error and
+    is far better surfaced by the smoke test than by a silent NaN column
+    discovered after a 40-minute sweep.
+    """
+    out = []
+    for entry in trajectory:
+        if "P_theta" in entry:
+            var = np.asarray(entry["P_theta"], dtype=np.float64).reshape(-1)[0]
+        elif "var" in entry:
+            v = np.asarray(entry["var"], dtype=np.float64)
+            # EKF: (n, n) covariance. PF: already reduced to a per-dim vector.
+            var = v[0, 0] if v.ndim == 2 else v.reshape(-1)[0]
+        else:
+            raise KeyError(
+                "trajectory entry carries neither 'P_theta' nor 'var'; cannot "
+                "score calibration for this filter"
+            )
+        out.append(var)
+    var = np.asarray(out, dtype=np.float64)
+    # A non-positive variance is "no uncertainty reported", not sigma=0. Map it
+    # to NaN explicitly -- calibration drops non-finite sigma, and sqrt of a
+    # negative would arrive there anyway but via a RuntimeWarning per run.
+    return np.where(var > 0, np.sqrt(np.where(var > 0, var, 1.0)), np.nan)
+
+
+def _calibration_metrics(pred_theta, ground_truth_theta, trajectory):
+    """Scalar calibration block, in the frame the caller already paired.
+
+    Scalars only. ``spf/evaluation/aggregate.py`` calls ``float()`` on every
+    metric, so a list or an array here raises TypeError and takes the whole
+    filter family out of the report. Emission is unconditional for the same
+    reason: a key present on only some runs is silently dropped by the
+    aggregator's ``dropped_metrics`` path, which looks identical to "the filter
+    was fine".
+    """
+    sigma = theta_sigma(trajectory)
+    pred = np.asarray(pred_theta, dtype=np.float64)
+    truth = np.asarray(ground_truth_theta, dtype=np.float64)
+    bands = calibration.coverage(pred, truth, sigma, ks=(1, 2, 3))
+    return {
+        # std(z): 1.0 calibrated, >1 overconfident. This is what H3 tests.
+        "calib_std_z": calibration.calibration_ratio(pred, truth, sigma),
+        "calib_cov1": bands[0]["measured"],
+        "calib_cov2": bands[1]["measured"],
+        "calib_cov3": bands[2]["measured"],
+        # timesteps with a finite, positive sigma -- the denominator above, and
+        # not the same as len(trajectory) when a filter reports no uncertainty
+        "calib_n": float(bands[0]["n"]),
+    }
+
+
 def single_radio_mse_theta_metrics(trajectory, ground_truth_thetas):
     if len(trajectory) == 0:
         return {}
@@ -266,27 +327,39 @@ def single_radio_mse_theta_metrics(trajectory, ground_truth_thetas):
     assert ground_truth_reduced_theta.shape[0] >= pred_theta.shape[0]
     ground_truth_reduced_theta = ground_truth_reduced_theta[: pred_theta.shape[0]]
     assert pred_theta.ndim == 1 and ground_truth_reduced_theta.ndim == 1
-    return {
+    metrics = {
         "mse_single_radio_theta": (
             (torch_pi_norm_pi(ground_truth_reduced_theta - pred_theta) ** 2)
             .mean()
             .item()
         )
     }
+    metrics.update(
+        _calibration_metrics(pred_theta, ground_truth_reduced_theta, trajectory)
+    )
+    return metrics
 
 
 def dual_radio_mse_theta_metrics(trajectory, craft_ground_truth_thetas):
+    # Guard the empty case as the single-radio sibling does; without it np.hstack
+    # on an empty list raises and the run dies instead of reporting no metrics.
+    if len(trajectory) == 0:
+        return {}
     pred_theta = torch.tensor(np.hstack([x["craft_theta"] for x in trajectory]))
     assert pred_theta.ndim == 1 and craft_ground_truth_thetas.ndim == 1
     assert craft_ground_truth_thetas.shape[0] >= pred_theta.shape[0]
     craft_ground_truth_thetas = craft_ground_truth_thetas[: pred_theta.shape[0]]
-    return {
+    metrics = {
         "mse_craft_theta": (
             torch_pi_norm_pi(craft_ground_truth_thetas - pred_theta) ** 2
         )
         .mean()
         .item()
     }
+    metrics.update(
+        _calibration_metrics(pred_theta, craft_ground_truth_thetas, trajectory)
+    )
+    return metrics
 
 
 class ParticleFilter(SPFFilter):

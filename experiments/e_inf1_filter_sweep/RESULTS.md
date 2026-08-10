@@ -1,15 +1,94 @@
 # E-INF1 — results
 
-**Status: NOT RUN.** Design and decision rules are pre-registered in
-[`experiment_readme.md`](experiment_readme.md); this file exists so the
-hypotheses cannot be edited after seeing the data.
+**Status: STAGE 2 COMPLETE** (rover corpus, 2026-08-10). Stage 3 (all 48 rover
+stores, then the frozen val corpus) not started. Design and decision rules are
+pre-registered in [`experiment_readme.md`](experiment_readme.md); this file
+exists so the hypotheses cannot be edited after seeing the data.
 
 | Hypothesis | Prediction | Outcome |
 |---|---|---|
-| H1 | NN dual-radio PF beats empirical on the rover corpus | _pending_ |
-| H2 | best rover MSE ≥ 2× best frozen-val MSE | _pending_ |
-| H3 | median `std(z)` > 1.5 on every corpus (filters overconfident) | _pending_ |
-| H4 | MSE worse at d/λ = 0.904 than at 0.673 | _pending_ |
+| H1 | NN dual-radio PF beats empirical on the rover corpus | ✅ **SUPPORTED** — −20.4% craft-relative, −44.4% radio-folded |
+| H2 | best rover MSE ≥ 2× best frozen-val MSE | ❌ **NOT TESTED — withdrawn 2026-08-10 by decision.** See below. |
+| H3 | median `std(z)` > 1.5 on every corpus (filters overconfident) | ⚠️ **UNANSWERABLE AS RUN** — the sweep records no calibration metric. Being fixed; re-run pending. |
+| H4 | MSE worse at d/λ = 0.904 than at 0.673 | ⚠️ **NOT RESOLVED** — 3 of 6 spacings have one capture each |
+
+## H2 withdrawn — the frozen val corpus cannot answer it (2026-08-10)
+
+H2 compares the best rover MSE against the best frozen-val MSE, to decide whether
+the 2026 rover corpus is trustworthy enough to evaluate on. Checking what the
+frozen val list actually contains shows the comparison does not carry that meaning.
+
+`/mnt/md2/splits/apr17_val_nosig_noroverbounce.txt` is 565 datasets:
+
+| | count |
+|---|---|
+| 2D wall array (static array in a room, emitter moved around it) | 544 |
+| rover | 21 |
+| …of which rover running the `bounce` routine | **4** |
+
+The 2026 corpus is entirely `rover_bounce`. So a val comparison is almost entirely
+against a **different platform** with different motion and geometry, and a gap
+would conflate "the 2026 corpus is bad" with "rovers are harder than a bench
+array" — precisely the distinction H2 exists to make.
+
+The only like-for-like is the 4 rover-bounce captures (2025-04-05, spacings 0.035
+and 0.043 → d/λ 0.67317 and 0.82703, both present in the empirical table). All
+four are in `val_degraded_v2`, which [`docs/learnings.md` L1](../../docs/learnings.md)
+says is "reported but never optimized toward".
+
+**Decision: evaluate on the 2026 rover corpus only; do not run the historical
+data.** H2 is withdrawn rather than answered with a number whose meaning is
+ambiguous. Consequences, recorded so this is reversible:
+
+- No inference caches are built for val; `/mnt/md2` is not read or written at all.
+- The "is the 2026 corpus trustworthy?" question is now **unanswered**, not
+  answered negatively. If it needs answering later, the honest instrument is a
+  matched 2025-vs-2026 rover-bounce comparison at the same d/λ — not the frozen
+  val set — and that is a capture/curation question, not a filter-sweep one.
+- H3's pre-registered wording says "on every corpus"; with only one corpus in
+  scope it is judged on the 2026 rover corpus alone.
+
+Full write-up with figures:
+[`spf/filters/reports/e_inf1_rover_coarse_20260809_v1/REPORT.md`](../../spf/filters/reports/e_inf1_rover_coarse_20260809_v1/REPORT.md).
+
+## Stage 2 — 26,112 runs, 9,792 configurations, 16 captures
+
+Corpus means across 5 seeds; ± is the seed standard deviation. **Frames are not
+comparable** — compare down a frame, never across.
+
+| family | frame | best MSE (rad²) | ±1σ | skill vs random (π²/3) |
+|---|---|---|---|---|
+| `PF_single_theta_single_radio_NN` | `radio_folded` | 0.301 | 0.002 | +90.9% |
+| `PF_single_theta_dual_radio_NN` | `absolute_north` | 0.534 | 0.077 | +83.8% |
+| `PF_single_theta_single_radio` | `radio_folded` | 0.541 | 0.004 | +83.6% |
+| `PF_single_theta_dual_radio_NN` | `craft_relative` | 0.667 | 0.003 | +79.7% |
+| `PF_single_theta_dual_radio` | `craft_relative` | 0.838 | 0.006 | +74.5% |
+| `EKF_single_theta_single_radio` | `radio_folded` | 1.022 | 0.000 | +68.9% |
+| `EKF_single_theta_dual_radio` | `craft_relative` | 2.583 | 0.000 | +21.5% |
+
+**H1 — supported.** Both matched comparisons favour the network, against the
+*rebuilt* empirical table (`full_20260809_v1.pkl`), so this is the empirical
+baseline at its strongest. Seed spreads are ~30× smaller than the gaps.
+
+**H3 — unanswerable, not falsified.** The result dicts carry only `mse_*` and
+`runtime`; `spf/evaluation/calibration.py` was never wired into the run wrappers.
+On one capture every filter but the empirical dual-radio PF was overconfident
+(`std(z)` 1.34–31.21), which is suggestive and not a test. Wiring the calibration
+block into the 5 PF and 2 EKF wrappers and re-running stage 2 (~40 min) settles it.
+
+**H4 — not resolved.** No family is monotonic in d/λ, but d/λ 0.83765, 0.90397
+and 0.91557 each rest on a single capture. The two well-supported spacings
+(0.67317, n=5 and 0.82703, n=6) are within 2% of each other despite differing by
+23% in d/λ. This needs a spacing-balanced capture matrix, not more seeds.
+
+### Unplanned finding — the EKF dual-radio filter is near-uninformative
+
+Not a pre-registered hypothesis; recorded because the random floor exposed it.
+Its best configuration reaches 2.583 rad² against a uniform-random floor of
+3.290, its median configuration 2.908, and its **worst configuration, 3.332, is
+worse than guessing**. On the one capture examined in depth the single-radio EKF
+(1.148) also lost to a fixed bearing (0.654) — i.e. it had learned nothing about
+*time* there. Skill-vs-random alone rated that same filter at +65%.
 
 ## Blocking item — ✅ RESOLVED 2026-08-09 (`2a07ae0`)
 
