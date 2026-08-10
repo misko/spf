@@ -63,6 +63,44 @@ sub-ulp drift is summation order from `report.py`'s unsorted file walk, not a
 behavioural change. So the calibration wiring is confirmed purely additive, and
 H1's numbers stand unchanged.
 
+## Not a hypothesis, but recorded: absolute_north vs craft_relative is a NULL result
+
+The stage-3 table lists `PF_single_theta_dual_radio_NN` twice — 0.588 in
+`absolute_north`, 0.627 in `craft_relative` — because it won both frames in
+stage 2. **That 0.039 is not distinguishable from zero**, and an earlier revision
+of the stage-3 report presented it as a ranked difference. Corrected.
+
+Paired over 48 stores × 5 seeds: absolute wins **120/240** (a coin flip); per
+store absolute 23 / craft 25; **median Δ = −0.0087**, i.e. craft is better at the
+median. **92.1% of the mean gap comes from one capture**
+(`rover_2026_08_07_01_27_43…RO3`, craft 2.730 vs absolute 1.020); dropping it the
+gap is +0.0031, dropping two it reverses to −0.0111. Bootstrap 95% CI
+[−0.046, +0.141]; Wilcoxon p = 0.780.
+
+The comparison is also **unfair to craft-relative**: the two rows run at their own
+stage-2 winning hyperparameters (so it is frame × tuning × N, not frame), and
+craft's optimum is **pinned at the swept grid boundary** — all its best
+configurations sit at `theta_dot_err = 0.1`, the largest value the grid tries,
+while absolute's winner is interior. 0.627 is an upper bound.
+
+**No frame bug.** Adversarially audited: `craft_ground_truth_thetas ==
+pi_norm(absolute_thetas[0] − rx_heading[0])` is an algebraic identity (max
+violation 1.05e-4 deg corpus-wide); rotation sign, per-radio heading pairing,
+single application and cache immutability all verified; the inference cache
+stores unrotated posteriors; `absolute_thetas` is pure geometry from tx/rx
+positions, so the absolute metric is **not** self-referential. Two real defects
+found, both of which *handicap* absolute: `rotate_dist`'s interpolation smear
+(absolute-only; ~1.2% of the per-capture gap at the tuned point) and the target
+being the circular mean over both radios while the observation is radio 0's
+(0.0100 rad² measured by rescoring).
+
+What *is* established is per-capture and mechanistic, not a corpus ranking: at
+identical hyperparameters and seed, each frame's optimal process noise lands where
+its measured angular rate predicts (craft p95 |dθ/dt| 18.26°/step → θ̇_err 0.1;
+absolute 5.21°/step → 0.02), because the constant-angular-velocity model is
+applied in the frame the filter runs in. Deciding which frame is better needs
+craft re-tuned on an extended grid with both arms at matched N.
+
 ## H2 withdrawn — the frozen val corpus cannot answer it (2026-08-10)
 
 H2 compares the best rover MSE against the best frozen-val MSE, to decide whether
