@@ -2,12 +2,11 @@
 # RAM-boot acceptance campaign for an unreleased protocol-v3 DFU.  TX remains
 # fail-closed unless the operator explicitly enables the attenuated loopback.
 
-set -euo pipefail
+set -Eeuo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly ROOT
 readonly MULTI_LOADER="${ROOT}/spf/scripts/pluto_multi_firmware.py"
-readonly FIRMWARE_LOADER="${ROOT}/data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh"
 readonly SSH_CONFIG="${ROOT}/data_collection/rover/rover_v3.1/ssh_config"
 readonly TEST_FILE="${ROOT}/tests/radio_hardware/test_gain_series_v3_hardware.py"
 readonly TX_TEST_FILE="${ROOT}/tests/radio_hardware/test_gain_series_v3_tx_loopback_hardware.py"
@@ -156,7 +155,9 @@ rollback_hint() {
     local rc=$?
     printf '\nCampaign stopped with status %d. Candidate remains in RAM.\n' "$rc" >&2
     printf 'Inspect %s, then roll back explicitly with:\n' "$REPORT_ROOT" >&2
-    printf '  sudo %q rollback-all %q\n' "$FIRMWARE_LOADER" "$EXPECTED_RADIOS" >&2
+    printf '  sudo %q %q rollback-all' "$PYTHON" "$MULTI_LOADER" >&2
+    printf ' %q' "${common_loader_args[@]}" >&2
+    printf '\n' >&2
     exit "$rc"
 }
 trap rollback_hint ERR

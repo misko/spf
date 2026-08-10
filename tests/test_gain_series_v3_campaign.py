@@ -200,6 +200,47 @@ def test_gain_series_candidate_campaign_rejects_unacknowledged_tx(tmp_path):
     assert "requires --loopback-attenuation-db" in result.stderr
 
 
+def test_gain_series_candidate_failure_prints_exact_campaign_rollback(tmp_path):
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    image = tmp_path / "candidate.dfu"
+    image.write_bytes(b"synthetic candidate image")
+    report = tmp_path / "report"
+
+    fake_python = _executable(
+        shim / "python",
+        '[[ "$*" != *"test_direct_usb_hardware.py"* ]]\n',
+    )
+    _executable(
+        shim / "sudo",
+        '[[ "${1:-}" != "-n" ]] || shift\nexec "$@"\n',
+    )
+    _executable(shim / "iio_info", 'printf "synthetic IIO inventory\\n"\n')
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PATH": f"{shim}:{environment['PATH']}",
+            "SPF_V3_PYTHON": str(fake_python),
+            "SPF_V3_EXPECTED_RADIOS": "2",
+            "SPF_V3_REPORT_ROOT": str(report),
+        }
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT), str(image)],
+        cwd=ROOT,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "pluto_multi_firmware.py rollback-all" in result.stderr
+    assert f"--state-root {report}/firmware-state" in result.stderr
+    assert "--expected-count 2" in result.stderr
+
+
 def test_gain_series_candidate_campaign_accepts_direct_ip_serial_with_pipefail(
     tmp_path,
 ):
