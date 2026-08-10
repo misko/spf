@@ -137,6 +137,13 @@ starts at 1 MS/s.
 
 ## Residual risks and next gates
 
+An additional same-boot campaign subsequently passed 6,848 principal frames
+and 21.69 GiB across long USB lifecycle churn, 12-frequency USB/IP switching,
+manual/slow-attack gain changes, a longer parallel-IP ladder, and a
+500-record-per-radio V7 reopen test. It also characterized shared-hub EP0
+time-anchor contention and the expected 30 MS/s USB throughput boundary. See
+[`gain_series_v4_rc17_extended_burn_20260810.md`](gain_series_v4_rc17_extended_burn_20260810.md).
+
 - Add a bounded cleanup watchdog and supervisor recovery for a kernel IIO
   teardown that never returns.
 - Add a wire-level lifecycle/diagnostic query rather than relying only on host
@@ -146,4 +153,3 @@ starts at 1 MS/s.
 - Before production deployment, perform a controlled persistent-QSPI canary,
   power-cycle it, repeat the selected USB/IP/Zarr gates, then update rover
   firmware pins in a separate reviewed change.
-

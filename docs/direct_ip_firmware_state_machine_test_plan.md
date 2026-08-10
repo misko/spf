@@ -325,6 +325,28 @@ Pass:
 - no stale UDP request restarts an old stream;
 - TX is muted by the surrounding recovery procedure.
 
+## Mixed transport, frequency, and gain-state burn
+
+Use the committed runner when both radios have their TX2 output connected
+through at least 30 dB attenuation to their own RX1/RX2 inputs:
+
+```bash
+SPF_BURN_EPOCHS=3 \
+SPF_BURN_FRAMES_PER_SESSION=8 \
+tests/radio_hardware/run_mixed_transport_frequency_burn.sh \
+  HOST_A HOST_B /tmp/spf-mixed-transport-burn
+```
+
+The runner shuffles a broad frequency list across epochs, crosses the 1.3 and
+4.0 GHz gain-table boundaries, alternates USB/IP/USB with IP/USB/IP, and
+switches manual/slow-attack/manual gain state. It uses a bounded rolling USB
+queue, raises and restores the UDP receive-buffer limit, and always mutes both
+radios on exit.
+
+Pass: every frame, metadata series, sample sequence, tone-quality check, and
+transport transition succeeds on both radios with zero IP reassembly or queue
+errors. A failed cell remains in the incrementally written JSON report.
+
 ## Gate 11: soak and promotion
 
 Minimum candidate campaign:

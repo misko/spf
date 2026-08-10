@@ -279,6 +279,14 @@ def pytest_addoption(parser):
         help="enable long-running attached-radio tests",
     )
     group.addoption(
+        "--radio-burn-frequencies",
+        default=(
+            "868M,915M,1280M,1300M,1301M,2412M,2467.1M,"
+            "4000M,4001M,5766M,5804M,5866M"
+        ),
+        help="comma-separated LO frequencies for the mixed USB/IP soak",
+    )
+    group.addoption(
         "--radio-crash-recovery",
         action="store_true",
         help="enable deliberate direct-USB daemon crash/rebind tests",
