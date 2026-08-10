@@ -11,6 +11,7 @@ from contextlib import suppress
 
 from spf.sdrpluto.direct_ip_protocol import (
     DEFAULT_UDP_DATAGRAM_BYTES,
+    IpControlFlags,
     IpControlMessageV1,
     IpControlType,
     IpFrameReassembler,
@@ -184,10 +185,25 @@ class PlutoDirectIpReceiver:
             self._control_socket = control
             self._data_socket = data
             self._remote_ip = remote[0]
-            query = make_ip_capability_query(request_id=self._request_id())
+            base_query = make_ip_capability_query(request_id=self._request_id())
             capabilities = self._exchange_control(
-                query, expected_type=IpControlType.CAPABILITIES
+                base_query, expected_type=IpControlType.CAPABILITIES
             )
+            extended_query = make_ip_capability_query(
+                request_id=self._request_id(), transport_capabilities=True
+            )
+            try:
+                extended = self._exchange_control(
+                    extended_query, expected_type=IpControlType.CAPABILITIES
+                )
+            except DirectIpTransportError:
+                # RC12 and earlier validate unknown request flags strictly.  A
+                # legacy capability response remains usable at its conservative
+                # pacing rate; the high-rate profile is enabled only after an
+                # explicit echoed capability negotiation.
+                pass
+            else:
+                capabilities = extended
             self._capabilities = capabilities
         except Exception:
             control.close()
@@ -256,6 +272,12 @@ class PlutoDirectIpReceiver:
             ),
             data_port=self.local_data_port,
             max_datagram_bytes=self.max_datagram_bytes,
+            transport_flags=(
+                IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
+                if capabilities.flags & IpControlFlags.BUFFERED_FINITE_RX
+                and capabilities.flags & IpControlFlags.USB_CLASS_PACING
+                else IpControlFlags(0)
+            ),
         )
         started = self._exchange_control(
             start_request, expected_type=IpControlType.STARTED

@@ -60,12 +60,18 @@ class IpControlFlags(enum.IntFlag):
     FINITE_RX = 1 << 0
     IDEMPOTENT_REQUESTS = 1 << 1
     TIME_ANCHOR = 1 << 2
+    QUERY_TRANSPORT_CAPABILITIES = 1 << 3
+    BUFFERED_FINITE_RX = 1 << 4
+    USB_CLASS_PACING = 1 << 5
 
 
 KNOWN_IP_CONTROL_FLAGS: Final[IpControlFlags] = (
     IpControlFlags.FINITE_RX
     | IpControlFlags.IDEMPOTENT_REQUESTS
     | IpControlFlags.TIME_ANCHOR
+    | IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
+    | IpControlFlags.BUFFERED_FINITE_RX
+    | IpControlFlags.USB_CLASS_PACING
 )
 
 
@@ -191,10 +197,17 @@ class IpControlMessageV1:
         return message
 
 
-def make_ip_capability_query(*, request_id: int) -> IpControlMessageV1:
+def make_ip_capability_query(
+    *, request_id: int, transport_capabilities: bool = False
+) -> IpControlMessageV1:
     return IpControlMessageV1(
         message_type=IpControlType.QUERY_CAPABILITIES,
         request_id=request_id,
+        flags=(
+            IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
+            if transport_capabilities
+            else IpControlFlags(0)
+        ),
     )
 
 
@@ -211,10 +224,12 @@ def make_ip_start_request(
     gain_observation_interval_samples: int = 0,
     gain_observation_capacity: int = 0,
     gain_event_capacity: int = 0,
+    transport_flags: IpControlFlags = IpControlFlags(0),
 ) -> IpControlMessageV1:
     return IpControlMessageV1(
         message_type=IpControlType.START_RX,
         request_id=request_id,
+        flags=transport_flags,
         protocol_min=protocol_version,
         protocol_max=protocol_version,
         features=features,
@@ -764,8 +779,7 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
             raise ProtocolError("direct-IP ERROR message requires non-zero status")
         return
 
-    zero_for_query = (
-        int(message.flags),
+    zero_except_flags = (
         message.protocol_min,
         message.protocol_max,
         int(message.features),
@@ -782,13 +796,23 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
         message.stream_id,
     )
     if message_type == IpControlType.QUERY_CAPABILITIES:
-        if any(zero_for_query):
+        if message.flags not in (
+            IpControlFlags(0),
+            IpControlFlags.QUERY_TRANSPORT_CAPABILITIES,
+        ) or any(zero_except_flags):
             raise ProtocolError("direct-IP capability query has non-zero fields")
         return
 
     if message_type == IpControlType.CAPABILITIES:
         if not message.flags & IpControlFlags.FINITE_RX:
             raise ProtocolError("direct-IP gadget does not advertise finite RX")
+        if message.flags & IpControlFlags.QUERY_TRANSPORT_CAPABILITIES:
+            raise ProtocolError("direct-IP capability response retained query flags")
+        if (
+            message.flags & IpControlFlags.USB_CLASS_PACING
+            and not message.flags & IpControlFlags.BUFFERED_FINITE_RX
+        ):
+            raise ProtocolError("direct-IP pacing requires buffered finite RX")
         if not (
             VERSION_V1 <= message.protocol_min <= message.protocol_max <= VERSION_V3
         ):
@@ -813,6 +837,16 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
         return
 
     if message_type in (IpControlType.START_RX, IpControlType.STARTED):
+        transport_flags = (
+            IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
+        )
+        if message.flags & ~transport_flags:
+            raise ProtocolError("direct-IP START has capability-only flags")
+        if (
+            message.flags & IpControlFlags.USB_CLASS_PACING
+            and not message.flags & IpControlFlags.BUFFERED_FINITE_RX
+        ):
+            raise ProtocolError("direct-IP pacing requires buffered finite RX")
         if (
             message.protocol_min != message.protocol_max
             or message.protocol_min
@@ -871,7 +905,7 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
     if message_type in (IpControlType.STOP_RX, IpControlType.STOPPED):
         if not message.stream_id:
             raise ProtocolError("direct-IP STOP requires a stream ID")
-        if any(zero_for_query[:-1]):
+        if message.flags or any(zero_except_flags[:-1]):
             raise ProtocolError("direct-IP STOP has unrelated fields")
         return
 
