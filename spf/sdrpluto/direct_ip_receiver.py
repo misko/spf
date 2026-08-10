@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import secrets
 import socket
+import struct
 import time
 from contextlib import suppress
 
@@ -36,6 +37,7 @@ DEFAULT_FRAME_TIMEOUT_SECONDS = 10.0
 DEFAULT_CONTROL_ATTEMPTS = 3
 DEFAULT_DATA_RECEIVE_BUFFER_BYTES = 16 * 1024 * 1024
 MAX_CONTROL_DATAGRAM_BYTES = 4096
+SO_RXQ_OVFL = getattr(socket, "SO_RXQ_OVFL", 40)
 
 
 class DirectIpTransportError(RuntimeError):
@@ -52,6 +54,7 @@ class DirectIpCapture:
     duplicate_fragment_count: int
     expired_frame_count: int
     rejected_frame_count: int
+    receive_queue_overflow_count: int
 
 
 class PlutoDirectIpReceiver:
@@ -74,6 +77,7 @@ class PlutoDirectIpReceiver:
         gain_observation_capacity: int = 32,
         gain_event_capacity: int = 0,
         data_receive_buffer_bytes: int = DEFAULT_DATA_RECEIVE_BUFFER_BYTES,
+        minimum_effective_receive_buffer_bytes: int = 0,
         control_timeout_seconds: float = DEFAULT_CONTROL_TIMEOUT_SECONDS,
         frame_timeout_seconds: float = DEFAULT_FRAME_TIMEOUT_SECONDS,
         control_attempts: int = DEFAULT_CONTROL_ATTEMPTS,
@@ -90,6 +94,8 @@ class PlutoDirectIpReceiver:
             raise ValueError("direct-IP control attempts must be positive")
         if data_receive_buffer_bytes <= 0:
             raise ValueError("direct-IP receive buffer must be positive")
+        if minimum_effective_receive_buffer_bytes < 0:
+            raise ValueError("minimum effective receive buffer cannot be negative")
         self.remote_host = remote_host
         self.remote_control_port = int(remote_control_port)
         self.local_host = local_host
@@ -99,6 +105,9 @@ class PlutoDirectIpReceiver:
         self.gain_observation_capacity = int(gain_observation_capacity)
         self.gain_event_capacity = int(gain_event_capacity)
         self.data_receive_buffer_bytes = int(data_receive_buffer_bytes)
+        self.minimum_effective_receive_buffer_bytes = int(
+            minimum_effective_receive_buffer_bytes
+        )
         self.control_timeout_seconds = float(control_timeout_seconds)
         self.frame_timeout_seconds = float(frame_timeout_seconds)
         self.control_attempts = int(control_attempts)
@@ -106,6 +115,9 @@ class PlutoDirectIpReceiver:
         self._data_socket: socket.socket | None = None
         self._remote_ip: str | None = None
         self._capabilities: IpControlMessageV1 | None = None
+        self._effective_data_receive_buffer_bytes = 0
+        self._rxq_overflow_enabled = False
+        self._receive_queue_overflow_count = 0
         self._next_request_id = secrets.randbits(64) or 1
 
     @property
@@ -119,6 +131,12 @@ class PlutoDirectIpReceiver:
         if self._data_socket is None:
             raise RuntimeError("direct-IP receiver is not open")
         return int(self._data_socket.getsockname()[1])
+
+    @property
+    def effective_data_receive_buffer_bytes(self) -> int:
+        if self._data_socket is None:
+            raise RuntimeError("direct-IP receiver is not open")
+        return self._effective_data_receive_buffer_bytes
 
     def open(self) -> None:
         if self._control_socket is not None or self._data_socket is not None:
@@ -142,6 +160,25 @@ class PlutoDirectIpReceiver:
                 socket.SO_RCVBUF,
                 self.data_receive_buffer_bytes,
             )
+            self._effective_data_receive_buffer_bytes = int(
+                data.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            )
+            if (
+                self._effective_data_receive_buffer_bytes
+                < self.minimum_effective_receive_buffer_bytes
+            ):
+                raise DirectIpTransportError(
+                    "direct-IP receive buffer is below the required minimum: "
+                    f"effective={self._effective_data_receive_buffer_bytes}, "
+                    f"required={self.minimum_effective_receive_buffer_bytes}; "
+                    "raise net.core.rmem_max before capture"
+                )
+            try:
+                data.setsockopt(socket.SOL_SOCKET, SO_RXQ_OVFL, 1)
+            except OSError:
+                self._rxq_overflow_enabled = False
+            else:
+                self._rxq_overflow_enabled = True
             data.bind((self.local_host, 0))
             data.settimeout(min(0.25, self.frame_timeout_seconds))
             self._control_socket = control
@@ -159,6 +196,8 @@ class PlutoDirectIpReceiver:
             self._data_socket = None
             self._remote_ip = None
             self._capabilities = None
+            self._effective_data_receive_buffer_bytes = 0
+            self._rxq_overflow_enabled = False
             raise
 
     def close(self) -> None:
@@ -170,6 +209,8 @@ class PlutoDirectIpReceiver:
         self._data_socket = None
         self._remote_ip = None
         self._capabilities = None
+        self._effective_data_receive_buffer_bytes = 0
+        self._rxq_overflow_enabled = False
 
     def capture(self, *, samples_per_channel: int, frame_count: int) -> DirectIpCapture:
         capabilities = self.capabilities
@@ -224,6 +265,9 @@ class PlutoDirectIpReceiver:
             frame_timeout_seconds=self.frame_timeout_seconds
         )
         frames: list[DirectUsbRxFrame] = []
+        datagram_buffer = bytearray(self.max_datagram_bytes)
+        datagram_view = memoryview(datagram_buffer)
+        overflow_at_start = self._receive_queue_overflow_count
         start_time = time.monotonic()
         deadline = start_time + self.frame_timeout_seconds
         capture_error: Exception | None = None
@@ -244,16 +288,15 @@ class PlutoDirectIpReceiver:
                         f"received {len(frames)}/{frame_count} frames, "
                         f"pending={reassembler.pending_frame_count}"
                     )
-                data.settimeout(min(0.25, remaining))
                 try:
-                    datagram, peer = data.recvfrom(self.max_datagram_bytes)
+                    received, peer = self._receive_datagram_into(data, datagram_buffer)
                 except TimeoutError:
                     continue
                 if self._remote_ip is not None and peer[0] != self._remote_ip:
                     raise ProtocolError(
                         f"direct-IP data arrived from unexpected peer {peer[0]}"
                     )
-                for outer in reassembler.feed(datagram, peer=peer[0]):
+                for outer in reassembler.feed(datagram_view[:received], peer=peer[0]):
                     inner_frames = parser.feed(outer.frame)
                     if len(inner_frames) != 1:
                         raise ProtocolError(
@@ -304,7 +347,26 @@ class PlutoDirectIpReceiver:
             duplicate_fragment_count=reassembler.duplicate_fragment_count,
             expired_frame_count=reassembler.expired_frame_count,
             rejected_frame_count=reassembler.rejected_frame_count,
+            receive_queue_overflow_count=(
+                self._receive_queue_overflow_count - overflow_at_start
+            )
+            & 0xFFFFFFFF,
         )
+
+    def _receive_datagram_into(
+        self, data: socket.socket, datagram_buffer: bytearray
+    ) -> tuple[int, tuple[str, int]]:
+        if not self._rxq_overflow_enabled:
+            return data.recvfrom_into(datagram_buffer)
+        received, ancillary, message_flags, peer = data.recvmsg_into(
+            [datagram_buffer], socket.CMSG_SPACE(4)
+        )
+        if message_flags & socket.MSG_TRUNC:
+            raise ProtocolError("direct-IP datagram was truncated by the host socket")
+        for level, kind, payload in ancillary:
+            if level == socket.SOL_SOCKET and kind == SO_RXQ_OVFL and len(payload) >= 4:
+                self._receive_queue_overflow_count = struct.unpack_from("I", payload)[0]
+        return received, peer
 
     def _required_features(self) -> MetadataFeatures:
         features = (

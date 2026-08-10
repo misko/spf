@@ -254,6 +254,7 @@ def test_finite_v3_capture_retries_control_and_parses_common_inner_frames():
         assert capture.duplicate_fragment_count == 2
         assert capture.expired_frame_count == 0
         assert capture.rejected_frame_count == 0
+        assert capture.receive_queue_overflow_count == 0
         assert gadget.start_request_count == 2
         assert gadget.stop_request_count == 1
     finally:
@@ -319,6 +320,15 @@ def test_missing_data_times_out_explicitly_and_stops_stream():
 def test_receive_buffer_must_be_positive():
     with pytest.raises(ValueError, match="receive buffer"):
         PlutoDirectIpReceiver(remote_host="127.0.0.1", data_receive_buffer_bytes=0)
+
+
+def test_receive_buffer_requirement_fails_with_actionable_sysctl_message():
+    receiver = PlutoDirectIpReceiver(
+        remote_host="127.0.0.1",
+        minimum_effective_receive_buffer_bytes=1 << 30,
+    )
+    with pytest.raises(DirectIpTransportError, match="net.core.rmem_max"):
+        receiver.open()
 
 
 def test_bad_started_echo_fails_closed_and_stops_assigned_stream():

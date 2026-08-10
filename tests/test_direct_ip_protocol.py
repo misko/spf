@@ -206,6 +206,33 @@ def test_production_sized_frame_reassembles_out_of_order_with_duplicates():
     assert reassembler.duplicate_fragment_count == 2
 
 
+def test_reassembler_uses_one_preallocated_destination_buffer():
+    frame = bytes(range(251)) * 100
+    datagrams = fragment_ip_frame(
+        frame, stream_id=0xCAFE, frame_sequence=7, max_datagram_bytes=256
+    )
+    reassembler = IpFrameReassembler()
+
+    assert reassembler.feed(datagrams[0], peer="radio") == []
+    partial = next(iter(reassembler._pending.values()))
+    destination = partial.frame
+    assert isinstance(destination, bytearray)
+    assert len(destination) == len(frame)
+    assert partial.received_fragment_count == 1
+    assert reassembler.pending_declared_bytes == len(frame)
+
+    completed = []
+    for datagram in datagrams[1:]:
+        completed.extend(reassembler.feed(datagram, peer="radio"))
+    assert len(completed) == 1
+    # Completion transfers ownership of the already-filled allocation.  It
+    # must not concatenate thousands of copied fragment payloads into another
+    # full-frame allocation.
+    assert completed[0].frame is destination
+    assert bytes(completed[0].frame) == frame
+    assert reassembler.pending_declared_bytes == 0
+
+
 def test_identical_duplicate_before_completion_is_counted_and_ignored():
     frame = bytes(range(256)) * 20
     datagrams = fragment_ip_frame(
