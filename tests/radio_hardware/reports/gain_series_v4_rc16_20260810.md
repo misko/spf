@@ -28,6 +28,7 @@ protocol-v2 baseline passed 6/6.
 - Linux commit: `d798b0d821b85ebd51ecffbfa68d8e4d69b77132`
 - U-Boot commit: `1ff0468e9bea29b0a768a7bf52db8d025c521b9a`
 - GitHub Actions run: [31360123948](https://github.com/misko/plutosdr-fw/actions/runs/31360123948)
+- Release: [v0.38-plutoplus-spf-gain-series-v4-rc16](https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-series-v4-rc16)
 - Artifact: `plutoplus-main-867e18542311c25f5c1980bbdcfffc823e56f0a2-31360123948-1`
 - Bundle: `plutoplus-spf-main-867e18542311.tar.gz`
 - Bundle SHA-256: `b026afe9bed713dea58d51789749dcebfc5ebbcf580883188937fd4db07b40d9`
@@ -39,6 +40,11 @@ protocol-v2 baseline passed 6/6.
 The GitHub build, independent verification job, adjacent bundle checksum,
 `SHA256SUMS`, and `PAYLOAD_SHA256SUMS` all passed. The packaged gadget binaries
 were verified as ARM32 executables from the pinned source graph.
+
+After publication, every asset was downloaded again into a fresh directory.
+The release bundle matched its adjacent SHA-256 sidecar, all 30 entries in the
+nested `SHA256SUMS` passed, and all four deployable payloads matched
+`PAYLOAD_SHA256SUMS`, including the tested DFU digest above.
 
 Routed timing passed with setup WNS `+0.504 ns`, hold WHS `+0.014 ns`, and
 zero failing setup, hold, or pulse-width endpoints.
@@ -187,4 +193,3 @@ Both hardware radios were finally restored to:
    malformed-IP, and maximum-burst gates.
 4. Keep the prior production DFU and QSPI image as rollback.
 5. Promote to the remaining radios only after the persistent canary passes.
-
