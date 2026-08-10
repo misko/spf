@@ -11,6 +11,7 @@ import json
 import socket
 import time
 
+import iio
 import numpy as np
 import pytest
 
@@ -179,6 +180,35 @@ def _iq_power_dbfs(signal: np.ndarray) -> np.ndarray:
     power = np.mean(np.abs(signal.astype(np.complex64)) ** 2, axis=1)
     with np.errstate(divide="ignore"):
         return (10.0 * np.log10(power / (2.0 * 2048.0**2))).astype(np.float32)
+
+
+def _direct_ip_sample_rate(host: str) -> int:
+    context = iio.Context(f"ip:{host}")
+    try:
+        phy = context.find_device("ad9361-phy")
+        if phy is None:
+            raise RuntimeError("direct-IP radio has no ad9361-phy")
+        channel = phy.find_channel("voltage0", True)
+        if channel is None or "sampling_frequency" not in channel.attrs:
+            raise RuntimeError("direct-IP radio has no RX sampling-frequency control")
+        return int(channel.attrs["sampling_frequency"].value)
+    finally:
+        del context
+
+
+def _set_direct_ip_sample_rate(host: str, sample_rate_hz: int) -> int:
+    context = iio.Context(f"ip:{host}")
+    try:
+        phy = context.find_device("ad9361-phy")
+        if phy is None:
+            raise RuntimeError("direct-IP radio has no ad9361-phy")
+        channel = phy.find_channel("voltage0", True)
+        if channel is None or "sampling_frequency" not in channel.attrs:
+            raise RuntimeError("direct-IP radio has no RX sampling-frequency control")
+        channel.attrs["sampling_frequency"].value = str(int(sample_rate_hz))
+        return int(channel.attrs["sampling_frequency"].value)
+    finally:
+        del context
 
 
 def _first_change(metadata: RadioMetadataV3) -> np.ndarray:
@@ -577,6 +607,7 @@ def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_
     samples = pytestconfig.getoption("--radio-samples")
     frame_count = pytestconfig.getoption("--radio-frames-per-request")
     cycles = pytestconfig.getoption("--radio-cycles")
+    requested_sample_rate_hz = int(pytestconfig.getoption("--radio-sample-rate"))
     interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
     capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
     minimum_mibps = pytestconfig.getoption("--radio-direct-ip-min-payload-mibps")
@@ -589,44 +620,59 @@ def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_
     cycle_reports = []
     total_elapsed_seconds = 0.0
     total_payload_bytes = 0
-    with PlutoDirectIpReceiver(
-        remote_host=host,
-        protocol_version=3,
-        gain_observation_interval_samples=interval,
-        gain_observation_capacity=capacity,
-        minimum_effective_receive_buffer_bytes=minimum_receive_buffer_bytes,
-    ) as receiver:
-        required_transport = (
-            IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
+    original_sample_rate_hz = _direct_ip_sample_rate(host)
+    try:
+        configured_sample_rate_hz = _set_direct_ip_sample_rate(
+            host, requested_sample_rate_hz
         )
-        assert receiver.capabilities.flags & required_transport == required_transport
-        effective_receive_buffer_bytes = receiver.effective_data_receive_buffer_bytes
-        transport_flags = int(receiver.capabilities.flags)
-        for cycle in range(cycles):
-            capture = receiver.capture(
-                samples_per_channel=samples,
-                frame_count=frame_count,
+        assert configured_sample_rate_hz == requested_sample_rate_hz
+        with PlutoDirectIpReceiver(
+            remote_host=host,
+            protocol_version=3,
+            gain_observation_interval_samples=interval,
+            gain_observation_capacity=capacity,
+            minimum_effective_receive_buffer_bytes=minimum_receive_buffer_bytes,
+        ) as receiver:
+            required_transport = (
+                IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
             )
-            assert capture.duplicate_fragment_count == 0
-            assert capture.expired_frame_count == 0
-            assert capture.rejected_frame_count == 0
-            assert capture.receive_queue_overflow_count == 0
-            assert len(capture.frames) == frame_count
-            _assert_contiguous_frames(capture.frames, samples)
-            payload_bytes = samples * 8 * frame_count
-            cycle_reports.append(
-                {
-                    "cycle": cycle,
-                    "elapsed_seconds": capture.elapsed_seconds,
-                    "payload_mibps": payload_bytes
-                    / capture.elapsed_seconds
-                    / (1024 * 1024),
-                    "first_frame": _validate_v3_frame(capture.frames[0], samples),
-                    "last_frame": _validate_v3_frame(capture.frames[-1], samples),
-                }
+            assert (
+                receiver.capabilities.flags & required_transport == required_transport
             )
-            total_elapsed_seconds += capture.elapsed_seconds
-            total_payload_bytes += payload_bytes
+            effective_receive_buffer_bytes = (
+                receiver.effective_data_receive_buffer_bytes
+            )
+            transport_flags = int(receiver.capabilities.flags)
+            for cycle in range(cycles):
+                capture = receiver.capture(
+                    samples_per_channel=samples,
+                    frame_count=frame_count,
+                )
+                assert capture.duplicate_fragment_count == 0
+                assert capture.expired_frame_count == 0
+                assert capture.rejected_frame_count == 0
+                assert capture.receive_queue_overflow_count == 0
+                assert len(capture.frames) == frame_count
+                _assert_contiguous_frames(capture.frames, samples)
+                payload_bytes = samples * 8 * frame_count
+                cycle_reports.append(
+                    {
+                        "cycle": cycle,
+                        "elapsed_seconds": capture.elapsed_seconds,
+                        "payload_mibps": payload_bytes
+                        / capture.elapsed_seconds
+                        / (1024 * 1024),
+                        "first_frame": _validate_v3_frame(capture.frames[0], samples),
+                        "last_frame": _validate_v3_frame(capture.frames[-1], samples),
+                    }
+                )
+                total_elapsed_seconds += capture.elapsed_seconds
+                total_payload_bytes += payload_bytes
+    finally:
+        restored_sample_rate_hz = _set_direct_ip_sample_rate(
+            host, original_sample_rate_hz
+        )
+        assert restored_sample_rate_hz == original_sample_rate_hz
 
     aggregate_payload_mibps = (
         total_payload_bytes / total_elapsed_seconds / (1024 * 1024)
@@ -638,6 +684,9 @@ def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_
         "test": "maximum buffered finite burst",
         "host": host,
         "samples_per_channel": samples,
+        "requested_sample_rate_hz": requested_sample_rate_hz,
+        "configured_sample_rate_hz": configured_sample_rate_hz,
+        "restored_sample_rate_hz": restored_sample_rate_hz,
         "frame_count": frame_count,
         "cycles": cycles,
         "payload_bytes": total_payload_bytes,
