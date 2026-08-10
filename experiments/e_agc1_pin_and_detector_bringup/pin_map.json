@@ -2,120 +2,233 @@
   "acceptance_gate": "5/5 consistent trials per pin, other channel never moved",
   "gate_met": true,
   "hypothesis": "H1",
-  "pins": {
-    "CTRL_IN0": {
-      "emio": 8,
-      "gpio": "gpio968",
-      "other_channel_deltas": [
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      "other_channel_never_moved": true,
-      "own_channel_deltas": [
-        2,
-        2,
-        2,
-        2,
-        2
-      ],
-      "own_channel_moved_as_predicted": true,
-      "predicted_channel": "RX1",
-      "predicted_direction": "increase",
-      "trials": 5,
+  "per_radio": {
+    "R17": {
+      "pins": {
+        "CTRL_IN0": {
+          "emio": 8,
+          "gpio": "gpio968",
+          "other_channel_deltas": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "other_channel_never_moved": true,
+          "own_channel_deltas": [
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "own_channel_moved_as_predicted": true,
+          "predicted_channel": "RX1",
+          "predicted_direction": "increase",
+          "trials": 5,
+          "verdict": "PASS"
+        },
+        "CTRL_IN1": {
+          "emio": 9,
+          "gpio": "gpio969",
+          "other_channel_deltas": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "other_channel_never_moved": true,
+          "own_channel_deltas": [
+            -2,
+            -2,
+            -2,
+            -2,
+            -2
+          ],
+          "own_channel_moved_as_predicted": true,
+          "predicted_channel": "RX1",
+          "predicted_direction": "decrease",
+          "trials": 5,
+          "verdict": "PASS"
+        },
+        "CTRL_IN2": {
+          "emio": 10,
+          "gpio": "gpio970",
+          "other_channel_deltas": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "other_channel_never_moved": true,
+          "own_channel_deltas": [
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "own_channel_moved_as_predicted": true,
+          "predicted_channel": "RX2",
+          "predicted_direction": "increase",
+          "trials": 5,
+          "verdict": "PASS"
+        },
+        "CTRL_IN3": {
+          "emio": 11,
+          "gpio": "gpio971",
+          "other_channel_deltas": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "other_channel_never_moved": true,
+          "own_channel_deltas": [
+            -2,
+            -2,
+            -2,
+            -2,
+            -2
+          ],
+          "own_channel_moved_as_predicted": true,
+          "predicted_channel": "RX2",
+          "predicted_direction": "decrease",
+          "trials": 5,
+          "verdict": "PASS"
+        }
+      },
+      "provenance": {
+        "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+        "gpio_base": 906,
+        "radio_label": "R17",
+        "radio_serial": "104000bac4950008230026001b440a003a",
+        "raw_dir": "artifacts/agc_pin_bringup/20260810_r17_v1",
+        "rx_lo_hz": 867999998,
+        "tx_muted_dbfs": "-80.000000 dB",
+        "usb_port": "1-1.1",
+        "utc": "2026-08-10T22:43:25Z"
+      },
       "verdict": "PASS"
     },
-    "CTRL_IN1": {
-      "emio": 9,
-      "gpio": "gpio969",
-      "other_channel_deltas": [
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      "other_channel_never_moved": true,
-      "own_channel_deltas": [
-        -2,
-        -2,
-        -2,
-        -2,
-        -2
-      ],
-      "own_channel_moved_as_predicted": true,
-      "predicted_channel": "RX1",
-      "predicted_direction": "decrease",
-      "trials": 5,
-      "verdict": "PASS"
-    },
-    "CTRL_IN2": {
-      "emio": 10,
-      "gpio": "gpio970",
-      "other_channel_deltas": [
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      "other_channel_never_moved": true,
-      "own_channel_deltas": [
-        2,
-        2,
-        2,
-        2,
-        2
-      ],
-      "own_channel_moved_as_predicted": true,
-      "predicted_channel": "RX2",
-      "predicted_direction": "increase",
-      "trials": 5,
-      "verdict": "PASS"
-    },
-    "CTRL_IN3": {
-      "emio": 11,
-      "gpio": "gpio971",
-      "other_channel_deltas": [
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      "other_channel_never_moved": true,
-      "own_channel_deltas": [
-        -2,
-        -2,
-        -2,
-        -2,
-        -2
-      ],
-      "own_channel_moved_as_predicted": true,
-      "predicted_channel": "RX2",
-      "predicted_direction": "decrease",
-      "trials": 5,
+    "R18": {
+      "pins": {
+        "CTRL_IN0": {
+          "emio": 8,
+          "gpio": "gpio968",
+          "other_channel_deltas": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "other_channel_never_moved": true,
+          "own_channel_deltas": [
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "own_channel_moved_as_predicted": true,
+          "predicted_channel": "RX1",
+          "predicted_direction": "increase",
+          "trials": 5,
+          "verdict": "PASS"
+        },
+        "CTRL_IN1": {
+          "emio": 9,
+          "gpio": "gpio969",
+          "other_channel_deltas": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "other_channel_never_moved": true,
+          "own_channel_deltas": [
+            -2,
+            -2,
+            -2,
+            -2,
+            -2
+          ],
+          "own_channel_moved_as_predicted": true,
+          "predicted_channel": "RX1",
+          "predicted_direction": "decrease",
+          "trials": 5,
+          "verdict": "PASS"
+        },
+        "CTRL_IN2": {
+          "emio": 10,
+          "gpio": "gpio970",
+          "other_channel_deltas": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "other_channel_never_moved": true,
+          "own_channel_deltas": [
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "own_channel_moved_as_predicted": true,
+          "predicted_channel": "RX2",
+          "predicted_direction": "increase",
+          "trials": 5,
+          "verdict": "PASS"
+        },
+        "CTRL_IN3": {
+          "emio": 11,
+          "gpio": "gpio971",
+          "other_channel_deltas": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "other_channel_never_moved": true,
+          "own_channel_deltas": [
+            -2,
+            -2,
+            -2,
+            -2,
+            -2
+          ],
+          "own_channel_moved_as_predicted": true,
+          "predicted_channel": "RX2",
+          "predicted_direction": "decrease",
+          "trials": 5,
+          "verdict": "PASS"
+        }
+      },
+      "provenance": {
+        "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+        "gpio_base": 906,
+        "radio_label": "R18",
+        "radio_serial": "1040007c4a94000211000b009186843ef2",
+        "raw_dir": "artifacts/agc_pin_bringup/20260811_r18_v1",
+        "rx_lo_hz": 867999998,
+        "tx_muted_dbfs": "-80.000000 dB",
+        "usb_port": "1-1.2",
+        "utc": "2026-08-10T23:00:52Z"
+      },
       "verdict": "PASS"
     }
   },
-  "provenance": {
-    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
-    "gpio_base": 906,
-    "radio_label": "R17",
-    "radio_serial": "104000bac4950008230026001b440a003a",
-    "raw": [
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step1_baseline_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step2_takepins_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step3_h1_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step4_stepsize_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step6_ensm_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step7_restore_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step8_restore_verify_r17.json"
-    ],
-    "rx_lo_hz": 867999998,
-    "utc": "2026-08-10T22:44:51Z"
-  },
+  "radios_agree": true,
+  "total_trials": 40,
   "verdict": "PASS"
 }

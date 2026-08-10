@@ -1,55 +1,103 @@
 {
-  "baseline_ensm": "fdd",
   "consequence": "matches the section 7 row 'H6: edges NOT honoured outside RX' -- the firmware enable sequence must guarantee RX is active before arming, and must handle an ENSM transition while armed",
-  "ensm_mode_available": "sleep wait alert fdd pinctrl pinctrl_fdd_indep",
   "hypothesis": "H6",
   "not_tested": [
     "pinctrl",
     "pinctrl_fdd_indep"
   ],
   "not_tested_reason": "both hand ENSM state to external pins, which would confound H6 with a second pin-control surface",
-  "per_state": {
-    "alert": {
-      "deltas": [
-        0,
-        0,
-        0
-      ]
+  "per_radio": {
+    "R17": {
+      "baseline_ensm": "fdd",
+      "ensm_mode_available": "sleep wait alert fdd pinctrl pinctrl_fdd_indep",
+      "per_state": {
+        "alert": {
+          "deltas": [
+            0,
+            0,
+            0
+          ]
+        },
+        "fdd": {
+          "deltas": [
+            2
+          ]
+        },
+        "sleep": {
+          "deltas": [
+            0,
+            0,
+            0
+          ]
+        },
+        "wait": {
+          "requested_state_not_reached": "alert"
+        }
+      },
+      "provenance": {
+        "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+        "gpio_base": 906,
+        "radio_label": "R17",
+        "radio_serial": "104000bac4950008230026001b440a003a",
+        "raw_dir": "artifacts/agc_pin_bringup/20260810_r17_v1",
+        "rx_lo_hz": 867999998,
+        "tx_muted_dbfs": "-80.000000 dB",
+        "usb_port": "1-1.1",
+        "utc": "2026-08-10T22:43:25Z"
+      },
+      "responsiveness_recheck_in_fdd_after_each_state": [
+        "delta=2",
+        "delta=2",
+        "delta=2"
+      ],
+      "restore_ok": true
     },
-    "fdd": {
-      "deltas": [
-        2
-      ]
-    },
-    "sleep": {
-      "deltas": [
-        0,
-        0,
-        0
-      ]
-    },
-    "wait": {
-      "requested_state_not_reached": "alert"
+    "R18": {
+      "baseline_ensm": "fdd",
+      "ensm_mode_available": "sleep wait alert fdd pinctrl pinctrl_fdd_indep",
+      "per_state": {
+        "alert": {
+          "deltas": [
+            0,
+            0,
+            0
+          ]
+        },
+        "fdd": {
+          "deltas": [
+            2
+          ]
+        },
+        "sleep": {
+          "deltas": [
+            0,
+            0,
+            0
+          ]
+        },
+        "wait": {
+          "requested_state_not_reached": "alert"
+        }
+      },
+      "provenance": {
+        "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+        "gpio_base": 906,
+        "radio_label": "R18",
+        "radio_serial": "1040007c4a94000211000b009186843ef2",
+        "raw_dir": "artifacts/agc_pin_bringup/20260811_r18_v1",
+        "rx_lo_hz": 867999998,
+        "tx_muted_dbfs": "-80.000000 dB",
+        "usb_port": "1-1.2",
+        "utc": "2026-08-10T23:00:52Z"
+      },
+      "responsiveness_recheck_in_fdd_after_each_state": [
+        "delta=2",
+        "delta=2",
+        "delta=2"
+      ],
+      "restore_ok": true
     }
   },
-  "provenance": {
-    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
-    "gpio_base": 906,
-    "radio_label": "R17",
-    "radio_serial": "104000bac4950008230026001b440a003a",
-    "raw": [
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step1_baseline_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step2_takepins_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step3_h1_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step4_stepsize_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step6_ensm_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step7_restore_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step8_restore_verify_r17.json"
-    ],
-    "rx_lo_hz": 867999998,
-    "utc": "2026-08-10T22:46:33Z"
-  },
-  "responsiveness_recheck_after_each_state": "delta=2 in fdd every time",
   "verdict": "CTRL_IN edges are NOT honoured outside RX",
-  "wait_state_note": "writing 'wait' landed in 'alert' despite being advertised in ensm_mode_available, so 'wait' was not tested"
+  "wait_state_note": "writing 'wait' returns success but lands in 'alert' on both radios despite being advertised in ensm_mode_available, so 'wait' was not tested"
 }

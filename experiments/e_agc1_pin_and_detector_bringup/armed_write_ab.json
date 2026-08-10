@@ -1,38 +1,66 @@
 {
-  "armed": {
-    "arm_bits": 3,
-    "control": "a pin edge in the same armed state moved the index, so the null is the write being dropped, not an unresponsive part",
-    "hardwaregain_readback_after_ignored_write": "41.000000 dB",
-    "index_after_one_pin_edge_same_state": 46,
-    "index_after_write_35dB": 44,
-    "index_before": 44,
-    "write_return_code": 0,
-    "write_took_effect": false
-  },
-  "disarmed": {
-    "arm_bits": 0,
-    "index_after_write_35dB": 38,
-    "index_at_41dB": 44,
-    "write_took_effect": true
-  },
   "finding": "software hardwaregain writes are silently ignored while CTRL_IN pin control is armed",
   "implication": "while armed, the pins own the gain index exclusively; a host set_gains() during tandem operation is a silent no-op that returns success",
+  "per_radio": {
+    "R17": {
+      "armed": {
+        "arm_bits": 3,
+        "hardwaregain_readback_after_ignored_write": "41.000000 dB",
+        "index_after_one_pin_edge_same_state": 46,
+        "index_after_write_35dB": 44,
+        "index_before": 44,
+        "write_return_code": 0,
+        "write_took_effect": false
+      },
+      "control": "a pin edge in the same armed state moved the index, so the null is the write being dropped, not an unresponsive part",
+      "disarmed": {
+        "arm_bits": 0,
+        "index_after_write_35dB": 38,
+        "index_at_41dB": 44,
+        "write_took_effect": true
+      },
+      "provenance": {
+        "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+        "gpio_base": 906,
+        "radio_label": "R17",
+        "radio_serial": "104000bac4950008230026001b440a003a",
+        "raw_dir": "artifacts/agc_pin_bringup/20260810_r17_v1",
+        "rx_lo_hz": 867999998,
+        "tx_muted_dbfs": "-80.000000 dB",
+        "usb_port": "1-1.1",
+        "utc": "2026-08-10T22:43:25Z"
+      }
+    },
+    "R18": {
+      "armed": {
+        "arm_bits": 3,
+        "hardwaregain_readback_after_ignored_write": "41.000000 dB",
+        "index_after_one_pin_edge_same_state": 46,
+        "index_after_write_35dB": 44,
+        "index_before": 44,
+        "write_return_code": 0,
+        "write_took_effect": false
+      },
+      "control": "a pin edge in the same armed state moved the index, so the null is the write being dropped, not an unresponsive part",
+      "disarmed": {
+        "arm_bits": 0,
+        "index_after_write_35dB": 38,
+        "index_at_41dB": 44,
+        "write_took_effect": true
+      },
+      "provenance": {
+        "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+        "gpio_base": 906,
+        "radio_label": "R18",
+        "radio_serial": "1040007c4a94000211000b009186843ef2",
+        "raw_dir": "artifacts/agc_pin_bringup/20260811_r18_v1",
+        "rx_lo_hz": 867999998,
+        "tx_muted_dbfs": "-80.000000 dB",
+        "usb_port": "1-1.2",
+        "utc": "2026-08-10T23:00:52Z"
+      }
+    }
+  },
   "planned": false,
-  "provenance": {
-    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
-    "gpio_base": 906,
-    "radio_label": "R17",
-    "radio_serial": "104000bac4950008230026001b440a003a",
-    "raw": [
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step1_baseline_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step2_takepins_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step3_h1_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step4_stepsize_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step6_ensm_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step7_restore_r17.json",
-      "artifacts/agc_pin_bringup/20260810_r17_v1/step8_restore_verify_r17.json"
-    ],
-    "rx_lo_hz": 867999998,
-    "utc": "2026-08-10T22:45:52Z"
-  }
+  "reproduced_on_both_radios": true
 }

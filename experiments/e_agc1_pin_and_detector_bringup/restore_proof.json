@@ -1,0 +1,48 @@
+{
+  "all_match": true,
+  "gate": "every register from step 1, re-read after the section 5.4 restore",
+  "per_radio": {
+    "R17": {
+      "all_match": true,
+      "claimed_gpio_lines_restored": true,
+      "keys_compared": 47,
+      "mismatched_keys": [],
+      "provenance": {
+        "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+        "gpio_base": 906,
+        "radio_label": "R17",
+        "radio_serial": "104000bac4950008230026001b440a003a",
+        "raw_dir": "artifacts/agc_pin_bringup/20260810_r17_v1",
+        "rx_lo_hz": 867999998,
+        "tx_muted_dbfs": "-80.000000 dB",
+        "usb_port": "1-1.1",
+        "utc": "2026-08-10T22:43:25Z"
+      },
+      "tx_muted_before_and_after": [
+        "-80.000000 dB",
+        "-80.000000 dB"
+      ]
+    },
+    "R18": {
+      "all_match": true,
+      "claimed_gpio_lines_restored": true,
+      "keys_compared": 47,
+      "mismatched_keys": [],
+      "provenance": {
+        "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+        "gpio_base": 906,
+        "radio_label": "R18",
+        "radio_serial": "1040007c4a94000211000b009186843ef2",
+        "raw_dir": "artifacts/agc_pin_bringup/20260811_r18_v1",
+        "rx_lo_hz": 867999998,
+        "tx_muted_dbfs": "-80.000000 dB",
+        "usb_port": "1-1.2",
+        "utc": "2026-08-10T23:00:52Z"
+      },
+      "tx_muted_before_and_after": [
+        "-80.000000 dB",
+        "-80.000000 dB"
+      ]
+    }
+  }
+}

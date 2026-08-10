@@ -1259,14 +1259,17 @@ deliberately different image hash (`65442e70…`).
 ## AGC (2026-08-10): the AD9361 gain pins are exactly as drawn, but arming them
 ## takes gain away from software and they go deaf outside RX
 
-E-AGC1 session 1, R17 on stock RC17, userspace only — no FPGA change, no bitstream,
-no RAM boot. Full report and JSON in
-`experiments/e_agc1_pin_and_detector_bringup/RESULTS.md`. Four minutes of measurement.
+E-AGC1 session 1, **both radios** (R17 and R18) on stock RC17, userspace only — no FPGA
+change, no bitstream, no RAM boot. Full report and JSON in
+`experiments/e_agc1_pin_and_detector_bringup/RESULTS.md`. Four minutes of measurement
+per radio, and every result below reproduced identically on both, so these are
+part-family properties and not per-board ones.
 
 **The pin map is the identity, measured.** It had only ever been inferred by joining a
 schematic PDF to a constraints file. GPIO 968/969/970/971 (EMIO 8–11, `CTRL_IN[0..3]`)
 move RX1 up / RX1 down / RX2 up / RX2 down, 5/5 trials each, and **the other channel
-never moved once in 20 trials**. No transposition, so nothing blocks the tandem RTL.
+never moved once in 40 trials across the two radios**, whose delta sequences are
+identical cell for cell. No transposition, so nothing blocks the tandem RTL.
 The gpiochip base is 906 on this build, so `CTRL_OUT` is 960–967 and `CTRL_IN` is
 968–971; nothing in the shipped stack claims EMIO 0–11 (`one-bit-adc-dac`, the only
 surprise consumer, takes EMIO 14 and 17).
