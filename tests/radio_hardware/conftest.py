@@ -118,6 +118,18 @@ def pytest_addoption(parser):
         help="unique LAN address of the selected Pluto direct-IP gadget",
     )
     group.addoption(
+        "--radio-direct-ip-min-payload-mibps",
+        type=float,
+        default=20.0,
+        help="minimum accepted end-to-end payload rate for the buffered IP burst",
+    )
+    group.addoption(
+        "--radio-direct-ip-min-receive-buffer-mib",
+        type=float,
+        default=4.0,
+        help="minimum effective host UDP receive buffer for the IP burst",
+    )
+    group.addoption(
         "--radio-tx-loopback",
         action="store_true",
         help="enable explicitly acknowledged, attenuated TX2 loopback tests",

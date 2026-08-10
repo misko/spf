@@ -120,7 +120,7 @@ readonly LOOPBACK_ATTENUATION_DB="$loopback_attenuation_db"
 [[ -f "$TEST_FILE" ]] || die "protocol-v3 hardware tests are missing"
 [[ -f "$TX_TEST_FILE" ]] || die "protocol-v3 TX hardware tests are missing"
 
-for command_name in iio_attr iio_info lsusb sha256sum sudo tee; do
+for command_name in iio_attr iio_info lsusb sha256sum sudo sysctl tee; do
     require_command "$command_name"
 done
 sudo -n true 2>/dev/null ||
@@ -134,6 +134,7 @@ expected_sha="${SPF_V3_IMAGE_SHA256:-$actual_sha}"
 readonly actual_sha expected_sha
 
 direct_ip_serial=""
+original_rmem_max=""
 if [[ -n "$DIRECT_IP_HOST" ]]; then
     direct_ip_serial="$(
         iio_attr -u "ip:${DIRECT_IP_HOST}" -C hw_serial |
@@ -141,8 +142,15 @@ if [[ -n "$DIRECT_IP_HOST" ]]; then
     )"
     [[ -n "$direct_ip_serial" ]] ||
         die "could not read hw_serial from initial ip:${DIRECT_IP_HOST}"
+    original_rmem_max="$(sysctl -n net.core.rmem_max)"
+    target_rmem_max="$original_rmem_max"
+    if (( target_rmem_max < 16777216 )); then
+        target_rmem_max=16777216
+    fi
+    sudo -n sysctl -q -w "net.core.rmem_max=${target_rmem_max}" |
+        tee "${REPORT_ROOT}/direct-ip-sysctl.log"
 fi
-readonly direct_ip_serial
+readonly direct_ip_serial original_rmem_max
 
 run_logged() {
     local name="$1"
@@ -170,11 +178,20 @@ mute_tx_on_exit() {
         --output "${REPORT_ROOT}/tx-mute-on-exit.json" \
         >>"${REPORT_ROOT}/tx-mute-on-exit.log" 2>&1
     local mute_rc=$?
-    set -e
     if [[ "$mute_rc" -ne 0 ]]; then
         printf 'ERROR: final TX mute verification failed; inspect %s\n' \
             "${REPORT_ROOT}/tx-mute-on-exit.log" >&2
         [[ "$rc" -ne 0 ]] || rc="$mute_rc"
+    fi
+    if [[ -n "$original_rmem_max" ]]; then
+        sudo -n sysctl -q -w "net.core.rmem_max=${original_rmem_max}" \
+            >>"${REPORT_ROOT}/direct-ip-sysctl.log" 2>&1
+        local sysctl_rc=$?
+        if [[ "$sysctl_rc" -ne 0 ]]; then
+            printf 'ERROR: failed to restore net.core.rmem_max=%s\n' \
+                "$original_rmem_max" >&2
+            [[ "$rc" -ne 0 ]] || rc="$sysctl_rc"
+        fi
     fi
     trap - EXIT
     exit "$rc"
@@ -315,6 +332,20 @@ if [[ -n "$DIRECT_IP_HOST" ]]; then
         --radio-gain-observation-interval=2048 \
         --radio-gain-observation-capacity=256 \
         --radio-report-dir="${REPORT_ROOT}/candidate-v3-ip-report"
+    run_logged candidate-v3-direct-ip-buffered-burst \
+        "$PYTHON" -m pytest -q \
+        "${TEST_FILE}::test_v3_direct_ip_buffers_a_maximum_finite_burst" \
+        --radio-hardware \
+        --radio-gain-series-v3 \
+        --radio-direct-ip \
+        --radio-direct-ip-host="$resolved_direct_ip_host" \
+        --radio-samples=524288 \
+        --radio-frames-per-request=16 \
+        --radio-gain-observation-interval=2048 \
+        --radio-gain-observation-capacity=256 \
+        --radio-direct-ip-min-payload-mibps=20 \
+        --radio-direct-ip-min-receive-buffer-mib=4 \
+        --radio-report-dir="${REPORT_ROOT}/candidate-v3-ip-burst-report"
 fi
 
 run_logged final-status \

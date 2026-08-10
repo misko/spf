@@ -267,6 +267,13 @@ fi
     )
     _executable(shim / "iio_info", 'printf "synthetic IIO inventory\\n"\n')
     _executable(shim / "iio_attr", f'printf "hw_serial: {serial}\\n"\n')
+    _executable(
+        shim / "sysctl",
+        """if [[ "${1:-}" == "-n" ]]; then
+    printf '%s\n' 212992
+fi
+""",
+    )
     # Enough output after the early serial match makes grep -q close the pipe
     # and this producer exit 141.  The campaign must consume all lsusb output.
     _executable(
@@ -308,3 +315,9 @@ done
         "test_v3_direct_ip_uses_the_same_inner_frame" in command
         for command in trace.read_text().splitlines()
     )
+    assert any(
+        "test_v3_direct_ip_buffers_a_maximum_finite_burst" in command
+        for command in trace.read_text().splitlines()
+    )
+    assert "--radio-frames-per-request=16" in trace.read_text()
+    assert "net.core.rmem_max" in SCRIPT.read_text()

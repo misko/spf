@@ -567,6 +567,75 @@ def test_v3_direct_ip_uses_the_same_inner_frame(pytestconfig, radio_report_dir):
     )
 
 
+@pytest.mark.radio_direct_ip
+def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_dir):
+    """Prove capture is decoupled from UDP drain at the production frame size."""
+
+    host = pytestconfig.getoption("--radio-direct-ip-host")
+    if not host:
+        pytest.fail("--radio-direct-ip-host is required with --radio-direct-ip")
+    samples = pytestconfig.getoption("--radio-samples")
+    frame_count = pytestconfig.getoption("--radio-frames-per-request")
+    interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
+    capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
+    minimum_mibps = pytestconfig.getoption("--radio-direct-ip-min-payload-mibps")
+    minimum_receive_buffer_bytes = int(
+        pytestconfig.getoption("--radio-direct-ip-min-receive-buffer-mib") * 1024 * 1024
+    )
+    assert frame_count == 16, "performance gate must exercise the maximum finite burst"
+
+    with PlutoDirectIpReceiver(
+        remote_host=host,
+        protocol_version=3,
+        gain_observation_interval_samples=interval,
+        gain_observation_capacity=capacity,
+        minimum_effective_receive_buffer_bytes=minimum_receive_buffer_bytes,
+    ) as receiver:
+        required_transport = (
+            IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
+        )
+        assert receiver.capabilities.flags & required_transport == required_transport
+        effective_receive_buffer_bytes = receiver.effective_data_receive_buffer_bytes
+        capture = receiver.capture(
+            samples_per_channel=samples,
+            frame_count=frame_count,
+        )
+
+    assert capture.duplicate_fragment_count == 0
+    assert capture.expired_frame_count == 0
+    assert capture.rejected_frame_count == 0
+    assert capture.receive_queue_overflow_count == 0
+    assert len(capture.frames) == frame_count
+    _assert_contiguous_frames(capture.frames, samples)
+    frame_reports = [_validate_v3_frame(frame, samples) for frame in capture.frames]
+    payload_bytes = samples * 8 * frame_count
+    payload_mibps = payload_bytes / capture.elapsed_seconds / (1024 * 1024)
+    assert payload_mibps >= minimum_mibps
+
+    report = {
+        "transport": "direct_ip",
+        "test": "maximum buffered finite burst",
+        "host": host,
+        "samples_per_channel": samples,
+        "frame_count": frame_count,
+        "payload_bytes": payload_bytes,
+        "elapsed_seconds": capture.elapsed_seconds,
+        "payload_mibps": payload_mibps,
+        "minimum_payload_mibps": minimum_mibps,
+        "effective_receive_buffer_bytes": effective_receive_buffer_bytes,
+        "minimum_receive_buffer_bytes": minimum_receive_buffer_bytes,
+        "transport_flags": int(capture.capabilities.flags),
+        "duplicate_fragment_count": capture.duplicate_fragment_count,
+        "expired_frame_count": capture.expired_frame_count,
+        "rejected_frame_count": capture.rejected_frame_count,
+        "receive_queue_overflow_count": capture.receive_queue_overflow_count,
+        "frames": frame_reports,
+    }
+    (radio_report_dir / "gain_series_v3_direct_ip_buffered_burst.json").write_text(
+        json.dumps(report, indent=2) + "\n"
+    )
+
+
 @pytest.mark.radio_zarr
 def test_v3_gain_series_round_trips_through_v7_zarr(
     attached_plutos, pytestconfig, tmp_path
