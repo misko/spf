@@ -38,8 +38,12 @@ def test_mse_matches_the_filters_existing_metric():
     rng = np.random.default_rng(0)
     pred = rng.uniform(-np.pi, np.pi, 200)
     truth = rng.uniform(-np.pi, np.pi, 200)
+    # P_theta is required: the filters' metrics now also score calibration, and
+    # a trajectory carrying no variance is rejected rather than scored as NaN.
+    # Every real theta filter sets it; see tests/test_filter_calibration_metrics.py.
     theirs = dual_radio_mse_theta_metrics(
-        [{"craft_theta": np.float64(p)} for p in pred], torch.tensor(truth)
+        [{"craft_theta": np.float64(p), "P_theta": np.float64(1.0)} for p in pred],
+        torch.tensor(truth),
     )["mse_craft_theta"]
     assert np.isclose(metrics.mse(pred, truth), theirs)
 

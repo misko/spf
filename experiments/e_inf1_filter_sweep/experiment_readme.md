@@ -107,10 +107,25 @@ Model: `/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth`
 |---|---|---|
 | rover precompute | `rovers_2026/precompute/` | all 48 stores segment without error |
 | inference caches | `rovers_2026/inference_cache/` | one `.npz` per dataset per model |
-| stage-2 reports | `spf/filters/reports/e_inf1_<corpus>_coarse_<date>_v1/` | every config has `n_runs = 5` |
-| stage-3 reports | `spf/filters/reports/e_inf1_<corpus>_full_<date>_v1/` | `n_runs` equals the corpus size |
+| stage-2 reports | `spf/filters/reports/e_inf1_<corpus>_coarse_<date>_v1/` | every PF config appears at all 5 seeds; per config+seed, `n_runs` sums to 16 across spacing groups ‡ |
+| stage-3 reports | `spf/filters/reports/e_inf1_<corpus>_full_<date>_v1/` | same, summing to 48 ‡ |
 | per-dataset figures | qnap01 (gitignored) | ≥1 figure per corpus visually checked per CLAUDE.md |
 | `RESULTS.md` | this directory | states H1–H4 outcomes with numbers |
+
+‡ **Amended 2026-08-10.** These two gates originally read "every config has
+`n_runs = 5`" and "`n_runs` equals the corpus size". Both are unmeetable as
+written, and the error is in the measurement definition, not in the results:
+`n_runs` counts the **datasets averaged into a group**, while `rx_wavelength_spacing`
+and `seed` are themselves grouping keys. So `n_runs` is the dataset count at one
+spacing — on the stage-2 corpus that is 1, 2, 5 or 6, never 5-meaning-seeds and
+never 16 or 48. Measured over the committed stage-2 report:
+`Counter({1: 4896, 2: 1632, 5: 1632, 6: 1632})` across 9,792 rows.
+
+The amended gates test the two things the originals were reaching for — that no
+seed is missing, and that every dataset in the corpus contributed — using
+quantities the report actually carries. The stage-2 report satisfies the amended
+gates. Recorded here rather than silently corrected because this file is the
+pre-registration.
 
 ## 6. Decision rules (pre-registered)
 

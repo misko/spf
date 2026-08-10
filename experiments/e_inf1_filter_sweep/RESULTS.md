@@ -8,9 +8,45 @@ exists so the hypotheses cannot be edited after seeing the data.
 | Hypothesis | Prediction | Outcome |
 |---|---|---|
 | H1 | NN dual-radio PF beats empirical on the rover corpus | ✅ **SUPPORTED** — −20.4% craft-relative, −44.4% radio-folded |
-| H2 | best rover MSE ≥ 2× best frozen-val MSE | _pending — needs the val corpus (stage 3)_ |
-| H3 | median `std(z)` > 1.5 on every corpus (filters overconfident) | ⚠️ **UNANSWERABLE AS RUN** — the sweep records no calibration metric |
+| H2 | best rover MSE ≥ 2× best frozen-val MSE | ❌ **NOT TESTED — withdrawn 2026-08-10 by decision.** See below. |
+| H3 | median `std(z)` > 1.5 on every corpus (filters overconfident) | ⚠️ **UNANSWERABLE AS RUN** — the sweep records no calibration metric. Being fixed; re-run pending. |
 | H4 | MSE worse at d/λ = 0.904 than at 0.673 | ⚠️ **NOT RESOLVED** — 3 of 6 spacings have one capture each |
+
+## H2 withdrawn — the frozen val corpus cannot answer it (2026-08-10)
+
+H2 compares the best rover MSE against the best frozen-val MSE, to decide whether
+the 2026 rover corpus is trustworthy enough to evaluate on. Checking what the
+frozen val list actually contains shows the comparison does not carry that meaning.
+
+`/mnt/md2/splits/apr17_val_nosig_noroverbounce.txt` is 565 datasets:
+
+| | count |
+|---|---|
+| 2D wall array (static array in a room, emitter moved around it) | 544 |
+| rover | 21 |
+| …of which rover running the `bounce` routine | **4** |
+
+The 2026 corpus is entirely `rover_bounce`. So a val comparison is almost entirely
+against a **different platform** with different motion and geometry, and a gap
+would conflate "the 2026 corpus is bad" with "rovers are harder than a bench
+array" — precisely the distinction H2 exists to make.
+
+The only like-for-like is the 4 rover-bounce captures (2025-04-05, spacings 0.035
+and 0.043 → d/λ 0.67317 and 0.82703, both present in the empirical table). All
+four are in `val_degraded_v2`, which [`docs/learnings.md` L1](../../docs/learnings.md)
+says is "reported but never optimized toward".
+
+**Decision: evaluate on the 2026 rover corpus only; do not run the historical
+data.** H2 is withdrawn rather than answered with a number whose meaning is
+ambiguous. Consequences, recorded so this is reversible:
+
+- No inference caches are built for val; `/mnt/md2` is not read or written at all.
+- The "is the 2026 corpus trustworthy?" question is now **unanswered**, not
+  answered negatively. If it needs answering later, the honest instrument is a
+  matched 2025-vs-2026 rover-bounce comparison at the same d/λ — not the frozen
+  val set — and that is a capture/curation question, not a filter-sweep one.
+- H3's pre-registered wording says "on every corpus"; with only one corpus in
+  scope it is judged on the 2026 rover corpus alone.
 
 Full write-up with figures:
 [`spf/filters/reports/e_inf1_rover_coarse_20260809_v1/REPORT.md`](../../spf/filters/reports/e_inf1_rover_coarse_20260809_v1/REPORT.md).

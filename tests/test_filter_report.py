@@ -237,6 +237,34 @@ def test_hyperparameters_survive_when_families_are_mixed():
         assert all(r["n_runs"] == 1 for r in report["rows"])
 
 
+def test_n_runs_counts_datasets_not_seeds():
+    """E-INF1's stage-2 and stage-3 acceptance gates were written as "every
+    config has n_runs = 5" (meaning seeds) and "n_runs equals the corpus size".
+    Both are unmeetable: `seed` and `rx_wavelength_spacing` are themselves
+    grouping keys, so n_runs is the number of DATASETS averaged into one
+    (config, spacing, seed) cell. The gates were amended 2026-08-10; this pins
+    the semantics so the misreading cannot come back."""
+    with tempfile.TemporaryDirectory() as d:
+        store = LocalResultsStore(d)
+        # one config, 2 seeds, 3 datasets -- all at the same spacing
+        for seed in (0, 1):
+            for i in range(3):
+                r = _result(
+                    MERGED_V7.replace("19_31_21", f"1{i}_31_21"),
+                    "PF_single_theta_dual_radio",
+                    1.0,
+                )
+                r.update({"seed": seed, "rx_wavelength_spacing": 0.82703})
+                store.put(f"pf/{seed}_{i}.pkl", [r])
+
+        report = build_report(d)
+        assert report["n_results"] == 6
+        # 2 groups (one per seed), each averaging 3 datasets -- NOT 1 group of 6
+        assert report["n_groups"] == 2
+        assert {row["n_runs"] for row in report["rows"]} == {3}
+        assert {row["seed"] for row in report["rows"]} == {0, 1}
+
+
 def test_families_are_counted_in_the_report():
     with tempfile.TemporaryDirectory() as d:
         store = LocalResultsStore(d)
