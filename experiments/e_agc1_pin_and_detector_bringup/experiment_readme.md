@@ -190,12 +190,28 @@ a threshold sweep because every level is recorded rather than written down by ha
 **Start at TX `hardwaregain = −80 dB` (muted) and step up.** The AD9361 RF pin maximum
 is +2.5 dBm peak and the detector sweep deliberately drives toward overload — see §8.
 
+⚠ **The splitter on this bench is a bare SMA tee, not a power divider** (operator,
+2026-08-10). Two 50 Ω loads in parallel present 25 Ω, and — the part that matters —
+**the two output ports are the same electrical node, so port-to-port isolation is
+~0 dB.** See the harness entry in `docs/learnings.md`.
+
 For H3 the bit map is cleanest when only **one** channel is driven, so that a CH1 bit
-asserting while CH2 is driven immediately falsifies the map. With this splitter both
-ports are fed together, so isolate in software instead: park the undriven channel's
-gain at the bottom of the table so its detectors stay quiet, and record both channels'
-gains at every point. If a physical single-channel test is wanted, disconnect one
-splitter leg and terminate it in 50 Ω — and record that as a harness change.
+asserting while CH2 is driven immediately falsifies the map. **Isolate physically, not
+in software:** disconnect one leg of the tee and terminate it in 50 Ω, recording that
+as a harness change. Parking the undriven channel's gain at the bottom of the table
+does *not* work here — with no isolation, changing that channel's gain changes its
+`Γ_RX`, which moves the junction impedance and therefore the level reaching the channel
+under test. That would put a gain-dependent level error straight into the threshold
+sweep.
+
+What the tee does and does not cost this step: the detector **map** is a register-page
+question and is harness-independent; **H4** (latch) and **H5** (period) are timing and
+logic, likewise. The **hold band** is a *difference* of two levels on the same chain, so
+a constant insertion-loss offset cancels to first order. What is genuinely
+harness-referenced is any **absolute** input-level or dBm-at-the-RF-port claim, because
+a tee's split-plus-mismatch loss differs from a divider's — so state levels as TX
+`hardwaregain` settings plus a recorded harness description, not as absolute input
+power.
 
 ### 4.3 Passive parts and adapters
 

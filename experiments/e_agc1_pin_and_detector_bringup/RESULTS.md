@@ -118,6 +118,32 @@ unexport. Verified by re-running the full baseline collection and diffing:
   original five claimed lines (921, 952, 973, 974, 977);
 - **all 47 recorded values match the step-1 baseline** (timestamps and uptime excluded).
 
+## Why the harness question does not apply to this session
+
+Recorded because it will be asked. On 2026-08-10 it was established that the dual-RX
+bench "splitter" is a bare SMA tee with ~0 dB port-to-port isolation, which puts the
+arm-specific residual `A` from the phase campaigns in doubt (see the harness entry in
+`docs/learnings.md`). **None of it reaches these results**, for three independent
+reasons:
+
+1. **There was no RF in the harness.** TX1 and TX2 were at −80 dB (muted) in step 1 and
+   still at −80 dB in the step-8 re-read, and the 47-value baseline match proves they
+   never moved in between. The tee was splitting nothing.
+2. **Nothing analogue was observed.** The only observables in H1, H2 and H6 were
+   `iio_reg 0x2B0` and `iio_reg 0x2B5` — the gain-index registers, read over SPI. No
+   phase, magnitude, RSSI or IQ appears anywhere in the run.
+3. **The causality measured was digital**: GPIO edge → gain-index register. That path
+   does not traverse the RF chain.
+
+This is also true by construction rather than by luck: in manual gain mode the index is
+set by the pins irrespective of signal, and H6's nulls arise because the RX path is not
+clocked in `alert`/`sleep` — a state fact, not a level fact.
+
+The RF-dependent half of E-AGC1 is **step 5, which was not run.** Its sensitivity is
+scoped in §4.2 of the plan: the detector map, H4 and H5 are harness-independent, the
+hold band is a level *difference* and so cancels a constant offset, and only absolute
+input-level claims are harness-referenced.
+
 ## Method notes worth keeping
 
 - Every phase that armed `0x0FB` did so by read-modify-write inside a script with an
