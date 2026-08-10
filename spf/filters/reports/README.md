@@ -7,11 +7,17 @@ directory.
 
 Each directory holds:
 
-| File | Contents |
-|---|---|
-| `REPORT.md` | per-frame leaderboard, the reviewable summary |
-| `results.json` | every aggregated row, machine-readable |
-| `inputs_manifest.json` | dataset list, config, checkpoint + config md5s, git commit |
+| File | Contents | Written by |
+|---|---|---|
+| `REPORT.md` | the findings, written by hand, with figures | a person |
+| `LEADERBOARD.md` | per-frame leaderboard of every group | `report.py` |
+| `results.json` | every aggregated row, machine-readable | `report.py` |
+| `figures/` | PNGs referenced by `REPORT.md` | `plot_sweep_summary.py`, `plot_trajectory_comparison.py` |
+| `inputs_manifest.json` | dataset list, config, checkpoint + config md5s, git commit | the sweep |
+
+`report.py` deliberately does **not** write `REPORT.md`: the generated table and
+the hand-written narrative share a directory, and regenerating the table after an
+edit would otherwise destroy the write-up.
 
 ## Why not CSV
 
@@ -35,6 +41,22 @@ the same hyperparameters are answers to different questions — see
 `n_runs = 1` on a particle filter is one draw from a distribution whose
 per-dataset spread was measured at 42–106% of the mean; treat it accordingly.
 
+## Reading a figure
+
+Every MSE panel is drawn against the **uniform-random floor**, π²/3 = 3.290 rad²
+— what a uniform guess scores on the circle. Without it an MSE of 2.6 reads as a
+number rather than "21% of the way from guessing to perfect".
+
+The per-capture trajectory figure adds a second floor, the **best constant**: the
+single fixed bearing with the lowest MSE on that capture. A filter that does not
+beat it has learned nothing about *time*. On a folded frame that floor is far
+below the random one, and filters have been observed between the two — so
+skill-vs-random alone is not enough.
+
+Both live in `spf/evaluation/metrics.py` (`baselines`, `skill_vs_random`).
+
 ## Index
 
-_(none yet — the first sweep lands here)_
+| Report | Corpus | Headline |
+|---|---|---|
+| [`e_inf1_rover_coarse_20260809_v1`](e_inf1_rover_coarse_20260809_v1/REPORT.md) | 16 merged-v7 rover captures | H1 supported (NN beats empirical by 20–44%); EKF dual-radio near-uninformative; H3 unanswerable as run |

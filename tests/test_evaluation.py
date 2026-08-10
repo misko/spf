@@ -73,6 +73,53 @@ def test_summarize_block():
     assert np.isclose(out["mae_rad"], 0.1)
 
 
+# ------------------------------------------------------------- baselines
+#
+# Reported MSEs are meaningless without these. 2.6 rad^2 reads like a number
+# until you know a coin flip scores 3.29.
+
+
+def test_uniform_random_floor_is_what_random_guessing_actually_scores():
+    """The analytic constant, checked against simulation rather than asserted."""
+    rng = np.random.default_rng(0)
+    truth = rng.uniform(-np.pi, np.pi, 200000)
+    guess = rng.uniform(-np.pi, np.pi, 200000)
+    assert np.isclose(metrics.mse(guess, truth), metrics.UNIFORM_RANDOM_MSE, rtol=0.02)
+
+
+def test_best_constant_is_the_circular_mean_and_beats_every_other_constant():
+    rng = np.random.default_rng(3)
+    truth = metrics.wrap_to_pi(rng.normal(2.9, 0.7, 4000))  # straddles the seam
+    best = metrics.baselines(truth)["best_constant"]
+    assert np.isclose(best["bearing_rad"], metrics.circular_mean(truth), atol=1e-9)
+    for other in np.linspace(-np.pi, np.pi, 73):
+        assert best["mse"] <= metrics.mse(np.full_like(truth, other), truth) + 1e-9
+
+
+def test_a_concentrated_truth_makes_the_constant_floor_far_below_random():
+    """Why both floors are reported: on a folded frame the constant floor is the
+    binding one, and a filter can beat uniform-random by a lot while still
+    losing to a fixed bearing -- i.e. having learned nothing about time."""
+    truth = np.full(500, 0.4) + np.random.default_rng(5).normal(0, 0.3, 500)
+    base = metrics.baselines(truth)
+    assert base["best_constant"]["mse"] < 0.2 * base["uniform_random"]["mse"]
+
+
+def test_uniform_truth_makes_the_two_floors_agree():
+    """The other extreme: no constant helps, so the floors collapse together."""
+    truth = np.random.default_rng(7).uniform(-np.pi, np.pi, 100000)
+    base = metrics.baselines(truth)
+    assert np.isclose(
+        base["best_constant"]["mse"], base["uniform_random"]["mse"], rtol=0.03
+    )
+
+
+def test_skill_vs_random_is_zero_at_the_floor_and_one_at_perfect():
+    assert np.isclose(metrics.skill_vs_random(metrics.UNIFORM_RANDOM_MSE), 0.0)
+    assert np.isclose(metrics.skill_vs_random(0.0), 1.0)
+    assert metrics.skill_vs_random(2 * metrics.UNIFORM_RANDOM_MSE) < 0
+
+
 # ----------------------------------------------------------- calibration
 
 

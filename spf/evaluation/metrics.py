@@ -106,6 +106,48 @@ def circular_std(angles, weights=None):
     return float(np.sqrt(-2.0 * np.log(r)))
 
 
+# E[e^2] when the prediction is uniform on the circle and independent of truth:
+# the wrapped error is itself uniform on [-pi, pi), so E[e^2] = pi^2/3. This is
+# the zero-information floor -- an MSE only means something next to it.
+UNIFORM_RANDOM_MSE = np.pi**2 / 3.0
+
+
+def baselines(truth):
+    """The two references every tracker has to be read against.
+
+    ``uniform_random``
+        predict a uniform angle every step. Analytic, no data needed.
+    ``best_constant``
+        the single fixed bearing with the lowest MSE on this truth -- its
+        circular mean. A tracker that does not beat this has learned nothing
+        about *time*, only about where the emitter tends to sit. On a capture
+        whose truth is concentrated (a folded frame, say) this floor is far
+        below the uniform one, and filters can land between the two.
+    """
+    t = _as_array(truth)
+    const = circular_mean(t)
+    err = angular_error(np.full_like(t, const), t)
+    const_mse = float((err**2).mean())
+    return {
+        "uniform_random": {
+            "mse": UNIFORM_RANDOM_MSE,
+            "rmse_deg": float(np.degrees(np.sqrt(UNIFORM_RANDOM_MSE))),
+            "note": "pi^2/3, analytic -- zero information",
+        },
+        "best_constant": {
+            "mse": const_mse,
+            "rmse_deg": float(np.degrees(np.sqrt(const_mse))),
+            "bearing_rad": const,
+            "note": f"fixed bearing {np.degrees(const):.1f} deg (circular mean of truth)",
+        },
+    }
+
+
+def skill_vs_random(mse_value):
+    """Fraction of the uniform-random MSE removed. 0 = no better than guessing."""
+    return 1.0 - float(mse_value) / UNIFORM_RANDOM_MSE
+
+
 def summarize(pred, truth):
     """The standard metric block for one track."""
     err = angular_error(pred, truth)

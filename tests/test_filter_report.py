@@ -164,12 +164,30 @@ def test_write_report_emits_tracked_file_types():
         )
         json_fn, md_fn = write_report(d, out)
         assert json_fn.endswith("results.json") and os.path.exists(json_fn)
-        assert md_fn.endswith("REPORT.md") and os.path.exists(md_fn)
+        assert md_fn.endswith("LEADERBOARD.md") and os.path.exists(md_fn)
         with open(json_fn) as f:
             assert json.load(f)["n_results"] == 1
         with open(md_fn) as f:
             body = f.read()
         assert "frame: `craft_relative`" in body
+
+
+def test_rerunning_never_clobbers_a_hand_written_report():
+    """The generated table and the human narrative share a directory. If this
+    script wrote REPORT.md, regenerating figures after an edit would silently
+    destroy the written-up findings."""
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as out:
+        LocalResultsStore(d).put(
+            "fn_run_PF/3.700/ds_a/_r.pkl",
+            [_result(MERGED_V7, "PF_single_theta_dual_radio", 1.0)],
+        )
+        narrative = os.path.join(out, "REPORT.md")
+        with open(narrative, "w") as f:
+            f.write("# findings a human wrote")
+        write_report(d, out)
+        write_report(d, out)
+        with open(narrative) as f:
+            assert f.read() == "# findings a human wrote"
 
 
 def test_markdown_gives_each_frame_its_own_table():
@@ -187,3 +205,45 @@ def test_empty_workdir_is_an_error_not_an_empty_report():
     with tempfile.TemporaryDirectory() as d:
         with pytest.raises(ValueError, match="no results"):
             build_report(d)
+
+
+def test_hyperparameters_survive_when_families_are_mixed():
+    """The whole-sweep intersection bug: EKF carries phi_std, PF carries N and
+    seed, so intersecting across families leaves NO hyperparameter and every
+    configuration collapses into one row. A real sweep produced 42 rows from
+    26,112 results that way, with n_runs up to 1500."""
+    with tempfile.TemporaryDirectory() as d:
+        store = LocalResultsStore(d)
+        for i, N in enumerate([512, 4096]):
+            for seed in (0, 1):
+                r = _result(MERGED_V7, "PF_single_theta_dual_radio", 1.0 + i)
+                r.update({"N": N, "theta_err": 0.01, "seed": seed})
+                store.put(f"pf/{N}_{seed}.pkl", [r])
+        for j, phi in enumerate([5.0, 10.0]):
+            r = _result(MERGED_V7, "EKF_single_theta_dual_radio", 2.0 + j)
+            r.pop("N")
+            r.update({"phi_std": phi, "p": 5.0, "dynamic_R": 0.0})
+            store.put(f"ekf/{phi}.pkl", [r])
+
+        report = build_report(d)
+        assert report["n_results"] == 6
+        # 4 PF rows (2 N x 2 seeds) + 2 EKF rows -- NOT collapsed
+        assert report["n_groups"] == 6, report["rows"]
+        pf_rows = [r for r in report["rows"] if r["type"].startswith("PF")]
+        assert {r["N"] for r in pf_rows} == {512, 4096}
+        assert {r["seed"] for r in pf_rows} == {0, 1}
+        ekf_rows = [r for r in report["rows"] if r["type"].startswith("EKF")]
+        assert {r["phi_std"] for r in ekf_rows} == {5.0, 10.0}
+        assert all(r["n_runs"] == 1 for r in report["rows"])
+
+
+def test_families_are_counted_in_the_report():
+    with tempfile.TemporaryDirectory() as d:
+        store = LocalResultsStore(d)
+        store.put("a.pkl", [_result(MERGED_V7, "PF_single_theta_dual_radio", 1.0)])
+        store.put("b.pkl", [_result(MERGED_V7, "EKF_single_theta_dual_radio", 2.0)])
+        report = build_report(d)
+        assert report["families"] == {
+            "PF_single_theta_dual_radio": 1,
+            "EKF_single_theta_dual_radio": 1,
+        }
