@@ -46,6 +46,33 @@ def test_control_capability_query_has_stable_golden_bytes():
     assert IpControlMessageV1.unpack(payload) == query
 
 
+def test_extended_transport_capability_negotiation_round_trip():
+    query = make_ip_capability_query(request_id=9, transport_capabilities=True)
+    assert query.flags == IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
+    assert IpControlMessageV1.unpack(query.pack()) == query
+
+    capabilities = IpControlMessageV1(
+        message_type=IpControlType.CAPABILITIES,
+        request_id=9,
+        flags=(
+            IpControlFlags.FINITE_RX
+            | IpControlFlags.IDEMPOTENT_REQUESTS
+            | IpControlFlags.TIME_ANCHOR
+            | IpControlFlags.BUFFERED_FINITE_RX
+            | IpControlFlags.USB_CLASS_PACING
+        ),
+        protocol_min=3,
+        protocol_max=3,
+        features=(
+            MetadataFeatures.GAIN_OBSERVATION_SERIES
+            | MetadataFeatures.HARDWARE_SAMPLE_COUNTER
+        ),
+        max_samples_per_channel=524_288,
+        max_finite_frames=16,
+    )
+    assert IpControlMessageV1.unpack(capabilities.pack()) == capabilities
+
+
 def test_control_capabilities_round_trip():
     capabilities = IpControlMessageV1(
         message_type=IpControlType.CAPABILITIES,
@@ -93,6 +120,9 @@ def test_v3_start_started_and_stop_control_round_trip():
         gain_observation_capacity=32,
         gain_event_capacity=0,
         data_port=40_000,
+        transport_flags=(
+            IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
+        ),
     )
     assert IpControlMessageV1.unpack(start.pack()) == start
     started = dataclasses.replace(
@@ -109,6 +139,25 @@ def test_v3_start_started_and_stop_control_round_trip():
     assert IpControlMessageV1.unpack(stop.pack()) == stop
     stopped = dataclasses.replace(stop, message_type=IpControlType.STOPPED)
     assert IpControlMessageV1.unpack(stopped.pack()) == stopped
+
+
+def test_high_rate_pacing_requires_buffered_capture():
+    with pytest.raises(ProtocolError, match="requires buffered"):
+        make_ip_start_request(
+            request_id=1,
+            protocol_version=3,
+            features=(
+                MetadataFeatures.GAIN_OBSERVATION_SERIES
+                | MetadataFeatures.HARDWARE_SAMPLE_COUNTER
+            ),
+            enabled_scan_mask=0x0F,
+            samples_per_channel=16_384,
+            frame_count=1,
+            gain_observation_interval_samples=16_384,
+            gain_observation_capacity=1,
+            data_port=30_433,
+            transport_flags=IpControlFlags.USB_CLASS_PACING,
+        ).pack()
 
 
 @pytest.mark.parametrize(
@@ -204,6 +253,33 @@ def test_production_sized_frame_reassembles_out_of_order_with_duplicates():
     assert reassembler.feed(datagrams[-2], peer=("192.0.2.1", 30433)) == []
     assert reassembler.pending_frame_count == 0
     assert reassembler.duplicate_fragment_count == 2
+
+
+def test_reassembler_uses_one_preallocated_destination_buffer():
+    frame = bytes(range(251)) * 100
+    datagrams = fragment_ip_frame(
+        frame, stream_id=0xCAFE, frame_sequence=7, max_datagram_bytes=256
+    )
+    reassembler = IpFrameReassembler()
+
+    assert reassembler.feed(datagrams[0], peer="radio") == []
+    partial = next(iter(reassembler._pending.values()))
+    destination = partial.frame
+    assert isinstance(destination, bytearray)
+    assert len(destination) == len(frame)
+    assert partial.received_fragment_count == 1
+    assert reassembler.pending_declared_bytes == len(frame)
+
+    completed = []
+    for datagram in datagrams[1:]:
+        completed.extend(reassembler.feed(datagram, peer="radio"))
+    assert len(completed) == 1
+    # Completion transfers ownership of the already-filled allocation.  It
+    # must not concatenate thousands of copied fragment payloads into another
+    # full-frame allocation.
+    assert completed[0].frame is destination
+    assert bytes(completed[0].frame) == frame
+    assert reassembler.pending_declared_bytes == 0
 
 
 def test_identical_duplicate_before_completion_is_counted_and_ignored():

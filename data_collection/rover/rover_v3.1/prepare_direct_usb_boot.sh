@@ -13,6 +13,7 @@ readonly MAPPING_SCRIPT="${SCRIPT_DIR}/device_mapping.sh"
 readonly RADIO_MISSING_HANDLER="${SCRIPT_DIR}/radio_missing_shutdown.sh"
 readonly READY_FILE="${SPF_DIRECT_USB_READY_FILE:-/run/spf/direct_usb_ready.json}"
 readonly READY_DIR="$(dirname -- "$READY_FILE")"
+readonly TX_MUTE_FILE="${SPF_PLUTO_TX_MUTE_FILE:-/run/spf/pluto_tx_mute.json}"
 
 FIRMWARE_CACHE="${SPF_FIRMWARE_CACHE_DIR:-/home/pi/.cache/spf/firmware}"
 FIRMWARE_STATE="${SPF_FIRMWARE_STATE_DIR:-/var/lib/spf/pluto-firmware}"
@@ -40,7 +41,7 @@ is_true() {
 # Readiness is session-bound. Invalidate it before any operation that can fail,
 # including configuration parsing, so stale firmware/fingerprint state can
 # never authorize capture after a reboot or interrupted firmware operation.
-rm -f -- "$READY_FILE"
+rm -f -- "$READY_FILE" "$TX_MUTE_FILE"
 
 if is_true "$DISABLE_DIRECT_USB"; then
     printf '%s\n' \
@@ -164,6 +165,17 @@ else
     # shared-IP ssh race.
     export SPF_PLUTO_SKIP_SSH_VERIFY=1
 fi
+
+# A Pluto boot restores the AD9361 TX attenuation defaults even when no TX DMA
+# or DDS waveform is active. Reassert the rover's fail-closed state after every
+# RAM/QSPI transition and before publishing any readiness evidence. The helper
+# independently attempts TX1 attenuation, TX2 attenuation, DDS disable, channel
+# disable and TX-buffer destruction, then verifies both attenuation readbacks.
+# Any failure leaves READY_FILE absent and blocks mavlink_controller.service.
+mkdir -p "$(dirname -- "$TX_MUTE_FILE")"
+"$PYTHON" -m spf.scripts.mute_pluto_tx \
+    --expected-count "$attached_radios" \
+    --output "$TX_MUTE_FILE"
 
 # USB-IIO URIs contain the post-enumeration USB device address, so mapping must
 # be regenerated only after every radio reaches its final booted state.

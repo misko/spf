@@ -17,6 +17,7 @@ import math
 import struct
 import time
 import zlib
+from array import array
 from collections.abc import Hashable, Iterable
 from typing import Final
 
@@ -59,12 +60,18 @@ class IpControlFlags(enum.IntFlag):
     FINITE_RX = 1 << 0
     IDEMPOTENT_REQUESTS = 1 << 1
     TIME_ANCHOR = 1 << 2
+    QUERY_TRANSPORT_CAPABILITIES = 1 << 3
+    BUFFERED_FINITE_RX = 1 << 4
+    USB_CLASS_PACING = 1 << 5
 
 
 KNOWN_IP_CONTROL_FLAGS: Final[IpControlFlags] = (
     IpControlFlags.FINITE_RX
     | IpControlFlags.IDEMPOTENT_REQUESTS
     | IpControlFlags.TIME_ANCHOR
+    | IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
+    | IpControlFlags.BUFFERED_FINITE_RX
+    | IpControlFlags.USB_CLASS_PACING
 )
 
 
@@ -190,10 +197,17 @@ class IpControlMessageV1:
         return message
 
 
-def make_ip_capability_query(*, request_id: int) -> IpControlMessageV1:
+def make_ip_capability_query(
+    *, request_id: int, transport_capabilities: bool = False
+) -> IpControlMessageV1:
     return IpControlMessageV1(
         message_type=IpControlType.QUERY_CAPABILITIES,
         request_id=request_id,
+        flags=(
+            IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
+            if transport_capabilities
+            else IpControlFlags(0)
+        ),
     )
 
 
@@ -210,10 +224,12 @@ def make_ip_start_request(
     gain_observation_interval_samples: int = 0,
     gain_observation_capacity: int = 0,
     gain_event_capacity: int = 0,
+    transport_flags: IpControlFlags = IpControlFlags(0),
 ) -> IpControlMessageV1:
     return IpControlMessageV1(
         message_type=IpControlType.START_RX,
         request_id=request_id,
+        flags=transport_flags,
         protocol_min=protocol_version,
         protocol_max=protocol_version,
         features=features,
@@ -326,7 +342,7 @@ class IpFragmentV1:
 class ReassembledIpFrame:
     stream_id: int
     frame_sequence: int
-    frame: bytes
+    frame: bytes | bytearray
 
 
 def fragment_ip_frame(
@@ -382,7 +398,10 @@ class _PartialIpFrame:
     frame_crc32: int
     fragment_count: int
     first_seen: float
-    fragments: dict[int, tuple[int, bytes]] = dataclasses.field(default_factory=dict)
+    frame: bytearray
+    fragment_offsets: array
+    fragment_lengths: array
+    received_fragment_count: int = 0
 
 
 class IpFrameReassembler:
@@ -408,6 +427,9 @@ class IpFrameReassembler:
         self._recently_completed: dict[
             tuple[Hashable | None, int, int], tuple[int, int, float]
         ] = {}
+        self._pending_declared_bytes = 0
+        self._feed_count = 0
+        self._last_expiry_check = 0.0
         self.completed_frame_count = 0
         self.expired_frame_count = 0
         self.rejected_frame_count = 0
@@ -419,11 +441,12 @@ class IpFrameReassembler:
 
     @property
     def pending_declared_bytes(self) -> int:
-        return sum(partial.frame_bytes for partial in self._pending.values())
+        return self._pending_declared_bytes
 
     def reset(self) -> None:
         self._pending.clear()
         self._recently_completed.clear()
+        self._pending_declared_bytes = 0
 
     def expire(self, *, now: float | None = None) -> int:
         """Discard timed-out partial frames and return the number expired."""
@@ -435,7 +458,7 @@ class IpFrameReassembler:
             if current - partial.first_seen >= self.frame_timeout_seconds
         ]
         for key in expired:
-            del self._pending[key]
+            self._remove_pending(key)
         completed_expiry = [
             key
             for key, (_, _, completed_at) in self._recently_completed.items()
@@ -455,16 +478,42 @@ class IpFrameReassembler:
     ) -> list[ReassembledIpFrame]:
         """Consume one datagram and return zero or one complete radio frames."""
 
-        current = time.monotonic() if now is None else float(now)
-        self.expire(now=current)
-        fragment = IpFragmentV1.unpack(datagram)
-        key = (peer, fragment.stream_id, fragment.frame_sequence)
+        self._feed_count += 1
+        if now is None:
+            # A production frame contains roughly 3,000 MTU-safe datagrams.
+            # Reading the clock and scanning both dictionaries for every packet
+            # consumed a measurable share of a Pi 4 core.  A 256-packet cadence
+            # remains far below the multi-second frame timeout while keeping the
+            # per-datagram hot path allocation-light.
+            if self._last_expiry_check == 0.0 or self._feed_count % 256 == 0:
+                current = time.monotonic()
+                self.expire(now=current)
+                self._last_expiry_check = current
+            else:
+                current = self._last_expiry_check
+        else:
+            current = float(now)
+            self.expire(now=current)
+            self._last_expiry_check = current
+
+        (
+            flags,
+            stream_id,
+            frame_sequence,
+            frame_bytes,
+            frame_crc32,
+            fragment_index,
+            fragment_count,
+            fragment_offset,
+            payload,
+        ) = _unpack_ip_fragment_view(datagram)
+        key = (peer, stream_id, frame_sequence)
         completed = self._recently_completed.get(key)
         if completed is not None:
-            frame_crc32, fragment_count, _ = completed
+            completed_crc32, completed_fragment_count, _ = completed
             if (
-                frame_crc32 != fragment.frame_crc32
-                or fragment_count != fragment.fragment_count
+                completed_crc32 != frame_crc32
+                or completed_fragment_count != fragment_count
             ):
                 self.rejected_frame_count += 1
                 raise ProtocolError("conflicting late direct-IP fragment")
@@ -475,39 +524,51 @@ class IpFrameReassembler:
             if len(self._pending) >= self.max_pending_frames:
                 self.rejected_frame_count += 1
                 raise ProtocolError("direct-IP pending-frame limit exceeded")
-            if (
-                self.pending_declared_bytes + fragment.frame_bytes
-                > self.max_pending_bytes
-            ):
+            if self._pending_declared_bytes + frame_bytes > self.max_pending_bytes:
                 self.rejected_frame_count += 1
                 raise ProtocolError("direct-IP pending-byte limit exceeded")
             partial = _PartialIpFrame(
-                frame_bytes=fragment.frame_bytes,
-                frame_crc32=fragment.frame_crc32,
-                fragment_count=fragment.fragment_count,
+                frame_bytes=frame_bytes,
+                frame_crc32=frame_crc32,
+                fragment_count=fragment_count,
                 first_seen=current,
+                frame=bytearray(frame_bytes),
+                fragment_offsets=array("I", [0xFFFFFFFF]) * fragment_count,
+                fragment_lengths=array("I", [0]) * fragment_count,
             )
             self._pending[key] = partial
+            self._pending_declared_bytes += frame_bytes
         elif (
-            partial.frame_bytes != fragment.frame_bytes
-            or partial.frame_crc32 != fragment.frame_crc32
-            or partial.fragment_count != fragment.fragment_count
+            partial.frame_bytes != frame_bytes
+            or partial.frame_crc32 != frame_crc32
+            or partial.fragment_count != fragment_count
         ):
-            del self._pending[key]
+            self._remove_pending(key)
             self.rejected_frame_count += 1
             raise ProtocolError("conflicting direct-IP frame description")
 
-        candidate = (fragment.fragment_offset, fragment.payload)
-        existing = partial.fragments.get(fragment.fragment_index)
-        if existing is not None:
-            if existing != candidate:
-                del self._pending[key]
+        existing_offset = partial.fragment_offsets[fragment_index]
+        if existing_offset != 0xFFFFFFFF:
+            existing_length = partial.fragment_lengths[fragment_index]
+            existing_payload = memoryview(partial.frame)[
+                existing_offset : existing_offset + existing_length
+            ]
+            if (
+                existing_offset != fragment_offset
+                or existing_length != len(payload)
+                or existing_payload != payload
+            ):
+                self._remove_pending(key)
                 self.rejected_frame_count += 1
                 raise ProtocolError("conflicting duplicate direct-IP fragment")
             self.duplicate_fragment_count += 1
             return []
-        partial.fragments[fragment.fragment_index] = candidate
-        if len(partial.fragments) != partial.fragment_count:
+        fragment_end = fragment_offset + len(payload)
+        partial.frame[fragment_offset:fragment_end] = payload
+        partial.fragment_offsets[fragment_index] = fragment_offset
+        partial.fragment_lengths[fragment_index] = len(payload)
+        partial.received_fragment_count += 1
+        if partial.received_fragment_count != partial.fragment_count:
             return []
 
         try:
@@ -516,7 +577,7 @@ class IpFrameReassembler:
             self.rejected_frame_count += 1
             raise
         finally:
-            del self._pending[key]
+            self._remove_pending(key)
         self.completed_frame_count += 1
         self._recently_completed[key] = (
             partial.frame_crc32,
@@ -525,11 +586,15 @@ class IpFrameReassembler:
         )
         return [
             ReassembledIpFrame(
-                stream_id=fragment.stream_id,
-                frame_sequence=fragment.frame_sequence,
+                stream_id=stream_id,
+                frame_sequence=frame_sequence,
                 frame=frame,
             )
         ]
+
+    def _remove_pending(self, key: tuple[Hashable | None, int, int]) -> None:
+        partial = self._pending.pop(key)
+        self._pending_declared_bytes -= partial.frame_bytes
 
 
 def reassemble_ip_datagrams(
@@ -547,31 +612,93 @@ def reassemble_ip_datagrams(
         raise ProtocolError("direct-IP datagram collection is incomplete")
     if len(frames) != 1:
         raise ProtocolError(f"expected one direct-IP frame, received {len(frames)}")
-    return frames[0].frame
+    return bytes(frames[0].frame)
 
 
-def _assemble_complete_frame(partial: _PartialIpFrame) -> bytes:
-    chunks = []
+def _assemble_complete_frame(partial: _PartialIpFrame) -> bytearray:
     expected_offset = 0
     for fragment_index in range(partial.fragment_count):
-        try:
-            offset, payload = partial.fragments[fragment_index]
-        except (
-            KeyError
-        ) as exc:  # Defensive: count equality should make this impossible.
-            raise ProtocolError("direct-IP frame has a missing fragment index") from exc
+        offset = partial.fragment_offsets[fragment_index]
+        payload_bytes = partial.fragment_lengths[fragment_index]
+        if offset == 0xFFFFFFFF:
+            raise ProtocolError("direct-IP frame has a missing fragment index")
         if offset != expected_offset:
             relation = "overlap" if offset < expected_offset else "gap"
             raise ProtocolError(f"direct-IP frame has a fragment {relation}")
-        chunks.append(payload)
-        expected_offset += len(payload)
+        expected_offset += payload_bytes
     if expected_offset != partial.frame_bytes:
         raise ProtocolError("direct-IP fragments do not cover the declared frame")
-    frame = b"".join(chunks)
-    calculated_crc32 = zlib.crc32(frame) & 0xFFFFFFFF
+    calculated_crc32 = zlib.crc32(partial.frame) & 0xFFFFFFFF
     if calculated_crc32 != partial.frame_crc32:
         raise ProtocolError("direct-IP frame CRC mismatch")
-    return frame
+    return partial.frame
+
+
+def _unpack_ip_fragment_view(
+    datagram: bytes | bytearray | memoryview,
+) -> tuple[int, int, int, int, int, int, int, int, memoryview]:
+    """Parse one fragment without copying its payload or allocating a dataclass."""
+
+    if not IP_FRAGMENT_HEADER_BYTES < len(datagram) <= MAX_UDP_DATAGRAM_BYTES:
+        raise ProtocolError("direct-IP datagram size is outside the supported range")
+    (
+        magic,
+        version,
+        header_bytes,
+        flags,
+        stream_id,
+        frame_sequence,
+        frame_bytes,
+        frame_crc32,
+        fragment_index,
+        fragment_count,
+        fragment_offset,
+        fragment_bytes,
+    ) = _IP_FRAGMENT_STRUCT.unpack_from(datagram)
+    if magic != IP_FRAGMENT_MAGIC:
+        raise ProtocolError(f"bad direct-IP magic: 0x{magic:08x}")
+    if version != IP_FRAGMENT_VERSION:
+        raise ProtocolError(f"unsupported direct-IP version: {version}")
+    if header_bytes != IP_FRAGMENT_HEADER_BYTES:
+        raise ProtocolError(f"unsupported direct-IP header size: {header_bytes}")
+    if len(datagram) != header_bytes + fragment_bytes:
+        raise ProtocolError("direct-IP fragment length mismatch")
+    # The struct already constrains every numeric field to its unsigned wire
+    # width.  Keep the remaining semantic checks inline: constructing an enum
+    # dataclass and running generic integer validators for every UDP packet was
+    # over 80% of host reassembly CPU on the Pi 4.
+    if flags & ~int(IpFragmentFlags.FIRST | IpFragmentFlags.LAST):
+        raise ProtocolError("unknown direct-IP fragment flags")
+    if not 1 <= frame_bytes <= MAX_IP_FRAME_BYTES:
+        raise ProtocolError("direct-IP frame size is outside the supported range")
+    if not 1 <= fragment_count <= MAX_IP_FRAGMENT_COUNT:
+        raise ProtocolError("direct-IP fragment count is outside the supported range")
+    if fragment_index >= fragment_count:
+        raise ProtocolError("direct-IP fragment index is outside the frame")
+    if (
+        fragment_bytes == 0
+        or fragment_offset > frame_bytes
+        or fragment_bytes > frame_bytes - fragment_offset
+    ):
+        raise ProtocolError("direct-IP fragment range is outside the frame")
+    if bool(flags & int(IpFragmentFlags.FIRST)) != (fragment_index == 0):
+        raise ProtocolError("direct-IP FIRST flag does not match fragment index")
+    if bool(flags & int(IpFragmentFlags.LAST)) != (
+        fragment_index == fragment_count - 1
+    ):
+        raise ProtocolError("direct-IP LAST flag does not match fragment index")
+    payload = memoryview(datagram)[header_bytes:]
+    return (
+        flags,
+        stream_id,
+        frame_sequence,
+        frame_bytes,
+        frame_crc32,
+        fragment_index,
+        fragment_count,
+        fragment_offset,
+        payload,
+    )
 
 
 def _validate_fragment(fragment: IpFragmentV1) -> None:
@@ -652,8 +779,7 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
             raise ProtocolError("direct-IP ERROR message requires non-zero status")
         return
 
-    zero_for_query = (
-        int(message.flags),
+    zero_except_flags = (
         message.protocol_min,
         message.protocol_max,
         int(message.features),
@@ -670,13 +796,23 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
         message.stream_id,
     )
     if message_type == IpControlType.QUERY_CAPABILITIES:
-        if any(zero_for_query):
+        if message.flags not in (
+            IpControlFlags(0),
+            IpControlFlags.QUERY_TRANSPORT_CAPABILITIES,
+        ) or any(zero_except_flags):
             raise ProtocolError("direct-IP capability query has non-zero fields")
         return
 
     if message_type == IpControlType.CAPABILITIES:
         if not message.flags & IpControlFlags.FINITE_RX:
             raise ProtocolError("direct-IP gadget does not advertise finite RX")
+        if message.flags & IpControlFlags.QUERY_TRANSPORT_CAPABILITIES:
+            raise ProtocolError("direct-IP capability response retained query flags")
+        if (
+            message.flags & IpControlFlags.USB_CLASS_PACING
+            and not message.flags & IpControlFlags.BUFFERED_FINITE_RX
+        ):
+            raise ProtocolError("direct-IP pacing requires buffered finite RX")
         if not (
             VERSION_V1 <= message.protocol_min <= message.protocol_max <= VERSION_V3
         ):
@@ -701,6 +837,16 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
         return
 
     if message_type in (IpControlType.START_RX, IpControlType.STARTED):
+        transport_flags = (
+            IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
+        )
+        if message.flags & ~transport_flags:
+            raise ProtocolError("direct-IP START has capability-only flags")
+        if (
+            message.flags & IpControlFlags.USB_CLASS_PACING
+            and not message.flags & IpControlFlags.BUFFERED_FINITE_RX
+        ):
+            raise ProtocolError("direct-IP pacing requires buffered finite RX")
         if (
             message.protocol_min != message.protocol_max
             or message.protocol_min
@@ -759,7 +905,7 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
     if message_type in (IpControlType.STOP_RX, IpControlType.STOPPED):
         if not message.stream_id:
             raise ProtocolError("direct-IP STOP requires a stream ID")
-        if any(zero_for_query[:-1]):
+        if message.flags or any(zero_except_flags[:-1]):
             raise ProtocolError("direct-IP STOP has unrelated fields")
         return
 

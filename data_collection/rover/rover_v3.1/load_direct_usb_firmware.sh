@@ -5,9 +5,9 @@
 
 set -euo pipefail
 
-readonly RELEASE_TAG="${SPF_FIRMWARE_RELEASE_TAG:-v0.38-plutoplus-spf-gain-rssi-fingerprint-v3}"
-readonly ASSET_NAME="${SPF_FIRMWARE_ASSET_NAME:-plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu}"
-readonly IMAGE_SHA256="${SPF_FIRMWARE_IMAGE_SHA256:-86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191}"
+readonly RELEASE_TAG="${SPF_FIRMWARE_RELEASE_TAG:-v0.38-plutoplus-spf-gain-series-v4-rc16}"
+readonly ASSET_NAME="${SPF_FIRMWARE_ASSET_NAME:-plutoplus-spf-main-867e18542311-pluto.dfu}"
+readonly IMAGE_SHA256="${SPF_FIRMWARE_IMAGE_SHA256:-27aca40915fd75fbcabfadef88fee96ff422c6058f83fab8a57a09b8d1eae911}"
 readonly IMAGE_URL="${SPF_FIRMWARE_IMAGE_URL:-https://github.com/misko/plutosdr-fw/releases/download/${RELEASE_TAG}/${ASSET_NAME}}"
 readonly PLUTO_RUNTIME_ID="0456:b673"
 readonly PLUTO_DFU_ID="0456:b674"

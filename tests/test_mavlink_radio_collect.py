@@ -132,6 +132,35 @@ def test_v7_infers_direct_usb_protocol_v2_and_rejects_conflicts():
         )
 
 
+def test_v7_applies_top_level_direct_usb_defaults_to_every_receiver():
+    normalized = normalize_capture_config(
+        {
+            "data-version": 7,
+            "direct-usb": {
+                "protocol-version": 3,
+                "gain-observation-interval-samples": 2048,
+                "gain-observation-capacity": 256,
+            },
+            "receivers": [
+                {"receiver-port": 1},
+                {"receiver-port": 2},
+            ],
+        }
+    )
+
+    for receiver in normalized["receivers"]:
+        assert receiver["rx-transport"] == "direct_usb"
+        assert receiver["direct-usb"] == {
+            "protocol-version": 3,
+            "gain-observation-interval-samples": 2048,
+            "gain-observation-capacity": 256,
+            "gain-event-capacity": 0,
+            "require-gain-metadata": True,
+            "frame-count-per-request": 1,
+        }
+    validate_transport_schema(normalized)
+
+
 def test_mavlink_radio_collect_v7_requires_boot_verified_firmware():
     with tempfile.TemporaryDirectory() as tmpdirname:
         with open(f"{root_dir}/tests/test_config.yaml") as source:

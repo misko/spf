@@ -11,6 +11,22 @@ from collections.abc import Callable, Iterable
 
 
 SERIAL_RE = re.compile(r"^hw_serial:\s*(\S+)\s*$", re.MULTILINE)
+ROUTE_DEVICE_RE = re.compile(r"(?:^|\s)dev\s+(\S+)(?:\s|$)")
+
+
+def route_interface(host: str) -> str | None:
+    """Return the interface the kernel would actually use for ``host``."""
+
+    result = subprocess.run(
+        ["ip", "-4", "route", "get", host],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        return None
+    match = ROUTE_DEVICE_RE.search(result.stdout)
+    return None if match is None else match.group(1)
 
 
 def neighbor_candidates(interface: str = "eth0") -> tuple[str, ...]:
@@ -28,6 +44,14 @@ def neighbor_candidates(interface: str = "eth0") -> tuple[str, ...]:
         try:
             address = str(ipaddress.ip_address(fields[0]))
         except ValueError:
+            continue
+        # A neighbor can remain listed on the LAN while a more-specific USB
+        # Ethernet route wins for that same address (the Pluto default
+        # 192.168.2.1 is the common case). Probing without this check reaches
+        # the USB copy of a radio and can make one serial appear at two LAN
+        # addresses. Keep only candidates whose current route really exits on
+        # the requested LAN interface.
+        if route_interface(address) != interface:
             continue
         candidates.append(address)
     return tuple(sorted(set(candidates), key=ipaddress.ip_address))

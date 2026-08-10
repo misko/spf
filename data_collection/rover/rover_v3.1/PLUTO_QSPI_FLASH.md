@@ -21,10 +21,11 @@ Everything below is traced to the plutosdr-fw Makefile and the on-device
 
 **The gain/RSSI features live entirely in the FIT (`mtd3`).** The bootloader
 (`mtd0`) is what bricks PlutoPlus units when a bad v0.38 build is written to it.
-The production devices run
-**`device-fw v0.38_plutoplus_with_timestamping-9-g7b02`** from `mtd3` while
-retaining the v0.37 QSPI bootloader in `mtd0`. This exact v0.38 FIT has passed
-normal-reset/direct-USB qualification on the two-radio development bench.
+The hardware-qualified RC16 image reports
+**`device-fw v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1`** from `mtd3`
+while retaining the v0.37 QSPI bootloader in `mtd0`. This exact FIT passed the
+complete two-radio RAM campaign and a serial-scoped persistent-QSPI canary,
+including a second reboot and USB/IP/TX/V7 gates.
 
 Canonical production V7 configs declare `pluto-firmware.boot-mode: qspi`.
 Boot preparation follows that setting, verifies the active version over
@@ -60,18 +61,19 @@ does this and validates the result the same way the on-device flasher does:
 
 ```bash
 # download the exact image the boot currently RAM-loads, then convert it
-gh release download v0.38-plutoplus-spf-gain-rssi-fingerprint-v3 \
+gh release download v0.38-plutoplus-spf-gain-series-v4-rc16 \
   --repo misko/plutosdr-fw \
-  --pattern "plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu" \
+  --pattern "plutoplus-spf-main-867e18542311-pluto.dfu" \
   -D /tmp/fw
 bash data_collection/rover/rover_v3.1/make_pluto_frm.sh \
-  /tmp/fw/plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu \
+  /tmp/fw/plutoplus-spf-main-867e18542311-pluto.dfu \
   /tmp/fw/pluto.frm
 ```
 
-Verified: the generated v3 `pluto.frm` (13,870,584 B) carries the FRM_MAGIC and a
-self-consistent md5 trailer, so `handle_frimware_frm` will accept it and write
-`mtd3`.
+Verified: the generated RC16 `pluto.frm` is 12,725,820 bytes, has SHA-256
+`8d2623b6f8b5e5fd69d214afed20fe48dce4cd4aa0fe4714fc9825f1dccad415`,
+carries the FRM_MAGIC, and has a self-consistent MD5 trailer. The on-device
+`handle_frimware_frm` therefore accepts it and writes only `mtd3`.
 
 ## 4. Flashing via the mass-storage ("mount the drives") path
 
@@ -94,8 +96,9 @@ Alternative (equivalent, firmware-partition only): DFU — `device_reboot sf`
 then `dfu-util -a firmware.dfu -D pluto.dfu`. Both ultimately go through U-Boot's
 `dfu_sf` targeting the firmware partition.
 
-After flashing, the Pluto cold-boots the gain/RSSI FIT from QSPI and
-`grep device-fw /opt/VERSIONS` reads `v0.38_plutoplus_with_timestamping-9-g7b02`.
+After flashing, the Pluto cold-boots the gain-series FIT from QSPI and
+`grep device-fw /opt/VERSIONS` reads
+`v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1`.
 
 ## 5. Boot flow: check version over USB-IIO, flash only on mismatch
 

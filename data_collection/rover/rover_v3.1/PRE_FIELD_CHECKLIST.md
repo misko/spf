@@ -102,9 +102,9 @@ sudo data_collection/rover/rover_v3.1/load_direct_usb_firmware.sh verify-all 2
 It obtains the exact hardware-tested image from:
 
 ```text
-https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-rssi-fingerprint-v3
+https://github.com/misko/plutosdr-fw/releases/tag/v0.38-plutoplus-spf-gain-series-v4-rc16
 
-86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191
+27aca40915fd75fbcabfadef88fee96ff422c6058f83fab8a57a09b8d1eae911
 ```
 
 The multi-radio loader keeps both Plutos attached. It identifies each by USB
@@ -116,20 +116,24 @@ Normal boot verifies the image hash, the image's explicit `device-fw` string,
 and the gadget Git SHA before authorizing capture.
 
 Rover 1 uses `capture_configs/rover1_production_v7.yaml`.
-It runs both radios simultaneously, negotiates protocol v2, writes data
-version 7, preserves the legacy `signal_matrix`, `gains`, and `rssis` fields,
-and also stores complete start/end gain/RSSI and stream metadata.
+It runs both radios simultaneously and writes data version 7 using protocol v3
+with a requested gain observation every 2,048 samples and 256 fixed schema
+slots. The legacy `signal_matrix`, `gains`, and `rssis` fields remain present,
+while the V7 gain-series arrays add sample-counter-bracketed observations. The
+firmware remains protocol-v2 compatible for explicitly pinned legacy configs.
 
 Pass:
 
-- the image was RAM-booted, not written to QSPI;
+- an explicit `load-all` qualification used RAM only, or normal boot verified
+  the checksum-pinned image in QSPI/mtd3;
 - standard USB-IIO and vendor interface 6 both enumerate;
 - `iiod` and `sdr_usb_gadget` both run on the Pluto;
 - the normal simultaneous 100-frame-per-radio Zarr capture and v7 validator
   pass;
 - gain and RSSI are finite for both channels;
 - every receiver stores a unique Pluto serial and physical USB path;
-- a reset restores the original QSPI firmware and removes interface 6.
+- a reset returns to the configured QSPI image; interface 6 remains present
+  when RC16 is the persistent image.
 
 Fail:
 

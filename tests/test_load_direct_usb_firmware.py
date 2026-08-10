@@ -12,6 +12,28 @@ LOADER = (
 )
 
 
+def test_loader_defaults_to_hardware_qualified_rc16():
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; printf "%s\\n%s\\n%s\\n" '
+            '"$RELEASE_TAG" "$ASSET_NAME" "$IMAGE_SHA256"',
+            "bash",
+            str(LOADER),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.stdout.splitlines() == [
+        "v0.38-plutoplus-spf-gain-series-v4-rc16",
+        "plutoplus-spf-main-867e18542311-pluto.dfu",
+        "27aca40915fd75fbcabfadef88fee96ff422c6058f83fab8a57a09b8d1eae911",
+    ]
+
+
 def _run_usb_count(tmp_path: Path, lsusb_body: str) -> subprocess.CompletedProcess[str]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()

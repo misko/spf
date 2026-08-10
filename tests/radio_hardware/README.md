@@ -79,15 +79,26 @@ pytest tests/radio_hardware/test_gain_series_v3_hardware.py \
   --radio-report-dir=/tmp/spf-radio-report
 ```
 
-The direct-IP parity test is independently opt-in. Select one Pluto with a
-unique reachable IP address and add:
+The direct-IP parity and performance tests are independently opt-in. Select one
+Pluto with a unique reachable IP address and add:
 
 ```bash
 --radio-direct-ip --radio-direct-ip-host=192.168.1.163
 ```
 
 These flags must only be used after RAM-booting a protocol-v3 candidate. The
-currently promoted protocol-v2 image is expected to reject the test.
+buffered-transport gate negotiates the high-rate profile, requests 16 maximum
+524288-sample frames per START, checks every sequence and loss counter, and
+requires at least 20 MiB/s end to end. It uses a 20 MS/s RF rate for this
+contiguous burst—fast enough to keep the IP drain saturated while remaining
+below the Zynq userspace-copy ceiling. The separate production and sample-clock
+gates remain at 30 MS/s. The ordered runner repeats that 64 MiB burst 20 times
+by default (320 frames, 1.25 GiB). Override the duration with
+`SPF_V3_IP_BURN_IN_CYCLES`; lowering the throughput threshold is not part of
+candidate acceptance. The runner temporarily raises `net.core.rmem_max` to at
+least 128 MiB, requires an effective socket queue of at least 256 MiB so Linux
+has room for both the 64 MiB payload and per-datagram skb accounting, and
+restores the original sysctl on exit.
 
 Run the complete ordered, receive-only candidate campaign with:
 
@@ -99,7 +110,7 @@ Pass the uniquely addressed Pluto as a second argument to include direct-IP
 parity, for example `192.168.1.163`. The runner verifies the image checksum,
 records a protocol-v2 baseline, checks persistent 2R2T configuration, RAM-loads
 the exact attached radio count, re-runs v2 compatibility, then runs v3 USB,
-production-sized V7 Zarr, optional IP, and final identity gates. It never
+production-sized V7 Zarr, optional IP parity/burn-in, and final identity gates. It never
 writes QSPI or enables TX unless the explicit attenuated-loopback option below
 is supplied. A failure leaves the volatile candidate running for inspection
 and prints the explicit rollback command.

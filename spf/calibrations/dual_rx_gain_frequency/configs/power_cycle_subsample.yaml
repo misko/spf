@@ -6,14 +6,19 @@
 # instead of 10,404 while retaining the existing V7 writer and validator.
 data-version: 7
 
+direct-usb:
+  protocol-version: 3
+  gain-observation-interval-samples: 2048
+  gain-observation-capacity: 256
+
 pluto-firmware:
-  release-tag: v0.38-plutoplus-spf-gain-rssi-fingerprint-v3
-  device-fw: v0.38-plutoplus-spf-gain-rssi-fingerprint-v2-8-gf53d
-  asset-name: plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu
-  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-rssi-fingerprint-v3/plutoplus-spf-direct-usb-gain-rssi-fingerprint-v3-pluto.dfu
-  image-sha256: 86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191
-  firmware-git-sha: f53dd006c26677a256520b86b7c864100ccd62d2
-  gadget-git-sha: 2072e1d0823ef6db3bc141dd733a90d76e23fc33
+  release-tag: v0.38-plutoplus-spf-gain-series-v4-rc16
+  device-fw: v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1
+  asset-name: plutoplus-spf-main-867e18542311-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-series-v4-rc16/plutoplus-spf-main-867e18542311-pluto.dfu
+  image-sha256: 27aca40915fd75fbcabfadef88fee96ff422c6058f83fab8a57a09b8d1eae911
+  firmware-git-sha: 867e18542311c25f5c1980bbdcfffc823e56f0a2
+  gadget-git-sha: 2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552
   # Match the rover production configs: the image is persisted in mtd3 and
   # boot preparation only reflashes when the active image differs. Calibrate
   # against the same firmware state the rovers actually fly.

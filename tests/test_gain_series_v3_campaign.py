@@ -104,6 +104,10 @@ def test_gain_series_candidate_campaign_orders_volatile_gates(tmp_path):
         cursor += 1
     assert all("provision-config-all" not in command for command in commands)
     assert all("ensure_pluto_qspi" not in command for command in commands)
+    load_index = next(
+        index for index, command in enumerate(commands) if "load-all" in command
+    )
+    assert "spf.scripts.mute_pluto_tx" in commands[load_index + 1]
     assert (report / "baseline-v2.log").is_file()
     assert (report / "candidate-v3-production-zarr.log").is_file()
 
@@ -174,6 +178,9 @@ def test_gain_series_candidate_campaign_requires_explicit_tx_and_mutes(tmp_path)
         command for command in commands if "spf.scripts.mute_pluto_tx" in command
     ]
     assert len(mute_commands) >= 5
+    for load_command in load_commands:
+        load_index = commands.index(load_command)
+        assert "spf.scripts.mute_pluto_tx" in commands[load_index + 1]
     for epoch in range(1, 4):
         assert (report / f"candidate-v3-tx2-loopback-epoch-{epoch}.log").is_file()
 
@@ -191,6 +198,47 @@ def test_gain_series_candidate_campaign_rejects_unacknowledged_tx(tmp_path):
 
     assert result.returncode != 0
     assert "requires --loopback-attenuation-db" in result.stderr
+
+
+def test_gain_series_candidate_failure_prints_exact_campaign_rollback(tmp_path):
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    image = tmp_path / "candidate.dfu"
+    image.write_bytes(b"synthetic candidate image")
+    report = tmp_path / "report"
+
+    fake_python = _executable(
+        shim / "python",
+        '[[ "$*" != *"test_direct_usb_hardware.py"* ]]\n',
+    )
+    _executable(
+        shim / "sudo",
+        '[[ "${1:-}" != "-n" ]] || shift\nexec "$@"\n',
+    )
+    _executable(shim / "iio_info", 'printf "synthetic IIO inventory\\n"\n')
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PATH": f"{shim}:{environment['PATH']}",
+            "SPF_V3_PYTHON": str(fake_python),
+            "SPF_V3_EXPECTED_RADIOS": "2",
+            "SPF_V3_REPORT_ROOT": str(report),
+        }
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT), str(image)],
+        cwd=ROOT,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "pluto_multi_firmware.py rollback-all" in result.stderr
+    assert f"--state-root {report}/firmware-state" in result.stderr
+    assert "--expected-count 2" in result.stderr
 
 
 def test_gain_series_candidate_campaign_accepts_direct_ip_serial_with_pipefail(
@@ -219,6 +267,13 @@ fi
     )
     _executable(shim / "iio_info", 'printf "synthetic IIO inventory\\n"\n')
     _executable(shim / "iio_attr", f'printf "hw_serial: {serial}\\n"\n')
+    _executable(
+        shim / "sysctl",
+        """if [[ "${1:-}" == "-n" ]]; then
+    printf '%s\n' 212992
+fi
+""",
+    )
     # Enough output after the early serial match makes grep -q close the pipe
     # and this producer exit 141.  The campaign must consume all lsusb output.
     _executable(
@@ -253,6 +308,16 @@ done
     assert result.returncode == 0, result.stderr
     assert "candidate-v3-direct-ip" in result.stdout
     assert any(
+        "test_v3_direct_ip_survives_malformed_control_datagrams" in command
+        for command in trace.read_text().splitlines()
+    )
+    assert any(
         "test_v3_direct_ip_uses_the_same_inner_frame" in command
         for command in trace.read_text().splitlines()
     )
+    assert any(
+        "test_v3_direct_ip_buffers_a_maximum_finite_burst" in command
+        for command in trace.read_text().splitlines()
+    )
+    assert "--radio-frames-per-request=16" in trace.read_text()
+    assert "net.core.rmem_max" in SCRIPT.read_text()

@@ -102,6 +102,7 @@ class _SyntheticIpGadget:
         outer_sequence_delta: int = 0,
         drop_first_start_reply: bool = True,
         bad_started_echo: bool = False,
+        advertise_transport_profiles: bool = True,
     ) -> None:
         self.control = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.control.bind(("127.0.0.1", 0))
@@ -111,9 +112,11 @@ class _SyntheticIpGadget:
         self.outer_sequence_delta = outer_sequence_delta
         self.drop_first_start_reply = drop_first_start_reply
         self.bad_started_echo = bad_started_echo
+        self.advertise_transport_profiles = advertise_transport_profiles
         self.start_request_count = 0
         self.stop_request_count = 0
         self.time_anchor_request_count = 0
+        self.last_start_request: IpControlMessageV1 | None = None
         self.error: Exception | None = None
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -161,6 +164,13 @@ class _SyntheticIpGadget:
                     continue
                 request = IpControlMessageV1.unpack(payload)
                 if request.message_type == IpControlType.QUERY_CAPABILITIES:
+                    transport_flags = (
+                        IpControlFlags.BUFFERED_FINITE_RX
+                        | IpControlFlags.USB_CLASS_PACING
+                        if self.advertise_transport_profiles
+                        and request.flags & IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
+                        else IpControlFlags(0)
+                    )
                     response = IpControlMessageV1(
                         message_type=IpControlType.CAPABILITIES,
                         request_id=request.request_id,
@@ -168,6 +178,7 @@ class _SyntheticIpGadget:
                             IpControlFlags.FINITE_RX
                             | IpControlFlags.IDEMPOTENT_REQUESTS
                             | IpControlFlags.TIME_ANCHOR
+                            | transport_flags
                         ),
                         protocol_min=2,
                         protocol_max=3,
@@ -178,6 +189,7 @@ class _SyntheticIpGadget:
                     self.control.sendto(response.pack(), peer)
                 elif request.message_type == IpControlType.START_RX:
                     self.start_request_count += 1
+                    self.last_start_request = request
                     started = self._cached_started.setdefault(
                         request.request_id,
                         dataclasses.replace(
@@ -254,6 +266,11 @@ def test_finite_v3_capture_retries_control_and_parses_common_inner_frames():
         assert capture.duplicate_fragment_count == 2
         assert capture.expired_frame_count == 0
         assert capture.rejected_frame_count == 0
+        assert capture.receive_queue_overflow_count == 0
+        assert gadget.last_start_request is not None
+        assert gadget.last_start_request.flags == (
+            IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
+        )
         assert gadget.start_request_count == 2
         assert gadget.stop_request_count == 1
     finally:
@@ -276,6 +293,26 @@ def test_direct_ip_time_anchor_uses_common_record_and_host_bracket():
         assert measurement.anchor.counter_delta == 32
         assert measurement.round_trip_ns >= 0
         assert gadget.time_anchor_request_count == 1
+    finally:
+        gadget.close()
+
+
+def test_rc12_capability_fallback_uses_conservative_start_flags():
+    gadget = _SyntheticIpGadget(
+        drop_first_start_reply=False,
+        advertise_transport_profiles=False,
+    )
+    gadget.start()
+    try:
+        receiver = PlutoDirectIpReceiver(
+            remote_host="127.0.0.1",
+            remote_control_port=gadget.control_port,
+            control_timeout_seconds=0.05,
+        )
+        with receiver:
+            receiver.capture(samples_per_channel=1024, frame_count=1)
+        assert gadget.last_start_request is not None
+        assert gadget.last_start_request.flags == 0
     finally:
         gadget.close()
 
@@ -309,8 +346,12 @@ def test_missing_data_times_out_explicitly_and_stops_stream():
             frame_timeout_seconds=0.1,
         )
         with receiver:
-            with pytest.raises(DirectIpTransportError, match="timed out"):
+            with pytest.raises(DirectIpTransportError) as error:
                 receiver.capture(samples_per_channel=1024, frame_count=1)
+        assert str(error.value).endswith(
+            "received 0/1 frames, pending=0, duplicates=0, expired=0, "
+            "rejected=0, rxq_overflows=0"
+        )
         assert gadget.stop_request_count == 1
     finally:
         gadget.close()
@@ -319,6 +360,15 @@ def test_missing_data_times_out_explicitly_and_stops_stream():
 def test_receive_buffer_must_be_positive():
     with pytest.raises(ValueError, match="receive buffer"):
         PlutoDirectIpReceiver(remote_host="127.0.0.1", data_receive_buffer_bytes=0)
+
+
+def test_receive_buffer_requirement_fails_with_actionable_sysctl_message():
+    receiver = PlutoDirectIpReceiver(
+        remote_host="127.0.0.1",
+        minimum_effective_receive_buffer_bytes=1 << 30,
+    )
+    with pytest.raises(DirectIpTransportError, match="net.core.rmem_max"):
+        receiver.open()
 
 
 def test_bad_started_echo_fails_closed_and_stops_assigned_stream():
