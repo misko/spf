@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import adi
 import iio
 import numpy as np
 
@@ -115,18 +116,15 @@ def direct_ip_sample_rate(host: str) -> int:
 
 
 def set_direct_ip_sample_rate(host: str, sample_rate_hz: int) -> int:
-    context = iio.Context(f"ip:{host}")
+    # Use the same configuration path as production SPF. A raw IIO write to
+    # sampling_frequency fails below 2.083333 MS/s when the AD9361 FIR is off;
+    # pyadi selects/enables the required FIR decimation before setting the rate.
+    radio = adi.ad9361(uri=f"ip:{host}")
     try:
-        phy = context.find_device("ad9361-phy")
-        if phy is None:
-            raise RuntimeError(f"{host}: no ad9361-phy")
-        channel = phy.find_channel("voltage0", True)
-        if channel is None or "sampling_frequency" not in channel.attrs:
-            raise RuntimeError(f"{host}: no RX sampling-frequency control")
-        channel.attrs["sampling_frequency"].value = str(int(sample_rate_hz))
-        return int(channel.attrs["sampling_frequency"].value)
+        radio.sample_rate = int(sample_rate_hz)
+        return int(radio.sample_rate)
     finally:
-        del context
+        del radio
 
 
 def direct_ip_identity(host: str) -> dict[str, str]:
