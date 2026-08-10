@@ -55,6 +55,7 @@ markers = [
   "radio_zarr: writes and reopens a short hardware-backed V7 Zarr artifact",
   "radio_gain_series_v3: requires explicitly enabled protocol-v3 gain-series firmware",
   "radio_direct_ip: requires explicitly enabled direct-IP radio transport",
+  "radio_direct_ip_ladder: parallel two-radio direct-IP rate/breakdown ladder",
   "radio_tx_loopback: explicitly enables a cabled and attenuated Pluto TX2 loopback",
   "radio_interrupt: terminates a real attached-radio collector subprocess",
   "radio_crash_recovery: kills only the direct-USB daemon and verifies supervised rebind",

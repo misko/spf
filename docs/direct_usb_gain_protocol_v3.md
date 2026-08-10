@@ -71,6 +71,10 @@ second radio-metadata schema. Its versioned UDP fragment header uses 32-bit
 fragment indices/counts and byte offsets because a 4 MiB IQ frame cannot fit
 the original IP gadget's 8-bit packet counters.
 
+The inner frame does not define transport lifecycle. The required direct-IP
+START/STOP, replay, resource-ownership, and recovery behavior is specified in
+[`direct_ip_firmware_state_machine.md`](direct_ip_firmware_state_machine.md).
+
 ## GNSS-free frame time
 
 Protocol v3 also exposes one common, CRC-protected `GET_TIME_ANCHOR` record on

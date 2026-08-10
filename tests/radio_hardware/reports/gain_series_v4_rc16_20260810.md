@@ -8,6 +8,23 @@ loopback, protocol-v2 compatibility, and V7 Zarr. RC16 is hardware-qualified;
 keep the second bench radio on the prior image until the SPF promotion change
 is reviewed and merged.**
 
+### Post-promotion direct-IP lifecycle finding
+
+A later parallel sample-rate ladder found a control-lifecycle defect outside
+the original high-rate finite-burst gate. With four 524,288-sample frames per
+request, both Ethernet radios completed only one or two repeated requests at
+1–2 MS/s before a subsequent `START_RX` was not acknowledged. At 2.5 and
+3 MS/s, five repeated requests passed. Frame integrity remained clean through
+30 MS/s with no application or kernel UDP error.
+
+RC16 therefore remains the binary that passed the recorded finite-burst,
+metadata, TX, USB, and QSPI evidence below, but it is not the lifecycle model
+for the next IP candidate. The proposed non-blocking control, replay,
+ownership, and cleanup design is in
+[`../../../docs/direct_ip_firmware_state_machine.md`](../../../docs/direct_ip_firmware_state_machine.md),
+with red/green requirements in
+[`../../../docs/direct_ip_firmware_state_machine_test_plan.md`](../../../docs/direct_ip_firmware_state_machine_test_plan.md).
+
 RC16 restores maximum finite-burst direct-IP throughput to the same practical
 20–22 MiB/s range measured by direct USB on this host. The exact public-build
 DFU transferred 320 maximum-size frames (1.25 GiB) at 21.33 MiB/s with no

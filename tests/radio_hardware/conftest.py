@@ -127,6 +127,44 @@ def pytest_addoption(parser):
         help="unique LAN address of the selected Pluto direct-IP gadget",
     )
     group.addoption(
+        "--radio-direct-ip-ladder",
+        action="store_true",
+        help="enable the bounded parallel two-radio direct-IP rate ladder",
+    )
+    group.addoption(
+        "--radio-direct-ip-ladder-host",
+        action="append",
+        default=[],
+        help="LAN address for the parallel IP ladder; repeat once per radio",
+    )
+    group.addoption(
+        "--radio-direct-ip-ladder-rates",
+        default="1M,1.25M,1.5M,2M,3M,6M,10M,15M,20M,25M,30M",
+        help="strictly increasing comma-separated sample rates in Hz (M/K allowed)",
+    )
+    group.addoption(
+        "--radio-direct-ip-ladder-cycles",
+        type=int,
+        default=3,
+        help="parallel finite captures at every sample-rate rung",
+    )
+    group.addoption(
+        "--radio-direct-ip-ladder-required-rate",
+        type=float,
+        default=3_000_000.0,
+        help="highest rung which must preserve frame integrity for pytest to pass",
+    )
+    group.addoption(
+        "--radio-direct-ip-ladder-continue-after-failure",
+        action="store_true",
+        help="continue with a fresh transport session at the next sample-rate rung",
+    )
+    group.addoption(
+        "--radio-direct-ip-ladder-interface",
+        default="eth0",
+        help="host interface whose packet/drop counters are recorded",
+    )
+    group.addoption(
         "--radio-direct-ip-min-payload-mibps",
         type=float,
         default=20.0,
@@ -271,6 +309,9 @@ def pytest_collection_modifyitems(config, items):
     zarr_enabled = config.getoption("--radio-zarr", default=False)
     gain_series_enabled = config.getoption("--radio-gain-series-v3", default=False)
     direct_ip_enabled = config.getoption("--radio-direct-ip", default=False)
+    direct_ip_ladder_enabled = config.getoption(
+        "--radio-direct-ip-ladder", default=False
+    )
     tx_loopback_enabled = config.getoption("--radio-tx-loopback", default=False)
     interrupt_enabled = config.getoption("--radio-interrupt", default=False)
     soak_enabled = config.getoption("--radio-soak", default=False)
@@ -284,6 +325,9 @@ def pytest_collection_modifyitems(config, items):
         reason="requires explicit --radio-gain-series-v3"
     )
     direct_ip_skip = pytest.mark.skip(reason="requires explicit --radio-direct-ip")
+    direct_ip_ladder_skip = pytest.mark.skip(
+        reason="requires explicit --radio-direct-ip-ladder"
+    )
     tx_loopback_skip = pytest.mark.skip(
         reason="requires explicit --radio-tx-loopback and an attenuated cable"
     )
@@ -304,6 +348,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(gain_series_skip)
         if "radio_direct_ip" in item.keywords and not direct_ip_enabled:
             item.add_marker(direct_ip_skip)
+        if "radio_direct_ip_ladder" in item.keywords and not direct_ip_ladder_enabled:
+            item.add_marker(direct_ip_ladder_skip)
         if "radio_tx_loopback" in item.keywords and not tx_loopback_enabled:
             item.add_marker(tx_loopback_skip)
         if "radio_interrupt" in item.keywords and not interrupt_enabled:

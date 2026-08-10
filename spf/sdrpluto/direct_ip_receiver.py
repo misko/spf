@@ -497,28 +497,40 @@ class PlutoDirectIpReceiver:
         last_error: Exception | None = None
         for _attempt in range(self.control_attempts):
             control.send(payload)
-            try:
-                response_payload = control.recv(MAX_CONTROL_DATAGRAM_BYTES)
-            except TimeoutError as error:
-                last_error = error
-                continue
-            response = IpControlMessageV1.unpack(response_payload)
-            if response.request_id != request.request_id:
-                last_error = ProtocolError(
-                    "direct-IP response request ID does not match"
-                )
-                continue
-            if response.message_type == IpControlType.ERROR:
-                raise DirectIpTransportError(
-                    f"direct-IP gadget rejected control request: {response.status}"
-                )
-            if response.message_type != expected_type:
-                last_error = ProtocolError(
-                    "unexpected direct-IP control response: "
-                    f"{response.message_type.name}"
-                )
-                continue
-            return response
+            deadline = time.monotonic() + self.control_timeout_seconds
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                control.settimeout(remaining)
+                try:
+                    response_payload = control.recv(MAX_CONTROL_DATAGRAM_BYTES)
+                except TimeoutError as error:
+                    last_error = error
+                    break
+                response = IpControlMessageV1.unpack(response_payload)
+                if response.request_id != request.request_id:
+                    # A delayed reply to an earlier transaction is harmless.
+                    # Keep draining this attempt's receive window instead of
+                    # spending another transmit retry on stale traffic.
+                    last_error = ProtocolError(
+                        "direct-IP response request ID does not match"
+                    )
+                    continue
+                if response.message_type == IpControlType.ERROR:
+                    raise DirectIpTransportError(
+                        "direct-IP gadget rejected control request: "
+                        f"{response.status}"
+                    )
+                if response.message_type != expected_type:
+                    last_error = ProtocolError(
+                        "unexpected direct-IP control response: "
+                        f"{response.message_type.name}"
+                    )
+                    continue
+                control.settimeout(self.control_timeout_seconds)
+                return response
+            control.settimeout(self.control_timeout_seconds)
         raise DirectIpTransportError(
             f"direct-IP {request.message_type.name} was not acknowledged after "
             f"{self.control_attempts} attempts"

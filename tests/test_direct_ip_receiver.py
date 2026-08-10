@@ -103,6 +103,7 @@ class _SyntheticIpGadget:
         drop_first_start_reply: bool = True,
         bad_started_echo: bool = False,
         advertise_transport_profiles: bool = True,
+        stale_replies_before_start: int = 0,
     ) -> None:
         self.control = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.control.bind(("127.0.0.1", 0))
@@ -113,6 +114,7 @@ class _SyntheticIpGadget:
         self.drop_first_start_reply = drop_first_start_reply
         self.bad_started_echo = bad_started_echo
         self.advertise_transport_profiles = advertise_transport_profiles
+        self.stale_replies_before_start = stale_replies_before_start
         self.start_request_count = 0
         self.stop_request_count = 0
         self.time_anchor_request_count = 0
@@ -190,6 +192,14 @@ class _SyntheticIpGadget:
                 elif request.message_type == IpControlType.START_RX:
                     self.start_request_count += 1
                     self.last_start_request = request
+                    for offset in range(self.stale_replies_before_start):
+                        stale = IpControlMessageV1(
+                            message_type=IpControlType.STOPPED,
+                            request_id=(request.request_id - offset - 1)
+                            & 0xFFFFFFFFFFFFFFFF,
+                            stream_id=76,
+                        )
+                        self.control.sendto(stale.pack(), peer)
                     started = self._cached_started.setdefault(
                         request.request_id,
                         dataclasses.replace(
@@ -273,6 +283,27 @@ def test_finite_v3_capture_retries_control_and_parses_common_inner_frames():
         )
         assert gadget.start_request_count == 2
         assert gadget.stop_request_count == 1
+    finally:
+        gadget.close()
+
+
+def test_stale_control_replies_do_not_consume_transmit_attempts():
+    gadget = _SyntheticIpGadget(
+        drop_first_start_reply=False,
+        stale_replies_before_start=4,
+    )
+    gadget.start()
+    try:
+        receiver = PlutoDirectIpReceiver(
+            remote_host="127.0.0.1",
+            remote_control_port=gadget.control_port,
+            control_timeout_seconds=0.1,
+            control_attempts=1,
+        )
+        with receiver:
+            capture = receiver.capture(samples_per_channel=1024, frame_count=1)
+        assert len(capture.frames) == 1
+        assert gadget.start_request_count == 1
     finally:
         gadget.close()
 

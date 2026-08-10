@@ -36,6 +36,12 @@ hardware gate; do not pin its DHCP address as identity.
 
 ## Architecture decisions
 
+The direct-IP control and worker lifecycle is specified separately in
+[`direct_ip_firmware_state_machine.md`](direct_ip_firmware_state_machine.md),
+with its required failure-injection campaign in
+[`direct_ip_firmware_state_machine_test_plan.md`](direct_ip_firmware_state_machine_test_plan.md).
+Those documents are normative for the next IP-gadget candidate.
+
 1. Keep pyadi/libiio as the radio configuration and diagnostics plane.
 2. Do not extend the standard IIO sample ABI for the first delivery. Doing so
    would require kernel scan elements, DMA/HDL changes, and pyadi compatibility

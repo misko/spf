@@ -86,6 +86,51 @@ Pluto with a unique reachable IP address and add:
 --radio-direct-ip --radio-direct-ip-host=192.168.1.163
 ```
 
+For two uniquely addressed Ethernet Plutos, run the parallel sample-rate
+ladder. It tests 1, 1.25, 1.5, 2, 3, 6, 10, 15, 20, 25, and 30 MS/s by default, with both radios
+capturing four maximum-size frames at the same time on every rung:
+
+```bash
+tests/radio_hardware/run_direct_ip_parallel_ladder.sh \
+  192.168.1.175 192.168.1.176 /tmp/spf-two-radio-ip-ladder
+```
+
+The JSON report records per-radio and aggregate throughput, process CPU/RSS,
+kernel UDP counter deltas, every application loss counter, IQ/gain-metadata
+sanity, the first integrity failure, and the first rate whose measured
+estimated UDP drain throughput lacks real-time headroom. The drain estimate
+subtracts the nominal finite RF acquisition duration from request wall time.
+It is diagnostic rather than an integrity failure: the gadget buffers finite
+captures, so it can return correct
+frames after it stops being able to drain continuously at the RF production
+rate. By default, the runner records a failure and opens a fresh transport
+session at the next rung, then restores both sample rates, restores
+`net.core.rmem_max`, and re-mutes both attached Plutos.
+Four frames keeps two effective 64 MiB socket buffers below the normal global
+UDP memory ceiling on a 2 GiB development host. A machine with sufficient RAM
+can explicitly exercise the 16-frame maximum with
+`SPF_IP_LADDER_FRAMES_PER_REQUEST=16`; the runner scales both the socket limit
+and its acceptance check with the requested finite burst.
+
+Override the bounded duration or ladder without editing code:
+
+```bash
+SPF_IP_LADDER_RATES=3M,4M,5M,6M \
+SPF_IP_LADDER_CYCLES=5 \
+tests/radio_hardware/run_direct_ip_parallel_ladder.sh HOST_A HOST_B
+```
+
+The runner continues at the next rate with a new transport session after a
+failure so one defect does not hide the rest of the capacity curve. Set
+`SPF_IP_LADDER_CONTINUE_AFTER_FAILURE=0` for fail-fast behavior. Repeated
+`START_RX` acknowledgement failures are reported separately from IQ/UDP frame
+integrity failures.
+
+The firmware lifecycle expected by this gate is documented in
+[`../../docs/direct_ip_firmware_state_machine.md`](../../docs/direct_ip_firmware_state_machine.md).
+Its complete native, fault-injection, hardware, and soak requirements are in
+[`../../docs/direct_ip_firmware_state_machine_test_plan.md`](../../docs/direct_ip_firmware_state_machine_test_plan.md).
+
 These flags must only be used after RAM-booting a protocol-v3 candidate. The
 buffered-transport gate negotiates the high-rate profile, requests 16 maximum
 524288-sample frames per START, checks every sequence and loss counter, and
