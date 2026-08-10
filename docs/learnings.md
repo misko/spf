@@ -1185,3 +1185,73 @@ alongside `--stall-detect-seconds`, and
 `test_healthy_driving_is_never_called_a_stall` must use the **production** value
 for it — the arc-from-a-standstill that test exists to protect is itself a
 motor-off window, so a compressed parked deadline makes it fail.
+
+## Firmware (2026-08-07): the deployed Pluto firmware was reproducible only on
+## the machine that already had it, and every defect was in the source graph,
+## not the compile
+
+The shipped v3 image (`86f2115e…`) was built on `devpi` itself, in
+`/tmp/spf-fw-stability-v3`, on 2026-08-02 17:38:15 BST. That tree's
+`build/pluto.dfu` is byte-identical to the release asset, which is how we know.
+`/tmp` is `D /tmp` in `/usr/lib/tmpfiles.d/tmp.conf` — emptied on boot — and the
+machine had not rebooted since 2026-07-31, so the only byte-exact copy of the
+deployed firmware survived by luck. It is now at `~/spf-fw-stability-v3`, with a
+28 MB extract at `~/spf-fw-v3-provenance/`.
+
+Nothing was wrong with the compile. Everything was wrong with retrieving the
+source, and none of it was visible from a checkout that already had the source:
+
+- **Three submodules used relative URLs** (`../plutosdr-linux.git`). Git resolves
+  those against whichever remote is named `origin`. Every working checkout had
+  `origin` = pgreenland, so they worked; a fresh clone from `misko/` resolved
+  them to `misko/plutosdr-linux.git`, `misko/plutosdr-u-boot-xlnx.git` and
+  `misko/plutosdr-hdl-quantulum`, none of which existed. **A fresh clone was
+  simply impossible and had been for the whole life of the repository.**
+- **Three `branch =` keys named a branch that does not contain the pin.** `linux`
+  said `2018_R1` and `u-boot-xlnx` said `pluto`, but both pins are on
+  `v0.38_plutoplus`; `buildroot` said `buildroot-hardware-fingerprint-v2` while
+  its pin is on `codex/buildroot-gadget-supervisor-v3`. `git submodule update
+  --remote` therefore retrieves *different firmware* and reports success.
+- **`buildroot/local.mk` pointed `SDR_USB_GADGET_OVERRIDE_SRCDIR` at `/tmp`.**
+  The pinned `.mk` still passes `-DGIT_VERSION_OVERRIDE=<pinned sha>`, so an
+  overridden build produces a gadget that **reports the pinned SHA while
+  containing different code** — defeating `pluto_gadget_build_id`, which is the
+  tool the promotion path trusts. The deployed v3 was *not* built this way
+  (verified by extracting `usr/sbin/sdr_usb_gadget` from the shipped rootfs and
+  finding `2072e1d0…` in it), but the dev tree was one build away from it.
+- **The release tag lies.** `v0.38-plutoplus-spf-gain-rssi-fingerprint-v3` points
+  at `dac99758`; the binary was built from `f53dd006`, three commits earlier.
+  `git checkout <release tag>` hands you source that did not build that release.
+  This is also why the image reports `device-fw …-v2-8-gf53d`: `git describe` ran
+  before the v3 tag existed. **Tag the build commit before building.**
+
+Two traps found while fixing it, both of which fail silently:
+
+- **`shallow = true` in `.gitmodules` builds the wrong firmware.** `git submodule
+  update` shallow-clones a submodule's *default* branch, then checks out the
+  gitlink SHA. With pins on non-default branches the depth-1 clone cannot contain
+  them: measured, `linux` and `u-boot-xlnx` were left at `16b5c2ea` and
+  `f06dec3` — the misko `master` tips — and the command reported success.
+- **The toolchain depends on host architecture.** `zynq_pluto_defconfig` selects
+  `BR2_TOOLCHAIN_EXTERNAL_LINARO_ARM` (gcc 7.3.1). On aarch64 that option is
+  unselectable so kconfig falls back to `BR2_TOOLCHAIN_EXTERNAL_ARM_ARM` (ARM GNU
+  10.3-2021.07) — what actually built v3. On x86_64 Linaro *is* selectable and
+  wins, so **the same source builds with a different compiler depending on the
+  builder**. aarch64 is therefore canonical until the defconfig pins ARM_ARM.
+
+**Generalization: a build system that only ever runs on a machine which already
+has the sources cannot tell you whether the sources are retrievable, and that is
+the part that actually rots.** The cheap check — resolve every pinned commit
+against `ls-remote`, confirm URLs are absolute, confirm each declared branch
+contains its pin, confirm no `local.mk` — takes seconds, needs no toolchain, and
+catches every defect above. It is now `scripts/check_source_graph.sh` and the
+first CI layer.
+
+Corollary for verification: **verifying a release and rebuilding it are different
+operations.** v3 was built with `BR2_REPRODUCIBLE` unset and no kernel timestamp
+pinning, so it can never be rebuilt byte-for-byte; chasing its sha256 is a trap.
+A rebuild must instead reproduce every embedded identity — `device-fw`, the four
+`/opt/VERSIONS` strings, the FPGA bitstream md5, and the gadget build ID read out
+of the shipped binary. `scripts/verify_release.sh` checks the first question and
+`--identity-only` the second; a clean-clone rebuild passes 14/14 with a
+deliberately different image hash (`65442e70…`).
