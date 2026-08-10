@@ -36,6 +36,7 @@ Environment:
   SPF_V3_PRODUCTION_RECORDS    V7 records per radio (default: 100)
   SPF_V3_TX_BOOT_EPOCHS        Independent RAM-boot TX epochs (default: 3)
   SPF_V3_STARTUP_STRESS_CYCLES Fresh v3 STARTs per radio (default: 100)
+  SPF_V3_IP_BURN_IN_CYCLES     Maximum-size buffered IP bursts (default: 20)
   SPF_V3_REPORT_ROOT           Artifact directory (default: timestamped /tmp)
 
 The script loads only volatile RAM and never writes QSPI. TX remains disabled
@@ -101,6 +102,7 @@ readonly PYTHON="${SPF_V3_PYTHON:-/home/pi/spf-virtualenv/bin/python}"
 readonly PRODUCTION_RECORDS="${SPF_V3_PRODUCTION_RECORDS:-100}"
 readonly TX_BOOT_EPOCHS="${SPF_V3_TX_BOOT_EPOCHS:-3}"
 readonly STARTUP_STRESS_CYCLES="${SPF_V3_STARTUP_STRESS_CYCLES:-100}"
+readonly IP_BURN_IN_CYCLES="${SPF_V3_IP_BURN_IN_CYCLES:-20}"
 readonly REPORT_ROOT="${SPF_V3_REPORT_ROOT:-/tmp/spf-gain-series-v3-$(date -u +%Y%m%dT%H%M%SZ)}"
 readonly STATE_ROOT="${REPORT_ROOT}/firmware-state"
 readonly WITH_TX_LOOPBACK="$with_tx_loopback"
@@ -115,6 +117,8 @@ readonly LOOPBACK_ATTENUATION_DB="$loopback_attenuation_db"
     die "SPF_V3_TX_BOOT_EPOCHS must be positive"
 [[ "$STARTUP_STRESS_CYCLES" =~ ^[1-9][0-9]*$ ]] ||
     die "SPF_V3_STARTUP_STRESS_CYCLES must be positive"
+[[ "$IP_BURN_IN_CYCLES" =~ ^[1-9][0-9]*$ ]] ||
+    die "SPF_V3_IP_BURN_IN_CYCLES must be positive"
 [[ -x "$PYTHON" ]] || die "test Python is not executable: $PYTHON"
 [[ -f "$MULTI_LOADER" ]] || die "multi-radio loader is missing"
 [[ -f "$TEST_FILE" ]] || die "protocol-v3 hardware tests are missing"
@@ -207,10 +211,10 @@ common_loader_args=(
     --expected-count "$EXPECTED_RADIOS"
 )
 
-printf 'image=%s\nsha256=%s\nexpected_radios=%s\nreport_root=%s\nwith_tx_loopback=%s\nloopback_attenuation_db=%s\ntx_boot_epochs=%s\nstartup_stress_cycles=%s\n' \
+printf 'image=%s\nsha256=%s\nexpected_radios=%s\nreport_root=%s\nwith_tx_loopback=%s\nloopback_attenuation_db=%s\ntx_boot_epochs=%s\nstartup_stress_cycles=%s\nip_burn_in_cycles=%s\n' \
     "$IMAGE" "$actual_sha" "$EXPECTED_RADIOS" "$REPORT_ROOT" \
     "$WITH_TX_LOOPBACK" "$LOOPBACK_ATTENUATION_DB" "$TX_BOOT_EPOCHS" \
-    "$STARTUP_STRESS_CYCLES"
+    "$STARTUP_STRESS_CYCLES" "$IP_BURN_IN_CYCLES"
 run_logged iio-before iio_info -s
 
 run_logged pre-campaign-tx-mute \
@@ -341,6 +345,7 @@ if [[ -n "$DIRECT_IP_HOST" ]]; then
         --radio-direct-ip-host="$resolved_direct_ip_host" \
         --radio-samples=524288 \
         --radio-frames-per-request=16 \
+        --radio-cycles="$IP_BURN_IN_CYCLES" \
         --radio-gain-observation-interval=2048 \
         --radio-gain-observation-capacity=256 \
         --radio-direct-ip-min-payload-mibps=20 \
