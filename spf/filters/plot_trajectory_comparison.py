@@ -59,6 +59,25 @@ TYPE_TO_FILTER = {
 }
 
 
+def load_configs(fn):
+    """``{"<TYPE>|<frame>": {"params": {...}}}`` from either accepted layout.
+
+    A bare mapping, or one nested under ``"configs"`` alongside a
+    ``__provenance__`` block -- the committed winners file carries provenance
+    (which report it came from, and that it is NOT the leaderboard's top row),
+    and losing that to keep the parser one line shorter is the wrong trade.
+    """
+    with open(fn) as f:
+        doc = json.load(f)
+    configs = doc.get("configs", doc)
+    bad = [k for k in configs if "|" not in k]
+    if bad:
+        raise ValueError(
+            f"{fn}: keys must be '<TYPE>|<frame>'; got {sorted(bad)[:3]}"
+        )
+    return configs
+
+
 def score(theta, sigma, gt):
     out = metrics.summarize(theta, gt)
     cov = calibration.coverage(theta, gt, sigma)
@@ -184,8 +203,7 @@ def get_parser():
 if __name__ == "__main__":
     logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
     args = get_parser().parse_args()
-    with open(args.configs) as f:
-        configs = json.load(f)
+    configs = load_configs(args.configs)
 
     ds = open_dataset(
         args.dataset, args.precompute_cache, args.empirical_pkl_fn,

@@ -1,0 +1,81 @@
+{
+  "__provenance__": {
+    "date": "2026-08-09",
+    "note": "NOT from LEADERBOARD.md -- its grouping key includes rx_wavelength_spacing and seed, so its top rows are the easiest (spacing, seed) cell, not the corpus winner",
+    "selection": "lowest corpus-mean MSE per (family, frame), averaged across 5 seeds",
+    "source": "spf/filters/reports/e_inf1_rover_coarse_20260809_v1/results.json",
+    "stage2_commit": "b8d4867"
+  },
+  "configs": {
+    "EKF_single_theta_dual_radio|craft_relative": {
+      "params": {
+        "dynamic_R": 0.1,
+        "noise_std": 0.0001,
+        "p": 0.1,
+        "phi_std": 0.0
+      },
+      "stage2_corpus_mse": 2.583083,
+      "stage2_seed_std": 0.0
+    },
+    "EKF_single_theta_single_radio|radio_folded": {
+      "params": {
+        "dynamic_R": 0.0,
+        "noise_std": 0.0001,
+        "p": 1.0,
+        "phi_std": 1.0,
+        "rx_idx": 0
+      },
+      "stage2_corpus_mse": 1.022417,
+      "stage2_seed_std": 0.0
+    },
+    "PF_single_theta_dual_radio_NN|absolute_north": {
+      "params": {
+        "N": 4096,
+        "absolute": true,
+        "theta_dot_err": 0.005,
+        "theta_err": 0.075
+      },
+      "stage2_corpus_mse": 0.533501,
+      "stage2_seed_std": 0.076668
+    },
+    "PF_single_theta_dual_radio_NN|craft_relative": {
+      "params": {
+        "N": 16384,
+        "absolute": false,
+        "theta_dot_err": 0.1,
+        "theta_err": 0.02
+      },
+      "stage2_corpus_mse": 0.667336,
+      "stage2_seed_std": 0.002663
+    },
+    "PF_single_theta_dual_radio|craft_relative": {
+      "params": {
+        "N": 16384,
+        "theta_dot_err": 0.1,
+        "theta_err": 0.005
+      },
+      "stage2_corpus_mse": 0.838248,
+      "stage2_seed_std": 0.006124
+    },
+    "PF_single_theta_single_radio_NN|radio_folded": {
+      "params": {
+        "N": 1024,
+        "rx_idx": 1,
+        "theta_dot_err": 0.1,
+        "theta_err": 0.005
+      },
+      "stage2_corpus_mse": 0.300512,
+      "stage2_seed_std": 0.001888
+    },
+    "PF_single_theta_single_radio|radio_folded": {
+      "params": {
+        "N": 1024,
+        "rx_idx": 0,
+        "theta_dot_err": 0.1,
+        "theta_err": 0.001
+      },
+      "stage2_corpus_mse": 0.540797,
+      "stage2_seed_std": 0.003681
+    }
+  }
+}
