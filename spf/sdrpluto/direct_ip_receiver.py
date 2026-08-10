@@ -37,8 +37,9 @@ DEFAULT_CONTROL_TIMEOUT_SECONDS = 0.5
 DEFAULT_FRAME_TIMEOUT_SECONDS = 10.0
 DEFAULT_CONTROL_ATTEMPTS = 3
 # One maximum finite request carries 16 dual-CS16 frames of 524,288 samples,
-# or 64 MiB of IQ. Size the requested socket queue for that negotiated bound.
-DEFAULT_DATA_RECEIVE_BUFFER_BYTES = 64 * 1024 * 1024
+# or 64 MiB of IQ. Linux accounts socket-buffer space using skb memory rather
+# than payload bytes, so request twice the wire payload for the bounded burst.
+DEFAULT_DATA_RECEIVE_BUFFER_BYTES = 128 * 1024 * 1024
 MAX_CONTROL_DATAGRAM_BYTES = 4096
 SO_RXQ_OVFL = getattr(socket, "SO_RXQ_OVFL", 40)
 
@@ -306,11 +307,19 @@ class PlutoDirectIpReceiver:
             while len(frames) < frame_count:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
+                    pending_frame_count = reassembler.pending_frame_count
+                    receive_queue_overflow_count = (
+                        self._receive_queue_overflow_count - overflow_at_start
+                    ) & 0xFFFFFFFF
                     reassembler.expire(now=time.monotonic())
                     raise DirectIpTransportError(
                         "direct-IP finite RX timed out: "
                         f"received {len(frames)}/{frame_count} frames, "
-                        f"pending={reassembler.pending_frame_count}"
+                        f"pending={pending_frame_count}, "
+                        f"duplicates={reassembler.duplicate_fragment_count}, "
+                        f"expired={reassembler.expired_frame_count}, "
+                        f"rejected={reassembler.rejected_frame_count}, "
+                        f"rxq_overflows={receive_queue_overflow_count}"
                     )
                 try:
                     received, peer = self._receive_datagram_into(data, datagram_buffer)

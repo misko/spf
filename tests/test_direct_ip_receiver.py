@@ -346,8 +346,12 @@ def test_missing_data_times_out_explicitly_and_stops_stream():
             frame_timeout_seconds=0.1,
         )
         with receiver:
-            with pytest.raises(DirectIpTransportError, match="timed out"):
+            with pytest.raises(DirectIpTransportError) as error:
                 receiver.capture(samples_per_channel=1024, frame_count=1)
+        assert str(error.value).endswith(
+            "received 0/1 frames, pending=0, duplicates=0, expired=0, "
+            "rejected=0, rxq_overflows=0"
+        )
         assert gadget.stop_request_count == 1
     finally:
         gadget.close()

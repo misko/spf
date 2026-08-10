@@ -148,8 +148,8 @@ if [[ -n "$DIRECT_IP_HOST" ]]; then
         die "could not read hw_serial from initial ip:${DIRECT_IP_HOST}"
     original_rmem_max="$(sysctl -n net.core.rmem_max)"
     target_rmem_max="$original_rmem_max"
-    if (( target_rmem_max < 67108864 )); then
-        target_rmem_max=67108864
+    if (( target_rmem_max < 134217728 )); then
+        target_rmem_max=134217728
     fi
     sudo -n sysctl -q -w "net.core.rmem_max=${target_rmem_max}" |
         tee "${REPORT_ROOT}/direct-ip-sysctl.log"
@@ -349,7 +349,7 @@ if [[ -n "$DIRECT_IP_HOST" ]]; then
         --radio-gain-observation-interval=2048 \
         --radio-gain-observation-capacity=256 \
         --radio-direct-ip-min-payload-mibps=20 \
-        --radio-direct-ip-min-receive-buffer-mib=64 \
+        --radio-direct-ip-min-receive-buffer-mib=256 \
         --radio-report-dir="${REPORT_ROOT}/candidate-v3-ip-burst-report"
 fi
 

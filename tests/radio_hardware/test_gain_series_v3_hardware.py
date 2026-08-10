@@ -679,7 +679,6 @@ def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_
     aggregate_payload_mibps = (
         total_payload_bytes / total_elapsed_seconds / (1024 * 1024)
     )
-    assert aggregate_payload_mibps >= minimum_mibps
 
     report = {
         "transport": "direct_ip",
@@ -694,6 +693,7 @@ def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_
         "payload_bytes": total_payload_bytes,
         "elapsed_seconds": total_elapsed_seconds,
         "payload_mibps": aggregate_payload_mibps,
+        "performance_pass": aggregate_payload_mibps >= minimum_mibps,
         "minimum_cycle_payload_mibps": min(
             cycle["payload_mibps"] for cycle in cycle_reports
         ),
@@ -714,6 +714,7 @@ def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_
     (radio_report_dir / "gain_series_v3_direct_ip_buffered_burst.json").write_text(
         json.dumps(report, indent=2) + "\n"
     )
+    assert aggregate_payload_mibps >= minimum_mibps
 
 
 @pytest.mark.radio_zarr

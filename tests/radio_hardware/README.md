@@ -96,8 +96,9 @@ gates remain at 30 MS/s. The ordered runner repeats that 64 MiB burst 20 times
 by default (320 frames, 1.25 GiB). Override the duration with
 `SPF_V3_IP_BURN_IN_CYCLES`; lowering the throughput threshold is not part of
 candidate acceptance. The runner temporarily raises `net.core.rmem_max` to at
-least 64 MiB, requires the effective socket queue to cover the full bounded
-burst, and restores the original sysctl on exit.
+least 128 MiB, requires an effective socket queue of at least 256 MiB so Linux
+has room for both the 64 MiB payload and per-datagram skb accounting, and
+restores the original sysctl on exit.
 
 Run the complete ordered, receive-only candidate campaign with:
 
