@@ -1255,3 +1255,91 @@ A rebuild must instead reproduce every embedded identity — `device-fw`, the fo
 of the shipped binary. `scripts/verify_release.sh` checks the first question and
 `--identity-only` the second; a clean-clone rebuild passes 14/14 with a
 deliberately different image hash (`65442e70…`).
+
+## AGC (2026-08-10): the AD9361 gain pins are exactly as drawn, but arming them
+## takes gain away from software and they go deaf outside RX
+
+E-AGC1 session 1, R17 on stock RC17, userspace only — no FPGA change, no bitstream,
+no RAM boot. Full report and JSON in
+`experiments/e_agc1_pin_and_detector_bringup/RESULTS.md`. Four minutes of measurement.
+
+**The pin map is the identity, measured.** It had only ever been inferred by joining a
+schematic PDF to a constraints file. GPIO 968/969/970/971 (EMIO 8–11, `CTRL_IN[0..3]`)
+move RX1 up / RX1 down / RX2 up / RX2 down, 5/5 trials each, and **the other channel
+never moved once in 20 trials**. No transposition, so nothing blocks the tandem RTL.
+The gpiochip base is 906 on this build, so `CTRL_OUT` is 960–967 and `CTRL_IN` is
+968–971; nothing in the shipped stack claims EMIO 0–11 (`one-bit-adc-dac`, the only
+surprise consumer, takes EMIO 14 and 17).
+
+**An edge moves the index by exactly the programmed step.** As shipped
+`0x0FC = 0x0FE = 0x23` → step 2, and all 20 edges moved 2. Programming step 1 gave
+exactly ±1 over 10 edges with the Peak Overload Wait Time in `0x0FE[4:0]` preserved.
+
+**Two enable-sequence facts that change the design contract:**
+
+1. **`CTRL_IN` edges are ignored outside RX.** Honoured in `fdd` (+2), null in `alert`
+   (0/3) and `sleep` (0/3), with a return-to-`fdd` recheck giving +2 every time, so the
+   nulls are state dependence and not an unresponsive part. The firmware must guarantee
+   RX is active before arming and must handle an ENSM transition while armed.
+   Incidentally, **`wait` is advertised in `ensm_mode_available` but not reachable** —
+   writing it succeeds and lands in `alert`.
+2. **Arming takes gain ownership away from software, silently.** With `0x0FB[1:0] = 3`,
+   a `hardwaregain` write is dropped: index unchanged, **return code 0**, and the
+   readback reports the pin-controlled index rather than the requested value. Disarmed,
+   the identical write moves the index 44 → 38; armed, a pin edge in the same state
+   still moves it 44 → 46, so it is the write being dropped. **Any host `set_gains()`
+   during tandem operation is a silent no-op.** The calibration path survives this by
+   luck — `_validate_frame_gain` compares frame gain metadata against the request and
+   raises — but any path that writes gain without verifying readback would not notice.
+
+Method note: `iio_attr` needs `-i` for RX channels. Without it the tool matches the
+**output** channel of the same name and returns TX gain (−80 dB on this bench), not RX.
+`0x0FB` has bit 3 set on this build, so a bare `0x03` write really would clear a live
+bit — read-modify-write inside a script with a disarming `EXIT` trap.
+
+## Harness (2026-08-10): the dual-RX "splitter" has been a bare tee, which has no
+## port-to-port isolation — an unmodelled cross-arm coupling in every bench result
+
+Reported by the operator: every dual-RX gain-phase experiment to date used a plain SMA
+T-adapter, not a power divider. `docs/dual_rx_gain_phase_sweep.md:40` asks for "a proper
+splitter, not a tee", so the documented requirement was not met, and **nothing in the
+repo has ever discussed port-to-port isolation**.
+
+This does not overturn the headline gain-state result, and it is not a data-integrity
+problem — but it changes what one class of number means.
+
+**Unaffected.** "Phase tracks the audited `(LNA, MIXER, TIA)` word, not the requested
+dB" (L10 finding 2, E-GSC4) is a large differential effect at fixed frequency: LNA
+7.983° against a 0.180° LPF floor, 44×, replicating across independent sessions
+(7.76× and 6.04×). E-CAL1's RF-DC null and E-CAL5's positive control are likewise
+differential at fixed gain words. No plausible harness correction touches these.
+The trained models and rover/field inference are **untouched**: nothing outside
+`spf/calibrations/` and `tests/` imports the calibration package, so no tee-derived
+coefficient has ever been applied to field data.
+
+**Explained, not invalidated.** §3.4's standing wave *requires* a mismatched source. A
+tee presents two 50 Ω loads in parallel — 25 Ω, |Γ| = 1/3 — so it is a far stronger
+reflector than assumed. The ripple model form and the fitted 2.54 ns / 0.88–0.92 ns
+delays stand as descriptions of **this harness**, and are now known to describe a worse
+mismatch than documented.
+
+**Newly suspect: the arm-specific residual `A`.** A tee's output ports are the same
+electrical node, so isolation is ~0 dB and a change in `Γ_RX1` with gain state moves the
+junction impedance, hence the phase delivered to **RX2**. That is a direct
+`g1 → phase(RX2)` path. A first-order calculation gives peak-to-peak cross-arm phase of
+**17 / 27 / 39°** for `|Γ_RX|` = 0.2 / 0.3 / 0.4, against **6 dB** isolation for a
+resistive splitter (11–23°) and **20 dB** for a Wilkinson (2.3–4.6°). `A` is
+0.73 / 1.24 / 3.72° mean by band — well inside the range a tee can manufacture. Three
+existing observations fit a harness origin better than a chip one: `A` concentrates
+above 4 GHz; it is unit-specific (cross-radio ρ only +0.50 / +0.59 / −0.23); and
+connector work drove one radio's high-band mean `|A|` from 3.49° to **29.41°** and it
+**did not recover** on restoration while the untouched control stayed flat. A chip
+property cannot behave that way.
+
+**Consequences.** E-GSP2 ("is the ripple actually a reflection?") moves from "needs
+parts" to the front of the queue, and its shopping list is now specific: a Wilkinson
+2-way divider covering 0.4–6 GHz, run as a same-session A/B against the tee. **E-GSC6
+must not be run on a tee** — the interaction term `C(g,g)` it was designed to measure is
+exactly what a tee manufactures, so on this harness it would measure the adapter and
+attribute it to the part. Any per-band `A` quoted as a device property should be
+restated as a property of the tee-based assembly until the A/B exists.

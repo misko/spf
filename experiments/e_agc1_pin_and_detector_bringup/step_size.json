@@ -1,0 +1,51 @@
+{
+  "after_programming_step_1": {
+    "observed_down_deltas": [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+    ],
+    "observed_up_deltas": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "peak_overload_wait_time_preserved": true,
+    "reg_0x0FC": "0x03",
+    "reg_0x0FE": "0x03"
+  },
+  "as_shipped": {
+    "n_edges": 20,
+    "observed_abs_index_delta_per_edge": [
+      2
+    ],
+    "programmed_decrement_step": 2,
+    "programmed_increment_step": 2,
+    "reg_0x0FC": "0x23",
+    "reg_0x0FE": "0x23"
+  },
+  "hypothesis": "H2",
+  "note": "an accepted edge moves the index by exactly the programmed step, in both directions, at both programmed values",
+  "provenance": {
+    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+    "gpio_base": 906,
+    "radio_label": "R17",
+    "radio_serial": "104000bac4950008230026001b440a003a",
+    "raw": [
+      "artifacts/agc_pin_bringup/20260810_r17_v1/step1_baseline_r17.json",
+      "artifacts/agc_pin_bringup/20260810_r17_v1/step2_takepins_r17.json",
+      "artifacts/agc_pin_bringup/20260810_r17_v1/step3_h1_r17.json",
+      "artifacts/agc_pin_bringup/20260810_r17_v1/step4_stepsize_r17.json",
+      "artifacts/agc_pin_bringup/20260810_r17_v1/step6_ensm_r17.json",
+      "artifacts/agc_pin_bringup/20260810_r17_v1/step7_restore_r17.json",
+      "artifacts/agc_pin_bringup/20260810_r17_v1/step8_restore_verify_r17.json"
+    ],
+    "rx_lo_hz": 867999998,
+    "utc": "2026-08-10T22:45:52Z"
+  },
+  "verdict": "PASS"
+}

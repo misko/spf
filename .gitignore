@@ -67,3 +67,7 @@ wandb
 
 # Satellite tile cache for spf/scripts/plot_gps_boundaries.py (re-downloadable)
 docs/boundary_maps/.tiles/
+
+# E-AGC1 raw pin/detector bring-up transcripts (committed analysis lives in
+# experiments/e_agc1_pin_and_detector_bringup/)
+/artifacts/agc_pin_bringup/
