@@ -2,7 +2,10 @@
 
 ## Disposition
 
-**PASS — RC12 completed the two-radio RAM-boot promotion campaign.**
+**PASS for direct USB and bounded one-frame direct IP — RC12 completed the
+two-radio RAM-boot promotion campaign. Continuous multi-frame direct IP is
+rate-limited as documented below and is not qualified at the rover's 3 MS/s
+rate.**
 
 RC12 retains RC11's gain-series, timestamp, USB-startup, and TX fixes and
 hardens the direct-IP control socket against malformed UDP datagrams. The
@@ -156,9 +159,73 @@ Both then reported gadget SHA
 `2072e1d0823ef6db3bc141dd733a90d76e23fc33`, TX1/TX2 at `-80 dB`, and passed
 the production baseline 6/6.
 
+## Extended direct-IP burn-in
+
+An additional RAM-only campaign exercised the uniquely routed LAN radio after
+the initial promotion gate. It injected malformed control datagrams throughout,
+validated every CRC-backed protocol-v3 frame and gain-observation series, and
+restored both radios to their unchanged QSPI image afterward.
+
+The bounded one-frame path was stable:
+
+- 1,000 fresh START/STOP cycles passed with 1,000 unique stream IDs;
+- mixed frame sizes were 16,384, 32,768, 131,072, and 524,288 samples/channel;
+- 1,409,024,000 IQ bytes (1.312 GiB) were validated in 340.0 seconds;
+- all 600 injected malformed control datagrams were survived;
+- duplicate fragments, expired frames, rejected frames, sequence regressions,
+  metadata errors, and daemon deaths were all zero;
+- median/max time-anchor round trip was 0.527/3.603 ms; and
+- median/max local gain-read duration was 0.384/12.564 ms.
+
+Continuous finite streaming exposed a transport-rate boundary hidden by the
+original one-frame IP gate. The default 1,472-byte UDP mode deliberately sends
+eight datagrams and then waits 1 ms, or roughly 11.8 MB/s before protocol
+overhead. Dual-channel CS16 requires eight bytes per time sample:
+
+| Radio sample rate | IQ payload rate | 16 contiguous frames |
+|---:|---:|---|
+| 1.0 MS/s | 8.0 MB/s | Pass |
+| 1.2 MS/s | 9.6 MB/s | Fail closed: sample-sequence gap |
+| 1.4 MS/s | 11.2 MB/s | Fail closed: sample-sequence gap |
+| 1.5 MS/s | 12.0 MB/s | Fail closed: sample-sequence gap |
+| 1.75–3.0 MS/s | 14.0–24.0 MB/s | Fail closed: sample-sequence gap |
+
+At 1.0 MS/s, a longer 200-START burn-in returned 3,200/3,200 contiguous
+frames, 400 MiB of IQ, with zero failures in 92.9 seconds. At the rover's
+3 MS/s rate, increasing the requested UDP datagram size from 1,472 through
+8,192 bytes did not prevent sequence gaps. Sizes from 16,384 through 65,507
+bytes instead produced whole-frame timeouts, so relying on IP fragmentation is
+not a safe workaround.
+
+Debug output establishes the failure mechanism. While an IP frame is paced to
+the host, DMA and the FPGA sample counter continue advancing. The next queued
+DMA block can then predate all retained gain observations. The v3 worker
+correctly refuses that IQ because it cannot associate the required gain series;
+the host independently rejects any resulting sample discontinuity. The gadget
+currently advertises up to 16 finite frames without advertising a rate limit,
+so host-side capability discovery alone cannot predict this boundary.
+
+Evidence remains in `/tmp/spf-rc12-ip-burnin-20260810` on the hardware host:
+
+- one-frame burn-in SHA-256:
+  `fe229da26e4f224961c123591501edc7b37cc842cbb605fb7b52fb0c3b3cbce0`;
+- 1 MS/s continuous burn-in SHA-256:
+  `7b43324bb70b004cf42ba04b99449a6d52f6a000dd5603643f327b1451df44e0`;
+- sample-rate ladder SHA-256:
+  `ae426ed962931b033c2afd99092b0572404713c52944cf701f09959ce6a59c50`;
+- datagram-size ladder SHA-256:
+  `3c0e41948ba49b2e2ef63a94aad100fe7534fc78338f8b5ea18a60746096b50a`;
+  and
+- on-radio debug trace SHA-256:
+  `583e3b804094d91aefb37b28c4ea8fae1f4be3fd948c9fc93f176506719c7fae`.
+
 ## Promotion recommendation
 
-Publish and pin only the exact DFU identified above. Retain the previous
-production release and hash as rollback. After SPF CI passes, perform a
-controlled one-radio QSPI canary, reboot it from QSPI, run the V7/IP/TX gates,
-and only then roll the same bytes to the remaining radios.
+Publish and pin only the exact DFU identified above for the qualified direct-USB
+path. Retain the previous production release and hash as rollback. Do not claim
+continuous direct-IP parity at the rover's 3 MS/s rate; use one-frame bounded
+IP requests or at most the demonstrated 1 MS/s continuous mode until the IP
+transport advertises and enforces a safe rate or is redesigned to avoid stale
+DMA blocks. After SPF CI passes, perform a controlled one-radio QSPI canary,
+reboot it from QSPI, run the V7/USB/TX gates plus the bounded IP gate, and only
+then roll the same bytes to the remaining radios.
