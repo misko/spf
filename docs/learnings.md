@@ -1355,23 +1355,41 @@ reflector than assumed. The ripple model form and the fitted 2.54 ns / 0.88–0.
 delays stand as descriptions of **this harness**, and are now known to describe a worse
 mismatch than documented.
 
-**Newly suspect: the arm-specific residual `A`.** A tee's output ports are the same
-electrical node, so isolation is ~0 dB and a change in `Γ_RX1` with gain state moves the
-junction impedance, hence the phase delivered to **RX2**. That is a direct
-`g1 → phase(RX2)` path. A first-order calculation gives peak-to-peak cross-arm phase of
-**17 / 27 / 39°** for `|Γ_RX|` = 0.2 / 0.3 / 0.4, against **6 dB** isolation for a
-resistive splitter (11–23°) and **20 dB** for a Wilkinson (2.3–4.6°). `A` is
-0.73 / 1.24 / 3.72° mean by band — well inside the range a tee can manufacture. Three
-existing observations fit a harness origin better than a chip one: `A` concentrates
-above 4 GHz; it is unit-specific (cross-radio ρ only +0.50 / +0.59 / −0.23); and
-connector work drove one radio's high-band mean `|A|` from 3.49° to **29.41°** and it
-**did not recover** on restoration while the untouched control stayed flat. A chip
-property cannot behave that way.
+**Was `A` mostly harness? MEASURED 2026-08-11 — no.** The first-order estimate here was
+peak-to-peak cross-arm phase of 17–39° for `|Γ_RX|` = 0.2–0.4, which would have swamped
+`A`. **E-HCP1 measured it and that estimate was far too pessimistic.**
 
-**Consequences.** E-GSP2 ("is the ripple actually a reflection?") moves from "needs
-parts" to the front of the queue, and its shopping list is now specific: a Wilkinson
-2-way divider covering 0.4–6 GHz, run as a same-session A/B against the tee. **E-GSC6
-must not be run on a tee** — the interaction term `C(g,g)` it was designed to measure is
-exactly what a tee manufactures, so on this harness it would measure the adapter and
-attribute it to the part. Any per-band `A` quoted as a device property should be
-restated as a property of the tee-based assembly until the A/B exists.
+Two corrections. First, the mechanism: with a tee both RX ports are the same node, so a
+junction-voltage shift is **common-mode and cancels exactly** in
+`D = angle(RX1) − angle(RX2)`. Only the arm-specific path survives — a wave reflecting off
+one port, returning to the junction, and entering the other down its own cable. Second,
+the magnitude: holding one arm at 41 dB and sweeping the other 20→70 dB, the fixed arm's
+input-referred RSSI moves at most **1.25 dB** over 12 LOs from 433 MHz to 5900 MHz
+(median 0.50 dB, n = 24). That gives `ε ≲ 0.155`, so phase coupling ≲8.9° worst case and
+~3° typical. Phase is bounded rather than measured, via the reflection phase rotating
+across the sweep (~392 MHz period), so a large `ε` would have shown up somewhere.
+
+**The decisive part is the band profile, not the number.** Coupling is flat — median
+0.75 / 0.38 / 0.50° dB for low / middle / high — while `A` rises ~5×, 0.73 → 1.24 →
+3.72°. Coupling's median is *lowest* in the middle band and *highest* in the low band,
+the opposite of `A`. So whatever concentrates `A` above 4 GHz is not finite isolation.
+`A` stays a device-plus-assembly property, and **E-GSC6 may run on this harness** — with
+the caveat that in the low band the harness bound (~1°) and `A` (0.73°) are the same size,
+so a small low-band `C(g,g)` must not be over-read.
+
+Still unexplained, and still the strongest evidence that *something* in the harness can
+dominate: connector work drove one radio's high-band mean `|A|` from 3.49° to **29.41°**
+and it **did not recover** while the untouched control stayed flat. A 1.25 dB isolation
+bound cannot produce 29°. A degraded connector is a different failure mode from finite
+isolation, and `A` remains unit-specific (cross-radio ρ +0.50 / +0.59 / −0.23).
+
+**Consequences, as revised by E-HCP1.** E-GSP2 remains the definitive tee-versus-divider
+A/B and is still worth doing — its shopping list is specific, a Wilkinson 2-way covering
+0.4–6 GHz — but it is **not urgent and blocks nothing**. **E-GSC6 may run on the tee**,
+against the recorded coupling bound, rather than waiting for parts. Per-band `A` may keep
+being quoted as a device-plus-assembly property. What genuinely remains
+harness-referenced is any *absolute* level or dBm-at-the-port claim, and the high-band
+coupling bound is the weakest part of the evidence because the Pluto's TX rolls off above
+4 GHz — swapping the 30 dB pad for ~10 dB would firm it up, and would also provoke
+E-AGC1's one unprovoked detector bit. Do not remove the pad entirely: the RX ports would
+then see about +4 dBm at TX full scale, over the +2.5 dBm limit.

@@ -1,0 +1,344 @@
+{
+  "caveats": [
+    "amplitude-only; phase is bounded via the frequency sweep rotating the reflection phase, not measured directly",
+    "the source is ~20 dB weaker above 4 GHz (Pluto TX rolloff plus pad and split), so high-band SNR is 19-27 dB against 37-43 dB in the low band",
+    "0.25 dB RSSI quantum; readings at or below one LSB are at the floor",
+    "one radio, one harness assembly; A is unit-specific",
+    "this bounds plausibility and does not replace E-GSP2's tee-vs-divider A/B"
+  ],
+  "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+  "experiment": "E-HCP1",
+  "harness": "TX2 -> 30 dB pad -> bare SMA tee -> RX1/RX2 (~0 dB port-to-port isolation)",
+  "method": "fixed arm at 41 dB, other arm swept 20..70 dB, both directions, 12 LOs",
+  "overall": {
+    "implied_epsilon": 0.155,
+    "implied_worst_case_phase_deg": 8.9,
+    "max_coupling_db": 1.25,
+    "median_coupling_db": 0.5,
+    "n": 24
+  },
+  "per_band": {
+    "high": {
+      "max_coupling_db": 1.25,
+      "median_coupling_db": 0.5,
+      "n": 8,
+      "published_A_mean_deg": 3.72,
+      "signal_level_range_db_below_fs": [
+        69.75,
+        78.0
+      ]
+    },
+    "low": {
+      "max_coupling_db": 1.0,
+      "median_coupling_db": 0.75,
+      "n": 8,
+      "published_A_mean_deg": 0.73,
+      "signal_level_range_db_below_fs": [
+        53.75,
+        59.25
+      ]
+    },
+    "middle": {
+      "max_coupling_db": 0.5,
+      "median_coupling_db": 0.375,
+      "n": 8,
+      "published_A_mean_deg": 1.24,
+      "signal_level_range_db_below_fs": [
+        61.25,
+        69.0
+      ]
+    }
+  },
+  "per_lo": {
+    "1000000000": {
+      "band": "low",
+      "coupling_db_sweep_rx1": 0.75,
+      "coupling_db_sweep_rx2": 0.5,
+      "fixed_arm_rssi_rx1": [
+        60.25,
+        60.25,
+        60.5,
+        60.5,
+        61.0,
+        61.0
+      ],
+      "fixed_arm_rssi_rx2": [
+        59.0,
+        59.0,
+        58.75,
+        58.75,
+        59.25,
+        59.25
+      ],
+      "signal_level_db_below_fs": 57.75,
+      "snr_db": 39.0
+    },
+    "1300000000": {
+      "band": "low",
+      "coupling_db_sweep_rx1": 1.0,
+      "coupling_db_sweep_rx2": 1.0,
+      "fixed_arm_rssi_rx1": [
+        63.0,
+        63.0,
+        62.0,
+        62.0,
+        62.5,
+        62.5
+      ],
+      "fixed_arm_rssi_rx2": [
+        61.75,
+        61.75,
+        60.75,
+        60.75,
+        60.75,
+        60.75
+      ],
+      "signal_level_db_below_fs": 59.25,
+      "snr_db": 37.5
+    },
+    "1500000000": {
+      "band": "middle",
+      "coupling_db_sweep_rx1": 0.5,
+      "coupling_db_sweep_rx2": 0.5,
+      "fixed_arm_rssi_rx1": [
+        62.5,
+        63.0,
+        62.75,
+        62.75,
+        62.75,
+        62.75
+      ],
+      "fixed_arm_rssi_rx2": [
+        62.0,
+        62.5,
+        62.25,
+        62.25,
+        62.25,
+        62.25
+      ],
+      "signal_level_db_below_fs": 61.25,
+      "snr_db": 35.5
+    },
+    "2400000000": {
+      "band": "middle",
+      "coupling_db_sweep_rx1": 0.5,
+      "coupling_db_sweep_rx2": 0.25,
+      "fixed_arm_rssi_rx1": [
+        65.25,
+        65.25,
+        65.0,
+        64.75,
+        64.75,
+        64.75
+      ],
+      "fixed_arm_rssi_rx2": [
+        64.25,
+        64.5,
+        64.25,
+        64.25,
+        64.25,
+        64.25
+      ],
+      "signal_level_db_below_fs": 64.0,
+      "snr_db": 32.8
+    },
+    "3200000000": {
+      "band": "middle",
+      "coupling_db_sweep_rx1": 0.5,
+      "coupling_db_sweep_rx2": 0.25,
+      "fixed_arm_rssi_rx1": [
+        69.25,
+        69.25,
+        69.0,
+        68.75,
+        68.75,
+        68.75
+      ],
+      "fixed_arm_rssi_rx2": [
+        69.0,
+        69.25,
+        69.25,
+        69.0,
+        69.0,
+        69.0
+      ],
+      "signal_level_db_below_fs": 67.5,
+      "snr_db": 29.2
+    },
+    "4000000000": {
+      "band": "middle",
+      "coupling_db_sweep_rx1": 0.25,
+      "coupling_db_sweep_rx2": 0.0,
+      "fixed_arm_rssi_rx1": [
+        70.5,
+        70.5,
+        70.25,
+        70.25,
+        70.25,
+        70.25
+      ],
+      "fixed_arm_rssi_rx2": [
+        69.5,
+        69.5,
+        69.5,
+        69.5,
+        69.5,
+        69.5
+      ],
+      "signal_level_db_below_fs": 69.0,
+      "snr_db": 27.8
+    },
+    "4300000002": {
+      "band": "high",
+      "coupling_db_sweep_rx1": 0.75,
+      "coupling_db_sweep_rx2": 0.5,
+      "fixed_arm_rssi_rx1": [
+        72.0,
+        72.5,
+        72.5,
+        72.75,
+        72.75,
+        72.75
+      ],
+      "fixed_arm_rssi_rx2": [
+        78.5,
+        79.0,
+        79.0,
+        79.0,
+        79.0,
+        79.0
+      ],
+      "signal_level_db_below_fs": 69.75,
+      "snr_db": 27.0
+    },
+    "433000000": {
+      "band": "low",
+      "coupling_db_sweep_rx1": 0.25,
+      "coupling_db_sweep_rx2": 0.0,
+      "fixed_arm_rssi_rx1": [
+        55.75,
+        55.75,
+        55.75,
+        55.75,
+        55.5,
+        55.5
+      ],
+      "fixed_arm_rssi_rx2": [
+        54.75,
+        54.75,
+        54.75,
+        54.75,
+        54.75,
+        54.75
+      ],
+      "signal_level_db_below_fs": 53.75,
+      "snr_db": 43.0
+    },
+    "5000000000": {
+      "band": "high",
+      "coupling_db_sweep_rx1": 1.25,
+      "coupling_db_sweep_rx2": 0.25,
+      "fixed_arm_rssi_rx1": [
+        78.5,
+        79.75,
+        79.75,
+        79.75,
+        79.75,
+        79.75
+      ],
+      "fixed_arm_rssi_rx2": [
+        79.75,
+        79.75,
+        79.75,
+        80.0,
+        80.0,
+        80.0
+      ],
+      "signal_level_db_below_fs": 78.0,
+      "snr_db": 18.8
+    },
+    "5500000002": {
+      "band": "high",
+      "coupling_db_sweep_rx1": 0.75,
+      "coupling_db_sweep_rx2": 0.5,
+      "fixed_arm_rssi_rx1": [
+        79.0,
+        79.5,
+        79.5,
+        79.75,
+        79.75,
+        79.75
+      ],
+      "fixed_arm_rssi_rx2": [
+        76.75,
+        77.0,
+        77.0,
+        77.25,
+        77.25,
+        77.25
+      ],
+      "signal_level_db_below_fs": 75.75,
+      "snr_db": 21.0
+    },
+    "5900000002": {
+      "band": "high",
+      "coupling_db_sweep_rx1": 0.0,
+      "coupling_db_sweep_rx2": 0.0,
+      "fixed_arm_rssi_rx1": [
+        78.75,
+        78.75,
+        78.75,
+        78.75,
+        78.75,
+        78.75
+      ],
+      "fixed_arm_rssi_rx2": [
+        75.25,
+        75.25,
+        75.25,
+        75.25,
+        75.25,
+        75.25
+      ],
+      "signal_level_db_below_fs": 75.25,
+      "snr_db": 21.5
+    },
+    "700000000": {
+      "band": "low",
+      "coupling_db_sweep_rx1": 1.0,
+      "coupling_db_sweep_rx2": 0.75,
+      "fixed_arm_rssi_rx1": [
+        58.0,
+        58.0,
+        58.25,
+        58.25,
+        57.25,
+        57.25
+      ],
+      "fixed_arm_rssi_rx2": [
+        57.5,
+        57.25,
+        58.0,
+        58.0,
+        57.75,
+        57.75
+      ],
+      "signal_level_db_below_fs": 56.25,
+      "snr_db": 40.5
+    }
+  },
+  "radio_label": "R17",
+  "radio_serial": "104000bac4950008230026001b440a003a",
+  "restore": {
+    "all_restored": true,
+    "dds_raw": "0",
+    "rx_gains": "41.000000:41.000000",
+    "rx_lo": "867999998",
+    "tx2_gain": "-80.000000 dB",
+    "tx_lo": "867999998"
+  },
+  "rssi_quantum_db": 0.25,
+  "source": "own TX2 fpga_dds +100 kHz at hardwaregain 0 dB (full scale)",
+  "utc": "2026-08-11T00:08:49Z",
+  "verdict": "H1 SUPPORTED: coupling is frequency-flat and small, while A rises ~5x into the high band, so the tee is not the main source of A"
+}

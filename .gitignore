@@ -71,3 +71,7 @@ docs/boundary_maps/.tiles/
 # E-AGC1 raw pin/detector bring-up transcripts (committed analysis lives in
 # experiments/e_agc1_pin_and_detector_bringup/)
 /artifacts/agc_pin_bringup/
+
+# E-HCP1 raw cross-arm coupling transcripts (committed analysis lives in
+# experiments/e_hcp1_cross_arm_coupling/)
+/artifacts/harness_coupling/
