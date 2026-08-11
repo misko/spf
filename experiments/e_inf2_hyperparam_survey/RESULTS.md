@@ -1,15 +1,15 @@
 # E-INF2 — results
 
-**Status: PHASE A COMPLETE** (2026-08-10). Phases B and C not run. Design and decision rules are pre-registered in
+**Status: COMPLETE** (2026-08-11). Phases A and B run; phase C judged not worth running (see below). Design and decision rules are pre-registered in
 [`experiment_readme.md`](experiment_readme.md); this file exists so the
 hypotheses cannot be edited after seeing the data.
 
 | Hypothesis | Prediction | Outcome |
 |---|---|---|
-| H1 | every PF family's optimum is interior in the phase-A grid | ✅ **SUPPORTED** — zero truncated axes, down from eight |
-| H2 | ≥1 PF family improves ≥10% on its E-INF1 corpus mean | ❌ **FALSIFIED** — best consistent gain 3.0% (8/8); the one −10.1% is better on 2/8 |
+| H1 | every PF family's optimum is interior in the phase-A grid | ✅ **SUPPORTED** — zero truncated axes in both phases |
+| H2 | ≥1 PF family improves ≥10% on its E-INF1 corpus mean | ❌ **FALSIFIED** — matched on 16 captures × 5 seeds, max change **1.6%**; four families reproduce E-INF1 exactly |
 | H3 | optimal `theta_dot_err` differs ≥5× between craft_relative and absolute_north | ✅ **SUPPORTED** — 0.1 vs 0.005, a 20× ratio |
-| H4 | `EKF single radio` with `dynamic_R` beats its E-INF1 winner (1.022) | ❌ **REFUTED** — both EKF optima use `dynamic_R = 0` |
+| H4 | `EKF single radio` with `dynamic_R` beats its E-INF1 winner (1.022) | ❌ **REFUTED** — the static form wins and the family lands 1.0% *worse* (1.032) |
 | ~~H5~~ | ~~the `phi_std>0 ⇄ dynamic_R=0` pairing convention is not required~~ | ❌ **REFUTED before running** — the convention is a guard: (0,0) gives a singular update, and dynamic_R>0 ignores phi_std entirely |
 
 ## Baselines to beat (E-INF1, corpus mean over 16 stores, 5 seeds)
@@ -61,3 +61,45 @@ though it were: `theta_err` was narrowed from five values to three to buy width
 elsewhere. The judgement came from a *marginal* profile, which is minimised over
 the other axes and therefore hides the interactions a 2-D heatmap exists to
 show — the error the tool was built to prevent. Phase B restores full coverage.
+
+## Phase B outcome — E-INF2 COMPLETE (2026-08-11)
+
+Full write-up:
+[`spf/filters/reports/e_inf2_refine_20260811_v1/REPORT.md`](../../spf/filters/reports/e_inf2_refine_20260811_v1/REPORT.md).
+50,864 runs, 16 captures, 5 seeds, zero failures, ~1h48m.
+
+Matched to E-INF1 on the same captures and seeds, paired per store with a
+Wilcoxon test, over a grid that is a genuine superset this time:
+
+| family | E-INF1 | phase B | Δ | wilcoxon |
+|---|---|---|---|---|
+| `PF single radio NN` | 0.301 | 0.299 | −0.5% | 0.940 |
+| `PF dual radio NN` [abs] | 0.534 | 0.534 | +0.0% | 0.416 |
+| `PF single radio` | 0.541 | 0.541 | +0.0% | 0.037 |
+| `PF dual radio NN` [craft] | 0.667 | 0.673 | +0.9% | 0.029 |
+| `PF dual radio` | 0.838 | 0.838 | −0.0% | 0.131 |
+| `EKF single radio` | 1.022 | 1.032 | +1.0% | 0.782 |
+| `EKF dual radio` | 2.583 | 2.625 | +1.6% | 0.782 |
+
+**E-INF1's hyperparameters were already right.** Four of seven reproduce exactly.
+Six of seven optima had sat on a grid boundary, four with MSE apparently still
+falling 7–20% into the wall — and none of it was worth anything, because the
+surface past the boundary is a plateau rather than a slope.
+
+**One actionable finding:** `PF dual radio NN` [craft] holds its accuracy at
+**N = 1024 instead of 16384** — 16× fewer particles for +0.9% MSE (significant at
+p = 0.029, negligible in magnitude). Measured 2.67× faster, though runtime across
+runs is confounded by box load: families whose N did not change read 0.79–0.94×,
+so the true figure is nearer 3.1×.
+
+**Phase C is not worth running as designed.** Its purpose was confirming phase B's
+winners on 48 stores, but with one exception those are the configurations E-INF1
+already confirmed there. Only the N=1024 change is new, and that is a
+single-family run.
+
+### The durable lesson
+
+An optimum on a grid boundary looks alarming and usually is not. Extending six
+truncated axes cost ~4 h of compute and bought at most 1.6%. Check the boundary,
+but check it with a heatmap — the plateau is visible immediately, and the marginal
+profile that prompted this whole experiment is what hid it.
