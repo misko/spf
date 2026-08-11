@@ -85,22 +85,38 @@ def grid_for(cfgs, xname, yname):
     return xs, ys, Z
 
 
-def edge_warning(xs, ys, Z, xname, yname):
-    """Name any axis whose optimum sits on a boundary, with the local slope."""
-    j, i = np.unravel_index(np.nanargmin(Z), Z.shape)
+def edge_warning(xs, ys, Z, xname, yname, plateau=0.05):
+    """Axes whose optimum is on a boundary AND genuinely still descending.
+
+    Naively flagging "the argmin is on an edge" is wrong when the optimum is a
+    broad plateau: the survey's single-radio NN surface is 0.23 across the WHOLE
+    theta_dot_err=0.2 row, from N=128 to N=32768, so which cell wins is noise and
+    the argmin lands on an edge by luck. Extending the grid there would buy
+    nothing.
+
+    So an axis is only reported as truncating when NO near-optimal cell (within
+    ``plateau`` of the best) is interior on that axis. That is the condition that
+    actually means "the grid stopped before the surface did".
+    """
+    best = np.nanmin(Z)
+    near = np.argwhere(np.isfinite(Z) & (Z <= best * (1.0 + plateau)))
     notes = []
-    for name, idx, vals, line in (
-        (xname, i, xs, Z[j, :]),
-        (yname, j, ys, Z[:, i]),
-    ):
-        if len(vals) < 2 or 0 < idx < len(vals) - 1:
+    for name, axis, vals in ((xname, 1, xs), (yname, 0, ys)):
+        if len(vals) < 3:
             continue
-        nb = line[1] if idx == 0 else line[-2]
-        best = line[idx]
-        if not np.isfinite(nb) or not np.isfinite(best) or nb <= 0:
+        idxs = {int(c[axis]) for c in near}
+        if any(0 < i < len(vals) - 1 for i in idxs):
+            continue  # a near-optimal cell is interior -> the grid contains it
+        edge = "low" if max(idxs) == 0 else "high"
+        line = np.nanmin(Z, axis=1 - axis)
+        i = 0 if edge == "low" else len(vals) - 1
+        nb = line[1] if edge == "low" else line[-2]
+        if not np.isfinite(nb) or line[i] <= 0:
             continue
-        edge = "low" if idx == 0 else "high"
-        notes.append(f"{name} optimum on the {edge} edge ({nb / best - 1:+.0%} to neighbour)")
+        notes.append(
+            f"{name} optimum on the {edge} edge ({nb / line[i] - 1:+.0%} to neighbour, "
+            f"no near-optimal cell interior)"
+        )
     return notes
 
 
