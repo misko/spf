@@ -174,8 +174,14 @@ def main() -> int:
                     help="name=uri, repeatable")
     ap.add_argument("--reps", type=int, default=5)
     ap.add_argument("--output", required=True)
+    ap.add_argument("--tx-gain-db", type=float, default=None,
+                    help="override the source drive; needed because the direct-USB path "
+                         "reports the same signal ~6.7 dB hotter than libiio, so a level "
+                         "valid on one path can be 'too strong' on the other")
     args = ap.parse_args()
     arms = dict(a.split("=", 1) for a in args.arm)
+    if args.tx_gain_db is not None:
+        SETUP["tx_gain_db"] = args.tx_gain_db
 
     source_uri = next(iter(arms.values()))
     source = arm_source(source_uri)

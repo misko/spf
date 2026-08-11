@@ -1411,3 +1411,43 @@ coupling bound is the weakest part of the evidence because the Pluto's TX rolls 
 4 GHz — swapping the 30 dB pad for ~10 dB would firm it up, and would also provoke
 E-AGC1's one unprovoked detector bit. Do not remove the pad entirely: the RX ports would
 then see about +4 dBm at TX full scale, over the +2.5 dBm limit.
+
+## Transport (2026-08-11): the transport does not move the phase, but direct-USB
+## reports the same signal ~6 dB hotter than libiio
+
+E-LNK1 metric 5, R18, 3 MS/s / 868 MHz / 41 dB. Full report in
+`experiments/e_lnk1_transport_sample_rate/RESULTS.md`.
+
+**H3 passes on three arms, including the production path.** `angle(RX1) − angle(RX2)` on a
+fixed fixture: `iio-eth` −2.895°, `iio-usb` −3.415°, **`direct-usb` −3.222°**, all
+quality-valid, 6 reps each, arms interleaved so drift cannot alias onto arm. Max between-arm
+difference **0.519°** against **1.515°** worst within-arm repeatability — a ratio of 0.34.
+No transport is disqualified, which matters most for `direct-usb` since every calibration
+dataset and rover capture comes through it.
+
+**Unlooked-for, and the more actionable half: the paths disagree on absolute level.** Same
+signal, same drive, same analyzer and `adc_full_scale`: libiio reports `tone_dbfs` −16.58
+(n=24), direct-USB −10.63 (n=12), an offset of **+5.95 dB**. SNR (~34.1 dB both) and phase
+agree, so it is a full-scale/sample-scaling difference, not a signal difference.
+
+Consequence worth remembering: at full drive direct-USB read −0.7 dBFS and failed its own
+`rx*_tone_too_strong` gate while libiio read −7.4 dBFS for the same signal and passed. **The
+quality gate that decides which frames enter calibration trips ~6 dB earlier on direct-USB
+than a libiio measurement predicts.** Setting drive level from libiio numbers leaves the
+production path ~6 dB hot. Which path is right in absolute terms is *not* established here,
+and it decides whether the calibration corpus has been running nearer clipping than
+intended — worth a follow-up.
+
+Two method notes that generalise:
+
+- **A verdict computed from whatever survived a quality gate is not a verdict.** The first
+  run of this experiment reported a transport-dependent phase shift from a 0.97° between-arm
+  difference; only 2–3 of 5 captures per arm were valid, and on the invalid ones the analyzer
+  had locked onto noise at 75–122 kHz instead of the 100021 Hz tone. Check the valid fraction
+  before reading the number.
+- **Arm the source once and leave it on for the whole comparison.** Re-arming the DDS per
+  measurement raced its own settling and was what produced those toneless captures. Arming
+  once also makes the fixture bit-identical across arms rather than rebuilt per measurement.
+- When comparing paths, match the *conditions* to the stricter path rather than the
+  reverse, and pick a drive where **both** are inside their quality windows.
+

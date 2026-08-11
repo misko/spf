@@ -1,0 +1,58 @@
+# E-LNK1 metric 5 -- direct-USB arm, matched to the libiio harness.
+# Probe only. See experiments/e_lnk1_transport_sample_rate/RESULTS.md
+data-version: 7
+direct-usb:
+  protocol-version: 3
+  gain-observation-interval-samples: 2048
+  gain-observation-capacity: 256
+pluto-firmware:
+  release-tag: (none -- volatile RC17 candidate, not a published release)
+  device-fw: v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe
+  boot-mode: ram-volatile
+  note: deliberate deviation from the rc12-9-g867e1 pin used by the 2026-07-30 campaign, chosen
+    so the active RC17 burn-in work is not disturbed. Recorded so the cross-firmware comparison
+    is explicit.
+calibration:
+  frequencies-hz:
+  - 868000000
+  gains-db:
+  - 41
+  schedule-design: additive_cross
+  schedule-reference-gain-db: 41
+  held-out-gain-pairs: []
+  repetitions: 1
+  sample-rate-hz: 3000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000.0
+  tone-search-width-hz: 25000.0
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
+  random-seed: 20260730
+  tx-source: fpga_dds
+  tx-gain-db: -10.0
+  tx-gain-policy: fixed
+  tx-reference-rx-gain-db: 26
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 16384
+  min-quality-valid-per-cell: 1
+  max-across-repeat-phase-std-deg: 5
+  setup-label: e-lnk1-metric5-direct-usb-arm-matched-to-libiio-harness
+  notes: 'Probe-only config for E-LNK1 metric 5. Its ONLY purpose is to make the direct-USB
+    arm measurable under conditions identical to the libiio arms in experiments/e_lnk1_transport_sample_rate/scripts/lnk1_phase.py:
+    3 MS/s (deliberately below the ~2.9 MS/s wall so no arm is throughput-starved), 3 MHz
+    bandwidth, 868 MHz LO, both RX at 41 dB, 65536-sample buffers, +100 kHz tone, 1024 transient
+    samples, 8 phase segments. Not for capture -- the schedule is a single cell.'
+  quality:
+    min-tone-snr-db: -10
+    min-tone-dbfs: -75
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5

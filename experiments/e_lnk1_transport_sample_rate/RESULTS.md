@@ -99,7 +99,7 @@ worth ~+39% on direct-USB), and beyond that the bottleneck is the radio.
 **Radio:** R18 · **Committed:** `reports/e_lnk1_phase_20260811_v1/phase_agreement.json` ·
 **Script:** [`scripts/lnk1_phase.py`](scripts/lnk1_phase.py)
 
-### Answer for the two arms measured: PASS — Ethernet does not shift phase
+### First pass, two arms at full drive: PASS
 
 12 quality-valid captures, arms interleaved within each repetition so fixture drift cannot
 alias onto arm:
@@ -143,16 +143,57 @@ were valid.
 The lesson generalises: a verdict computed from whatever survived a quality gate is not a
 verdict. Check the *valid fraction* before reading the number.
 
+### Final answer, three arms including the production path: PASS
+
+Adding the direct-USB arm needed a matched probe config
+(`configs/e_lnk1_metric5_probe.yaml` — 3 MS/s, 868 MHz, 41 dB, 65536 buffers, +100 kHz,
+identical transient and segment counts) and one drive change, explained below. All 18
+captures quality-valid:
+
+| Arm | n | Circular mean | Within-arm spread |
+|---|---:|---:|---:|
+| `iio-eth` (`ip:192.168.1.175`) | 6 | −2.895° | 1.515° |
+| `iio-usb` (`usb:1.86.5`) | 6 | −3.415° | 1.097° |
+| **`direct-usb`** (production path) | 6 | **−3.222°** | 1.284° |
+
+**Max between-arm difference 0.519° against 1.515° worst within-arm repeatability — a ratio
+of 0.34.** All three transports agree to about a third of the fixture's own noise. The §8
+disqualification rule does not fire for any of them. This matters most for `direct-usb`,
+since every calibration dataset and every rover capture comes through it.
+
+Committed: `reports/e_lnk1_phase_20260811_v1/three_arm_phase.json`.
+
+### A second finding: the paths disagree on absolute level by ~6 dB
+
+Not what the experiment was looking for, and worth acting on. Same physical signal, same
+nominal drive, same analyzer with the same `adc_full_scale`:
+
+| | libiio | direct-usb | offset |
+|---|---:|---:|---:|
+| `tone_dbfs` mean | −16.58 (n=24) | −10.63 (n=12) | **+5.95 dB** |
+| `tone_snr_db` | ~34.1 | ~34.1 | — |
+| phase | agrees | agrees | — |
+
+SNR and phase agree; only the **absolute level** differs, so this is a full-scale or
+sample-scaling difference between the two paths, not a signal difference.
+
+It has a practical consequence. At full drive the direct-USB path reported −0.7 dBFS and
+failed its own `rx*_tone_too_strong` gate, while libiio reported −7.4 dBFS for the same
+signal and passed. So **the quality gate that decides which frames enter calibration trips
+~6 dB earlier on direct-USB than a libiio-based measurement predicts.** Anyone setting drive
+level from libiio numbers will be ~6 dB hot on the production path. The three-arm comparison
+above was therefore run at −10 dB, where both paths sit inside their quality windows — a
+valid-to-valid comparison rather than a comparison of survivors.
+
+Which path is *correct* in absolute terms is not established here and is worth a follow-up:
+it decides whether the calibration corpus has been running closer to clipping than intended.
+
 ### Still outstanding on this metric
 
 - **`iio-rndis` — blocked.** Both USB-gadget interfaces answer on `192.168.2.1`, and
   `iio_info -s` attributes *both* contexts to R17's serial, so the arm cannot be pointed at
   R18 reliably. This is the duplicate-IP hazard; it needs the netns isolation §7 points at
-  (`spf/scripts/pluto_multi_firmware.py`).
-- **`direct-usb` — not yet comparable.** Phase over the production direct-USB path is
-  available from the calibration `probe`, but at a different LO and sample rate, so the
-  numbers are not directly comparable. It needs a matched-rate run to join this table.
-- **Metric 4 (host CPU %, link bytes/s)** not yet collected.
-
-So H3 is answered for USB versus Ethernet — the comparison the throughput half was about —
-and remains open for RNDIS and the production direct-USB path.
+  (`spf/scripts/pluto_multi_firmware.py`). Low priority: the throughput half already showed
+  RNDIS at ~40% of the other arms, so it is not an SPF candidate.
+- **Metric 4 (host CPU %, link bytes/s)** not collected — the least decision-relevant of
+  the five.
