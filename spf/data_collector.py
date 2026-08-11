@@ -655,6 +655,12 @@ class DataCollector:
         self.cleanup_errors = []
         self.status_writer = status_writer
         self.records_written_by_receiver = [0] * len(yaml_config["receivers"])
+        # A transport which sheds whole frames under backpressure leaves holes
+        # in buffer_sequence.  The data is honest either way -- the sequence
+        # numbers are stored per frame -- but nothing announced it, so a rover
+        # could shed frames for hours and report success throughout.
+        self.dropped_frames_by_receiver = [0] * len(yaml_config["receivers"])
+        self._last_buffer_sequence = [None] * len(yaml_config["receivers"])
         self._records_written_lock = threading.Lock()
         self.stop_requested = threading.Event()
         self.setup_record_matrix()
@@ -897,10 +903,41 @@ class DataCollector:
     def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
         raise NotImplementedError
 
+    def _track_dropped_frames(self, thread_idx, data) -> int:
+        """Count frames the radio declined to send, from the sequence itself.
+
+        Returns the number newly dropped, so a degraded run is visible while it
+        is still running rather than only to whoever later runs a validator.
+        """
+
+        sequence = getattr(data, "buffer_sequence", None)
+        if sequence is None:
+            return 0
+        previous = self._last_buffer_sequence[thread_idx]
+        self._last_buffer_sequence[thread_idx] = int(sequence)
+        if previous is None:
+            return 0
+        step = int(sequence) - previous
+        if step <= 1:
+            return 0
+        dropped = step - 1
+        self.dropped_frames_by_receiver[thread_idx] += dropped
+        return dropped
+
     def _write_record_and_track(self, thread_idx, record_idx, data):
         self.write_to_record_matrix(thread_idx, record_idx, data)
         with self._records_written_lock:
             self.records_written_by_receiver[thread_idx] += 1
+            newly_dropped = self._track_dropped_frames(thread_idx, data)
+            if newly_dropped:
+                logging.warning(
+                    "receiver %d: %d frame(s) dropped before buffer sequence %s "
+                    "(%d total this capture)",
+                    thread_idx,
+                    newly_dropped,
+                    getattr(data, "buffer_sequence", "?"),
+                    self.dropped_frames_by_receiver[thread_idx],
+                )
             # Commit progress only after the full record. An abrupt death may
             # under-count the record currently being committed, but it can
             # never claim that an unwritten record is safe to consume.
@@ -908,6 +945,11 @@ class DataCollector:
             if self.data_filename is not None and zarr is not None:
                 zarr.attrs["capture_records_written_by_receiver"] = list(
                     self.records_written_by_receiver
+                )
+                # Always written, even when zero, so the artifact states its own
+                # completeness rather than leaving a reader to infer it.
+                zarr.attrs["capture_dropped_frames_by_receiver"] = list(
+                    self.dropped_frames_by_receiver
                 )
             self.publish_operator_status("collecting")
 
@@ -924,6 +966,9 @@ class DataCollector:
         zarr.attrs["capture_status"] = status
         zarr.attrs["capture_records_written_by_receiver"] = list(
             self.records_written_by_receiver
+        )
+        zarr.attrs["capture_dropped_frames_by_receiver"] = list(
+            self.dropped_frames_by_receiver
         )
         # Seconds of this capture recorded while the planner was NOT driving --
         # an operator in MANUAL, or a stall handover. Those records describe a

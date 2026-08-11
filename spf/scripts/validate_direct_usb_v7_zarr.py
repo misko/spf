@@ -25,9 +25,14 @@ UNSAFE_FLAGS = (
 )
 
 
-def _validate_receiver(receiver, expected_frames: int) -> dict:
+def _validate_receiver(
+    receiver,
+    expected_frames: int,
+    samples_per_channel: int = 524_288,
+    allow_frame_gaps: bool = False,
+) -> dict:
     signal = receiver.signal_matrix
-    expected_shape = (expected_frames, 2, 524288)
+    expected_shape = (expected_frames, 2, samples_per_channel)
     if signal.shape != expected_shape:
         raise ValueError(f"signal shape is {signal.shape}, expected {expected_shape}")
     if signal.dtype != np.dtype("complex64"):
@@ -91,6 +96,7 @@ def _validate_receiver(receiver, expected_frames: int) -> dict:
     if not np.array_equal(endpoint_equal, expected_equal):
         raise ValueError("gain_endpoints_equal disagrees with raw-index flags")
 
+    dropped_frames = 0
     stream_ids = receiver.stream_id[:]
     buffer_sequences = receiver.buffer_sequence[:]
     sample_sequences = receiver.sample_sequence[:]
@@ -105,10 +111,31 @@ def _validate_receiver(receiver, expected_frames: int) -> dict:
                     f"new stream at frame {frame_index} does not start at sample 0"
                 )
             continue
-        if buffer_sequences[frame_index] != buffer_sequences[frame_index - 1] + 1:
-            raise ValueError(f"buffer sequence gap at frame {frame_index}")
-        if sample_sequences[frame_index] != sample_sequences[frame_index - 1] + 524288:
-            raise ValueError(f"sample sequence gap at frame {frame_index}")
+        buffer_step = int(buffer_sequences[frame_index]) - int(
+            buffer_sequences[frame_index - 1]
+        )
+        sample_step = int(sample_sequences[frame_index]) - int(
+            sample_sequences[frame_index - 1]
+        )
+        if not allow_frame_gaps:
+            if buffer_step != 1:
+                raise ValueError(f"buffer sequence gap at frame {frame_index}")
+            if sample_step != samples_per_channel:
+                raise ValueError(f"sample sequence gap at frame {frame_index}")
+            continue
+        # A transport which sheds whole frames under backpressure advances both
+        # counters by a whole number of frames.  The FPGA counter free-runs, so
+        # a step which is NOT a whole multiple of the stride means the ADC ran
+        # ahead of capture -- a hardware overrun, which must still fail.
+        if buffer_step < 1:
+            raise ValueError(f"buffer sequence went backwards at frame {frame_index}")
+        if sample_step != buffer_step * samples_per_channel:
+            raise ValueError(
+                f"sample sequence advanced by {sample_step} across "
+                f"{buffer_step} frames at frame {frame_index}, expected "
+                f"{buffer_step * samples_per_channel}: ADC overran capture"
+            )
+        dropped_frames += buffer_step - 1
 
     timestamps = receiver.system_timestamp[:]
     intervals = np.diff(timestamps)
@@ -118,6 +145,9 @@ def _validate_receiver(receiver, expected_frames: int) -> dict:
         "serial": receiver.attrs.get("sdr_serial"),
         "usb_port_path": list(receiver.attrs.get("usb_port_path", [])),
         "frames": expected_frames,
+        # Always reported, so a gappy capture is self-describing rather than
+        # something a later reader has to notice.
+        "dropped_frames": dropped_frames,
         "signal_shape": list(signal.shape),
         "gain_minmax_db": [float(gain_end.min()), float(gain_end.max())],
         "rssi_minmax_db": [float(rssi_end.min()), float(rssi_end.max())],
@@ -132,7 +162,13 @@ def _validate_receiver(receiver, expected_frames: int) -> dict:
     }
 
 
-def validate_capture(path: Path, expected_frames: int, expected_receivers: int) -> dict:
+def validate_capture(
+    path: Path,
+    expected_frames: int,
+    expected_receivers: int,
+    samples_per_channel: int = 524_288,
+    allow_frame_gaps: bool = False,
+) -> dict:
     z = zarr_open_from_lmdb_store(str(path))
     try:
         if z.attrs.get("radio_metadata_schema_version") != 2:
@@ -190,7 +226,12 @@ def validate_capture(path: Path, expected_frames: int, expected_receivers: int) 
             ) != receiver.attrs.get("sdr_serial"):
                 raise ValueError(f"{name}: hardware fingerprint serial mismatch")
             stable_hash = fingerprint.get("stable_fingerprint_sha256")
-            report = _validate_receiver(receiver, expected_frames)
+            report = _validate_receiver(
+                receiver,
+                expected_frames,
+                samples_per_channel,
+                allow_frame_gaps,
+            )
             if not report["serial"] or not report["usb_port_path"]:
                 raise ValueError(f"{name}: missing Pluto serial or physical USB path")
             serials.append(report["serial"])
@@ -223,11 +264,29 @@ def main() -> int:
     parser.add_argument("zarr", type=Path)
     parser.add_argument("--expected-frames", type=int, default=100)
     parser.add_argument("--expected-receivers", type=int, default=2)
+    parser.add_argument(
+        "--samples-per-channel",
+        type=int,
+        default=524_288,
+        help="frame size; the sequence stride is derived from it",
+    )
+    parser.add_argument(
+        "--allow-frame-gaps",
+        action="store_true",
+        help=(
+            "accept whole frames dropped by a backpressure-shedding transport; "
+            "a partial-stride jump is still rejected as an ADC overrun"
+        ),
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
         result = validate_capture(
-            args.zarr, args.expected_frames, args.expected_receivers
+            args.zarr,
+            args.expected_frames,
+            args.expected_receivers,
+            args.samples_per_channel,
+            args.allow_frame_gaps,
         )
     except (ValueError, KeyError, IndexError) as error:
         result = {"status": "fail", "error": str(error)}

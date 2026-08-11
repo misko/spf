@@ -11,6 +11,7 @@ from contextlib import suppress
 
 from spf.direct_radio.ip_protocol import (
     DEFAULT_UDP_DATAGRAM_BYTES,
+    IP_FRAGMENT_HEADER_BYTES,
     IpControlFlags,
     IpControlMessageV1,
     IpControlType,
@@ -33,6 +34,7 @@ from spf.direct_radio.usb_protocol import (
 
 
 DEFAULT_DIRECT_IP_CONTROL_PORT = 30_432
+DEFAULT_DIRECT_IP_DATA_PORT = 30_433
 DEFAULT_CONTROL_TIMEOUT_SECONDS = 0.5
 DEFAULT_FRAME_TIMEOUT_SECONDS = 10.0
 DEFAULT_CONTROL_ATTEMPTS = 3
@@ -44,8 +46,37 @@ MAX_CONTROL_DATAGRAM_BYTES = 4096
 SO_RXQ_OVFL = getattr(socket, "SO_RXQ_OVFL", 40)
 
 
+# Offset of fragment_bytes within the 52-byte fragment header.  Reading just
+# this one field lets the stream reader size its second read without building a
+# dataclass per chunk.
+_FRAGMENT_BYTES_OFFSET = 48
+
+
 class DirectIpTransportError(RuntimeError):
     """The direct-IP socket/control layer failed below radio framing."""
+
+
+class _StreamEnded(Exception):
+    """The gadget closed the data connection cleanly at a chunk boundary.
+
+    Under TCP this is the end-of-stream marker; UDP has no equivalent, which is
+    why a UDP capture must instead count frames and otherwise time out.
+    """
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class DirectIpSampleGap:
+    """One run of frames the gadget declined to send.
+
+    ``missing_samples`` comes from the free-running FPGA counter, so a gap is
+    located on the absolute sample timeline rather than merely counted.  A
+    value which is not a whole multiple of ``samples_per_channel`` means the
+    ADC ran ahead of capture -- a DMA overrun, not a deliberate drop.
+    """
+
+    after_frame_sequence: int
+    missing_frames: int
+    missing_samples: int
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -59,6 +90,47 @@ class DirectIpCapture:
     expired_frame_count: int
     rejected_frame_count: int
     receive_queue_overflow_count: int
+    transport: str = "udp"
+    dropped_frame_count: int = 0
+    sample_gaps: tuple[DirectIpSampleGap, ...] = ()
+
+
+def _sequence_gaps(
+    frames: list[DirectUsbRxFrame],
+) -> tuple[int, tuple[DirectIpSampleGap, ...]]:
+    """Recover dropped frames from the sequence numbers the frames carry.
+
+    Needs no wire support: ``buffer_sequence`` counts frames the gadget
+    emitted, so a hole is a frame it declined to send, and the free-running
+    FPGA counter locates that hole on the absolute sample timeline.
+    """
+
+    gaps: list[DirectIpSampleGap] = []
+    dropped = 0
+    for previous, current in zip(frames, frames[1:]):
+        step = current.metadata.buffer_sequence - previous.metadata.buffer_sequence
+        if step == 1:
+            continue
+        missing_frames = step - 1
+        dropped += missing_frames
+        previous_sample = getattr(previous.metadata, "first_sample_sequence", None)
+        current_sample = getattr(current.metadata, "first_sample_sequence", None)
+        if previous_sample is None or current_sample is None:
+            missing_samples = 0
+        else:
+            missing_samples = (
+                current_sample
+                - previous_sample
+                - previous.metadata.samples_per_channel
+            )
+        gaps.append(
+            DirectIpSampleGap(
+                after_frame_sequence=previous.metadata.buffer_sequence,
+                missing_frames=missing_frames,
+                missing_samples=missing_samples,
+            )
+        )
+    return dropped, tuple(gaps)
 
 
 class PlutoDirectIpReceiver:
@@ -74,8 +146,15 @@ class PlutoDirectIpReceiver:
         *,
         remote_host: str,
         remote_control_port: int = DEFAULT_DIRECT_IP_CONTROL_PORT,
+        remote_data_port: int = DEFAULT_DIRECT_IP_DATA_PORT,
         local_host: str = "0.0.0.0",
         protocol_version: int = VERSION_V3,
+        # Both of the following default to today's behaviour rather than the
+        # new one.  A caller must opt in: flashing firmware which advertises
+        # TCP should not silently change the transport, nor the datagram size,
+        # under captures whose numbers are the regression baseline.
+        transport: str = "udp",
+        on_backlog: str = "fail",
         max_datagram_bytes: int = DEFAULT_UDP_DATAGRAM_BYTES,
         gain_observation_interval_samples: int = 32_768,
         gain_observation_capacity: int = 32,
@@ -90,6 +169,17 @@ class PlutoDirectIpReceiver:
             raise ValueError("remote_host is required")
         if not 1 <= remote_control_port <= 0xFFFF:
             raise ValueError("remote control port is invalid")
+        if not 1 <= remote_data_port <= 0xFFFF:
+            raise ValueError("remote data port is invalid")
+        if transport not in ("udp", "tcp", "auto"):
+            raise ValueError("transport must be 'udp', 'tcp' or 'auto'")
+        if on_backlog not in ("fail", "drop"):
+            raise ValueError("on_backlog must be 'fail' or 'drop'")
+        if on_backlog == "drop" and transport == "udp":
+            # UDP has no send queue whose depth the gadget can measure, so
+            # there is nothing to admit against.  Fail here rather than
+            # silently running a capture that cannot honour the request.
+            raise ValueError("on_backlog='drop' requires the TCP transport")
         if protocol_version not in (VERSION_V2, VERSION_V3):
             raise ValueError("direct IP supports SPF protocol v2 or v3")
         if control_timeout_seconds <= 0 or frame_timeout_seconds <= 0:
@@ -102,6 +192,9 @@ class PlutoDirectIpReceiver:
             raise ValueError("minimum effective receive buffer cannot be negative")
         self.remote_host = remote_host
         self.remote_control_port = int(remote_control_port)
+        self.remote_data_port = int(remote_data_port)
+        self.transport = transport
+        self.on_backlog = on_backlog
         self.local_host = local_host
         self.protocol_version = int(protocol_version)
         self.max_datagram_bytes = int(max_datagram_bytes)
@@ -123,6 +216,23 @@ class PlutoDirectIpReceiver:
         self._rxq_overflow_enabled = False
         self._receive_queue_overflow_count = 0
         self._next_request_id = secrets.randbits(64) or 1
+        self._gadget_supports_tcp = False
+        self._negotiated_transport = "udp"
+        self._stream_socket: socket.socket | None = None
+
+    @property
+    def negotiated_transport(self) -> str:
+        """Transport actually in use -- never inferred, always recorded."""
+
+        if self._capabilities is None:
+            raise RuntimeError("direct-IP receiver is not open")
+        return self._negotiated_transport
+
+    @property
+    def gadget_supports_tcp(self) -> bool:
+        if self._capabilities is None:
+            raise RuntimeError("direct-IP receiver is not open")
+        return self._gadget_supports_tcp
 
     @property
     def capabilities(self) -> IpControlMessageV1:
@@ -207,7 +317,40 @@ class PlutoDirectIpReceiver:
                 pass
             else:
                 capabilities = extended
+            tcp_query = make_ip_capability_query(
+                request_id=self._request_id(), tcp_transport=True
+            )
+            try:
+                tcp_capabilities = self._exchange_control(
+                    tcp_query, expected_type=IpControlType.CAPABILITIES
+                )
+            except (DirectIpTransportError, ProtocolError):
+                # Firmware predating the TCP transport rejects the probe flag
+                # outright.  That rejection is the compatibility mechanism, not
+                # an error: it is how a new host discovers an old gadget.
+                pass
+            else:
+                # Each probe answers only about the feature it asked for, so
+                # union the transport bits into the record the earlier probes
+                # established rather than replacing it.  Replacing would
+                # silently drop capabilities this query did not ask about.
+                self._gadget_supports_tcp = bool(
+                    tcp_capabilities.flags & IpControlFlags.TCP_DATA_TRANSPORT
+                )
+                if self._gadget_supports_tcp:
+                    capabilities = dataclasses.replace(
+                        capabilities,
+                        flags=capabilities.flags
+                        | (
+                            tcp_capabilities.flags
+                            & (
+                                IpControlFlags.TCP_DATA_TRANSPORT
+                                | IpControlFlags.DROP_STALE_FRAMES
+                            )
+                        ),
+                    )
             self._capabilities = capabilities
+            self._negotiated_transport = self._resolve_transport(capabilities)
         except Exception:
             control.close()
             data.close()
@@ -217,9 +360,89 @@ class PlutoDirectIpReceiver:
             self._capabilities = None
             self._effective_data_receive_buffer_bytes = 0
             self._rxq_overflow_enabled = False
+            self._gadget_supports_tcp = False
+            self._negotiated_transport = "udp"
             raise
 
+    def _resolve_transport(self, capabilities: IpControlMessageV1) -> str:
+        """Decide the data transport, failing closed on an explicit request."""
+
+        if self.transport == "tcp" and not self._gadget_supports_tcp:
+            # Never silently degrade.  A TCP test cell that quietly runs over
+            # UDP passes every assertion in the suite while proving nothing.
+            raise DirectIpTransportError(
+                "direct-IP gadget does not advertise the TCP data transport, "
+                "and transport='tcp' forbids falling back to UDP"
+            )
+        resolved = (
+            "tcp"
+            if self.transport == "tcp"
+            or (self.transport == "auto" and self._gadget_supports_tcp)
+            else "udp"
+        )
+        if self.on_backlog == "drop":
+            if resolved != "tcp":
+                raise DirectIpTransportError(
+                    "on_backlog='drop' requires the TCP transport"
+                )
+            if not capabilities.flags & IpControlFlags.DROP_STALE_FRAMES:
+                raise DirectIpTransportError(
+                    "direct-IP gadget does not advertise stale-frame dropping"
+                )
+        return resolved
+
+    def _open_stream_connection(self) -> socket.socket:
+        """Connect the per-stream TCP data socket.
+
+        The connection is created here rather than in :meth:`open` because the
+        gadget gives it to a worker whose lifetime is exactly one stream, and
+        matching that on the host keeps one owner and one window.
+        """
+
+        stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            # Must precede connect(): the receive window is negotiated during
+            # the handshake, and a buffer raised afterwards leaves a small
+            # window with no error to show for it.
+            stream.setsockopt(
+                socket.SOL_SOCKET, socket.SO_RCVBUF, self.data_receive_buffer_bytes
+            )
+            self._effective_data_receive_buffer_bytes = int(
+                stream.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+            )
+            if (
+                self._effective_data_receive_buffer_bytes
+                < self.minimum_effective_receive_buffer_bytes
+            ):
+                raise DirectIpTransportError(
+                    "direct-IP receive buffer is below the required minimum: "
+                    f"effective={self._effective_data_receive_buffer_bytes}, "
+                    f"required={self.minimum_effective_receive_buffer_bytes}; "
+                    "raise net.core.rmem_max before capture"
+                )
+            stream.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            stream.settimeout(self.frame_timeout_seconds)
+            stream.connect((self._remote_ip, self.remote_data_port))
+        except OSError as error:
+            stream.close()
+            raise DirectIpTransportError(
+                f"direct-IP TCP connect to {self._remote_ip}:"
+                f"{self.remote_data_port} failed: {error}"
+            ) from error
+        except Exception:
+            stream.close()
+            raise
+        self._stream_socket = stream
+        return stream
+
+    def _close_stream_connection(self) -> None:
+        if self._stream_socket is not None:
+            with suppress(OSError):
+                self._stream_socket.close()
+            self._stream_socket = None
+
     def close(self) -> None:
+        self._close_stream_connection()
         if self._control_socket is not None:
             self._control_socket.close()
         if self._data_socket is not None:
@@ -250,6 +473,26 @@ class PlutoDirectIpReceiver:
         features = self._required_features()
         if capabilities.features & features != features:
             raise ProtocolError("direct-IP gadget is missing required features")
+        transport = self._negotiated_transport
+        stream: socket.socket | None = None
+        if transport == "tcp":
+            # Connect before START_RX so the connection is already queued when
+            # the gadget's worker accepts it -- there is no window in which the
+            # gadget must wait for a peer that may never arrive.
+            stream = self._open_stream_connection()
+            local_data_port = int(stream.getsockname()[1])
+        else:
+            local_data_port = self.local_data_port
+        transport_flags = (
+            IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
+            if capabilities.flags & IpControlFlags.BUFFERED_FINITE_RX
+            and capabilities.flags & IpControlFlags.USB_CLASS_PACING
+            else IpControlFlags(0)
+        )
+        if transport == "tcp":
+            transport_flags |= IpControlFlags.TCP_DATA_TRANSPORT
+            if self.on_backlog == "drop":
+                transport_flags |= IpControlFlags.DROP_STALE_FRAMES
         start_request = make_ip_start_request(
             request_id=self._request_id(),
             protocol_version=self.protocol_version,
@@ -273,19 +516,17 @@ class PlutoDirectIpReceiver:
             gain_event_capacity=(
                 self.gain_event_capacity if self.protocol_version == VERSION_V3 else 0
             ),
-            data_port=self.local_data_port,
+            data_port=local_data_port,
             max_datagram_bytes=self.max_datagram_bytes,
-            transport_flags=(
-                IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
-                if capabilities.flags & IpControlFlags.BUFFERED_FINITE_RX
-                and capabilities.flags & IpControlFlags.USB_CLASS_PACING
-                else IpControlFlags(0)
-            ),
+            transport_flags=transport_flags,
         )
         started = self._exchange_control(
             start_request, expected_type=IpControlType.STARTED
         )
-        parser = RxFrameParser(protocol_version=self.protocol_version)
+        parser = RxFrameParser(
+            protocol_version=self.protocol_version,
+            allow_sequence_gaps=self.on_backlog == "drop",
+        )
         reassembler = IpFrameReassembler(
             frame_timeout_seconds=self.frame_timeout_seconds
         )
@@ -304,7 +545,35 @@ class PlutoDirectIpReceiver:
             )
             if started != expected_started:
                 raise ProtocolError("direct-IP STARTED response does not echo request")
-            while len(frames) < frame_count:
+            def accept(outer) -> None:
+                inner = parser.parse_complete_frame(outer.frame)
+                if inner.metadata.stream_id != outer.stream_id:
+                    raise ProtocolError("direct-IP inner/outer stream mismatch")
+                if inner.metadata.buffer_sequence != outer.frame_sequence:
+                    raise ProtocolError("direct-IP inner/outer sequence mismatch")
+                if outer.stream_id != started.stream_id:
+                    raise ProtocolError("direct-IP frame has unnegotiated stream ID")
+                frames.append(inner)
+                if len(frames) > frame_count:
+                    raise ProtocolError("direct-IP gadget returned extra frames")
+
+            while transport == "tcp" and len(frames) < frame_count:
+                try:
+                    chunk = self._read_stream_chunk(stream, datagram_buffer)
+                except _StreamEnded:
+                    # The gadget closes after its last frame, so EOF is the
+                    # end-of-stream marker.  Under drop policy a short stream is
+                    # a complete capture with holes; otherwise it is a failure.
+                    if self.on_backlog == "drop":
+                        break
+                    raise DirectIpTransportError(
+                        "direct-IP stream ended after "
+                        f"{len(frames)}/{frame_count} frames"
+                    )
+                for outer in reassembler.feed(chunk, peer=self._remote_ip):
+                    accept(outer)
+
+            while transport == "udp" and len(frames) < frame_count:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     pending_frame_count = reassembler.pending_frame_count
@@ -330,18 +599,7 @@ class PlutoDirectIpReceiver:
                         f"direct-IP data arrived from unexpected peer {peer[0]}"
                     )
                 for outer in reassembler.feed(datagram_view[:received], peer=peer[0]):
-                    inner = parser.parse_complete_frame(outer.frame)
-                    if inner.metadata.stream_id != outer.stream_id:
-                        raise ProtocolError("direct-IP inner/outer stream mismatch")
-                    if inner.metadata.buffer_sequence != outer.frame_sequence:
-                        raise ProtocolError("direct-IP inner/outer sequence mismatch")
-                    if outer.stream_id != started.stream_id:
-                        raise ProtocolError(
-                            "direct-IP frame has unnegotiated stream ID"
-                        )
-                    frames.append(inner)
-                    if len(frames) > frame_count:
-                        raise ProtocolError("direct-IP gadget returned extra frames")
+                    accept(outer)
             parser.finish()
             if reassembler.pending_frame_count:
                 raise ProtocolError("direct-IP capture ended with partial frames")
@@ -365,7 +623,10 @@ class PlutoDirectIpReceiver:
             except Exception:
                 if capture_error is None:
                     raise
+            finally:
+                self._close_stream_connection()
 
+        dropped_frame_count, sample_gaps = _sequence_gaps(frames)
         return DirectIpCapture(
             remote_host=self.remote_host,
             remote_control_port=self.remote_control_port,
@@ -379,6 +640,9 @@ class PlutoDirectIpReceiver:
                 self._receive_queue_overflow_count - overflow_at_start
             )
             & 0xFFFFFFFF,
+            transport=transport,
+            dropped_frame_count=dropped_frame_count,
+            sample_gaps=sample_gaps,
         )
 
     def _receive_datagram_into(
@@ -395,6 +659,47 @@ class PlutoDirectIpReceiver:
             if level == socket.SOL_SOCKET and kind == SO_RXQ_OVFL and len(payload) >= 4:
                 self._receive_queue_overflow_count = struct.unpack_from("I", payload)[0]
         return received, peer
+
+    def _recv_exact(
+        self, stream: socket.socket, buffer: bytearray, offset: int, count: int
+    ) -> None:
+        view = memoryview(buffer)
+        received = 0
+        while received < count:
+            try:
+                chunk = stream.recv_into(view[offset + received : offset + count])
+            except TimeoutError as error:
+                raise DirectIpTransportError(
+                    "direct-IP stream read timed out after "
+                    f"{received}/{count} bytes"
+                ) from error
+            if chunk == 0:
+                if offset == 0 and received == 0:
+                    raise _StreamEnded()
+                raise ProtocolError(
+                    "direct-IP stream closed mid-chunk after "
+                    f"{offset + received} bytes"
+                )
+            received += chunk
+
+    def _read_stream_chunk(
+        self, stream: socket.socket, buffer: bytearray
+    ) -> memoryview:
+        """Read exactly one framed chunk: fixed header, then declared payload."""
+
+        self._recv_exact(stream, buffer, 0, IP_FRAGMENT_HEADER_BYTES)
+        fragment_bytes = struct.unpack_from("<I", buffer, _FRAGMENT_BYTES_OFFSET)[0]
+        capacity = self.max_datagram_bytes - IP_FRAGMENT_HEADER_BYTES
+        if not 1 <= fragment_bytes <= capacity:
+            # Validate the length before trusting it: an unchecked size taken
+            # from the wire is a read-amplification primitive, and the framing
+            # would desynchronise for every subsequent chunk anyway.
+            raise ProtocolError(
+                f"direct-IP stream chunk declares {fragment_bytes} payload bytes, "
+                f"outside 1..{capacity}"
+            )
+        self._recv_exact(stream, buffer, IP_FRAGMENT_HEADER_BYTES, fragment_bytes)
+        return memoryview(buffer)[: IP_FRAGMENT_HEADER_BYTES + fragment_bytes]
 
     def _required_features(self) -> MetadataFeatures:
         features = (
