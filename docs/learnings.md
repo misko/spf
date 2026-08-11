@@ -1419,24 +1419,26 @@ E-LNK1 metric 5, R18, 3 MS/s / 868 MHz / 41 dB. Full report in
 `experiments/e_lnk1_transport_sample_rate/RESULTS.md`.
 
 **H3 passes on three arms, including the production path.** `angle(RX1) − angle(RX2)` on a
-fixed fixture: `iio-eth` −2.895°, `iio-usb` −3.415°, **`direct-usb` −3.222°**, all
-quality-valid, 6 reps each, arms interleaved so drift cannot alias onto arm. Max between-arm
-difference **0.519°** against **1.515°** worst within-arm repeatability — a ratio of 0.34.
+fixed fixture: `iio-eth` −3.018°, `iio-usb` −3.552°, **`direct-usb` −3.222°**, all quality-valid,
+6 reps each, arms interleaved so drift cannot alias onto arm, at matched source amplitude.
+Max between-arm difference **0.534°** against **1.295°** worst within-arm repeatability — a
+ratio of 0.41.
 No transport is disqualified, which matters most for `direct-usb` since every calibration
 dataset and rover capture comes through it.
 
-**Unlooked-for, and the more actionable half: the paths disagree on absolute level.** Same
-signal, same drive, same analyzer and `adc_full_scale`: libiio reports `tone_dbfs` −16.58
-(n=24), direct-USB −10.63 (n=12), an offset of **+5.95 dB**. SNR (~34.1 dB both) and phase
-agree, so it is a full-scale/sample-scaling difference, not a signal difference.
+**A claim I made here and then withdrew.** I first reported that direct-USB reads the same
+signal ~5.95 dB hotter than libiio, and drew a consequence about the calibration quality gate
+tripping ~6 dB early. **Retracted.** Both paths saturate at exactly 2048 — the same 12-bit
+full scale — and both deliver unit-integer samples, so neither is scaled. The cause was the
+*source*: my harness used `tx_digital_scale = 0.25` where the calibration path uses **0.5**
+(`hardware.py:326`, `tx_digital_amplitude 16384 / 2**15`). Exactly 2× = 6.02 dB against the
+5.95 dB "measured". Matched, the paths agree to **0.06 dB** (−10.57 vs −10.63 dBFS). Nothing
+about the corpus's drive level is in question.
 
-Consequence worth remembering: at full drive direct-USB read −0.7 dBFS and failed its own
-`rx*_tone_too_strong` gate while libiio read −7.4 dBFS for the same signal and passed. **The
-quality gate that decides which frames enter calibration trips ~6 dB earlier on direct-USB
-than a libiio measurement predicts.** Setting drive level from libiio numbers leaves the
-production path ~6 dB hot. Which path is right in absolute terms is *not* established here,
-and it decides whether the calibration corpus has been running nearer clipping than
-intended — worth a follow-up.
+The durable lesson is narrower than the retracted claim: **when comparing signal paths, match
+the source configuration as carefully as the receive configuration.** An unmatched DDS
+amplitude is invisible in SNR and in phase, and shows up only in absolute level — so it looks
+exactly like a path property.
 
 Two method notes that generalise:
 

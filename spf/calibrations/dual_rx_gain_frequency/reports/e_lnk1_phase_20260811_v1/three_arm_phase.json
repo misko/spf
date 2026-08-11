@@ -1,5 +1,10 @@
 {
-  "amplitude_offset_direct_usb_minus_libiio_db": 5.95,
+  "absolute_level_agreement": {
+    "direct_usb_tone_dbfs_mean": -10.63,
+    "libiio_tone_dbfs_mean": -10.57,
+    "note": "the paths agree on absolute level to 0.06 dB once the DDS amplitude matches. An earlier version of this report claimed a ~6 dB path offset; that was an artifact of the harness using dds_scale 0.25 where the calibration path uses 0.5. RETRACTED.",
+    "offset_db": 0.06
+  },
   "arms": {
     "direct-usb": {
       "mean_deg": -3.222,
@@ -15,42 +20,42 @@
       ]
     },
     "iio-eth": {
-      "mean_deg": -2.8953,
+      "mean_deg": -3.0183,
       "n": 6,
-      "spread_deg": 1.515,
+      "spread_deg": 1.2952,
       "values_deg": [
-        -3.0238,
-        -2.4909,
-        -2.6623,
-        -2.6918,
-        -4.0059,
-        -2.4969
+        -2.6858,
+        -3.7884,
+        -2.4935,
+        -2.695,
+        -2.6585,
+        -3.7887
       ]
     },
     "iio-usb": {
-      "mean_deg": -3.4147,
+      "mean_deg": -3.5522,
       "n": 6,
-      "spread_deg": 1.0975,
+      "spread_deg": 0.7851,
       "values_deg": [
-        -3.2583,
-        -3.7829,
-        -3.779,
-        -3.7537,
-        -3.2291,
-        -2.6854
+        -3.2185,
+        -4.0036,
+        -3.2387,
+        -3.2843,
+        -3.7949,
+        -3.7732
       ]
     }
   },
   "conditions": {
+    "dds_scale": 0.5,
     "lo_hz": 868000000,
     "radio": "R18",
     "rx_gain_db": 41,
     "sample_rate_hz": 3000000,
     "tx_gain_db": -10.0
   },
-  "direct_usb_tone_dbfs_mean": -10.63,
-  "libiio_tone_dbfs_mean": -16.58,
-  "max_between_arm_difference_deg": 0.5195,
+  "max_between_arm_difference_deg": 0.5339,
+  "ratio_between_over_within": 0.412,
   "verdict": "PASS",
-  "worst_within_arm_spread_deg": 1.515
+  "worst_within_arm_spread_deg": 1.2952
 }

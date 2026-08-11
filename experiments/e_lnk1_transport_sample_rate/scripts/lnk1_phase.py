@@ -45,7 +45,11 @@ SETUP = dict(
     tone_search_width_hz=25_000.0,
     transient_samples=1_024,
     phase_segments=8,
-    tx_digital_scale=0.25,
+    # MUST match the calibration path: hardware.py:326 uses
+    # tx_digital_amplitude / 2**15 = 16384 / 32768 = 0.5. An earlier version of this
+    # script used 0.25 and the resulting 2x (6 dB) level difference was briefly
+    # mis-reported as a property of the transports.
+    tx_digital_scale=0.5,
 )
 
 

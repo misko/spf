@@ -1,0 +1,834 @@
+{
+  "arms": {
+    "iio-eth": "ip:192.168.1.165",
+    "iio-usb": "usb:1.90.5"
+  },
+  "experiment": "E-LNK1",
+  "hypothesis": "H3",
+  "max_between_arm_difference_deg": 0.5339,
+  "metric": "5 (phase agreement across transports)",
+  "per_arm": {
+    "iio-eth": {
+      "mean_deg": -3.0183,
+      "n": 6,
+      "spread_deg": 1.2953,
+      "stdev_deg": 0.6011,
+      "values_deg": [
+        -2.6858,
+        -3.7884,
+        -2.4935,
+        -2.695,
+        -2.6585,
+        -3.7887
+      ]
+    },
+    "iio-usb": {
+      "mean_deg": -3.5522,
+      "n": 6,
+      "spread_deg": 0.7852,
+      "stdev_deg": 0.3444,
+      "values_deg": [
+        -3.2185,
+        -4.0036,
+        -3.2387,
+        -3.2843,
+        -3.7949,
+        -3.7732
+      ]
+    }
+  },
+  "reps": 6,
+  "rows": [
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.33296702650493826,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999978725675,
+        "dc_dbfs": [
+          -91.78681097594074,
+          -104.43384183011685
+        ],
+        "phase_difference_deg": -3.2184572689971853,
+        "phase_difference_rad": -0.056172676178745704,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.056261063606748436,
+          -0.05619780090342061,
+          -0.05616444822491601,
+          -0.05617243672675562,
+          -0.05611832561995531,
+          -0.05615870881258835,
+          -0.05615998333446983,
+          -0.05614864220119922
+        ],
+        "tone_dbfs": [
+          -10.191124524418004,
+          -10.524091550922943
+        ],
+        "tone_frequency_error_hz": 20.871410497900797,
+        "tone_frequency_hz": 100020.8714104979,
+        "tone_snr_db": [
+          34.09744568487255,
+          34.118020133094966
+        ],
+        "within_capture_phase_std_deg": 0.002255660279184045,
+        "within_capture_phase_std_rad": 3.93686986782161e-05,
+        "within_capture_resultant_length": 0.9999999992250528
+      },
+      "arm": "iio-usb",
+      "elapsed_s": 3.001,
+      "ok": true,
+      "phase_difference_deg": -3.2184572689971853,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 0,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.8714104979,
+      "uri": "usb:1.90.5"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.45180613821941545,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999954153433,
+        "dc_dbfs": [
+          -101.37420346975861,
+          -101.38180285460001
+        ],
+        "phase_difference_deg": -2.6858024591184697,
+        "phase_difference_rad": -0.046876095969777695,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.0468594329198737,
+          -0.04686323351488604,
+          -0.04692577637815387,
+          -0.04684644116499211,
+          -0.04684175913416703,
+          -0.04691933020799302,
+          -0.046876916086982676,
+          -0.046875878351194736
+        ],
+        "tone_dbfs": [
+          -10.142270937413112,
+          -10.594077075632526
+        ],
+        "tone_frequency_error_hz": 20.877718566101976,
+        "tone_frequency_hz": 100020.8777185661,
+        "tone_snr_db": [
+          34.229839787747096,
+          34.218475637972205
+        ],
+        "within_capture_phase_std_deg": 0.0016753003549797069,
+        "within_capture_phase_std_rad": 2.9239507154225664e-05,
+        "within_capture_resultant_length": 0.9999999995725256
+      },
+      "arm": "iio-eth",
+      "elapsed_s": 2.766,
+      "ok": true,
+      "phase_difference_deg": -2.6858024591184697,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 0,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.8777185661,
+      "uri": "ip:192.168.1.165"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.4253993367918494,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999931797352,
+        "dc_dbfs": [
+          -91.70505210689026,
+          -89.53492055577492
+        ],
+        "phase_difference_deg": -4.003608755049125,
+        "phase_difference_rad": -0.06987615473727839,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.0698408651405008,
+          -0.06987777045800671,
+          -0.06986232916979264,
+          -0.06990234760846141,
+          -0.06981243028777845,
+          -0.06986804086341611,
+          -0.06989280722471364,
+          -0.06995264714558466
+        ],
+        "tone_dbfs": [
+          -10.753785918034817,
+          -11.179185254826667
+        ],
+        "tone_frequency_error_hz": 20.864556807020563,
+        "tone_frequency_hz": 100020.86455680702,
+        "tone_snr_db": [
+          34.143059599507325,
+          34.12548435125943
+        ],
+        "within_capture_phase_std_deg": 0.0022539365544630508,
+        "within_capture_phase_std_rad": 3.933861400643673e-05,
+        "within_capture_resultant_length": 0.9999999992262367
+      },
+      "arm": "iio-usb",
+      "elapsed_s": 2.906,
+      "ok": true,
+      "phase_difference_deg": -4.003608755049125,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 1,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.86455680702,
+      "uri": "usb:1.90.5"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.3609154383486299,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999957147976,
+        "dc_dbfs": [
+          -89.65030619271539,
+          -90.3340454195843
+        ],
+        "phase_difference_deg": -3.7884165357590915,
+        "phase_difference_rad": -0.06612034198599365,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.06609887427693723,
+          -0.06611644417124374,
+          -0.06610630973392796,
+          -0.06612549454201361,
+          -0.06609120375260087,
+          -0.06614189470382893,
+          -0.06613083538980791,
+          -0.0661516793175897
+        ],
+        "tone_dbfs": [
+          -10.491489403947224,
+          -10.852404842295854
+        ],
+        "tone_frequency_error_hz": 20.855278827584698,
+        "tone_frequency_hz": 100020.85527882758,
+        "tone_snr_db": [
+          33.987098869501885,
+          33.984913989999974
+        ],
+        "within_capture_phase_std_deg": 0.0011288146882164124,
+        "within_capture_phase_std_rad": 1.9701532954249634e-05,
+        "within_capture_resultant_length": 0.9999999998059248
+      },
+      "arm": "iio-eth",
+      "elapsed_s": 2.786,
+      "ok": true,
+      "phase_difference_deg": -3.7884165357590915,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 1,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.85527882758,
+      "uri": "ip:192.168.1.165"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.33606069959288154,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999954594214,
+        "dc_dbfs": [
+          -96.15636485437665,
+          -89.58388118981809
+        ],
+        "phase_difference_deg": -3.2387312801773374,
+        "phase_difference_rad": -0.056526524426425494,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.056439094502653574,
+          -0.05647592872163511,
+          -0.056511954331521994,
+          -0.05650224646986209,
+          -0.0565996124997765,
+          -0.05660254866120851,
+          -0.056545283978743234,
+          -0.05653552624600653
+        ],
+        "tone_dbfs": [
+          -10.199636052939141,
+          -10.535696752532022
+        ],
+        "tone_frequency_error_hz": 20.841873274053796,
+        "tone_frequency_hz": 100020.84187327405,
+        "tone_snr_db": [
+          33.91642709182943,
+          33.906165326093934
+        ],
+        "within_capture_phase_std_deg": 0.003042624805096844,
+        "within_capture_phase_std_rad": 5.310382075179067e-05,
+        "within_capture_resultant_length": 0.9999999985899921
+      },
+      "arm": "iio-usb",
+      "elapsed_s": 2.859,
+      "ok": true,
+      "phase_difference_deg": -3.2387312801773374,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 2,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.84187327405,
+      "uri": "usb:1.90.5"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.4107675422742303,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999884007322,
+        "dc_dbfs": [
+          -90.4509050937163,
+          -94.08387569277296
+        ],
+        "phase_difference_deg": -2.4934551659359623,
+        "phase_difference_rad": -0.0435190023964441,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.043479749753924817,
+          -0.043483108460607794,
+          -0.04351659059047433,
+          -0.043506460156663415,
+          -0.04355576362779765,
+          -0.0435279830381894,
+          -0.043531586263603685,
+          -0.04355077728028766
+        ],
+        "tone_dbfs": [
+          -9.9608411585047,
+          -10.371608700778928
+        ],
+        "tone_frequency_error_hz": 20.869356134935515,
+        "tone_frequency_hz": 100020.86935613494,
+        "tone_snr_db": [
+          34.17354765218397,
+          34.16046705254849
+        ],
+        "within_capture_phase_std_deg": 0.0015148620112781879,
+        "within_capture_phase_std_rad": 2.6439329810187853e-05,
+        "within_capture_resultant_length": 0.9999999996504809
+      },
+      "arm": "iio-eth",
+      "elapsed_s": 2.791,
+      "ok": true,
+      "phase_difference_deg": -2.4934551659359623,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 2,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.86935613494,
+      "uri": "ip:192.168.1.165"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.4672732128514663,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999883971461,
+        "dc_dbfs": [
+          -89.10910051843636,
+          -96.03167215245685
+        ],
+        "phase_difference_deg": -3.284347177705968,
+        "phase_difference_rad": -0.05732267202955244,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.057282238878826816,
+          -0.057325366746892675,
+          -0.05736214519604852,
+          -0.05728125882987384,
+          -0.05735234777362006,
+          -0.05732544990949887,
+          -0.05734507426817978,
+          -0.05730749463347199
+        ],
+        "tone_dbfs": [
+          -10.71638565152827,
+          -11.183658864379737
+        ],
+        "tone_frequency_error_hz": 20.86670033368864,
+        "tone_frequency_hz": 100020.86670033369,
+        "tone_snr_db": [
+          34.10727429957572,
+          34.09649781051522
+        ],
+        "within_capture_phase_std_deg": 0.0016376805140191936,
+        "within_capture_phase_std_rad": 2.858291706538808e-05,
+        "within_capture_resultant_length": 0.9999999995915084
+      },
+      "arm": "iio-usb",
+      "elapsed_s": 2.882,
+      "ok": true,
+      "phase_difference_deg": -3.284347177705968,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 3,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.86670033369,
+      "uri": "usb:1.90.5"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.3607263120705875,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999947267,
+        "dc_dbfs": [
+          -86.93964981610763,
+          -86.99706980923806
+        ],
+        "phase_difference_deg": -2.695000776510285,
+        "phase_difference_rad": -0.04703663689390833,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.04708256354312516,
+          -0.047039161811169565,
+          -0.047008719948529704,
+          -0.04701487460155367,
+          -0.04704580370408866,
+          -0.047016489566714906,
+          -0.04703064526025882,
+          -0.04705483671583675
+        ],
+        "tone_dbfs": [
+          -10.00356883540806,
+          -10.364295147478648
+        ],
+        "tone_frequency_error_hz": 20.857404558977578,
+        "tone_frequency_hz": 100020.85740455898,
+        "tone_snr_db": [
+          34.0967112178118,
+          34.103377487953765
+        ],
+        "within_capture_phase_std_deg": 0.0013168159781046431,
+        "within_capture_phase_std_rad": 2.298277446079558e-05,
+        "within_capture_resultant_length": 0.999999999735896
+      },
+      "arm": "iio-eth",
+      "elapsed_s": 2.783,
+      "ok": true,
+      "phase_difference_deg": -2.695000776510285,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 3,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.85740455898,
+      "uri": "ip:192.168.1.165"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.3650153100271087,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999941658622,
+        "dc_dbfs": [
+          -109.05799515356632,
+          -97.22278143793817
+        ],
+        "phase_difference_deg": -3.794946661623744,
+        "phase_difference_rad": -0.06623431418290147,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.06618334003775876,
+          -0.06616291467347282,
+          -0.06624904816364062,
+          -0.06622107946814026,
+          -0.06626141369887545,
+          -0.06625057668177052,
+          -0.06626003024498997,
+          -0.06628611049451097
+        ],
+        "tone_dbfs": [
+          -10.505338010013684,
+          -10.870353320040794
+        ],
+        "tone_frequency_error_hz": 20.86851859393937,
+        "tone_frequency_hz": 100020.86851859394,
+        "tone_snr_db": [
+          34.19764282092144,
+          34.18535485648021
+        ],
+        "within_capture_phase_std_deg": 0.0022586026315704636,
+        "within_capture_phase_std_rad": 3.942005241511301e-05,
+        "within_capture_resultant_length": 0.9999999992230297
+      },
+      "arm": "iio-usb",
+      "elapsed_s": 2.847,
+      "ok": true,
+      "phase_difference_deg": -3.794946661623744,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 4,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.86851859394,
+      "uri": "usb:1.90.5"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.45327527392588096,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.999999994999285,
+        "dc_dbfs": [
+          -88.79640491805132,
+          -92.1764271758535
+        ],
+        "phase_difference_deg": -2.6584720238213815,
+        "phase_difference_rad": -0.04639908988784023,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.046372789870134226,
+          -0.046417353739009085,
+          -0.04643683335239652,
+          -0.04646986529705693,
+          -0.04640291511738434,
+          -0.04636943933431354,
+          -0.04635837563967037,
+          -0.04636514675280074
+        ],
+        "tone_dbfs": [
+          -10.1169702637283,
+          -10.57024553765418
+        ],
+        "tone_frequency_error_hz": 20.86542204656871,
+        "tone_frequency_hz": 100020.86542204657,
+        "tone_snr_db": [
+          34.051264197680936,
+          34.047862207666576
+        ],
+        "within_capture_phase_std_deg": 0.002140225601682362,
+        "within_capture_phase_std_rad": 3.73539834848339e-05,
+        "within_capture_resultant_length": 0.99999999930234
+      },
+      "arm": "iio-eth",
+      "elapsed_s": 2.769,
+      "ok": true,
+      "phase_difference_deg": -2.6584720238213815,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 4,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.86542204657,
+      "uri": "ip:192.168.1.165"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.47327252529296215,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999940362306,
+        "dc_dbfs": [
+          -96.01777117892225,
+          -88.52683338879677
+        ],
+        "phase_difference_deg": -3.773241967130781,
+        "phase_difference_rad": -0.06585549580085978,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.06588583862251668,
+          -0.0658249233919735,
+          -0.0658654446586763,
+          -0.06594692229665643,
+          -0.06589112935532573,
+          -0.06585854565160064,
+          -0.06582376580745335,
+          -0.06574739662259463
+        ],
+        "tone_dbfs": [
+          -10.884303465414412,
+          -11.357575990707375
+        ],
+        "tone_frequency_error_hz": 20.851632790698204,
+        "tone_frequency_hz": 100020.8516327907,
+        "tone_snr_db": [
+          33.986425518728865,
+          33.98609462767834
+        ],
+        "within_capture_phase_std_deg": 0.003156759565081178,
+        "within_capture_phase_std_rad": 5.509584810449077e-05,
+        "within_capture_resultant_length": 0.9999999984822238
+      },
+      "arm": "iio-usb",
+      "elapsed_s": 2.852,
+      "ok": true,
+      "phase_difference_deg": -3.773241967130781,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 5,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.8516327907,
+      "uri": "usb:1.90.5"
+    },
+    {
+      "analyzer": {
+        "amplitude_ratio_db_rx1_over_rx2": 0.35913195922896884,
+        "clipping_fraction": [
+          0.0,
+          0.0
+        ],
+        "coherence": 0.9999999979659904,
+        "dc_dbfs": [
+          -104.14870970596573,
+          -93.85825182723735
+        ],
+        "phase_difference_deg": -3.7887247161095265,
+        "phase_difference_rad": -0.06612572074779868,
+        "quality_reasons": [],
+        "quality_valid": true,
+        "reg_0x22_bit6": true,
+        "rx_gains_db": [
+          41.0,
+          41.0
+        ],
+        "rx_lo_hz": 867999998,
+        "sample_rate_hz": 3000000,
+        "segment_phase_rad": [
+          -0.06612072228319134,
+          -0.06613792350976573,
+          -0.06616320975329454,
+          -0.06610944587863071,
+          -0.06611232692069827,
+          -0.06612457684852187,
+          -0.06609991558281379,
+          -0.06613764520547868
+        ],
+        "tone_dbfs": [
+          -10.498881787675689,
+          -10.858013746904657
+        ],
+        "tone_frequency_error_hz": 20.868778796997503,
+        "tone_frequency_hz": 100020.868778797,
+        "tone_snr_db": [
+          34.062196196470836,
+          34.06969527507665
+        ],
+        "within_capture_phase_std_deg": 0.0010782018671318188,
+        "within_capture_phase_std_rad": 1.8818172582600668e-05,
+        "within_capture_resultant_length": 0.9999999998229382
+      },
+      "arm": "iio-eth",
+      "elapsed_s": 2.79,
+      "ok": true,
+      "phase_difference_deg": -3.7887247161095265,
+      "quality_reasons": [],
+      "quality_valid": true,
+      "reg_0x22_bit6": true,
+      "rep": 5,
+      "rx_gains_db": [
+        41.0,
+        41.0
+      ],
+      "rx_lo_hz": 867999998,
+      "sample_rate_hz": 3000000,
+      "tone_frequency_hz": 100020.868778797,
+      "uri": "ip:192.168.1.165"
+    }
+  ],
+  "rx_setup_source": "copied attribute-for-attribute from spf/calibrations/dual_rx_gain_frequency/hardware.py:120-141",
+  "sample_rate_rationale": "3 MS/s, well below the ~2.9 MS/s wall every arm hits, so no arm is throughput-starved and drops cannot alias onto phase",
+  "setup": {
+    "bandwidth_hz": 3000000,
+    "buffer_size": 65536,
+    "lo_hz": 868000000,
+    "phase_segments": 8,
+    "rx_gain_db": 41,
+    "sample_rate_hz": 3000000,
+    "tone_offset_hz": 100000.0,
+    "tone_search_width_hz": 25000.0,
+    "transient_samples": 1024,
+    "tx_digital_scale": 0.5,
+    "tx_gain_db": -10.0
+  },
+  "source": {
+    "armed_via": "usb:1.90.5",
+    "tx1_gain_db": -80.0,
+    "tx2_gain_db": -10.0
+  },
+  "utc": "2026-08-11T03:01:34Z",
+  "verdict": "PASS - between-arm difference is within fixture repeatability",
+  "within_arm_repeatability_deg": 1.2953
+}

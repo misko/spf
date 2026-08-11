@@ -6,12 +6,14 @@ direct-usb:
   gain-observation-interval-samples: 2048
   gain-observation-capacity: 256
 pluto-firmware:
-  release-tag: (none -- volatile RC17 candidate, not a published release)
+  release-tag: v0.38-plutoplus-spf-gain-series-v4-rc17
   device-fw: v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe
-  boot-mode: ram-volatile
-  note: deliberate deviation from the rc12-9-g867e1 pin used by the 2026-07-30 campaign, chosen
-    so the active RC17 burn-in work is not disturbed. Recorded so the cross-firmware comparison
-    is explicit.
+  asset-name: plutoplus-spf-main-1f3fe0cbe865-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-series-v4-rc17/plutoplus-spf-main-1f3fe0cbe865-pluto.dfu
+  image-sha256: 88a606f1a19f493e031989b8fc76cc77644ae5473e5d627b850252c9a615c54e
+  firmware-git-sha: 1f3fe0cbe865df0a8793e0fd0096368d02d28a14
+  gadget-git-sha: 2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552
+  boot-mode: ram
 calibration:
   frequencies-hz:
   - 868000000
