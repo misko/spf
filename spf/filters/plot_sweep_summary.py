@@ -109,7 +109,7 @@ def fig_family_ranking(per_cfg, out_dir):
     return fn
 
 
-def fig_seed_spread(per_cfg, out_dir):
+def fig_seed_spread(per_cfg, out_dir, n_datasets=None):
     """How much the corpus mean moves with the seed alone."""
     fams = collections.defaultdict(list)
     for (fam, frame, _c), per_seed in per_cfg.items():
@@ -124,9 +124,13 @@ def fig_seed_spread(per_cfg, out_dir):
     fig, ax = plt.subplots(figsize=(11, 5.5))
     ax.boxplot([fams[k] for k in order], labels=order, showfliers=False)
     ax.set_ylabel("seed-to-seed std / mean, per configuration")
+    # The dataset count must come from the data: this figure is generated for
+    # both the 16-store tuning sweep and the 48-store confirmation, and a
+    # hardcoded "16" is simply false on the latter.
+    n = f"{n_datasets} datasets" if n_datasets else "the corpus"
     ax.set_title(
         "Corpus-mean stability across 5 seeds\n"
-        "per-DATASET spread was measured at 42–106%; averaging 16 datasets is what "
+        f"per-DATASET spread was measured at 42–106%; averaging {n} is what "
         "brings it here"
     )
     ax.tick_params(axis="x", labelsize=7)
@@ -270,9 +274,10 @@ if __name__ == "__main__":
     os.makedirs(a.output_dir, exist_ok=True)
     rows = json.load(open(a.results))["rows"]
     per_cfg = per_config_across_seeds(rows)
+    n_datasets = sum(datasets_per_spacing(rows).values())
     for fn in (
         fig_family_ranking(per_cfg, a.output_dir),
-        fig_seed_spread(per_cfg, a.output_dir),
+        fig_seed_spread(per_cfg, a.output_dir, n_datasets=n_datasets),
         fig_by_spacing(rows, a.output_dir),
         fig_hyperparam_sensitivity(per_cfg, a.output_dir),
     ):
