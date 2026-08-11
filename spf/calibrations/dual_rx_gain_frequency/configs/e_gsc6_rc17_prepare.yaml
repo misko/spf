@@ -1,0 +1,80 @@
+# E-GSC6 firmware preparation config -- RC17, RAM-loaded.
+#
+# Deliberately NOT in data_collection/rover/.../capture_configs/: every production rover
+# there pins RC16 and tests assert it (tests/test_rover_capture_profile.py). This file is
+# only a --preparation-config for `automate`, so it lives with the calibration configs.
+#
+# Structure copied wholesale from rover1_production_v7.yaml with ONLY the pluto-firmware
+# block replaced, so every key the prepare flow might read is present and unchanged.
+#
+# boot-mode: ram -- RAM-load rather than QSPI write. The image loaded is the same RC17
+# build already running on both radios, so this restores the state it resets, and no
+# QSPI is touched.
+#
+# Provenance independently verified 2026-08-11 against the release's own SHA256SUMS:
+#   DFU    88a606f1a19f493e031989b8fc76cc77644ae5473e5d627b850252c9a615c54e  MATCHES report
+#   rootfs be9ac420f628551066ac9c4f437bf60a70a532c4722e3be5d71f7cb7aca3d6df  MATCHES report
+#   XSA    a8b0dc57bec281b9652c55a3e58750527322a9c4ec828e04a60aa1c4706f3758  MATCHES report
+rest-offset-m:
+- 1.0
+- 1.0
+emitter:
+  type: o4
+  signal: digital
+distance-finder:
+  trigger: 2
+  echo: 3
+boundary: auto
+pluto-firmware:
+  release-tag: v0.38-plutoplus-spf-gain-series-v4-rc17
+  device-fw: v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe
+  asset-name: plutoplus-spf-main-1f3fe0cbe865-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-series-v4-rc17/plutoplus-spf-main-1f3fe0cbe865-pluto.dfu
+  image-sha256: 88a606f1a19f493e031989b8fc76cc77644ae5473e5d627b850252c9a615c54e
+  firmware-git-sha: 1f3fe0cbe865df0a8793e0fd0096368d02d28a14
+  gadget-git-sha: 2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552
+  boot-mode: ram
+receivers:
+- receiver-port: 2
+  theta-in-pis: 0
+  antenna-spacing-m: 0.035
+  nelements: 2
+  array-type: linear
+  rx-gain-mode: slow_attack
+  rx-buffers: 4
+  rx-gain: -3
+  buffer-size: 524288
+  f-intermediate: 100000
+  f-carrier: 5840000000.0
+  f-sampling: 30000000.0
+  bandwidth: 3000000.0
+- receiver-port: 1
+  theta-in-pis: 0.5
+  antenna-spacing-m: 0.035
+  nelements: 2
+  array-type: linear
+  rx-gain-mode: slow_attack
+  rx-buffers: 4
+  rx-gain: -3
+  buffer-size: 524288
+  f-intermediate: 100000
+  f-carrier: 5840000000.0
+  f-sampling: 30000000.0
+  bandwidth: 3000000.0
+n-thetas: 65
+n-records-per-receiver: 3000
+width: 4000
+calibration-frames: 800
+routine: bounce
+drone-uri: serial
+dry-run: false
+data-version: 7
+direct-usb:
+  protocol-version: 3
+  gain-observation-interval-samples: 2048
+  gain-observation-capacity: 256
+seconds-per-sample: 0.5
+collector:
+  type: rover
+  version: '3.1'
+  capture-profile: direct_usb_gain_series_v3

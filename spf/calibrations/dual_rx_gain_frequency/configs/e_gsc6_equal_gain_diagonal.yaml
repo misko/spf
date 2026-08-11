@@ -10,12 +10,14 @@ direct-usb:
   gain-observation-interval-samples: 2048
   gain-observation-capacity: 256
 pluto-firmware:
-  release-tag: (none -- volatile RC17 candidate, not a published release)
+  release-tag: v0.38-plutoplus-spf-gain-series-v4-rc17
   device-fw: v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe
-  boot-mode: ram-volatile
-  note: deliberate deviation from the rc12-9-g867e1 pin used by the 2026-07-30 campaign, chosen
-    so the active RC17 burn-in work is not disturbed. Recorded so the cross-firmware comparison
-    is explicit.
+  asset-name: plutoplus-spf-main-1f3fe0cbe865-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-series-v4-rc17/plutoplus-spf-main-1f3fe0cbe865-pluto.dfu
+  image-sha256: 88a606f1a19f493e031989b8fc76cc77644ae5473e5d627b850252c9a615c54e
+  firmware-git-sha: 1f3fe0cbe865df0a8793e0fd0096368d02d28a14
+  gadget-git-sha: 2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552
+  boot-mode: ram
 calibration:
   frequencies-hz:
   - 433000000
@@ -145,9 +147,11 @@ calibration:
     SMA tee (~0 dB port-to-port isolation), NOT a divider. E-HCP1 bounded its cross-arm coupling
     at <=1.25 dB, frequency-flat, so it cannot explain A; but in the LOW band that bound (~1
     deg) and A (0.73 deg) are the same size, so a small low-band C(g,g) must not be over-read.
-    FIRMWARE: run on the volatile RC17 candidate rc16-7-g1f3fe, NOT the rc12-9-g867e1 build
-    the published A was measured on. Comparisons against published A are CROSS-FIRMWARE and
-    must say so. Same-session A is unaffected.'
+    FIRMWARE: RC17, RAM-loaded via the automate flow with e_gsc6_rc17_prepare.yaml, so firmware_verified
+    is a genuine attestation rather than an assertion. This is NOT the rc12-9-g867e1 build
+    the published A was measured on, so every comparison against PUBLISHED A is CROSS-FIRMWARE
+    and must say so in the report. The same-session A -- which is what the decision rule actually
+    grades on -- is unaffected, because it comes from this run''s own training cross.'
   quality:
     min-tone-snr-db: -10
     min-tone-dbfs: -75

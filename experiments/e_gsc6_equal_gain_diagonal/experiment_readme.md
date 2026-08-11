@@ -1,6 +1,6 @@
 # E-GSC6 — does the equal-gain anchor move with gain index?
 
-**Status:** designed 2026-08-10, **config written and validated 2026-08-11, run BLOCKED** on a firmware attestation gate — see the box in §5.1. Config:
+**Status:** designed 2026-08-10, **RUNNING 2026-08-11** on RC17 via the `automate` flow (see §5.1). Config:
 `spf/calibrations/dual_rx_gain_frequency/configs/e_gsc6_equal_gain_diagonal.yaml`
 (passes `CalibrationConfig.validate()`; 4,392 frames per radio, 8,784 for the pair).
 **Revised 2026-08-10** after a bench/code audit against the committed capture path.
@@ -255,7 +255,27 @@ not silently run on something newer:
   on the hardware, and `data_collector.py:145-155` would then record the *config's*
   firmware strings with `firmware_verified: false`.
 
-> ### ⚠ Blocked 2026-08-11: the firmware pin is **enforced**, not advisory
+> ### ✅ Resolved 2026-08-11: running on RC17 via the `automate` flow
+>
+> The blocker below was real and is now closed by **option 1**. `automate` RAM-loads
+> RC17 from `configs/e_gsc6_rc17_prepare.yaml` and regenerates
+> `/run/spf/direct_usb_ready.json` itself, so `firmware_verified` is a **genuine
+> attestation** rather than an assertion. Confirmed after the prepare phase:
+> `release_tag …-rc17`, `device_fw …-rc16-7-g1f3fe`, `boot_mode ram`,
+> `image_sha256 88a606f1…`, both radios `firmware_verified: true`.
+>
+> RC17's provenance was verified independently against the release's own
+> `SHA256SUMS` before use — DFU `88a606f1…`, rootfs `be9ac420…`, XSA `a8b0dc57…`,
+> all three matching the RC17 hardware-gate report.
+>
+> **Comparisons against published `A` are therefore cross-firmware** (`A` was
+> measured on `rc12-9-g867e1`) and the report must say so. The **same-session `A`**,
+> which §7's decision rule actually grades on, is unaffected — it comes from this
+> run's own training cross.
+>
+> Original blocker, kept for the record:
+>
+> ### ⚠ The firmware pin is **enforced**, not advisory
 >
 > An attempt to run on the current volatile RC17 image, recording the deviation as
 > cross-firmware, **failed closed** and could not be made to work honestly:
