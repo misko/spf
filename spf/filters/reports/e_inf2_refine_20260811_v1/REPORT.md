@@ -68,16 +68,64 @@ column is indicative.
 
 ## Every optimum is interior
 
-![PF dual radio NN craft](figures/heatmap_PF_single_theta_dual_radio_NN__craft_relative.png)
-
 Zero truncated axes across all seven families, with `theta_err` at full coverage
 this time — so the grid genuinely contains each optimum rather than merely
-appearing to. The remaining six surfaces are in [`figures/`](figures).
+appearing to.
 
-The picture explains the whole negative result: the optimum is a **wide basin**,
-not a peak. Moving `N` by a factor of 16 or `theta_dot_err` by a factor of 2
-changes MSE by well under a percent. There was no hidden better configuration
-because the surface has no sharp minimum to hide.
+The surfaces below explain the whole negative result: the optimum is a **wide
+basin**, not a peak. Moving `N` by a factor of 16 or `theta_dot_err` by a factor
+of 2 changes MSE by well under a percent. There was no hidden better
+configuration because the surface has no sharp minimum to hide.
+
+---
+
+## Every surface
+
+All seven families on the refined grid, with `theta_err` at full coverage. The
+**plateau width** in each caption is the finding: on the refined ranges a large
+fraction of every grid is statistically indistinguishable from its optimum.
+
+### PF single radio NN [radio_folded]
+
+![PF single radio NN radio_folded](figures/heatmap_PF_single_theta_single_radio_NN__radio_folded.png)
+
+Best **0.299 rad²** at `N` = 512, `theta_dot_err` = 0.1. **10 of 25 cells** (40%) are within 5% of it; the worst cell is 0.361. The optimum is a basin, not a peak.
+
+### PF dual radio NN [absolute_north]
+
+![PF dual radio NN absolute_north](figures/heatmap_PF_single_theta_dual_radio_NN__absolute_north.png)
+
+Best **0.534 rad²** at `N` = 4096, `theta_dot_err` = 0.005. **2 of 25 cells** (8%) are within 5% of it; the worst cell is 0.680. A narrower optimum than the other families, but still interior.
+
+### PF single radio [radio_folded]
+
+![PF single radio radio_folded](figures/heatmap_PF_single_theta_single_radio__radio_folded.png)
+
+Best **0.541 rad²** at `N` = 1024, `theta_dot_err` = 0.1. **13 of 25 cells** (52%) are within 5% of it; the worst cell is 0.611. The optimum is a basin, not a peak.
+
+### PF dual radio NN [craft_relative]
+
+![PF dual radio NN craft_relative](figures/heatmap_PF_single_theta_dual_radio_NN__craft_relative.png)
+
+Best **0.673 rad²** at `N` = 1024, `theta_dot_err` = 0.1. **10 of 25 cells** (40%) are within 5% of it; the worst cell is 0.877. The optimum is a basin, not a peak.
+
+### PF dual radio [craft_relative]
+
+![PF dual radio craft_relative](figures/heatmap_PF_single_theta_dual_radio__craft_relative.png)
+
+Best **0.838 rad²** at `N` = 16384, `theta_dot_err` = 0.1. **9 of 25 cells** (36%) are within 5% of it; the worst cell is 1.412. The optimum is a basin, not a peak.
+
+### EKF single radio [radio_folded]
+
+![EKF single radio radio_folded](figures/heatmap_EKF_single_theta_single_radio__radio_folded.png)
+
+Best **1.032 rad²** at `noise_std` = 1e-05, `phi_std` = 0.5. **9 of 9 cells** (100%) are within 5% of it; the worst cell is 1.066. Every cell in the grid is within 5% of the best — this family's accuracy is insensitive to its hyperparameters over the whole refined range.
+
+### EKF dual radio [craft_relative]
+
+![EKF dual radio craft_relative](figures/heatmap_EKF_single_theta_dual_radio__craft_relative.png)
+
+Best **2.625 rad²** at `noise_std` = 0.01, `phi_std` = 1. **4 of 9 cells** (44%) are within 5% of it; the worst cell is 3.013. The optimum is a basin, not a peak.
 
 ---
 

@@ -50,27 +50,75 @@ per-dataset split runs against the mean, so it is ambiguous rather than proven.
 
 ## The surfaces
 
-![PF single radio NN](figures/heatmap_PF_single_theta_single_radio_NN__radio_folded.png)
+Two things the wide grid made visible, both of which the coarse 2×3 view could
+not have shown:
 
-The reason accuracy did not improve is visible immediately: **the optimum is a
-broad plateau, not a peak.** The whole region `theta_dot_err` ∈ [0.05, 0.2] is
-within a few percent at every particle count from 128 to 32768. The coarse grid's
-winner was already inside it; extending the axis found more of the same flat
-ground rather than a better point.
+**The optimum is a broad plateau, not a peak.** The whole region
+`theta_dot_err` ∈ [0.05, 0.2] is within a few percent at every particle count
+from 128 to 32768. The coarse grid's winner was already inside it, so extending
+the axis found more of the same flat ground rather than a better point — which is
+the whole of H2's falsification in one sentence.
 
-It also shows where the surface genuinely *does* move: below
-`theta_dot_err` ≈ 0.005 it degrades sharply (0.43 → 1.20), which is the cliff the
-March 2025 deck described. The coarse grid's four-point axis sampled that cliff
-at only two points.
+**Where the surface genuinely does move is the other direction.** Below
+`theta_dot_err` ≈ 0.005 it degrades sharply (0.43 → 1.20), the cliff the March
+2025 deck described. The coarse grid's four-point axis sampled that cliff at only
+two points.
 
-![PF dual radio NN absolute](figures/heatmap_PF_single_theta_dual_radio_NN__absolute_north.png)
-
-The absolute-north frame is a different surface entirely — its optimum sits at
+**And the two frames are different surfaces.** Absolute-north optimises at
 `theta_dot_err` = 0.005, twenty times smaller than the craft-relative families'
-0.1. That is **H3**, and it is the same dynamics result the stage-3 report
-argued from angular rates, now visible directly.
+0.1 — that is **H3**, the same dynamics result the stage-3 report argued from
+angular rates, now visible directly rather than inferred.
 
-The remaining five heatmaps are in [`figures/`](figures).
+---
+
+## Every surface
+
+All seven families, wide grid. Each cell is the best corpus-mean MSE
+achievable there; the red box is the optimum. The **plateau width** in each
+caption -- how many cells sit within 5% of the best -- is the number that
+explains why extending the grid bought nothing.
+
+### PF single radio NN [radio_folded]
+
+![PF single radio NN radio_folded](figures/heatmap_PF_single_theta_single_radio_NN__radio_folded.png)
+
+Best **0.272 rad²** at `N` = 512, `theta_dot_err` = 0.1. **12 of 108 cells** (11%) are within 5% of it; the worst cell is 1.482. A narrower optimum than the other families, but still interior.
+
+### PF dual radio NN [absolute_north]
+
+![PF dual radio NN absolute_north](figures/heatmap_PF_single_theta_dual_radio_NN__absolute_north.png)
+
+Best **0.322 rad²** at `N` = 1024, `theta_dot_err` = 0.005. **1 of 108 cells** (1%) are within 5% of it; the worst cell is 0.862. A narrower optimum than the other families, but still interior.
+
+### PF single radio [radio_folded]
+
+![PF single radio radio_folded](figures/heatmap_PF_single_theta_single_radio__radio_folded.png)
+
+Best **0.563 rad²** at `N` = 256, `theta_dot_err` = 0.1. **17 of 108 cells** (16%) are within 5% of it; the worst cell is 1.438. A narrower optimum than the other families, but still interior.
+
+### PF dual radio NN [craft_relative]
+
+![PF dual radio NN craft_relative](figures/heatmap_PF_single_theta_dual_radio_NN__craft_relative.png)
+
+Best **0.584 rad²** at `N` = 256, `theta_dot_err` = 0.1. **1 of 108 cells** (1%) are within 5% of it; the worst cell is 2.622. A narrower optimum than the other families, but still interior.
+
+### PF dual radio [craft_relative]
+
+![PF dual radio craft_relative](figures/heatmap_PF_single_theta_dual_radio__craft_relative.png)
+
+Best **0.834 rad²** at `N` = 4096, `theta_dot_err` = 0.1. **6 of 108 cells** (6%) are within 5% of it; the worst cell is 2.963. A narrower optimum than the other families, but still interior.
+
+### EKF single radio [radio_folded]
+
+![EKF single radio radio_folded](figures/heatmap_EKF_single_theta_single_radio__radio_folded.png)
+
+Best **0.904 rad²** at `noise_std` = 1e-06, `phi_std` = 1. **6 of 54 cells** (11%) are within 5% of it; the worst cell is 1.445. A narrower optimum than the other families, but still interior.
+
+### EKF dual radio [craft_relative]
+
+![EKF dual radio craft_relative](figures/heatmap_EKF_single_theta_dual_radio__craft_relative.png)
+
+Best **2.298 rad²** at `noise_std` = 0.01, `phi_std` = 1. **2 of 54 cells** (4%) are within 5% of it; the worst cell is 3.349. A narrower optimum than the other families, but still interior.
 
 ---
 
