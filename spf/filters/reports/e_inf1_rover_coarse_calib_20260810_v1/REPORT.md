@@ -152,6 +152,31 @@ form "family X is well calibrated" has to name a configuration.
 
 ---
 
+## Where the grid stopped
+
+![hyperparameter surface](figures/heatmaps/heatmap_PF_single_theta_single_radio_NN__radio_folded.png)
+
+The same sweep, viewed as a surface rather than a ranking. This grid is **2×3**
+where the March 2025 deck's was 8×13, and the optimum sits in the corner: the
+best `theta_dot_err` is 0.1, the largest value tried, with MSE still falling 20%
+into the wall. Six of seven families are truncated the same way — the full list
+is printed by [`plot_hyperparam_heatmap.py`](../../plot_hyperparam_heatmap.py),
+and the remaining surfaces are in [`figures/heatmaps/`](figures/heatmaps).
+
+**Every accuracy number in this report is therefore an upper bound on what the
+filter can do**, measured on a grid that stopped before the surface did. That
+observation is what [E-INF2](../../../../experiments/e_inf2_hyperparam_survey/experiment_readme.md)
+was designed to settle; its
+[phase-A result](../e_inf2_survey_20260810_v1/REPORT.md) finds the truncation was
+real but largely harmless — the surface is a broad plateau, and the extra ground
+is flat.
+
+The calibration conclusions above are unaffected: `std(z)` is a ratio, and the
+overconfidence spans every configuration in the grid rather than depending on
+which one wins.
+
+---
+
 ## What this does not answer
 
 - **Why.** These figures establish that the σ is wrong and characterise the
