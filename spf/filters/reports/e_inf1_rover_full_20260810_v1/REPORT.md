@@ -158,6 +158,47 @@ calibration.
 
 ---
 
+## Per-dataset trajectories
+
+Bearing against time for a single capture: ground truth in black, each approach
+as a coloured line, its ±1σ as a matching fill, and a metrics table per angular
+frame carrying both random-prediction floors. Generated for **all 48 captures**
+by [`plot_tracks.py`](../../plot_tracks.py) replaying the dumped tracks — seconds,
+not an hour, and each figure is exactly the run behind the numbers above rather
+than a fresh draw.
+
+All 48 live at `/mnt/qnap01/mouse9911/rovers_2026/tracks/figures_seed0/` (35 MB,
+gitignored). Seven are committed under [`figures/trajectories/`](figures/trajectories):
+one per d/λ, plus the two captures called out below.
+
+| d/λ | capture |
+|---|---|
+| 0.67317 | `rover_2026_07_31_18_35_35…RO1` ‡ |
+| 0.68181 | `rover_2026_08_07_00_08_04…RO1` |
+| 0.82703 | `rover_2026_07_31_20_11_15…RO3` |
+| 0.83765 | `rover_2026_08_07_00_08_06…RO3` |
+| 0.90397 | `rover_2026_08_05_22_27_45…RO4` |
+| 0.91557 | `rover_2026_08_07_00_16_43…RO4` |
+| 0.82703 | `rover_2026_08_07_01_27_43…RO3` † |
+
+**† The capture that produced 92% of the absolute-vs-craft gap.**
+
+**‡ A capture with a partly frozen ground truth.** From t ≈ 760 to the end the GT
+is exactly constant while the filters keep tracking, so their error is scored
+against a stalled reference. Corpus-wide this is **isolated**: 1 of 48 captures
+exceeds 10% frozen samples (this one, 29%, almost all in a single run); the
+remaining 47 sit near 3%, which is ordinary sample-level repetition. Its effect
+on every family's corpus mean is ≤ 0.027 rad² and under 0.005 for six of seven,
+so the numbers above are not distorted — but a per-capture MSE from this store
+should not be read as filter quality.
+
+![example trajectory](figures/trajectories/rover_2026_07_31_18_35_35_nRX2_bounce_spacing0p035_tag_RO1.rover_2026_07_31_18_35_23_nRX1_circle_spacing0p05075_tag_RO2__comparison.png)
+
+This is also the clearest single view of the calibration result: the EKF
+dual-radio band is a hairline while its track sits at the wrong bearing for
+hundreds of samples (`std(z)` 39.85, ±1σ coverage **0.01**), and on this capture
+it scores **−21.9% skill — worse than guessing**.
+
 ## Per-timestep tracks
 
 336 `.npz` files (48 stores × 7 configurations, seed 0), 8.5 MB, zero failures,
