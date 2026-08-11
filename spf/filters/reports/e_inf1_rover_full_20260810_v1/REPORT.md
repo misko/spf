@@ -160,44 +160,83 @@ calibration.
 
 ## Per-dataset trajectories
 
-Bearing against time for a single capture: ground truth in black, each approach
-as a coloured line, its ±1σ as a matching fill, and a metrics table per angular
-frame carrying both random-prediction floors. Generated for **all 48 captures**
-by [`plot_tracks.py`](../../plot_tracks.py) replaying the dumped tracks — seconds,
-not an hour, and each figure is exactly the run behind the numbers above rather
-than a fresh draw.
+Bearing against time for one capture: ground truth in black, each approach as a
+coloured line, its ±1σ as a matching fill, and a metrics table per angular frame
+carrying both random-prediction floors.
 
-All 48 live at `/mnt/qnap01/mouse9911/rovers_2026/tracks/figures_seed0/` (35 MB,
-gitignored). Seven are committed under [`figures/trajectories/`](figures/trajectories):
-one per d/λ, plus the two captures called out below.
+Generated for **all 48 captures** by [`plot_tracks.py`](../../plot_tracks.py),
+which replays the dumped tracks rather than re-running filters — seconds instead
+of an hour, and each figure is exactly the run behind the numbers above rather
+than a fresh draw. All 48 are at
+`/mnt/qnap01/mouse9911/rovers_2026/tracks/figures_seed0/` (35 MB, gitignored).
 
-| d/λ | capture |
-|---|---|
-| 0.67317 | `rover_2026_07_31_18_35_35…RO1` ‡ |
-| 0.68181 | `rover_2026_08_07_00_08_04…RO1` |
-| 0.82703 | `rover_2026_07_31_20_11_15…RO3` |
-| 0.83765 | `rover_2026_08_07_00_08_06…RO3` |
-| 0.90397 | `rover_2026_08_05_22_27_45…RO4` |
-| 0.91557 | `rover_2026_08_07_00_16_43…RO4` |
-| 0.82703 | `rover_2026_08_07_01_27_43…RO3` † |
+Seven are committed below: one per d/λ, plus the capture behind the frame null
+result. Every number in a caption is that capture's own, from
+[`tracks_index.json`](tracks_index.json) — not a corpus mean.
 
-**† The capture that produced 92% of the absolute-vs-craft gap.**
+⚠️ Within a figure, compare **down** a frame panel, never across them:
+`radio_folded` collapses the θ↔−θ ambiguity and is an easier target by
+construction.
 
-**‡ A capture with a partly frozen ground truth.** From t ≈ 760 to the end the GT
-is exactly constant while the filters keep tracking, so their error is scored
-against a stalled reference. Corpus-wide this is **isolated**: 1 of 48 captures
-exceeds 10% frozen samples (this one, 29%, almost all in a single run); the
-remaining 47 sit near 3%, which is ordinary sample-level repetition. Its effect
-on every family's corpus mean is ≤ 0.027 rad² and under 0.005 for six of seven,
-so the numbers above are not distorted — but a per-capture MSE from this store
-should not be read as filter quality.
+### d/λ = 0.67317 — `rover_2026_07_31_18_35_35_nRX2_bou…`
 
-![example trajectory](figures/trajectories/rover_2026_07_31_18_35_35_nRX2_bounce_spacing0p035_tag_RO1.rover_2026_07_31_18_35_23_nRX1_circle_spacing0p05075_tag_RO2__comparison.png)
+![trajectory](figures/trajectories/rover_2026_07_31_18_35_35_nRX2_bounce_spacing0p035_tag_RO1.rover_2026_07_31_18_35_23_nRX1_circle_spacing0p05075_tag_RO2__comparison.png)
 
-This is also the clearest single view of the calibration result: the EKF
-dual-radio band is a hairline while its track sits at the wrong bearing for
-hundreds of samples (`std(z)` 39.85, ±1σ coverage **0.01**), and on this capture
-it scores **−21.9% skill — worse than guessing**.
+1069 timesteps. Best on this capture: **PF single radio NN** MSE 0.372 (34.9° RMSE, +89% skill, std(z) 2.93). Worst: **EKF dual radio** MSE 4.011 (114.7°, -22% skill, std(z) 39.85).
+
+
+**Ground truth freezes from t ≈ 760.** The black line goes exactly constant while every filter keeps tracking, so their error is scored against a stalled reference. This is 1 of 48 captures above 10% frozen samples (29% here, almost all in one run); the other 47 sit near 3%. Also the clearest single view of H3 — the EKF dual-radio band is a hairline while its track sits at the wrong bearing for hundreds of samples.
+
+
+### d/λ = 0.82703 — `rover_2026_07_31_20_11_15_nRX2_bou…`
+
+![trajectory](figures/trajectories/rover_2026_07_31_20_11_15_nRX2_bounce_spacing0p043_tag_RO3.rover_2026_07_31_18_35_23_nRX1_circle_spacing0p05075_tag_RO2__comparison.png)
+
+2043 timesteps. Best on this capture: **PF single radio NN** MSE 0.229 (27.4° RMSE, +93% skill, std(z) 2.17). Worst: **EKF dual radio** MSE 2.515 (90.9°, +24% skill, std(z) 37.47).
+
+
+### d/λ = 0.90397 — `rover_2026_08_05_22_27_45_nRX2_bou…`
+
+![trajectory](figures/trajectories/rover_2026_08_05_22_27_45_nRX2_bounce_spacing0p047_tag_RO4.rover_2026_08_05_22_15_28_nRX1_circle_spacing0p05075_tag_RO2__comparison.png)
+
+708 timesteps. Best on this capture: **PF single radio NN** MSE 0.430 (37.6° RMSE, +87% skill, std(z) 2.07). Worst: **EKF single radio** MSE 3.223 (102.9°, +2% skill, std(z) 6.28).
+
+
+RO4 hardware, the 36.9% valid-frame yield case. The single-radio EKF manages **+2% skill — statistically indistinguishable from guessing** — while the NN particle filter still reaches 37.6° RMSE on the same data. Low yield hurts the weak filters far more than the strong ones.
+
+
+### d/λ = 0.68181 — `rover_2026_08_07_00_08_04_nRX2_bou…`
+
+![trajectory](figures/trajectories/rover_2026_08_07_00_08_04_nRX2_bounce_spacing0p035_tag_RO1.rover_2026_08_07_00_08_33_nRX1_circle_spacing0p05075_tag_RO2__comparison.png)
+
+2605 timesteps. Best on this capture: **PF dual radio NN** MSE 0.304 (31.6° RMSE, +91% skill, std(z) 3.01). Worst: **EKF dual radio** MSE 2.145 (83.9°, +35% skill, std(z) 25.72).
+
+
+### d/λ = 0.83765 — `rover_2026_08_07_00_08_06_nRX2_bou…`
+
+![trajectory](figures/trajectories/rover_2026_08_07_00_08_06_nRX2_bounce_spacing0p043_tag_RO3.rover_2026_08_07_00_08_33_nRX1_circle_spacing0p05075_tag_RO2__comparison.png)
+
+2954 timesteps. Best on this capture: **PF single radio NN** MSE 0.341 (33.5° RMSE, +90% skill, std(z) 2.29). Worst: **EKF dual radio** MSE 2.408 (88.9°, +27% skill, std(z) 32.37).
+
+
+### d/λ = 0.91557 — `rover_2026_08_07_00_16_43_nRX2_bou…`
+
+![trajectory](figures/trajectories/rover_2026_08_07_00_16_43_nRX2_bounce_spacing0p047_tag_RO4.rover_2026_08_07_00_08_33_nRX1_circle_spacing0p05075_tag_RO2__comparison.png)
+
+2511 timesteps. Best on this capture: **PF single radio** MSE 0.365 (34.6° RMSE, +89% skill, std(z) 1.65). Worst: **EKF dual radio** MSE 2.924 (98.0°, +11% skill, std(z) 44.00).
+
+
+### d/λ = 0.83765 — `rover_2026_08_07_01_27_43_nRX2_bou…`
+
+![trajectory](figures/trajectories/rover_2026_08_07_01_27_43_nRX2_bounce_spacing0p043_tag_RO3.rover_2026_08_07_01_12_26_nRX1_circle_spacing0p05075_tag_RO2__comparison.png)
+
+684 timesteps. Best on this capture: **PF dual radio NN** MSE 0.146 (21.9° RMSE, +96% skill, std(z) 2.41). Worst: **PF dual radio NN** MSE 2.747 (95.0°, +17% skill, std(z) 10.18).
+
+
+**This one capture produced 92% of the absolute-vs-craft gap.** Best and worst here are the *same family in different frames* — `PF dual radio NN` scores 0.146 in `absolute_north` and 2.747 in `craft_relative`, a 19× spread. On the other 47 captures the two frames are indistinguishable, which is why the corpus-level difference is a null result.
+
+
+---
 
 ## Per-timestep tracks
 
