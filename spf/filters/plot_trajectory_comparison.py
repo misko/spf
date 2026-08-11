@@ -88,8 +88,12 @@ def score(theta, sigma, gt):
     return out
 
 
-def plot_comparison(ds, runs, title, max_steps=None):
-    """``runs``: list of (label, theta, sigma, gt, frame). One panel per frame."""
+def plot_comparison(runs, title, max_steps=None):
+    """``runs``: list of (label, theta, sigma, gt, frame). One panel per frame.
+
+    Takes only the runs, so it can be driven either by live filter runs or by
+    tracks replayed from disk -- see ``plot_tracks.py``.
+    """
     by_frame = {}
     for label, theta, sigma, gt, frame in runs:
         by_frame.setdefault(frame, []).append((label, theta, sigma, gt))
@@ -239,7 +243,7 @@ if __name__ == "__main__":
 
     basename = os.path.basename(str(args.dataset)).replace(".zarr", "")
     fig = plot_comparison(
-        ds, runs,
+        runs,
         f"Filter comparison — {basename}\n"
         f"d/λ = {ds.rx_wavelength_spacing:.5f}   {len(ds)} timesteps",
         max_steps=args.max_steps,
