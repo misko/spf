@@ -1591,3 +1591,60 @@ two power readings per hop. And RSSI is quantised to 0.25 dB, is input-referred,
 [[E-HCP1]] is only a valid input-power estimate while the ADC is out of overload, which is
 what makes E-AGC1's latching CTRL_OUT flags the natural validity signal for each point.
 
+
+## Ops (2026-08-11): persistent QSPI flashing lives in the rover tree, not the bench
+## tree — and a RAM-booted image silently makes the flasher a no-op
+
+Found while promoting the gain-series-v4 image (`95e952326`) after its RAM-boot gates
+passed. Two independent traps, both of which produce a *confident wrong answer* rather
+than an error.
+
+**1. The bench tooling has no QSPI write path, and that is deliberate — do not conclude
+one does not exist.** `spf/scripts/pluto_multi_firmware.py` offers eight subcommands
+(`discover-count`, `load-all`, `verify-all`, `check-config-all`, `provision-config-all`,
+`rollback-all`, `restart-all`, `status-all`) and none writes flash; its docstring is
+"Safely RAM-load direct-USB firmware". The persistent flasher is in the **rover** tree:
+
+| Tool | Role |
+|---|---|
+| `data_collection/rover/rover_v3.1/make_pluto_frm.sh` | derives `pluto.frm` from a published `.dfu` (strip 16-byte DFU suffix → `.itb`, append md5 trailer); no Vivado rebuild |
+| `data_collection/rover/rover_v3.1/ensure_pluto_qspi.sh` | version-conditional flash via the on-device mass-storage updater |
+| `data_collection/rover/rover_v3.1/PLUTO_QSPI_FLASH.md` | partition map, brick history, recovery |
+
+Searching only `spf/scripts/` for "qspi" yields the *approved-version check* and nothing
+that writes, which reads as "there is no supported path". There is one, and it is proven.
+
+**2. `ensure_pluto_qspi.sh` decides from the ACTIVE firmware, so a matching RAM image
+makes it skip and report success without writing QSPI.** It compares the running
+device-fw *and* gadget SHA over USB-IIO and skips on a match — correct when RAM loading
+is disabled, which is the assumption its header states. But immediately after a RAM-boot
+validation campaign the radios are running the very image you are about to flash, so both
+checks match, both radios are skipped, and QSPI still holds the old firmware. Nothing
+errors and the next power cycle quietly reverts.
+
+Concretely: v4 ships gadget `2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552`, which is the same
+SHA RC17 records, so even the gadget check cannot distinguish them.
+
+**Reboot the radios to QSPI first**, confirm they return on the installed version, and
+only then flash. Verifying `/opt/VERSIONS` after a flash is not sufficient either — a
+RAM-booted radio reports the new string regardless of what is in `mtd3`.
+
+**3. `DEFAULT_APPROVED_QSPI_DEVICE_FW = ("v0.37-dirty",)` does NOT describe what is in
+QSPI, and only one code path enforces it.** Measured on both bench radios on 2026-08-11
+after rebooting them off their RAM image: QSPI holds
+`v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1` — SPF firmware, persistently flashed
+some time ago, exactly as `PLUTO_QSPI_FLASH.md` §1 records. `RADIO_NOTES.md`'s
+"QSPI/runtime firmware before RAM loading = `v0.37-dirty`" is stale for these two units.
+
+The gate `_require_approved_qspi_version()` is called from `provision_config_all()` only —
+**not** from `check_config_all()`. `run_gain_series_v3_candidate.sh` runs `check-config-all`,
+which is why every gate passes today despite QSPI holding an unapproved version. So a
+persistent flash does *not* break the bench campaign; it breaks `provision-config-all`,
+which the rover path already parameterises via `load_direct_usb_firmware.sh:381`. Do not
+infer installed firmware from that constant — reboot the radio off any RAM image and read
+`fw_version` over USB-IIO.
+
+Unchanged and still true: only `pluto.frm` → `/dev/mtdblock3` is safe; the historical
+PlutoPlus v0.38 bricks came from `*-fw-*.zip`/`boot.frm`, which rewrite the FSBL/U-Boot in
+`mtdblock0/1`. See [[Ops-2026-08-11-ram-reload-rotates-dhcp-leases]] for the companion
+hazard that addresses rotate across any firmware load.

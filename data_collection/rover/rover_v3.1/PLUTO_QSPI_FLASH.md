@@ -127,6 +127,46 @@ re-enumeration flap, no updater-volume mount, and no ~104 s. The ready manifest
 then independently checks the vendor direct-USB gadget SHA, protocol, and
 metadata capabilities before collection is authorized.
 
+### A RAM-booted radio defeats this check — reboot to QSPI before flashing
+
+The comparison above reads the **active** firmware, which equals the QSPI
+contents only when nothing has been RAM-loaded. That assumption breaks in
+exactly the situation where you most want to flash: straight after a RAM-boot
+acceptance campaign, the radios are already running the candidate you are about
+to install. `fw_version` matches, the gadget SHA matches, every radio is
+skipped, the script reports success — and QSPI still holds the old firmware.
+The next power cycle silently reverts the fleet.
+
+Nothing errors, so this is invisible unless you look for it. It bit during the
+gain-series-v4 promotion: v4 ships gadget
+`2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552`, the *same* SHA RC17 records, so even
+the gadget check could not separate the RAM image from the stale QSPI one.
+
+- **Reboot every radio to QSPI first** and confirm it comes back on the
+  *installed* version before running the flasher.
+- **Do not accept `/opt/VERSIONS` as proof of a successful flash.** A RAM-booted
+  radio reports the new string no matter what is in `mtd3`. Proof requires a
+  full power cycle followed by a re-read.
+
+### `DEFAULT_APPROVED_QSPI_DEVICE_FW` does not tell you what is installed
+
+`spf/scripts/pluto_multi_firmware.py` defaults to
+`DEFAULT_APPROVED_QSPI_DEVICE_FW = ("v0.37-dirty",)`. That constant is a policy
+knob, **not** a description of the fleet. Measured on both bench radios
+(2026-08-11), QSPI holds `v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1` —
+the build recorded in §1 above.
+
+The gate `_require_approved_qspi_version()` runs from `provision_config_all()`
+only, **not** from `check_config_all()`. Since
+`tests/radio_hardware/run_gain_series_v3_candidate.sh` uses `check-config-all`,
+its gates pass regardless of the installed QSPI version, and a persistent flash
+does not break the bench campaign. What it does affect is
+`provision-config-all`, which the rover path already parameterises via
+`load_direct_usb_firmware.sh` `--approved-qspi-version`.
+
+To learn what is actually installed: reboot the radio so no RAM image is
+active, then read `fw_version` over USB-IIO.
+
 ## 6. Safety / recovery
 
 - Only `mtd3` is written (verified: `handle_frimware_frm` → `dd of=/dev/mtdblock3`).
