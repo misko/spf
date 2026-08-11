@@ -1,0 +1,123 @@
+# E-INF2 phase A -- SURFACE SURVEY. Map the hyperparameter surface widely and
+# cheaply, so phase B can refine where the optimum actually is instead of where
+# the grid happened to stop.
+#
+# WHY THIS EXISTS. rover2026_coarse.yaml sweeps four theta_dot_err values
+# (0.001, 0.005, 0.02, 0.1) against two or three particle counts. Measured on
+# its own results, the optimum sits ON A BOUNDARY for six of seven families:
+#
+#   PF single radio NN [folded]   theta_dot_err 0.1  high edge, still -20%
+#   PF dual radio      [craft]    theta_dot_err 0.1  high edge, still  -8%
+#   PF dual radio NN   [craft]    theta_dot_err 0.1  high edge, still  -7%
+#   PF single radio    [folded]   theta_dot_err 0.1  high edge, still  -7%
+#   PF single radio NN [folded]   N 1024             low edge
+#   PF single radio    [folded]   N 1024             low edge
+#   EKF single radio   [folded]   phi_std 1.0        low edge, still -33%
+#   EKF dual radio     [craft]    phi_std 0.0        low edge, still  -9%
+#
+# The March 2025 "Droning on 2 (SPF)" deck swept THIRTEEN theta_dot_err values
+# against EIGHT particle counts -- our grid is a resolution regression against
+# work already done. That deck also shows the surface is not monotonic (a broad
+# optimum at 0.001-0.005 with a sharp cliff below), so a four-point axis can step
+# straight over a minimum. Both problems are fixed by sweeping wide and fine
+# ONCE, at low seed count, before spending seeds on precision.
+#
+# TWO SEEDS, NOT FIVE. Phase A ranks regions, it does not pick a winner. Seed
+# noise on the corpus mean was measured at 0.2-3.4% per configuration, far below
+# the 7-20% gaps being resolved here. Phase B re-runs the surviving region at
+# five seeds, which is where statistical care belongs.
+#
+# EIGHT DATASETS, NOT SIXTEEN. Same argument: half the sample halves the cost and
+# the between-region differences are large. Phase B uses all 16.
+#
+#   python spf/filters/run_filters_on_data.py \
+#     -d $(head -8 experiments/e_inf1_filter_sweep/stage2_rover_sample_n16.txt) \
+#     --empirical-pkl-fn empirical_dists/full_20260809_v1.pkl \
+#     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/e_inf2_survey \
+#     --config spf/filters/configs/rover2026_survey.yaml \
+#     --results-backend local --parallel 22
+#
+#   python spf/filters/plot_hyperparam_heatmap.py \
+#     --results <report>/results.json --output-dir <report>/figures/heatmaps
+#
+# A NEW work dir. --resume defaults to true and would skip every existing key.
+precompute_caches:
+  3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
+
+runs:
+  # ---------------------------------------------------------------- EKF
+  # FULL FACTORIAL, and deliberately so. The shipped configs pair phi_std>0 with
+  # dynamic_R=0 and phi_std=0 with dynamic_R>0, as though those were the only
+  # sensible combinations -- but nothing tests that, and the single-radio EKF was
+  # never offered the dynamic_R form at all even though the dual-radio winner
+  # uses it. Crossing them fully is cheap (EKFs are deterministic, so no seed
+  # axis) and settles whether the convention is real.
+  #
+  # noise_std reaches 0.1 and 1e-6: the 2025 EKF surface spans exactly that and
+  # improves toward the high end (3.27 at 1e-6 down to 1.68 at 0.01 at phi_std
+  # 12), while our grid stopped at 0.01.
+  - run_EKF_single_theta_single_radio:
+      phi_std: [0.0, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 20.0]
+      p: [0.1, 1.0, 5.0]
+      noise_std: [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+      dynamic_R: [0.0, 0.1, 1.0]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [0.0, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 20.0]
+      p: [0.1, 1.0, 5.0]
+      noise_std: [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+      dynamic_R: [0.0, 0.1, 1.0]
+      segmentation_version: [3.7]
+
+  # ---------------------------------------------------------------- PF
+  # N spans 128..32768 (the 2025 range) and theta_dot_err spans 0.0001..1.0 --
+  # the 2025 range plus a decade above it, because our craft-relative families
+  # want MORE process noise than anything that deck explored. theta_err is held
+  # to three values per family, near each one's coarse optimum: it is the axis
+  # with the flattest measured profile, so it buys the least per job.
+  - run_PF_single_theta_single_radio:
+      N: [128, 128 * 2, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.001, 0.005, 0.02]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0]
+      seed: [0, 1]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_single_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128, 128 * 2, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.001, 0.005, 0.02]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0]
+      seed: [0, 1]
+  - run_PF_single_theta_dual_radio:
+      N: [128, 128 * 2, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.005, 0.02, 0.075]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0]
+      seed: [0, 1]
+      segmentation_version: [3.7]
+
+  # The two NN dual-radio frames are separate blocks throughout. They are
+  # different tracking problems -- craft-relative carries the rover's own yaw,
+  # absolute north does not, and their measured angular rates differ 3.5x at p95
+  # -- so a shared theta_err range would waste jobs on both.
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128, 128 * 2, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.005, 0.02, 0.075]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0]
+      absolute: [False]
+      seed: [0, 1]
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128, 128 * 2, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.02, 0.075, 0.2]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0]
+      absolute: [True]
+      seed: [0, 1]
