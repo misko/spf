@@ -91,3 +91,68 @@ worth ~+39% on direct-USB), and beyond that the bottleneck is the radio.
 - The Ethernet arm ran on a **DHCP lease** (`192.168.1.174`), not a static address;
   the lease does not survive a reboot. Nothing on the radio was made persistent.
 - Buffer-size sensitivity was measured at 30 MS/s only.
+
+---
+
+## Metric 5 (H3) — phase agreement across transports, 2026-08-11
+
+**Radio:** R18 · **Committed:** `reports/e_lnk1_phase_20260811_v1/phase_agreement.json` ·
+**Script:** [`scripts/lnk1_phase.py`](scripts/lnk1_phase.py)
+
+### Answer for the two arms measured: PASS — Ethernet does not shift phase
+
+12 quality-valid captures, arms interleaved within each repetition so fixture drift cannot
+alias onto arm:
+
+| Arm | n | Circular mean | Within-arm spread |
+|---|---:|---:|---:|
+| `iio-usb` (`usb:1.86.5`) | 6 | −3.27° | 1.34° |
+| `iio-eth` (`ip:192.168.1.175`) | 6 | −3.18° | 1.33° |
+
+**Max between-arm difference: 0.089°, against 1.34° within-arm repeatability** — the arm
+effect is **15× smaller than the fixture's own noise**. The §8 rule *"any arm shows a phase
+difference beyond fixture repeatability → that transport is disqualified"* does not fire.
+Combined with the throughput half, Gigabit Ethernet is neither faster nor phase-worse than
+USB: it is simply equivalent.
+
+### Two design points that decide whether this means anything
+
+1. **The RX setup is copied from the calibration path attribute-for-attribute**
+   (`hardware.py:120-141`), including the RX1/RX2 phase-inversion debug attribute *and*
+   register 0x22 bit 6, `quadrature_tracking_en` on both channels, and
+   `set_kernel_buffers_count(1)`. That fix changes measured phase directly, so an arm which
+   skipped it would look like transport corruption when it is really a config difference.
+2. **3 MS/s, deliberately well below the ~2.9 MS/s wall** every arm hits. Testing phase near
+   the wall would let drops differ per arm and alias onto phase; at 3 MS/s every arm streams
+   contiguously, isolating phase from throughput.
+
+### A false FAIL, and what caused it
+
+The first run reported *"FAIL — a transport shifts phase beyond fixture repeatability"* from
+a between-arm difference of 0.97°. It was wrong, and the reason is worth recording: only 2–3
+of 5 captures per arm were quality-valid, and on the invalid ones the analyzer had locked
+onto **noise at 75–122 kHz instead of the tone at 100021 Hz** — `rx1_tone_too_weak`,
+`cross_channel_coherence_low`, `within_capture_phase_unstable`. The TX tone was not on.
+
+Cause: the harness muted TX after every measurement, so each arm re-armed the DDS and raced
+its own settling. Fix: **arm the source once and leave it on for the whole run**, with each
+arm applying RX configuration only. That is also better hygiene — the fixture is then
+bit-identical across arms rather than rebuilt per measurement. After the fix, 12/12 captures
+were valid.
+
+The lesson generalises: a verdict computed from whatever survived a quality gate is not a
+verdict. Check the *valid fraction* before reading the number.
+
+### Still outstanding on this metric
+
+- **`iio-rndis` — blocked.** Both USB-gadget interfaces answer on `192.168.2.1`, and
+  `iio_info -s` attributes *both* contexts to R17's serial, so the arm cannot be pointed at
+  R18 reliably. This is the duplicate-IP hazard; it needs the netns isolation §7 points at
+  (`spf/scripts/pluto_multi_firmware.py`).
+- **`direct-usb` — not yet comparable.** Phase over the production direct-USB path is
+  available from the calibration `probe`, but at a different LO and sample rate, so the
+  numbers are not directly comparable. It needs a matched-rate run to join this table.
+- **Metric 4 (host CPU %, link bytes/s)** not yet collected.
+
+So H3 is answered for USB versus Ethernet — the comparison the throughput half was about —
+and remains open for RNDIS and the production direct-USB path.
