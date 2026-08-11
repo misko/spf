@@ -46,7 +46,7 @@ only where it matters; phase C confirms on the full corpus.
 
 | phase | what | grid | seeds | datasets | jobs | est. |
 |---|---|---|---|---|---|---|
-| **A — survey** | map the surface, produce the heatmaps | `N` ×9, `theta_dot_err` ×12, `theta_err` ×3; EKF full factorial `phi_std` ×9 × `noise_std` ×6 × `p` ×3 × `dynamic_R` ×3 | 2 | 8 | 33,696 | ~55 min |
+| **A — survey** | map the surface, produce the heatmaps | `N` ×9, `theta_dot_err` ×12, `theta_err` ×3; EKF `phi_std` ×8 × `noise_std` ×6 × `p` ×3 in the two valid `dynamic_R` forms | 2 | 8 | 28,800 | ~45 min |
 | **B — refine** | dense local grid around each family's phase-A optimum | 5×5×5 per family | 5 | 16 | ~50,000 | ~80 min |
 | **C — confirm** | phase-B winners on the whole corpus | 1 config/family | 5 | 48 | ~1,300 | ~4 min |
 
@@ -73,7 +73,35 @@ datasets, which is where statistical care belongs. Halving both axes in A buys a
 | **H2** | At least one PF family improves **≥10%** on its E-INF1 corpus-mean MSE | E-INF1's stage-2/3 leaderboards are superseded as *tuning* results; the H1 (NN vs empirical) comparison must be re-decided at matched tuning, since it was measured on a truncated grid. |
 | **H3** | Optimal `theta_dot_err` differs by **≥5×** between `craft_relative` and `absolute_north` for the NN dual-radio filter | Confirms the frame difference is a dynamics/process-model effect, not a bug — and that per-frame tuning is mandatory, not optional. |
 | **H4** | `EKF single radio` with the `dynamic_R` form beats its E-INF1 winner (1.022) | The family was mis-specified rather than weak; its E-INF1 ranking is not evidence about EKFs. |
-| **H5** | The `phi_std>0 ⇄ dynamic_R=0` pairing convention is **not** required — some crossed cell wins | The shipped configs encode a convention nobody tested; drop it. |
+| ~~**H5**~~ | ~~The `phi_std>0 ⇄ dynamic_R=0` pairing convention is not required~~ | ❌ **ANSWERED BEFORE RUNNING — the convention is required.** See below. |
+
+### H5 — resolved analytically, not experimentally (2026-08-10)
+
+The first phase-A launch died 14 result files in with
+`numpy.linalg.LinAlgError: singular matrix`. The cause is in the code, and it
+answers H5 without spending any compute:
+
+```
+self.R *= phi_std**2                                   # ekf_*_filter.py __init__
+R = self.R if self.dynamic_R == 0 else <dynamic form>  # update()
+```
+
+* **`(phi_std=0, dynamic_R=0)` is degenerate** — R is the zero matrix, so the
+  innovation covariance is singular and the update cannot be solved.
+* **`(phi_std>0, dynamic_R>0)` is redundant** — the update never reads `self.R`,
+  so `phi_std` has no effect whatsoever. 16 of the 18 such cells in the proposed
+  full factorial computed identical results.
+
+So the shipped pairing is a **guard, not an untested habit**, and my reasoning
+that "crossing them fully is cheap and settles it" was wrong twice over: it was a
+crash plus mostly duplicate work. Both EKFs now raise a named `ValueError` on the
+degenerate corner (`tests/test_ekf_invalid_config.py`) so the failure names its
+parameters instead of surfacing as a linear-algebra error thousands of jobs into a
+sweep.
+
+What remains worth testing, and is kept: **the single-radio EKF has never been
+offered the `dynamic_R` form at all**, though the dual-radio winner uses it. That
+is H4.
 
 **Falsifiers.** H1 fails if any PF optimum sits on an edge. H2 fails if every
 family is within 10% of its E-INF1 number — in which case the truncation was real

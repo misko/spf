@@ -21,6 +21,19 @@ from spf.rf import pi_norm
 class SPFPairedKalmanFilter(ExtendedKalmanFilter, SPFFilter):
     def __init__(self, ds, phi_std=0.5, p=5, dynamic_R=0.0, **kwargs):
         super().__init__(dim_x=2, dim_z=2, **kwargs)
+        # phi_std=0 zeroes the measurement-noise matrix, and dynamic_R=0 selects
+        # that static R -- so the pair (0, 0) hands the update a singular
+        # innovation covariance and numpy raises deep inside the trajectory,
+        # after however many jobs a sweep had already run. Reject it by name at
+        # construction. The two valid forms are phi_std>0 with dynamic_R=0, or
+        # dynamic_R>0 (which ignores phi_std entirely -- see the R= line in
+        # update()).
+        if phi_std == 0 and dynamic_R == 0:
+            raise ValueError(
+                "phi_std=0 with dynamic_R=0 gives a zero measurement-noise "
+                "matrix and a singular update; use phi_std>0 with dynamic_R=0, "
+                "or dynamic_R>0 (which ignores phi_std)"
+            )
         self.R *= phi_std**2
         self.P *= p  # initialized as identity?
 

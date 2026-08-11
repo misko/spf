@@ -10,7 +10,7 @@ hypotheses cannot be edited after seeing the data.
 | H2 | ≥1 PF family improves ≥10% on its E-INF1 corpus mean | _pending_ |
 | H3 | optimal `theta_dot_err` differs ≥5× between craft_relative and absolute_north | _pending_ |
 | H4 | `EKF single radio` with `dynamic_R` beats its E-INF1 winner (1.022) | _pending_ |
-| H5 | the `phi_std>0 ⇄ dynamic_R=0` pairing convention is not required | _pending_ |
+| ~~H5~~ | ~~the `phi_std>0 ⇄ dynamic_R=0` pairing convention is not required~~ | ❌ **REFUTED before running** — the convention is a guard: (0,0) gives a singular update, and dynamic_R>0 ignores phi_std entirely |
 
 ## Baselines to beat (E-INF1, corpus mean over 16 stores, 5 seeds)
 
