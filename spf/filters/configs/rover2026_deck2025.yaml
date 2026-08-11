@@ -1,0 +1,124 @@
+# Reproduce the March 2025 "Droning on 2 (SPF)" grids EXACTLY, on the 2026 rover
+# corpus. Every axis value visible in that deck, none omitted.
+#
+# Read off the deck's three panels and their filename footers
+# (5.8660e+09/rxwlsp8.4138e-01/absoluteTrue_rover_diamond_theta_err0.075_numsamples1.0):
+#
+#   PF+NN panel     absolute=True,  theta_err=0.075
+#                   theta_dot_err x13, N x8
+#   PF panel        theta_err=0.1
+#                   theta_dot_err x8 (subset of the 13), N x8
+#   EKF panel       p=0.1, dynamic_R=0
+#                   phi_std x10, noise_std x12
+#
+# WHAT WE HAD NEVER TRIED, which is why this exists:
+#
+#   theta_err      0.1                                  (never, in any grid)
+#   theta_dot_err  0.075, 0.09, 0.12, 0.15              (the dense band around our optimum)
+#   phi_std        8, 12, 14, 16, 18                    (the deck's EKF optimum is phi_std=12)
+#   noise_std      2e-6, 5e-6, 2e-5, 5e-5, 2e-4, 5e-4   (the 2x/5x intermediates)
+#
+# The phi_std gap is the substantive one: the deck's best EKF cell sits at
+# phi_std=12 / noise_std=0.01, and our grids went ..., 5, 10, 20 -- bracketing 12
+# without ever landing on it. Our single-radio EKF also had its ENTIRE refined
+# grid within 5% of its own best, which is the signature of a grid sitting in the
+# wrong region rather than a converged one.
+#
+# The deck's axes are applied to ALL SEVEN of our families, not just the three it
+# showed, so the heatmaps are mutually comparable.
+#
+# N deliberately omits 256: the deck's axis is 128, 512, 1024, ... and this file
+# reproduces the deck. Our own grids cover 256 already.
+#
+# NOT REPRODUCIBLE HERE, and recorded rather than silently ignored -- the deck's
+# runs are on hardware absent from the 2026 corpus:
+#   carrier   5866 MHz   ours: 5766, 5840
+#   d/lambda  0.84138    ours: 0.67317 0.68181 0.82703 0.83765 0.90397 0.91557
+#   routine   rover_diamond / rover_center   ours: bounce only
+# The empirical table is keyed {SDRDEVICE}_{d/lambda:.5f} with exact lookup, so
+# the deck used a measurement model that is not in full_20260809_v1.pkl. Absolute
+# MSE values therefore will NOT match the deck; only the SHAPE of the surface is
+# comparable.
+#
+#   python spf/filters/run_filters_on_data.py \
+#     -d $(cat experiments/e_inf1_filter_sweep/stage2_rover_sample_n16.txt) \
+#     --empirical-pkl-fn empirical_dists/full_20260809_v1.pkl \
+#     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/deck2025 \
+#     --config spf/filters/configs/rover2026_deck2025.yaml \
+#     --results-backend local --parallel 22
+precompute_caches:
+  3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
+
+runs:
+  # --- EKF: the deck's phi_std x noise_std surface, verbatim, at its p=0.1.
+  # Deterministic, so no seed axis. p is widened to our own three values because
+  # the deck fixed it at 0.1 and we cannot tell from one panel whether that was
+  # the optimum or just the slice shown.
+  - run_EKF_single_theta_single_radio:
+      phi_std: [1.0, 2.5, 5.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
+      p: [0.1, 1.0, 5.0]
+      noise_std: [0.000001, 0.000002, 0.000005, 0.00001, 0.00002, 0.00005,
+                  0.0001, 0.0002, 0.0005, 0.001, 0.01, 0.1]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [1.0, 2.5, 5.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
+      p: [0.1, 1.0, 5.0]
+      noise_std: [0.000001, 0.000002, 0.000005, 0.00001, 0.00002, 0.00005,
+                  0.0001, 0.0002, 0.0005, 0.001, 0.01, 0.1]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+
+  # --- PF: the deck's full 13-value theta_dot_err axis against its 8 particle
+  # counts, at BOTH theta_err values the deck used (0.075 from the NN panel,
+  # 0.1 from the empirical panel). Five seeds, as everywhere else in E-INF1/2.
+  - run_PF_single_theta_single_radio:
+      N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.075, 0.1]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.075,
+                      0.09, 0.1, 0.12, 0.15, 0.2]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_single_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.075, 0.1]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.075,
+                      0.09, 0.1, 0.12, 0.15, 0.2]
+      seed: [0, 1, 2, 3, 4]
+  - run_PF_single_theta_dual_radio:
+      N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.075, 0.1]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.075,
+                      0.09, 0.1, 0.12, 0.15, 0.2]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+
+  # The deck's PF+NN panel is absolute=True. Both frames are run so the pair can
+  # be compared -- they are different tracking problems (H3: their optimal
+  # theta_dot_err differs 20x).
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.075, 0.1]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.075,
+                      0.09, 0.1, 0.12, 0.15, 0.2]
+      absolute: [True]
+      seed: [0, 1, 2, 3, 4]
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128, 128 * 4, 128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128, 128 * 256]
+      theta_err: [0.075, 0.1]
+      theta_dot_err: [0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.075,
+                      0.09, 0.1, 0.12, 0.15, 0.2]
+      absolute: [False]
+      seed: [0, 1, 2, 3, 4]

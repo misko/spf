@@ -70,12 +70,30 @@ def choose_axes(cfgs):
     return ranked[0], ranked[1]
 
 
-def grid_for(cfgs, xname, yname):
-    """(xs, ys, Z) where Z[j, i] is the best MSE at (xs[i], ys[j])."""
-    xs = sorted({dict(c)[xname] for c in cfgs if dict(c).get(xname) is not None})
-    ys = sorted({dict(c)[yname] for c in cfgs if dict(c).get(yname) is not None})
-    Z = np.full((len(ys), len(xs)), np.nan)
+def grid_for(cfgs, xname, yname, fixed=None):
+    """(xs, ys, Z) where Z[j, i] is the best MSE at (xs[i], ys[j]).
+
+    ``fixed`` restricts to configurations matching {axis: value} first. With it
+    the panel is a SLICE at that value -- which is what the March 2025 deck's
+    panels are (theta_err pinned at 0.075 or 0.1, p at 0.1) -- rather than a
+    minimisation over the remaining axes. The two answer different questions:
+    a minimised panel says "what is achievable here", a slice says "what does
+    this surface look like at that setting", and only the slice is comparable
+    to the deck.
+    """
+    fixed = fixed or {}
+    keep = {}
     for c, m in cfgs.items():
+        d = dict(c)
+        if any(d.get(k) != v for k, v in fixed.items()):
+            continue
+        keep[c] = m
+    if not keep:
+        return [], [], np.zeros((0, 0))
+    xs = sorted({dict(c)[xname] for c in keep if dict(c).get(xname) is not None})
+    ys = sorted({dict(c)[yname] for c in keep if dict(c).get(yname) is not None})
+    Z = np.full((len(ys), len(xs)), np.nan)
+    for c, m in keep.items():
         d = dict(c)
         if d.get(xname) is None or d.get(yname) is None:
             continue
@@ -120,12 +138,12 @@ def edge_warning(xs, ys, Z, xname, yname, plateau=0.05):
     return notes
 
 
-def fig_family(fam, frame, cfgs, out_dir):
+def fig_family(fam, frame, cfgs, out_dir, fixed=None, suffix=""):
     axes = choose_axes(cfgs)
     if axes is None:
         return None
     xname, yname = axes
-    xs, ys, Z = grid_for(cfgs, xname, yname)
+    xs, ys, Z = grid_for(cfgs, xname, yname, fixed=fixed)
     if Z.size == 0 or np.all(np.isnan(Z)):
         return None
 
@@ -156,7 +174,9 @@ def fig_family(fam, frame, cfgs, out_dir):
                                edgecolor="tab:red", lw=2.5))
 
     notes = edge_warning(xs, ys, Z, xname, yname)
-    title = (f"{fam.replace('_single_theta', '').replace('_', ' ')}  [{frame}]\n"
+    fixed_txt = ("   " + ", ".join(f"{k}={v:g}" for k, v in sorted((fixed or {}).items()))
+                 if fixed else "")
+    title = (f"{fam.replace('_single_theta', '').replace('_', ' ')}  [{frame}]{fixed_txt}\n"
              f"best {Z[jb, ib]:.3f} rad² at {xname}={xs[ib]:g}, {yname}={ys[jb]:g}"
              f"   (uniform random {metrics.UNIFORM_RANDOM_MSE:.2f})")
     if notes:
@@ -167,7 +187,7 @@ def fig_family(fam, frame, cfgs, out_dir):
     cb.set_label("best corpus-mean MSE (rad²), minimised over other axes")
     fig.tight_layout()
 
-    safe = f"{fam}__{frame}".replace("/", "_")
+    safe = f"{fam}__{frame}{suffix}".replace("/", "_")
     fn = os.path.join(out_dir, f"heatmap_{safe}.png")
     fig.savefig(fn, dpi=110)
     plt.close(fig)
@@ -178,21 +198,31 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--results", required=True)
     p.add_argument("--output-dir", required=True)
+    p.add_argument(
+        "--slice", default=None,
+        help="axis=v1,v2,... -- emit one SLICE figure per value instead of a "
+             "single panel minimised over that axis. The 2025 deck's panels are "
+             "slices (theta_err pinned), so this is what makes ours comparable.",
+    )
     a = p.parse_args()
     os.makedirs(a.output_dir, exist_ok=True)
 
     rows = json.load(open(a.results))["rows"]
     fams = family_configs(rows)
+    slices = [(None, "")]
+    if a.slice:
+        axis, vals = a.slice.split("=", 1)
+        slices = [({axis: float(v)}, f"__{axis}{float(v):g}") for v in vals.split(",")]
     truncated = []
     for (fam, frame), cfgs in sorted(fams.items()):
-        got = fig_family(fam, frame, cfgs, a.output_dir)
+      for fixed, suffix in slices:
+        got = fig_family(fam, frame, cfgs, a.output_dir, fixed=fixed, suffix=suffix)
         if got is None:
-            print(f"skipped {fam} [{frame}]: fewer than two swept axes")
             continue
         fn, notes = got
         print("wrote", fn)
         for n in notes:
-            truncated.append(f"{fam} [{frame}]: {n}")
+            truncated.append(f"{fam} [{frame}]{suffix}: {n}")
     if truncated:
         print("\nGRID TRUNCATION -- these optima sit on a boundary:")
         for t in truncated:
