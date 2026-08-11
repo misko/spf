@@ -1546,3 +1546,48 @@ Also worth remembering from the same session: **`iio_attr` needs `-i` or `-o`.**
 `voltage1 hardwaregain` with neither returns the *input* (RX2) gain, so a check meant to
 confirm TX was muted silently reported an RX gain instead.
 
+## Scan (2026-08-11): a host-driven Pluto+ frequency scan is bound by libiio latency,
+## and changing RX bandwidth per frequency costs 14 ms
+
+Measured on R18 over USB with a **persistent** context, for the N-frequency power-scan
+design in `docs/frequency_scan_design.md`. Benchmarks: `spf/scripts/scan_bench.py`,
+prototype `spf/scripts/scan_proto.py`.
+
+| Primitive (persistent context) | p50 |
+|---|---:|
+| `rssi` read | 0.54 ms |
+| `frequency` write (LO retune) | 1.28 ms |
+| `fastlock_recall` | 0.65 ms |
+| `fastlock_load` (16 bytes) | 1.18 ms |
+| **`rf_bandwidth` write, value changed** | **14.34 ms** |
+| `rf_bandwidth` write, value unchanged | 0.46 ms |
+
+**The scan rate is a software limit, not a radio limit.** The per-frequency floor is
+**1.88 ms (~505 frequencies/s)**, and it decomposes exactly as one LO write plus one RSSI
+read. It is flat from N=10 to N=200, **independent of frequency spacing** (0.1 MHz and
+5 MHz steps identical) and **independent of sample rate** (2.75 / 2.68 / 2.52 ms at 3 / 10
+/ 30 MS/s — the hypothesis that the RSSI window is a fixed sample count was refuted). The
+AD9361 is settled before the first RSSI read completes, so **its true settle is below a
+1.9 ms measurement floor** and cannot be measured from the host at all. Any real speedup
+must remove USB round-trips, not tune the radio. Dwell up to ~1.9 ms is therefore **free**;
+beyond that, cost is Y-bound (5 ms dwell → 5.14 ms/freq).
+
+**Never change `rf_bandwidth` during a scan.** It triggers an AD9361 baseband filter
+re-calibration at **14.34 ms** — 7.6× the entire per-frequency budget. For N=100 with
+varying bandwidths that is 1.62 s against 188 ms. Set one wide analog bandwidth once
+(settable to **56 MHz**) and synthesise each requested bandwidth digitally by summing FFT
+bins: cheaper, exact rather than filter-quantised, and several bandwidths from one capture.
+
+**Grouping is the biggest algorithmic win and needs no firmware.** Frequencies whose
+passbands fall inside one instantaneous span (~25–30 MHz at 30 MS/s; 61.44 MS/s was
+rejected) are covered by one tune plus one FFT. 100 frequencies over 100 MHz: ~1.62 s if
+bandwidth is changed per point, 188 ms per-point with fixed bandwidth, ~10 ms grouped.
+
+Other constraints worth remembering: **8 fastlock profiles** exist and are readable and
+writable, but from the host `fastlock_load` (1.18 ms) is no cheaper than a retune
+(1.28 ms), so fastlock only pays off on-device or for ≤8 revisited frequencies. **Both RX
+channels share one LO**, so there is no frequency parallelism — though two antennas give
+two power readings per hop. And RSSI is quantised to 0.25 dB, is input-referred, and per
+[[E-HCP1]] is only a valid input-power estimate while the ADC is out of overload, which is
+what makes E-AGC1's latching CTRL_OUT flags the natural validity signal for each point.
+

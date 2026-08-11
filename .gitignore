@@ -75,3 +75,6 @@ docs/boundary_maps/.tiles/
 # E-HCP1 raw cross-arm coupling transcripts (committed analysis lives in
 # experiments/e_hcp1_cross_arm_coupling/)
 /artifacts/harness_coupling/
+
+# Frequency-scan prototype raw output (design in docs/frequency_scan_design.md)
+/artifacts/frequency_scan/
