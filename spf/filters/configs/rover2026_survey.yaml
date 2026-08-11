@@ -46,27 +46,48 @@ precompute_caches:
 
 runs:
   # ---------------------------------------------------------------- EKF
-  # FULL FACTORIAL, and deliberately so. The shipped configs pair phi_std>0 with
-  # dynamic_R=0 and phi_std=0 with dynamic_R>0, as though those were the only
-  # sensible combinations -- but nothing tests that, and the single-radio EKF was
-  # never offered the dynamic_R form at all even though the dual-radio winner
-  # uses it. Crossing them fully is cheap (EKFs are deterministic, so no seed
-  # axis) and settles whether the convention is real.
+  # NOT a full factorial over phi_std x dynamic_R -- H5 asked whether the shipped
+  # pairing convention was real, and the code answers it without spending compute:
+  #
+  #   self.R *= phi_std**2                                   (ekf_*_filter.py)
+  #   R = self.R if self.dynamic_R == 0 else <dynamic form>  (update)
+  #
+  # so (phi_std=0, dynamic_R=0) gives R=0 and a SINGULAR update -- it crashed this
+  # sweep 14 pkls in on the first attempt -- while (phi_std>0, dynamic_R>0)
+  # IGNORES phi_std entirely and is pure duplicate work: 16 of 18 such cells
+  # compute identical results. The convention is a guard, not a habit.
+  # Both EKFs now raise a named ValueError on the (0, 0) corner.
+  #
+  # What DOES need testing, and is kept: the single-radio EKF has never been
+  # offered the dynamic_R form at all, even though the dual-radio winner uses it.
+  # That is the second block below.
   #
   # noise_std reaches 0.1 and 1e-6: the 2025 EKF surface spans exactly that and
   # improves toward the high end (3.27 at 1e-6 down to 1.68 at 0.01 at phi_std
   # 12), while our grid stopped at 0.01.
   - run_EKF_single_theta_single_radio:
-      phi_std: [0.0, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 20.0]
+      phi_std: [0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 20.0]
       p: [0.1, 1.0, 5.0]
       noise_std: [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
-      dynamic_R: [0.0, 0.1, 1.0]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_single_radio:
+      phi_std: [0.0]
+      p: [0.1, 1.0, 5.0]
+      noise_std: [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+      dynamic_R: [0.1, 1.0]
       segmentation_version: [3.7]
   - run_EKF_single_theta_dual_radio:
-      phi_std: [0.0, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 20.0]
+      phi_std: [0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 20.0]
       p: [0.1, 1.0, 5.0]
       noise_std: [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
-      dynamic_R: [0.0, 0.1, 1.0]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [0.0]
+      p: [0.1, 1.0, 5.0]
+      noise_std: [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+      dynamic_R: [0.1, 1.0]
       segmentation_version: [3.7]
 
   # ---------------------------------------------------------------- PF
