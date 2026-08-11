@@ -53,6 +53,70 @@ AD9361 baseband filter re-calibration costing **14.34 ms** — 7.6× the entire 
 budget. For N=100 with varying bandwidths that is 1.62 s instead of 188 ms, an 8.6×
 penalty for one attribute.
 
+## 1.2 Speed model for N frequencies at Y ms each
+
+Validated to within ±3% against measurement at Y = 0, 0.5, 1, 2, 3, 5 and 10 ms
+(`spf/scripts/scan_bench.py`):
+
+```
+T_point = T_hop + T_read + ceil(max(0, Y - T_hop - T_read) / T_read) * T_read
+T_total = N * T_point
+
+T_read = 0.544 ms      one RSSI read (the USB round-trip floor is 0.498 ms)
+T_hop  = 1.278 ms      full retune   -> 549 pts/s at small Y
+       = 0.637 ms      fastlock recall (<=8 profiles) -> 847 pts/s at small Y
+```
+
+Useful simplification: **`T_total ≈ N × max(T_hop + T_read, Y + T_read)`**.
+
+| N | Y=0.1 ms | Y=1 ms | Y=5 ms | Y=20 ms |
+|---|---|---|---|---|
+| 8 | 15 ms / **9 ms** | 15 ms / **9 ms** | 41 ms | 163 ms |
+| 50 | 91 ms / **59 ms** | 91 ms / **59 ms** | 254 ms | 1.02 s |
+| 200 | 364 ms / **236 ms** | 364 ms / **236 ms** | 1.02 s | 4.06 s |
+| 1000 | 1.82 s / **1.18 s** | 1.82 s / **1.18 s** | 5.09 s | 20.3 s |
+
+*(retune / fastlock where they differ)*
+
+### The answer depends almost entirely on Y
+
+Overhead against the ideal `N × Y` — the observation time you actually asked for:
+
+| Y | retune pts/s | fastlock pts/s | ideal | wasted |
+|---:|---:|---:|---:|---:|
+| 0.1 ms | 549 | 847 | 10000 | **1722%** |
+| 1 ms | 549 | 847 | 1000 | **82%** |
+| 2 ms | 423 | 441 | 500 | 18% |
+| 5 ms | 197 | 181 | 200 | **2%** |
+| 20 ms | 49 | 49 | 50 | **2%** |
+
+**For Y ≥ 5 ms the host-driven scan is already within a few percent of optimal.** There is
+nothing to win and no reason to build firmware — you are simply integrating for as long as
+you asked to. Between 1 and 2 ms the overhead is 18–82% and fastlock recovers most of it.
+Below 1 ms the overhead dominates by 2–20× and only the on-device path helps.
+
+**Fastlock is only worth the complexity for Y < ~2 ms.** Above that the two converge (at
+Y=5 ms fastlock is marginally *worse*, 181 vs 197 pts/s, because the dwell rounds up to a
+whole number of RSSI reads). Don't carry 8-profile bookkeeping for a long-dwell scan.
+
+### On-device projection
+
+Removing the two USB round-trips per point leaves the radio-work component measured from
+the host — 780 µs for a full retune, 139 µs for a fastlock recall — plus an SPI RSSI read
+assumed at ~50 µs. **That assumption is unverified and needs on-device timing.**
+
+| Y | on-device retune | on-device fastlock | gain vs best host |
+|---:|---:|---:|---:|
+| 0.1 ms | 1205 pts/s | **5263 pts/s** | 6.2× |
+| 0.5 ms | 1205 | 1818 | 2.1× |
+| 1 ms | 952 | 952 | 1.1× |
+| 5 ms | 198 | 198 | 1.1× |
+
+Note what this says: on-device, the **full retune caps at ~1200 pts/s** because its 780 µs
+is real chip and driver work that USB removal does not touch. The large on-device win comes
+specifically from **fastlock**, whose 139 µs is just SPI writes. So an on-device sequencer is
+only worth building if it uses fastlock profiles *and* Y is below about 1 ms.
+
 ## 2. Recommended architecture
 
 ### Rule 1 — set one wide analog bandwidth, once, and never change it
