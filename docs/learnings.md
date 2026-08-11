@@ -1514,3 +1514,35 @@ Remaining caveats: cross-firmware against published `A` (RC17 versus the `rc12-9
 build `A` was measured on; same-session comparisons unaffected), and two units is not a
 distribution.
 
+## Ops (2026-08-11): a RAM reload re-enumerates the radios AND rotates their DHCP
+## leases — one radio inherited the other's IP
+
+Observed while running E-GSC6. The `automate` flow RAM-loads firmware, which resets both
+Plutos, and after it completed **every address had changed**:
+
+| | before | after |
+|---|---|---|
+| R17 `104000bac495…` | `usb:1.84.5` · 192.168.1.165 | `usb:1.88.5` · 192.168.1.181 |
+| R18 `1040007c4a94…` | `usb:1.86.5` · 192.168.1.175 | `usb:1.90.5` · **192.168.1.165** |
+
+**R18 inherited R17's old IP.** Any script, note or command line holding 192.168.1.165 as
+"R17" silently talks to R18 afterwards — and both radios answer, so nothing errors. This is
+the concrete form of the repo's existing "resolve by serial, never by IP" rule, and it bit
+mid-session: a `usb:1.86.5` URI failed with `No such device`, which is the *lucky* failure
+mode; the IP reuse is the dangerous one because it fails silently.
+
+Practical consequences:
+
+- **Re-derive URIs after any firmware load, reboot or reseat**, and assert the serial after
+  opening. `pyadi` exposes it as `sdr._ctx.attrs['hw_serial']` — a context attribute, not a
+  device or channel one, so `sdr._ctrl.attrs['hw_serial']` raises `KeyError`.
+- USB port paths (`1-1.1`, `1-1.2`) are stable across reloads where bus addresses are not,
+  so they are the better label for "which physical socket".
+- The duplicate `192.168.2.1` gadget address remains ambiguous between units and
+  `iio_info -s` attributes both contexts to one serial, so the RNDIS transport still cannot
+  be targeted per-radio without namespace isolation.
+
+Also worth remembering from the same session: **`iio_attr` needs `-i` or `-o`.** Reading
+`voltage1 hardwaregain` with neither returns the *input* (RX2) gain, so a check meant to
+confirm TX was muted silently reported an RX gain instead.
+
