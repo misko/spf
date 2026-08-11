@@ -1451,3 +1451,57 @@ Two method notes that generalise:
 - When comparing paths, match the *conditions* to the stricter path rather than the
   reverse, and pick a drive where **both** are inside their quality windows.
 
+## L-GSC6 (2026-08-11): equal gain does NOT null the differential phase, but the
+## separable model predicts the diagonal to half a degree
+
+E-GSC6, both radios, RC17, 8,784 frames, 100.00% quality-valid. Full report in
+`spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/`.
+
+The diagonal was never observable before: `additive_cross` visits exactly one equal-gain
+cell, `(ref,ref)`, which *is* the anchor, so `D(ref,ref) ≡ 0` by construction. Putting the
+diagonal in `held_out_gain_pairs` made it measurable with no code change, because at
+`g1 == g2` the shared-symmetric residual reduces to **`D(g,g)`** and the independent-RX
+residual to **`C(g,g)` = `D − A_session`**.
+
+**Separability holds.** `|C(g,g)|` is 0.504° per cell on R18 and 0.568° on R17 (n = 480
+each), with **no LNA-state structure**, i.e. at the scale of the 0.355–0.368° frame-level
+noise floor. There is no material interaction term, and the two units agree on `C` even
+though they disagree 5–7× on `D`.
+
+**But `D(g,g)` is not zero, and it is LNA-state structured.** Tandem AGC therefore does not
+remove the gain-dependent differential phase — it leaves `D(g,g) = A(g)`. **The residual
+model stays required rather than becoming a fallback.** It is predictable, though: with
+`C ≈ 0.5°`, a per-arm term indexed by LNA state captures the diagonal to about the floor.
+
+**Measured acceptance threshold**, from R18 (the untouched control): `D(g,g)` MAE
+**0.925 / 0.775 / 2.846°** low/middle/high, i.e. **7.2× / 8.6× / 2.3×** against the 6.65°
+anchored unequal-gain baseline, versus the plan's projected 6.0× / 5.3× / 3.4×. **Better
+than projected below 4 GHz and worse above it** — the band where the threshold matters most.
+
+**Harness health dominates the benefit.** R17 — the unit whose high-band `|A|` was once
+driven 3.49° → 29.41° by connector work without recovering — gives 3.618 / 2.346 / 20.419°,
+2–5.5× published `A`, and its high band is **0.3×**, i.e. *worse than doing nothing*. Take
+absolute numbers from R18.
+
+**H2 was untestable as written, and the reason is the finding.** `|D(g,g)|` is **flat within
+an audited LNA state and steps between states**, with boundaries exactly on the audited
+transitions. So a "frozen-word control" gain sits inside whichever plateau its neighbours
+occupy, and comparing it to a transition cell compares plateau membership rather than
+RF-word behaviour — on R17's high band the 45 dB control lands in the 48° plateau and would
+have scored as *noisier* than the transitions. Grouped by LNA word instead, the claim that
+diagonal phase tracks the audited RF word is **supported on both radios**, and the
+frozen-word controls behave like their state-mates. The index-clamp recommendation and
+Campaign C's index selection stand.
+
+**Method note worth keeping: grade the diagonal on the same-session residual, not on
+published `A`.** Graded against published `A`, R17's high band (20.4°, 3× the anchored
+baseline) would have declared "the interaction term dominates" — which the same run refutes,
+since `C` there is 0.923°. The decision rule was re-based on the same-session residual
+during the plan review, before any data existed, and that is what prevented the misreading.
+
+Caveats: cross-firmware against published `A` (RC17 versus the `rc12-9-g867e1` build `A` was
+measured on; same-session comparisons unaffected); two units is not a distribution; in the
+**low** band the bare tee's coupling bound (~1°, E-HCP1) and `D(g,g)` (0.925°) are the same
+size, so the low-band number must not be over-read, while the high band is clear of it; and
+anchor drift is recoverable from `reference_cell_mean_rad` but was not analysed.
+

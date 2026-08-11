@@ -1,0 +1,489 @@
+{
+  "capture": {
+    "epochs": 3,
+    "frames_per_radio": 4392,
+    "frames_total": 8784,
+    "gains": 21,
+    "held_out_diagonal_cells": 20,
+    "los": 24,
+    "quality_valid_pct": 100.0,
+    "training_pairs": 41
+  },
+  "experiment": "E-GSC6",
+  "findings": {
+    "H2_restated": "SUPPORTED, but the original phrasing was untestable as written. |D(g,g)| is FLAT WITHIN an audited LNA state and STEPS BETWEEN states, with boundaries on the audited transitions. Comparing \"transition cells\" to \"frozen-word controls\" only compares plateau membership, since a frozen-word gain sits inside whichever plateau its neighbours occupy.",
+    "measured_acceptance_threshold": {
+      "D_gg_mae_deg": {
+        "high": 2.846,
+        "low": 0.925,
+        "middle": 0.775
+      },
+      "improvement_vs_6p65_baseline": {
+        "high": 2.3,
+        "low": 7.2,
+        "middle": 8.6
+      },
+      "note": "this is what E-GSC6 was built to produce -- a measured threshold in place of an extrapolated one. Cross-firmware against published A; same-session A unaffected.",
+      "plan_projection": {
+        "high": 3.4,
+        "low": 6.0,
+        "middle": 5.3
+      },
+      "source": "R18, the untouched control unit; R17 is excluded as harness-disturbed"
+    },
+    "separability": "SUPPORTED. |C(g,g)| is 0.568 deg mean on R17 and 0.504 deg on R18 over 480 cells each, with no LNA-state structure. The separable per-arm model predicts the diagonal to about half a degree, so the interaction term C is at the scale of the measured 0.355-0.368 deg noise floor.",
+    "tandem_premise": "SPLIT BY UNIT, and the corrected reading matters. On R18, the untouched control, H1 is SUPPORTED: |D(g,g)| is 0.925 / 0.775 / 2.846 deg for low / middle / high, comparable to or BELOW published A (0.73 / 1.24 / 3.72) in every band and far below the 6.65 deg anchored baseline. Tandem's premise holds on a healthy assembly, delivering 7.2x / 8.6x / 2.3x against that baseline versus the 6.0x / 5.3x / 3.4x the plan projected -- better than projected below 4 GHz, worse above it. On R17, whose harness has documented non-recovering connector damage, |D(g,g)| is 2-5.5x published A and 20.4 deg in the high band, three times the baseline. So the premise is NOT refuted in general; it is harness-health dependent.",
+    "unit_specificity": "R17 is 5-7x worse than R18 in every band while their C values are nearly identical. R17 is the unit whose harness has had connector work and whose high-band |A| was previously driven 3.49 -> 29.41 deg without recovering; R18 is the untouched control. Absolute numbers should be taken from R18.",
+    "what_tandem_does_not_do": "D(g,g) is not zero on either unit and is LNA-state structured, so tandem does not remove the gain-dependent differential phase -- it leaves D(g,g)=A(g). The residual model therefore stays REQUIRED rather than becoming a fallback. The good news is that A(g) is predictable: C(g,g) is about 0.5 deg, so a per-arm term indexed by LNA state captures it."
+  },
+  "firmware": {
+    "attestation": "genuine -- automate RAM-loaded and regenerated the ready manifest",
+    "boot_mode": "ram",
+    "cross_firmware_caveat": "published A was measured on rc12-9-g867e1, so every comparison against PUBLISHED A is cross-firmware. Same-session A, which the decision rule grades on, is unaffected.",
+    "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
+    "image_sha256": "88a606f1a19f493e031989b8fc76cc77644ae5473e5d627b850252c9a615c54e",
+    "release_tag": "v0.38-plutoplus-spf-gain-series-v4-rc17"
+  },
+  "harness": "TX2 -> 30 dB pad -> bare SMA tee -> RX1/RX2; E-HCP1 bounds cross-arm coupling at <=1.25 dB, frequency-flat",
+  "per_radio": {
+    "R17": {
+      "C_all_cells": {
+        "max_deg": 4.43,
+        "mean_deg": 0.568,
+        "n": 480,
+        "p95_deg": 1.8
+      },
+      "overall_C_gg": {
+        "circular_mae_deg": 0.7511267600305459,
+        "circular_max_deg": 6.434337786170479,
+        "circular_p95_deg": 2.497182079169489,
+        "circular_rmse_deg": 1.142060901914784,
+        "n_observations": 1440
+      },
+      "overall_D_gg": {
+        "circular_mae_deg": 8.794398997999169,
+        "circular_max_deg": 95.6604310610031,
+        "circular_p95_deg": 56.43750869164516,
+        "circular_rmse_deg": 20.449511474360584,
+        "n_observations": 1440
+      },
+      "per_band": {
+        "high": {
+          "C_gg_mae_deg": 0.923,
+          "C_gg_p95_deg": 4.24,
+          "D_gg_mae_deg": 20.419,
+          "D_gg_max_deg": 95.66,
+          "D_gg_p95_deg": 94.4,
+          "n_los": 8,
+          "published_A_mean_deg": 3.72
+        },
+        "low": {
+          "C_gg_mae_deg": 0.756,
+          "C_gg_p95_deg": 3.45,
+          "D_gg_mae_deg": 3.618,
+          "D_gg_max_deg": 58.95,
+          "D_gg_p95_deg": 56.53,
+          "n_los": 8,
+          "published_A_mean_deg": 0.73
+        },
+        "middle": {
+          "C_gg_mae_deg": 0.575,
+          "C_gg_p95_deg": 3.53,
+          "D_gg_mae_deg": 2.346,
+          "D_gg_max_deg": 15.57,
+          "D_gg_p95_deg": 15.05,
+          "n_los": 8,
+          "published_A_mean_deg": 1.24
+        }
+      },
+      "per_lna_state": {
+        "high": {
+          "between_state_spread_deg": 48.08,
+          "lna_0": {
+            "C_gg_mean_deg": 0.766,
+            "D_gg_mean_deg": 14.117,
+            "D_gg_sd_deg": 17.035,
+            "gains_db": [
+              -1,
+              8,
+              20,
+              22
+            ],
+            "n_cells": 32
+          },
+          "lna_1": {
+            "C_gg_mean_deg": 0.496,
+            "D_gg_mean_deg": 3.965,
+            "D_gg_sd_deg": 4.966,
+            "gains_db": [
+              23,
+              25
+            ],
+            "n_cells": 16
+          },
+          "lna_2": {
+            "C_gg_mean_deg": 0.532,
+            "D_gg_mean_deg": 0.483,
+            "D_gg_sd_deg": 0.435,
+            "gains_db": [
+              27,
+              29,
+              30,
+              31,
+              32,
+              33,
+              40
+            ],
+            "n_cells": 56
+          },
+          "lna_3": {
+            "C_gg_mean_deg": 1.077,
+            "D_gg_mean_deg": 48.563,
+            "D_gg_sd_deg": 26.528,
+            "gains_db": [
+              41,
+              45,
+              49,
+              50,
+              51,
+              52,
+              62
+            ],
+            "n_cells": 56
+          }
+        },
+        "low": {
+          "between_state_spread_deg": 18.532,
+          "lna_0": {
+            "C_gg_mean_deg": 0.285,
+            "D_gg_mean_deg": 0.24,
+            "D_gg_sd_deg": 0.357,
+            "gains_db": [
+              -1,
+              8,
+              20,
+              22,
+              23,
+              25,
+              27,
+              29,
+              30
+            ],
+            "n_cells": 72
+          },
+          "lna_1": {
+            "C_gg_mean_deg": 0.26,
+            "D_gg_mean_deg": 2.613,
+            "D_gg_sd_deg": 2.568,
+            "gains_db": [
+              31,
+              32
+            ],
+            "n_cells": 16
+          },
+          "lna_2": {
+            "C_gg_mean_deg": 0.587,
+            "D_gg_mean_deg": 3.567,
+            "D_gg_sd_deg": 2.849,
+            "gains_db": [
+              33,
+              40,
+              41,
+              45,
+              49,
+              50,
+              51
+            ],
+            "n_cells": 56
+          },
+          "lna_3": {
+            "C_gg_mean_deg": 0.877,
+            "D_gg_mean_deg": 18.772,
+            "D_gg_sd_deg": 16.948,
+            "gains_db": [
+              52,
+              62
+            ],
+            "n_cells": 16
+          }
+        },
+        "middle": {
+          "between_state_spread_deg": 6.461,
+          "lna_0": {
+            "C_gg_mean_deg": 0.421,
+            "D_gg_mean_deg": 0.495,
+            "D_gg_sd_deg": 0.633,
+            "gains_db": [
+              -1,
+              8,
+              20,
+              22,
+              23,
+              25,
+              27,
+              29
+            ],
+            "n_cells": 64
+          },
+          "lna_1": {
+            "C_gg_mean_deg": 0.309,
+            "D_gg_mean_deg": 1.559,
+            "D_gg_sd_deg": 0.786,
+            "gains_db": [
+              30,
+              31
+            ],
+            "n_cells": 16
+          },
+          "lna_2": {
+            "C_gg_mean_deg": 0.492,
+            "D_gg_mean_deg": 1.931,
+            "D_gg_sd_deg": 0.966,
+            "gains_db": [
+              32,
+              33,
+              40,
+              41,
+              45,
+              49
+            ],
+            "n_cells": 48
+          },
+          "lna_3": {
+            "C_gg_mean_deg": 0.723,
+            "D_gg_mean_deg": 6.956,
+            "D_gg_sd_deg": 3.964,
+            "gains_db": [
+              50,
+              51,
+              52,
+              62
+            ],
+            "n_cells": 32
+          }
+        }
+      },
+      "serial": "104000bac4950008230026001b440a003a"
+    },
+    "R18": {
+      "C_all_cells": {
+        "max_deg": 4.75,
+        "mean_deg": 0.504,
+        "n": 480,
+        "p95_deg": 1.94
+      },
+      "overall_C_gg": {
+        "circular_mae_deg": 0.7053718640954199,
+        "circular_max_deg": 6.354440709028955,
+        "circular_p95_deg": 2.5950744314066787,
+        "circular_rmse_deg": 1.146729771975458,
+        "n_observations": 1440
+      },
+      "overall_D_gg": {
+        "circular_mae_deg": 1.5151793640163456,
+        "circular_max_deg": 27.187046335119664,
+        "circular_p95_deg": 5.386109960371255,
+        "circular_rmse_deg": 3.035026510988613,
+        "n_observations": 1440
+      },
+      "per_band": {
+        "high": {
+          "C_gg_mae_deg": 0.932,
+          "C_gg_p95_deg": 4.59,
+          "D_gg_mae_deg": 2.846,
+          "D_gg_max_deg": 27.19,
+          "D_gg_p95_deg": 22.75,
+          "n_los": 8,
+          "published_A_mean_deg": 3.72
+        },
+        "low": {
+          "C_gg_mae_deg": 0.756,
+          "C_gg_p95_deg": 3.89,
+          "D_gg_mae_deg": 0.925,
+          "D_gg_max_deg": 6.48,
+          "D_gg_p95_deg": 3.91,
+          "n_los": 8,
+          "published_A_mean_deg": 0.73
+        },
+        "middle": {
+          "C_gg_mae_deg": 0.428,
+          "C_gg_p95_deg": 2.02,
+          "D_gg_mae_deg": 0.775,
+          "D_gg_max_deg": 5.55,
+          "D_gg_p95_deg": 2.97,
+          "n_los": 8,
+          "published_A_mean_deg": 1.24
+        }
+      },
+      "per_lna_state": {
+        "high": {
+          "between_state_spread_deg": 6.202,
+          "lna_0": {
+            "C_gg_mean_deg": 0.717,
+            "D_gg_mean_deg": 6.802,
+            "D_gg_sd_deg": 6.178,
+            "gains_db": [
+              -1,
+              8,
+              20,
+              22
+            ],
+            "n_cells": 32
+          },
+          "lna_1": {
+            "C_gg_mean_deg": 0.353,
+            "D_gg_mean_deg": 2.721,
+            "D_gg_sd_deg": 2.925,
+            "gains_db": [
+              23,
+              25
+            ],
+            "n_cells": 16
+          },
+          "lna_2": {
+            "C_gg_mean_deg": 0.707,
+            "D_gg_mean_deg": 0.6,
+            "D_gg_sd_deg": 0.751,
+            "gains_db": [
+              27,
+              29,
+              30,
+              31,
+              32,
+              33,
+              40
+            ],
+            "n_cells": 56
+          },
+          "lna_3": {
+            "C_gg_mean_deg": 0.902,
+            "D_gg_mean_deg": 2.54,
+            "D_gg_sd_deg": 2.941,
+            "gains_db": [
+              41,
+              45,
+              49,
+              50,
+              51,
+              52,
+              62
+            ],
+            "n_cells": 56
+          }
+        },
+        "low": {
+          "between_state_spread_deg": 0.76,
+          "lna_0": {
+            "C_gg_mean_deg": 0.461,
+            "D_gg_mean_deg": 0.422,
+            "D_gg_sd_deg": 0.461,
+            "gains_db": [
+              -1,
+              8,
+              20,
+              22,
+              23,
+              25,
+              27,
+              29,
+              30
+            ],
+            "n_cells": 72
+          },
+          "lna_1": {
+            "C_gg_mean_deg": 0.321,
+            "D_gg_mean_deg": 1.182,
+            "D_gg_sd_deg": 1.129,
+            "gains_db": [
+              31,
+              32
+            ],
+            "n_cells": 16
+          },
+          "lna_2": {
+            "C_gg_mean_deg": 0.485,
+            "D_gg_mean_deg": 0.94,
+            "D_gg_sd_deg": 0.897,
+            "gains_db": [
+              33,
+              40,
+              41,
+              45,
+              49,
+              50,
+              51
+            ],
+            "n_cells": 56
+          },
+          "lna_3": {
+            "C_gg_mean_deg": 0.801,
+            "D_gg_mean_deg": 0.934,
+            "D_gg_sd_deg": 0.882,
+            "gains_db": [
+              52,
+              62
+            ],
+            "n_cells": 16
+          }
+        },
+        "middle": {
+          "between_state_spread_deg": 0.824,
+          "lna_0": {
+            "C_gg_mean_deg": 0.235,
+            "D_gg_mean_deg": 0.338,
+            "D_gg_sd_deg": 0.463,
+            "gains_db": [
+              -1,
+              8,
+              20,
+              22,
+              23,
+              25,
+              27,
+              29
+            ],
+            "n_cells": 64
+          },
+          "lna_1": {
+            "C_gg_mean_deg": 0.123,
+            "D_gg_mean_deg": 0.754,
+            "D_gg_sd_deg": 0.667,
+            "gains_db": [
+              30,
+              31
+            ],
+            "n_cells": 16
+          },
+          "lna_2": {
+            "C_gg_mean_deg": 0.244,
+            "D_gg_mean_deg": 0.771,
+            "D_gg_sd_deg": 0.504,
+            "gains_db": [
+              32,
+              33,
+              40,
+              41,
+              45,
+              49
+            ],
+            "n_cells": 48
+          },
+          "lna_3": {
+            "C_gg_mean_deg": 0.501,
+            "D_gg_mean_deg": 1.162,
+            "D_gg_sd_deg": 0.878,
+            "gains_db": [
+              50,
+              51,
+              52,
+              62
+            ],
+            "n_cells": 32
+          }
+        }
+      },
+      "serial": "1040007c4a94000211000b009186843ef2"
+    }
+  },
+  "utc": "2026-08-11"
+}
