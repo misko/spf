@@ -1,0 +1,157 @@
+# E-GSC6 -- does the equal-gain anchor move with gain index?
+#
+# Design and decision rule: experiments/e_gsc6_equal_gain_diagonal/experiment_readme.md
+# 21 gains -> 41 training cross pairs + 20 held-out diagonal cells = 61 pairs
+# 61 pairs x 24 LOs x 3 epochs = 4,392 frames per radio, 8,784 for the pair
+#
+data-version: 7
+direct-usb:
+  protocol-version: 3
+  gain-observation-interval-samples: 2048
+  gain-observation-capacity: 256
+pluto-firmware:
+  release-tag: (none -- volatile RC17 candidate, not a published release)
+  device-fw: v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe
+  boot-mode: ram-volatile
+  note: deliberate deviation from the rc12-9-g867e1 pin used by the 2026-07-30 campaign, chosen
+    so the active RC17 burn-in work is not disturbed. Recorded so the cross-firmware comparison
+    is explicit.
+calibration:
+  frequencies-hz:
+  - 433000000
+  - 550000000
+  - 700000000
+  - 850000000
+  - 950000000
+  - 1050000000
+  - 1180000000
+  - 1300000000
+  - 1350000000
+  - 1700000000
+  - 2100000000
+  - 2437000000
+  - 2800000000
+  - 3200000000
+  - 3600000000
+  - 4000000000
+  - 4100000000
+  - 4400000000
+  - 4700000000
+  - 5000000000
+  - 5300000000
+  - 5500000000
+  - 5766000000
+  - 5900000000
+  gains-db:
+  - -1
+  - 8
+  - 20
+  - 22
+  - 23
+  - 25
+  - 26
+  - 27
+  - 29
+  - 30
+  - 31
+  - 32
+  - 33
+  - 40
+  - 41
+  - 45
+  - 49
+  - 50
+  - 51
+  - 52
+  - 62
+  schedule-design: additive_cross
+  schedule-reference-gain-db: 26
+  held-out-gain-pairs:
+  - - -1
+    - -1
+  - - 8
+    - 8
+  - - 20
+    - 20
+  - - 22
+    - 22
+  - - 23
+    - 23
+  - - 25
+    - 25
+  - - 27
+    - 27
+  - - 29
+    - 29
+  - - 30
+    - 30
+  - - 31
+    - 31
+  - - 32
+    - 32
+  - - 33
+    - 33
+  - - 40
+    - 40
+  - - 41
+    - 41
+  - - 45
+    - 45
+  - - 49
+    - 49
+  - - 50
+    - 50
+  - - 51
+    - 51
+  - - 52
+    - 52
+  - - 62
+    - 62
+  repetitions: 3
+  sample-rate-hz: 30000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000
+  tone-search-width-hz: 25000
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
+  random-seed: 20260730
+  tx-source: fpga_dds
+  tx-gain-db: 0
+  tx-gain-policy: adaptive_max_rx_gain
+  tx-reference-rx-gain-db: 26
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 16384
+  min-quality-valid-per-cell: 2
+  max-across-repeat-phase-std-deg: 5
+  setup-label: e-gsc6-equal-gain-diagonal-r17-r18-tx2-30db-TEE-rx1-rx2
+  notes: 'E-GSC6 equal-gain diagonal. Diagonal cells (g,g) for every g != 26 are held-out
+    pairs, so they are captured at every frequency and epoch but excluded from the fit; the
+    existing additive-cross analysis then scores them on a model that never saw them. At a
+    diagonal cell the shared-symmetric residual IS D(g,g) and the independent-RX residual
+    IS C(g,g) = D(g,g) - A_session(g), so the falsifier is differenced against this run own
+    harness rather than published A. Gain set derived from gain_tables_audited.json: brackets
+    all three LNA transitions in every band (low 30/31 32/33 51/52; middle 29/30 31/32 49/50;
+    high 22/23 25/26 40/41, the 25->26 pair straddled by 25 and 27 because 26 is the anchor),
+    plus frozen-word controls at 8, 20 and 45 dB which hold (LNA,MIXER,TIA) constant in all
+    three bands, plus both ends of the band-common -1..62 dB range. 24 LOs, >=8 per band,
+    each band spanning >=2 periods of the 392.5 MHz ripple. HARNESS: the splitter is a bare
+    SMA tee (~0 dB port-to-port isolation), NOT a divider. E-HCP1 bounded its cross-arm coupling
+    at <=1.25 dB, frequency-flat, so it cannot explain A; but in the LOW band that bound (~1
+    deg) and A (0.73 deg) are the same size, so a small low-band C(g,g) must not be over-read.
+    FIRMWARE: run on the volatile RC17 candidate rc16-7-g1f3fe, NOT the rc12-9-g867e1 build
+    the published A was measured on. Comparisons against published A are CROSS-FIRMWARE and
+    must say so. Same-session A is unaffected.'
+  quality:
+    min-tone-snr-db: -10
+    min-tone-dbfs: -75
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5

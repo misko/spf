@@ -1,6 +1,8 @@
 # E-GSC6 — does the equal-gain anchor move with gain index?
 
-**Status:** designed 2026-08-10, not yet run.
+**Status:** designed 2026-08-10, **config written and validated 2026-08-11, run BLOCKED** on a firmware attestation gate — see the box in §5.1. Config:
+`spf/calibrations/dual_rx_gain_frequency/configs/e_gsc6_equal_gain_diagonal.yaml`
+(passes `CalibrationConfig.validate()`; 4,392 frames per radio, 8,784 for the pair).
 **Revised 2026-08-10** after a bench/code audit against the committed capture path.
 The revision corrects the harness schematic, the gain-table indices, the operating
 gain range, the clipping analysis and the decision rule; see §9 for the changelog.
@@ -252,6 +254,45 @@ not silently run on something newer:
   `firmware_verified: true` satisfies that gate while describing firmware that is not
   on the hardware, and `data_collector.py:145-155` would then record the *config's*
   firmware strings with `firmware_verified: false`.
+
+> ### ⚠ Blocked 2026-08-11: the firmware pin is **enforced**, not advisory
+>
+> An attempt to run on the current volatile RC17 image, recording the deviation as
+> cross-firmware, **failed closed** and could not be made to work honestly:
+>
+> ```
+> RuntimeError: <serial>: V7 calibration requires boot-verified firmware
+> ```
+>
+> `dataset.py:239-247` refuses to open a V7 dataset unless the receiver's
+> `firmware_verified` attribute is `True`, and `dataset.py:248-253` additionally
+> requires a matching `hardware_fingerprint_v1`. `firmware_verified` is only set when
+> `/run/spf/direct_usb_ready.json` matches the config's `pluto-firmware` block on **all
+> six** fields *and* carries its own verified flag (`data_collector.py:145-155`).
+>
+> That flag is an **attestation produced by the boot/flash tooling** that it verified the
+> boot. It cannot be hand-written without asserting a verification that never happened,
+> which is precisely the defect class `docs/learnings.md` warns about — "verifying a
+> release and rebuilding it are different operations", and "the release tag lies". **Do
+> not bypass this gate.** It is working as designed.
+>
+> So §5.1's "record it and treat the comparison as cross-firmware" is **not sufficient**.
+> Running E-GSC6 requires a genuine attestation for whatever firmware is used. Three real
+> options, in increasing invasiveness:
+>
+> 1. **`automate` subcommand** — it RAM-loads firmware, probes, captures and validates in
+>    one flow, producing a legitimate attestation. RC17 has the provenance needed for this
+>    (DFU SHA-256 `88a606f1a19f…`, firmware commit `1f3fe0cbe865…`, gadget commit
+>    `2e8e40ade5dc…`, packaged device-fw `…-rc16-7-g1f3fe`). Cost: it resets the radios
+>    once by re-loading the image already running.
+> 2. **Reflash to the pinned `rc12-9-g867e1` QSPI image** — the cleanest comparison
+>    against published `A`, since that is the firmware `A` was measured on. Cost: destroys
+>    the volatile RC17 load that active burn-in work depends on.
+> 3. **Wait** until the RC17 work releases the bench, then do either of the above.
+>
+> The preflight below assumes option 2. For option 1, substitute the RC17 provenance in
+> both the config's `pluto-firmware` block and the `automate` preparation config, and
+> state in the report that the comparison against published `A` is cross-firmware.
 
 **Preflight, in order:** power-cycle or reflash both radios to the pinned QSPI image,
 regenerate the ready manifest, confirm `/opt/VERSIONS` `device-fw` on each unit equals
