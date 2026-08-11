@@ -67,7 +67,7 @@ From R18, replacing the plan's extrapolated projection:
 
 | Band | measured `D(g,g)` | improvement vs 6.65° | plan projected |
 |---|---:|---:|---:|
-| low | 0.925° | **7.2×** | 6.0× |
+| low | 0.925° | **≥7.2×** (bound — see limitations) | 6.0× |
 | middle | 0.775° | **8.6×** | 5.3× |
 | high | 2.846° | **2.3×** | 3.4× |
 
@@ -138,8 +138,15 @@ Grading on `|C(g,g)|` against the same-session `A`, as §7 specifies:
   and in the **low band** that bound (~1°) and `D(g,g)` (0.925°) are the same size — so the
   low-band number should not be over-read. The high band, where the threshold matters, is
   comfortably clear of it.
-- **Anchor drift** is capturable from `reference_cell_mean_rad` per frequency but was not
-  analysed here; it should be before the threshold is treated as final.
+- **Anchor drift: gate PASSED** (`anchor_drift.json`). The three epochs agree at nearly
+  every LO with no step; worst single drift 3.99° (R17, 4000 MHz) and 3.12° (R18, 550 MHz),
+  medians 0.52° and 0.43°. Crucially it **cannot explain R17's high band** — 0.63° median
+  drift against 20.4° of `D(g,g)`, an order of magnitude short.
+- **But the low-band threshold is a bound, not a value.** R18's low-band `D(g,g)` of 0.925°
+  sits *below* its own median anchor drift of 1.08°, so that band is not resolved above the
+  run's own anchor stability. Middle and high are resolved with 5.6× and 6.2× margin and
+  stand as values. Combined with the independent low-band tee-coupling confound (~1°), there
+  are **two reasons the low-band 7.2× should be read as "at least"** rather than as measured.
 - `D(g,g)` p95 values are much larger than the MAEs (R18 high: 22.75° vs 2.846°), so the
   diagonal has a heavy tail. The per-LNA-state table shows why — the tail is plateau
   structure, not noise.

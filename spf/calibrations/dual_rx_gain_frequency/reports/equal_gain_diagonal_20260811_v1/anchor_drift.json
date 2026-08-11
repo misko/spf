@@ -1,0 +1,499 @@
+{
+  "NEW_CAVEAT_low_band": "R18 low band is the one cell NOT resolved above its own anchor drift: D(g,g) 0.925 deg against a 1.08 deg median drift (3.12 deg max). So the low-band threshold and its 7.2x improvement must be read as a BOUND, not a value. This compounds the already-noted low-band confound with E-HCP1 cross-arm coupling (~1 deg): two independent reasons the low-band figure is soft. Middle and high are resolved with 5.5x and 6.2x margin over their median drift.",
+  "drift_cannot_explain_R17": "R17 high-band anchor drift is at most 2.95 deg with a 0.63 deg median, against a high-band D(g,g) of 20.419 deg -- an order of magnitude too small. The R17 inflation is not drift.",
+  "gate": "anchor drift trace -- interleaved equal-gain anchor vs epoch, per frequency",
+  "method": "the (26,26) anchor is captured at every frequency in all 3 epochs; drift is the max circular difference between epoch means at one frequency",
+  "per_radio": {
+    "R17": {
+      "median_drift_deg": 0.523,
+      "per_band": {
+        "high": {
+          "D_gg_mae_deg": 20.419,
+          "D_over_median_drift": 32.46,
+          "max_drift_deg": 2.953,
+          "median_drift_deg": 0.629,
+          "resolved_above_drift": true
+        },
+        "low": {
+          "D_gg_mae_deg": 3.618,
+          "D_over_median_drift": 4.32,
+          "max_drift_deg": 1.409,
+          "median_drift_deg": 0.838,
+          "resolved_above_drift": true
+        },
+        "middle": {
+          "D_gg_mae_deg": 2.346,
+          "D_over_median_drift": 13.22,
+          "max_drift_deg": 3.994,
+          "median_drift_deg": 0.177,
+          "resolved_above_drift": true
+        }
+      },
+      "per_lo": {
+        "1050000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -1.67,
+            -1.752,
+            -1.722
+          ],
+          "max_drift_deg": 0.082
+        },
+        "1180000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -0.928,
+            -0.058,
+            -0.15
+          ],
+          "max_drift_deg": 0.871
+        },
+        "1300000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -5.932,
+            -4.524,
+            -4.557
+          ],
+          "max_drift_deg": 1.409
+        },
+        "1350000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -6.921,
+            -7.016,
+            -7.077
+          ],
+          "max_drift_deg": 0.156
+        },
+        "1700000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -1.196,
+            -1.199,
+            -1.194
+          ],
+          "max_drift_deg": 0.005
+        },
+        "2100000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -6.48,
+            -6.305,
+            -6.628
+          ],
+          "max_drift_deg": 0.323
+        },
+        "2437000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -6.337,
+            -6.341,
+            -6.142
+          ],
+          "max_drift_deg": 0.199
+        },
+        "2800000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -4.68,
+            -4.69,
+            -4.628
+          ],
+          "max_drift_deg": 0.062
+        },
+        "3200000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -4.949,
+            -4.958,
+            -4.996
+          ],
+          "max_drift_deg": 0.047
+        },
+        "3600000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -3.02,
+            -3.007,
+            -3.21
+          ],
+          "max_drift_deg": 0.203
+        },
+        "4000000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -10.277,
+            -10.684,
+            -6.69
+          ],
+          "max_drift_deg": 3.994
+        },
+        "4100000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -4.548,
+            -4.473,
+            -4.671
+          ],
+          "max_drift_deg": 0.197
+        },
+        "433000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -0.639,
+            -0.815,
+            0.363
+          ],
+          "max_drift_deg": 1.178
+        },
+        "4400000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -5.143,
+            -8.096,
+            -5.539
+          ],
+          "max_drift_deg": 2.953
+        },
+        "4700000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -38.873,
+            -39.119,
+            -38.643
+          ],
+          "max_drift_deg": 0.476
+        },
+        "5000000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            12.887,
+            13.679,
+            13.387
+          ],
+          "max_drift_deg": 0.791
+        },
+        "5300000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -103.917,
+            -103.802,
+            -104.893
+          ],
+          "max_drift_deg": 1.091
+        },
+        "550000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -1.189,
+            -0.686,
+            -1.471
+          ],
+          "max_drift_deg": 0.785
+        },
+        "5500000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -36.418,
+            -37.201,
+            -36.775
+          ],
+          "max_drift_deg": 0.782
+        },
+        "5766000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -33.613,
+            -33.522,
+            -33.982
+          ],
+          "max_drift_deg": 0.46
+        },
+        "5900000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -56.503,
+            -56.862,
+            -56.955
+          ],
+          "max_drift_deg": 0.452
+        },
+        "700000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            0.01,
+            -0.964,
+            0.133
+          ],
+          "max_drift_deg": 1.098
+        },
+        "850000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -1.9,
+            -2.289,
+            -1.485
+          ],
+          "max_drift_deg": 0.804
+        },
+        "950000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -5.493,
+            -4.989,
+            -5.56
+          ],
+          "max_drift_deg": 0.571
+        }
+      },
+      "worst_drift_deg": 3.994
+    },
+    "R18": {
+      "median_drift_deg": 0.429,
+      "per_band": {
+        "high": {
+          "D_gg_mae_deg": 2.846,
+          "D_over_median_drift": 6.23,
+          "max_drift_deg": 1.603,
+          "median_drift_deg": 0.457,
+          "resolved_above_drift": true
+        },
+        "low": {
+          "D_gg_mae_deg": 0.925,
+          "D_over_median_drift": 0.86,
+          "max_drift_deg": 3.124,
+          "median_drift_deg": 1.079,
+          "resolved_above_drift": false
+        },
+        "middle": {
+          "D_gg_mae_deg": 0.775,
+          "D_over_median_drift": 5.6,
+          "max_drift_deg": 1.695,
+          "median_drift_deg": 0.139,
+          "resolved_above_drift": true
+        }
+      },
+      "per_lo": {
+        "1050000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -1.251,
+            -1.407,
+            -1.379
+          ],
+          "max_drift_deg": 0.155
+        },
+        "1180000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -0.592,
+            -0.237,
+            -0.541
+          ],
+          "max_drift_deg": 0.355
+        },
+        "1300000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -9.075,
+            -10.134,
+            -9.133
+          ],
+          "max_drift_deg": 1.059
+        },
+        "1350000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -12.728,
+            -14.423,
+            -12.772
+          ],
+          "max_drift_deg": 1.695
+        },
+        "1700000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -2.6,
+            -2.737,
+            -2.725
+          ],
+          "max_drift_deg": 0.137
+        },
+        "2100000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -6.381,
+            -6.334,
+            -6.485
+          ],
+          "max_drift_deg": 0.151
+        },
+        "2437000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -10.069,
+            -10.15,
+            -10.109
+          ],
+          "max_drift_deg": 0.081
+        },
+        "2800000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -4.958,
+            -5.336,
+            -5.35
+          ],
+          "max_drift_deg": 0.393
+        },
+        "3200000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -5.836,
+            -5.938,
+            -5.977
+          ],
+          "max_drift_deg": 0.14
+        },
+        "3600000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -5.852,
+            -5.868,
+            -5.907
+          ],
+          "max_drift_deg": 0.054
+        },
+        "4000000000": {
+          "band": "middle",
+          "epoch_means_deg": [
+            -12.164,
+            -12.295,
+            -12.276
+          ],
+          "max_drift_deg": 0.131
+        },
+        "4100000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -9.991,
+            -9.584,
+            -9.514
+          ],
+          "max_drift_deg": 0.477
+        },
+        "433000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -0.212,
+            -1.235,
+            -1.313
+          ],
+          "max_drift_deg": 1.1
+        },
+        "4400000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -6.207,
+            -6.643,
+            -6.602
+          ],
+          "max_drift_deg": 0.436
+        },
+        "4700000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -20.049,
+            -19.668,
+            -19.626
+          ],
+          "max_drift_deg": 0.424
+        },
+        "5000000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -53.277,
+            -52.948,
+            -53.155
+          ],
+          "max_drift_deg": 0.329
+        },
+        "5300000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            49.187,
+            50.79,
+            50.335
+          ],
+          "max_drift_deg": 1.603
+        },
+        "550000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            1.43,
+            -1.301,
+            -1.695
+          ],
+          "max_drift_deg": 3.124
+        },
+        "5500000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            2.745,
+            2.622,
+            2.522
+          ],
+          "max_drift_deg": 0.223
+        },
+        "5766000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -47.561,
+            -46.985,
+            -47.371
+          ],
+          "max_drift_deg": 0.576
+        },
+        "5900000000": {
+          "band": "high",
+          "epoch_means_deg": [
+            -70.225,
+            -69.821,
+            -69.679
+          ],
+          "max_drift_deg": 0.547
+        },
+        "700000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -1.753,
+            -2.041,
+            -0.673
+          ],
+          "max_drift_deg": 1.369
+        },
+        "850000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -1.381,
+            -3.706,
+            -1.844
+          ],
+          "max_drift_deg": 2.325
+        },
+        "950000000": {
+          "band": "low",
+          "epoch_means_deg": [
+            -6.074,
+            -6.477,
+            -6.508
+          ],
+          "max_drift_deg": 0.434
+        }
+      },
+      "worst_drift_deg": 3.124
+    }
+  },
+  "verdict": "PASS on the pre-registered gate: the three epochs agree at nearly every LO, with no step. Worst single drift is 3.99 deg (R17 at 4000 MHz) and 3.12 deg (R18 at 550 MHz); medians are 0.52 and 0.43 deg."
+}

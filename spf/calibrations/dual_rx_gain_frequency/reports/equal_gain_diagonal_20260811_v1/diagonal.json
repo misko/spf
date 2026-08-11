@@ -12,6 +12,7 @@
   "experiment": "E-GSC6",
   "findings": {
     "H2_restated": "SUPPORTED, but the original phrasing was untestable as written. |D(g,g)| is FLAT WITHIN an audited LNA state and STEPS BETWEEN states, with boundaries on the audited transitions. Comparing \"transition cells\" to \"frozen-word controls\" only compares plateau membership, since a frozen-word gain sits inside whichever plateau its neighbours occupy.",
+    "anchor_drift_gate": "PASS. Three epochs agree at nearly every LO with no step; worst single drift 3.99 deg (R17 4000 MHz) and 3.12 deg (R18 550 MHz), medians 0.52 and 0.43 deg. Drift is an order of magnitude too small to explain R17 high band: 0.63 deg median against 20.4 deg. See anchor_drift.json.",
     "measured_acceptance_threshold": {
       "D_gg_mae_deg": {
         "high": 2.846,
@@ -23,6 +24,7 @@
         "low": 7.2,
         "middle": 8.6
       },
+      "low_band_is_a_bound_not_a_value": "R18 low band D(g,g) 0.925 deg sits BELOW its own median anchor drift of 1.08 deg, so the low-band figure and its 7.2x improvement are a BOUND. This compounds the separate low-band confound with E-HCP1 cross-arm coupling (~1 deg). Middle and high are resolved with 5.6x and 6.2x margin over median drift and stand as values.",
       "note": "this is what E-GSC6 was built to produce -- a measured threshold in place of an extrapolated one. Cross-firmware against published A; same-session A unaffected.",
       "plan_projection": {
         "high": 3.4,

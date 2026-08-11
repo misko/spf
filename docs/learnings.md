@@ -1499,9 +1499,16 @@ baseline) would have declared "the interaction term dominates" — which the sam
 since `C` there is 0.923°. The decision rule was re-based on the same-session residual
 during the plan review, before any data existed, and that is what prevented the misreading.
 
-Caveats: cross-firmware against published `A` (RC17 versus the `rc12-9-g867e1` build `A` was
-measured on; same-session comparisons unaffected); two units is not a distribution; in the
-**low** band the bare tee's coupling bound (~1°, E-HCP1) and `D(g,g)` (0.925°) are the same
-size, so the low-band number must not be over-read, while the high band is clear of it; and
-anchor drift is recoverable from `reference_cell_mean_rad` but was not analysed.
+**The anchor-drift gate passed, and it demoted one number.** The interleaved (26,26) anchor
+agrees across all three epochs at nearly every LO with no step — worst single drift 3.99°
+(R17, 4000 MHz) and 3.12° (R18, 550 MHz), medians 0.52° and 0.43°. That is an order of
+magnitude too small to explain R17's high band (0.63° median drift against 20.4°), so the
+R17 inflation is real and not drift. **But R18's low-band `D(g,g)` of 0.925° sits below its
+own median anchor drift of 1.08°**, so the low-band threshold is a **bound, not a value** —
+compounding the independent low-band confound with the tee's ~1° coupling bound. Middle and
+high are resolved with 5.6× and 6.2× margin over median drift and stand as measured.
+
+Remaining caveats: cross-firmware against published `A` (RC17 versus the `rc12-9-g867e1`
+build `A` was measured on; same-session comparisons unaffected), and two units is not a
+distribution.
 

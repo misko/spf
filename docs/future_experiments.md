@@ -82,6 +82,81 @@ rule is unreachable without ~16–25 repeats. Second arm: repeat with
 needs an `RF_DC_CAL`-indexed term. A step at or below 0.35° closes the attribution to the
 LNA/mixer/TIA network. Report the sem alongside the estimate so the power is auditable.
 
+## E-AGC1 — AD9361 gain-pin and detector bring-up — ✅ **3.5 of 4 OPEN ITEMS CLOSED (2026-08-11)**
+
+Design and results: `experiments/e_agc1_pin_and_detector_bringup/`. Both radios, stock RC17,
+userspace only — no FPGA change, no bitstream, no QSPI write. ~4 min per radio.
+
+- **O-5 pin mapping CLOSED.** The map is the identity, 40/40 trials across two radios, other
+  channel never moved once. RTL work unblocked.
+- **O-1 ENSM CLOSED, and it changes the contract.** `CTRL_IN` edges are honoured in `fdd`
+  and **ignored in `alert` and `sleep`** (0/3 each), so the enable sequence must guarantee RX
+  is active before arming. Incidentally `wait` is advertised but unreachable.
+- **O-2 hold band CLOSED at 21–22 dB** across four arms — 22× wider than the 1 dB at which
+  the pre-registered rule said the policy would oscillate. That predicted change did not
+  happen.
+- **O-3 HALF closed.** H4's *latch* is confirmed on both radios: with the gain held and the
+  tone **muted entirely** the overload bits stay asserted, so the bit holds until a gain
+  change. The blank *duration* is bounded under 322 µs and unmeasured, and H5 has no dither
+  to time at all. **Both need the FPGA stage — do not re-attempt from userspace.**
+- **Unplanned, and it matters for SPF:** arming `0x0FB` takes gain ownership away from
+  software *silently* — a `hardwaregain` write returns rc=0 and is dropped. Any host
+  `set_gains()` during tandem operation is a no-op.
+- All 8 `CTRL_OUT` bits characterised across the pair; `0x114` identified at 0.5 dB/LSB, while
+  `0x107`/`0x108` do not resolve because the ADC saturates within ~1 dB.
+
+**Still blocked:** `TANDEM_AGC_V1_DESIGN.md` is not in this repository, so O-1/O-2/O-5 cannot
+be formally marked closed there. CH1's large-LMT bit on R17 needs ~20 dB more drive (a 10 dB
+pad instead of 30 dB).
+
+## E-HCP1 — can the bare-tee harness account for the arm-specific residual `A`? — ✅ **NO (2026-08-11)**
+
+Design and results: `experiments/e_hcp1_cross_arm_coupling/`. Created because the 2026-08-10
+harness finding (the "splitter" is a bare SMA tee, ~0 dB port-to-port isolation) put the whole
+dual-RX phase programme in doubt, and E-GSP2 — the definitive A/B — needs parts.
+
+Hold one arm's gain fixed, sweep the other, watch the **fixed** arm's input-referred RSSI:
+coupling is **≤1.25 dB, median 0.50 dB** over 12 LOs from 433 MHz to 5900 MHz, and
+**frequency-flat**, while `A` rises ~5× into the high band. **R18 reproduces R17 exactly**, so
+the coupling is *not* unit-specific whereas `A` is — a second independent argument. Bounds
+phase coupling at ≲8.9° worst case, ~3° typical.
+
+**Consequences:** E-GSC6 was unblocked and run on this harness. **E-GSP2 remains the
+definitive tee-versus-divider A/B but is no longer urgent and blocks nothing.** A first
+first-order estimate of 17–39° in `learnings.md` was too pessimistic and has been corrected.
+The high band carries the weakest evidence, since Pluto TX rolls off above 4 GHz — a 10 dB
+pad would firm it up.
+
+## E-GSC6 — does the equal-gain anchor move with gain index? — ✅ **RUN (2026-08-11)**
+
+Design and results: `experiments/e_gsc6_equal_gain_diagonal/`; full report in
+`spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/`. Both
+radios on RC17 via the `automate` flow, 8,784 frames, **100.00% quality-valid**.
+
+- **Separability HOLDS.** `C(g,g)` ≈ 0.5° per cell on both radios (n=480 each) with no
+  LNA-state structure — at the 0.355–0.368° noise floor. No material interaction term.
+- **But tandem does not null the differential phase.** `D(g,g)` is not zero and *is*
+  LNA-state structured, so tandem leaves `D(g,g) = A(g)`. **The residual model stays
+  required, not a fallback** — though `C ≈ 0.5°` means a per-arm term indexed by LNA state
+  captures it.
+- **Measured acceptance threshold** (from R18, the untouched control), replacing the
+  extrapolated projection: `D(g,g)` **≥7.2× / 8.6× / 2.3×** against the 6.65° anchored
+  baseline for low/middle/high, versus 6.0× / 5.3× / 3.4× projected. **Worse than projected
+  above 4 GHz**, the band that matters most. Low band is a **bound** — it sits below its own
+  median anchor drift.
+- **Harness health dominates.** R17 is 5–7× worse in every band while its `C` matches R18's;
+  its high band is **0.3×**, worse than doing nothing. Independent evidence that R17's
+  assembly is degraded.
+- **H2 supported, restated.** `|D(g,g)|` is flat within an audited LNA state and steps
+  between states. The original "transition vs frozen-word control" phrasing was untestable —
+  a control gain sits inside whichever plateau its neighbours occupy.
+- Anchor-drift gate **PASSED**; it cannot explain R17 (0.63° median vs 20.4°).
+
+**Follow-ups this created:** re-terminate R17's harness and re-run the diagonal as a
+before/after; test whether the diagonal's frequency structure is a reflection (a free partial
+**E-CAL4** from data in hand, no VNA needed); and `TANDEM_AGC_V1_DESIGN.md` must exist before
+the threshold can be handed off.
+
 ## E-CAL2 — fill the unmeasured LNA states, then retest band portability
 
 **Status (2026-08-07): completed; precision gate failed.** The 444-frame targeted

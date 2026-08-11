@@ -23,11 +23,17 @@ This is what the experiment was built to produce — measurement in place of ext
 
 | Band | `D(g,g)` | vs 6.65° baseline | plan projected |
 |---|---:|---:|---:|
-| low | 0.925° | **7.2×** | 6.0× |
+| low | 0.925° | **≥7.2×** (bound) | 6.0× |
 | middle | 0.775° | **8.6×** | 5.3× |
 | high | 2.846° | **2.3×** | 3.4× |
 
 Better than projected below 4 GHz, **worse above it** — the band that matters most.
+
+**The low-band row is a bound, not a value.** The anchor-drift gate passed, but it showed
+R18's low-band `D(g,g)` (0.925°) sits *below* its own median anchor drift (1.08°), so that
+band is not resolved above the run's anchor stability. Middle and high are resolved with
+5.6× and 6.2× margin. Combined with the independent low-band tee-coupling confound (~1°),
+read low-band as "at least 7.2×".
 
 ## Three things to carry into the firmware plan
 
