@@ -1,0 +1,110 @@
+# E-INF2 phase B -- LOCAL REFINEMENT, written from phase A's measured optima.
+#
+# Phase A (28,800 runs, 8 captures, 2 seeds) found every optimum interior and no
+# truncated axis. Its optima, which centre the ranges below:
+#
+#   PF single radio NN [folded]   N=512   theta_err=0.001  theta_dot_err=0.1
+#   PF dual radio NN   [abs]      N=1024  theta_err=0.075  theta_dot_err=0.005
+#   PF single radio    [folded]   N=256   theta_err=0.001  theta_dot_err=0.1
+#   PF dual radio NN   [craft]    N=256   theta_err=0.02   theta_dot_err=0.1
+#   PF dual radio      [craft]    N=4096  theta_err=0.02   theta_dot_err=0.1
+#   EKF single radio   [folded]   phi_std=1.0 p=0.1 noise_std=1e-4  dynamic_R=0
+#   EKF dual radio     [craft]    phi_std=1.0 p=0.1 noise_std=0.01  dynamic_R=0
+#
+# THETA_ERR IS RESTORED TO FULL COVERAGE. Phase A narrowed it from five values to
+# three to buy width on N and theta_dot_err, on the grounds that its marginal
+# profile was flattest. That reasoning was wrong: a marginal is minimised over the
+# other axes, so it hides exactly the interactions a 2-D surface reveals, and the
+# narrowing left phase A NOT a superset of the coarse grid. Two families read
+# worse than E-INF1 on a partial comparison because of it.
+#
+# The jobs come back from N. Phase A showed MSE is flat in particle count above a
+# few hundred while runtime grows ~7x from N=512 to N=32768, so the ranges here
+# are centred low and never reach 32768.
+#
+# FIVE SEEDS, SIXTEEN DATASETS. Phase A ranked regions at 2 seeds on 8 captures;
+# this picks winners, so it uses the same 16-capture sample E-INF1 tuned on --
+# which is also what makes a matched paired comparison against E-INF1 possible.
+#
+#   python spf/filters/run_filters_on_data.py \
+#     -d $(cat experiments/e_inf1_filter_sweep/stage2_rover_sample_n16.txt) \
+#     --empirical-pkl-fn empirical_dists/full_20260809_v1.pkl \
+#     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/e_inf2_refine \
+#     --config spf/filters/configs/rover2026_refine_b.yaml \
+#     --results-backend local --parallel 18
+#
+# A NEW work dir. --resume defaults to true and would skip every existing key.
+precompute_caches:
+  3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
+
+runs:
+  # --- EKF. Deterministic, so no seed axis. Local box around each phase-A
+  # optimum; both use the STATIC form (dynamic_R=0), which is what H4's
+  # refutation found -- the dynamic form did not win for either filter.
+  - run_EKF_single_theta_single_radio:
+      phi_std: [0.5, 1.0, 2.5]
+      p: [0.05, 0.1, 0.5]
+      noise_std: [0.00001, 0.0001, 0.001]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [0.5, 1.0, 2.5]
+      p: [0.05, 0.1, 0.5]
+      noise_std: [0.001, 0.01, 0.1]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+
+  # --- PF single radio, empirical and NN. Both optimise at theta_dot_err 0.1 and
+  # at small N (256 / 512), so N is centred there and stops at 2048.
+  - run_PF_single_theta_single_radio:
+      N: [128, 128 * 2, 128 * 4, 128 * 8, 128 * 16]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.02, 0.05, 0.1, 0.2, 0.5]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_single_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128, 128 * 2, 128 * 4, 128 * 8, 128 * 16]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.02, 0.05, 0.1, 0.2, 0.5]
+      seed: [0, 1, 2, 3, 4]
+
+  # --- PF dual radio, empirical. Optimum N=4096, the largest of the five, so its
+  # range runs higher -- but still stops at 16384, the value phase A showed buys
+  # nothing over 4096 at 2.7x the runtime. Included so the claim is testable at
+  # 5 seeds on 16 captures rather than 2 on 8.
+  - run_PF_single_theta_dual_radio:
+      N: [128 * 8, 128 * 16, 128 * 32, 128 * 64, 128 * 128]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.02, 0.05, 0.1, 0.2, 0.5]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+
+  # --- PF dual radio NN, craft-relative.
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128, 128 * 2, 128 * 4, 128 * 8, 128 * 16]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.02, 0.05, 0.1, 0.2, 0.5]
+      absolute: [False]
+      seed: [0, 1, 2, 3, 4]
+
+  # --- PF dual radio NN, absolute north. A DIFFERENT theta_dot_err box: its
+  # optimum is 0.005, twenty times smaller than the craft-relative families'.
+  # That 20x ratio is H3, and using one shared range here would test it away.
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128 * 2, 128 * 4, 128 * 8, 128 * 16, 128 * 32]
+      theta_err: [0.001, 0.005, 0.02, 0.075, 0.2]
+      theta_dot_err: [0.001, 0.002, 0.005, 0.01, 0.02]
+      absolute: [True]
+      seed: [0, 1, 2, 3, 4]
