@@ -68,6 +68,14 @@ The entire corpus-mean difference is one capture
 (`rover_2026_08_07_01_27_43…RO3`, craft 2.730 vs absolute 1.020). On the other
 47 the two frames are indistinguishable.
 
+![seed spread](figures/seed_spread.png)
+
+The seed figure says the same thing independently: the **absolute arm is by far
+the least stable across seeds** (~3.4% of its mean, against ~0.2% for
+craft-relative — the per-seed corpus-mean standard deviations are 0.0225 and
+0.0015, a 15× difference). A 0.039 gap between arms whose own seed noise differs
+by that much is not a measurement of the frame.
+
 **The comparison is also unfair to craft-relative**, in two ways that both favour
 absolute:
 
