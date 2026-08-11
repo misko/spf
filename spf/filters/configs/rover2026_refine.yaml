@@ -1,0 +1,154 @@
+# Rover 2026 -- REFINEMENT grid. Every range here is a boundary the coarse sweep
+# hit, not a guess.
+#
+# The coarse grid (rover2026_coarse.yaml) truncated most families. Measured on
+# the stage-2 report, taking each parameter's marginal profile (best achievable
+# MSE at each value, minimising over the others):
+#
+#   family [frame]                   param           winner   at    vs neighbour
+#   PF single radio NN [folded]      theta_dot_err   0.1      MAX   still -15.5%
+#   PF dual radio      [craft]       theta_dot_err   0.1      MAX   still  -7.7%
+#   PF dual radio NN   [craft]       theta_dot_err   0.1      MAX   still  -6.9%
+#   PF single radio    [folded]      theta_dot_err   0.1      MAX   still  -6.1%
+#   PF single radio NN [folded]      N               1024     MIN   still  -0.8%
+#   EKF single radio   [folded]      phi_std         1.0      MIN   still -25.1%
+#
+# FOUR OF FIVE particle-filter configurations sit at the top of the theta_dot_err
+# axis with MSE still falling steeply into the wall. The one exception is
+# PF dual radio NN in absolute_north, whose optimum (0.005) is interior -- which
+# is exactly what the frame's 3.5x smoother angular rate predicts, and is why the
+# absolute-vs-craft comparison in the stage-3 report is not a fair fight.
+#
+# So the headroom here may be comparable to the effect H1 measured (NN beats the
+# empirical table by 20-44%). Tuning is not a second-order concern on this corpus.
+#
+# PRIOR EVIDENCE -- "Droning on 2 (SPF)", March 2025. That deck swept the same
+# axes far more finely on rover_diamond / rover_center: 13 theta_dot_err values
+# from 0.0001 to 0.2 against 8 particle counts, and an EKF surface over
+# phi_std x noise_std reaching 0.1. Three things it settles:
+#
+#  1. OUR GRID IS A RESOLUTION REGRESSION. rover2026_coarse.yaml sweeps four
+#     theta_dot_err values (0.001, 0.005, 0.02, 0.1) where 2025 swept thirteen.
+#     That deck's surface is NOT monotonic -- it has a broad optimum at
+#     0.001-0.005 and a sharp cliff below 0.001 -- so a four-point grid can step
+#     straight over a minimum. Hence the ranges below are TWO-SIDED: they restore
+#     the 2025 resolution across 0.001-0.02 as well as extending past 0.1.
+#  2. IT CORROBORATES THE FRAME/DYNAMICS RESULT INDEPENDENTLY. The deck's PF+NN
+#     panel is absoluteTrue and its optimum is theta_dot_err 0.001-0.005 -- the
+#     same small value our absolute_north winner picked (0.005), while our
+#     craft_relative families want 0.1+.
+#  3. THE OPTIMUM IS ROUTINE-DEPENDENT, NOT UNIVERSAL. On rover_diamond,
+#     theta_dot_err 0.1 is BAD (empirical PF 1.43-1.47, and 1.80 at 0.2) where on
+#     our rover_bounce corpus 0.1 is the best value tried. Different motion, and
+#     therefore a different angular-rate profile, needs different process noise.
+#     Any future corpus with a new routine should expect to re-tune this axis.
+#
+#   python spf/filters/run_filters_on_data.py \
+#     -d $(cat experiments/e_inf1_filter_sweep/stage2_rover_sample_n16.txt) \
+#     --empirical-pkl-fn empirical_dists/full_20260809_v1.pkl \
+#     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/refine \
+#     --config spf/filters/configs/rover2026_refine.yaml \
+#     --results-backend local --parallel 22
+#
+# A NEW work dir. --resume defaults to true, so pointing this at an existing dir
+# skips every job whose key already exists.
+precompute_caches:
+  3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
+
+runs:
+  # --- EKF single radio. Two changes, both structural.
+  #
+  # 1. phi_std is at the MIN edge and the profile is steep: 1.0 -> 1.022,
+  #    5.0 -> 1.364. A 25% gap to the neighbour means the optimum is very likely
+  #    below 1.0 and was never seen.
+  # 2. It NEVER GOT THE dynamic_R BLOCK. run_EKF_single_theta_dual_radio is swept
+  #    both with phi_std>0/dynamic_R=0 AND with phi_std=0/dynamic_R>0 -- and its
+  #    winner is the second form. The single-radio filter only ever saw the first.
+  #    That is a gap in the grid, not a boundary, and it is the most likely reason
+  #    this family looks mediocre.
+  #
+  # noise_std: flat on OUR corpus (0.0001, 0.001, 0.01 all give 1.0224), which
+  # argued for dropping the axis. The March 2025 EKF surface says otherwise -- it
+  # sweeps noise_std to 0.1 and improves steadily toward the high end (at
+  # phi_std 12: 3.27 at 1e-6 down to 1.68 at 0.01). Our grid simply stopped one
+  # decade short, so 0.1 is probed rather than the axis dropped.
+  - run_EKF_single_theta_single_radio:
+      phi_std: [1.0, 0.5, 0.25, 0.1]
+      p: [1.0, 0.5]
+      noise_std: [0.0001, 0.01, 0.1]
+      dynamic_R: [0.0]
+      segmentation_version: [3.7]
+  - run_EKF_single_theta_single_radio:
+      phi_std: [0.0]
+      p: [5.0, 1.0, 0.1]
+      noise_std: [0.0001]
+      dynamic_R: [1.0, 0.1]
+      segmentation_version: [3.7]
+
+  # --- EKF dual radio. Its winner is already the phi_std=0/dynamic_R form and
+  # both p and noise_std are flat around it, so this is a small local confirm
+  # rather than a search. Included so the family is not silently dropped.
+  - run_EKF_single_theta_dual_radio:
+      phi_std: [0.0]
+      p: [0.1, 1.0]
+      noise_std: [0.0001, 0.001]
+      dynamic_R: [0.1, 1.0]
+      segmentation_version: [3.7]
+
+  # --- PF single radio, empirical and NN. Both want theta_dot_err ABOVE the old
+  # ceiling, and both put N at the MIN edge -- the single-radio families want
+  # FEWER particles, which is cheaper as well as better.
+  - run_PF_single_theta_single_radio:
+      N: [128 * 2, 128 * 4, 128 * 8]
+      theta_err: [0.001, 0.005, 0.02]
+      theta_dot_err: [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+  - run_PF_single_theta_single_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128 * 2, 128 * 4, 128 * 8]
+      theta_err: [0.001, 0.005, 0.02]
+      theta_dot_err: [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0]
+      seed: [0, 1, 2, 3, 4]
+
+  # --- PF dual radio, craft-relative. theta_dot_err at the ceiling; N at the top
+  # of its range and still (weakly) improving, so 32768 is offered once.
+  - run_PF_single_theta_dual_radio:
+      N: [128 * 128, 128 * 256]
+      theta_err: [0.005, 0.02]
+      theta_dot_err: [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+
+  # --- PF dual radio NN, CRAFT-RELATIVE. Same truncation as its empirical twin.
+  # Kept in its own block from the absolute variant below: they are different
+  # tracking problems and their optima are nowhere near each other.
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128 * 128, 128 * 256]
+      theta_err: [0.02, 0.075]
+      theta_dot_err: [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0]
+      absolute: [False]
+      seed: [0, 1, 2, 3, 4]
+
+  # --- PF dual radio NN, ABSOLUTE NORTH. The one family whose optimum is already
+  # INTERIOR on every axis (N=4096, theta_err=0.075, theta_dot_err=0.005). So this
+  # block refines locally instead of extending -- it is the control that says
+  # whether the others' gains are real tuning or just a looser process model
+  # flattering a noisy signal.
+  - run_PF_single_theta_dual_radio_NN:
+      checkpoint_fn_and_segmentation_version:
+        - checkpoint_fn: "/mnt/md0/checkpoints/jun26_2026/paired_3p7_thin_noblade/best.pth"
+          segmentation_version: 3.7
+      inference_cache: ["/mnt/qnap01/mouse9911/rovers_2026/inference_cache"]
+      N: [128 * 16, 128 * 32, 128 * 64]
+      theta_err: [0.02, 0.05, 0.075, 0.1]
+      theta_dot_err: [0.002, 0.005, 0.01]
+      absolute: [True]
+      seed: [0, 1, 2, 3, 4]
