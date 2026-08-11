@@ -1,13 +1,172 @@
 {
   "bits_in_overload": "00110100",
+  "blank_half": {
+    "question": "how long is the post-change blank?",
+    "reason": "No 1->0->1 excursion was seen after the gain step at 322 us sampling granularity. That bounds any post-change blank at under 322 us but neither confirms nor refutes the latch-and-blank behaviour, so open item O-3 stays open. This is the pre-declared H4/H5 resolution limit in section 2, and it is worse than budgeted: reading a GPIO value file costs 322 us, not the 134 us measured on a plain sysfs attribute.",
+    "verdict": "NOT RESOLVED"
+  },
   "blank_observed": false,
   "caveat": "the k>=3 repeat traces read all-zero rather than all-one because pin control was still armed, so the iio_attr re-arm of RX1 to 52 dB before each repeat was silently ignored (see armed_write_ab.json) and the index walked down 2 per repeat until it fell below the overload point. Only the first two repeats test what was intended.",
   "control_trace_no_gain_change": "111111111111111111111111111111111111111111111111111111111111",
+  "explains": "R18's 0x108 threshold sweep read the bit asserted at the bottom of the gain range for all six register values, where R17 tracked cleanly at 46 dB. Latching from the preceding high-gain excursion is the likely cause; recorded as likely rather than proven.",
   "gain_index_after": 53,
   "gain_index_before": 55,
   "hypothesis": "H4",
+  "latch_half": {
+    "clears_on_gain_change": "yes -- dropping 60 -> 20 dB clears it, repeatably over 3 cycles",
+    "decisive_observation": "with the gain held at 60 dB and the tone MUTED (TX -80 dB), both ADC overload bits stayed asserted. The bit does not follow the instantaneous signal; it holds until a gain change.",
+    "method": "no fast sampling needed -- this is state persistence, answerable with slow reads. Separating it from the sub-ms blank was the fix to phase E's design.",
+    "per_radio": {
+      "R17": {
+        "phases": {
+          "A_cold_low": {
+            "bits": "10000000",
+            "gain": "20",
+            "large": "0",
+            "small": "0"
+          },
+          "B_overload": {
+            "bits": "00110000",
+            "gain": "60",
+            "large": "1",
+            "small": "1"
+          },
+          "C_dropped": {
+            "bits": "10000000",
+            "gain": "20",
+            "large": "0",
+            "small": "0"
+          },
+          "D_after_3s": {
+            "bits": "10000000",
+            "gain": "20",
+            "large": "0",
+            "small": "0"
+          },
+          "E_cycle_k1": {
+            "k": "1",
+            "large_at_high": "1",
+            "large_at_low": "0"
+          },
+          "E_cycle_k2": {
+            "k": "2",
+            "large_at_high": "1",
+            "large_at_low": "0"
+          },
+          "E_cycle_k3": {
+            "k": "3",
+            "large_at_high": "1",
+            "large_at_low": "0"
+          },
+          "F_overload_again": {
+            "gain": "60",
+            "large": "1"
+          },
+          "F_tone_back": {
+            "gain": "60",
+            "large": "1"
+          },
+          "F_tone_muted": {
+            "gain": "60",
+            "large": "1",
+            "small": "1"
+          },
+          "G_base": {
+            "gain": "60",
+            "large": "1"
+          },
+          "G_minus1": {
+            "gain": "59",
+            "large": "1"
+          },
+          "G_minus5": {
+            "gain": "55",
+            "large": "1"
+          }
+        },
+        "pins_released": "true",
+        "pwot": "3",
+        "restored_0x035": "0x0"
+      },
+      "R18": {
+        "phases": {
+          "A_cold_low": {
+            "bits": "10000100",
+            "gain": "20",
+            "large": "0",
+            "small": "0"
+          },
+          "B_overload": {
+            "bits": "00110100",
+            "gain": "60",
+            "large": "1",
+            "small": "1"
+          },
+          "C_dropped": {
+            "bits": "10000100",
+            "gain": "20",
+            "large": "0",
+            "small": "0"
+          },
+          "D_after_3s": {
+            "bits": "10000100",
+            "gain": "20",
+            "large": "0",
+            "small": "0"
+          },
+          "E_cycle_k1": {
+            "k": "1",
+            "large_at_high": "1",
+            "large_at_low": "0"
+          },
+          "E_cycle_k2": {
+            "k": "2",
+            "large_at_high": "1",
+            "large_at_low": "0"
+          },
+          "E_cycle_k3": {
+            "k": "3",
+            "large_at_high": "1",
+            "large_at_low": "0"
+          },
+          "F_overload_again": {
+            "gain": "60",
+            "large": "1"
+          },
+          "F_tone_back": {
+            "gain": "60",
+            "large": "1"
+          },
+          "F_tone_muted": {
+            "gain": "60",
+            "large": "1",
+            "small": "1"
+          },
+          "G_base": {
+            "gain": "60",
+            "large": "1"
+          },
+          "G_minus1": {
+            "gain": "59",
+            "large": "1"
+          },
+          "G_minus5": {
+            "gain": "55",
+            "large": "1"
+          }
+        },
+        "pins_released": "true",
+        "pwot": "3",
+        "restored_0x035": "0x0"
+      }
+    },
+    "question": "does an asserted large-overload bit stay high until the gain changes?",
+    "small_steps_do_not_clear": "60 -> 59 and 60 -> 55 dB keep it asserted, which is expected rather than contrary: the large-ADC trip point is 45-46 dB, so at 55-59 dB with the tone on the signal is still over threshold and the bit re-asserts",
+    "verdict": "CONFIRMED on both radios"
+  },
   "method": "drive CH1 into large-ADC overload, step the gain down with a CTRL_IN pin edge (a shell-builtin GPIO write, ~100s of us, versus 67 ms for an iio_attr write), then sample CTRL_OUT5 in a tight builtin loop",
   "next": "belongs to the FPGA stage, alongside the minimum-pulse-width question",
+  "open_item_O3": "partially closed. The qualitative behaviour the policy depends on -- the bit latching until a gain change -- is confirmed on both radios. The blank DURATION remains unmeasured and needs the FPGA stage.",
   "prediction": "an asserted large-overload bit stays high until the gain changes, then returns low for at least the Peak Overload Wait Time",
   "provenance": {
     "ctrl_out_gpio": "960..967 = CTRL_OUT0..7, read as inputs, 0x035=0x03, 0x036=0xFF",
@@ -30,5 +189,5 @@
   ],
   "sampler_us_per_sample": 322,
   "trace_after_gain_step": "111111111111111111111111111111111111111111111111111111111111",
-  "verdict": "NOT RESOLVED"
+  "verdict": "LATCH CONFIRMED; BLANK NOT RESOLVED"
 }

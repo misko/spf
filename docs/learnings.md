@@ -1313,12 +1313,27 @@ not a usable safety limit. CH1's large-LMT bit could not be provoked at all, bec
   goes from clear to saturated inside ~1 dB of gain (small at 44, large at 45), so its own
   saturation is the binding constraint. The low-power trip point is cleanly programmable
   over ~30 dB; the ADC overload bits carry almost no graded information.
-- **O-3 is not closeable from userspace, confirmed rather than assumed.** Reading a GPIO
+- **The overload bits LATCH — confirmed on both radios, and it closes half of O-3.** H4 is
+  two questions and only the second needs microseconds: *does the bit hold until the gain
+  changes* is state persistence, answerable with slow reads. Treating it as one timing
+  question was the mistake. Split properly: with the gain held at 60 dB and the tone
+  **muted entirely**, both ADC overload bits stay asserted — the bit does not track the
+  instantaneous signal. Dropping the gain 60 → 20 dB clears it, repeatably. Small steps
+  (60→59, 60→55) do not, which is expected rather than contrary: the trip point is
+  45–46 dB, so the signal is still over threshold there. This also explains an anomalous
+  `0x108` sweep on R18 that read asserted at the bottom of the gain range — a stale latched
+  assert from the preceding high-gain excursion.
+- **What is still out of reach is the blank DURATION, not the latch.** Reading a GPIO
   *value* file costs **322 µs** — not the 134 µs a plain sysfs attribute costs — against a
-  256–410 µs predicted period. No post-gain-change blank was observed, which bounds it
-  under 322 µs without confirming or refuting it. And the low-power bit is a *stable level*
-  either side of a sharp threshold, 200/200 then 0/200 with zero transitions, so H5 has no
-  dither to time at all. Both belong to the FPGA stage; do not re-attempt from userspace.
+  256–410 µs predicted period, so no post-change blank was observable; it is bounded under
+  322 µs. H5 is worse off: the low-power bit is a *stable level* either side of a sharp
+  threshold, 200/200 then 0/200 with zero transitions, so there is no dither to time at
+  all. Both need the FPGA stage; do not re-attempt from userspace.
+- **All 8 `CTRL_OUT` bits are characterised across the pair**, and detector trip points
+  agree closely on four arms over two radios: low-power de-assert 22/22/22/22 dB, small-ADC
+  44/44/44/43, large-ADC 45/45/46/45, large-LMT 72/71/71, **hold band 22/22/22/21 dB**. R18
+  provoked CH1's large-LMT at 71 dB where R17's arm never reached it — a per-part margin
+  difference at the edge of what this source level delivers.
 
 Method notes: `iio_attr` needs `-i` for RX channels. Without it the tool matches the
 **output** channel of the same name and returns TX gain (−80 dB on this bench), not RX.
@@ -1370,8 +1385,11 @@ input-referred RSSI moves at most **1.25 dB** over 12 LOs from 433 MHz to 5900 M
 across the sweep (~392 MHz period), so a large `ε` would have shown up somewhere.
 
 **The decisive part is the band profile, not the number.** Coupling is flat — median
-0.75 / 0.38 / 0.50° dB for low / middle / high — while `A` rises ~5×, 0.73 → 1.24 →
-3.72°. Coupling's median is *lowest* in the middle band and *highest* in the low band,
+0.75 / 0.38 / 0.50 dB for low / middle / high — while `A` rises ~5×, 0.73 → 1.24 → 3.72°.
+**R18 reproduces R17 exactly** (max 1.25 dB, median 0.50 dB, n = 24 on both, same flat
+profile), which is a second independent argument: the coupling is **not** unit-specific,
+whereas `A` is (cross-radio ρ +0.50 / +0.59 / −0.23). If finite isolation produced `A`,
+`A` would replicate between units as tightly as the coupling does. It does not. Coupling's median is *lowest* in the middle band and *highest* in the low band,
 the opposite of `A`. So whatever concentrates `A` above 4 GHz is not finite isolation.
 `A` stays a device-plus-assembly property, and **E-GSC6 may run on this harness** — with
 the caveat that in the low band the harness bound (~1°) and `A` (0.73°) are the same size,

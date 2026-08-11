@@ -17,6 +17,11 @@
     "median_coupling_db": 0.5,
     "n": 24
   },
+  "overall_R18": {
+    "max_coupling_db": 1.25,
+    "median_coupling_db": 0.5,
+    "n": 24
+  },
   "per_band": {
     "high": {
       "max_coupling_db": 1.25,
@@ -47,6 +52,20 @@
         61.25,
         69.0
       ]
+    }
+  },
+  "per_band_R18": {
+    "high": {
+      "max_coupling_db": 1.25,
+      "median_coupling_db": 0.375
+    },
+    "low": {
+      "max_coupling_db": 1.25,
+      "median_coupling_db": 0.75
+    },
+    "middle": {
+      "max_coupling_db": 0.5,
+      "median_coupling_db": 0.375
     }
   },
   "per_lo": {
@@ -327,8 +346,95 @@
       "snr_db": 40.5
     }
   },
+  "per_lo_R18": {
+    "1000000000": {
+      "band": "low",
+      "coupling_db_sweep_rx1": 0.25,
+      "coupling_db_sweep_rx2": 0.5,
+      "signal_level_db_below_fs": 57.75,
+      "snr_db": 39.0
+    },
+    "1300000000": {
+      "band": "low",
+      "coupling_db_sweep_rx1": 1.25,
+      "coupling_db_sweep_rx2": 1.25,
+      "signal_level_db_below_fs": 59.5,
+      "snr_db": 37.2
+    },
+    "1500000000": {
+      "band": "middle",
+      "coupling_db_sweep_rx1": 0.5,
+      "coupling_db_sweep_rx2": 0.5,
+      "signal_level_db_below_fs": 61.5,
+      "snr_db": 35.2
+    },
+    "2400000000": {
+      "band": "middle",
+      "coupling_db_sweep_rx1": 0.5,
+      "coupling_db_sweep_rx2": 0.5,
+      "signal_level_db_below_fs": 64.25,
+      "snr_db": 32.5
+    },
+    "3200000000": {
+      "band": "middle",
+      "coupling_db_sweep_rx1": 0.0,
+      "coupling_db_sweep_rx2": 0.25,
+      "signal_level_db_below_fs": 68.5,
+      "snr_db": 28.2
+    },
+    "4000000000": {
+      "band": "middle",
+      "coupling_db_sweep_rx1": 0.0,
+      "coupling_db_sweep_rx2": 0.25,
+      "signal_level_db_below_fs": 69.0,
+      "snr_db": 27.8
+    },
+    "4300000002": {
+      "band": "high",
+      "coupling_db_sweep_rx1": 1.25,
+      "coupling_db_sweep_rx2": 0.5,
+      "signal_level_db_below_fs": 70.75,
+      "snr_db": 26.0
+    },
+    "433000000": {
+      "band": "low",
+      "coupling_db_sweep_rx1": 0.25,
+      "coupling_db_sweep_rx2": 0.5,
+      "signal_level_db_below_fs": 55.25,
+      "snr_db": 41.5
+    },
+    "5000000000": {
+      "band": "high",
+      "coupling_db_sweep_rx1": 0.25,
+      "coupling_db_sweep_rx2": 0.25,
+      "signal_level_db_below_fs": 77.0,
+      "snr_db": 19.8
+    },
+    "5500000002": {
+      "band": "high",
+      "coupling_db_sweep_rx1": 0.75,
+      "coupling_db_sweep_rx2": 0.5,
+      "signal_level_db_below_fs": 76.5,
+      "snr_db": 20.2
+    },
+    "5900000002": {
+      "band": "high",
+      "coupling_db_sweep_rx1": 0.0,
+      "coupling_db_sweep_rx2": 0.0,
+      "signal_level_db_below_fs": 75.75,
+      "snr_db": 21.0
+    },
+    "700000000": {
+      "band": "low",
+      "coupling_db_sweep_rx1": 1.25,
+      "coupling_db_sweep_rx2": 1.0,
+      "signal_level_db_below_fs": 58.0,
+      "snr_db": 38.8
+    }
+  },
   "radio_label": "R17",
   "radio_serial": "104000bac4950008230026001b440a003a",
+  "replication": "R18 reproduces R17 exactly: max 1.25 dB, median 0.50 dB, n=24 on both, with the same flat band profile. This is a second, independent argument against the tee being A's source: the coupling is NOT unit-specific, whereas A is (cross-radio rho +0.50 / +0.59 / -0.23). If finite isolation produced A, A would replicate between units as tightly as the coupling does.",
   "restore": {
     "all_restored": true,
     "dds_raw": "0",

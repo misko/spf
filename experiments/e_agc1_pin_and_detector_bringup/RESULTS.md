@@ -21,9 +21,12 @@ scripting collapsed it.
 (session 1, no RF). Step 5 (H3–H5, detectors) ran on **R17** with the tone on
 (session 2, 2026-08-11) — see §"Step 5".
 
-**Three of the four open items E-AGC1 was written to close are answered:** O-5 (pin
-map), O-1 (ENSM) and O-2 (hold band). **O-3 (blank timing) remains open** and, as
-pre-declared, is not closeable from userspace.
+**Three of the four open items are answered and the fourth is half-answered:** O-5 (pin
+map), O-1 (ENSM) and O-2 (hold band) are closed. **O-3 is partially closed** — H4's latch
+is confirmed on both radios; only the blank *duration* is still unmeasured.
+
+Step 5 ran on **both** radios (R17 2026-08-11, R18 2026-08-11). R18 provoked the one bit
+R17 could not, so **all 8 `CTRL_OUT` bits are now characterised across the pair**.
 
 ## Summary
 
@@ -36,7 +39,8 @@ pre-declared, is not closeable from userspace.
 | **H3 — detector page** | ✅ **PASS** for all 7 bits that could be provoked; **zero cross-channel leakage** | [`detector_map.json`](detector_map.json) |
 | **Hold band (O-2)** | ✅ **22 dB** on both arms — the oscillation rule did **not** fire | [`hold_band.json`](hold_band.json) |
 | Threshold sweep | ✅ `0x114` identified at **0.5 dB/LSB**, 6 monotonic points; `0x107`/`0x108` do **not** resolve at this drive level | [`threshold_sweep.json`](threshold_sweep.json) |
-| **H4 — latch/blank** | ⚠️ **NOT RESOLVED** — no blank seen at 322 µs granularity; O-3 stays open | [`latch_trace.json`](latch_trace.json) |
+| **H4 — latch** | ✅ **CONFIRMED on both radios** — the bit survives total signal removal and clears only on a gain change | [`latch_trace.json`](latch_trace.json) |
+| H4 — blank duration | ⚠️ **NOT RESOLVED** — under 322 µs; O-3 only *partially* closed | [`latch_trace.json`](latch_trace.json) |
 | **H5 — low-power period** | ⚠️ **NOT RESOLVED** — the bit is a stable level, no dither to time | [`lp_period.json`](lp_period.json) |
 | Restore proof | ✅ 47/47 values match baseline on **each** radio | [`restore_proof.json`](restore_proof.json) |
 
@@ -218,6 +222,59 @@ control was still armed, so the `iio_attr` re-arm of RX1 to 52 dB before each re
 different context — and the index walked down 2 per repeat until it fell below the
 overload point. Only the first two repeats test what was intended.
 
+### H4's latch — confirmed, once the question was split properly
+
+Phase E treated H4 as a single timing question and got nothing. It is two questions, and
+only the second needs microseconds:
+
+1. *Does the bit stay high until the gain changes?* — state persistence, answerable with
+   slow reads.
+2. *How long is the post-change blank?* — needs sub-millisecond sampling.
+
+Splitting them resolved the first, **identically on both radios**:
+
+| Phase | Gain | Tone | CH1 large-ADC |
+|---|---:|---|---|
+| cold start | 20 dB | on | 0 |
+| driven to overload | 60 dB | on | 1 |
+| gain dropped | 20 dB | on | **0** — clears |
+| after 3 s | 20 dB | on | 0 |
+| ×3 cycles high→low | 60/20 | on | 1 / 0, repeatable |
+| **held at overload, tone MUTED** | 60 dB | **off** | **1** |
+| gain 60→59, 60→55 | 59/55 | on | 1 |
+
+**The decisive row is the muted one.** With the tone removed entirely the bit stays
+asserted, so it is not tracking the instantaneous signal — it holds until a gain change.
+H4's first half is confirmed. The small-step rows are not counter-evidence: the large-ADC
+trip point is 45–46 dB, so at 55–59 dB with the tone on the signal is still over threshold
+and the bit legitimately re-asserts.
+
+This also explains R18's anomalous `0x108` sweep, which read the bit asserted at the bottom
+of the gain range for all six register values where R17 tracked cleanly at 46 dB — a stale
+assert latched from the preceding high-gain excursion. Recorded as the likely cause rather
+than as proven.
+
+**O-3 is therefore partially closed.** The behaviour the policy actually depends on — the
+bit latching rather than chattering — is confirmed on two parts. The blank *duration*
+remains under 322 µs and unmeasured, and still needs the FPGA stage.
+
+### Step 5 on R18, and per-part spread
+
+R18 reproduced every phase-C result and provoked **CH1 large-LMT at 71 dB**, which R17
+never reached — so the "all 8 bits characterised" gate is met across the pair. Trip points
+agree closely across four arms on two radios:
+
+| Detector | Trip points (4 arms) |
+|---|---|
+| low-power de-assert | 22, 22, 22, 22 dB |
+| small ADC overload | 44, 44, 44, 43 dB |
+| large ADC overload | 45, 45, 46, 45 dB |
+| large LMT overload | 72, 71, 71 dB (3 arms) |
+| **hold band** | **22, 22, 22, 21 dB** |
+
+`0x114` replicated on R18 at 0.5 dB/LSB, and `0x107` replicated exactly, including the
+never-asserts point at 0x43.
+
 ### An observation consistent with the tee's lack of isolation
 
 At RX1 = 52 dB with RX2 held at 41 dB, **CH2's large-LMT bit asserted** — yet in the
@@ -313,8 +370,9 @@ then unexport. Verified by re-running the full baseline collection and diffing:
 
 ## Open
 
-1. **O-3 (blank timing) — the one measurement this method cannot make.** H4 and H5 were
-   pre-declared resolution-limited in §2 and that prediction held, worse than budgeted:
+1. **O-3's blank *duration* — the one measurement this method cannot make.** H4's latch is
+   now confirmed (above); only the blank length remains. H5 stays unresolved. Both were
+   pre-declared resolution-limited in §2 and that held, worse than budgeted:
    reading a GPIO *value* file costs **322 µs**, not the 134 µs measured on a plain
    sysfs attribute, against a predicted 256–410 µs period. This needs the FPGA stage,
    alongside the minimum-pulse-width question §8 already defers there. Do not re-attempt
@@ -322,9 +380,6 @@ then unexport. Verified by re-running the full baseline collection and diffing:
 2. **`TANDEM_AGC_V1_DESIGN.md` is still not in the repository**, so O-5, O-1 and O-2
    cannot be marked closed and §7's references to the contract's §3/§11 cannot be
    amended. The measurements do not expire; the traceability is what is blocked.
-3. **CH1's large-LMT bit was never provoked**, because the 30 dB pad plus the tee split
-   leaves the RX ports near −57 dBm at TX full scale. Reaching LMT overload needs more
-   input power — removing the pad, or a stronger source. Not required by any open item.
-4. **Step 5 on R18**, if a per-part detector-threshold comparison is ever wanted. The
-   plan notes detector thresholds are per-part while the open items are not, so this is
-   optional.
+3. **CH1's large-LMT bit on R17 specifically.** R18 provoked its own at 71 dB, so the gate
+   is met across the pair, but R17's arm 1 never asserted — a per-part margin difference
+   right at the edge of what this source level can reach. A ~10 dB pad would settle it.

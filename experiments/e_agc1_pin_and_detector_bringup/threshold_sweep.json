@@ -132,6 +132,86 @@
       "target_state": 0
     }
   },
+  "per_register_R18": {
+    "0x107": [
+      {
+        "edge_gain_db": 44,
+        "wrote": "0x1b"
+      },
+      {
+        "edge_gain_db": 44,
+        "wrote": "0x23"
+      },
+      {
+        "edge_gain_db": 44,
+        "wrote": "0x2b"
+      },
+      {
+        "edge_gain_db": 44,
+        "wrote": "0x33"
+      },
+      {
+        "edge_gain_db": 44,
+        "wrote": "0x3b"
+      },
+      {
+        "edge_gain_db": null,
+        "wrote": "0x43"
+      }
+    ],
+    "0x108": [
+      {
+        "edge_gain_db": 8,
+        "wrote": "0x21"
+      },
+      {
+        "edge_gain_db": 8,
+        "wrote": "0x29"
+      },
+      {
+        "edge_gain_db": 8,
+        "wrote": "0x31"
+      },
+      {
+        "edge_gain_db": 8,
+        "wrote": "0x39"
+      },
+      {
+        "edge_gain_db": 8,
+        "wrote": "0x41"
+      },
+      {
+        "edge_gain_db": 8,
+        "wrote": "0x49"
+      }
+    ],
+    "0x114": [
+      {
+        "edge_gain_db": 40,
+        "wrote": "0x10"
+      },
+      {
+        "edge_gain_db": 30,
+        "wrote": "0x20"
+      },
+      {
+        "edge_gain_db": 22,
+        "wrote": "0x30"
+      },
+      {
+        "edge_gain_db": 14,
+        "wrote": "0x40"
+      },
+      {
+        "edge_gain_db": 8,
+        "wrote": "0x50"
+      },
+      {
+        "edge_gain_db": 8,
+        "wrote": "0x60"
+      }
+    ]
+  },
   "provenance": {
     "ctrl_out_gpio": "960..967 = CTRL_OUT0..7, read as inputs, 0x035=0x03, 0x036=0xFF",
     "device_fw": "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe",
@@ -142,5 +222,10 @@
     "rx_lo_hz": 867999998,
     "rx_sample_rate_hz": 3000000,
     "source": "own TX2 fpga_dds tone at +100 kHz, TX2 hardwaregain 0 dB (full scale)"
+  },
+  "r18_replication": {
+    "0x107": "replicated exactly: pinned at 44 dB for 0x1b-0x3b, never asserts at 0x43",
+    "0x108": "ANOMALOUS on R18 -- read asserted at the bottom of the gain range for all six values, where R17 tracked at 46 dB. See latch_trace.json: the bit latches until a gain change, so a stale assert from the preceding sweep is the likely cause.",
+    "0x114": "replicated: 0x10->40, 0x20->30, 0x30->22, 0x40->14 dB, i.e. 0.5 dB/LSB again"
   }
 }

@@ -1,7 +1,13 @@
 {
+  "all_four_arms_hold_band_db": [
+    22,
+    22,
+    22,
+    21
+  ],
   "decision_rule_outcome": "The section 7 row 'hold band narrower than 1 dB -> the policy will oscillate as designed' does NOT fire. The measured band is 22 dB on both arms, 22x wider than the 1 dB oscillation threshold, so no hysteresis rework is needed on this account. This was pre-registered as the most likely single change to come out of the run; it did not happen.",
   "definition": "level gap between low-power de-assert and small-ADC-overload assert",
-  "hold_band_db": 22,
+  "hold_band_db": "21-22 across four arms on two radios",
   "measured_in": "dB of RX gain, which is dB of ADC-referred level; because it is a DIFFERENCE on one arm, harness insertion loss cancels",
   "open_item": "O-2",
   "per_arm": {
@@ -16,6 +22,18 @@
       "large_adc_assert_gain_db": 45,
       "low_power_deassert_gain_db": 22,
       "small_adc_assert_gain_db": 44
+    }
+  },
+  "per_arm_R18": {
+    "RX1": {
+      "hold_band_db": 22,
+      "low_power_deassert_gain_db": 22,
+      "small_adc_assert_gain_db": 44
+    },
+    "RX2": {
+      "hold_band_db": 21,
+      "low_power_deassert_gain_db": 22,
+      "small_adc_assert_gain_db": 43
     }
   },
   "provenance": {
