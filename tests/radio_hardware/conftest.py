@@ -335,6 +335,23 @@ def pytest_addoption(parser):
         default=None,
         help="optional directory for JSON hardware-test reports",
     )
+    group.addoption(
+        "--radio-iio-rate-ladder",
+        default="1M,1.5M,2M,2.5M,3M,5M,10M,20M,30M",
+        help="sample rates for the standard libiio USB/TCP benchmark",
+    )
+    group.addoption(
+        "--radio-iio-rate-frames",
+        type=int,
+        default=12,
+        help="timed frames per cell in the standard libiio USB/TCP benchmark",
+    )
+    group.addoption(
+        "--radio-iio-rate-samples",
+        type=int,
+        default=262_144,
+        help="samples per channel in each libiio USB/TCP benchmark frame",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
