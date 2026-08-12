@@ -1,9 +1,10 @@
 # Dual-RX gain/frequency calibration
 
 This package measures the phase relationship between PlutoPlus RX1 and RX2 for
-manual RX-gain pairs and RF frequencies. It uses the SPF direct-USB protocol-v2
-firmware, writes one data-version-7 Zarr per radio serial, validates every frame
-from its stored IQ, and fits a circular additive gain model.
+manual RX-gain pairs and RF frequencies. It supports both the SPF direct-USB
+path and the metadata-enabled standard libiio path over USB or IP, writes one
+data-version-7 Zarr per radio serial, validates every frame from its stored IQ,
+and fits a circular additive gain model.
 
 ## Start here
 
@@ -58,6 +59,24 @@ or RSSI reads in the frame loop, and TX attenuation changes in place without
 restarting the DDS.
 
 ## Commands
+
+The default remains direct USB. To use the request-driven standard libiio
+metadata buffer, select the transport explicitly. USB URIs are discovered by
+serial; IP URIs must be bound to serials so an address change cannot silently
+swap physical radios:
+
+```bash
+python -m spf.calibrations.dual_rx_gain_frequency run \
+  --transport iio-usb --config CONFIG.yaml --output artifacts/RUN_USB
+
+python -m spf.calibrations.dual_rx_gain_frequency run \
+  --transport iio-ip --config CONFIG.yaml --output artifacts/RUN_IP \
+  --iio-uri SERIAL_A=ip:HOST_A --iio-uri SERIAL_B=ip:HOST_B
+```
+
+Use the matching `--transport iio-usb` or `iio-ip` on `validate`. These modes
+require the pinned SPF libiio 0.25/0.26 binding with `MetadataBuffer`; one
+capture call performs one IIO refill and the runner keeps one kernel buffer.
 
 First RAM-load and verify every attached Pluto using the Rover v3.1 preparation
 script so `/run/spf/direct_usb_ready.json` exists. Then qualify each serial:

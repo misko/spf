@@ -102,8 +102,11 @@ def _identity_zarr_attrs(
         attrs.update(
             {key: value for key, value in direct_attrs.items() if value is not None}
         )
-        if firmware_provenance is not None:
-            attrs.update(firmware_provenance)
+    # Firmware and hardware provenance describe the Pluto itself, not the RX
+    # transport.  A boot-attested image remains the same image when captured
+    # through standard IIO over USB or IP.
+    if firmware_provenance is not None:
+        attrs.update(firmware_provenance)
     return attrs
 
 
@@ -111,7 +114,7 @@ def _capture_firmware_provenance(
     yaml_config: dict[str, Any],
     identity: SdrDeviceIdentity,
 ) -> dict[str, Any] | None:
-    if identity.rx_transport != "direct_usb":
+    if identity.sdr_family != "pluto":
         return None
     firmware = yaml_config.get("pluto-firmware")
     if not isinstance(firmware, dict):

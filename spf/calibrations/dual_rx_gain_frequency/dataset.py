@@ -21,7 +21,15 @@ from spf.data_collector import (
     _identity_zarr_attrs,
 )
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys
-from spf.dataset.v7_data import v7rx_2x_keys, v7rx_scalar_keys, v7rx_new_dataset
+from spf.dataset.v7_data import (
+    V7_GAIN_EVENT_CAPACITY,
+    V7_GAIN_OBSERVATION_CAPACITY,
+    v7rx_2x_keys,
+    v7rx_gain_series_scalar_keys,
+    v7rx_sample_time_scalar_keys,
+    v7rx_scalar_keys,
+    v7rx_new_dataset,
+)
 from spf.rf import get_avg_phase_fast2
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 from spf.sdrpluto.sdr_controller import PlutoRxBuffer, SdrDeviceIdentity
@@ -235,6 +243,14 @@ class CalibrationV7Writer:
         self.receiver = self.zarr["receivers/r0"]
         provenance = _capture_firmware_provenance(yaml_config, identity)
         self.receiver.attrs.update(_identity_zarr_attrs(identity, provenance))
+        if identity.rx_transport == "iio":
+            self.receiver.attrs.update(
+                {
+                    "gain_metadata_protocol_version": 3,
+                    "iio_metadata_buffer_enabled": True,
+                    "iio_backend": identity.receiver_uri.split(":", 1)[0],
+                }
+            )
         if self.receiver.attrs.get("firmware_verified") is not True:
             self.zarr.store.close()
             raise RuntimeError(
@@ -356,6 +372,55 @@ class CalibrationV7Writer:
             receiver[key][index] = getattr(frame, key)
         for key in v7rx_2x_keys:
             receiver[key][index] = getattr(frame, key)
+        for key in v7rx_sample_time_scalar_keys:
+            receiver[key][index] = getattr(frame, key)
+
+        observation_count = len(frame.gain_observation_valid)
+        event_count = len(frame.gain_event_flags)
+        if observation_count > V7_GAIN_OBSERVATION_CAPACITY:
+            raise ValueError("gain observation count exceeds V7 capacity")
+        if event_count > V7_GAIN_EVENT_CAPACITY:
+            raise ValueError("gain event count exceeds V7 capacity")
+        gain_series_scalars = {
+            "gain_observation_count": observation_count,
+            "gain_observation_interval_samples": (
+                frame.gain_observation_interval_samples
+            ),
+            "gain_observation_overflow_count": (frame.gain_observation_overflow_count),
+            "gain_event_count": event_count,
+            "gain_event_overflow_count": frame.gain_event_overflow_count,
+        }
+        for key in v7rx_gain_series_scalar_keys:
+            receiver[key][index] = gain_series_scalars[key]
+
+        bounds = np.full(
+            (V7_GAIN_OBSERVATION_CAPACITY, 2), np.iinfo(np.uint64).max, np.uint64
+        )
+        indices = np.full((V7_GAIN_OBSERVATION_CAPACITY, 2), 0xFF, np.uint8)
+        gains_db = np.full((V7_GAIN_OBSERVATION_CAPACITY, 2), np.nan, np.float32)
+        valid = np.zeros(V7_GAIN_OBSERVATION_CAPACITY, np.bool_)
+        durations = np.zeros(V7_GAIN_OBSERVATION_CAPACITY, np.uint32)
+        if observation_count:
+            bounds[:observation_count] = frame.gain_observation_sample_bounds
+            indices[:observation_count] = frame.gain_observation_index
+            gains_db[:observation_count] = frame.gain_observation_db
+            valid[:observation_count] = frame.gain_observation_valid
+            durations[:observation_count] = frame.gain_observation_read_duration_ns
+        receiver.gain_observation_sample_bounds[index] = bounds
+        receiver.gain_observation_index[index] = indices
+        receiver.gain_observation_db[index] = gains_db
+        receiver.gain_observation_valid[index] = valid
+        receiver.gain_observation_read_duration_ns[index] = durations
+
+        event_sequences = np.full(
+            V7_GAIN_EVENT_CAPACITY, np.iinfo(np.uint64).max, np.uint64
+        )
+        event_flags = np.zeros(V7_GAIN_EVENT_CAPACITY, np.uint16)
+        if event_count:
+            event_sequences[:event_count] = frame.gain_event_sample_sequence
+            event_flags[:event_count] = frame.gain_event_flags
+        receiver.gain_event_sample_sequence[index] = event_sequences
+        receiver.gain_event_flags[index] = event_flags
 
         receiver.tone_frequency_hz[index] = analysis["tone_frequency_hz"]
         receiver.tone_frequency_error_hz[index] = analysis["tone_frequency_error_hz"]

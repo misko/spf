@@ -1,0 +1,373 @@
+{
+  "capture_gates": {
+    "ip": {
+      "R17": {
+        "anchor_drift_deg_by_frequency": {
+          "5000000000": 0.6810211401404236,
+          "5300000000": 1.891739774969491,
+          "5500000000": 0.1353486147140663,
+          "5766000000": 1.203067341452466,
+          "5900000000": 0.6307450661487305
+        },
+        "expected_cells": 170,
+        "expected_frames": 510,
+        "gain_endpoint_match_fraction": 1.0,
+        "gain_observation_count_range": [
+          1,
+          1
+        ],
+        "maximum_anchor_drift_deg": 1.891739774969491,
+        "maximum_clipping_fraction": 0.0,
+        "passing_cells": 170,
+        "quality_valid_frames": 510,
+        "tone_dbfs_range": [
+          -63.6076545715332,
+          -13.71182632446289
+        ],
+        "validation_status": "pass"
+      },
+      "R18": {
+        "anchor_drift_deg_by_frequency": {
+          "5000000000": 0.4020721351981916,
+          "5300000000": 3.5978051054641678,
+          "5500000000": 0.6332128346523368,
+          "5766000000": 0.22038213391079386,
+          "5900000000": 0.6698828368396741
+        },
+        "expected_cells": 170,
+        "expected_frames": 510,
+        "gain_endpoint_match_fraction": 1.0,
+        "gain_observation_count_range": [
+          1,
+          1
+        ],
+        "maximum_anchor_drift_deg": 3.5978051054641678,
+        "maximum_clipping_fraction": 0.0,
+        "passing_cells": 170,
+        "quality_valid_frames": 510,
+        "tone_dbfs_range": [
+          -69.52165222167969,
+          -16.947505950927734
+        ],
+        "validation_status": "pass"
+      }
+    },
+    "usb": {
+      "R17": {
+        "anchor_drift_deg_by_frequency": {
+          "5000000000": 0.23622006852219474,
+          "5300000000": 0.7619099884592669,
+          "5500000000": 0.1717067010313865,
+          "5766000000": 0.20866566356287067,
+          "5900000000": 0.18925107691530021
+        },
+        "expected_cells": 170,
+        "expected_frames": 510,
+        "gain_endpoint_match_fraction": 1.0,
+        "gain_observation_count_range": [
+          1,
+          1
+        ],
+        "maximum_anchor_drift_deg": 0.7619099884592669,
+        "maximum_clipping_fraction": 0.0,
+        "passing_cells": 170,
+        "quality_valid_frames": 510,
+        "tone_dbfs_range": [
+          -63.4723014831543,
+          -13.683988571166992
+        ],
+        "validation_status": "pass"
+      },
+      "R18": {
+        "anchor_drift_deg_by_frequency": {
+          "5000000000": 0.5713744351261549,
+          "5300000000": 4.690867740055763,
+          "5500000000": 0.17386202526492384,
+          "5766000000": 0.38538851819255476,
+          "5900000000": 0.12411776878192209
+        },
+        "expected_cells": 170,
+        "expected_frames": 510,
+        "gain_endpoint_match_fraction": 1.0,
+        "gain_observation_count_range": [
+          1,
+          1
+        ],
+        "maximum_anchor_drift_deg": 4.690867740055763,
+        "maximum_clipping_fraction": 0.0,
+        "passing_cells": 170,
+        "quality_valid_frames": 510,
+        "tone_dbfs_range": [
+          -69.63256072998047,
+          -16.95366668701172
+        ],
+        "validation_status": "pass"
+      }
+    }
+  },
+  "h1_threshold_deg": 1.104,
+  "h2_expected_deg": 5.42,
+  "hypotheses": {
+    "H1": "fail",
+    "H2": "mixed: R18 passes both transports; R17 fails both",
+    "H3": "mixed: three runs pass; R17 USB is marginally above 3x",
+    "H4": "pass_structural_coverage; deployment_withheld",
+    "H5": "fail"
+  },
+  "ip_artifact": "artifacts/dual_rx_gain_frequency/e_gsc7_iio_ip_20260812_v1",
+  "preregistration_counting_erratum": "52 through 62 contains ten adjacent 1 dB transitions, not nine; all ten are graded and their telescoping sum is the 52-to-62 effect",
+  "results_5766": [
+    {
+      "cross_lo_curve_error": {
+        "5000000000": {
+          "maximum_deg": 6.322491334832103,
+          "rms_deg": 5.766587233331494
+        },
+        "5300000000": {
+          "maximum_deg": 80.39174558679103,
+          "rms_deg": 79.8416680293495
+        },
+        "5500000000": {
+          "maximum_deg": 67.22073758262096,
+          "rms_deg": 65.96117451547413
+        },
+        "5900000000": {
+          "maximum_deg": 3.633202958907319,
+          "rms_deg": 2.8565678185220817
+        }
+      },
+      "h2_error_deg": 1.6064632518271393,
+      "largest_to_median_step_ratio": 3.040805717363875,
+      "radio": "R17",
+      "resolved_step_count": 2,
+      "serial": "104000bac4950008230026001b440a003a",
+      "step_count": 10,
+      "step_sum_deg": 7.026463251827139,
+      "steps_deg": [
+        0.9940942978048962,
+        0.03390466345206823,
+        1.8697993262182522,
+        -0.6359706973184004,
+        0.5053328064281728,
+        0.9572151870791544,
+        0.36011547104625474,
+        0.5938344924976804,
+        0.49297403126037315,
+        1.855163673358687
+      ],
+      "transport": "usb"
+    },
+    {
+      "cross_lo_curve_error": {
+        "5000000000": {
+          "maximum_deg": 2.483707992823882,
+          "rms_deg": 1.6934999080970132
+        },
+        "5300000000": {
+          "maximum_deg": 11.905165061641252,
+          "rms_deg": 9.05925981708565
+        },
+        "5500000000": {
+          "maximum_deg": 2.566561538011927,
+          "rms_deg": 1.3417663069844215
+        },
+        "5900000000": {
+          "maximum_deg": 1.627746298696084,
+          "rms_deg": 1.00125782792488
+        }
+      },
+      "h2_error_deg": 0.4993744629586958,
+      "largest_to_median_step_ratio": 2.515311571829121,
+      "radio": "R18",
+      "resolved_step_count": 1,
+      "serial": "1040007c4a94000211000b009186843ef2",
+      "step_count": 10,
+      "step_sum_deg": 5.919374462958696,
+      "steps_deg": [
+        1.1032714378430608,
+        0.5493793878112192,
+        -0.17613543851253796,
+        1.3548961321201531,
+        0.8119695594370246,
+        -0.010210578212210702,
+        0.1808601315768043,
+        0.48917037546139686,
+        1.0882341147863432,
+        0.5279393406474424
+      ],
+      "transport": "usb"
+    },
+    {
+      "cross_lo_curve_error": {
+        "5000000000": {
+          "maximum_deg": 6.58609731841876,
+          "rms_deg": 5.645721409410324
+        },
+        "5300000000": {
+          "maximum_deg": 80.18536283164315,
+          "rms_deg": 79.51152269783753
+        },
+        "5500000000": {
+          "maximum_deg": 67.05715894440775,
+          "rms_deg": 65.43896032275713
+        },
+        "5900000000": {
+          "maximum_deg": 4.4001589198511475,
+          "rms_deg": 3.0595043523869574
+        }
+      },
+      "h2_error_deg": 2.5841079763640717,
+      "largest_to_median_step_ratio": 2.9784282406740843,
+      "radio": "R17",
+      "resolved_step_count": 2,
+      "serial": "104000bac4950008230026001b440a003a",
+      "step_count": 10,
+      "step_sum_deg": 8.004107976364072,
+      "steps_deg": [
+        1.0608891150604727,
+        -0.03106131808681069,
+        2.3458532419380473,
+        -1.0629161797176125,
+        0.5381862628728136,
+        1.0981738787506288,
+        0.34687901198680193,
+        0.6899637129867638,
+        0.41074549641297925,
+        2.607394754159988
+      ],
+      "transport": "ip"
+    },
+    {
+      "cross_lo_curve_error": {
+        "5000000000": {
+          "maximum_deg": 2.5090094602057,
+          "rms_deg": 1.558548627223482
+        },
+        "5300000000": {
+          "maximum_deg": 12.204226606617816,
+          "rms_deg": 8.87582609135623
+        },
+        "5500000000": {
+          "maximum_deg": 2.883305237773793,
+          "rms_deg": 1.1940927875195222
+        },
+        "5900000000": {
+          "maximum_deg": 1.5483970463472492,
+          "rms_deg": 0.932673964582829
+        }
+      },
+      "h2_error_deg": -0.014594510713067166,
+      "largest_to_median_step_ratio": 2.713193929835478,
+      "radio": "R18",
+      "resolved_step_count": 3,
+      "serial": "1040007c4a94000211000b009186843ef2",
+      "step_count": 10,
+      "step_sum_deg": 5.405405489286933,
+      "steps_deg": [
+        0.39543137144698187,
+        1.2317991436250852,
+        -0.501600275764152,
+        1.754266158693945,
+        0.8481525674853737,
+        -0.5974452873948063,
+        1.8212921232336272,
+        -0.46505963038713455,
+        0.7450994553203347,
+        0.1734698630276777
+      ],
+      "transport": "ip"
+    }
+  ],
+  "rf_word_audit": {
+    "gain_db": [
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62
+    ],
+    "lna": [
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3
+    ],
+    "lpf": [
+      24,
+      24,
+      24,
+      24,
+      24,
+      24,
+      24,
+      24,
+      24,
+      24,
+      24
+    ],
+    "mixer": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "radios": [
+      "R17",
+      "R18"
+    ],
+    "status": "pass",
+    "table_sha256": "90d34d61e8612277529dccfc3323f6c684c2bc36b7670dff078e009eb84a1143",
+    "tia": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ]
+  },
+  "schema": "spf.experiment.e_gsc7.result",
+  "schema_version": 1,
+  "transport_agreement": {
+    "R17": {
+      "curve_mae_deg": 0.23680087852937665,
+      "curve_maximum_deg": 1.3563245378060516,
+      "curve_rms_deg": 0.3659857423390855,
+      "step_mae_deg": 0.34451334762434455,
+      "step_maximum_deg": 1.574048925128836
+    },
+    "R18": {
+      "curve_mae_deg": 0.30635107522853117,
+      "curve_maximum_deg": 2.424456693208953,
+      "curve_rms_deg": 0.5146615736431825,
+      "step_mae_deg": 0.46411436445283705,
+      "step_maximum_deg": 3.6138416270336853
+    }
+  },
+  "usb_artifact": "artifacts/dual_rx_gain_frequency/e_gsc7_iio_usb_20260812_v2"
+}
