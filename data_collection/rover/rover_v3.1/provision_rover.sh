@@ -15,7 +15,7 @@
 #   network    hostname + static eth0 + DNS.  WIFI IS LEFT UP.
 #              --> then PROVE the static address from another machine <--
 #   wifi-off   disable wifi (refuses unless the static address answers), reboot
-#   base       apt deps, venv, editable install, ~/.bashrc, udev, device_mapping
+#   base       apt deps, venv, SPF/libiio install, ~/.bashrc, udev, device_mapping
 #   firmware   ArduPilot flash, Pluto provisioning, direct-USB production boot
 #              --> reboot to let the boot chain run <--
 #   audit      print this rover's fingerprint for comparison against another
@@ -143,6 +143,15 @@ stage_base() {
         die "pip install -e failed"
     sudo -u "$(stat -c '%U' "$PI_HOME")" "${VENV}/bin/pip" -q install RPi.GPIO ||
         die "pip install RPi.GPIO failed"
+
+    # Install this after pip so its generated iio.py cannot be replaced by the
+    # unmodified PyPI pylibiio shim. The command is idempotent and the source
+    # tag/commit are verified by the installer before compilation.
+    note "hardware-qualified SPF libiio 0.25"
+    sudo -u "$(stat -c '%U' "$PI_HOME")" -H \
+        "${REPO_ROOT}/install_spf_libiio.sh" \
+        --series 0.25 --python "${VENV}/bin/python" ||
+        die "SPF libiio installation failed"
 
     # Rebuilt from scratch each run so re-provisioning cannot duplicate lines.
     note "~/.bashrc SPF lines"

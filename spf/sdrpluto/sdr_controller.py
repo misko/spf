@@ -945,6 +945,7 @@ class PPlus:
         # try to fix issue with radios coming online
         self.sdr = adi.ad9361(uri=self.uri)
         self.direct_rx = None
+        self._iio_metadata_rx = None
         self._direct_frame_stream = None
         self._direct_frames_remaining = 0
         self.close_tx()
@@ -976,11 +977,22 @@ class PPlus:
             signal_matrix, metadata = self._capture_direct_frame()
             self._cache_direct_legacy_values(metadata)
             return signal_matrix
+        if self._iio_metadata_rx is not None:
+            signal_matrix, metadata, sample_time = self._iio_metadata_rx.capture()
+            self._cache_direct_legacy_values(metadata)
+            self._last_direct_sample_time = sample_time
+            return signal_matrix
         return self.sdr.rx()
 
     def rx_with_metadata(self):
-        if self.rx_config is None or self.rx_config.rx_transport == "iio":
+        if self.rx_config is None:
             return _legacy_rx_buffer(self.sdr.rx(), self.rssis(), self.gains())
+        if self.rx_config.rx_transport == "iio":
+            self._ensure_iio_metadata_rx()
+            signal_matrix, metadata, sample_time = self._iio_metadata_rx.capture()
+            self._cache_direct_legacy_values(metadata)
+            self._last_direct_sample_time = sample_time
+            return self._direct_v2_rx_buffer(signal_matrix, metadata)
 
         signal_matrix, metadata = self._capture_direct_frame()
         from spf.sdrpluto.direct_usb_protocol import RadioMetadataV2
@@ -990,6 +1002,19 @@ class PPlus:
             return self._direct_v2_rx_buffer(signal_matrix, metadata)
 
         return self._direct_v1_rx_buffer(signal_matrix, metadata)
+
+    def _ensure_iio_metadata_rx(self):
+        if self._iio_metadata_rx is not None:
+            return
+        from spf.direct_radio.iio_metadata import IioMetadataRx
+
+        receiver = IioMetadataRx(
+            self.sdr,
+            sample_rate_hz=self.rx_config.sample_rate,
+            samples_per_channel=self.rx_config.buffer_size,
+        )
+        receiver.open()
+        self._iio_metadata_rx = receiver
 
     def _capture_direct_frame(self):
         if self.direct_rx is None:
@@ -1274,9 +1299,12 @@ class PPlus:
         )
 
     def rssis(self):
-        if self.rx_config is not None and self.rx_config.rx_transport == "direct_usb":
+        if self.rx_config is not None and (
+            self.rx_config.rx_transport == "direct_usb"
+            or self._iio_metadata_rx is not None
+        ):
             if self._last_direct_rssis is None:
-                raise RuntimeError("call rx() before rssis() in direct USB mode")
+                raise RuntimeError("call rx() before rssis() in metadata RX mode")
             return self._last_direct_rssis.copy()
         return np.array(
             [
@@ -1286,9 +1314,12 @@ class PPlus:
         )
 
     def gains(self):
-        if self.rx_config is not None and self.rx_config.rx_transport == "direct_usb":
+        if self.rx_config is not None and (
+            self.rx_config.rx_transport == "direct_usb"
+            or self._iio_metadata_rx is not None
+        ):
             if self._last_direct_gains is None:
-                raise RuntimeError("call rx() before gains() in direct USB mode")
+                raise RuntimeError("call rx() before gains() in metadata RX mode")
             return self._last_direct_gains.copy()
         return np.array(
             [
@@ -1381,6 +1412,9 @@ class PPlus:
     """
 
     def setup_rx_config(self):
+        if self._iio_metadata_rx is not None:
+            self._iio_metadata_rx.close()
+            self._iio_metadata_rx = None
         if self.direct_rx is not None:
             self.direct_rx.close()
             self.direct_rx = None
@@ -1558,6 +1592,13 @@ class PPlus:
 
     def close_rx(self):
         failures = []
+        iio_metadata_rx = getattr(self, "_iio_metadata_rx", None)
+        self._iio_metadata_rx = None
+        if iio_metadata_rx is not None:
+            try:
+                iio_metadata_rx.close()
+            except Exception as error:
+                failures.append(("close metadata IIO RX", error))
         direct_frame_stream = getattr(self, "_direct_frame_stream", None)
         self._direct_frame_stream = None
         self._direct_frames_remaining = 0

@@ -5,7 +5,8 @@ FROM ubuntu:latest as base
 # (Add or remove packages as needed for your project)
 RUN apt-get update && apt-get install -y \
     python3-pip python3 python3-venv \
-    git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev \
+    git screen vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev \
+    cmake make pkg-config flex bison libxml2-dev libaio-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Clone your repo
@@ -25,6 +26,7 @@ RUN pip install --upgrade pip
 # Install your package (which has a pyproject.toml)
 # If you have a specific dev or optional dependencies, you can add them here as well
 RUN pip install -e .
+RUN ./install_spf_libiio.sh --series 0.25 --python /opt/spf-env/bin/python
 
 # Launch your tests; you can change this to 'pytest' or any other test runner
 WORKDIR /app/

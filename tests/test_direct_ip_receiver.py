@@ -422,3 +422,375 @@ def test_bad_started_echo_fails_closed_and_stops_assigned_stream():
         assert gadget.stop_request_count == 1
     finally:
         gadget.close()
+
+
+# --- TCP stream transport -----------------------------------------------------
+
+
+import socket as _socket
+import types as _types
+
+from spf.direct_radio.ip_protocol import (
+    IP_FRAGMENT_HEADER_BYTES,
+    IpControlFlags,
+    fragment_ip_frame,
+)
+from spf.direct_radio.ip_receiver import (
+    DirectIpTransportError,
+    PlutoDirectIpReceiver,
+    _sequence_gaps,
+    _StreamEnded,
+)
+
+
+def _receiver(**kwargs):
+    return PlutoDirectIpReceiver(remote_host="127.0.0.1", **kwargs)
+
+
+def _socketpair():
+    left, right = _socket.socketpair()
+    left.settimeout(5.0)
+    right.settimeout(5.0)
+    return left, right
+
+
+def test_stream_reader_reassembles_across_arbitrary_recv_splits():
+    # TCP gives no message boundaries, so the reader must not assume a chunk
+    # arrives in one recv().  Feed it one byte at a time -- the pathological
+    # case that a naive single-recv implementation passes only by luck.
+    frame = bytes(range(256)) * 40
+    chunks = fragment_ip_frame(
+        frame, stream_id=7, frame_sequence=0, max_datagram_bytes=512
+    )
+    assert len(chunks) > 1
+    receiver = _receiver(max_datagram_bytes=512)
+    sender, reader = _socketpair()
+    try:
+        sender.sendall(b"".join(chunks))
+        buffer = bytearray(512)
+        rebuilt = []
+        for _ in chunks:
+            view = receiver._read_stream_chunk(reader, buffer)
+            rebuilt.append(bytes(view))
+        assert rebuilt == list(chunks)
+    finally:
+        sender.close()
+        reader.close()
+
+
+def test_stream_reader_rejects_an_oversized_declared_length_before_reading_it():
+    receiver = _receiver(max_datagram_bytes=512)
+    sender, reader = _socketpair()
+    try:
+        header = bytearray(fragment_ip_frame(
+            b"payload", stream_id=1, frame_sequence=0, max_datagram_bytes=512
+        )[0][:IP_FRAGMENT_HEADER_BYTES])
+        struct.pack_into("<I", header, 48, 1 << 30)
+        sender.sendall(bytes(header))
+        with pytest.raises(ProtocolError, match="outside 1.."):
+            receiver._read_stream_chunk(reader, bytearray(512))
+    finally:
+        sender.close()
+        reader.close()
+
+
+def test_stream_reader_distinguishes_clean_eof_from_truncation():
+    receiver = _receiver(max_datagram_bytes=512)
+
+    # EOF exactly at a chunk boundary is the end-of-stream marker.
+    sender, reader = _socketpair()
+    try:
+        sender.close()
+        with pytest.raises(_StreamEnded):
+            receiver._read_stream_chunk(reader, bytearray(512))
+    finally:
+        reader.close()
+
+    # EOF part way through a chunk is truncation, and must not be mistaken
+    # for a clean end of stream.
+    sender, reader = _socketpair()
+    try:
+        chunk = fragment_ip_frame(
+            b"payload bytes", stream_id=1, frame_sequence=0, max_datagram_bytes=512
+        )[0]
+        sender.sendall(chunk[:-3])
+        sender.close()
+        with pytest.raises(ProtocolError, match="mid-chunk"):
+            receiver._read_stream_chunk(reader, bytearray(512))
+    finally:
+        reader.close()
+
+
+def test_drop_policy_requires_the_tcp_transport():
+    with pytest.raises(ValueError, match="requires the TCP transport"):
+        _receiver(transport="udp", on_backlog="drop")
+
+
+def test_transport_selection_rejects_unknown_values():
+    with pytest.raises(ValueError, match="transport must be"):
+        _receiver(transport="sctp")
+    with pytest.raises(ValueError, match="on_backlog must be"):
+        _receiver(on_backlog="maybe")
+
+
+def test_explicit_tcp_fails_closed_when_the_gadget_does_not_advertise_it():
+    # A TCP cell that silently degrades to UDP passes every assertion in the
+    # suite while proving nothing, so this must raise rather than fall back.
+    receiver = _receiver(transport="tcp")
+    receiver._gadget_supports_tcp = False
+    capabilities = _types.SimpleNamespace(flags=IpControlFlags.FINITE_RX)
+    with pytest.raises(DirectIpTransportError, match="forbids falling back"):
+        receiver._resolve_transport(capabilities)
+
+
+def test_auto_transport_falls_back_without_raising():
+    receiver = _receiver(transport="auto")
+    capabilities = _types.SimpleNamespace(flags=IpControlFlags.FINITE_RX)
+    receiver._gadget_supports_tcp = False
+    assert receiver._resolve_transport(capabilities) == "udp"
+    receiver._gadget_supports_tcp = True
+    assert receiver._resolve_transport(capabilities) == "tcp"
+
+
+def _frame(buffer_sequence, first_sample_sequence, samples_per_channel=1024):
+    return _types.SimpleNamespace(
+        metadata=_types.SimpleNamespace(
+            buffer_sequence=buffer_sequence,
+            first_sample_sequence=first_sample_sequence,
+            samples_per_channel=samples_per_channel,
+        )
+    )
+
+
+def test_sequence_gaps_are_recovered_from_metadata_alone():
+    # Frames 2 and 3 were dropped; the FPGA counter still places the survivors
+    # on the absolute timeline, so the hole is measured in samples, not merely
+    # counted in frames.
+    frames = [
+        _frame(0, 1000),
+        _frame(1, 2024),
+        # sequences 2 and 3 never arrived: 2024 + 3 strides of 1024
+        _frame(4, 5096),
+        _frame(5, 6120),
+    ]
+    dropped, gaps = _sequence_gaps(frames)
+    assert dropped == 2
+    assert len(gaps) == 1
+    assert gaps[0].after_frame_sequence == 1
+    assert gaps[0].missing_frames == 2
+    assert gaps[0].missing_samples == 2 * 1024
+
+
+def test_contiguous_capture_reports_no_gaps():
+    frames = [_frame(i, 1000 + i * 1024) for i in range(4)]
+    assert _sequence_gaps(frames) == (0, ())
+
+
+class _SyntheticTcpGadget:
+    """Speaks the real control protocol and streams real frames over TCP."""
+
+    def __init__(self, *, skip_sequences=(), advertise_tcp: bool = True) -> None:
+        self.control = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.control.bind(("127.0.0.1", 0))
+        self.control.settimeout(0.1)
+        self.control_port = int(self.control.getsockname()[1])
+        self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listener.bind(("127.0.0.1", 0))
+        self.listener.listen(2)
+        self.listener.settimeout(2.0)
+        self.data_port = int(self.listener.getsockname()[1])
+        self.skip_sequences = set(skip_sequences)
+        self.advertise_tcp = advertise_tcp
+        self.last_start_request: IpControlMessageV1 | None = None
+        self.matched_peer_port: int | None = None
+        self.error: Exception | None = None
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def close(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=3)
+        self.control.close()
+        self.listener.close()
+        if self.error is not None:
+            raise self.error
+
+    def _run(self) -> None:
+        try:
+            while not self._stop.is_set():
+                try:
+                    payload, peer = self.control.recvfrom(4096)
+                except TimeoutError:
+                    continue
+                request = IpControlMessageV1.unpack(payload)
+                if request.message_type == IpControlType.QUERY_CAPABILITIES:
+                    flags = (
+                        IpControlFlags.FINITE_RX
+                        | IpControlFlags.IDEMPOTENT_REQUESTS
+                        | IpControlFlags.TIME_ANCHOR
+                    )
+                    # Never volunteered: answered only when the query asked.
+                    if (
+                        self.advertise_tcp
+                        and request.flags & IpControlFlags.TCP_DATA_TRANSPORT
+                    ):
+                        flags |= (
+                            IpControlFlags.TCP_DATA_TRANSPORT
+                            | IpControlFlags.DROP_STALE_FRAMES
+                        )
+                    self.control.sendto(
+                        IpControlMessageV1(
+                            message_type=IpControlType.CAPABILITIES,
+                            request_id=request.request_id,
+                            flags=flags,
+                            protocol_min=3,
+                            protocol_max=3,
+                            features=REQUIRED_V3_FEATURES,
+                            max_samples_per_channel=524_288,
+                            max_finite_frames=16,
+                        ).pack(),
+                        peer,
+                    )
+                elif request.message_type == IpControlType.START_RX:
+                    self.last_start_request = request
+                    stream_id = 0x5150
+                    connection, remote = self.listener.accept()
+                    self.matched_peer_port = int(remote[1])
+                    self.control.sendto(
+                        dataclasses.replace(
+                            request,
+                            message_type=IpControlType.STARTED,
+                            stream_id=stream_id,
+                        ).pack(),
+                        peer,
+                    )
+                    self._stream(connection, request, stream_id)
+                elif request.message_type == IpControlType.STOP_RX:
+                    self.control.sendto(
+                        dataclasses.replace(
+                            request, message_type=IpControlType.STOPPED
+                        ).pack(),
+                        peer,
+                    )
+        except Exception as error:  # surfaced by close()
+            self.error = error
+
+    def _stream(self, connection, request, stream_id) -> None:
+        try:
+            for sequence in range(request.frame_count):
+                if sequence in self.skip_sequences:
+                    continue
+                frame = _inner_frame(
+                    stream_id=stream_id,
+                    sequence=sequence,
+                    samples=request.samples_per_channel,
+                )
+                for chunk in fragment_ip_frame(
+                    frame,
+                    stream_id=stream_id,
+                    frame_sequence=sequence,
+                    max_datagram_bytes=request.max_datagram_bytes,
+                ):
+                    connection.sendall(chunk)
+        finally:
+            # Closing is the end-of-stream marker; UDP has no equivalent.
+            connection.close()
+
+
+def test_tcp_capture_end_to_end_over_a_real_connection():
+    gadget = _SyntheticTcpGadget()
+    gadget.start()
+    try:
+        receiver = PlutoDirectIpReceiver(
+            remote_host="127.0.0.1",
+            remote_control_port=gadget.control_port,
+            remote_data_port=gadget.data_port,
+            transport="tcp",
+            max_datagram_bytes=1472,
+            gain_observation_interval_samples=1024,
+            gain_observation_capacity=1,
+        )
+        with receiver:
+            assert receiver.gadget_supports_tcp
+            assert receiver.negotiated_transport == "tcp"
+            capture = receiver.capture(samples_per_channel=1024, frame_count=4)
+        assert capture.transport == "tcp"
+        assert [f.metadata.buffer_sequence for f in capture.frames] == [0, 1, 2, 3]
+        assert capture.dropped_frame_count == 0
+        assert capture.sample_gaps == ()
+        # The gadget binds the stream to the host's TCP source port, which is
+        # what it was told in data_port.
+        assert gadget.last_start_request.data_port == gadget.matched_peer_port
+        assert gadget.last_start_request.flags & IpControlFlags.TCP_DATA_TRANSPORT
+    finally:
+        gadget.close()
+
+
+def test_tcp_drop_policy_reports_holes_and_still_completes():
+    gadget = _SyntheticTcpGadget(skip_sequences={1, 2})
+    gadget.start()
+    try:
+        receiver = PlutoDirectIpReceiver(
+            remote_host="127.0.0.1",
+            remote_control_port=gadget.control_port,
+            remote_data_port=gadget.data_port,
+            transport="tcp",
+            on_backlog="drop",
+            max_datagram_bytes=1472,
+            gain_observation_interval_samples=1024,
+            gain_observation_capacity=1,
+        )
+        with receiver:
+            capture = receiver.capture(samples_per_channel=1024, frame_count=5)
+        # Two frames were never sent; the capture succeeds with holes rather
+        # than timing out, which is the whole point of the drop policy.
+        assert [f.metadata.buffer_sequence for f in capture.frames] == [0, 3, 4]
+        assert capture.dropped_frame_count == 2
+        assert len(capture.sample_gaps) == 1
+        assert capture.sample_gaps[0].after_frame_sequence == 0
+        assert capture.sample_gaps[0].missing_frames == 2
+        assert capture.sample_gaps[0].missing_samples == 2 * 1024
+        assert gadget.last_start_request.flags & IpControlFlags.DROP_STALE_FRAMES
+    finally:
+        gadget.close()
+
+
+def test_fail_mode_treats_a_short_tcp_stream_as_an_error():
+    gadget = _SyntheticTcpGadget(skip_sequences={2})
+    gadget.start()
+    try:
+        receiver = PlutoDirectIpReceiver(
+            remote_host="127.0.0.1",
+            remote_control_port=gadget.control_port,
+            remote_data_port=gadget.data_port,
+            transport="tcp",
+            max_datagram_bytes=1472,
+            gain_observation_interval_samples=1024,
+            gain_observation_capacity=1,
+        )
+        with receiver:
+            with pytest.raises(
+                (DirectIpTransportError, ProtocolError),
+            ):
+                receiver.capture(samples_per_channel=1024, frame_count=4)
+    finally:
+        gadget.close()
+
+
+def test_explicit_tcp_against_a_udp_only_gadget_refuses_to_fall_back():
+    gadget = _SyntheticTcpGadget(advertise_tcp=False)
+    gadget.start()
+    try:
+        receiver = PlutoDirectIpReceiver(
+            remote_host="127.0.0.1",
+            remote_control_port=gadget.control_port,
+            remote_data_port=gadget.data_port,
+            transport="tcp",
+        )
+        with pytest.raises(DirectIpTransportError, match="forbids falling back"):
+            receiver.open()
+    finally:
+        gadget.close()

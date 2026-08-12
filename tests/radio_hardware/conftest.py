@@ -41,6 +41,35 @@ def pytest_addoption(parser):
         help="require exactly this many selected attached radios",
     )
     group.addoption(
+        "--radio-direct-ip-transport",
+        choices=("udp", "tcp"),
+        default="udp",
+        help=(
+            "data transport for direct-IP gates. Defaults to udp so the "
+            "existing numbers stay the baseline; 'tcp' fails closed rather "
+            "than falling back, so a cell cannot silently run as udp"
+        ),
+    )
+    group.addoption(
+        "--radio-direct-ip-datagram-bytes",
+        type=int,
+        default=1_472,
+        help=(
+            "direct-IP chunk size. 65507 is the large-chunk cell, which "
+            "isolates the effect of chunk size from the effect of transport"
+        ),
+    )
+    group.addoption(
+        "--radio-direct-ip-on-backlog",
+        choices=("fail", "drop"),
+        default="fail",
+        help=(
+            "backpressure policy. 'drop' sheds whole frames instead of "
+            "stalling; run it only after the same cell passes on 'fail', "
+            "since a drop-mode run cannot fail the way a fail-mode run does"
+        ),
+    )
+    group.addoption(
         "--radio-samples",
         type=int,
         default=524_288,
@@ -306,6 +335,23 @@ def pytest_addoption(parser):
         default=None,
         help="optional directory for JSON hardware-test reports",
     )
+    group.addoption(
+        "--radio-iio-rate-ladder",
+        default="1M,1.5M,2M,2.5M,3M,5M,10M,20M,30M",
+        help="sample rates for the standard libiio USB/TCP benchmark",
+    )
+    group.addoption(
+        "--radio-iio-rate-frames",
+        type=int,
+        default=12,
+        help="timed frames per cell in the standard libiio USB/TCP benchmark",
+    )
+    group.addoption(
+        "--radio-iio-rate-samples",
+        type=int,
+        default=262_144,
+        help="samples per channel in each libiio USB/TCP benchmark frame",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -429,6 +475,24 @@ def attached_plutos(pytestconfig) -> tuple[AttachedPluto, ...]:
     if len({radio.serial for radio in selected}) != len(selected):
         pytest.fail("attached Pluto serials are not unique")
     return tuple(selected)
+
+
+@pytest.fixture(scope="session")
+def direct_ip_transport_profile(pytestconfig) -> dict:
+    """Transport settings for one cell of the direct-IP matrix.
+
+    The whole point of passing these as one dict is that the gate bodies stay
+    identical across cells; only the profile changes, so a difference in the
+    result cannot come from a difference in the test.
+    """
+
+    return {
+        "transport": pytestconfig.getoption("--radio-direct-ip-transport"),
+        "max_datagram_bytes": pytestconfig.getoption(
+            "--radio-direct-ip-datagram-bytes"
+        ),
+        "on_backlog": pytestconfig.getoption("--radio-direct-ip-on-backlog"),
+    }
 
 
 @pytest.fixture(scope="session")
