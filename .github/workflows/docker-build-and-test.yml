@@ -3,8 +3,24 @@ name: Build, Deploy and Test
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - ".github/workflows/docker-build-and-test.yml"
+      - ".github/workflows/libiio-packages.yml"
+      - "packaging/libiio/**"
+      - "install_spf_libiio*.sh"
+      - "docs/libiio_frame_metadata_install.md"
+      - "tests/test_libiio_dependency_contract.py"
+      - "README.md"
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - ".github/workflows/docker-build-and-test.yml"
+      - ".github/workflows/libiio-packages.yml"
+      - "packaging/libiio/**"
+      - "install_spf_libiio*.sh"
+      - "docs/libiio_frame_metadata_install.md"
+      - "tests/test_libiio_dependency_contract.py"
+      - "README.md"
 
 jobs:
   build:

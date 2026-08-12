@@ -4,6 +4,10 @@
 set -euo pipefail
 umask 0022
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=packaging/libiio/versions.sh
+source "${script_dir}/packaging/libiio/versions.sh"
+
 series=0.25
 python_bin="${VIRTUAL_ENV:+${VIRTUAL_ENV}/bin/python}"
 python_bin="${python_bin:-python3}"
@@ -41,24 +45,11 @@ while (($#)); do
     esac
 done
 
-case "$series" in
-0.25)
-    source_ref=spf-frame-metadata-source/v0.25-final-v3
-    source_commit=c26258bfa33098c2b215e19cf85d448e89499b1a
-    expected_version=0.25
-    expected_git=c26258b
-    ;;
-0.26)
-    source_ref=spf-frame-metadata-source/v0.26-final-v3
-    source_commit=d5695c3eaa9cec99cc6f7b2c91565555044b907a
-    expected_version=0.26
-    expected_git=d5695c3
-    ;;
-*)
-    printf 'ERROR: --series must be 0.25 or 0.26, got %s\n' "$series" >&2
-    exit 2
-    ;;
-esac
+spf_libiio_select_version "$series"
+source_ref="$SPF_LIBIIO_SOURCE_REF"
+source_commit="$SPF_LIBIIO_SOURCE_COMMIT"
+expected_version="$SPF_LIBIIO_EXPECTED_VERSION"
+expected_git="$SPF_LIBIIO_EXPECTED_GIT"
 
 [[ "$prefix" == /* ]] || {
     printf 'ERROR: --prefix must be absolute: %s\n' "$prefix" >&2

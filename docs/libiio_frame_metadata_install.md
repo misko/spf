@@ -20,6 +20,100 @@ Both were qualified over USB and standard libiio IP/TCP against
 
 ## Ubuntu, Debian, or Raspberry Pi OS
 
+### Recommended: prebuilt Debian 12 artifacts
+
+Normal rover deployment should use the release bundle rather than compiling on
+the rover. One `arm64` package supports both Pi 4 and Pi 5 when they run a
+64-bit Debian 12 or Raspberry Pi OS 12 userland. Standard x86-64 hosts use the
+`amd64` package. The Python wheel is `py3-none-any` and is shared by both.
+
+Download these three files from one `libiio-artifacts-v*` SPF GitHub release:
+
+- `spf-libiio_0.25+spfmeta3-1_arm64.deb` on Pi 4/Pi 5, or the `_amd64.deb`
+  equivalent on x86-64
+- `pylibiio-0.25+spfmeta3-py3-none-any.whl`
+- `SHA256SUMS`
+
+Place them in one directory and install them after SPF's ordinary Python
+dependencies:
+
+```bash
+./install_spf_libiio_artifacts.sh \
+  --bundle ~/Downloads/spf-libiio \
+  --python ~/spf-virtualenv/bin/python
+```
+
+The installer checks every checksum, selects the package matching the local
+Debian architecture, lets `apt` replace the distribution libiio packages, puts
+the patched wheel in the selected virtual environment, and verifies
+`MetadataBuffer`. Do not combine a `.deb`, wheel, and checksum file from
+different releases.
+
+The native package is intentionally limited to Debian 12's ABI. Build and test
+a separate package line before supporting Debian 13, Ubuntu, 32-bit Raspberry
+Pi OS (`armhf`), or another libc baseline. Pi CPU generation alone does not
+require another build.
+
+### Building artifacts locally
+
+Artifact definitions and source locks live in `packaging/libiio/`. Build on a
+native Debian 12 `amd64` or `arm64` machine:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential ca-certificates cmake dpkg-dev git pkg-config flex bison \
+  python3 python3-dev python3-pip python3-setuptools python3-wheel \
+  libaio-dev libusb-1.0-0-dev libxml2-dev
+
+packaging/libiio/build_artifacts.sh \
+  --series 0.25 \
+  --output-dir dist/libiio
+packaging/libiio/test_artifacts.sh --bundle dist/libiio
+```
+
+`packaging/libiio/versions.sh` is the single source of truth for immutable
+libiio tags, commits, metadata revision, and Debian packaging revision. Change
+the metadata revision when the protocol/binding changes; increment only the
+package revision for packaging-only fixes. Review the source commit before
+changing either lock.
+
+The builder deliberately does not use libiio 0.25's legacy CPack dependency
+discovery. It stages the normal CMake installation and creates explicit Debian
+metadata, while building the pure Python binding as a separate wheel so it can
+be installed into an isolated SPF virtual environment.
+
+### CI, releases, and artifact tests
+
+`.github/workflows/libiio-packages.yml` builds natively in clean Debian 12
+containers on GitHub's `amd64` and `arm64` runners. Each architecture performs:
+
+1. immutable tag/commit verification;
+2. package checksum, architecture, file-content, and wheel API inspection;
+3. installation of the exact `.deb` and wheel into the clean container;
+4. dynamic-link, `iio_info`, backend scan, Python version, and
+   `MetadataBuffer` smoke tests; and
+5. the focused SPF dependency-contract tests.
+
+Pull requests and changes on `main` retain the packages as workflow artifacts.
+To publish an immutable GitHub release after both architecture jobs pass, tag
+the reviewed SPF commit using a name such as:
+
+```bash
+git tag -a libiio-artifacts-v0.25-spfmeta3.1 -m "SPF libiio 0.25 metadata artifacts"
+git push origin libiio-artifacts-v0.25-spfmeta3.1
+```
+
+CI then publishes the two `.deb` files, one wheel, and a release-level
+`SHA256SUMS`. Hardware tests are intentionally a separate promotion gate: after
+a new source revision, install the release bundle on at least one Pi 4/Pi 5 and
+one x86-64 host, then run the existing `--radio-hardware` USB and IP metadata,
+rate, retune, and soak tests. Packaging-only revisions need clean-container
+tests plus one USB/IP smoke capture; they do not require repeating the complete
+RF qualification unless native code changed.
+
+### Source-build fallback
+
 Install build prerequisites:
 
 ```bash
