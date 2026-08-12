@@ -103,3 +103,41 @@ An optimum on a grid boundary looks alarming and usually is not. Extending six
 truncated axes cost ~4 h of compute and bought at most 1.6%. Check the boundary,
 but check it with a heatmap — the plateau is visible immediately, and the marginal
 profile that prompted this whole experiment is what hid it.
+
+## Addendum — the March 2025 deck's grids, reproduced (2026-08-11)
+
+Full write-up:
+[`spf/filters/reports/e_inf2_deck2025_20260811_v1/REPORT.md`](../../spf/filters/reports/e_inf2_deck2025_20260811_v1/REPORT.md).
+133,760 runs, 50,160 configurations, 16 captures, 5 seeds.
+
+Checking the "Droning on 2 (SPF)" deck's axes against every grid run here found
+four we had never tried: `theta_err` 0.1; `theta_dot_err` 0.075/0.09/0.12/0.15;
+`phi_std` 8/12/14/16/18; and six `noise_std` intermediates. All were run.
+
+**None of it helps.** Matched to E-INF1 on the same captures and seeds, paired per
+store, every family is within ±3%. The one candidate — `PF dual radio NN`
+[absolute] at −2.9% using the never-before-tried `theta_err` = 0.1 — is better on
+8 of 16 captures at Wilcoxon **p = 0.860**. `EKF single radio` reproduces E-INF1's
+winner exactly.
+
+**The `phi_std` 8–18 region is worse, not better.** The deck's EKF optimum sits at
+`phi_std` = 12; on our corpus every one of those five values is worse than
+`phi_std` = 1 for the single-radio EKF. It does not transfer.
+
+**What does transfer is the surface shape, and only in one frame.** Our
+`absolute_north` panel reproduces the deck's — optimum at `theta_dot_err`
+0.001–0.002, degrading upward — across different hardware, carrier, d/λ and
+routine. Our `craft_relative` panel is the deck's **mirror image**: best at 0.09,
+worst at 0.0001, where the deck is best at 0.001–0.005 and worst at 0.1–0.2.
+
+⚠️ **This corrects the routine-dependence note in the Risks table above.** It is
+narrower than recorded: the inversion is confined to `craft_relative`. In
+`absolute_north` the two corpora agree. A frame and a routine were being
+conflated. The mechanism is that `rover_diamond` runs straight legs with occasional
+corners (heading mostly constant → slow craft-relative bearing → small process
+noise), while `rover_bounce` changes direction constantly. The absolute frame is
+insensitive because the emitter's world-frame bearing drifts slowly regardless.
+
+It also reproduces **H3** on the deck's own axis resolution: craft-relative
+optimises at `theta_dot_err` 0.09–0.12 and absolute-north at 0.001–0.002, a ~50×
+ratio against the 20× measured on our grid.
