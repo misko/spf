@@ -1,3 +1,4 @@
+import errno
 import sys
 import time
 import types
@@ -175,6 +176,34 @@ def test_iio_metadata_adapter_requires_patched_python_binding(monkeypatch):
         assert "0.25 or 0.26" in str(error)
     else:
         raise AssertionError("stock Python binding was accepted")
+
+
+def test_iio_metadata_adapter_retries_only_typed_startup_discards(monkeypatch):
+    class StartupDiscardSdr(_FakePyadiSdr):
+        def __init__(self, metadata, sample_rate):
+            super().__init__(metadata, sample_rate)
+            self.attempts = 0
+
+        def rx(self):
+            self.attempts += 1
+            if self.attempts <= 2:
+                raise OSError(errno.EAGAIN, "startup frame lacks metadata")
+            return super().rx()
+
+    fake_sdr = StartupDiscardSdr(_metadata(), sample_rate=2_000_000)
+    monkeypatch.setitem(
+        sys.modules, "iio", types.SimpleNamespace(MetadataBuffer=_FakeMetadataBuffer)
+    )
+    receiver = IioMetadataRx(
+        fake_sdr,
+        sample_rate_hz=2_000_000,
+        samples_per_channel=1024,
+    )
+    receiver.open()
+    _signal, parsed, _capture_time = receiver.capture()
+    assert parsed.buffer_sequence == 3
+    assert fake_sdr.attempts == 3
+    receiver.close()
 
 
 def test_pplus_rx_with_metadata_does_not_poll_host_gain_or_rssi():

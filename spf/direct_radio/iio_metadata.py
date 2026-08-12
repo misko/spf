@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import gc
 import time
 
@@ -26,6 +27,7 @@ DEFAULT_METADATA_CAPACITY = 64 * 1024
 INITIAL_TIME_ANCHOR_COUNT = 8
 MAX_TIME_ANCHORS = 32
 TIME_ANCHOR_WINDOW_NS = 10_000_000_000
+MAX_STARTUP_FRAME_DISCARDS = 64
 
 
 class IioMetadataRx:
@@ -111,7 +113,17 @@ class IioMetadataRx:
 
         if self._buffer is None:
             raise RuntimeError("IIO metadata RX is not open")
-        signal_matrix = np.vstack(self._sdr.rx()).astype(np.complex64, copy=False)
+        for startup_discard in range(MAX_STARTUP_FRAME_DISCARDS + 1):
+            try:
+                pyadi_signal = self._sdr.rx()
+                break
+            except OSError as error:
+                if (
+                    error.errno != errno.EAGAIN
+                    or startup_discard == MAX_STARTUP_FRAME_DISCARDS
+                ):
+                    raise
+        signal_matrix = np.vstack(pyadi_signal).astype(np.complex64, copy=False)
         if signal_matrix.shape != (2, self._samples_per_channel):
             raise RuntimeError("pyadi IQ shape does not match dual-channel metadata")
         raw_metadata = self._buffer.metadata
