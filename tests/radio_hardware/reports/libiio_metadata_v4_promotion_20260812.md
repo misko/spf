@@ -104,9 +104,22 @@ The host versions have indistinguishable behavior. Metadata costs about 9% on
 LAN and 3% on USB for these large frames; it does not change IQ layout or byte
 count.
 
+A longer 128-frame host-0.25 run recorded process and radio CPU time. On LAN,
+ordinary and metadata delivered 47.575 and 42.168 MB/s. Host CPU time was 2.34
+and 2.14 seconds over 5.95 and 6.75 seconds, while iiOD accumulated 551 and 890
+ticks (about 0.93 and 1.32 CPU cores at 100 Hz). On USB, ordinary and metadata
+delivered 22.121 and 21.409 MB/s. Host CPU time was 0.73 and 0.79 seconds over
+12.57 and 13.08 seconds; iiOD accumulated 207 and 497 ticks (about 0.16 and
+0.38 core). The radio has two cores, and neither mode produced a refill or
+transport failure.
+
+Across five fresh processes, median first-refill time for a 262144-sample frame
+was 56.6 ms ordinary versus 70.5 ms metadata over LAN, and 104.8 versus 113.3
+ms over USB.
+
 ## Restart, rollback, and compatibility
 
-Radio A completed four independently identified RAM boots of the attested
+Radio A completed five independently identified RAM boots of the attested
 candidate. Candidate boots advertised `iio,buffer-metadata=1`, reported
 `libiio-metadata-v4-source/buildroot-final-v5`, and completed metadata capture.
 Each reboot into persistent firmware restored `buildroot-final-v2`.
