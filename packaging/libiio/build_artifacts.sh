@@ -156,6 +156,15 @@ cmake -S "$source_dir/bindings/python" -B "$python_build_dir" \
     -DCMAKE_SHARED_LIBRARY_SUFFIX=.so
 sed -i "s/version=\"${SPF_LIBIIO_EXPECTED_VERSION}\"/version=\"${wheel_version}\"/" \
     "$python_build_dir/setup.py"
+# Upstream's custom install command refuses to assemble a wheel unless libiio
+# is already installed on the build host. The wheel is pure Python and the
+# matching staged .deb is intentionally not installed until the test step.
+sed -i 's/cross_compiling = ("FALSE" == "TRUE")/cross_compiling = True/' \
+    "$python_build_dir/setup.py"
+grep -q 'cross_compiling = True' "$python_build_dir/setup.py" || {
+    printf 'ERROR: could not disable upstream build-host libiio check\n' >&2
+    exit 1
+}
 (
     cd "$python_build_dir"
     python3 setup.py --quiet bdist_wheel --dist-dir "$output_dir"

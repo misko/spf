@@ -47,6 +47,10 @@ def test_binary_installer_verifies_bundle_before_installing():
     assert checksum_offset < apt_offset < pip_offset
     assert 'hasattr(iio, "MetadataBuffer")' in installer
 
+    builder = (ROOT / "packaging/libiio/build_artifacts.sh").read_text()
+    assert "cross_compiling = True" in builder
+    assert "matching staged .deb is intentionally not installed" in builder
+
 
 def test_legacy_sdr_requirements_do_not_downgrade_pyadi():
     requirements = (ROOT / "spf/sdrpluto/requirements.txt").read_text().splitlines()
