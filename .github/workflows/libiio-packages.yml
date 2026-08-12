@@ -70,7 +70,7 @@ jobs:
       - name: Run focused repository contract tests
         run: |
           /tmp/spf-libiio-test-venv/bin/pip install pytest
-          /tmp/spf-libiio-test-venv/bin/python -m pytest -q \
+          /tmp/spf-libiio-test-venv/bin/python -m pytest -q --noconftest \
             tests/test_libiio_dependency_contract.py
       - name: Upload tested deployment bundle
         uses: actions/upload-artifact@v4
