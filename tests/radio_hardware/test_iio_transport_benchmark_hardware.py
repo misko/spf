@@ -26,6 +26,7 @@ KERNEL_BUFFERS = 2
 WARMUP_FRAMES = 2
 MINIMUM_METADATA_RETENTION = 0.65
 MINIMUM_EXPECTED_TRANSPORT_MBPS = {"usb": 15.0, "tcp": 30.0}
+MINIMUM_CONTINUOUS_METADATA_RATE_HZ = {"usb": 2_000_000, "tcp": 3_000_000}
 UNSAFE_FLAGS = (
     MetadataFlags.DUMMY_GAINS
     | MetadataFlags.GAIN_READ_FAILED
@@ -221,6 +222,7 @@ def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
         "rates_hz": list(rates),
         "frames_per_cell": frames,
         "samples_per_channel": samples,
+        "minimum_continuous_metadata_rate_hz": MINIMUM_CONTINUOUS_METADATA_RATE_HZ,
         "radios": [],
     }
     report_path = radio_report_dir / "iio_usb_tcp_rate_matrix.json"
@@ -294,5 +296,10 @@ def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
                     metadata["payload_MBps"] / ordinary["payload_MBps"]
                     >= MINIMUM_METADATA_RETENTION
                 )
+                if rate <= MINIMUM_CONTINUOUS_METADATA_RATE_HZ[transport]:
+                    assert metadata["continuous_sustainable"], (
+                        f"{transport} metadata did not continuously sustain "
+                        f"the qualified {rate:g} sample/s cell: {metadata}"
+                    )
 
     report_path.write_text(json.dumps(report, indent=2) + "\n")
