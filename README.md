@@ -266,14 +266,19 @@ source spf_venv/bin/activate
 pip install -e .
 
 # Install the hardware-qualified modified C library and Python binding last
-./install_spf_libiio.sh --series 0.25 --python "$VIRTUAL_ENV/bin/python"
+./install_spf_libiio_artifacts.sh \
+  --bundle ~/Downloads/spf-libiio \
+  --python "$VIRTUAL_ENV/bin/python"
 
 # Run the tests to verify installation
 pytest tests
 ```
 
 The modified libiio is required for v5 frame metadata; PyPI `pylibiio` alone
-is not sufficient. See [the SPF libiio installation guide](docs/libiio_frame_metadata_install.md)
+is not sufficient. CI publishes native Debian 12 packages for Pi 4/Pi 5
+(`arm64`) and standard x86-64 (`amd64`), plus the shared Python wheel. The
+source-building `install_spf_libiio.sh` remains available as a fallback. See
+[the SPF libiio installation guide](docs/libiio_frame_metadata_install.md)
 for immutable source pins, 0.26 instructions, verification, and isolated
 side-by-side installs.
 
@@ -311,5 +316,4 @@ side-by-side installs.
    cd bladeRF/host/libraries/libbladeRF_bindings/python
    python setup.py install
    ```
-
 
