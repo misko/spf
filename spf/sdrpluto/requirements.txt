@@ -9,8 +9,8 @@ matplotlib==3.7.2
 numpy==1.25.2
 packaging==23.1
 Pillow==10.0.0
-pyadi-iio==0.0.16
-pylibiio==0.25
+pyadi-iio==0.0.18
+pylibiio>=0.25,<0.27
 pyparsing==3.0.9
 python-dateutil==2.8.2
 six==1.16.0

@@ -28,7 +28,11 @@ dependencies = [
  # with ImportError: cannot import name 'cbuffer_sizes'. Pinning zarr without
  # pinning what zarr imports from is not a pin.
  "numcodecs<0.16",
- "pyadi-iio",
+ # Hardware-qualified with the SPF libiio 0.25/0.26 extension. The PyPI
+ # pylibiio dependency satisfies packaging; install_spf_libiio.sh overlays the
+ # matching modified C library and binding from an immutable source tag.
+ "pyadi-iio==0.0.18",
+ "pylibiio>=0.25,<0.27",
  "libusb1>=3.1",
  "pyproj",
  "compress-pickle",
