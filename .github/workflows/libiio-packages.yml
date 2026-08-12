@@ -60,7 +60,7 @@ jobs:
       - name: Install and smoke-test exact artifacts
         run: |
           python3 -m venv /tmp/spf-libiio-test-venv
-          install_spf_libiio_artifacts.sh \
+          ./install_spf_libiio_artifacts.sh \
             --bundle dist/libiio \
             --python /tmp/spf-libiio-test-venv/bin/python
           packaging/libiio/test_artifacts.sh \

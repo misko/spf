@@ -30,6 +30,7 @@ def test_binary_artifact_workflow_covers_pi_and_x86_64():
     assert "architecture: amd64" in workflow
     assert "container: debian:12" in workflow
     assert "packaging/libiio/test_artifacts.sh" in workflow
+    assert "./install_spf_libiio_artifacts.sh" in workflow
     assert "python -m pytest" in workflow
     assert "tests/test_libiio_dependency_contract.py" in workflow
     assert "python3 -m pytest" not in workflow
