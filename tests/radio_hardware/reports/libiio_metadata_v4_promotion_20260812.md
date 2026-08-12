@@ -118,8 +118,8 @@ The reusable probes are in
 individually; the full pytest suite was not run on the Pi.
 
 The RAM-only data-path gates are complete. Persistent deployment and a physical
-power-cycle qualification remain a separate, explicit promotion decision. The
-diagnostic counter set proposed in section 11 of
-`~/libiio_extension_and_testing_plan.md` also remains to be implemented or
-formally removed from promotion scope; it is not needed for bounded capture or
-wire compatibility.
+power-cycle qualification remain a separate, explicit promotion decision.
+Section 11 of `~/libiio_extension_and_testing_plan.md` records the decision not
+to add a second diagnostic schema: per-frame diagnostics, typed errors, and
+external qualification measurements cover the feature without expanding its
+production API.
