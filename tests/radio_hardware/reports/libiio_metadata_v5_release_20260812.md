@@ -33,20 +33,20 @@ rate.
 
 | RF rate | Required IQ | USB metadata | USB coverage | USB continuous | TCP metadata | TCP coverage | TCP continuous |
 |---:|---:|---:|---:|:---:|---:|---:|:---:|
-| 1.0 MS/s | 8 MB/s | 7.988 MB/s | 100.0% | yes | 7.979 MB/s | 100.0% | yes |
-| 1.5 MS/s | 12 MB/s | 11.979 MB/s | 100.0% | yes | 11.967 MB/s | 100.0% | yes |
-| 2.0 MS/s | 16 MB/s | 15.954 MB/s | 100.0% | yes | 15.990 MB/s | 100.0% | yes |
-| 2.5 MS/s | 20 MB/s | 13.294 MB/s | 66.7% | no | 19.982 MB/s | 100.0% | yes |
-| 3.0 MS/s | 24 MB/s | 15.933 MB/s | 70.6% | no | 23.948 MB/s | 100.0% | yes |
-| 5.0 MS/s | 40 MB/s | 20.701 MB/s | 52.2% | no | 28.430 MB/s | 75.0% | no |
-| 10 MS/s | 80 MB/s | 21.515 MB/s | 28.6% | no | 38.832 MB/s | 52.2% | no |
-| 20 MS/s | 160 MB/s | 21.139 MB/s | 14.3% | no | 40.503 MB/s | 27.3% | no |
-| 30 MS/s | 240 MB/s | 21.453 MB/s | 9.8% | no | 41.301 MB/s | 18.5% | no |
+| 1.0 MS/s | 8 MB/s | 7.990 MB/s | 100.0% | yes | 7.992 MB/s | 100.0% | yes |
+| 1.5 MS/s | 12 MB/s | 11.977 MB/s | 100.0% | yes | 11.950 MB/s | 100.0% | yes |
+| 2.0 MS/s | 16 MB/s | 15.956 MB/s | 100.0% | yes | 16.000 MB/s | 100.0% | yes |
+| 2.5 MS/s | 20 MB/s | 13.311 MB/s | 70.6% | no | 19.990 MB/s | 100.0% | yes |
+| 3.0 MS/s | 24 MB/s | 15.937 MB/s | 70.6% | no | 23.880 MB/s | 100.0% | yes |
+| 5.0 MS/s | 40 MB/s | 20.419 MB/s | 52.2% | no | 28.376 MB/s | 75.0% | no |
+| 10 MS/s | 80 MB/s | 21.293 MB/s | 27.9% | no | 38.313 MB/s | 50.0% | no |
+| 20 MS/s | 160 MB/s | 21.565 MB/s | 14.5% | no | 40.313 MB/s | 27.3% | no |
+| 30 MS/s | 240 MB/s | 21.446 MB/s | 9.8% | no | 40.814 MB/s | 18.2% | no |
 
 The qualified continuous metadata limits are therefore 2 MS/s over USB and
 3 MS/s over IP/TCP for this hardware and network. At 30 MS/s, ordinary IIO
-delivered 22.650--22.789 MB/s over USB and 46.967--49.246 MB/s over TCP;
-metadata IIO delivered 21.453--21.783 MB/s and 41.301--42.156 MB/s,
+delivered 22.472--22.715 MB/s over USB and 46.942--49.629 MB/s over TCP;
+metadata IIO delivered 21.446--21.800 MB/s and 40.814--41.635 MB/s,
 respectively. Host 0.25 and 0.26 behavior was effectively indistinguishable.
 
 These are finite-request capture rates, not a claim that an overloaded link
@@ -61,9 +61,9 @@ RX2 used independent slow-attack AGC loops. Every accepted frame had valid gain
 and RSSI metadata, ordered sample-associated gain observations, zero clipping,
 and no overflow or metadata-read failure flags.
 
-For both host versions, seven of eight frames per radio contained at least a
+Seven or eight of eight frames per radio and host version contained at least a
 2 dB gain change on both channels. The maximum RX1/RX2 gain disagreement was
-1 dB on radio A and 2 dB on radio B. Frame-start and frame-end gain snapshots
+1 dB on radio A and 3 dB on radio B. Frame-start and frame-end gain snapshots
 matched the nearest gain-history observations exactly in the recorded runs.
 No negative gain sentinel or one-channel-only result was accepted.
 
@@ -79,9 +79,12 @@ that stale data remained bounded by the requested one or four kernel buffers,
 with stable iiOD RSS and no growing TCP queue.
 
 The final v5 artifact is a release-identity rebuild from the same pinned radio
-components. It is separately confirmation-tested on both radios before
-publication; the final artifact identity and checksums are published with the
-GitHub release.
+components. Its source commit is
+`d7c87a9a28094ee6f0b23cb47df9ff737b5a69d8`; its DFU SHA-256 is
+`948b46506febacb087f3955be86015e074f8c0e3370a9dfc6a942e735d97f882`.
+Both radios were persistently flashed with these bytes, ran both complete host
+matrices, rebooted from QSPI, retained the exact v5 identity, and passed the
+post-reboot USB/TCP metadata smoke.
 
 ## Reproducible focused tests
 
@@ -97,9 +100,17 @@ pytest tests/radio_hardware/test_iio_transport_benchmark_hardware.py \
   --radio-hardware --radio-expected-count=2 --radio-report-dir=<dir>
 ```
 
-The machine-readable reports are in `libiio_v5_host025/` and
-`libiio_v5_host026/` beside this file. The full pytest suite was deliberately
-not run on the Pi.
+The exact-release machine-readable reports are in
+`libiio_v5_release_host025/`, `libiio_v5_release_host026/`, and
+`libiio_v5_release_post_reboot/` beside this file. Their SHA-256 values are:
+
+- host 0.25 AGC: `a0d8bc1e5d4d75b93cdff13de6783690341910a46d281bd323e2bda378999f7c`;
+- host 0.25 rate matrix: `91c3998f98c3f7fe109cc67e2feb68c6bf9d2c577dfa50b00f72596569bae9e2`;
+- host 0.26 AGC: `7b99bf77f1f623e68010f78ec4266d78ddc073f1a8775672d9e3daa34f26659b`;
+- host 0.26 rate matrix: `3d99b2150295e40c04edeba549721eb7bc0b9bcb119ad78767c2e3f9454c6376`;
+- post-reboot smoke: `0745e118c2fb5b25f2c08fd8ba3c91034261b657307b1e2388f7b87c6b58cae7`.
+
+The full pytest suite was deliberately not run on the Pi.
 
 ## Known limitation
 
@@ -107,3 +118,8 @@ The PlutoPlus DDS can occasionally be silent on its first arm after a retune.
 The RF tests detect this before accepting a frame and repeat the documented
 TX-quadrature calibration/arm. This is a TX setup behavior, not an RX metadata
 or TCP framing failure; RX-only operation is unaffected.
+
+After a firmware reboot the AD9361 TX hardware-gain attributes initially read
+-10 dB, while all DDS enables remain off. The hardware tests immediately apply
+and verify the fail-closed -80 dB TX mute. This predates the metadata extension,
+but applications that may later enable DDS should explicitly set TX gain first.
