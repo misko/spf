@@ -43,6 +43,11 @@ The real SPF `IioMetadataRx` adapter also passed every radio/transport/version
 combination with dual-channel IQ, capture index and time, gain sequence, and
 RSSI start/end.
 
+Unmodified clients built from the upstream v0.25 and v0.26 tags each completed
+20 ordinary refills over LAN and USB against the patched radio. Their Python
+bindings had no `MetadataBuffer`, proving that these checks used the unchanged
+legacy `OPEN`/`READBUF` path rather than the extension.
+
 ## Slow-host bounded-backlog gates
 
 Radio A was sampled once, left without another refill request for the indicated
@@ -101,7 +106,7 @@ count.
 
 ## Restart, rollback, and compatibility
 
-Radio A completed three independently identified RAM boots of the attested
+Radio A completed four independently identified RAM boots of the attested
 candidate. Candidate boots advertised `iio,buffer-metadata=1`, reported
 `libiio-metadata-v4-source/buildroot-final-v5`, and completed metadata capture.
 Each reboot into persistent firmware restored `buildroot-final-v2`.
