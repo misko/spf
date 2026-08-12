@@ -145,7 +145,7 @@ def test_iio_metadata_adapter_reuses_pyadi_iq_and_returns_capture_time(monkeypat
     signal, parsed, capture_time = receiver.capture()
 
     assert fake_sdr.ordinary_buffer_creations == 1
-    assert len(signal) == 2
+    assert signal.shape == (2, 1024)
     assert parsed == metadata
     assert parsed.buffer_sequence == 3
     assert capture_time["sample_time_valid"] is True

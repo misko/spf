@@ -5,6 +5,8 @@ from __future__ import annotations
 import gc
 import time
 
+import numpy as np
+
 from spf.direct_radio.sample_clock import (
     DEFAULT_SAMPLE_CLOCK_RATE_TOLERANCE_PPM,
     HostTimeAnchorMeasurement,
@@ -109,7 +111,9 @@ class IioMetadataRx:
 
         if self._buffer is None:
             raise RuntimeError("IIO metadata RX is not open")
-        signal_matrix = self._sdr.rx()
+        signal_matrix = np.vstack(self._sdr.rx()).astype(np.complex64, copy=False)
+        if signal_matrix.shape != (2, self._samples_per_channel):
+            raise RuntimeError("pyadi IQ shape does not match dual-channel metadata")
         raw_metadata = self._buffer.metadata
         if raw_metadata is None:
             raise RuntimeError("metadata buffer refill returned no metadata")
