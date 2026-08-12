@@ -1,0 +1,237 @@
+{
+  "status": "pass",
+  "started_unix_ns": 1786545502930952965,
+  "serial": "1040007c4a94000211000b009186843ef2",
+  "ip_uri": "ip:192.168.1.185",
+  "usb_uri": "usb:1.46.5",
+  "attenuation_db": 30.0,
+  "sample_rate_hz": 3000000,
+  "samples_per_channel": 65536,
+  "frames_per_session": 2,
+  "kernel_buffers": 2,
+  "epochs": 2,
+  "los_hz": [
+    915000000
+  ],
+  "bandwidths_hz": [
+    1500000
+  ],
+  "sessions": [
+    {
+      "uri": "ip:192.168.1.185",
+      "serial": "1040007c4a94000211000b009186843ef2",
+      "requested": {
+        "lo_hz": 915000000,
+        "bandwidth_hz": 1500000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 1500000,
+        "tx_bandwidth_hz": 1500000,
+        "rx_lo_hz": 915000000,
+        "tx_lo_hz": 915000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 2.385548396006925,
+      "tx_arm_attempt_count": 1,
+      "prime_tone_snr_db": [
+        29.54955510390294,
+        29.29534879001698
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 1644531815,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            67.5,
+            67.75
+          ],
+          "rssi_db_end": [
+            67.5,
+            67.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.83667153835,
+          "tone_frequency_error_hz": 20.8366715383454,
+          "tone_dbfs": [
+            -31.48147534330766,
+            -31.910347977922207
+          ],
+          "tone_snr_db": [
+            29.572929746446054,
+            29.33077342286147
+          ],
+          "coherence": 0.9999997833560882,
+          "within_capture_phase_std_deg": 0.021050175486258454,
+          "capture_time_ns": 1786545505195023697,
+          "capture_time_uncertainty_ns": 563101
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 1644597351,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            67.5,
+            67.75
+          ],
+          "rssi_db_end": [
+            67.5,
+            67.75
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.84364498814,
+          "tone_frequency_error_hz": 20.843644988141023,
+          "tone_dbfs": [
+            -31.485453255474624,
+            -31.914763416781945
+          ],
+          "tone_snr_db": [
+            29.576187250956597,
+            29.344007248369877
+          ],
+          "coherence": 0.9999997419549623,
+          "within_capture_phase_std_deg": 0.0175867349983811,
+          "capture_time_ns": 1786545505216842171,
+          "capture_time_uncertainty_ns": 593340
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 0,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.46.5",
+      "serial": "1040007c4a94000211000b009186843ef2",
+      "requested": {
+        "lo_hz": 915000000,
+        "bandwidth_hz": 1500000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 1500000,
+        "tx_bandwidth_hz": 1500000,
+        "rx_lo_hz": 915000000,
+        "tx_lo_hz": 915000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 1.7094588070031023,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        29.6002563328722,
+        29.322508060179953
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 1650778965,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            67.5,
+            67.75
+          ],
+          "rssi_db_end": [
+            67.5,
+            67.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.88160487518,
+          "tone_frequency_error_hz": 20.88160487517598,
+          "tone_dbfs": [
+            -31.466408988955003,
+            -31.894943043539104
+          ],
+          "tone_snr_db": [
+            29.58343102013093,
+            29.42107505936642
+          ],
+          "coherence": 0.9999997537830523,
+          "within_capture_phase_std_deg": 0.007722074216579969,
+          "capture_time_ns": 1786545506979984710,
+          "capture_time_uncertainty_ns": 521725
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 1650844501,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            67.5,
+            67.75
+          ],
+          "rssi_db_end": [
+            67.5,
+            67.75
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.8826840528,
+          "tone_frequency_error_hz": 20.882684052805416,
+          "tone_dbfs": [
+            -31.464755346423793,
+            -31.890410631921327
+          ],
+          "tone_snr_db": [
+            29.613633734895078,
+            29.449779531804587
+          ],
+          "coherence": 0.9999996650546286,
+          "within_capture_phase_std_deg": 0.02487210196156124,
+          "capture_time_ns": 1786545507001828074,
+          "capture_time_uncertainty_ns": 527889
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 1,
+      "cell": 0,
+      "transport": "usb"
+    }
+  ],
+  "recovered_attempt_failures": [],
+  "finished_unix_ns": 1786545507295584588,
+  "summary": {
+    "session_count": 2,
+    "frame_count": 4,
+    "recovered_attempt_failure_count": 0,
+    "maximum_session_attempts": 1,
+    "maximum_tx_arm_attempts": 2,
+    "tx_rearm_session_count": 1,
+    "transport_sessions": {
+      "ip": 1,
+      "usb": 1
+    },
+    "minimum_tone_snr_db": 29.33077342286147,
+    "minimum_tone_dbfs": -31.914763416781945,
+    "minimum_coherence": 0.9999996650546286,
+    "maximum_phase_std_deg": 0.02487210196156124,
+    "maximum_frequency_error_hz": 20.882684052805416,
+    "maximum_capture_time_uncertainty_ms": 0.59334
+  }
+}

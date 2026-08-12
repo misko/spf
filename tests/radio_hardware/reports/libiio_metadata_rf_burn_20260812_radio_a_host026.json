@@ -1,0 +1,3072 @@
+{
+  "status": "pass",
+  "started_unix_ns": 1786545337373470199,
+  "serial": "104000bac4950008230026001b440a003a",
+  "ip_uri": "ip:192.168.1.184",
+  "usb_uri": "usb:1.41.5",
+  "attenuation_db": 30.0,
+  "sample_rate_hz": 3000000,
+  "samples_per_channel": 65536,
+  "frames_per_session": 4,
+  "kernel_buffers": 2,
+  "epochs": 1,
+  "los_hz": [
+    868000000,
+    915000000,
+    1280000000,
+    2412000000,
+    4000000000,
+    5804000000
+  ],
+  "bandwidths_hz": [
+    800000,
+    1500000,
+    3000000
+  ],
+  "sessions": [
+    {
+      "uri": "ip:192.168.1.184",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 4000000000,
+        "bandwidth_hz": 1500000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 1500000,
+        "tx_bandwidth_hz": 1500000,
+        "rx_lo_hz": 4000000000,
+        "tx_lo_hz": 4000000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 1.4759357659931993,
+      "tx_arm_attempt_count": 1,
+      "prime_tone_snr_db": [
+        22.753857582321828,
+        21.559653110151192
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14014599972,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.82815096824,
+          "tone_frequency_error_hz": 20.82815096824197,
+          "tone_dbfs": [
+            -41.276680359593854,
+            -42.327382860044395
+          ],
+          "tone_snr_db": [
+            22.77152835099728,
+            21.548156617357495
+          ],
+          "coherence": 0.9999982078857709,
+          "within_capture_phase_std_deg": 0.07080557553975743,
+          "capture_time_ns": 1786545338496974356,
+          "capture_time_uncertainty_ns": 528316
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14014665508,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87462633103,
+          "tone_frequency_error_hz": 20.874626331031322,
+          "tone_dbfs": [
+            -41.27989809349495,
+            -42.32859286558855
+          ],
+          "tone_snr_db": [
+            22.82688323270028,
+            21.60970984217562
+          ],
+          "coherence": 0.9999979234795553,
+          "within_capture_phase_std_deg": 0.04704952699931945,
+          "capture_time_ns": 1786545338518802874,
+          "capture_time_uncertainty_ns": 548980
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14015124260,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.9103724125,
+          "tone_frequency_error_hz": 20.9103724125016,
+          "tone_dbfs": [
+            -41.280245551519286,
+            -42.334077554522864
+          ],
+          "tone_snr_db": [
+            22.875390997228422,
+            21.600907053687624
+          ],
+          "coherence": 0.9999982489056976,
+          "within_capture_phase_std_deg": 0.0681376639072636,
+          "capture_time_ns": 1786545338671671873,
+          "capture_time_uncertainty_ns": 557092
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14015451940,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87803242862,
+          "tone_frequency_error_hz": 20.878032428619917,
+          "tone_dbfs": [
+            -41.28243790454288,
+            -42.34406059801628
+          ],
+          "tone_snr_db": [
+            22.925732343611372,
+            21.745702951359014
+          ],
+          "coherence": 0.9999982759629149,
+          "within_capture_phase_std_deg": 0.06336503238583817,
+          "capture_time_ns": 1786545338780887330,
+          "capture_time_uncertainty_ns": 560154
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 0,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.41.5",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 1280000000,
+        "bandwidth_hz": 3000000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 3000000,
+        "tx_bandwidth_hz": 3000000,
+        "rx_lo_hz": 1280000000,
+        "tx_lo_hz": 1280000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 1.6164751030009938,
+      "tx_arm_attempt_count": 1,
+      "prime_tone_snr_db": [
+        26.904819306599673,
+        26.73118815796426
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14020626952,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            70.0
+          ],
+          "rssi_db_end": [
+            69.75,
+            70.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.89474019877,
+          "tone_frequency_error_hz": 20.894740198767977,
+          "tone_dbfs": [
+            -34.016461678776544,
+            -34.18081038624222
+          ],
+          "tone_snr_db": [
+            27.001868994284635,
+            26.82694598131739
+          ],
+          "coherence": 0.9999993064330578,
+          "within_capture_phase_std_deg": 0.03861356375736201,
+          "capture_time_ns": 1786545340156881033,
+          "capture_time_uncertainty_ns": 533889
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14020692488,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            70.0
+          ],
+          "rssi_db_end": [
+            69.75,
+            70.0
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.85445174814,
+          "tone_frequency_error_hz": 20.854451748135034,
+          "tone_dbfs": [
+            -34.01831360994076,
+            -34.18373819646145
+          ],
+          "tone_snr_db": [
+            26.939294217134304,
+            26.752474512106016
+          ],
+          "coherence": 0.9999993516176772,
+          "within_capture_phase_std_deg": 0.03474453241490749,
+          "capture_time_ns": 1786545340178722183,
+          "capture_time_uncertainty_ns": 556118
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14021151240,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            70.0
+          ],
+          "rssi_db_end": [
+            69.75,
+            70.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.8511264302,
+          "tone_frequency_error_hz": 20.851126430206932,
+          "tone_dbfs": [
+            -34.017701546578,
+            -34.182308242129025
+          ],
+          "tone_snr_db": [
+            26.9573906382545,
+            26.72702172793352
+          ],
+          "coherence": 0.9999995393644288,
+          "within_capture_phase_std_deg": 0.028553542137369117,
+          "capture_time_ns": 1786545340331613336,
+          "capture_time_uncertainty_ns": 552048
+        },
+        {
+          "buffer_sequence": 14,
+          "first_sample_sequence": 14021544456,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            70.0
+          ],
+          "rssi_db_end": [
+            69.75,
+            70.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87440949526,
+          "tone_frequency_error_hz": 20.87440949525626,
+          "tone_dbfs": [
+            -34.01670811433825,
+            -34.185412790699374
+          ],
+          "tone_snr_db": [
+            26.96892360573412,
+            26.772672450949507
+          ],
+          "coherence": 0.9999996930214509,
+          "within_capture_phase_std_deg": 0.018168141652223,
+          "capture_time_ns": 1786545340462660136,
+          "capture_time_uncertainty_ns": 590445
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 1,
+      "transport": "usb"
+    },
+    {
+      "uri": "ip:192.168.1.184",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 5804000000,
+        "bandwidth_hz": 1500000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 1500000,
+        "tx_bandwidth_hz": 1500000,
+        "rx_lo_hz": 5803999998,
+        "tx_lo_hz": 5803999998,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 3.070446687997901,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        26.379238523336813,
+        25.34781173184701
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14034524568,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.8765411865,
+          "tone_frequency_error_hz": 20.876541186502436,
+          "tone_dbfs": [
+            -39.08860942511903,
+            -40.53082275504096
+          ],
+          "tone_snr_db": [
+            26.675619679425047,
+            25.63055922063321
+          ],
+          "coherence": 0.999999548195166,
+          "within_capture_phase_std_deg": 0.03441553827267673,
+          "capture_time_ns": 1786545343334279327,
+          "capture_time_uncertainty_ns": 608655
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14034590104,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.86503695828,
+          "tone_frequency_error_hz": 20.865036958275596,
+          "tone_dbfs": [
+            -39.0884957645918,
+            -40.53021445135792
+          ],
+          "tone_snr_db": [
+            26.836706462260512,
+            25.796728816381005
+          ],
+          "coherence": 0.9999990050821876,
+          "within_capture_phase_std_deg": 0.05318567820520924,
+          "capture_time_ns": 1786545343356115698,
+          "capture_time_uncertainty_ns": 633085
+        },
+        {
+          "buffer_sequence": 7,
+          "first_sample_sequence": 14034983320,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.94739784364,
+          "tone_frequency_error_hz": 20.947397843643557,
+          "tone_dbfs": [
+            -39.095037192021124,
+            -40.53321418569866
+          ],
+          "tone_snr_db": [
+            26.89770813368888,
+            25.830372693720058
+          ],
+          "coherence": 0.9999991305930197,
+          "within_capture_phase_std_deg": 0.049624362369803464,
+          "capture_time_ns": 1786545343487140909,
+          "capture_time_uncertainty_ns": 621304
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14035376536,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.93274739779,
+          "tone_frequency_error_hz": 20.93274739779008,
+          "tone_dbfs": [
+            -39.09799183511704,
+            -40.533934300705674
+          ],
+          "tone_snr_db": [
+            26.809592075608194,
+            25.821486997481248
+          ],
+          "coherence": 0.9999993840237122,
+          "within_capture_phase_std_deg": 0.043115539076362154,
+          "capture_time_ns": 1786545343618186415,
+          "capture_time_uncertainty_ns": 622915
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 2,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.41.5",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 915000000,
+        "bandwidth_hz": 3000000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 3000000,
+        "tx_bandwidth_hz": 3000000,
+        "rx_lo_hz": 915000000,
+        "tx_lo_hz": 915000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 2.1582055500039132,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        29.45141096133863,
+        28.858238964375325
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14042555448,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.25,
+            66.75
+          ],
+          "rssi_db_end": [
+            66.25,
+            66.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.88166305076,
+          "tone_frequency_error_hz": 20.881663050764473,
+          "tone_dbfs": [
+            -30.525535953723466,
+            -30.89937846456818
+          ],
+          "tone_snr_db": [
+            29.75122011784346,
+            29.374301418044418
+          ],
+          "coherence": 0.9999997120742816,
+          "within_capture_phase_std_deg": 0.022997977148583582,
+          "capture_time_ns": 1786545345536938566,
+          "capture_time_uncertainty_ns": 507984
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14042620984,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.25,
+            66.75
+          ],
+          "rssi_db_end": [
+            66.25,
+            66.75
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.84855191322,
+          "tone_frequency_error_hz": 20.848551913222764,
+          "tone_dbfs": [
+            -30.527586546238258,
+            -30.90047686723075
+          ],
+          "tone_snr_db": [
+            29.614639502221507,
+            29.32764880416049
+          ],
+          "coherence": 0.9999997104047904,
+          "within_capture_phase_std_deg": 0.02811791632735308,
+          "capture_time_ns": 1786545345558777359,
+          "capture_time_uncertainty_ns": 575909
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14043079736,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.25,
+            66.75
+          ],
+          "rssi_db_end": [
+            66.25,
+            66.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.85985139475,
+          "tone_frequency_error_hz": 20.859851394750876,
+          "tone_dbfs": [
+            -30.52319945416557,
+            -30.899609247579193
+          ],
+          "tone_snr_db": [
+            29.691027356949157,
+            29.394376992912584
+          ],
+          "coherence": 0.9999998807738741,
+          "within_capture_phase_std_deg": 0.013753098099117834,
+          "capture_time_ns": 1786545345711662735,
+          "capture_time_uncertainty_ns": 571545
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14043407416,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.25,
+            66.75
+          ],
+          "rssi_db_end": [
+            66.25,
+            66.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86729877825,
+          "tone_frequency_error_hz": 20.86729877824837,
+          "tone_dbfs": [
+            -30.524308604552644,
+            -30.89978391842479
+          ],
+          "tone_snr_db": [
+            29.69840651243412,
+            29.358390693438473
+          ],
+          "coherence": 0.9999997323790025,
+          "within_capture_phase_std_deg": 0.02001527849280075,
+          "capture_time_ns": 1786545345820878409,
+          "capture_time_uncertainty_ns": 579120
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 3,
+      "transport": "usb"
+    },
+    {
+      "uri": "ip:192.168.1.184",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 5804000000,
+        "bandwidth_hz": 3000000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 3000000,
+        "tx_bandwidth_hz": 3000000,
+        "rx_lo_hz": 5803999998,
+        "tx_lo_hz": 5803999998,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 3.1916532309987815,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        27.001707316945904,
+        25.729384396286985
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14057204151,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.82180029259,
+          "tone_frequency_error_hz": 20.821800292585976,
+          "tone_dbfs": [
+            -39.07465427034026,
+            -40.527034141989816
+          ],
+          "tone_snr_db": [
+            26.626451123983955,
+            25.47183818233432
+          ],
+          "coherence": 0.9999991093803825,
+          "within_capture_phase_std_deg": 0.03999063915926563,
+          "capture_time_ns": 1786545348827711636,
+          "capture_time_uncertainty_ns": 719214
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14057269687,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.8244865276,
+          "tone_frequency_error_hz": 20.824486527606496,
+          "tone_dbfs": [
+            -39.07494802499197,
+            -40.52650816716623
+          ],
+          "tone_snr_db": [
+            26.726704595596278,
+            25.55806366280244
+          ],
+          "coherence": 0.9999992584436781,
+          "within_capture_phase_std_deg": 0.04253400838584707,
+          "capture_time_ns": 1786545348849531075,
+          "capture_time_uncertainty_ns": 732152
+        },
+        {
+          "buffer_sequence": 7,
+          "first_sample_sequence": 14057662903,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.92404667314,
+          "tone_frequency_error_hz": 20.924046673142584,
+          "tone_dbfs": [
+            -39.0811541366081,
+            -40.54062134398313
+          ],
+          "tone_snr_db": [
+            27.059544221628805,
+            25.898099327042885
+          ],
+          "coherence": 0.9999990535191435,
+          "within_capture_phase_std_deg": 0.04275588124112329,
+          "capture_time_ns": 1786545348980559267,
+          "capture_time_uncertainty_ns": 732910
+        },
+        {
+          "buffer_sequence": 12,
+          "first_sample_sequence": 14057990583,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.83242141525,
+          "tone_frequency_error_hz": 20.83242141525261,
+          "tone_dbfs": [
+            -39.08860907232505,
+            -40.54640195598728
+          ],
+          "tone_snr_db": [
+            26.921170075333663,
+            25.69896327027568
+          ],
+          "coherence": 0.9999988263436609,
+          "within_capture_phase_std_deg": 0.05539648761440615,
+          "capture_time_ns": 1786545349089773777,
+          "capture_time_uncertainty_ns": 732126
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 4,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.41.5",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 1280000000,
+        "bandwidth_hz": 1500000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 1500000,
+        "tx_bandwidth_hz": 1500000,
+        "rx_lo_hz": 1280000000,
+        "tx_lo_hz": 1280000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 2.7238028169958852,
+      "tx_arm_attempt_count": 1,
+      "prime_tone_snr_db": [
+        28.02037475648076,
+        27.820285317869402
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14069859741,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            69.75
+          ],
+          "rssi_db_end": [
+            69.75,
+            69.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.88395700757,
+          "tone_frequency_error_hz": 20.883957007565186,
+          "tone_dbfs": [
+            -33.71324436862161,
+            -33.838967835980974
+          ],
+          "tone_snr_db": [
+            28.155947938078015,
+            28.013617741429975
+          ],
+          "coherence": 0.9999998217749172,
+          "within_capture_phase_std_deg": 0.023450734518813257,
+          "capture_time_ns": 1786545351587018350,
+          "capture_time_uncertainty_ns": 562773
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14069925277,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            69.75
+          ],
+          "rssi_db_end": [
+            69.75,
+            69.75
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.85140205274,
+          "tone_frequency_error_hz": 20.851402052736375,
+          "tone_dbfs": [
+            -33.71468463250294,
+            -33.84152051112121
+          ],
+          "tone_snr_db": [
+            27.948384813972687,
+            27.814491848576065
+          ],
+          "coherence": 0.9999995655089468,
+          "within_capture_phase_std_deg": 0.02984440473291308,
+          "capture_time_ns": 1786545351608860916,
+          "capture_time_uncertainty_ns": 567476
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14070384029,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            69.75
+          ],
+          "rssi_db_end": [
+            69.75,
+            69.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86599871007,
+          "tone_frequency_error_hz": 20.865998710069107,
+          "tone_dbfs": [
+            -33.71677864389276,
+            -33.84022544082276
+          ],
+          "tone_snr_db": [
+            28.057535894480754,
+            27.903642015168046
+          ],
+          "coherence": 0.9999995614755441,
+          "within_capture_phase_std_deg": 0.027243715735464278,
+          "capture_time_ns": 1786545351761759199,
+          "capture_time_uncertainty_ns": 569953
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14070711709,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            69.75
+          ],
+          "rssi_db_end": [
+            69.75,
+            69.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87585665478,
+          "tone_frequency_error_hz": 20.875856654776726,
+          "tone_dbfs": [
+            -33.71471799529822,
+            -33.84208841844621
+          ],
+          "tone_snr_db": [
+            28.043250418019653,
+            27.873129097530565
+          ],
+          "coherence": 0.9999994010566194,
+          "within_capture_phase_std_deg": 0.033949244002435715,
+          "capture_time_ns": 1786545351870955027,
+          "capture_time_uncertainty_ns": 659532
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 5,
+      "transport": "usb"
+    },
+    {
+      "uri": "ip:192.168.1.184",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 868000000,
+        "bandwidth_hz": 800000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 800000,
+        "tx_bandwidth_hz": 800000,
+        "rx_lo_hz": 867999998,
+        "tx_lo_hz": 867999998,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 1.582559432994458,
+      "tx_arm_attempt_count": 1,
+      "prime_tone_snr_db": [
+        21.798026021588296,
+        26.661632932661306
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14076112895,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.0
+          ],
+          "rssi_db_end": [
+            66.0,
+            66.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.88198458358,
+          "tone_frequency_error_hz": 20.88198458358238,
+          "tone_dbfs": [
+            -30.36662588814377,
+            -30.33700613185446
+          ],
+          "tone_snr_db": [
+            21.673948438100123,
+            26.80629801637577
+          ],
+          "coherence": 0.9999997665482249,
+          "within_capture_phase_std_deg": 0.022017427313752856,
+          "capture_time_ns": 1786545353261490254,
+          "capture_time_uncertainty_ns": 512597
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14076178431,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.0
+          ],
+          "rssi_db_end": [
+            66.0,
+            66.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87491053861,
+          "tone_frequency_error_hz": 20.874910538608674,
+          "tone_dbfs": [
+            -30.365861023998914,
+            -30.33636678946511
+          ],
+          "tone_snr_db": [
+            21.706116722360335,
+            26.770255252090273
+          ],
+          "coherence": 0.9999997282081672,
+          "within_capture_phase_std_deg": 0.02784270816128418,
+          "capture_time_ns": 1786545353283316096,
+          "capture_time_uncertainty_ns": 511517
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14076637183,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.0
+          ],
+          "rssi_db_end": [
+            66.0,
+            66.0
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.85908369755,
+          "tone_frequency_error_hz": 20.859083697549067,
+          "tone_dbfs": [
+            -30.359952466865185,
+            -30.3353714269372
+          ],
+          "tone_snr_db": [
+            21.71477189109686,
+            26.754485883943655
+          ],
+          "coherence": 0.9999998444085448,
+          "within_capture_phase_std_deg": 0.017076490761159274,
+          "capture_time_ns": 1786545353436180366,
+          "capture_time_uncertainty_ns": 540604
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14076964863,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.0
+          ],
+          "rssi_db_end": [
+            66.0,
+            66.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86575330756,
+          "tone_frequency_error_hz": 20.865753307560226,
+          "tone_dbfs": [
+            -30.363639124440063,
+            -30.33568054229182
+          ],
+          "tone_snr_db": [
+            21.66489546634315,
+            26.771974957818063
+          ],
+          "coherence": 0.9999997288655965,
+          "within_capture_phase_std_deg": 0.02853014332457341,
+          "capture_time_ns": 1786545353545394613,
+          "capture_time_uncertainty_ns": 554808
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 6,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.41.5",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 915000000,
+        "bandwidth_hz": 800000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 800000,
+        "tx_bandwidth_hz": 800000,
+        "rx_lo_hz": 915000000,
+        "tx_lo_hz": 915000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 2.1945410030020867,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        30.289315123025155,
+        29.761505421560027
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14084451961,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.75,
+            67.0
+          ],
+          "rssi_db_end": [
+            66.75,
+            67.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.85173422698,
+          "tone_frequency_error_hz": 20.851734226976987,
+          "tone_dbfs": [
+            -30.89593671878049,
+            -31.140586421804954
+          ],
+          "tone_snr_db": [
+            31.09902079855622,
+            30.78356937353842
+          ],
+          "coherence": 0.9999997977942778,
+          "within_capture_phase_std_deg": 0.021199110873694586,
+          "capture_time_ns": 1786545355517099308,
+          "capture_time_uncertainty_ns": 503293
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14084517497,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.75,
+            67.0
+          ],
+          "rssi_db_end": [
+            66.75,
+            67.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86077777285,
+          "tone_frequency_error_hz": 20.86077777284663,
+          "tone_dbfs": [
+            -30.898943909340385,
+            -31.141722284253742
+          ],
+          "tone_snr_db": [
+            31.065788288960555,
+            30.92170021585334
+          ],
+          "coherence": 0.9999996971034355,
+          "within_capture_phase_std_deg": 0.023621936329251473,
+          "capture_time_ns": 1786545355538935903,
+          "capture_time_uncertainty_ns": 592308
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14084976249,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.75,
+            67.0
+          ],
+          "rssi_db_end": [
+            66.75,
+            67.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86864533831,
+          "tone_frequency_error_hz": 20.86864533831249,
+          "tone_dbfs": [
+            -30.896933352484698,
+            -31.141318843848996
+          ],
+          "tone_snr_db": [
+            31.115897647678747,
+            30.960915614278143
+          ],
+          "coherence": 0.9999998712761353,
+          "within_capture_phase_std_deg": 0.017100991953400226,
+          "capture_time_ns": 1786545355691810711,
+          "capture_time_uncertainty_ns": 629249
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14085303929,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.75,
+            67.0
+          ],
+          "rssi_db_end": [
+            66.75,
+            67.0
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.86433013201,
+          "tone_frequency_error_hz": 20.864330132011673,
+          "tone_dbfs": [
+            -30.904110600295756,
+            -31.147359151785423
+          ],
+          "tone_snr_db": [
+            31.098557572903655,
+            30.923213054973672
+          ],
+          "coherence": 0.9999998940540472,
+          "within_capture_phase_std_deg": 0.015997612211007307,
+          "capture_time_ns": 1786545355801025706,
+          "capture_time_uncertainty_ns": 641404
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 7,
+      "transport": "usb"
+    },
+    {
+      "uri": "ip:192.168.1.184",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 915000000,
+        "bandwidth_hz": 1500000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 1500000,
+        "tx_bandwidth_hz": 1500000,
+        "rx_lo_hz": 915000000,
+        "tx_lo_hz": 915000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 1.5451570360019105,
+      "tx_arm_attempt_count": 1,
+      "prime_tone_snr_db": [
+        29.845819484957357,
+        29.38245870600245
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14090537453,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.75,
+            67.5
+          ],
+          "rssi_db_end": [
+            66.75,
+            67.5
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86560427537,
+          "tone_frequency_error_hz": 20.86560427537188,
+          "tone_dbfs": [
+            -30.9605612622251,
+            -31.41440614482015
+          ],
+          "tone_snr_db": [
+            29.988902163257602,
+            29.654776424236722
+          ],
+          "coherence": 0.999999790205899,
+          "within_capture_phase_std_deg": 0.02118784357248969,
+          "capture_time_ns": 1786545357152378851,
+          "capture_time_uncertainty_ns": 513779
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14090602989,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.75,
+            67.5
+          ],
+          "rssi_db_end": [
+            66.75,
+            67.5
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.85175528919,
+          "tone_frequency_error_hz": 20.851755289186258,
+          "tone_dbfs": [
+            -30.961853601697293,
+            -31.414829364232638
+          ],
+          "tone_snr_db": [
+            30.05281876343893,
+            29.668977375669307
+          ],
+          "coherence": 0.9999996211354865,
+          "within_capture_phase_std_deg": 0.027340767467276903,
+          "capture_time_ns": 1786545357174203287,
+          "capture_time_uncertainty_ns": 544019
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14091061741,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.75,
+            67.5
+          ],
+          "rssi_db_end": [
+            66.75,
+            67.5
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87085163177,
+          "tone_frequency_error_hz": 20.870851631771075,
+          "tone_dbfs": [
+            -30.96103585875437,
+            -31.41444722608898
+          ],
+          "tone_snr_db": [
+            30.099125509814463,
+            29.793098794497528
+          ],
+          "coherence": 0.9999996535599579,
+          "within_capture_phase_std_deg": 0.031772945236219666,
+          "capture_time_ns": 1786545357327069164,
+          "capture_time_uncertainty_ns": 554755
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14091389421,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.75,
+            67.5
+          ],
+          "rssi_db_end": [
+            66.75,
+            67.5
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.85810184678,
+          "tone_frequency_error_hz": 20.85810184678121,
+          "tone_dbfs": [
+            -30.95928867882503,
+            -31.413940962802652
+          ],
+          "tone_snr_db": [
+            30.113070800979422,
+            29.729286678721294
+          ],
+          "coherence": 0.9999996126406057,
+          "within_capture_phase_std_deg": 0.033732323367458954,
+          "capture_time_ns": 1786545357436263727,
+          "capture_time_uncertainty_ns": 594263
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 8,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.41.5",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 2412000000,
+        "bandwidth_hz": 3000000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 3000000,
+        "tx_bandwidth_hz": 3000000,
+        "rx_lo_hz": 2412000000,
+        "tx_lo_hz": 2412000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 2.2062969310063636,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        26.4907623071026,
+        26.19718208371527
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14098717055,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.5
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.85994594262,
+          "tone_frequency_error_hz": 20.85994594261865,
+          "tone_dbfs": [
+            -36.37596481867403,
+            -36.8254761531941
+          ],
+          "tone_snr_db": [
+            26.588527707376212,
+            26.184531347297685
+          ],
+          "coherence": 0.999999669717177,
+          "within_capture_phase_std_deg": 0.01806322751613969,
+          "capture_time_ns": 1786545359417118152,
+          "capture_time_uncertainty_ns": 521858
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14098782591,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.5
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86818017707,
+          "tone_frequency_error_hz": 20.868180177072645,
+          "tone_dbfs": [
+            -36.3771507967588,
+            -36.82651295963073
+          ],
+          "tone_snr_db": [
+            26.52718968712371,
+            26.216278293684276
+          ],
+          "coherence": 0.9999985928681016,
+          "within_capture_phase_std_deg": 0.06219692536607305,
+          "capture_time_ns": 1786545359438956162,
+          "capture_time_uncertainty_ns": 619653
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14099241343,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.75
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.5
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87136919747,
+          "tone_frequency_error_hz": 20.871369197469903,
+          "tone_dbfs": [
+            -36.37292261709811,
+            -36.8284576700895
+          ],
+          "tone_snr_db": [
+            26.6061403561099,
+            26.192637481363388
+          ],
+          "coherence": 0.999999424921429,
+          "within_capture_phase_std_deg": 0.033683818037621764,
+          "capture_time_ns": 1786545359591840111,
+          "capture_time_uncertainty_ns": 628774
+        },
+        {
+          "buffer_sequence": 14,
+          "first_sample_sequence": 14099634559,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.75
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.85642120961,
+          "tone_frequency_error_hz": 20.856421209609834,
+          "tone_dbfs": [
+            -36.37486157486344,
+            -36.832802514448446
+          ],
+          "tone_snr_db": [
+            26.675466568852645,
+            26.26141562172187
+          ],
+          "coherence": 0.9999991526692614,
+          "within_capture_phase_std_deg": 0.038465378856647185,
+          "capture_time_ns": 1786545359722901234,
+          "capture_time_uncertainty_ns": 639300
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 9,
+      "transport": "usb"
+    },
+    {
+      "uri": "ip:192.168.1.184",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 1280000000,
+        "bandwidth_hz": 800000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 800000,
+        "tx_bandwidth_hz": 800000,
+        "rx_lo_hz": 1280000000,
+        "tx_lo_hz": 1280000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 3.2684530970000196,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        29.031760656162582,
+        28.809736299192856
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14113830644,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            69.75
+          ],
+          "rssi_db_end": [
+            69.75,
+            69.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.89988822705,
+          "tone_frequency_error_hz": 20.899888227053452,
+          "tone_dbfs": [
+            -33.701142150408934,
+            -33.83464508901117
+          ],
+          "tone_snr_db": [
+            29.36388331396985,
+            29.232780828501518
+          ],
+          "coherence": 0.9999993216307828,
+          "within_capture_phase_std_deg": 0.034356344219023505,
+          "capture_time_ns": 1786545362782507382,
+          "capture_time_uncertainty_ns": 552983
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14113896180,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            69.75
+          ],
+          "rssi_db_end": [
+            69.5,
+            69.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86908681924,
+          "tone_frequency_error_hz": 20.869086819235235,
+          "tone_dbfs": [
+            -33.70071743359777,
+            -33.83515716643335
+          ],
+          "tone_snr_db": [
+            29.25738334082422,
+            29.100970817892076
+          ],
+          "coherence": 0.9999993377792252,
+          "within_capture_phase_std_deg": 0.042006865804927504,
+          "capture_time_ns": 1786545362804337488,
+          "capture_time_uncertainty_ns": 560295
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14114354932,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            69.75
+          ],
+          "rssi_db_end": [
+            69.75,
+            69.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87089669691,
+          "tone_frequency_error_hz": 20.870896696913405,
+          "tone_dbfs": [
+            -33.70484196969347,
+            -33.83597825868762
+          ],
+          "tone_snr_db": [
+            29.270497533260603,
+            29.1408943228952
+          ],
+          "coherence": 0.9999993440605495,
+          "within_capture_phase_std_deg": 0.02700606287500135,
+          "capture_time_ns": 1786545362957210592,
+          "capture_time_uncertainty_ns": 558048
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14114682612,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            69.75,
+            69.75
+          ],
+          "rssi_db_end": [
+            69.75,
+            69.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87389531304,
+          "tone_frequency_error_hz": 20.873895313037792,
+          "tone_dbfs": [
+            -33.70495057031475,
+            -33.83956300687417
+          ],
+          "tone_snr_db": [
+            29.291718760248557,
+            29.232892188842765
+          ],
+          "coherence": 0.9999990219507493,
+          "within_capture_phase_std_deg": 0.05299888073848733,
+          "capture_time_ns": 1786545363066408518,
+          "capture_time_uncertainty_ns": 574968
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 10,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.41.5",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 5804000000,
+        "bandwidth_hz": 800000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 800000,
+        "tx_bandwidth_hz": 800000,
+        "rx_lo_hz": 5803999998,
+        "tx_lo_hz": 5803999998,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 2.3370404269953724,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        27.6935854101934,
+        26.74082296499342
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14122707004,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.98702403979,
+          "tone_frequency_error_hz": 20.987024039786775,
+          "tone_dbfs": [
+            -39.11667631049087,
+            -40.598651714130284
+          ],
+          "tone_snr_db": [
+            28.24828937565995,
+            27.006472427084034
+          ],
+          "coherence": 0.9999985584117053,
+          "within_capture_phase_std_deg": 0.06337547210524037,
+          "capture_time_ns": 1786545365177230433,
+          "capture_time_uncertainty_ns": 515137
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14122772540,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.78908087389,
+          "tone_frequency_error_hz": 20.78908087388845,
+          "tone_dbfs": [
+            -39.1193059362182,
+            -40.59764740361098
+          ],
+          "tone_snr_db": [
+            27.723084227285458,
+            26.672291807956828
+          ],
+          "coherence": 0.9999988694048187,
+          "within_capture_phase_std_deg": 0.05167071333720925,
+          "capture_time_ns": 1786545365199070508,
+          "capture_time_uncertainty_ns": 608069
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14123231292,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.9839414829,
+          "tone_frequency_error_hz": 20.9839414829039,
+          "tone_dbfs": [
+            -39.12635085779401,
+            -40.603640687262825
+          ],
+          "tone_snr_db": [
+            28.100599821578346,
+            26.97577389320589
+          ],
+          "coherence": 0.9999993061710954,
+          "within_capture_phase_std_deg": 0.03934182792333931,
+          "capture_time_ns": 1786545365351944981,
+          "capture_time_uncertainty_ns": 612283
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14123558972,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            82.75,
+            84.25
+          ],
+          "rssi_db_end": [
+            82.75,
+            84.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.83750278444,
+          "tone_frequency_error_hz": 20.83750278444495,
+          "tone_dbfs": [
+            -39.1290743017054,
+            -40.60636116766325
+          ],
+          "tone_snr_db": [
+            28.05491448049223,
+            26.98668257245634
+          ],
+          "coherence": 0.9999989108889145,
+          "within_capture_phase_std_deg": 0.05306652457675207,
+          "capture_time_ns": 1786545365461156358,
+          "capture_time_uncertainty_ns": 622209
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 11,
+      "transport": "usb"
+    },
+    {
+      "uri": "ip:192.168.1.184",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 2412000000,
+        "bandwidth_hz": 1500000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 1500000,
+        "tx_bandwidth_hz": 1500000,
+        "rx_lo_hz": 2412000000,
+        "tx_lo_hz": 2412000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 1.5898540579946712,
+      "tx_arm_attempt_count": 1,
+      "prime_tone_snr_db": [
+        27.576962731974866,
+        27.085288045683225
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14128818968,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.75
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87111304913,
+          "tone_frequency_error_hz": 20.871113049128326,
+          "tone_dbfs": [
+            -36.374365367193555,
+            -36.84588247303175
+          ],
+          "tone_snr_db": [
+            27.522109117790386,
+            27.03525790871877
+          ],
+          "coherence": 0.9999994580331351,
+          "within_capture_phase_std_deg": 0.03763348270905045,
+          "capture_time_ns": 1786545366823923639,
+          "capture_time_uncertainty_ns": 505826
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14128884504,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.75
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.85986953018,
+          "tone_frequency_error_hz": 20.859869530177093,
+          "tone_dbfs": [
+            -36.37226752836055,
+            -36.84457633918284
+          ],
+          "tone_snr_db": [
+            27.41076110648205,
+            27.018438258694694
+          ],
+          "coherence": 0.9999989428133427,
+          "within_capture_phase_std_deg": 0.04387040773119399,
+          "capture_time_ns": 1786545366845757719,
+          "capture_time_uncertainty_ns": 566311
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14129343256,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.75
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.8456755014,
+          "tone_frequency_error_hz": 20.845675501404912,
+          "tone_dbfs": [
+            -36.370724266394056,
+            -36.845178415229626
+          ],
+          "tone_snr_db": [
+            27.40423719242345,
+            26.848276207324968
+          ],
+          "coherence": 0.9999994621441232,
+          "within_capture_phase_std_deg": 0.03244914991892745,
+          "capture_time_ns": 1786545366998605675,
+          "capture_time_uncertainty_ns": 586802
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14129670936,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.5
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.88942872516,
+          "tone_frequency_error_hz": 20.889428725160542,
+          "tone_dbfs": [
+            -36.36900764899528,
+            -36.84455120040637
+          ],
+          "tone_snr_db": [
+            27.55265104638454,
+            27.04870566173298
+          ],
+          "coherence": 0.9999997442338284,
+          "within_capture_phase_std_deg": 0.01705597718340401,
+          "capture_time_ns": 1786545367107824372,
+          "capture_time_uncertainty_ns": 606697
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 12,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.41.5",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 4000000000,
+        "bandwidth_hz": 800000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 800000,
+        "tx_bandwidth_hz": 800000,
+        "rx_lo_hz": 4000000000,
+        "tx_lo_hz": 4000000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 1.6149063210032182,
+      "tx_arm_attempt_count": 1,
+      "prime_tone_snr_db": [
+        23.814762559765352,
+        22.53472036449169
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14135044858,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86894198942,
+          "tone_frequency_error_hz": 20.868941989421728,
+          "tone_dbfs": [
+            -41.33190226587864,
+            -42.40145472021951
+          ],
+          "tone_snr_db": [
+            24.08076831793487,
+            22.77684273357672
+          ],
+          "coherence": 0.999997012794125,
+          "within_capture_phase_std_deg": 0.08155315014975284,
+          "capture_time_ns": 1786545368537234741,
+          "capture_time_uncertainty_ns": 500302
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14135110394,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.93864261045,
+          "tone_frequency_error_hz": 20.93864261044655,
+          "tone_dbfs": [
+            -41.33492113405748,
+            -42.403067344139416
+          ],
+          "tone_snr_db": [
+            24.021921034391926,
+            22.978110315777663
+          ],
+          "coherence": 0.9999983003804116,
+          "within_capture_phase_std_deg": 0.06066285931936255,
+          "capture_time_ns": 1786545368559074758,
+          "capture_time_uncertainty_ns": 502269
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14135569146,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.85452499619,
+          "tone_frequency_error_hz": 20.854524996189866,
+          "tone_dbfs": [
+            -41.33456781796154,
+            -42.398910836591774
+          ],
+          "tone_snr_db": [
+            23.95170441203151,
+            22.92846684131412
+          ],
+          "coherence": 0.9999975224530725,
+          "within_capture_phase_std_deg": 0.06487376787543687,
+          "capture_time_ns": 1786545368711970595,
+          "capture_time_uncertainty_ns": 506612
+        },
+        {
+          "buffer_sequence": 14,
+          "first_sample_sequence": 14135962362,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.8765225662,
+          "tone_frequency_error_hz": 20.876522566206404,
+          "tone_dbfs": [
+            -41.33124331091017,
+            -42.4012574304917
+          ],
+          "tone_snr_db": [
+            23.92858402914751,
+            22.639147887029132
+          ],
+          "coherence": 0.9999986289099038,
+          "within_capture_phase_std_deg": 0.05023688429783934,
+          "capture_time_ns": 1786545368843006077,
+          "capture_time_uncertainty_ns": 602552
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 13,
+      "transport": "usb"
+    },
+    {
+      "uri": "ip:192.168.1.184",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 4000000000,
+        "bandwidth_hz": 3000000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 3000000,
+        "tx_bandwidth_hz": 3000000,
+        "rx_lo_hz": 4000000000,
+        "tx_lo_hz": 4000000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 2.168383010997786,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        21.767412356928396,
+        20.68605766734146
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14143621401,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.89564335212,
+          "tone_frequency_error_hz": 20.895643352123443,
+          "tone_dbfs": [
+            -41.313678123723705,
+            -42.346682247133394
+          ],
+          "tone_snr_db": [
+            21.897389426744944,
+            20.730111287158405
+          ],
+          "coherence": 0.9999987084746845,
+          "within_capture_phase_std_deg": 0.0587650253432799,
+          "capture_time_ns": 1786545370821313843,
+          "capture_time_uncertainty_ns": 567490
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14143686937,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.81484197071,
+          "tone_frequency_error_hz": 20.814841970714042,
+          "tone_dbfs": [
+            -41.30982134236436,
+            -42.345229095166204
+          ],
+          "tone_snr_db": [
+            21.940294742100836,
+            20.722750937852407
+          ],
+          "coherence": 0.9999988817993616,
+          "within_capture_phase_std_deg": 0.048102323114878213,
+          "capture_time_ns": 1786545370843150537,
+          "capture_time_uncertainty_ns": 603060
+        },
+        {
+          "buffer_sequence": 7,
+          "first_sample_sequence": 14144080153,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87145970191,
+          "tone_frequency_error_hz": 20.87145970191341,
+          "tone_dbfs": [
+            -41.30457625548851,
+            -42.35572718093632
+          ],
+          "tone_snr_db": [
+            22.00633411573746,
+            20.73402476632681
+          ],
+          "coherence": 0.9999972804523639,
+          "within_capture_phase_std_deg": 0.05693844386185925,
+          "capture_time_ns": 1786545370974177822,
+          "capture_time_uncertainty_ns": 601105
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14144473369,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            80.0,
+            80.75
+          ],
+          "rssi_db_end": [
+            80.0,
+            80.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86043115228,
+          "tone_frequency_error_hz": 20.86043115227949,
+          "tone_dbfs": [
+            -41.3031083967263,
+            -42.361831715520914
+          ],
+          "tone_snr_db": [
+            21.955789596589284,
+            20.813826461598296
+          ],
+          "coherence": 0.999999023791276,
+          "within_capture_phase_std_deg": 0.05043621603609091,
+          "capture_time_ns": 1786545371105212895,
+          "capture_time_uncertainty_ns": 606946
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 14,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.41.5",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 2412000000,
+        "bandwidth_hz": 800000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 800000,
+        "tx_bandwidth_hz": 800000,
+        "rx_lo_hz": 2412000000,
+        "tx_lo_hz": 2412000000,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 3.315728775007301,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        28.294151963269467,
+        27.87372169195902
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14158641901,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.75
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.91755439062,
+          "tone_frequency_error_hz": 20.917554390616715,
+          "tone_dbfs": [
+            -36.41492323331035,
+            -36.88622658222507
+          ],
+          "tone_snr_db": [
+            28.460847051598602,
+            27.9983509840963
+          ],
+          "coherence": 0.9999994370554082,
+          "within_capture_phase_std_deg": 0.0367897374034802,
+          "capture_time_ns": 1786545374197545582,
+          "capture_time_uncertainty_ns": 1984654
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14158707437,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.75
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86214817212,
+          "tone_frequency_error_hz": 20.862148172120214,
+          "tone_dbfs": [
+            -36.418184916767416,
+            -36.889807372618364
+          ],
+          "tone_snr_db": [
+            28.299431831184677,
+            27.821114655824882
+          ],
+          "coherence": 0.9999995107145088,
+          "within_capture_phase_std_deg": 0.022330903072948844,
+          "capture_time_ns": 1786545374219393701,
+          "capture_time_uncertainty_ns": 1990312
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14159166189,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.75
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.84014532078,
+          "tone_frequency_error_hz": 20.840145320777083,
+          "tone_dbfs": [
+            -36.41795149568397,
+            -36.88895655945677
+          ],
+          "tone_snr_db": [
+            28.30607495701756,
+            27.858022438560937
+          ],
+          "coherence": 0.9999993571153918,
+          "within_capture_phase_std_deg": 0.037385639646851536,
+          "capture_time_ns": 1786545374372223156,
+          "capture_time_uncertainty_ns": 1991386
+        },
+        {
+          "buffer_sequence": 14,
+          "first_sample_sequence": 14159559405,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            75.0,
+            75.75
+          ],
+          "rssi_db_end": [
+            75.0,
+            75.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.90209745489,
+          "tone_frequency_error_hz": 20.90209745489119,
+          "tone_dbfs": [
+            -36.4189398831128,
+            -36.89076846195708
+          ],
+          "tone_snr_db": [
+            28.434064515214335,
+            28.03151772909097
+          ],
+          "coherence": 0.9999991168728678,
+          "within_capture_phase_std_deg": 0.04909009810800543,
+          "capture_time_ns": 1786545374503265170,
+          "capture_time_uncertainty_ns": 1994081
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 15,
+      "transport": "usb"
+    },
+    {
+      "uri": "ip:192.168.1.184",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 868000000,
+        "bandwidth_hz": 3000000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 3000000,
+        "tx_bandwidth_hz": 3000000,
+        "rx_lo_hz": 867999998,
+        "tx_lo_hz": 867999998,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 2.1585885569948005,
+      "tx_arm_attempt_count": 2,
+      "prime_tone_snr_db": [
+        29.481743107705157,
+        28.917534129323904
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14167010019,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.75
+          ],
+          "rssi_db_end": [
+            66.0,
+            66.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.88078122471,
+          "tone_frequency_error_hz": 20.880781224710518,
+          "tone_dbfs": [
+            -30.319216485935364,
+            -30.703833979554453
+          ],
+          "tone_snr_db": [
+            29.861339913934252,
+            29.553054964357315
+          ],
+          "coherence": 0.9999997327904869,
+          "within_capture_phase_std_deg": 0.026827361157591417,
+          "capture_time_ns": 1786545376465477541,
+          "capture_time_uncertainty_ns": 534238
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14167075555,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.75
+          ],
+          "rssi_db_end": [
+            66.0,
+            66.75
+          ],
+          "gain_observation_count": 3,
+          "tone_frequency_hz": 100020.8725418701,
+          "tone_frequency_error_hz": 20.872541870106943,
+          "tone_dbfs": [
+            -30.317176140150714,
+            -30.703158494779274
+          ],
+          "tone_snr_db": [
+            29.8284601933386,
+            29.492848183282096
+          ],
+          "coherence": 0.9999998549450834,
+          "within_capture_phase_std_deg": 0.017405274835580232,
+          "capture_time_ns": 1786545376487299857,
+          "capture_time_uncertainty_ns": 537961
+        },
+        {
+          "buffer_sequence": 7,
+          "first_sample_sequence": 14167468771,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.75
+          ],
+          "rssi_db_end": [
+            66.0,
+            66.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.89082217013,
+          "tone_frequency_error_hz": 20.89082217012765,
+          "tone_dbfs": [
+            -30.319304959549985,
+            -30.705131387666494
+          ],
+          "tone_snr_db": [
+            29.84951661408909,
+            29.57465109519495
+          ],
+          "coherence": 0.9999997693752768,
+          "within_capture_phase_std_deg": 0.020778311075234413,
+          "capture_time_ns": 1786545376618330338,
+          "capture_time_uncertainty_ns": 546829
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14167861987,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.75
+          ],
+          "rssi_db_end": [
+            66.0,
+            66.75
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.8811653678,
+          "tone_frequency_error_hz": 20.88116536779853,
+          "tone_dbfs": [
+            -30.32161813417811,
+            -30.7079983841318
+          ],
+          "tone_snr_db": [
+            29.85391265489863,
+            29.58942659651775
+          ],
+          "coherence": 0.9999998927243329,
+          "within_capture_phase_std_deg": 0.015310240861543135,
+          "capture_time_ns": 1786545376749376280,
+          "capture_time_uncertainty_ns": 562023
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 16,
+      "transport": "ip"
+    },
+    {
+      "uri": "usb:1.41.5",
+      "serial": "104000bac4950008230026001b440a003a",
+      "requested": {
+        "lo_hz": 868000000,
+        "bandwidth_hz": 1500000
+      },
+      "observed": {
+        "sample_rate_hz": 3000000,
+        "rx_bandwidth_hz": 1500000,
+        "tx_bandwidth_hz": 1500000,
+        "rx_lo_hz": 867999998,
+        "tx_lo_hz": 867999998,
+        "kernel_buffers": 2
+      },
+      "elapsed_seconds": 2.6389421280036913,
+      "tx_arm_attempt_count": 1,
+      "prime_tone_snr_db": [
+        23.39630828072686,
+        29.55207522910246
+      ],
+      "frames": [
+        {
+          "buffer_sequence": 0,
+          "first_sample_sequence": 14179276006,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.0
+          ],
+          "rssi_db_end": [
+            66.25,
+            66.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86766425017,
+          "tone_frequency_error_hz": 20.867664250166854,
+          "tone_dbfs": [
+            -30.395597926225992,
+            -30.390355921980724
+          ],
+          "tone_snr_db": [
+            23.397123835720475,
+            30.342140423783146
+          ],
+          "coherence": 0.9999997964661855,
+          "within_capture_phase_std_deg": 0.022213183266086154,
+          "capture_time_ns": 1786545379157569726,
+          "capture_time_uncertainty_ns": 507681
+        },
+        {
+          "buffer_sequence": 1,
+          "first_sample_sequence": 14179341542,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.25
+          ],
+          "rssi_db_end": [
+            66.25,
+            66.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.87109116573,
+          "tone_frequency_error_hz": 20.871091165725375,
+          "tone_dbfs": [
+            -30.396231255334932,
+            -30.388798634916746
+          ],
+          "tone_snr_db": [
+            23.42996807462064,
+            30.344872336124944
+          ],
+          "coherence": 0.9999998328085136,
+          "within_capture_phase_std_deg": 0.019007861170097753,
+          "capture_time_ns": 1786545379179410077,
+          "capture_time_uncertainty_ns": 536201
+        },
+        {
+          "buffer_sequence": 8,
+          "first_sample_sequence": 14179800294,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.25
+          ],
+          "rssi_db_end": [
+            66.25,
+            66.25
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86147667079,
+          "tone_frequency_error_hz": 20.86147667079058,
+          "tone_dbfs": [
+            -30.39798193090676,
+            -30.38922545435942
+          ],
+          "tone_snr_db": [
+            23.38383482757338,
+            30.390195643040773
+          ],
+          "coherence": 0.9999997718054447,
+          "within_capture_phase_std_deg": 0.009698056484994362,
+          "capture_time_ns": 1786545379332308235,
+          "capture_time_uncertainty_ns": 535633
+        },
+        {
+          "buffer_sequence": 13,
+          "first_sample_sequence": 14180127974,
+          "gain_db_start": [
+            26.0,
+            26.0
+          ],
+          "gain_db_end": [
+            26.0,
+            26.0
+          ],
+          "rssi_db_start": [
+            66.0,
+            66.25
+          ],
+          "rssi_db_end": [
+            66.25,
+            66.0
+          ],
+          "gain_observation_count": 4,
+          "tone_frequency_hz": 100020.86705828013,
+          "tone_frequency_error_hz": 20.86705828012782,
+          "tone_dbfs": [
+            -30.39581051019251,
+            -30.389755906637397
+          ],
+          "tone_snr_db": [
+            23.506395873739585,
+            30.35668236376646
+          ],
+          "coherence": 0.9999998221882224,
+          "within_capture_phase_std_deg": 0.017519026092326827,
+          "capture_time_ns": 1786545379441523683,
+          "capture_time_uncertainty_ns": 571171
+        }
+      ],
+      "attempt_count": 1,
+      "epoch": 0,
+      "cell": 17,
+      "transport": "usb"
+    }
+  ],
+  "recovered_attempt_failures": [],
+  "finished_unix_ns": 1786545379748067675,
+  "summary": {
+    "session_count": 18,
+    "frame_count": 72,
+    "recovered_attempt_failure_count": 0,
+    "maximum_session_attempts": 1,
+    "maximum_tx_arm_attempts": 2,
+    "tx_rearm_session_count": 10,
+    "transport_sessions": {
+      "ip": 9,
+      "usb": 9
+    },
+    "minimum_tone_snr_db": 20.722750937852407,
+    "minimum_tone_dbfs": -42.403067344139416,
+    "minimum_coherence": 0.999997012794125,
+    "maximum_phase_std_deg": 0.08155315014975284,
+    "maximum_frequency_error_hz": 20.987024039786775,
+    "maximum_capture_time_uncertainty_ms": 1.994081
+  }
+}
