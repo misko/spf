@@ -11,19 +11,24 @@ that constraint is gone. **13,476 frames, 26 LOs, 9 epochs, 2 radios, 100% ancho
 
 ## Recommendation, in one line
 
-**Use `L04` — a per-radio, per-arm gain lookup table — anchored in the high band, fitted on
-the rover's own two carriers. Do not deploy `L26`, `L30`, `L31` or any other rung from the
-shipped mechanistic family.**
+**Use `L24` — a per-radio, per-arm, per-frequency gain lookup table — anchored in the high
+band, fitted at the rover's own two carriers. Do not deploy `L26`, `L30`, `L31` or any other
+rung from the shipped mechanistic family.**
 
-| | shipped family (`L26`/`L30`/`L31`/`L33`) | **recommended (`L04`)** |
+| | shipped family (`L26`/`L30`/`L31`/`L33`) | **recommended (`L24`)** |
 |---|---|---|
-| shape | symmetric, `D = H(s1) − H(s2)`, one shared `H` | **arm-specific, `D = d1(g1) − d2(g2)`** |
-| scope | universal across radios | **per radio** |
-| parameters | 21–89 | **48** (2 radios × 2 arms × 12 gains) |
+| shape | symmetric, `D = H(s1) − H(s2)`, one shared `H` | **arm-specific, `D = d1(f,g1) − d2(f,g2)`** |
+| scope | universal across radios | **per radio, per carrier** |
+| parameters | 21–89 | **96** for two carriers (2 radios × 2 carriers × 2 arms × 12 gains) |
 | prospective MAE @5766 | 21.87° | **0.72°** |
 | prospective MAE @5840 | 23.63° | **0.51°** |
 | vs. no correction | **1.3×** | **39–58×** |
 | rover coverage | 0.5–5% (`l26/l30/l31_pooled_v1`) | **100%** |
+
+⚠️ **`L04` reaches the identical 0.72° / 0.51° but only if it is fitted separately per
+carrier**, because it is frequency-blind. `L24` carries the frequency index and is therefore
+immune to the pooling mistake described in [§4.2](#42-the-frequency-blind-trap). Prefer
+`L24`; treat `L04` as the same model with a footgun.
 
 ---
 
@@ -33,6 +38,8 @@ shipped mechanistic family.**
 2. [The anchor gain is the dominant design choice](#2-the-anchor-gain-is-the-dominant-design-choice)
 3. [A defect in the published support rule](#3-a-defect-in-the-published-support-rule)
 4. [Only the model's shape matters](#4-only-the-models-shape-matters)
+   - [4.1 The full ladder, all five holdout schemes](#41-the-full-ladder-all-five-holdout-schemes)
+   - [4.2 The frequency-blind trap](#42-the-frequency-blind-trap)
 5. [Does a fit go stale?](#5-does-a-fit-go-stale)
 6. [What this does not fix](#6-what-this-does-not-fix)
 7. [The recommendation in full](#7-the-recommendation-in-full)
@@ -242,6 +249,47 @@ optimisation; it is a precondition.
 
 ---
 
+## 4.1 The full ladder, all five holdout schemes
+
+The five published splits at the 62 dB anchor, on the whole 26-LO union. `L00` = 19.00° on
+unequal-gain cells throughout.
+
+| split | best rung at 100% coverage | `L26` | `L04` | `L24` |
+|---|---|---:|---:|---:|
+| **LOEO** leave-one-epoch-out | **`L24` 1.46° (13.0×)** | 16.77° (1.13×) | 14.73° (1.29×) | **1.46° (13.0×)** |
+| LOFO leave-one-frequency-out | `L20` 13.79° (1.38×) | 16.99° (1.12×) | 15.86° (1.20×) | — |
+| LOBLOCK leave-frequency-block-out | `L04` 18.05° (1.05×) | 20.04° (0.95×) | 18.05° (1.05×) | — |
+| LORO leave-one-radio-out | `L08` 16.36° (1.16×) | 20.48° (**0.93×**) | 0% coverage | 0% coverage |
+| LOBAND leave-one-gain-table-band-out | *none beat `L00`* | 19.86° (**0.96×**) | 18.49° (1.03×) | — |
+
+Three things to take from this. **`L26` is worse than no correction on three of the five
+splits** (0.93×, 0.95×, 0.96×). **LOEO — hold out a whole session, keep the frequencies — is
+the split that matters for deployment, and `L24` wins it by an order of magnitude.** And
+**LOBAND and LOBLOCK say nothing generalises to an unmeasured frequency region**, which is
+the same message as §4's unseen-carrier table: capture the carrier.
+
+## 4.2 The frequency-blind trap
+
+`L04` and `L24` are identical at a single carrier and differ once more than one is in play.
+Fitting `GSC8a`, predicting `GSC8b`:
+
+| rung | fit scope | 5766 | 5840 |
+|---|---|---:|---:|
+| `L04` | per carrier | 0.72° (39.5×) | 0.51° (57.9×) |
+| `L04` | **both carriers pooled** | 1.16° (24.4×) | 1.05° (28.3×) |
+| `L24` | per carrier | 0.72° (39.5×) | 0.51° (57.9×) |
+| `L24` | **both carriers pooled** | **0.72° (39.5×)** | **0.51° (57.9×)** |
+
+Pooling the two carriers into one frequency-blind `L04` costs ~1.7× at both carriers, and
+over the full 26-LO union it costs an order of magnitude (1.29× vs 13.0× under LOEO). `L24`
+is unaffected because the frequency index is in the model. **This is why the recommendation
+names `L24` and not `L04`, even though the headline numbers are the same.**
+
+*Measured.* `analysis/pooling_trap.json`, and `results.json → ladder_ref62` for the split
+table.
+
+---
+
 ## 5. Does a fit go stale?
 
 The E-GSC8 "independent repeat" is **4.7 minutes** after the primary, same cabling, same
@@ -299,13 +347,14 @@ the two radios differ. `L04`'s advantage should be confirmed on a third unit.
 
 ## 7. The recommendation in full
 
-**For rover experiments, use a per-radio, per-arm gain lookup table (`L04`), not the shipped
-mechanistic family.** Concretely:
+**For rover experiments, use a per-radio, per-arm, per-frequency gain lookup table (`L24`),
+not the shipped mechanistic family.** Concretely:
 
 1. **Fit per radio.** No rung transfers across units (best 1.16× under LORO). Each airframe's
    receivers need their own table.
-2. **Fit at the rover's own carriers**, 5766 and 5840 MHz. `L04` has no frequency model and
-   drops to 1.4–1.9× on a carrier it never saw. Both carriers are directly measurable now, so
+2. **Fit at the rover's own carriers**, 5766 and 5840 MHz, with a per-carrier table. `L24`
+   and `L04` both drop to 1.4–1.9× on a carrier they never saw, and a frequency-blind `L04`
+   pooled over both carriers loses ~1.7× even on measured ones (§4.2). Both carriers are directly measurable now, so
    extrapolation is unnecessary — and capturing the carrier is worth ~10× more than any
    model choice. **If a carrier genuinely cannot be captured, use `L20` (4.3–7.3×), not
    `L04` and not the mechanistic family.**
@@ -355,5 +404,6 @@ $P analysis/consolidate.py      results.json
 - 5840 MHz has one session pair at 4.7 minutes; no longer-baseline test exists there.
 - Prospective tests use 132 unequal-gain cells each — bench cells, not rover frames. No number
   here is a rover-corpus error; the rover has no ground-truth `D` to score against.
-- `L04` is a lookup table. It generalises across gain pairs by the additive form and nothing
-  else — it carries no frequency model, so a new carrier requires a new capture.
+- `L24` is a lookup table. It generalises across gain pairs by the additive form and
+  interpolates nothing in frequency — it stores one table per measured carrier, so a new
+  carrier requires a new capture.
