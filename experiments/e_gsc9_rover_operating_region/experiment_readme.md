@@ -117,9 +117,10 @@ std against the weak arm's own level over 95,944 archived frames: p95 = 3.109° 
 **Total ≈ 4.0 h of capture; the longest single run is 2.64 h**, inside the four
 proven-clean 3.1–3.4 h sessions this rig has already completed.
 
-**Order within session A: epoch-outer.** Each of 5 epochs contains the complete 1,600-cell
-grid, so the run is *epoch-complete* — stopping early costs epochs, never coverage. All 40
-equal-gain cells appear in every block, ≤48 s apart.
+**Order within session A: epoch-outer.** Each of 5 epochs contains the complete
+1,369-cell fallback grid, so the run is *epoch-complete* — stopping early costs
+epochs, never coverage. All 37 captured equal-gain cells appear in every block,
+≤48 s apart.
 
 **Degradation ladder** — what each stopping point buys:
 
@@ -133,12 +134,12 @@ equal-gain cells appear in every block, ≤48 s apart.
 
 ## 4. Anchor strategy — chosen from data, not convention
 
-**During capture there is no privileged anchor.** All 40 equal-gain cells `(g,g)`,
-g ∈ 23…62, are measured in every block: 40 anchor observations per block, 5 across-epoch
-observations of each.
+**During capture there is no privileged anchor.** All 37 fallback equal-gain
+cells `(g,g)`, g ∈ 26…62, are measured in every block: 37 anchor observations
+per block, 5 across-epoch observations of each.
 
-**The anchor is chosen afterwards** by this preregistered score, computed per (radio, carrier)
-over all 40 equal-gain candidates:
+**The anchor is chosen afterwards** by this preregistered score, computed per
+(radio, carrier) over all 37 captured equal-gain candidates:
 
 - **S1(a)** — the `|D(a,a)|` bias the model's forced `D(a,a) = 0` injects at the anchor.
 - **S2(a)** — across-epoch circular std of `D(a)`, i.e. how stable the anchor itself is.
