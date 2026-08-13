@@ -1,0 +1,152 @@
+{
+ "git_sha": "53ed590eec5823e051e8641297c731fc189bdd1a",
+ "inputs": [
+  {
+   "path": "spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/additive_cross_1040007c4a94.json",
+   "sha256": "41e0591c8c2dcce1de51b64541b5be72af5ebfeaa2d56e896f0cd05baa25dc19",
+   "bytes": 346836
+  },
+  {
+   "path": "spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/additive_cross_104000bac495.json",
+   "sha256": "414047153ac9f6a43fb7605b5c366ae2e57a2379f1e5bcdfc8b59d6b15a95d68",
+   "bytes": 346233
+  },
+  {
+   "path": "spf/calibrations/dual_rx_gain_frequency/reports/e_gsc7_iio_20260812_v1/analysis.json",
+   "sha256": "b81281aef3514c0da668f2e357ee5a3e271e9acc3d87eb7bbdc14a3b7091cedb",
+   "bytes": 9791
+  }
+ ],
+ "sets": {
+  "l31_gsc6_gsc7_r18_20260812_v1": {
+   "path": "coeffs/l31_gsc6_gsc7_r18_20260812_v1.json",
+   "sha256": "d72c8b7ac9757508e93167276f74f149b0fc290436966157be1b31e4d0e5023d",
+   "bytes": 4403,
+   "tau_ns": [
+    0.10000000000000002,
+    2.540000000000001
+   ],
+   "n_rows": 1024,
+   "n_columns": 37,
+   "rank": 30,
+   "comb_conditioning": {
+    "n_los": 24,
+    "condition_number": 1.470749265349189,
+    "aliasing": [
+     {
+      "delay_pair_ns": [
+       2.56,
+       0.92
+      ],
+      "cycles_per_lo_step": 0.4362399999999999,
+      "nearest_integer": 0,
+      "distance_from_integer": 0.4362399999999999,
+      "aliased": false
+     }
+    ],
+    "verdict": "ok - safe to freeze the delays and refit if a local fit is needed"
+   },
+   "supported_levels": {
+    "lna": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "mixer": [
+     0,
+     1,
+     2,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ],
+    "tia": [
+     0,
+     1
+    ],
+    "lpf": [],
+    "ripple_lna": [
+     0,
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  "l31_gsc6_gsc7_pooled_20260812_v1": {
+   "path": "coeffs/l31_gsc6_gsc7_pooled_20260812_v1.json",
+   "sha256": "6d47fd402d72352a0a098d0e4ac63008e1457639ab7c9f8a62929fbfdc02bf8a",
+   "bytes": 4417,
+   "tau_ns": [
+    1.2400000000000002,
+    2.720000000000001
+   ],
+   "n_rows": 2048,
+   "n_columns": 37,
+   "rank": 30,
+   "comb_conditioning": {
+    "n_los": 24,
+    "condition_number": 1.470749265349189,
+    "aliasing": [
+     {
+      "delay_pair_ns": [
+       2.56,
+       0.92
+      ],
+      "cycles_per_lo_step": 0.4362399999999999,
+      "nearest_integer": 0,
+      "distance_from_integer": 0.4362399999999999,
+      "aliased": false
+     }
+    ],
+    "verdict": "ok - safe to freeze the delays and refit if a local fit is needed"
+   },
+   "supported_levels": {
+    "lna": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "mixer": [
+     0,
+     1,
+     2,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ],
+    "tia": [
+     0,
+     1
+    ],
+    "lpf": [],
+    "ripple_lna": [
+     0,
+     1,
+     2,
+     3
+    ]
+   }
+  }
+ }
+}

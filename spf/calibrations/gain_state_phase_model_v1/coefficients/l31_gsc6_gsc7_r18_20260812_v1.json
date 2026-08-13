@@ -1,0 +1,186 @@
+{
+ "model": "L31",
+ "tau_seconds": [
+  1.0000000000000002e-10,
+  2.5400000000000007e-09
+ ],
+ "h_deg": {
+  "lna": {
+   "0": 4.5152341318579445,
+   "1": 1.11911583415172,
+   "2": 0.9365230894834247,
+   "3": -6.570949053591023
+  },
+  "mixer": {
+   "0": -8.435711032413854,
+   "1": -7.756775978766007,
+   "2": -3.2996842949323333,
+   "4": -1.234319605168205,
+   "5": -1.0758646404591095,
+   "6": -1.3482895489996702,
+   "7": 0.5640760284938756,
+   "8": 0.22520817220269998,
+   "9": 1.7797893137232963,
+   "10": 2.609850375109342,
+   "11": 2.306022443065403,
+   "12": 3.3070985679679294,
+   "13": 3.3191539404749215,
+   "14": 4.235820723236594,
+   "15": 4.803559880199822
+  },
+  "tia": {
+   "0": -0.13341178096889866,
+   "1": 0.13341185253922885
+  },
+  "lpf": {}
+ },
+ "ripple_deg": {
+  "0": {
+   "a_deg": [
+    2.631300491733118,
+    5.962201861622015
+   ],
+   "b_deg": [
+    -6.534425747407039,
+    4.161465110400056
+   ]
+  },
+  "1": {
+   "a_deg": [
+    -10.713068594892901,
+    -1.5038001828623584
+   ],
+   "b_deg": [
+    9.213433316481378,
+    -4.898055126199592
+   ]
+  },
+  "2": {
+   "a_deg": [
+    -0.33543521405174204,
+    -1.04883474552521
+   ],
+   "b_deg": [
+    2.068839058595076,
+    -0.8460454699257774
+   ]
+  },
+  "3": {
+   "a_deg": [
+    8.417319718464693,
+    -3.4095231891577864
+   ],
+   "b_deg": [
+    -4.747831005271928,
+    1.5827779046048267
+   ]
+  }
+ },
+ "provenance": {
+  "n_rows": 1024,
+  "n_columns": 37,
+  "rank": 30,
+  "ridge": 1e-08,
+  "static_fields": [
+   "lna",
+   "mixer",
+   "tia"
+  ],
+  "n_ripples": 2,
+  "source_report": "spf/calibrations/dual_rx_gain_frequency/reports/l31_gsc6_gsc7_union_20260812_v1",
+  "ladder_rung": "L31 MIN (RF words: LNA, MIXER, TIA) + 2 ripples per LNA state, NO categorical baseband-LPF family",
+  "datasets": [
+   "E-GSC6 equal_gain_diagonal_20260811_v1",
+   "E-GSC7 e_gsc7_iio_20260812_v1"
+  ],
+  "radios": [
+   "R18"
+  ],
+  "n_los": 24,
+  "lo_hz": [
+   433000000.0,
+   550000000.0,
+   700000000.0,
+   850000000.0,
+   950000000.0,
+   1050000000.0,
+   1180000000.0,
+   1300000000.0,
+   1350000000.0,
+   1700000000.0,
+   2100000000.0,
+   2437000000.0,
+   2800000000.0,
+   3200000000.0,
+   3600000000.0,
+   4000000000.0,
+   4100000000.0,
+   4400000000.0,
+   4700000000.0,
+   5000000000.0,
+   5300000000.0,
+   5500000000.0,
+   5766000000.0,
+   5900000000.0
+  ],
+  "gains_db": [
+   -1,
+   8,
+   20,
+   22,
+   23,
+   25,
+   26,
+   27,
+   29,
+   30,
+   31,
+   32,
+   33,
+   40,
+   41,
+   45,
+   49,
+   50,
+   51,
+   52,
+   53,
+   54,
+   55,
+   56,
+   57,
+   58,
+   59,
+   60,
+   61,
+   62
+  ],
+  "anchor": "measured equal-gain cell at 26 dB, per (radio, LO); inherited from the additive-cross fit's reference cell and NOT re-derivable per epoch",
+  "phase_convention": "angle(RX1) - angle(RX2), radians",
+  "spf_git_sha": "53ed590eec5823e051e8641297c731fc189bdd1a",
+  "input_sha256": {
+   "spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/additive_cross_1040007c4a94.json": "41e0591c8c2dcce1de51b64541b5be72af5ebfeaa2d56e896f0cd05baa25dc19",
+   "spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/additive_cross_104000bac495.json": "414047153ac9f6a43fb7605b5c366ae2e57a2379f1e5bcdfc8b59d6b15a95d68",
+   "spf/calibrations/dual_rx_gain_frequency/reports/e_gsc7_iio_20260812_v1/analysis.json": "b81281aef3514c0da668f2e357ee5a3e271e9acc3d87eb7bbdc14a3b7091cedb"
+  },
+  "comb_conditioning": {
+   "n_los": 24,
+   "condition_number": 1.470749265349189,
+   "aliasing": [
+    {
+     "delay_pair_ns": [
+      2.56,
+      0.92
+     ],
+     "cycles_per_lo_step": 0.4362399999999999,
+     "nearest_integer": 0,
+     "distance_from_integer": 0.4362399999999999,
+     "aliased": false
+    }
+   ],
+   "verdict": "ok - safe to freeze the delays and refit if a local fit is needed"
+  },
+  "reconstruction": "FITTED-COEFFICIENT RECONSTRUCTION, NOT FRAMES. E-GSC6 rows are its committed per-arm additive fit (own residual 0.70 deg training / 0.71-0.75 deg held-out); E-GSC7 rows are its committed shared-effect steps at 5766 MHz ONLY. Every holdout number is optimistic by roughly the additive fit's own residual.",
+  "DEPLOYMENT_STATUS": "NOT DEPLOYABLE -- see the report. Mixer levels 6..14 are estimated from a single LO (5766 MHz) and E-GSC7 H5 measured that a 5766 MHz curve does not transfer 466 MHz. The rover corpus also has no usable equal-gain anchor, which this model is defined as a residual to."
+ }
+}
