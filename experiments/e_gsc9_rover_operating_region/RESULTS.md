@@ -79,6 +79,9 @@ real power cycle of both radios, without disturbing an RF connector.
 Session C still requires operator handling: no pads, insert 10 dB pads on both
 arms, then remove them and repeat. The final analysis must retain the failed H2,
 G8, and G9 outcomes rather than recapturing until they disappear.
+`run_session_c_leg.sh` enforces the A/B/A-prime order and requires an explicit
+physical-state declaration and operator note for every leg; every leg is
+strictly validated before and after its sparse QNAP copy.
 
 The live table artifact is
 `e_gsc9_session_a_20260813_v1/gain_table_audit_post_session_a.json` under the

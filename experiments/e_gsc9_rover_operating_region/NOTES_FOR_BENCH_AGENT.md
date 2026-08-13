@@ -120,12 +120,18 @@ it converts B into a variant of C and it is no longer a clean 12 h test.
 ## Step 4 — session C, pad discriminator, with reversal
 
 ```bash
---config .../configs/e_gsc9_pad_discriminator.yaml     # leg A: no pads
+GSC9_C_PHYSICAL_STATE=no_pads GSC9_C_OPERATOR_NOTE='confirmed no added pads' \
+  experiments/e_gsc9_rover_operating_region/run_session_c_leg.sh a
 # insert 10 dB pads on both arms
---config .../configs/e_gsc9_pad_discriminator.yaml     # leg B: pads in
+GSC9_C_PHYSICAL_STATE=pads_installed GSC9_C_OPERATOR_NOTE='10 dB pads installed on both arms' \
+  experiments/e_gsc9_rover_operating_region/run_session_c_leg.sh b
 # REMOVE the pads
---config .../configs/e_gsc9_pad_discriminator.yaml     # leg A': pads out again
+GSC9_C_PHYSICAL_STATE=pads_removed GSC9_C_OPERATOR_NOTE='both added pads removed; original paths restored' \
+  experiments/e_gsc9_rover_operating_region/run_session_c_leg.sh aprime
 ```
+
+The runner uses the current date in all three output names. If the sequence can
+cross midnight, set the same `GSC9_C_RUN_DATE=YYYYMMDD` on every command.
 
 **The A′ leg is mandatory.** Connector work has previously moved a radio's high-band mean
 `|A|` from 3.49° to 29.41°. Without the reversal you cannot separate "the pad did it" from
