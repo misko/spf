@@ -179,7 +179,7 @@ python -m spf.calibrations.models.external_wall_validation \
   --receiver r0 \
   --serial 104000bac4950008230026001b440a003a \
   --frequency-hz 2467100000 \
-  --output artifacts/dual_rx_gain_frequency/external_wall_validation_2467p1_20260729/r0_17.json
+  --output /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/external_wall_validation_2467p1_20260729/r0_17.json
 ```
 
 Repeat with `--receiver r1` and serial

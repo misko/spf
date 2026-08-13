@@ -18,7 +18,7 @@ are absent rather than interpolated.
 The large source V7 datasets remain gitignored under:
 
 ```text
-artifacts/dual_rx_gain_frequency/frequency_scout_cross_band_20260727_v1
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/frequency_scout_cross_band_20260727_v1
 ```
 
 Regenerate the reports with the commands documented in

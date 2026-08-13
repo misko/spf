@@ -942,7 +942,7 @@ Every hardware gate stores its command, source SHAs, firmware identity, Pluto
 serial/path, logs, counters, and results beneath:
 
 ```text
-artifacts/direct_usb_gain_metadata/rover3_one_radio/<run-name>/
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/rover3_one_radio/<run-name>/
 ```
 
 Rules applying to every firmware gate:
@@ -964,7 +964,7 @@ normal SPF command and validate the completed Zarr.
 Current evidence:
 
 ```text
-artifacts/direct_usb_gain_metadata/rover3_one_radio/
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/rover3_one_radio/
     2026-07-25_zarr_iio_100/
 ```
 
@@ -1036,7 +1036,7 @@ Status: **PASS**
 Evidence:
 
 ```text
-artifacts/direct_usb_gain_metadata/rover3_one_radio/
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/rover3_one_radio/
     2026-07-25_protocol_v1/results.md
 ```
 
@@ -1190,7 +1190,7 @@ Status: **PASS**
 Evidence:
 
 ```text
-artifacts/direct_usb_gain_metadata/rover3_one_radio/
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/rover3_one_radio/
     2026-07-25_real_gain_firmware_build/results.md
     2026-07-25_hardware_acceptance/results.md
 ```
@@ -1357,7 +1357,7 @@ Status: **PASS**
 Evidence:
 
 ```text
-artifacts/direct_usb_gain_metadata/rover3_one_radio/
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/rover3_one_radio/
     2026-07-25_zarr_direct_usb_100/
     2026-07-25_hardware_acceptance/results.md
 ```

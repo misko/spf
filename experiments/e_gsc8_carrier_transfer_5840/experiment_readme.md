@@ -1,7 +1,8 @@
 # E-GSC8 — does a 5766 MHz gain-phase fit serve 5840 MHz?
 
-**Status: DESIGNED, NOT RUN.** Needs two radios on a bench harness.
-Small: one added carrier, ~200–600 frames.
+**Status: COMPLETE.** Run over standard libiio USB on 2026-08-13; see
+[`RESULTS.md`](RESULTS.md). The primary and independent-repeat sessions each
+captured 816/816 quality-valid frames.
 
 ## Why this exists — and a correction to E-GSC7
 
@@ -88,9 +89,9 @@ get. H3 failing invalidates the run.
 | prior run to compare against | [`e_gsc7_iio_20260812_v1/`](../../spf/calibrations/dual_rx_gain_frequency/reports/e_gsc7_iio_20260812_v1/) |
 | why it matters | [`rover_applicability_ladder_20260812_v1/`](../../spf/calibrations/dual_rx_gain_frequency/reports/rover_applicability_ladder_20260812_v1/) |
 
-## This is second in line
+## Original sequencing note
 
-The **L31-shaped refit over the E-GSC6 ∪ E-GSC7 union comes first** — it needs no
+The design placed the **L31-shaped refit over the E-GSC6 ∪ E-GSC7 union first** — it needs no
 bench time and takes RF-state coverage from 0.51% to 100%. If that refit cannot
 reproduce E-GSC6's own held-out metrics, the problem is in the fitting path and
 no capture at any carrier will help.

@@ -97,6 +97,6 @@ The delay models are useful descriptions of a broad phase slope, but their unsee
 ```bash
 python -m spf.calibrations.dual_rx_gain_frequency model-matrix \
   --config spf/calibrations/dual_rx_gain_frequency/configs/survey_cross_band.yaml \
-  --artifact-root artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1 \
-  --output-dir artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1/model_matrix
+  --artifact-root /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260727_v1 \
+  --output-dir /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260727_v1/model_matrix
 ```

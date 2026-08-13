@@ -29,7 +29,7 @@ python -m spf.calibrations.dual_rx_gain_frequency automate \
   --config \
     spf/calibrations/dual_rx_gain_frequency/configs/pilot_cross_band.yaml \
   --output \
-    artifacts/dual_rx_gain_frequency/pilot_cross_band_20260728_special_17_18_v1 \
+    /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/pilot_cross_band_20260728_special_17_18_v1 \
   --expected-radios 2 \
   --resume
 ```
@@ -43,7 +43,7 @@ The complete preparation, capture, and validation took approximately
 11 minutes. The run root is:
 
 ```text
-artifacts/dual_rx_gain_frequency/pilot_cross_band_20260728_special_17_18_v1
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/pilot_cross_band_20260728_special_17_18_v1
 ```
 
 ## Radio identity and provenance

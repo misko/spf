@@ -652,7 +652,7 @@
     "maximum_accepted_held_out_p95_deg": 5.0,
     "overall_held_out_metrics_by_source": [
       {
-        "analysis_path": "artifacts/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/additive_cross/analysis.json",
+        "analysis_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/additive_cross/analysis.json",
         "analysis_sha256": "d9b28600bc606545d42193dd11eb136c823a8c55b4c3c09a6744624ce3061bde",
         "frequencies_hz": [
           2412000000,
@@ -665,12 +665,12 @@
           "circular_rmse_deg": 2.0937658525816687,
           "n_observations": 312
         },
-        "validation_path": "artifacts/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/validation.json",
+        "validation_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/validation.json",
         "validation_sha256": "efe13d6ce220d89c44bdb1b11151ce91d29f752bd4d9ea36f39022a99e21d217",
         "validation_status": "fail_quality"
       },
       {
-        "analysis_path": "artifacts/dual_rx_gain_frequency/historical_exact_lo_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/additive_cross/analysis.json",
+        "analysis_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/historical_exact_lo_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/additive_cross/analysis.json",
         "analysis_sha256": "9edd1f9914ba6dd1dfcc964512e85e8072e21f6205da589c56384205be0e5d30",
         "frequencies_hz": [
           2411950000,
@@ -683,7 +683,7 @@
           "circular_rmse_deg": 2.075885537353518,
           "n_observations": 312
         },
-        "validation_path": "artifacts/dual_rx_gain_frequency/historical_exact_lo_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/validation.json",
+        "validation_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/historical_exact_lo_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/validation.json",
         "validation_sha256": "d21c3a416edcaaf7a28effe78716c5bf6693206b3e919cda7f2f6934b6befbb9",
         "validation_status": "fail_quality"
       }
@@ -787,24 +787,24 @@
   "scope": "per_radio",
   "sources": [
     {
-      "analysis_path": "artifacts/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/additive_cross/analysis.json",
+      "analysis_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/additive_cross/analysis.json",
       "analysis_sha256": "d9b28600bc606545d42193dd11eb136c823a8c55b4c3c09a6744624ce3061bde",
       "frequencies_hz": [
         2412000000,
         2467000000
       ],
-      "validation_path": "artifacts/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/validation.json",
+      "validation_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/all_gain_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/validation.json",
       "validation_sha256": "efe13d6ce220d89c44bdb1b11151ce91d29f752bd4d9ea36f39022a99e21d217",
       "validation_status": "fail_quality"
     },
     {
-      "analysis_path": "artifacts/dual_rx_gain_frequency/historical_exact_lo_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/additive_cross/analysis.json",
+      "analysis_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/historical_exact_lo_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/additive_cross/analysis.json",
       "analysis_sha256": "9edd1f9914ba6dd1dfcc964512e85e8072e21f6205da589c56384205be0e5d30",
       "frequencies_hz": [
         2411950000,
         2467100000
       ],
-      "validation_path": "artifacts/dual_rx_gain_frequency/historical_exact_lo_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/validation.json",
+      "validation_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/historical_exact_lo_cross_2p4_20260729_special_17_18_v1/1040007c4a94000211000b009186843ef2/validation.json",
       "validation_sha256": "d21c3a416edcaaf7a28effe78716c5bf6693206b3e919cda7f2f6934b6befbb9",
       "validation_status": "fail_quality"
     }

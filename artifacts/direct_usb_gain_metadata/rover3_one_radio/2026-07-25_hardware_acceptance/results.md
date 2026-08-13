@@ -88,7 +88,7 @@ finite completion, clean STOP, and zero gain-read failures.
 Dataset:
 
 ```text
-artifacts/direct_usb_gain_metadata/rover3_one_radio/
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/rover3_one_radio/
   2026-07-25_zarr_direct_usb_100/
 ```
 

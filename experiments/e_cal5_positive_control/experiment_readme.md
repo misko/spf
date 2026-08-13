@@ -101,7 +101,7 @@ imported from another session.
 
 ## 7. Outputs
 
-`artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807/` with pre- and
+`/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807/` with pre- and
 post-run gain-table audits and per-radio validation, and a committed report
 stating the measured step, the floor, their ratio, and which decision-rule branch
 was reached.

@@ -1,0 +1,145 @@
+{
+  "artifact": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc8_iio_usb_20260813_v2",
+  "capture_gates": {
+    "R17": {
+      "expected_cells": 136,
+      "expected_frames": 408,
+      "passing_cells": 136,
+      "quality_valid_frames": 408,
+      "status": "pass"
+    },
+    "R18": {
+      "expected_cells": 136,
+      "expected_frames": 408,
+      "passing_cells": 136,
+      "quality_valid_frames": 408,
+      "status": "pass"
+    }
+  },
+  "confidence_interval_method": "paired gain-state nonparametric bootstrap, 20000 resamples; the 11 gain states remain paired between 5766 and 5840 MHz",
+  "grading_order": [
+    "H3",
+    "H1",
+    "H2"
+  ],
+  "hypotheses": {
+    "R17": {
+      "H1": "pass",
+      "H2": "pass",
+      "H3": "pass"
+    },
+    "R18": {
+      "H1": "not_interpretable",
+      "H2": "not_interpretable",
+      "H3": "fail_invalidates_transfer"
+    }
+  },
+  "results": [
+    {
+      "H1": {
+        "paired_curve_difference_deg": [
+          -1.9626355891082585,
+          -2.8488565991379424,
+          -2.274463339852903,
+          -2.6495479042444408,
+          -2.236731719769054,
+          -2.425846368332634,
+          -3.1090030785125005,
+          -2.868628800186523,
+          -2.9633723228311606,
+          -3.0254710262846456,
+          -2.792043164532006
+        ],
+        "paired_gain_states": 11,
+        "paired_state_bootstrap_95pct_ci_deg": [
+          2.4616249258427305,
+          2.8605091576461827
+        ],
+        "rms_deg": 2.6743630706625527,
+        "status": "pass",
+        "threshold_deg": 3.0
+      },
+      "H2": {
+        "new_5766_to_5840_rms_deg": 2.6743630706625527,
+        "prior_usb_5766_to_5300_rms_deg": 79.8416680293495,
+        "status": "pass"
+      },
+      "H3": {
+        "acceptance_band_deg": [
+          6.537640889558673,
+          8.492930338632537
+        ],
+        "distance_to_band_deg": 0.0,
+        "new_5766_step_sum_deg": 6.85691179235373,
+        "prior_midpoint_deg": 7.515285614095605,
+        "prior_usb_ip_values_deg": {
+          "ip": 8.004107976364072,
+          "usb": 7.026463251827139
+        },
+        "status": "pass",
+        "transport_repeatability_tolerance_deg": 0.9776447245369324
+      },
+      "diagnostic_cross_lo_rms_deg": {
+        "5700000000": 11.367393289158468,
+        "5840000000": 2.6743630706625527,
+        "5900000000": 2.5863996501263666
+      },
+      "radio": "R17",
+      "serial": "104000bac4950008230026001b440a003a"
+    },
+    {
+      "H1": {
+        "paired_curve_difference_deg": [
+          0.43827441058400485,
+          0.49484204941118887,
+          -0.3058940386198548,
+          -0.22534178380205241,
+          -0.23884419417349206,
+          0.28319447316841406,
+          -0.29615315653741103,
+          -0.10839515570384783,
+          -0.4271498902895573,
+          -0.35634721757571264,
+          -0.6267242148462365
+        ],
+        "paired_gain_states": 11,
+        "paired_state_bootstrap_95pct_ci_deg": [
+          0.28729408899976566,
+          0.4526970205796992
+        ],
+        "rms_deg": 0.3717561108603446,
+        "status": "not_interpretable",
+        "threshold_deg": 3.0
+      },
+      "H2": {
+        "new_5766_to_5840_rms_deg": 0.3717561108603446,
+        "prior_usb_5766_to_5300_rms_deg": 9.05925981708565,
+        "status": "not_interpretable"
+      },
+      "H3": {
+        "acceptance_band_deg": [
+          5.148421002451051,
+          6.176358949794577
+        ],
+        "distance_to_band_deg": 0.1917084171769332,
+        "new_5766_step_sum_deg": 4.956712585274118,
+        "prior_midpoint_deg": 5.662389976122814,
+        "prior_usb_ip_values_deg": {
+          "ip": 5.405405489286933,
+          "usb": 5.919374462958696
+        },
+        "status": "fail_invalidates_transfer",
+        "transport_repeatability_tolerance_deg": 0.513968973671763
+      },
+      "diagnostic_cross_lo_rms_deg": {
+        "5700000000": 1.072599055288733,
+        "5840000000": 0.3717561108603446,
+        "5900000000": 0.8728943940760628
+      },
+      "radio": "R18",
+      "serial": "1040007c4a94000211000b009186843ef2"
+    }
+  ],
+  "schema": "spf.experiment.e_gsc8.result",
+  "schema_version": 1
+}

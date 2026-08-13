@@ -1,20 +1,20 @@
 {
   "capture_date": "2026-08-07",
   "datasets": {
-    "artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807/1040007c4a94000211000b009186843ef2/calibration.v7.zarr": {
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807/1040007c4a94000211000b009186843ef2/calibration.v7.zarr": {
       "scalar_input_sha256": "8a2ad471c2a06d9886caa711ff7f97716ff2d1c493ef672eb54bba82d4f3af51"
     },
-    "artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807/104000bac4950008230026001b440a003a/calibration.v7.zarr": {
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807/104000bac4950008230026001b440a003a/calibration.v7.zarr": {
       "scalar_input_sha256": "f7074f051301e596967f7706f8f29b6aa6ec7773809039f2e62d8c3280887c35"
     }
   },
   "experiment": "E-CAL5 positive control",
   "inputs_sha256": {
-    "artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807/1040007c4a94000211000b009186843ef2/validation.json": "dc2f379514ed1fee6bd1877b18fcf5df84d8b14dffccdf4457873512e6dc64c3",
-    "artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807/104000bac4950008230026001b440a003a/validation.json": "0b29f5ce75bcbcbab7939476fb7936b3392dadc3cf07db1abc5f3eeaf16f1e1f",
-    "artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807/gain_table_audit.json": "60450919379152bb910de91864eb9e46fc50e2609ab2bb5e98d74bb598a1eb1c",
-    "artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807/gain_table_audit_final.json": "5427bcc768a41d0ea8b8071722a2a100e549e33d7f914604e373a4d173b3310e",
-    "artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807/run_result.json": "8a5663e0a74b2e53e45b773e34eb1efd87b22bfcae4bc6a337592d1e93522d04",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807/1040007c4a94000211000b009186843ef2/validation.json": "dc2f379514ed1fee6bd1877b18fcf5df84d8b14dffccdf4457873512e6dc64c3",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807/104000bac4950008230026001b440a003a/validation.json": "0b29f5ce75bcbcbab7939476fb7936b3392dadc3cf07db1abc5f3eeaf16f1e1f",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807/gain_table_audit.json": "60450919379152bb910de91864eb9e46fc50e2609ab2bb5e98d74bb598a1eb1c",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807/gain_table_audit_final.json": "5427bcc768a41d0ea8b8071722a2a100e549e33d7f914604e373a4d173b3310e",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807/run_result.json": "8a5663e0a74b2e53e45b773e34eb1efd87b22bfcae4bc6a337592d1e93522d04",
     "experiments/e_cal5_positive_control/analyze.py": "8a1f56e4e5b3f18926e88154b16b361efdc541c14cc3f870bd9a44e745e12007",
     "experiments/e_cal5_positive_control/experiment_readme.md": "940fbacbeacc45954dda7bdab1cf0e80f1c900455bbef311e83ad1af3610d259",
     "spf/calibrations/dual_rx_gain_frequency/configs/e_cal5_positive_control.yaml": "64200c432882a652a6fd4081f6e2872fa2f0dfd3d6e0af13423a7c2c0c84ed53",

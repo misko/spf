@@ -2,20 +2,20 @@
   "capture_date": "2026-08-07",
   "current_git_sha": "d2200ace95227b92451c4d29d2396c42f14b909c",
   "datasets": {
-    "artifacts/dual_rx_gain_frequency/e_gsp7_20260807/1040007c4a94000211000b009186843ef2/calibration.v7.zarr": {
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807/1040007c4a94000211000b009186843ef2/calibration.v7.zarr": {
       "scalar_input_sha256": "a4dbb38353a67f26fc899a3b0bfb74bfe9bdd01e89ce18b1e57e732ffda080bb"
     },
-    "artifacts/dual_rx_gain_frequency/e_gsp7_20260807/104000bac4950008230026001b440a003a/calibration.v7.zarr": {
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807/104000bac4950008230026001b440a003a/calibration.v7.zarr": {
       "scalar_input_sha256": "5d4d4c050bb55aba48d50a97737a5a88dd961e84d06f2cae6a66c52592bfe30c"
     }
   },
   "experiment": "E-GSP7 conditioning-chosen sparse comb",
   "inputs_sha256": {
-    "artifacts/dual_rx_gain_frequency/e_gsp7_20260807/1040007c4a94000211000b009186843ef2/validation.json": "436254030f09f5d08cfe0a1a8cd2d305a2d0d0296dd6d265e734bc6fb5968789",
-    "artifacts/dual_rx_gain_frequency/e_gsp7_20260807/104000bac4950008230026001b440a003a/validation.json": "ae63c4795e1c90107b4546e3dfc4d0b5d33b98c144e12ba0f9593322e9278262",
-    "artifacts/dual_rx_gain_frequency/e_gsp7_20260807/gain_table_audit.json": "0b7a94a71c179e9d9dcea650d5168a545274c9f83882860cd6e8ae4b2d16b7ad",
-    "artifacts/dual_rx_gain_frequency/e_gsp7_20260807/gain_table_audit_final.json": "ed4902e1c032e21c7614de4f1b82abb15c6b601b124ae4c55b5a7c967ba36fa8",
-    "artifacts/dual_rx_gain_frequency/e_gsp7_20260807/run_result.json": "11e44445909b60197e9195d6510aadba9cfcfbbefa0ad04d1afaa5bc11b9a56b",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807/1040007c4a94000211000b009186843ef2/validation.json": "436254030f09f5d08cfe0a1a8cd2d305a2d0d0296dd6d265e734bc6fb5968789",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807/104000bac4950008230026001b440a003a/validation.json": "ae63c4795e1c90107b4546e3dfc4d0b5d33b98c144e12ba0f9593322e9278262",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807/gain_table_audit.json": "0b7a94a71c179e9d9dcea650d5168a545274c9f83882860cd6e8ae4b2d16b7ad",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807/gain_table_audit_final.json": "ed4902e1c032e21c7614de4f1b82abb15c6b601b124ae4c55b5a7c967ba36fa8",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807/run_result.json": "11e44445909b60197e9195d6510aadba9cfcfbbefa0ad04d1afaa5bc11b9a56b",
     "experiments/e_gsp7_conditioned_comb/analyze.py": "24fa5384aee9e2bba71c73e1d3bcfe264088c5d26ac28c0227d2135a0681b405",
     "experiments/e_gsp7_conditioned_comb/comb_selection.json": "cf45ee2491077fc41a5ab5268d484fe09f31e6d4687e7c7db277523c9d4b82f0",
     "experiments/e_gsp7_conditioned_comb/experiment_readme.md": "c2cd58e527550aacc0f0b871d9d33b65c4db2d88207d6ca69d22bc420f3e02ea",

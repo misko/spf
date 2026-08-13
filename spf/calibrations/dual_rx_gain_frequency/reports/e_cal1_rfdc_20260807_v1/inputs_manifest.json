@@ -1,11 +1,11 @@
 {
   "capture_date": "2026-08-07",
   "datasets": {
-    "artifacts/dual_rx_gain_frequency/e_cal1_20260807/1040007c4a94000211000b009186843ef2/calibration.v7.zarr": {
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807/1040007c4a94000211000b009186843ef2/calibration.v7.zarr": {
       "note": "hash of decoded scalar arrays; data.mdb is a 128 GiB sparse LMDB map",
       "scalar_input_sha256": "9aba62e81695c0bc36ab8218ac80425451cf1c7dece5f4570636cd90336aa224"
     },
-    "artifacts/dual_rx_gain_frequency/e_cal1_20260807/104000bac4950008230026001b440a003a/calibration.v7.zarr": {
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807/104000bac4950008230026001b440a003a/calibration.v7.zarr": {
       "note": "hash of decoded scalar arrays; data.mdb is a 128 GiB sparse LMDB map",
       "scalar_input_sha256": "7f1ac3e0786f55b4424b0c94b8cf1a3ad8bcc0b5ca43c2b2241b56b5ef09c39b"
     }
@@ -14,11 +14,11 @@
   "firmware_image_sha256": "86f2115eb344efcbd3d59af02caf80d396291cb9e20dcb01651cacf7e0334191",
   "firmware_release_tag": "v0.38-plutoplus-spf-gain-rssi-fingerprint-v3",
   "inputs_sha256": {
-    "artifacts/dual_rx_gain_frequency/e_cal1_20260807/1040007c4a94000211000b009186843ef2/validation.json": "782031daa5b36d9401352c090bb0cc5dcbaf7b9424c5602b2c70075307a96a1c",
-    "artifacts/dual_rx_gain_frequency/e_cal1_20260807/104000bac4950008230026001b440a003a/validation.json": "c5a0e450446a87cbf86e26f6199a45d29ef791e7e96a2d64174e890be23f2e16",
-    "artifacts/dual_rx_gain_frequency/e_cal1_20260807/gain_table_audit.json": "616e180e2c6890c6913a7a5489c9e77b3fae0c3d09ef21075a20d9096f68cda4",
-    "artifacts/dual_rx_gain_frequency/e_cal1_20260807/gain_table_audit_final.json": "9eb2af484a17329bb710df240e59e481ae0e3f3d2053b09f6443c64b3f4d6759",
-    "artifacts/dual_rx_gain_frequency/e_cal1_20260807/run_result.json": "6309878f1fa4e6e5d1126234be9d0e0ec59fa00e17c3780392bbf928f2b34563",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807/1040007c4a94000211000b009186843ef2/validation.json": "782031daa5b36d9401352c090bb0cc5dcbaf7b9424c5602b2c70075307a96a1c",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807/104000bac4950008230026001b440a003a/validation.json": "c5a0e450446a87cbf86e26f6199a45d29ef791e7e96a2d64174e890be23f2e16",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807/gain_table_audit.json": "616e180e2c6890c6913a7a5489c9e77b3fae0c3d09ef21075a20d9096f68cda4",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807/gain_table_audit_final.json": "9eb2af484a17329bb710df240e59e481ae0e3f3d2053b09f6443c64b3f4d6759",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807/run_result.json": "6309878f1fa4e6e5d1126234be9d0e0ec59fa00e17c3780392bbf928f2b34563",
     "experiments/e_cal1_rfdc_discriminator/experiment_readme.md": "ed537f4e91e16a8644e809085b18f6a674e01f46a061e2741238bbd205cc1368",
     "spf/calibrations/dual_rx_gain_frequency/configs/e_cal1_rfdc_discriminator.yaml": "58d46b5c2d8537eab56c8565124a806bba8873111c0b831a8028f25595d88d38"
   },

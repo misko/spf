@@ -3,7 +3,7 @@
 **Session:** `e_gsp7_20260807` · captured 2026-08-07 · SPF `70d84b8`, clean checkout
 **Pre-registration:** [`experiments/e_gsp7_conditioned_comb/`](../../../../../experiments/e_gsp7_conditioned_comb/experiment_readme.md)
 — combs, decision rule and limits committed **before the first frame**
-**Raw capture:** `artifacts/dual_rx_gain_frequency/e_gsp7_20260807/` (gitignored)
+**Raw capture:** `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807/` (gitignored)
 
 ---
 
@@ -178,7 +178,7 @@ positive result; it does mean chosen-10's 4.950° is, if anything, pessimistic.
 ```bash
 python experiments/e_gsp7_conditioned_comb/select_comb.py   # regenerates the combs
 python experiments/e_gsp7_conditioned_comb/analyze.py \
-  artifacts/dual_rx_gain_frequency/e_gsp7_20260807 results.json
+  /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807 results.json
 ```
 
 The model, design and scoring code is the committed E-GSC/E-GSP machinery imported

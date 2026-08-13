@@ -114,7 +114,7 @@
     "H4": "pass_structural_coverage; deployment_withheld",
     "H5": "fail"
   },
-  "ip_artifact": "artifacts/dual_rx_gain_frequency/e_gsc7_iio_ip_20260812_v1",
+  "ip_artifact": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc7_iio_ip_20260812_v1",
   "preregistration_counting_erratum": "52 through 62 contains ten adjacent 1 dB transitions, not nine; all ten are graded and their telescoping sum is the 52-to-62 effect",
   "results_5766": [
     {
@@ -369,5 +369,5 @@
       "step_maximum_deg": 3.6138416270336853
     }
   },
-  "usb_artifact": "artifacts/dual_rx_gain_frequency/e_gsc7_iio_usb_20260812_v2"
+  "usb_artifact": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc7_iio_usb_20260812_v2"
 }

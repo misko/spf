@@ -133,5 +133,5 @@ silence is a property of the machinery, not of the measurement.
 
 ```bash
 python experiments/e_cal5_positive_control/analyze.py \
-  artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807 results.json
+  /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807 results.json
 ```

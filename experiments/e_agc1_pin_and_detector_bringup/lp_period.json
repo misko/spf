@@ -46,7 +46,7 @@
     "harness": "TX2 -> 30 dB pad -> bare SMA tee -> RX1/RX2 (tee has ~0 dB port-to-port isolation; see docs/learnings.md harness entry)",
     "radio_label": "R17",
     "radio_serial": "104000bac4950008230026001b440a003a",
-    "raw_dir": "artifacts/agc_pin_bringup/20260811_r17_step5_v1",
+    "raw_dir": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/agc_pin_bringup/20260811_r17_step5_v1",
     "rx_lo_hz": 867999998,
     "rx_sample_rate_hz": 3000000,
     "source": "own TX2 fpga_dds tone at +100 kHz, TX2 hardwaregain 0 dB (full scale)"

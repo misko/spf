@@ -185,7 +185,7 @@ the seed differ.**
 # pre-run audit, then capture, then post-run audit, then validate
 python -m spf.calibrations.dual_rx_gain_frequency run \
   --config spf/calibrations/dual_rx_gain_frequency/configs/e_gsp7_conditioned_comb.yaml \
-  --output artifacts/dual_rx_gain_frequency/e_gsp7_20260807
+  --output /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807
 ```
 
 ## 7. Pre-registration integrity

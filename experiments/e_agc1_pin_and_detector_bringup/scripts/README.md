@@ -1,7 +1,7 @@
 # E-AGC1 measurement scripts
 
 The scripts that produced [`RESULTS.md`](../RESULTS.md) and the committed JSON artifacts.
-Kept because the raw transcripts under `artifacts/agc_pin_bringup/` are gitignored — with
+Kept because the raw transcripts under `/mnt/qnap01/mouse9911/spf/calibration_data/raw/agc_pin_bringup/` are gitignored — with
 these, the run is re-executable and the artifacts are re-derivable; without them it is
 neither.
 

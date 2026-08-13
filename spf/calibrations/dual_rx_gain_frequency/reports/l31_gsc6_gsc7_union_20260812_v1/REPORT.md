@@ -57,13 +57,15 @@ recomputable here. *Inferred* = reasoned from measured quantities. Every table s
 ## 1. What data actually exists, and what it is not
 
 The review's step 1 says *"This is a refit, not a capture: both gain lists have already been
-captured."* That is true of the frames. It is **not** true of this machine.
+captured."* That is true of the frames. At the time this refit was run, it was **not** true
+of the data mounted on this machine.
 
-**Measured.** A filesystem sweep found no E-GSC6 or E-GSC7 raw store anywhere:
-`artifacts/dual_rx_gain_frequency/e_gsc7_iio_usb_20260812_v2/` and its IP sibling, named in
-`experiments/e_gsc7_mixer_ladder_high_band/RESULTS.md` §Artifacts, do not exist here, and
-`/mnt/qnap01/mouse9911/share/spf_campaigns/` holds only the A–G campaign and
-`gain_state_followups_20260807_v1`. What is in Git is each experiment's *fitted* output.
+**Measured at refit time.** The 2026-08-12 filesystem sweep found no mounted E-GSC6 or
+E-GSC7 raw store, so this report used each experiment's *fitted* output. The raw stores
+were subsequently recovered and migrated to the canonical QNAP root; for example,
+`/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc7_iio_usb_20260812_v2/`
+and its IP sibling now exist. That later storage migration does not change what was
+available to, or computed by, this refit.
 
 | Source | What is committed | What that supports |
 |---|---|---|

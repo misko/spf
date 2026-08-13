@@ -7,9 +7,9 @@ R18 `1040007c4a94000211000b009186843ef2` (USB `1-1.2`).
 (the volatile RC17 candidate), kernel `5.15.0-gd798b0d821b8`, on both units.
 **Both:** RX LO 868 MHz, both RX in `manual` gain, ENSM `fdd`, gain index 44 (41 dB),
 TX muted at −80 dB throughout.
-**Raw:** `artifacts/agc_pin_bringup/20260810_r17_v1/`,
-`artifacts/agc_pin_bringup/20260811_r18_v1/` and
-`artifacts/agc_pin_bringup/20260811_r17_step5_v1/` (all gitignored).
+**Raw:** `/mnt/qnap01/mouse9911/spf/calibration_data/raw/agc_pin_bringup/20260810_r17_v1/`,
+`/mnt/qnap01/mouse9911/spf/calibration_data/raw/agc_pin_bringup/20260811_r18_v1/` and
+`/mnt/qnap01/mouse9911/spf/calibration_data/raw/agc_pin_bringup/20260811_r17_step5_v1/` (all gitignored).
 **Scripts:** [`scripts/`](scripts/) — the raw transcripts are gitignored, so these are what
 make the run re-executable and the artifacts re-derivable.
 

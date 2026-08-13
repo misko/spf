@@ -1,6 +1,6 @@
 {
   "analysis_status": "partial_capture_engineering_evidence",
-  "artifact_root": "artifacts/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1",
+  "artifact_root": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1",
   "config_path": "spf/calibrations/dual_rx_gain_frequency/configs/coarse_5ghz.yaml",
   "cross_frequency_transfer": {
     "104000707f0700120f001a0095f2dbee49:5804000000->5866000000": {
@@ -553,7 +553,7 @@
     "104000707f0700120f001a0095f2dbee49": {
       "analysis_input_sha256": "bfb6217518420aa16bdadf2190d2b1833c32d707f1667b74edb8efe00048d024",
       "completed_frames": 10658,
-      "dataset_path": "artifacts/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1/104000707f0700120f001a0095f2dbee49/calibration.v7.zarr",
+      "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1/104000707f0700120f001a0095f2dbee49/calibration.v7.zarr",
       "frequency_results": {
         "5804000000": {
           "complete_epochs": [
@@ -869,7 +869,7 @@
     "104000f6ad020002fdff3a00bba2f096a1": {
       "analysis_input_sha256": "496f4575f7f6292ca4742258a36b217ae1d11a8424acadb97b8dae564e274564",
       "completed_frames": 13024,
-      "dataset_path": "artifacts/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1/104000f6ad020002fdff3a00bba2f096a1/calibration.v7.zarr",
+      "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1/104000f6ad020002fdff3a00bba2f096a1/calibration.v7.zarr",
       "frequency_results": {
         "5804000000": {
           "complete_epochs": [

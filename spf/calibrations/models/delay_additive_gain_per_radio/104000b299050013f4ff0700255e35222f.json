@@ -393,7 +393,7 @@
   "scope": "per_radio",
   "source": {
     "analysis_input_sha256": "90c4162a8428392d9e41162e491e0678707a1c7bcc6dd6572d3656597aff654e",
-    "dataset_path": "artifacts/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104000b299050013f4ff0700255e35222f/calibration.v7.zarr",
+    "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104000b299050013f4ff0700255e35222f/calibration.v7.zarr",
     "firmware": {
       "calibration_run_signature": "f6fdf218e8fa9ea0916b8f7f83fa05e4887af8f0e7a3ac9758b895e82c97d2e7",
       "calibration_software_git_sha": "68dd200a858b832cc3413acb7636a09b7cfb7488",

@@ -79,8 +79,8 @@ that its damaged harness must not define absolute coefficients.
 
 ## Artifacts
 
-- USB validated data: `artifacts/dual_rx_gain_frequency/e_gsc7_iio_usb_20260812_v2/`
-- IP validated data: `artifacts/dual_rx_gain_frequency/e_gsc7_iio_ip_20260812_v1/`
+- USB validated data: `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc7_iio_usb_20260812_v2/`
+- IP validated data: `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc7_iio_ip_20260812_v1/`
 - Machine-readable result: `spf/calibrations/dual_rx_gain_frequency/reports/e_gsc7_iio_20260812_v1/analysis.json`
 - Analysis entry point: [`analyze.py`](analyze.py)
 

@@ -3,7 +3,7 @@
 import json
 import pathlib
 
-RAW = pathlib.Path("artifacts/agc_pin_bringup/20260811_r17_step5_v1")
+RAW = pathlib.Path("/mnt/qnap01/mouse9911/spf/calibration_data/raw/agc_pin_bringup/20260811_r17_step5_v1")
 OUT = pathlib.Path("experiments/e_agc1_pin_and_detector_bringup")
 NAMES = {7: "CH1_low_power", 6: "CH1_large_LMT", 5: "CH1_large_ADC", 4: "CH1_small_ADC",
          3: "CH2_low_power", 2: "CH2_large_LMT", 1: "CH2_large_ADC", 0: "CH2_small_ADC"}

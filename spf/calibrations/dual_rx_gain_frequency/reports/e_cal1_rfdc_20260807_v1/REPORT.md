@@ -2,7 +2,7 @@
 
 **Session:** `e_cal1_20260807` · captured 2026-08-07 · SPF `3fe21e7`, clean checkout
 **Design:** [`experiments/e_cal1_rfdc_discriminator/experiment_readme.md`](../../../../../experiments/e_cal1_rfdc_discriminator/experiment_readme.md)
-**Raw capture:** `artifacts/dual_rx_gain_frequency/e_cal1_20260807/` (gitignored)
+**Raw capture:** `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807/` (gitignored)
 
 ---
 
@@ -227,7 +227,7 @@ which cell would go bad.
 ## 8. Reproduce
 
 ```bash
-python analyze.py artifacts/dual_rx_gain_frequency/e_cal1_20260807 results.json
+python analyze.py /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807 results.json
 ```
 
 `inputs_manifest.json` carries SHA-256 for every input and output. Dataset hashes use

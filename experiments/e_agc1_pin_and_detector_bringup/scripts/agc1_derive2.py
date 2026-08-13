@@ -4,8 +4,8 @@ import json
 import pathlib
 
 RUNS = {
-    "R17": pathlib.Path("artifacts/agc_pin_bringup/20260810_r17_v1"),
-    "R18": pathlib.Path("artifacts/agc_pin_bringup/20260811_r18_v1"),
+    "R17": pathlib.Path("/mnt/qnap01/mouse9911/spf/calibration_data/raw/agc_pin_bringup/20260810_r17_v1"),
+    "R18": pathlib.Path("/mnt/qnap01/mouse9911/spf/calibration_data/raw/agc_pin_bringup/20260811_r18_v1"),
 }
 OUT = pathlib.Path("experiments/e_agc1_pin_and_detector_bringup")
 FW = "v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe"

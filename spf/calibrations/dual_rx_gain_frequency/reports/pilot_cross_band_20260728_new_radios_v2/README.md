@@ -81,7 +81,7 @@ Acquisition provenance:
 The raw LMDB/Zarr stores remain gitignored under:
 
 ```text
-artifacts/dual_rx_gain_frequency/pilot_cross_band_20260728_new_radios_v2
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/pilot_cross_band_20260728_new_radios_v2
 ```
 
 ## Quality coverage
@@ -143,7 +143,7 @@ After RAM-loading and writing a fresh readiness manifest:
 ```bash
 python -m spf.calibrations.dual_rx_gain_frequency run \
   --config spf/calibrations/dual_rx_gain_frequency/configs/pilot_cross_band.yaml \
-  --output artifacts/dual_rx_gain_frequency/pilot_cross_band_20260728_new_radios_v2
+  --output /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/pilot_cross_band_20260728_new_radios_v2
 ```
 
 Then run `validate`, `fit`, and `report` for each serial as documented in

@@ -37,6 +37,28 @@ The [reports index](reports/README.md) combines the current model errors,
 per-radio RF-DC findings, calibration status, and correction recommendations
 for previously calibrated and new radios.
 
+## Raw-data storage
+
+The canonical raw calibration root on this host is:
+
+```text
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/
+```
+
+Sibling QNAP directories retain calibration-adjacent qualification evidence
+(`direct_usb_gain_metadata`, `agc_pin_bringup`, `harness_coupling`,
+`frequency_scan`, and `direct_usb_stability`); one-off dual-RX probe JSON lives
+under the canonical root's `probes/` directory.
+
+Committed reports and model provenance must use that absolute path whenever the
+referenced raw run is present there. Capture into a local staging directory
+first and transfer the completed sparse store to QNAP before publishing its
+path: LMDB/Zarr stores use memory mapping and file locking that should not be
+trusted directly on an NFS mount. Validate the QNAP copy, then remove the local
+staging copy. Keep the legacy gitignored `artifacts/dual_rx_gain_frequency`
+location as local staging rather than a QNAP symlink, and never record it as the
+published path in reports.
+
 The physical path on each radio is:
 
 ```text
@@ -295,9 +317,9 @@ python -m spf.calibrations.dual_rx_gain_frequency model-matrix \
   --config \
     spf/calibrations/dual_rx_gain_frequency/configs/survey_cross_band.yaml \
   --artifact-root \
-    artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1 \
+    /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260727_v1 \
   --output-dir \
-    artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1/model_matrix
+    /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260727_v1/model_matrix
 ```
 
 This command uses three distinct tests:
@@ -436,9 +458,9 @@ Turn the matched before/recovery/after artifacts into a deterministic report:
 
 ```bash
 python -m spf.calibrations.dual_rx_gain_frequency report-rf-dc \
-  --before artifacts/dual_rx_gain_frequency/rx2_dc_diagnostic/BEFORE \
-  --recovery artifacts/dual_rx_gain_frequency/rx2_dc_diagnostic/RECOVERY.json \
-  --after artifacts/dual_rx_gain_frequency/rx2_dc_diagnostic/AFTER \
+  --before /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/rx2_dc_diagnostic/BEFORE \
+  --recovery /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/rx2_dc_diagnostic/RECOVERY.json \
+  --after /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/rx2_dc_diagnostic/AFTER \
   --output-dir \
     spf/calibrations/dual_rx_gain_frequency/reports/RF_DC_REPORT_NAME
 ```

@@ -105,7 +105,7 @@ calibration:
     initialization calibration left as arm 1 ran it. TX2 -> 30 dB attenuator ->
     two-way splitter -> RX1/RX2. Unchanged harness throughout; no connector
     operations between epochs. Compare against the arm-1 dataset
-    (artifacts/dual_rx_gain_frequency/e_cal1_20260807).
+    (/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_20260807).
 
   quality:
     min-tone-snr-db: -10

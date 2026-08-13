@@ -47,9 +47,9 @@ published-pin Buildroot       passed
 Earlier bring-up and correction records are retained in:
 
 ```text
-artifacts/direct_usb_gain_metadata/2026-07-24/
-artifacts/direct_usb_gain_metadata/2026-07-25/timestamp_validation.md
-artifacts/direct_usb_gain_metadata/rover3_one_radio/
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/2026-07-24/
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/2026-07-25/timestamp_validation.md
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/rover3_one_radio/
     2026-07-25_iio_baseline_repeat/report.md
 ```
 
@@ -112,7 +112,7 @@ fixed 10 dB capture did not clip.
 The captures and their resolved YAML files are beneath:
 
 ```text
-artifacts/direct_usb_gain_metadata/rover3_one_radio/
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/rover3_one_radio/
     2026-07-25_wifi_ch10/manual_100/
     2026-07-25_wifi_ch10/slow_attack_100/
 ```

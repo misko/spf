@@ -389,7 +389,7 @@ python -m spf.calibrations.dual_rx_gain_frequency run \
   --config \
     spf/calibrations/dual_rx_gain_frequency/configs/wide_integer_gain_cross_band.yaml \
   --output \
-    artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1 \
+    /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1 \
   --serial 104000bac4950008230026001b440a003a \
   --serial 1040007c4a94000211000b009186843ef2 \
   --ready-manifest /run/spf/direct_usb_ready.json
@@ -400,14 +400,14 @@ For each serial, run strict validation and the additive-cross fit:
 ```bash
 python -m spf.calibrations.dual_rx_gain_frequency validate \
   --config spf/calibrations/dual_rx_gain_frequency/configs/wide_integer_gain_cross_band.yaml \
-  --dataset artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/SERIAL/calibration.v7.zarr \
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/SERIAL/calibration.v7.zarr \
   --serial SERIAL \
-  --output artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/SERIAL/validation.json
+  --output /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/SERIAL/validation.json
 
 python -m spf.calibrations.dual_rx_gain_frequency fit-additive-cross \
   --config spf/calibrations/dual_rx_gain_frequency/configs/wide_integer_gain_cross_band.yaml \
-  --dataset artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/SERIAL/calibration.v7.zarr \
-  --output-dir artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/SERIAL/additive_cross
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/SERIAL/calibration.v7.zarr \
+  --output-dir /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/SERIAL/additive_cross
 ```
 
 Then run `compare-additive-cross` on both `analysis.json` files and:
@@ -415,9 +415,9 @@ Then run `compare-additive-cross` on both `analysis.json` files and:
 ```bash
 python -m spf.calibrations.dual_rx_gain_frequency model-matrix \
   --config spf/calibrations/dual_rx_gain_frequency/configs/wide_integer_gain_cross_band.yaml \
-  --dataset artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr \
-  --dataset artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr \
-  --output-dir artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/model_matrix
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr \
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr \
+  --output-dir /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/model_matrix
 ```
 
 ## Provenance
