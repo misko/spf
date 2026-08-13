@@ -93,6 +93,8 @@ manifest_mtime="$(stat -c %Y /run/spf/direct_usb_ready.json)"
     echo "ABORT: ready manifest is not fresh for session B"
     exit 1
 }
+mkdir -p "$STAGE/$RUN"
+cp -- /run/spf/direct_usb_ready.json "$STAGE/$RUN/direct_usb_ready.json"
 
 run_capture() {
     local attempt
@@ -128,4 +130,12 @@ for serial in "$SERIAL_R17" "$SERIAL_R18"; do
         --serial "$serial" --output "$QNAP/$RUN/$serial/validation.json"
 done
 
-echo "PASS $(date --iso-8601=seconds): session B captured, validated locally, copied, and validated from QNAP"
+"$PYTHON" \
+    "$REPO/experiments/e_gsc9_rover_operating_region/analysis/analyze_session_transfer.py" \
+    --session-a-config \
+        "$REPO/experiments/e_gsc9_rover_operating_region/configs/e_gsc9_rover_region_grid.yaml" \
+    --session-a-root "$QNAP/e_gsc9_session_a_20260813_v1" \
+    --session-b-config "$CONFIG" --session-b-root "$QNAP/$RUN" \
+    --output "$QNAP/$RUN/session_transfer_vs_a.json"
+
+echo "PASS $(date --iso-8601=seconds): session B captured, validated locally and from QNAP, and H6 analyzed"

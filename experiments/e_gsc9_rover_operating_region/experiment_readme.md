@@ -167,6 +167,14 @@ off-axis and *every* rung of the ladder above L00 is invalid at the rover's cell
 important result than a successful capture, and it must be reported as such rather than
 re-measured until it agrees.
 
+**H6 operational definition, frozen before session B:** compute a circular mean
+for every quality-valid cell in each session, then compute the circular MAE of
+the matching A-to-B cell-mean shifts independently for each radio and each LO.
+H6 passes only if all scheduled B cells are present in both sessions and all
+four radio-by-LO MAEs are strictly below 0.5 degrees. Median, P95, maximum, and
+circular bias are retained as supporting diagnostics but do not replace the
+predeclared MAE decision metric.
+
 ---
 
 ## 6. Statistical power
