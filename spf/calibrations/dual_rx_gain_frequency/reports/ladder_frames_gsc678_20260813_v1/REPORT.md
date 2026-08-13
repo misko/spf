@@ -1,0 +1,359 @@
+# The ladder, refitted on frames — and a different model wins
+
+**Run 2026-08-13.** The first ladder fit built from **raw frames** of E-GSC6, E-GSC7 and
+E-GSC8 rather than from committed fitted reconstructions. Read-only throughout; `main` at
+`13c45c4`. No dataset, cache, coefficient file or segmentation module was modified.
+
+This became possible because E-GSC8's canonicalisation put every calibration store under
+`/mnt/qnap01/mouse9911/spf/calibration_data/raw/`. The 2026-08-12 union analysis had to open
+with *"the raw V7/Zarr stores are not on this machine"* and rebuild rows from fitted JSON;
+that constraint is gone. **13,476 frames, 26 LOs, 9 epochs, 2 radios, 100% anchored.**
+
+## Recommendation, in one line
+
+**Use `L04` — a per-radio, per-arm gain lookup table — anchored in the high band, fitted on
+the rover's own two carriers. Do not deploy `L26`, `L30`, `L31` or any other rung from the
+shipped mechanistic family.**
+
+| | shipped family (`L26`/`L30`/`L31`/`L33`) | **recommended (`L04`)** |
+|---|---|---|
+| shape | symmetric, `D = H(s1) − H(s2)`, one shared `H` | **arm-specific, `D = d1(g1) − d2(g2)`** |
+| scope | universal across radios | **per radio** |
+| parameters | 21–89 | **48** (2 radios × 2 arms × 12 gains) |
+| prospective MAE @5766 | 21.87° | **0.72°** |
+| prospective MAE @5840 | 23.63° | **0.51°** |
+| vs. no correction | **1.3×** | **39–58×** |
+| rover coverage | 0.5–5% (`l26/l30/l31_pooled_v1`) | **100%** |
+
+---
+
+## Contents
+
+1. [What changed: frames, not reconstructions](#1-what-changed-frames-not-reconstructions)
+2. [The anchor gain is the dominant design choice](#2-the-anchor-gain-is-the-dominant-design-choice)
+3. [A defect in the published support rule](#3-a-defect-in-the-published-support-rule)
+4. [Only the model's shape matters](#4-only-the-models-shape-matters)
+5. [Does a fit go stale?](#5-does-a-fit-go-stale)
+6. [What this does not fix](#6-what-this-does-not-fix)
+7. [The recommendation in full](#7-the-recommendation-in-full)
+8. [Provenance and reproduction](#8-provenance-and-reproduction)
+
+---
+
+## 1. What changed: frames, not reconstructions
+
+`union.py` in the 2026-08-12 refit reconstructed E-GSC7 as **80 pseudo-rows at a single
+frequency with no per-arm split**, because only the fitted JSON was reachable. The raw store
+carries **510 frames per radio per transport at 5 LOs with the full `(26,g)`, `(g,26)` and
+`(g,g)` cross**. E-GSC8 adds 408 frames per radio per session at 4 LOs including the rover's
+second carrier.
+
+| campaign | rows | LOs | sessions | notes |
+|---|---:|---:|---:|---|
+| E-GSC6 | 8,784 | 24 | 1 | 433 MHz – 5.9 GHz, gains −1…62 |
+| E-GSC7 | 3,060 | 5 | 3 | USB ×2 + IP, includes 5766 |
+| E-GSC8 | 1,632 | 4 | 2 | includes **5766 and 5840** |
+
+Two consequences beyond sample size. The additive-fit reconstruction residual of
+**0.70–0.75°** that made every previous holdout number optimistic is **gone** — these are
+frame-level errors. And **leave-one-epoch-out is computable**, which the 2026-08-12 report
+recorded as impossible.
+
+*Measured.* Every count above is from `results.json → census`, computed by opening each
+store read-only.
+
+---
+
+## 2. The anchor gain is the dominant design choice
+
+The whole ladder is a residual to a measured equal-gain anchor, and every rung above `L00`
+assumes `D = H(s1) − H(s2)`. That assumption makes a hard, directly testable prediction:
+**the equal-gain cell must be identically zero**, `D(g,g) = 0`. E-GSC7 and E-GSC8 both
+capture `(g,g)` for g = 52…62, so it can be checked on frames without fitting anything.
+
+![anchor choice](figures/fig1_anchor_choice.png)
+
+**Figure 1.** Mean `|D(g,g)|` over g = 52…62 against the anchor gain, for both radios in
+three independent sessions. Left: log scale over the full range. Right: linear zoom on the
+high-band anchors. The 26 dB point is drawn as an isolated marker because no equal-gain cell
+was measured between 27 and 51 dB — the grey band is unmeasured, and no line is drawn across
+it. At the published 26 dB convention, R17 violates the model's core assumption by
+**53.8–65.5°**. Move the anchor anywhere into the high band and the same radio, same data,
+same model falls to **0.65–1.30°**.
+
+| anchor | R18 (clean) | R17 (damaged) |
+|---|---:|---:|
+| **26 dB** — published convention | 1.3–2.2° | **53.8–65.5°** |
+| 55–58 dB | **1.1–1.7°** | **0.65–1.06°** |
+| 62 dB — the rover's only available anchor | 2.6–3.5° | 1.14–1.20° |
+
+This reverses a published conclusion. The 2026-08-12 report attributed the failure of the
+pooled two-radio fit to R17's connector damage breaking "the universality premise the whole
+model rests on", and I repeated that in `c9afc3e`. **R17 was not incompatible. It was
+anchored 26 dB away from its operating point, across a transition where its two arms
+diverge.**
+
+![raw equal-gain phase](figures/fig2_raw_equal_gain_phase.png)
+
+**Figure 2.** The raw measurement behind Figure 1 — no anchoring, no fitting. A flat line
+means antisymmetry holds. R18 is flat to ~2.5° across the whole range. R17 sits at −38.5° at
+26 dB and −94…−96° across 52–62 dB, a step of ~55° that happens somewhere in the unmeasured
+gap. Within-cell standard deviation is 0.1–1.1° at 25–32 dB SNR, so this is a repeatable
+hardware property, not noise. **The high band itself is flat for both radios** — which is
+why any high-band anchor works.
+
+*Measured.* `results.json → antisymmetry_vs_anchor`, three sessions × two radios × two
+carriers.
+
+---
+
+## 3. A defect in the published support rule
+
+Scoring the mechanistic rungs on a single-carrier prospective test returned *exactly* the
+`L00` baseline — 1.00×, to three decimals. That is the signature of predictions being zeroed,
+not of a model with no skill, so it was worth chasing.
+
+`models.LadderModel.fit_eval` decides support with:
+
+```python
+needed    = design.I[test_idx] > 0        # the row REFERENCES this parameter
+missing   = needed & ~active[None, :]     # ...and training could not estimate it
+supported = ~np.any(missing, axis=1)
+```
+
+In a signed design, `I` and `S` are not the same thing. A gain-table level that appears
+**identically on both arms** cancels: it contributes `S = 0` while still registering `I > 0`.
+On a single-band, high-gain fit exactly one such column exists — a `const` column that is
+non-zero only on E-GSC6's low-gain rows — and it is:
+
+* **unestimable in training** (`max|S| = 0.000` over the training fold), and
+* **incapable of affecting the prediction** (`max|S| = 0.000` over the *test* fold too).
+
+So every test row is refused for needing a parameter that could not have changed its answer.
+Coverage reads 0%, and the rung fails closed to `L00` on 100% of rows.
+
+**Effect.** Every mechanistic rung is refused entirely on any single-band high-gain fit —
+which is precisely the calibration a rover would run. The rule should test `|S| > 0`, not
+`I > 0`. Section 4 scores every rung with that correction applied, which is the version
+favourable to the shipped family.
+
+*This is a defect in `gain_state_phase_model_20260802_v1/analysis/models.py`, not in this
+run.* It does not invalidate the published bench ladder, whose fits span many bands and gains
+so the column is estimable there. It does mean **no published number describes the
+single-carrier deployment case**, because that case always failed closed.
+
+---
+
+## 4. Only the model's shape matters
+
+With the support rule corrected, all 35 rungs were scored on three prospective tests: fit on
+one bench session, predict another, at the rover's carriers, on unequal-gain cells only,
+fail-closed.
+
+![model shape](figures/fig4_model_shape.png)
+
+**Figure 3.** Every rung, sorted by error, coloured by shape. Shape is read from each rung's
+own `Term` list (`arm_specific=True`; `'serial'` in `groups`) rather than assigned by hand —
+see `analysis/rung_shape.json`.
+
+**Two properties are required, and neither is worth much alone:**
+
+| shape | rungs | MAE @5766 | meaning |
+|---|---:|---:|---|
+| **arm-specific AND per-radio** | 4 | **0.72°** | independent `d1`, `d2` for each radio |
+| arm-specific, shared across radios | 1 | 14.81° | independent `d1`, `d2`, one pair for both units |
+| symmetric, per-radio | 11 | 15.35° | shared `H`, fitted per radio |
+| symmetric, universal | 19 | 21.87–28.24° | shared `H`, one for both units |
+
+Arm-specific-alone (14.81°) and per-radio-alone (15.35°) are barely distinguishable from each
+other; only the **conjunction** reaches 0.72°. That is a 20× step from either single property,
+and it is not about complexity: `L20` carries 156 parameters and ties `L04`'s 48 exactly,
+while `L34` carries 137 and lands in the symmetric pack.
+
+| rung | shape | 4.7 min @5766 | 3.2 h @5766 | 4.7 min @5840 |
+|---|---|---:|---:|---:|
+| `L00` no correction | — | 28.24° (1.0×) | 28.20° (1.0×) | 29.63° (1.0×) |
+| `L01` sym `H(g)` | symmetric | 21.87° (1.3×) | 22.14° (1.3×) | 23.63° (1.3×) |
+| **`L26` MECH** *(shipped default)* | symmetric | 21.87° (1.3×) | 22.14° (1.3×) | 23.63° (1.3×) |
+| **`L30` MIN** | symmetric | 21.87° (1.3×) | 22.14° (1.3×) | 23.63° (1.3×) |
+| **`L31` MIN + ripples** | symmetric | 21.87° (1.3×) | 22.14° (1.3×) | 23.63° (1.3×) |
+| `L33` | symmetric | 21.87° (1.3×) | 22.14° (1.3×) | 23.63° (1.3×) |
+| **`L04` arm d1,d2 per radio** | **arm-specific** | **0.72° (39.5×)** | **1.53° (18.5×)** | **0.51° (57.9×)** |
+
+`L26`, `L30`, `L31` and `L33` are **indistinguishable from `L01`**, the crudest rung on the
+ladder. The entire mechanistic programme — audited RF words, LNA ripples, delay terms —
+returns the same 1.3× as a single shared gain LUT, because the binding constraint is the
+shared-`H` assumption they all inherit, and Figure 2 shows that assumption is what fails.
+
+**Those four rungs tie to the exact decimal, and that is an identity rather than a
+coincidence.** Within one gain-table band the map from requested dB to audited hardware state
+is *injective* — the twelve gains used here produce twelve distinct
+`(lna, mixer, tia, lpf, rfdc, row)` tuples:
+
+```
+g= 26 -> (2,  4, 1,  0, 0, 40)      g= 57 -> (3, 10, 1, 24, 0, 71)
+g= 52 -> (3,  5, 1, 24, 0, 66)      ...
+g= 53 -> (3,  6, 1, 24, 0, 67)      g= 62 -> (3, 15, 1, 24, 0, 76)
+```
+
+So `H(lna, mixer, tia, lpf)` and `H(g)` span **the same function space**, and at a single
+carrier the ripple and delay bases are constant and add nothing. Every symmetric mechanistic
+rung therefore *collapses onto* the symmetric per-gain LUT by construction. The audited
+state decomposition buys generalisation **across bands and frequencies** — which is real, and
+is what §4's unseen-carrier table rewards — but it is worth exactly zero at a fixed carrier,
+which is where the rover lives.
+
+**Why arm-specific wins.** `D(g,g) = 0` is forced by construction in a symmetric model. R17's
+arms respond differently to the same commanded gain, so the truth is not zero and the model
+cannot express it at any parameter count. Independent `d1` and `d2` can.
+
+### The one case where `L04` is the wrong answer: an unseen carrier
+
+`L04` is a lookup table with no frequency model, so it cannot reach a carrier it was never
+fitted at. Training on every LO *except* the target and predicting the target:
+
+| regime | `L00` | `L04` | **`L20`** arm-specific + ripple | best symmetric |
+|---|---:|---:|---:|---:|
+| 5766 MHz never seen | 29.05° | 20.50° (1.4×) | **6.81° (4.3×)** | 18.52° (1.6×) |
+| 5840 MHz never seen | 29.63° | 15.49° (1.9×) | **4.05° (7.3×)** | 18.53° (1.6×) |
+
+`L20` is arm-specific *and* carries a frequency-dependent ripple basis, so it extrapolates
+where `L04` cannot — at 432 parameters. Note both arm-specific rungs still beat every
+symmetric rung here too; the shape result holds in this regime as well.
+
+**Practical reading: capture the carrier if you can — `L04` at 0.5–1.5° beats `L20` at
+4–7° by a wide margin. Use `L20` only when flying a carrier you could not calibrate.**
+
+![carrier regimes](figures/fig3_carrier_ref62.png)
+
+**Figure 5.** Top ten rungs in each regime at the 62 dB anchor, against the `L00` baseline
+(dashed). `EPOCH@` is a different session at a measured carrier; `CARRIER@` is a carrier
+never seen in training; `BOTH@` withholds the carrier and the session. Note the scale change
+between the `EPOCH` panels and the rest — capturing the carrier is worth about an order of
+magnitude on its own. This panel uses the **as-shipped** support rule, which is why the
+mechanistic rungs are absent from the leaders; §4 is the corrected comparison.
+
+### Cross-radio transfer is weak for everything
+
+Leave-one-radio-out at the 62 dB anchor: the best rung is `L08` at 16.36° against `L00`'s
+19.00° — **1.16×**. Arm-specific rungs are per-radio by definition and fail closed to `L00`
+entirely. **No rung transfers to an uncalibrated radio.** Per-unit calibration is not an
+optimisation; it is a precondition.
+
+---
+
+## 5. Does a fit go stale?
+
+The E-GSC8 "independent repeat" is **4.7 minutes** after the primary, same cabling, same
+thermal state. Any number from that pair is an upper bound, so the two longer separations the
+corpus contains were tested as well.
+
+![staleness](figures/fig5_staleness.png)
+
+**Figure 4.** `L04` prospective error against the separation between the fitted and the flown
+session, computed **only on cells the fitting session actually supports** so that a gain-grid
+mismatch is not misread as drift.
+
+| separation | cells | `L04` MAE | vs `L00` |
+|---|---:|---:|---:|
+| 4.7 min (GSC8a→GSC8b) | 132 | 0.716° | 39.5× |
+| 3.2 h (GSC7→GSC8a) | 132 | 1.527° | 18.5× |
+| 2 days (GSC6→GSC8b) | 24 | **0.642°** | **44.2×** |
+
+**A fit does not decay with elapsed time over this range** — 2 days is the *best* point and
+3.2 h the worst. The variation is per-session (re-cabling, thermal state), not per-hour.
+
+⚠️ **The raw 2-day number is 23.2° / 1.22×, and reporting that as staleness would be wrong.**
+E-GSC6 at 5766 MHz measured gains `{−1, 8, 20, 22, 23, 25, 26, 27, 29, 30, 31, 32, 33, 40,
+41, 45, 49, 50, 51, 52, 62}` and never 53–61; only `{26, 52, 62}` overlap E-GSC8's schedule.
+The model correctly failed closed on 82% of cells. The table above compares the 24 cells both
+sessions measured, which is the only fair comparison — and it is a thin one.
+
+---
+
+## 6. What this does not fix
+
+**The anchor must still be measured on a moving rover.** `L04` is a residual to a measured
+equal-gain anchor exactly as every other rung is. On a moving platform `φ(f, g, g)` still
+contains the bearing being estimated, so subtracting it subtracts the answer. Nothing here
+touches that. It remains the top open question.
+
+The rover's own equal-gain frames are **83% (5766) / 96% (5840) at 62 dB**, and 62 dB is the
+worst high-band anchor for the clean radio (2.6–3.5° vs 1.1–1.7° at 55–58 dB). A scheduled
+anchor epoch at **~56 dB** would improve the anchor and the model together.
+
+**69% of rover frames at 5766 MHz have unstable gain endpoints** — the gain moved mid-buffer —
+and `GainStatePhaseModel.predict()` takes a single `(gain_rx1_db, gain_rx2_db)` pair with no
+guard for this. The only guards are fail-closed-on-unseen-state and rule 5. A frame whose
+gain changed mid-buffer has no well-defined gain state, yet the correction will be applied to
+it. At 5840 MHz the figure is 48%. **This is unguarded today and affects the majority of the
+corpus at the primary carrier.**
+
+**5840 MHz has exactly one session pair, 4.7 minutes apart.** Session-to-session behaviour at
+the rover's second carrier is untested beyond that.
+
+**Two radios is not a distribution**, and the arm-specific result is strongest precisely where
+the two radios differ. `L04`'s advantage should be confirmed on a third unit.
+
+---
+
+## 7. The recommendation in full
+
+**For rover experiments, use a per-radio, per-arm gain lookup table (`L04`), not the shipped
+mechanistic family.** Concretely:
+
+1. **Fit per radio.** No rung transfers across units (best 1.16× under LORO). Each airframe's
+   receivers need their own table.
+2. **Fit at the rover's own carriers**, 5766 and 5840 MHz. `L04` has no frequency model and
+   drops to 1.4–1.9× on a carrier it never saw. Both carriers are directly measurable now, so
+   extrapolation is unnecessary — and capturing the carrier is worth ~10× more than any
+   model choice. **If a carrier genuinely cannot be captured, use `L20` (4.3–7.3×), not
+   `L04` and not the mechanistic family.**
+3. **Anchor in the high band, ideally ~56 dB.** Not 26 dB — that is the single worst choice
+   and it is what the published convention specifies.
+4. **Expect 0.5–1.5°** on the corrected cells, against ~28° uncorrected, and re-calibrate per
+   session rather than on a clock.
+5. **Do not ship `l26_pooled_v1`, `l30_pooled_v1`, `l31_pooled_v1`, or
+   `l31_gsc6_gsc7_r18_20260812_v1`.** The first three cover 0.5–5% of the corpus; the fourth
+   covers 100% but is symmetric, so it inherits the 1.3× ceiling.
+6. **Before any of this reaches flight**, resolve the anchor question (§6) and add a
+   gain-endpoint-stability guard.
+
+**The honest summary is that the gain-phase programme has been optimising the wrong axis.**
+Eleven rungs of mechanistic refinement moved a number that the shared-`H` assumption had
+already capped at 1.3×. The 39–58× was available from a 48-parameter lookup table the whole
+time — and the reason it was never seen is §3: on the single-carrier deployment case, every
+mechanistic rung silently failed closed and scored exactly the baseline.
+
+---
+
+## 8. Provenance and reproduction
+
+All inputs read-only from `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/`.
+Nothing under `/mnt` was opened for writing. `spf/dataset/segmentation.py` was neither read
+nor modified. No file was deleted. Published analysis modules
+(`gain_state_phase_model_20260802_v1/analysis/`) are imported unmodified; the support-rule
+correction in §3 is applied in this report's own code and is **not** a patch to the shipped
+module.
+
+```bash
+P=~/virtual-envs/spf/bin/python3
+$P analysis/extract_gsc.py      ./extracted        # read-only frame extraction
+$P analysis/run_ladder_gsc.py   LORO,LOEO,LOFO,LOBLOCK,LOBAND gsc678_ref62 62
+$P analysis/carrier_eval.py     62 ref62
+$P analysis/epoch_eval.py       62
+$P analysis/corrected_support.py                   # section 4's table
+$P analysis/staleness_supported.py                 # section 5's table
+$P analysis/make_figs.py        figures
+$P analysis/consolidate.py      results.json
+```
+
+**Limits worth carrying.**
+
+- Two radios, one of them damaged. The arm-specific advantage is measured where they differ.
+- The 2-day staleness point rests on **24 cells**.
+- 5840 MHz has one session pair at 4.7 minutes; no longer-baseline test exists there.
+- Prospective tests use 132 unequal-gain cells each — bench cells, not rover frames. No number
+  here is a rover-corpus error; the rover has no ground-truth `D` to score against.
+- `L04` is a lookup table. It generalises across gain pairs by the additive form and nothing
+  else — it carries no frequency model, so a new carrier requires a new capture.
