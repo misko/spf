@@ -1,9 +1,8 @@
 # E-GSC9 — capture the rover's operating region, and everything the model needs around it
 
-**Status: DESIGNED 2026-08-13, NOT RUN.** Hypotheses, falsifiers and acceptance gates are
-recorded here before any data exists. Eleven capture configs are written and **validated
-against `main`'s `load_calibration_document` + `CalibrationConfig.validate()`** — 11/11 load,
-zero failures. No code change is required to run this.
+**Status: IN PROGRESS.** Session A and the same-session A2/A3 controls were captured on
+2026-08-13. See [`RESULTS.md`](RESULTS.md) for the immutable failures as well as the passes.
+Session B and the physical A/B/A pad discriminator remain outstanding.
 
 **Cost: one 2.64 h session, plus ~35 min of short controls.** Destination for raw output:
 `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc9_<session>_<date>_v1/`.
@@ -108,10 +107,10 @@ std against the weak arm's own level over 95,944 archived frames: p95 = 3.109° 
 | # | config | cells | reps | wall clock | purpose |
 |---|---|---:|---:|---:|---|
 | 0 | `level_ladder_tx{23,29,35}` | 36 ea | 1 | **2.7 min** | choose the fixed TX; **hard STOP for a human read** |
-| A | `rover_region_grid` | **1,600** | 5 | **2.64 h** | the grid: 100% of rover cells, both carriers |
+| A | `rover_region_grid` | **1,369** | 5 | completed | measured fallback grid, gains 26..62, both carriers |
 | A2 | `t2_transitions_bridge` | 70 | — | 4.7 min | brackets the RF-word transitions the grid cannot reach |
 | A3 | `t3a_ampm_16384` + `t3b_ampm_8192` | 28 + 28 | — | 4.4 min | AM-PM control: identical cells, −6.02 dB source |
-| B | `session_transfer` | 279 | — | 17 min | repeat ≥12 h later after a power cycle, nothing re-cabled |
+| B | `session_transfer` | 273 | — | ~17 min | repeat ≥12 h later after a power cycle, nothing re-cabled |
 | C | `pad_discriminator` | 279 | — | 17 min | 10 dB pads, **with an A/B/A reversal leg** |
 
 **Total ≈ 3.6 h of capture; the longest single run is 2.64 h**, inside the four

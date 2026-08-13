@@ -1,5 +1,5 @@
 # E-GSC9 session B -- session-to-session transfer control, >=12 h after session A.
-# 279 cells x 2 LOs x 3 epochs = 1674 frames/radio, 3348 for the pair.
+# 273 cells x 2 LOs x 3 epochs = 1638 frames/radio, 3276 for the pair.
 data-version: 7
 pluto-firmware:
   release-tag: v0.38-plutoplus-spf-libiio-metadata-v5
@@ -12,13 +12,10 @@ pluto-firmware:
   boot-mode: qspi
 calibration:
   frequencies-hz: [5766000000, 5840000000]
-  gains-db: [23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62]
+  gains-db: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62]
   schedule-design: additive_cross
   schedule-reference-gain-db: 62
   held-out-gain-pairs:
-    - [23, 23]
-    - [24, 24]
-    - [25, 25]
     - [26, 26]
     - [27, 27]
     - [28, 28]
@@ -216,6 +213,9 @@ calibration:
     - [43, 47]
     - [58, 42]
     - [43, 46]
+    - [43, 41]
+    - [48, 50]
+    - [57, 42]
   repetitions: 3
   sample-rate-hz: 30000000
   bandwidth-hz: 3000000
@@ -231,7 +231,7 @@ calibration:
   rf-dc-calibration-policy: before_each_frequency_block
   random-seed: 20260815
   tx-source: fpga_dds
-  tx-gain-db: -29
+  tx-gain-db: -35
   tx-gain-policy: fixed
   tx-reference-rx-gain-db: 49
   tx-min-gain-db: -80
@@ -239,9 +239,14 @@ calibration:
   tx-digital-amplitude: 16384
   min-quality-valid-per-cell: 2
   max-across-repeat-phase-std-deg: 5
-  setup-label: e-gsc9b-r17-r18-v5-iio-usb-tx-fixed-29db-30db-pad-tee-rx1-rx2
+  setup-label: e-gsc9b-r17-r18-v5-iio-usb-tx-fixed-35db-gain-floor26-30db-pad-tee-rx1-rx2
   notes: >-
-    E-GSC9 session B. Same bench, same fixed TX, after a power cycle and >=12 h. Measures how much of session A's LUT survives a session boundary and whether re-measuring only the 79-cell cross restores it.
+    E-GSC9 session B. Same bench, measured 26 dB gain floor, and fixed -35 dB
+    TX used by session A, after a power cycle and >=12 h. The original
+    preregistration assumed gains 23..62 and -29 dB TX; the level ladder forced
+    the documented session-A fallback, so this config was conformed before any
+    session-B frame was captured. Measures how much of session A's LUT survives
+    a session boundary and whether re-measuring only the 73-cell cross restores it.
   quality:
     min-tone-snr-db: -5
     min-tone-dbfs: -65

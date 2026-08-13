@@ -1,5 +1,5 @@
 # E-GSC9 session C (conditional) -- +10 dB pad at each RX port, TX raised 10 dB.
-# Identical cell set to session B. 279 cells x 2 LOs x 3 epochs.
+# Identical cell set to conformed session B. 273 cells x 2 LOs x 3 epochs.
 data-version: 7
 pluto-firmware:
   release-tag: v0.38-plutoplus-spf-libiio-metadata-v5
@@ -12,13 +12,10 @@ pluto-firmware:
   boot-mode: qspi
 calibration:
   frequencies-hz: [5766000000, 5840000000]
-  gains-db: [23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62]
+  gains-db: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62]
   schedule-design: additive_cross
   schedule-reference-gain-db: 62
   held-out-gain-pairs:
-    - [23, 23]
-    - [24, 24]
-    - [25, 25]
     - [26, 26]
     - [27, 27]
     - [28, 28]
@@ -216,6 +213,9 @@ calibration:
     - [43, 47]
     - [58, 42]
     - [43, 46]
+    - [43, 41]
+    - [48, 50]
+    - [57, 42]
   repetitions: 3
   sample-rate-hz: 30000000
   bandwidth-hz: 3000000
@@ -231,7 +231,7 @@ calibration:
   rf-dc-calibration-policy: before_each_frequency_block
   random-seed: 20260816
   tx-source: fpga_dds
-  tx-gain-db: -19
+  tx-gain-db: -25
   tx-gain-policy: fixed
   tx-reference-rx-gain-db: 49
   tx-min-gain-db: -80
@@ -239,9 +239,14 @@ calibration:
   tx-digital-amplitude: 16384
   min-quality-valid-per-cell: 2
   max-across-repeat-phase-std-deg: 5
-  setup-label: e-gsc9c-r17-r18-v5-iio-usb-tx-fixed-19db-30db-pad-tee-plus10db-per-arm
+  setup-label: e-gsc9c-r17-r18-v5-iio-usb-tx-fixed-25db-gain-floor26-30db-pad-tee-plus10db-per-arm
   notes: >-
-    E-GSC9 session C. Adds 10 dB of attenuation between the SMA tee and each RX port, which cuts round-trip cross-arm coupling by 20 dB while leaving every gain state identical. If the additivity residual is unchanged it is not harness coupling.
+    E-GSC9 session C. Adds 10 dB of attenuation between the SMA tee and each RX
+    port and raises TX by 10 dB relative to session A's measured -35 dB setting.
+    The config was conformed before capture to session A's gain floor and source
+    level fallback. This cuts round-trip cross-arm coupling by 20 dB while
+    leaving every gain state and nominal received level identical. If the
+    additivity residual is unchanged it is not harness coupling.
   quality:
     min-tone-snr-db: -5
     min-tone-dbfs: -65

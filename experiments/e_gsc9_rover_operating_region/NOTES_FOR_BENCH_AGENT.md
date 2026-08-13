@@ -30,10 +30,11 @@ operations only.
 Run all three, both LOs:
 
 ```bash
-P=~/virtual-envs/spf/bin/python3
+P=~/spf-virtualenv/bin/python3
 for T in 23 29 35; do
-  $P -m spf.calibrations.dual_rx_gain_frequency.runner \
-     --config experiments/e_gsc9_rover_operating_region/configs/e_gsc9_level_ladder_tx${T}.yaml
+  $P -m spf.calibrations.dual_rx_gain_frequency run --transport iio-usb \
+     --config experiments/e_gsc9_rover_operating_region/configs/e_gsc9_level_ladder_tx${T}.yaml \
+     --output /home/pi/gsc9_staging/e_gsc9_level_ladder_tx${T}_YYYYMMDD_v1
 done
 ```
 
@@ -60,8 +61,10 @@ resume and forces a new output root.
 
 ```bash
 for i in $(seq 1 12); do
-  ~/virtual-envs/spf/bin/python3 -m spf.calibrations.dual_rx_gain_frequency.runner \
-    --config experiments/e_gsc9_rover_operating_region/configs/e_gsc9_rover_region_grid.yaml
+  ~/spf-virtualenv/bin/python3 -m spf.calibrations.dual_rx_gain_frequency run \
+    --transport iio-usb \
+    --config experiments/e_gsc9_rover_operating_region/configs/e_gsc9_rover_region_grid.yaml \
+    --output /home/pi/gsc9_staging/e_gsc9_session_a_YYYYMMDD_v1
   sleep 30
 done
 ```
@@ -74,7 +77,7 @@ resumes by signature, so re-invoking continues rather than restarting.
 
 | check | expected | if not |
 |---|---|---|
-| cells in epoch 1 | 1,600 per radio per LO | abort, diagnose |
+| cells in epoch 1 | 1,369 per radio per LO after the measured fallback (1,600 in the original plan) | abort, diagnose |
 | `tone_dbfs` range | within [−65, −6] | abort — the ladder was wrong |
 | `clipping_fraction` | 0 everywhere | abort |
 | `gain_endpoints_equal` | true on 100% | abort — AGC re-entered |
@@ -106,7 +109,7 @@ Running them adjacently is what stops drift masquerading as a level effect.
 Power-cycle both radios. **Touch no connector.** Re-run:
 
 ```bash
---config .../configs/e_gsc9_session_transfer.yaml
+experiments/e_gsc9_rover_operating_region/run_session_b.sh
 ```
 
 This is the session-transfer control. If a connector is disturbed, say so in the results —
