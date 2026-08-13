@@ -44,6 +44,7 @@ immune to the pooling mistake described in [§4.2](#42-the-frequency-blind-trap)
 6. [What this does not fix](#6-what-this-does-not-fix)
 7. [The recommendation in full](#7-the-recommendation-in-full)
 8. [Provenance and reproduction](#8-provenance-and-reproduction)
+9. [Addendum: the calibration does not cover where the rover operates](#9-addendum-the-calibration-does-not-cover-where-the-rover-operates)
 
 ---
 
@@ -407,3 +408,51 @@ $P analysis/consolidate.py      results.json
 - `L24` is a lookup table. It generalises across gain pairs by the additive form and
   interpolates nothing in frequency — it stores one table per measured carrier, so a new
   carrier requires a new capture.
+
+---
+
+## 9. Addendum: the calibration does not cover where the rover operates
+
+Everything above scores the ladder on **bench cells**. Sampling 13 RX captures / 26 receiver
+streams of the 2026 rover corpus read-only shows those are not the cells the rover uses.
+
+| | RX1 | RX2 |
+|---|---|---|
+| p5 / median / p95 gain | 50 / **62** / 62 dB | 45 / **48** / 51 dB |
+
+The rover runs one arm pinned near the top of the table and the other 11–16 dB below it.
+Its five most common pairs — (62,49), (62,50), (62,48), (62,47), (62,46) — are **62.5% of all
+frames**, median `|g1 − g2|` = **13 dB**, and only **0.8%** of frames are equal-gain. Both arms
+are in the high band together just **1.5%** of the time.
+
+**The high-band campaigns measured the opposite region.** E-GSC7 and E-GSC8 sweep `(26,g)`,
+`(g,26)` and `(g,g)` for g = 52…62 — that is `|g1 − g2|` ∈ {0} ∪ {26…36}. The rover's 13 dB
+offset with RX2 at 46–51 was never visited.
+
+| rover cell | % frames | measured? | RX1 gain seen | RX2 gain seen |
+|---|---:|---|---|---|
+| (62,49) | 16.3% | no | yes | 5766 only |
+| (62,50) | 14.1% | no | yes | 5766 only |
+| (62,48) | 11.9% | no | yes | **never** |
+| (62,47) | 10.9% | no | yes | **never** |
+| (62,46) | 9.3% | no | yes | **never** |
+
+**Not one of the rover's operating cells has ever been measured directly**, and gains 46–48 —
+32% of rover frames on RX2 — were never measured on *either* arm at *either* carrier. By
+additivity `L24` can reach only **37.2%** of those frames at 5766 and **1.1%** at 5840.
+
+⚠️ **This qualifies the headline.** The 39–58× in §4 is real, reproducible, and measured on
+cells the rover does not use. It is a statement about the model form, not a deployable
+coverage claim. Note also that it cuts the other way for the mechanistic family: interpolating
+through hardware state is exactly what would let `L26`/`L31` reach an unmeasured gain, which is
+why they report ~100% state coverage. They are still the wrong shape (§4) — but a LUT's
+inability to extrapolate is a real cost, and this is where it is paid.
+
+**The fix is a capture, not a model.** The next calibration should sweep the rover's own
+operating region — RX1 = 62 dB against RX2 = 40…52 dB in 1 dB steps, at **both** 5766 and
+5840 MHz, with an equal-gain anchor at ~56 dB — rather than more of the 52…62 diagonal. That
+is a few hundred cells and it would take `L24` from 1.1% to full coverage at the carrier where
+it currently has almost none.
+
+*Measured.* Bounded read-only sample of 13 RX captures / 26 receiver streams from
+`/mnt/qnap01/mouse9911/rovers_2026/merged`; bench coverage from this report's own frame union.
