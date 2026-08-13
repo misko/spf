@@ -57,3 +57,29 @@ average, is the reported experiment result.
 - Repeat grading:
   `spf/calibrations/dual_rx_gain_frequency/reports/e_gsc8_iio_20260813_v2/analysis.json`
 - Reproduction entry point: [`analyze.py`](analyze.py)
+
+## Addendum — R17's H1 failure is an offset, not a shape error
+
+Added 2026-08-13 from this experiment's own `analysis.json`, after E-GSC8 was used to revisit
+the [L31 refit](../../spf/calibrations/dual_rx_gain_frequency/reports/l31_gsc6_gsc7_union_20260812_v1/REPORT.md)'s
+deployment verdict. Decomposing the 11 paired-state differences into a constant term and the
+rest:
+
+| radio | raw RMS | mean offset | de-meaned RMS | range |
+|---|---:|---:|---:|---:|
+| R17 | 2.842° | **−2.819°** | **0.360°** | 1.183° |
+| R18 | 0.451° | −0.069° | 0.445° | 1.339° |
+
+R17's curve is displaced almost rigidly between the two LOs; its **shape** transfers slightly
+*better* than R18's. The gain-state phase model consumes only differences between gain states,
+`D(f, g1, g2) = H(s1) − H(s2)`, so a per-LO constant cancels exactly. On the axis that model
+uses, R17's transfer is therefore not a failure.
+
+This does not amend the grading above. H1 is an absolute-curve test with a preregistered 3°
+bound and R17's CI does cross it; that grade stands as recorded. The point is narrower: a
+consumer of these numbers should apply the absolute grade only to an absolute use, and R17's
+result should not be read as evidence that its gain-state curve fails to transfer.
+
+The two offsets are themselves per-LO anchor terms — the same free absolute reference the
+gain-phase work has flagged as its top open question, here visible in a bench capture with
+every other variable pinned.

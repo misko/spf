@@ -157,11 +157,11 @@
   ],
   "anchor": "measured equal-gain cell at 26 dB, per (radio, LO); inherited from the additive-cross fit's reference cell and NOT re-derivable per epoch",
   "phase_convention": "angle(RX1) - angle(RX2), radians",
-  "spf_git_sha": "53ed590eec5823e051e8641297c731fc189bdd1a",
+  "spf_git_sha": "4292c01b865cc0f6a4acbfb2b7fecf2c811aee7a",
   "input_sha256": {
    "spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/additive_cross_1040007c4a94.json": "41e0591c8c2dcce1de51b64541b5be72af5ebfeaa2d56e896f0cd05baa25dc19",
    "spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/additive_cross_104000bac495.json": "414047153ac9f6a43fb7605b5c366ae2e57a2379f1e5bcdfc8b59d6b15a95d68",
-   "spf/calibrations/dual_rx_gain_frequency/reports/e_gsc7_iio_20260812_v1/analysis.json": "b81281aef3514c0da668f2e357ee5a3e271e9acc3d87eb7bbdc14a3b7091cedb"
+   "spf/calibrations/dual_rx_gain_frequency/reports/e_gsc7_iio_20260812_v1/analysis.json": "bbcb5a4c7feecf5f82a2d3836a0f16f61eccaecd6c2df8fc4b867cedee4d4f24"
   },
   "comb_conditioning": {
    "n_los": 24,
@@ -181,6 +181,7 @@
    "verdict": "ok - safe to freeze the delays and refit if a local fit is needed"
   },
   "reconstruction": "FITTED-COEFFICIENT RECONSTRUCTION, NOT FRAMES. E-GSC6 rows are its committed per-arm additive fit (own residual 0.70 deg training / 0.71-0.75 deg held-out); E-GSC7 rows are its committed shared-effect steps at 5766 MHz ONLY. Every holdout number is optimistic by roughly the additive fit's own residual.",
-  "DEPLOYMENT_STATUS": "NOT DEPLOYABLE -- see the report. Mixer levels 6..14 are estimated from a single LO (5766 MHz) and E-GSC7 H5 measured that a 5766 MHz curve does not transfer 466 MHz. The rover corpus also has no usable equal-gain anchor, which this model is defined as a residual to."
+  "DEPLOYMENT_STATUS": "NOT DEPLOYABLE -- see the report, including its 2026-08-13 addendum. Two reasons, either sufficient: (1) this is a single-radio fit with no leave-one-radio-out and no leave-one-epoch-out evidence, and the pooled two-radio fit is worse than applying no correction (7.347 deg LOFO vs a 7.323 deg anchor-only baseline); (2) the rover corpus has no usable equal-gain anchor, which this model is defined as a residual to. NOT a reason any more: carrier transfer. E-GSC8 measured 5766 -> 5840 MHz at 0.451 deg RMS on the clean radio (95% CI 0.329-0.554), and the damaged radio's 2.842 deg is 98% a constant -2.819 deg offset that cancels in this model's D = H(s1) - H(s2) form.",
+  "fit_value_reproduction": "Fitted values are the 2026-08-12 published ones, unchanged. Re-emitting on a different BLAS/thread configuration reproduces them only to ~1e-7 deg, not byte-for-byte; two consecutive re-emits in one environment ARE byte-identical, so the drift is environment-sensitivity in the least-squares solve, not run-to-run nondeterminism. The input_sha256 for the E-GSC7 analysis.json changed at 4292c01 because E-GSC8 rewrote two artifact PATH STRINGS in it; every numeric leaf in that file is unchanged, verified leaf-by-leaf."
  }
 }
