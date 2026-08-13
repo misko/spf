@@ -16,9 +16,9 @@ import yaml
 
 
 LEG_STATE = {
-    "a": ("no_pads", "no-extra-pads-control-a"),
-    "b": ("pads_installed", "plus10db-per-arm-treatment-b"),
-    "aprime": ("pads_removed", "no-extra-pads-reversal-aprime"),
+    "a": ("no_pads", "no-extra-pads-control-a", -35),
+    "b": ("pads_installed", "plus10db-per-arm-treatment-b", -25),
+    "aprime": ("pads_removed", "no-extra-pads-reversal-aprime", -35),
 }
 
 
@@ -57,7 +57,7 @@ def main() -> int:
     parser.add_argument("--state-output", type=Path, required=True)
     args = parser.parse_args()
 
-    expected_state, label_suffix = LEG_STATE[args.leg]
+    expected_state, label_suffix, tx_gain_db = LEG_STATE[args.leg]
     if args.physical_state != expected_state:
         parser.error(
             f"leg {args.leg} requires --physical-state {expected_state!r}, "
@@ -68,23 +68,22 @@ def main() -> int:
 
     document = yaml.safe_load(args.base.read_text())
     calibration = document["calibration"]
+    calibration["tx-gain-db"] = tx_gain_db
     calibration["setup-label"] = (
-        "e-gsc9c-r17-r18-v5-iio-usb-tx-fixed-25db-gain-floor26-"
+        f"e-gsc9c-r17-r18-v5-iio-usb-tx-fixed{abs(tx_gain_db)}db-gain-floor26-"
         f"30db-pad-tee-{label_suffix}"
     )
     calibration["notes"] = (
         str(calibration["notes"]).strip()
         + f" Physical A/B/A-prime leg={args.leg}; declared state={expected_state}; "
-        + f"operator note={args.operator_note.strip()}"
+        + f"TX gain={tx_gain_db} dB; operator note={args.operator_note.strip()}"
     )
     rendered = yaml.safe_dump(document, sort_keys=False)
 
     if args.config_output.exists():
         existing = yaml.safe_load(args.config_output.read_text())
         if existing != document:
-            raise ValueError(
-                f"existing rendered config differs: {args.config_output}"
-            )
+            raise ValueError(f"existing rendered config differs: {args.config_output}")
     else:
         write_atomic(args.config_output, rendered)
 
@@ -101,6 +100,7 @@ def main() -> int:
         "schema_version": 1,
         "leg": args.leg,
         "physical_state": expected_state,
+        "tx_gain_db": tx_gain_db,
         "operator_note": args.operator_note.strip(),
         "base_config": str(args.base.resolve()),
         "base_config_sha256": sha256(args.base),
@@ -111,12 +111,22 @@ def main() -> int:
     }
     if args.state_output.exists():
         existing = json.loads(args.state_output.read_text())
-        comparable = {key: value for key, value in existing.items() if key != "recorded_at_unix_ns"}
-        expected = {key: value for key, value in state.items() if key != "recorded_at_unix_ns"}
+        comparable = {
+            key: value
+            for key, value in existing.items()
+            if key != "recorded_at_unix_ns"
+        }
+        expected = {
+            key: value for key, value in state.items() if key != "recorded_at_unix_ns"
+        }
         if comparable != expected:
-            raise ValueError(f"existing physical-state record differs: {args.state_output}")
+            raise ValueError(
+                f"existing physical-state record differs: {args.state_output}"
+            )
     else:
-        write_atomic(args.state_output, json.dumps(state, indent=2, sort_keys=True) + "\n")
+        write_atomic(
+            args.state_output, json.dumps(state, indent=2, sort_keys=True) + "\n"
+        )
 
     print(json.dumps(state, indent=2, sort_keys=True))
     return 0

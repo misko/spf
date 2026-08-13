@@ -119,4 +119,14 @@ done
 cmp -- "$OUTPUT/physical_state.json" "$QNAP/$run/physical_state.json"
 cmp -- "$OUTPUT/capture_config.yaml" "$QNAP/$run/capture_config.yaml"
 
-echo "PASS $(date --iso-8601=seconds): $run validated locally and from QNAP"
+if [[ "$leg" == aprime ]]; then
+    "$PYTHON" \
+        "$REPO/experiments/e_gsc9_rover_operating_region/analysis/analyze_session_c.py" \
+        --leg-a-root "$QNAP/e_gsc9_session_c_a_${run_date}_v1" \
+        --leg-b-root "$QNAP/e_gsc9_session_c_b_${run_date}_v1" \
+        --leg-aprime-root "$QNAP/$run" \
+        --output "$QNAP/$run/pad_discriminator_analysis.json"
+    echo "PASS $(date --iso-8601=seconds): $run validated locally and from QNAP and H7 analyzed"
+else
+    echo "PASS $(date --iso-8601=seconds): $run validated locally and from QNAP"
+fi

@@ -132,6 +132,9 @@ GSC9_C_PHYSICAL_STATE=pads_removed GSC9_C_OPERATOR_NOTE='both added pads removed
 
 The runner uses the current date in all three output names. If the sequence can
 cross midnight, set the same `GSC9_C_RUN_DATE=YYYYMMDD` on every command.
+It renders TX gain -35/-25/-35 dB for A/B/A′; do not hand-edit those values.
+This compensates the two 10 dB pads while keeping the no-pad controls at the
+validated Session-A source level.
 
 **The A′ leg is mandatory.** Connector work has previously moved a radio's high-band mean
 `|A|` from 3.49° to 29.41°. Without the reversal you cannot separate "the pad did it" from

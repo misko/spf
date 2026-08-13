@@ -175,6 +175,18 @@ four radio-by-LO MAEs are strictly below 0.5 degrees. Median, P95, maximum, and
 circular bias are retained as supporting diagnostics but do not replace the
 predeclared MAE decision metric.
 
+**H7 operational definition, frozen before session C:** E-HCP1's conservative
+worst-case phase-coupling upper bound is 8.9 degrees. For every radio and LO,
+all scheduled cells must be quality-valid in all three legs, the circular MAE
+of B-minus-A cell means must be strictly below 8.9 degrees, and the circular
+MAE of A-prime-minus-A must be smaller than A-prime-minus-B. All four strata
+must pass. Separately, G5/G6 permit the treatment to be reported as a resolved
+effect only when its MAE is at least 3 times the largest median within-leg
+equal-gain anchor drift; otherwise it is reported only as an upper bound.
+The no-pad/pads/pads-removed legs use TX gains -35/-25/-35 dB respectively,
+so the two 10 dB pads are compensated at the transmitter and nominal received
+level is matched across the physical treatment.
+
 ---
 
 ## 6. Statistical power
