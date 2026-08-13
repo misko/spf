@@ -4,7 +4,8 @@
 2026-08-13. See [`RESULTS.md`](RESULTS.md) for the immutable failures as well as the passes.
 Session B and the physical A/B/A pad discriminator remain outstanding.
 
-**Cost: one 2.64 h session, plus ~35 min of short controls.** Destination for raw output:
+**Cost after the measured fallback: one completed 2.64 h session, about 30 min
+for ladders/A2/A3/B, and about 51 min for the three physical C legs.** Destination for raw output:
 `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc9_<session>_<date>_v1/`.
 
 ---
@@ -111,9 +112,9 @@ std against the weak arm's own level over 95,944 archived frames: p95 = 3.109° 
 | A2 | `t2_transitions_bridge` | 70 | — | 4.7 min | brackets the RF-word transitions the grid cannot reach |
 | A3 | `t3a_ampm_16384` + `t3b_ampm_8192` | 28 + 28 | — | 4.4 min | AM-PM control: identical cells, −6.02 dB source |
 | B | `session_transfer` | 273 | — | ~17 min | repeat ≥12 h later after a power cycle, nothing re-cabled |
-| C | `pad_discriminator` | 279 | — | 17 min | 10 dB pads, **with an A/B/A reversal leg** |
+| C | `pad_discriminator` | 273/leg | 3 | ~17 min/leg | 10 dB pads, **with an A/B/A reversal leg** |
 
-**Total ≈ 3.6 h of capture; the longest single run is 2.64 h**, inside the four
+**Total ≈ 4.0 h of capture; the longest single run is 2.64 h**, inside the four
 proven-clean 3.1–3.4 h sessions this rig has already completed.
 
 **Order within session A: epoch-outer.** Each of 5 epochs contains the complete 1,600-cell
@@ -214,7 +215,7 @@ mode: it must be possible for it to fail while the run is otherwise healthy.
 
 | id | gate | why it is well-posed |
 |---|---|---|
-| **G1** | 5 epochs × 1,600 cells present per radio per carrier; `n ≥ 3` for any published cell | Counts, not thresholds. Fails on a truncated run. |
+| **G1** | 5 epochs × 1,369 fallback cells present per radio per carrier; `n ≥ 3` for any published cell | Counts, not thresholds. Fails on a truncated run. |
 | **G2** | Every kept frame within the level envelope: `tone_dbfs ∈ [−65, −6]`, `clipping_fraction = 0` | The envelope is **narrower than the config's capture thresholds**, so it can fail on kept data. *(An earlier draft set analysis-time bounds looser than capture-time ones, which made the gate unfailable — corrected.)* |
 | **G3** | `gain_endpoints_equal` true on 100% of frames; manual gain mode confirmed by readback | The rover corpus shows 69% instability; a calibration that inherits it is worthless. Readback catches silent AGC re-entry. |
 | **G4** | Live gain-table readback SHA-256 identical on both radios and to E-GSC7's `90d34d61…a1143` | Any firmware or table drift invalidates the state decomposition. |
