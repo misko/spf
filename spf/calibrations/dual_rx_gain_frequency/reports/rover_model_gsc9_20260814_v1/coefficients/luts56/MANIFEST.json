@@ -1,0 +1,22 @@
+{
+ "arm_lut_r18_5766_anchor56_20260814_v1.json": {
+  "bytes": 3480,
+  "held_out_mae_deg": 0.1402496921577338,
+  "vs_no_correction": 27.422522790567793
+ },
+ "arm_lut_r18_5840_anchor56_20260814_v1.json": {
+  "bytes": 3472,
+  "held_out_mae_deg": 0.14466851601532651,
+  "vs_no_correction": 22.37676803879026
+ },
+ "arm_lut_r17_5766_anchor56_20260814_v1.json": {
+  "bytes": 3682,
+  "held_out_mae_deg": 1.1609345333154804,
+  "vs_no_correction": 5.476399452137704
+ },
+ "arm_lut_r17_5840_anchor56_20260814_v1.json": {
+  "bytes": 3664,
+  "held_out_mae_deg": 0.7959023990446792,
+  "vs_no_correction": 8.007809691923633
+ }
+}

@@ -456,3 +456,21 @@ it currently has almost none.
 
 *Measured.* Bounded read-only sample of 13 RX captures / 26 receiver streams from
 `/mnt/qnap01/mouse9911/rovers_2026/merged`; bench coverage from this report's own frame union.
+
+---
+
+> ## ⚠️ SUPERSEDED IN PART, 2026-08-14
+>
+> [`rover_model_gsc9_20260814_v1`](../rover_model_gsc9_20260814_v1/REPORT.md) refits every
+> model on E-GSC9, which measured the rover's operating cells directly. **The model
+> recommendation is unchanged in shape** — a per-radio, per-arm LUT — but two numbers in this
+> report are superseded:
+>
+> - the no-correction baseline is **6.4–10.5° on the rover's own cells**, not the ~28° quoted
+>   here, which was measured on bench cells spanning a 36 dB arm split rather than the rover's
+>   13 dB;
+> - the gain is therefore **33–43×** on the clean unit, not 39–58×.
+>
+> §9's central finding — that the calibration had never covered the rover's operating region —
+> is what E-GSC9 fixed, and it now reads as the motivation for that experiment rather than an
+> open gap.
