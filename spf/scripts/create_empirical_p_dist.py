@@ -16,6 +16,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from spf.dataset.spf_dataset import v5spfdataset
+from spf.dataset.phase_corrected_dataset import PhaseCorrectedDataset
 from spf.utils import SEGMENTATION_VERSION, rx_spacing_to_str
 
 # Reserved top-level entry in the pickled table. Double underscores keep it
@@ -252,6 +253,16 @@ def get_empirical_p_dist_parser():
         help="one or more segmentation caches, searched in order per dataset. "
         "Several are needed when a rebuild spans corpora on different volumes.",
     )
+    parser.add_argument(
+        "--phase-correction",
+        type=str,
+        default="none",
+        choices=["none", "constant", "arm_lut", "shuffled"],
+        help="apply a gain-phase correction to mean_phase while building the table. "
+        "A table built with a correction is ONLY valid for inference that applies the "
+        "same one; the runner asserts this from __provenance__.",
+    )
+    parser.add_argument("--phase-model-fn", type=str, required=False, default=None)
     parser.add_argument("--output-fig-prefix", type=str, required=False, default=None)
     return parser
 
@@ -306,6 +317,12 @@ def create_empirical_p_dist(args):
                 ignore_qc=True,
                 gpu=args.device == "cuda",
             )
+            if args.phase_correction != "none":
+                # fails closed outside the model's support, so this touches only
+                # the captures the correction actually covers
+                ds = PhaseCorrectedDataset(
+                    ds, args.phase_correction, args.phase_model_fn
+                )
             datasets.append(ds)
             record = _dataset_fingerprint(prefix)
             record["precompute_cache"] = cache
@@ -444,6 +461,8 @@ def build_provenance(args, caches, requested, loaded, failures, counts, keys):
             "device": args.device,
             "precompute_caches": list(caches),
             "out": args.out,
+            "phase_correction": args.phase_correction,
+            "phase_model_fn": args.phase_model_fn,
         },
         "datasets": {
             "requested": len(requested),

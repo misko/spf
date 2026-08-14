@@ -1,0 +1,28 @@
+# 2x2 diagonal cell: empirical table built with phase_correction=none, and
+# inference applying the SAME correction. The off-diagonal (mismatched) cells are
+# blocked by the runner's consistency assert and were already measured harmful in
+# spf/filters/reports/phasecorr_direct_pf_20260814_v1.
+#
+# Both tables are built from the SAME 48 rover captures with the same bins, so the
+# only difference between the two runs is the correction applied consistently on
+# both sides.
+precompute_caches:
+  3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
+
+runs:
+  - run_PF_single_theta_single_radio:
+      N: [1024]
+      theta_err: [0.001]
+      theta_dot_err: [0.1]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+      phase_correction: ["none"]
+
+  - run_PF_single_theta_dual_radio:
+      N: [16384]
+      theta_err: [0.005]
+      theta_dot_err: [0.1]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+      phase_correction: ["none"]
+

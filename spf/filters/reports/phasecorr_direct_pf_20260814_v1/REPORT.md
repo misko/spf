@@ -109,3 +109,85 @@ and you can silently run a mixture of two checkouts.
 **Baselines.** The single-radio family scores a folded half-circle, whose uniform-random floor
 is **π²/6 = 1.645 rad²**, not the π²/3 that `spf/evaluation/metrics.py` defines. Scoring it
 against π²/3 overstates skill by roughly 2×.
+
+---
+
+## Addendum — rebuilding the empirical table from corrected φ
+
+The negative above could not distinguish "the correction is worthless" from "the correction is
+inconsistent with the table". That fork has now been run.
+
+### Method
+
+A **matched pair** of empirical tables was built from **the same 48 rover captures**, same 65×65
+bins, differing only in whether `mean_phase` was corrected during the build. Then each table was
+used for inference with the *same* correction applied — the two diagonal cells of the 2×2. The
+off-diagonal (mismatched) cells are blocked by a new consistency assert and were already
+measured harmful above.
+
+`PhaseCorrectedDataset` fails closed outside the model's support (5766/5840 MHz, gains 26–62),
+so the correction pass touched only the captures the model covers — no scoping code was needed.
+
+### The tables do differ, more than a bin-width argument predicts
+
+![table comparison](figures/table_compare.png)
+
+**Figure 1.** p(θ|φ) for three of the six rover spacing keys: uncorrected, corrected, and the
+difference. The difference panels are **structured dipoles along each ridge** — the signature of
+a sub-bin φ shift moving probability across bin edges.
+
+![conditional slices](figures/table_slices.png)
+
+**Figure 2.** The p(θ|φ) slices the particle filter actually samples. **The curves do not
+overlie**: mean total-variation distance is **0.11–0.25** across the six keys, despite a
+centroid shift of only 0.002–0.057° against a 5.54° bin. A sub-bin shift near a sharp ridge
+flips frames across bin edges, so the conditional moves considerably more than the shift/bin
+ratio suggests. *This corrects the a-priori estimate in the plan, which used the bin-width
+ratio as a ceiling and was too optimistic about the table being unchanged.*
+
+### Result: calibration is fixed, accuracy is not
+
+| family | variant | MSE | RMSE | vs random | std(z) | cov@68 |
+|---|---|---:|---:|---:|---:|---:|
+| PF dual radio | table+φ **uncorrected** | **0.9382** | **55.5°** | **3.51×** | 1.73 | 0.681 |
+| PF dual radio | table+φ **corrected (matched)** | 0.9727 | 56.5° | 3.38× | **1.67** | 0.682 |
+| | | ΔMSE **+0.0345**, better on 8/48, p=0.0000 | | | Δstd(z) **−0.056**, p=0.0308 | |
+| PF single radio | table+φ **uncorrected** | **0.5096** | **40.9°** | **3.23×** | 1.99 | 0.603 |
+| PF single radio | table+φ **corrected (matched)** | 0.5190 | 41.3° | 3.17× | **1.85** | 0.605 |
+| | | ΔMSE **+0.0094**, better on 11/48, p=0.0000 | | | Δstd(z) **−0.141**, p=0.0001 | |
+
+**The mismatch hypothesis is confirmed, and it was doing real damage.** Against the mismatched
+run above, making table and inference consistent:
+
+| | mismatched (table uncorrected, φ corrected) | matched (both corrected) |
+|---|---:|---:|
+| ΔMSE, dual radio | +0.0870 | **+0.0345** |
+| Δstd(z), dual radio | **+0.112** (worse) | **−0.056** (better) |
+| Δstd(z), single radio | **+0.089** (worse) | **−0.141** (better) |
+
+Consistency **halves the accuracy penalty and flips the sign of the calibration effect**.
+Calibration is now *significantly better* on both families — which is exactly where the plan
+predicted an effect would appear, since a systematic removal should show up in the honesty of
+the reported variance before it shows up in accuracy.
+
+**But accuracy is still significantly worse**, on 40/48 and 37/48 captures. So the answer is
+not "the correction was only inconsistent"; there is a residual accuracy cost that consistency
+does not remove. The most likely cause is the donor: the rover's radios are **held out**, and a
+donor table removes only 22–41% of the correctable variation while injecting the rest as error.
+
+### Verdict
+
+**Do not deploy.** A consistent rebuild buys better-calibrated uncertainty at a small but
+reproducible accuracy cost, and neither effect is large enough to matter against RMSEs of
+41–56°. The question is now closed for the held-out-donor case.
+
+**What would still be worth testing, and only this:** the same 2×2 with a **same-radio** table
+for the rover's own units. That removes the donor as a confound and is the only remaining way
+the accuracy sign could flip. It needs an E-GSC9-style capture per rover radio (~2.6 h each)
+and is not justified by the effect sizes here.
+
+⚠️ **One caveat on the baselines in this addendum.** Both tables are built from the same 48
+captures the filters are evaluated on, so these baselines (0.9382 / 0.5096) are slightly
+*better* than the shipped-table baselines above (0.9411 / 0.5143) — the table is fitted on its
+own evaluation data. That affects both arms identically and so does not bias the comparison,
+but these numbers must not be quoted as clean held-out performance.

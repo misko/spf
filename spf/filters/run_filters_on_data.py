@@ -130,6 +130,19 @@ def run_jobs_with_one_dataset(
             # of a phase_correction sweep collides on one filename.
             phase_correction = fn_kwargs.pop("phase_correction", "none")
             phase_model_fn = fn_kwargs.pop("phase_model_fn", None)
+            # A table built with a correction and consumed without it (or the
+            # reverse) is a silent ~7 deg mismatch, measured harmful in
+            # phasecorr_direct_pf_20260814_v1. Fail loudly instead.
+            table_pc = (
+                getattr(ds, "empirical_data", {})
+                .get("__provenance__", {})
+                .get("params", {})
+                .get("phase_correction", "none")
+            )
+            assert table_pc == phase_correction, (
+                f"empirical table was built with phase_correction={table_pc!r} but "
+                f"this run uses {phase_correction!r}; they must match"
+            )
             fn_kwargs["ds"] = (
                 ds
                 if phase_correction == "none"
