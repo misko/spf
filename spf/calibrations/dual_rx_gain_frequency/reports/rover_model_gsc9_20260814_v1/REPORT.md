@@ -258,3 +258,62 @@ safer choice if you distrust the state table, since it assumes nothing about the
 *Nothing else in this report changes.* The blockers are unmoved: the anchor still cannot be
 measured in flight, mid-buffer gain instability is still unguarded, and this is still two
 radios with one damaged.
+
+---
+
+## Addendum 2, 2026-08-14 — the complete ladder, and a correction to this report's own headline
+
+### The ladder
+
+Every rung scored two ways on the rover's own cells, usage-weighted, anchor 62 dB.
+**Same-radio** is leave-one-epoch-out within the unit. **Held-out radio** is fitted on one
+radio and applied to the other, averaged over all four donor→recipient × carrier
+combinations — which is what the rover gets, since its units are uncalibrated.
+
+| model | params | physically plausible? | same-radio | held-out radio |
+|---|---:|---|---:|---:|
+| **no correction (baseline)** | **0** | — | **7.69°** (6.37–10.52) | **7.69°** (6.37–10.52) |
+| linear in dB | 2 | ✗ asserts phase ∝ dB; the hardware is discrete blocks | 8.02° | 8.65° |
+| quadratic in dB | 4 | ✗ same | 9.38° | 9.55° |
+| mixer only | 24 | ~ RF-side, but omits the LNA step and the per-arm offset | 10.13° | 10.36° |
+| LNA only | 4 | ~ captures the one real step plus per-arm constants | 4.36° | 4.66° |
+| LPF only | 50 | ✗ baseband/post-mixer; works only as a *proxy* for gain index | 2.07° | 2.79° |
+| **mixer + LNA** | **28** | **✓ exactly the RF-side blocks that move** | **0.58°** (0.15–1.11) | **2.51°** (0.86–3.96) |
+| mixer + LNA + LPF slope | 30 | ✓ (the LPF term adds nothing) | 0.58° | 2.51° |
+| mixer + LPF | 74 | ✗ omits the LNA step that physically exists | 0.69° | 2.59° |
+| all four RF words | 80 | ✓ but over-parameterised (TIA constant, LPF null) | 0.58° | 2.51° |
+| gain LUT (per dB) | 74 | ○ agnostic — asserts nothing about the hardware | 0.58° | 2.51° |
+| **SHARED-H RF words** *(shipped L26/L30/L31 shape)* | 39 | **✗ asserts both arms share one H — falsified** | 2.54° | 2.75° |
+| SHARED-H gain LUT | 37 | ✗ same | 2.54° | 2.75° |
+
+Three rungs are **worse than doing nothing**. `LNA only` at 4 parameters is the best
+parameter-for-parameter rung on the board. `mixer + LNA` at 28 is the knee, and everything
+above it is identical to three decimals. Held-out costs about 4× (0.58 → 2.51), on n = 2
+radios one of which is damaged — an order of magnitude, not an estimate.
+
+### ⚠️ This report has been overstating the deployable benefit
+
+The "no correction = 6.4–10.5°" figure quoted at the top of this report is **almost entirely a
+constant**, and a constant is absorbed by the per-session phase calibration. Only the
+*variation about it* is a real gain:
+
+| radio | carrier | mean \|D\| | weighted **mean** D | **MAD about the mean** | after mixer+LNA |
+|---|---|---:|---:|---:|---:|
+| R18 | 5766 | 6.37° | 6.32° | **0.99°** | 0.14° |
+| R18 | 5840 | 6.79° | 6.39° | **1.07°** | 0.19° |
+| R17 | 5766 | 7.06° | 6.97° | **1.90°** | 0.88° |
+| R17 | 5840 | 10.52° | 10.14° | **1.87°** | 0.74° |
+
+The cause is concentration: **73.8% of rover frames at 5766 MHz and 83.3% at 5840 sit in a
+single RF-word combination** — RX1 (LNA 3, mixer 15) against RX2 (LNA 3, mixer 4) — for which
+the model predicts one constant. The genuinely removable error is therefore **1.0–1.9° of
+phase**, taken to **0.14–0.88°**: a **2.2–7×** gain, not the 33–43× this report's headline
+claims. In bearing terms, roughly **0.4° → 0.06°**.
+
+**Conditional**, and it should be checked before anyone plans around it: this assumes the
+inference pipeline estimates a per-session phase offset. If it does not, the constant is a
+real 6–10° bias and the larger figure stands. That is a question about the inference code,
+not about this data, and it is cheap to answer.
+
+The model recommendation does not change — `mixer + LNA` is still the right rung, and the
+ladder above is unaffected. What changes is the size of the prize.
