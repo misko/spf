@@ -1,4 +1,16 @@
-# The models, refitted on E-GSC9 — the rover's cells are measured, and the model is solved
+# The models, refitted on E-GSC9 — the rover's cells are measured
+
+> **Status.** Everything in this report is bench-derived from E-GSC9 Session A and stands as
+> measured. Two wording corrections after external review: the title previously read "and the
+> model is solved", which one clean unit and one damaged unit do not support; and cross-carrier
+> transfer **matches** the gain LUT (0.276° vs 0.277°) rather than exceeding it. `mixer + LNA`
+> is **28 parameters per radio-carrier** — the committed two-carrier artifact holds 56.
+>
+> **This model was subsequently found not to help the rover.** See
+> [`phasecorr_direct_pf_20260814_v1`](../../../../filters/reports/phasecorr_direct_pf_20260814_v1/REPORT.md)
+> and its retraction. Sessions B and C are **terminated by decision for rover deployment**, and
+> remain required before any temporal-transfer or pad-discriminator claim.
+
 
 **Run 2026-08-14.** Supersedes the model recommendation in
 [`ladder_frames_gsc678_20260813_v1`](../ladder_frames_gsc678_20260813_v1/REPORT.md),
@@ -129,8 +141,9 @@ each carrying `d1_deg`, `d2_deg`, full provenance, the held-out score, and a
   buildable from data in hand.
 - **Two radios, one damaged.** Cross-radio transfer is 1.16× — none — so every table here is
   single-unit. A third unit remains the largest un-addressed weakness.
-- **Sessions B and C are outstanding.** H6 (12 h transfer) and H7 (pad discriminator) are
-  PENDING; until B returns, the re-calibration interval is unmeasured.
+- **Sessions B and C are TERMINATED by decision** for rover deployment. H6 (12 h transfer)
+  and H7 (pad discriminator) were never run, so the re-calibration interval is unmeasured and
+  any temporal-transfer claim remains unsupported.
 - **Two gates failed and are retained, not re-run.** G8 (manifest freshness — the file predated
   session A by four hours) and G9 (R17 across-epoch drift 4.468° against a <4° gate). R18
   passed G9 at 2.476°. The R17 tables should be read with that drift in mind.

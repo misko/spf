@@ -9,6 +9,34 @@ commit is also on `main`.
 
 ---
 
+## FINAL CONCLUSION
+
+Five statements, each with its evidence and its status.
+
+| # | conclusion | status |
+|---|---|---|
+| 1 | **Do not deploy the gain-phase correction we have.** The R18-derived held-out donor changes the geometry-conditioned rover residual by **+0.017°, 95% CI [−0.020, +0.061]** (42 unique captures, 84 streams) — indistinguishable from zero — and costs a small but reproducible accuracy penalty end to end in both direct particle filters. | **Supported. Act on this.** |
+| 2 | **The physical question is OPEN.** Whether a *correctly conditioned, same-radio, sample-weighted* gain correction would help is **not** established. A null on a held-out donor cannot bound one, because predictor error attenuates correlation toward zero whether or not the underlying term is real. | **Previously claimed closed. Retracted.** |
+| 3 | **Keep the bench model.** `mixer + LNA`, 28 parameters per radio-carrier, is the most parsimonious description of the E-GSC9 Session-A measurements and localises R17's fault to a single coefficient (−77.09° on RX1's LNA switch against −18.10° on its own RX2). It is valuable for bench work and hardware diagnostics. | **Supported.** |
+| 4 | **Do not commission a same-radio bench campaign yet.** Not because it is ruled out — that reasoning was withdrawn — but because a cheaper analysis should come first. | **Sequencing judgement, not a proof.** |
+| 5 | **The next step needs no new capture.** Fit gain-state fixed effects directly to the geometry-corrected residual `wrap(mean_phase − ground_truth_phi)`, with cross-validation across physical captures and **no donor model at all**. That tests whether gain state carries repeatable information in rover data on its own terms, and is the proper bound this investigation failed to produce. | **Recommended.** |
+
+**In one sentence:** the correction we built does not help the rover and should not ship, the
+model behind it is good bench physics worth keeping, and the question of whether gain-phase
+*could* matter for the rover remains genuinely open — an earlier version of this document said
+otherwise and was wrong.
+
+### What changed, and why you should trust this version less than its confidence suggests
+
+The original closing argument conditioned on `rx_theta_in_pis`, believing it was ground-truth
+bearing. It is the array mount orientation and is **constant per receiver per capture**, so the
+analysis compared a 1.75° correction against the entire trajectory's phase motion and concluded
+gain-phase was a 2% term. That was caught in external review, not by me, after it had been
+committed and reported. The corrected numbers are in the table above; the withdrawn ones are
+listed in [Retraction](#retraction).
+
+---
+
 ## The question, and the answer
 
 **Question:** which gain-phase model should correct the rover's data, and how much does it buy?

@@ -1,4 +1,20 @@
-# Gain-phase correction on the direct PF filters — a clean negative, and why
+# Gain-phase correction on the direct PF filters
+
+> ### ⚠️ READ FIRST — status of this report
+>
+> **Sections 1 and the first addendum stand.** The end-to-end sweep and the matched-table
+> rebuild are valid as run.
+>
+> **Addendum 2 is WITHDRAWN in full.** It conditioned on `rx_theta_in_pis`, which is the array
+> mount orientation and is constant per receiver per capture, not ground-truth bearing. Its
+> 81.98° residual, r = −0.0245, r² = 0.060%, "2.1% of the phase budget", "the other 98%", and
+> the claim that the physical question was closed are all retracted. See
+> [Retraction](#-retraction-2026-08-14--addendum-2-was-wrong) at the end.
+>
+> **The conclusion that survives:** do not deploy the held-out donor correction. Correctly
+> conditioned, it changes the rover residual by **+0.017°, 95% CI [−0.020, +0.061]** — a null
+> **for that donor**, which does not bound a same-radio or sample-weighted correction.
+
 
 **Run 2026-08-14.** 1,920 runs · 2 direct (non-NN) PF families · 4 arms · 5 seeds · 48 rover
 captures · paired per capture · zero failures. Read-only: **the rover data was not modified**;
@@ -270,6 +286,14 @@ stores down to **42 unique RX captures** (they reuse RX recordings across TX par
 | **change** | **+0.017°, 95% CI [−0.020, +0.061]** |
 | better on | 45/84 streams — a coin flip |
 | corr(correction, residual) | **+0.0138**, r² = **0.019%** |
+
+![geometry conditioned](figures/fig3_geometry_conditioned.png)
+
+**Figure 3 (corrected).** Left: per receiver-stream mean |e| with and without the correction —
+every point sits on the identity line. Centre: the per-stream change, with the bootstrap 95% CI
+straddling zero. Right: the predicted correction against the geometry-removed residual, r =
++0.0138. This figure supersedes the withdrawn `rx_theta_in_pis` analysis, which produced no
+figure. **It bounds the held-out donor, not the physics.**
 
 The residual is **36.7°, not 82°**, and the correlation is **positive, not negative** — the
 sign in the withdrawn analysis was an artifact. The CI is a per-stream bootstrap, because
