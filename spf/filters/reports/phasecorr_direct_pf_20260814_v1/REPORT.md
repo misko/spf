@@ -228,3 +228,66 @@ work on gain-phase correction for the rover.**
 
 The model itself remains valid and worth keeping for bench and hardware-diagnostic use — it
 localised R17's fault to a single LNA coefficient. It is deployment to the rover that is closed.
+
+---
+
+## ⚠️ RETRACTION, 2026-08-14 — Addendum 2 was wrong
+
+**Addendum 2 above is withdrawn in full.** An external review found that
+`analysis/why_null.py` conditioned on the wrong angle, and the finding is confirmed.
+
+### The bug
+
+The script binned on `rx_theta_in_pis` and called the bins ground-truth bearing.
+**`rx_theta_in_pis` is the array MOUNT ORIENTATION and is constant per receiver per capture** —
+measured directly: `1.0` on r0 and `0.5` on r1, one unique value each. Every frame of a
+receiver therefore fell into a single bin. What was reported as "the phase residual at fixed
+bearing" was the phase variation across the **entire trajectory**, which is overwhelmingly the
+real geometric signal the array exists to measure.
+
+The dataset already exposes the right quantities — `ds.ground_truth_thetas[r]` (755 unique
+values spanning ±180° on the same capture) and `ds.ground_truth_phis[r]`.
+
+### What is withdrawn
+
+The 81.98° residual · r = −0.0245 · r² = 0.060% · "2.1% of the phase budget" · "the other 98%
+is multipath, geometry and segmentation" · "even a perfect correction cannot matter" · "the
+question closes". **None of these are supported.** The review also correctly notes that the
+"2.1%" was a standard-deviation ratio being presented alongside an r² and then treated as an
+additive decomposition; those are three different quantities.
+
+### The corrected analysis
+
+`analysis/geometry_conditioned.py` removes geometry exactly —
+`e = wrap(mean_phase − ground_truth_phi)`, centred per stream — and deduplicates the 48 merged
+stores down to **42 unique RX captures** (they reuse RX recordings across TX partners).
+
+| | |
+|---|---:|
+| unique RX captures / receiver-streams / frames | 42 / 84 / 124,950 |
+| mean \|e\| **without** correction | **36.728°** |
+| mean \|e\| **with** correction | 36.746° |
+| **change** | **+0.017°, 95% CI [−0.020, +0.061]** |
+| better on | 45/84 streams — a coin flip |
+| corr(correction, residual) | **+0.0138**, r² = **0.019%** |
+
+The residual is **36.7°, not 82°**, and the correlation is **positive, not negative** — the
+sign in the withdrawn analysis was an artifact. The CI is a per-stream bootstrap, because
+streams are the independent unit; frames are not.
+
+### What this does and does not support
+
+**Supported:** the R18-derived **donor** correction has no detectable effect on the
+geometry-conditioned rover residual. Combined with the end-to-end sweep, that is sufficient for
+the engineering decision — *do not deploy the currently tested correction.*
+
+**NOT supported, and previously overclaimed:** that a *perfect*, same-radio, or
+sample-weighted correction cannot matter. A noisy or mismatched predictor is attenuated toward
+zero correlation even when the underlying physical term is real, so a null on a held-out donor
+does not bound a correctly-conditioned one. The report claimed a physical closure it had not
+earned. **That closure is retracted.**
+
+The remaining low-cost check the review proposes — fitting gain-state fixed effects directly to
+the geometry-corrected residual with capture-level cross-validation, using no donor model at
+all — is the right next step if anyone wants the physical question settled. It needs no new
+bench capture.

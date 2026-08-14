@@ -1,7 +1,8 @@
 # Gain-phase correction and the rover: what we did, what we found, and where it ends
 
 **2026-08-11 → 2026-08-14.** A synthesis of one investigation, from "which gain-phase model
-should the rover use" to "gain-phase is a 2% term and the answer is to stop".
+should the rover use" to "the donor model we have does not help, and the physical question is
+still open". Includes a **retraction** of this document's original closing argument.
 
 Working branch preserved at **`gainphase-rover-investigation-20260814`** (`f91a2ba`); every
 commit is also on `main`.
@@ -12,13 +13,15 @@ commit is also on `main`.
 
 **Question:** which gain-phase model should correct the rover's data, and how much does it buy?
 
-**Answer:** none of them, and essentially nothing. On rover frames the model's predicted
-correction explains **0.060% of the phase variance** — 1.75° of predicted correction against an
-81.98° phase residual at fixed bearing. Applying it makes the particle filters slightly but
-significantly *worse*.
+**Answer for the model we have:** do not deploy it. The R18-derived **held-out donor**
+correction produces no detectable improvement end to end, and a small accuracy penalty in the
+particle filters.
 
-That is a negative, but it was expensive to establish honestly and it retires a line of work
-that had been running for weeks.
+**What is NOT established:** that gain-phase is physically negligible. An earlier version of
+this document claimed the correction explained 0.060% of rover phase variance and that "even a
+perfect correction cannot matter". **That analysis was wrong and is retracted** — see the
+retraction section below. A null on a held-out donor does not bound a same-radio or
+sample-weighted correction.
 
 ---
 
@@ -27,12 +30,13 @@ that had been running for weeks.
 | # | experiment / report | what it settled |
 |---|---|---|
 | 1 | [`ladder_frames_gsc678_20260813_v1`](../spf/calibrations/dual_rx_gain_frequency/reports/ladder_frames_gsc678_20260813_v1/REPORT.md) | First frame-level ladder fit. The shipped mechanistic family is the **wrong shape**; the anchor gain, not the radio, decides whether the model's core assumption holds. |
-| 2 | [`e_gsc9_rover_operating_region`](../experiments/e_gsc9_rover_operating_region/experiment_readme.md) | Preregistered capture of the rover's own operating cells — a 1,600-cell grid covering **100%** of rover frames where prior campaigns covered **0**. |
+| 2 | [`e_gsc9_rover_operating_region`](../experiments/e_gsc9_rover_operating_region/experiment_readme.md) | Preregistered capture of the rover's own operating cells. Designed as a 1,600-cell `[23,62]²` grid; the measured-level fallback **executed 1,369 cells over `[26,62]²`**, covering **99.9829%** (5766) and **100%** (5840) where prior campaigns covered **0**. |
 | 3 | [`e_gsc9` RESULTS](../experiments/e_gsc9_rover_operating_region/RESULTS.md) | Session A executed: 27,380 frames, all quality-valid. H2 falsified on the damaged unit, H3 localised its defect, two gates failed and were retained. |
-| 4 | [`rover_model_gsc9_20260814_v1`](../spf/calibrations/dual_rx_gain_frequency/reports/rover_model_gsc9_20260814_v1/REPORT.md) | Refit on the measured cells. **`mixer + LNA`, 28 parameters**, is the best and most physical model. Coefficients committed. |
+| 4 | [`rover_model_gsc9_20260814_v1`](../spf/calibrations/dual_rx_gain_frequency/reports/rover_model_gsc9_20260814_v1/REPORT.md) | Refit on the measured cells. **`mixer + LNA`, 28 parameters per radio-carrier**, is the most parsimonious description of the bench data. Coefficients committed. |
 | 5 | [`phasecorr_direct_pf_20260814_v1`](../spf/filters/reports/phasecorr_direct_pf_20260814_v1/REPORT.md) | Applied it to the direct PF filters, 1,920 runs. **Significantly worse**, and the negative control degraded similarly. |
 | 6 | same report, addendum | Rebuilt the empirical table from corrected φ. Consistency **halved the accuracy penalty and flipped the calibration sign** — but accuracy stayed worse. |
-| 7 | `analysis/why_null.py` | **The correction explains 0.060% of rover phase variance.** The question closes. |
+| 7 | `analysis/why_null.py` | ⚠️ **WITHDRAWN — conditioned on the wrong angle.** |
+| 8 | `analysis/geometry_conditioned.py` | Corrected: the donor correction changes the geometry-conditioned residual by **+0.017°, 95% CI [−0.020, +0.061]** over 42 unique captures. A null **for the donor**, not for the physics. |
 
 ---
 
@@ -40,9 +44,12 @@ that had been running for weeks.
 
 ### The model itself is good, and physically legible
 
-`mixer + LNA` — per radio, per arm, 28 parameters — ties a 74-parameter LUT and an
-80-parameter four-word model on bench cells, and **transfers across carriers where a LUT
-cannot** (0.276° predicting 5840 from 5766 alone). The physics is clean: over 26→62 dB the
+`mixer + LNA` — per radio, per arm, **28 parameters per radio-carrier** (the committed
+two-carrier artifact holds 56) — ties a 74-parameter LUT and an 80-parameter four-word model on
+bench cells, and **matches the LUT's cross-carrier transfer** at far fewer, physically
+interpretable parameters (0.276° vs 0.277° predicting 5840 from 5766). It does *not*
+demonstrate a transfer capability the LUT lacks; the earlier wording claimed that and was
+wrong. The physics is clean: over 26→62 dB the
 AD9361 moves only the baseband LPF, then one LNA step at 40→41, then the mixer. The LPF sits
 after the mixer and contributes nothing measurable; the RF-side blocks carry all the phase.
 Smooth functions of dB fail outright because the response is a **staircase over discrete
@@ -52,17 +59,24 @@ Its coefficients are diagnostic: they localise the damaged unit's fault to **one
 its RX1 LNA switch carries −77.09° where its own RX2 carries −18.10°, a −59.00° arm asymmetry,
 independently reproducing E-GSC9's H3 (−59.49°) from a different fit.
 
-### But the term it models is 2% of the rover's phase budget
+### The donor correction has no measurable effect on rover data
+
+Conditioning on geometry **exactly** (`e = wrap(mean_phase − ground_truth_phi)`, centred per
+stream, 42 unique RX captures after deduplication):
 
 | quantity | value |
 |---|---:|
-| φ residual within a 2° bearing bin, rover | **81.98°** |
-| predicted correction, sd within a bin | 1.75° |
-| **share** | **2.1%** |
-| variance of φ explained | **0.060%** |
+| mean \|e\| without correction | **36.728°** |
+| mean \|e\| with correction | 36.746° |
+| change | **+0.017°, 95% CI [−0.020, +0.061]** |
+| better on | 45/84 streams |
+| corr(correction, residual) | +0.0138, r² = 0.019% |
 
-Even a *perfect* gain-phase correction would address 2% of what moves φ on a flying rover. The
-other 98% — multipath, geometry, segmentation — was never in scope of this work.
+**This bounds the donor, not the physics.** A mismatched predictor is attenuated toward zero
+correlation even when the underlying term is real, so it says nothing about a same-radio or
+sample-weighted correction. The bench-measured gain term (1.0–1.9° sd) is small against a
+36.7° residual, which is *suggestive* — but that argument assumes the rover's radios behave
+like the two bench units, which is exactly what has not been shown.
 
 ### Three real defects were found and fixed or recorded
 
@@ -91,26 +105,61 @@ Recorded because the intermediate numbers circulated before they were right.
    shift near a sharp ridge flips frames across bin edges.
 5. **"The table has zero rover captures"** → an artifact of reading a field that was `None`.
    It has **48**, the same ones used for evaluation.
-6. **"A same-radio capture per rover unit is the remaining option"** → retired. It would
-   recover more of a term that is 2% of the problem.
+6. **"A same-radio capture per rover unit is the remaining option"** → I retired this on the
+   strength of the withdrawn 2% argument. **That retirement is itself withdrawn.** It is not
+   justified *yet* — the no-new-capture check below should come first — but the reasoning I
+   used to rule it out was wrong.
+7. **"The correction explains 0.060% of rover phase variance"** and everything built on it →
+   withdrawn; see the Retraction section. The correct figure is r² = 0.019% against a 36.7°
+   geometry-conditioned residual, and it bounds the **donor**, not the physics.
 
 ---
 
 ## Where this ends
 
-**Stop here on gain-phase for the rover.** The model is correct, committed, documented, and
-worth keeping for bench and hardware-diagnostic use — it found a real fault in R17. It is not
-worth deploying, and no further capture changes that.
+**Pause dedicated rover gain-phase work.** The model is the best parsimonious description of
+the Session-A bench measurements, committed and documented, and worth keeping for bench and
+hardware-diagnostic use — it localised a real fault in R17. The currently tested donor
+correction is not worth deploying.
+
+It is **not** established that no correction could matter. Sessions B and C are **terminated by
+decision for rover deployment**, but they remain required before any broader temporal-transfer
+or physical-discriminator claim; G8 and G9 failed and stand.
 
 The blockers that remain are recorded rather than solved, and none is now worth solving *for
 this purpose*: the anchor cannot be measured in flight; 69% of rover frames change gain
 mid-buffer unguarded; cross-radio transfer is 1.16×, i.e. none.
 
-**What would move rover bearing accuracy is the 81.98° residual**, not the 1.75° inside it.
-That is where a next experiment belongs, and it is a different investigation — segmentation,
-multipath, and geometry, not gain tables.
+The geometry-conditioned residual is **36.7°**, and identifying what composes it — multipath,
+GPS/heading error, segmentation, oscillator effects — is a different and larger investigation
+than gain tables. The one **low-cost, no-new-capture** check that remains for gain-phase is to
+fit gain-state fixed effects directly to that residual, with capture-level cross-validation and
+no donor model at all. That would bound the physical question properly, which this work did
+not.
 
 ---
+
+## Retraction
+
+An external methodological review found that `why_null.py` — the analysis supplying this
+document's original closing argument — **conditioned on `rx_theta_in_pis`, which is the array
+mount orientation, not ground-truth bearing.** It is constant per receiver per capture
+(verified: 1.0 on r0, 0.5 on r1), so every frame fell into a single "bearing bin" and the
+81.98° denominator contained the real geometric signal.
+
+Withdrawn: the 81.98° residual, r = −0.0245, r² = 0.060%, the 2.1% share, the "other 98%", and
+the claim that the physical question is closed. The review also correctly noted that the 2.1%
+was a standard-deviation ratio presented next to an r² and then treated as an additive
+decomposition — three different quantities.
+
+Also corrected here: the executed grid was 1,369 cells not 1,600; cross-carrier transfer
+matches the LUT rather than exceeding it; "28 parameters" is per radio-carrier; and "the model
+is correct" is softened to what the evidence supports. Further caveats the review raised and
+this document now honours: the 48 merged stores are not 48 independent captures (42 unique RX
+recordings), frames are not independent observations, and the matched-table experiment is a
+pipeline-consistency test rather than a clean generalisation estimate.
+
+**The engineering decision is unchanged. The scientific closure is retracted.**
 
 ## Artifacts
 

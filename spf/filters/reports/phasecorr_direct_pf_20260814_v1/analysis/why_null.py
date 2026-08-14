@@ -1,3 +1,22 @@
+"""WITHDRAWN 2026-08-14 -- THIS ANALYSIS IS WRONG. Superseded by
+geometry_conditioned.py. Retained rather than deleted because its numbers were
+published.
+
+The bug: this script bins on ``rx_theta_in_pis`` and calls the bins ground-truth
+bearing. ``rx_theta_in_pis`` is the ARRAY MOUNT ORIENTATION and is CONSTANT per
+receiver per capture (measured: 1.0 on r0, 0.5 on r1). Every frame of a receiver
+fell into ONE bin, so "the phase residual at fixed bearing" was actually the phase
+variation across the entire trajectory -- overwhelmingly the real geometric signal.
+
+Everything it reported is withdrawn: the 81.98 deg residual, r = -0.0245,
+r^2 = 0.060%, the 2.1% phase share, and the "other 98% is multipath, geometry and
+segmentation" interpretation. Correctly conditioned on ground_truth_phis the
+residual is 36.73 deg and the correlation is +0.0138 (r^2 = 0.019%) -- the sign of
+the correlation was an artifact too.
+
+Original docstring follows.
+"""
+
 """Why the correction changes nothing: it explains 0.06% of rover phase variance.
 
 The paired sweep showed every correction arm slightly WORSE than baseline, and the
