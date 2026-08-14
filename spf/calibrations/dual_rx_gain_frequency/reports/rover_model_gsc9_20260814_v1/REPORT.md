@@ -177,6 +177,16 @@ TIA and RF_DC never move. The LPF is a *baseband* attenuator sitting after the m
 physical grounds it should carry little RF phase; the LNA and mixer are RF-side and should
 carry most of it. **That is exactly what the data says.**
 
+![complexity and transfer](figures/fig7_complexity_and_transfer.png)
+
+**Figure 2.** Left: every candidate model, parameters against held-out error on the rover's
+own cells. The response saturates at **28 parameters** — the 74-parameter LUT and the
+80-parameter four-word model land on the same error. Below 28 it falls apart: dropping the
+LNA costs 30–70%, and smooth functions of dB (2 and 4 parameters) are off the top of the
+plot. Right: fit at one carrier and predict the other. The 28-parameter physical model
+transfers as well as the 74-parameter LUT — 0.276° on the clean unit against 6.788°
+uncorrected — so the LUT's extra parameters buy nothing here either.
+
 ### The complexity sweep
 
 | model | params | R18 5766 | R18 5840 | R17 5766 | R17 5840 |
@@ -210,6 +220,17 @@ On the clean unit a 5766-only calibration predicts 5840 to **0.276°** — 25× 
 correction, at zero extra capture. Capturing both carriers is still better (0.149°/0.206°),
 but the physical model degrades gracefully to a carrier it never saw, and the LUT's advantage
 over it is nil.
+
+![staircase and R17](figures/fig8_staircase_and_r17.png)
+
+**Figure 3.** Left: the fitted per-arm phase against commanded gain, with the hardware regimes
+shaded. It is **flat from 26 to 40 dB and again from 42 to 51**, where only the baseband LPF
+moves — a post-mixer attenuator contributing no measurable RF phase. All the motion is the
+single LNA step at 40→41 and the mixer ramp from 52 to 62. **This is a staircase over discrete
+hardware states, which is why every smooth function of dB fails.** Right: the LNA 2→3 step per
+arm. Both units show a real ~−16 to −18° step; on the clean unit the two arms agree to 1.58°,
+while R17's RX1 arm carries −77.09° — a −58.99° asymmetry in one coefficient, with otherwise
+normal mixer behaviour.
 
 ### And it localises R17's defect to one coefficient
 
