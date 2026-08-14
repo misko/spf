@@ -1,8 +1,9 @@
 # Gain-phase correction and the rover: what we did, what we found, and where it ends
 
 **2026-08-11 → 2026-08-14.** A synthesis of one investigation, from "which gain-phase model
-should the rover use" to "the donor model we have does not help, and the physical question is
-still open". Includes a **retraction** of this document's original closing argument.
+should the rover use" to "gain state carries no repeatable phase information in rover data".
+Includes a **retraction** of this document's original closing argument, and the corrected
+analysis that re-established the conclusion properly.
 
 Working branch preserved at **`gainphase-rover-investigation-20260814`** (`f91a2ba`); every
 commit is also on `main`.
@@ -45,11 +46,16 @@ listed in [Retraction](#retraction).
 correction produces no detectable improvement end to end, and a small accuracy penalty in the
 particle filters.
 
-**What is NOT established:** that gain-phase is physically negligible. An earlier version of
-this document claimed the correction explained 0.060% of rover phase variance and that "even a
-perfect correction cannot matter". **That analysis was wrong and is retracted** — see the
-retraction section below. A null on a held-out donor does not bound a same-radio or
-sample-weighted correction.
+**Answer for gain-phase in general:** gain state carries **no repeatable phase information**
+in rover data. Fixed effects fitted on the rover data itself, cross-validated across physical
+captures, do not generalise — every parameterisation and stratum is *worse* on held-out
+captures. Because the effect is fitted on the target data, that is an **upper bound** no
+imported model can beat.
+
+⚠️ **This conclusion was first asserted without evidence, retracted, and then established.**
+The original argument used a wrong angle variable and a statistic that could not support it;
+see [Retraction](#retraction). The version above rests on a different analysis
+(`gain_fixed_effects.py`) that does not use any donor model.
 
 ---
 
@@ -136,11 +142,17 @@ Recorded because the intermediate numbers circulated before they were right.
    It has **48**, the same ones used for evaluation.
 6. **"A same-radio capture per rover unit is the remaining option"** → I retired this on the
    strength of the withdrawn 2% argument. **That retirement is itself withdrawn.** It is not
-   justified *yet* — the no-new-capture check below should come first — but the reasoning I
-   used to rule it out was wrong.
+   used to rule it out was wrong. The no-new-capture check has since been run and **does**
+   support retiring it — but on evidence, not on the argument I originally gave.
 7. **"The correction explains 0.060% of rover phase variance"** and everything built on it →
    withdrawn; see the Retraction section. The correct figure is r² = 0.019% against a 36.7°
    geometry-conditioned residual, and it bounds the **donor**, not the physics.
+8. **A second silent-stratification bug**, caught before reporting: the first run of
+   `gain_fixed_effects.py` read `gain_endpoints_equal` from `cached_keys`, where it does not
+   exist, so it silently defaulted to all-True — making the "stable gain" stratum identical to
+   "all" and leaving "unstable" empty. It surfaced only because the empty stratum divided by
+   zero. **This is the same class of error as the `rx_theta_in_pis` bug** — reading a field
+   that is not what its name suggests — and it was caught by a crash rather than by design.
 
 ---
 
@@ -159,12 +171,14 @@ The blockers that remain are recorded rather than solved, and none is now worth 
 this purpose*: the anchor cannot be measured in flight; 69% of rover frames change gain
 mid-buffer unguarded; cross-radio transfer is 1.16×, i.e. none.
 
-The geometry-conditioned residual is **36.7°**, and identifying what composes it — multipath,
+The geometry-conditioned residual is **35–37°**, and identifying what composes it — multipath,
 GPS/heading error, segmentation, oscillator effects — is a different and larger investigation
-than gain tables. The one **low-cost, no-new-capture** check that remains for gain-phase is to
-fit gain-state fixed effects directly to that residual, with capture-level cross-validation and
-no donor model at all. That would bound the physical question properly, which this work did
-not.
+than gain tables. **That is where rover bearing accuracy actually lives.**
+
+The low-cost no-donor check that would bound gain-phase properly has now been run
+(`analysis/gain_fixed_effects.py`): fixed effects fitted on the rover data itself, 6-fold
+cross-validation split on physical capture, three parameterisations, two strata. Every
+combination is worse on held-out captures. Nothing further on gain-phase is warranted.
 
 ---
 

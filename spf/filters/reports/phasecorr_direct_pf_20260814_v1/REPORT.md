@@ -11,9 +11,11 @@
 > the claim that the physical question was closed are all retracted. See
 > [Retraction](#-retraction-2026-08-14--addendum-2-was-wrong) at the end.
 >
-> **The conclusion that survives:** do not deploy the held-out donor correction. Correctly
-> conditioned, it changes the rover residual by **+0.017°, 95% CI [−0.020, +0.061]** — a null
-> **for that donor**, which does not bound a same-radio or sample-weighted correction.
+> **The conclusions that survive:** (1) do not deploy the held-out donor correction —
+> correctly conditioned it changes the rover residual by **+0.017°, 95% CI [−0.020, +0.061]**;
+> and (2) **Addendum 3** then established the general result with no donor model at all —
+> gain-state fixed effects fitted on the rover data do not generalise across captures, which
+> is the upper bound the withdrawn analysis claimed but did not earn.
 
 
 **Run 2026-08-14.** 1,920 runs · 2 direct (non-NN) PF families · 4 arms · 5 seeds · 48 rover
@@ -305,16 +307,14 @@ streams are the independent unit; frames are not.
 geometry-conditioned rover residual. Combined with the end-to-end sweep, that is sufficient for
 the engineering decision — *do not deploy the currently tested correction.*
 
-**NOT supported, and previously overclaimed:** that a *perfect*, same-radio, or
-sample-weighted correction cannot matter. A noisy or mismatched predictor is attenuated toward
-zero correlation even when the underlying physical term is real, so a null on a held-out donor
-does not bound a correctly-conditioned one. The report claimed a physical closure it had not
-earned. **That closure is retracted.**
+**NOT supported by *this* analysis, and previously overclaimed here:** that a *perfect*,
+same-radio, or sample-weighted correction cannot matter. A noisy or mismatched predictor is
+attenuated toward zero correlation even when the underlying physical term is real, so a null on
+a held-out donor does not bound a correctly-conditioned one. This report claimed a physical
+closure it had not earned, and **that closure is retracted.**
 
-The remaining low-cost check the review proposes — fitting gain-state fixed effects directly to
-the geometry-corrected residual with capture-level cross-validation, using no donor model at
-all — is the right next step if anyone wants the physical question settled. It needs no new
-bench capture.
+**Addendum 3 below then established it properly**, using no donor model at all — which is the
+check the review proposed, and it required no new bench capture.
 
 ---
 
