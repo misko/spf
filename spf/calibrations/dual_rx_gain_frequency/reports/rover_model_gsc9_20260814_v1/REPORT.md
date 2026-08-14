@@ -153,3 +153,87 @@ $P analysis/emit_lut.py      ./luts56 56
 
 `analysis/rover_cell_weights.json` is the rover cell-usage histogram over **all 42 distinct RX
 captures**, deduplicated on the RX-capture prefix — the weights every number above uses.
+
+---
+
+## Addendum, 2026-08-14 — the simplest physically plausible model, and it is 28 parameters
+
+Asked which model is *physically* right rather than merely accurate, I swept model complexity
+on the same protocol (leave-one-epoch-out, rover cells, rover-usage weighted, anchor 62 dB).
+
+### What the hardware actually does
+
+Across the captured range the AD9361 realises gain in **three disjoint regimes**, from the
+audited band-2 table:
+
+| gain range | what moves |
+|---|---|
+| 26 → 40 dB | **baseband LPF** attenuator only (0 → 14); LNA and mixer fixed |
+| **40 → 41 dB** | **a single LNA step** (2 → 3); nothing else |
+| 42 → 51 dB | LPF continues (14 → 24) |
+| 52 → 62 dB | **mixer only** (4 → 15); LPF pinned at 24 |
+
+TIA and RF_DC never move. The LPF is a *baseband* attenuator sitting after the mixer, so on
+physical grounds it should carry little RF phase; the LNA and mixer are RF-side and should
+carry most of it. **That is exactly what the data says.**
+
+### The complexity sweep
+
+| model | params | R18 5766 | R18 5840 | R17 5766 | R17 5840 |
+|---|---:|---:|---:|---:|---:|
+| gain LUT (the committed one) | 74 | 0.154 | 0.216 | 1.103 | 0.849 |
+| all four RF words (lna+mix+tia+lpf) | 80 | 0.154 | 0.216 | 1.103 | 0.849 |
+| **mixer + LNA** | **28** | **0.149** | **0.215** | 1.110 | **0.838** |
+| mixer + LPF (LNA omitted) | 74 | 0.194 | 0.370 | 1.183 | 1.006 |
+| mixer only | 24 | 9.173 | 9.592 | 11.300 | 10.450 |
+| LPF only | 50 | 1.734 | 0.713 | 2.934 | 2.891 |
+| quadratic in dB | 4 | 3.803 | 3.613 | 14.639 | 15.455 |
+| linear in dB | 2 | 10.388 | 10.146 | 5.776 | 5.751 |
+
+**`mixer + LNA`, 28 parameters, ties the 74-parameter LUT.** Adding the baseband LPF on top
+moves R18/5766 from 0.149° to 0.154° — i.e. nothing, as the physics predicts. Dropping the
+LNA instead costs 30–70%, because the single 40→41 LNA step is unrepresentable without it.
+And smooth functions of dB fail outright: the response is a **staircase over discrete
+hardware states**, not a curve.
+
+### It also transfers across carriers, which a LUT cannot
+
+Fit at one carrier, predict the other, on rover cells:
+
+| model | R18 5766→5840 | R18 5840→5766 | R17 5766→5840 | R17 5840→5766 |
+|---|---:|---:|---:|---:|
+| **mixer + LNA (28 par)** | **0.276°** | **0.389°** | 3.045° | 3.075° |
+| gain LUT (74 par) | 0.277° | 0.407° | 3.023° | 3.088° |
+| no correction | 6.788° | 6.372° | 10.522° | 7.061° |
+
+On the clean unit a 5766-only calibration predicts 5840 to **0.276°** — 25× better than no
+correction, at zero extra capture. Capturing both carriers is still better (0.149°/0.206°),
+but the physical model degrades gracefully to a carrier it never saw, and the LUT's advantage
+over it is nil.
+
+### And it localises R17's defect to one coefficient
+
+Reading the fitted coefficients at 5766 MHz:
+
+| | LNA 2→3 step, arm 1 | arm 2 | **arm difference** | mixer arm-difference, span |
+|---|---:|---:|---:|---:|
+| R18 (clean) | −15.94° | −17.52° | **+1.57°** | 3.15° |
+| R17 (damaged) | **−77.09°** | −18.10° | **−59.00°** | 2.85° |
+
+**Both units have a real ~−16 to −18° LNA switching step — that is normal.** On a healthy unit
+the two arms agree to 1.6°. R17's entire defect is that its **RX1 LNA switch carries −77°
+instead of −18°**; its mixer behaviour is indistinguishable from R18's. This reproduces
+E-GSC9's H3 (−59.49° at the 40→41 transition) from a completely independent fit at −59.00°,
+and it converts "the damaged unit is unreliable" into a single named, measured coefficient.
+
+### Recommendation, updated
+
+**Use `mixer + LNA` — per radio, per arm, 28 parameters.** It matches the LUT everywhere
+tested, transfers across carriers where the LUT cannot, is interpretable, and its
+coefficients are diagnostic of hardware faults. Coefficients are committed at
+`coefficients/rfblock/`. The gain LUT in `coefficients/luts62/` remains valid and is the
+safer choice if you distrust the state table, since it assumes nothing about the hardware.
+
+*Nothing else in this report changes.* The blockers are unmoved: the anchor still cannot be
+measured in flight, mid-buffer gain instability is still unguarded, and this is still two
+radios with one damaged.
