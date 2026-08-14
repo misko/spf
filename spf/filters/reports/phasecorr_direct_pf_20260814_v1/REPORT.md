@@ -315,3 +315,75 @@ The remaining low-cost check the review proposes — fitting gain-state fixed ef
 the geometry-corrected residual with capture-level cross-validation, using no donor model at
 all — is the right next step if anyone wants the physical question settled. It needs no new
 bench capture.
+
+---
+
+## Addendum 3 — the no-donor upper bound: gain state carries no repeatable information
+
+The retraction left one question genuinely open: a null on a *held-out donor* cannot
+distinguish "the physical term is negligible" from "R18's table is the wrong predictor".
+This settles it, without importing any model.
+
+### Method
+
+The gain effect is estimated **from the rover data itself**:
+
+```
+e = wrap(mean_phase − ground_truth_phi)        geometry removed exactly
+e ~ α_stream + δ(gain state)                   δ LEARNED, not imported
+```
+
+`δ` is a **circular mean per gain state** (not a least-squares coefficient — `e` spans ±180°
+with a ~49° sd, where regression on wrapped angles is invalid). `α_stream` is handled by
+centring each stream circularly in train and test alike, the same "per-session constant is
+absorbed downstream" assumption the rest of the pipeline makes.
+
+**6-fold cross-validation split on physical RX capture** (42 unique, not 48 merged filenames).
+Three parameterisations, two strata.
+
+### Result — every cell is positive
+
+| stratum | frames | model | mean \|e\| before | after | **change** |
+|---|---:|---|---:|---:|---:|
+| all | 124,950 | cell | 35.157° | 35.199° | **+0.042°** |
+| all | | arm | 35.157° | 35.209° | +0.052° |
+| all | | rfblock | 35.157° | 35.189° | +0.032° |
+| **stable gain** | 42,146 | cell | 34.698° | 34.763° | **+0.065°** |
+| stable gain | | arm | 34.698° | 34.784° | +0.086° |
+| stable gain | | rfblock | 34.698° | 34.758° | +0.060° |
+| mid-buffer change | 82,804 | cell | 35.390° | 35.453° | +0.063° |
+| mid-buffer change | | arm | 35.390° | 35.477° | +0.087° |
+| mid-buffer change | | rfblock | 35.390° | 35.408° | +0.018° |
+
+![gain fixed effects](figures/fig4_gain_fixed_effects.png)
+
+**Figure 4.** Left: change in held-out mean \|e\| for every parameterisation and stratum — all
+positive, i.e. all worse. Right: the geometry-removed residual is unmoved by the donor model
+(35.174°) and by the best free fit (35.199°).
+
+### Why this is an upper bound
+
+`δ` is fitted on the target data itself, so **no model imported from a bench can beat it.** A
+same-radio capture, a sample-weighted gain trajectory, a better mechanistic form — each would
+be a *constrained* version of what was just fitted freely, and the free fit does not generalise
+across captures. The most flexible form (per-cell, ~500 free parameters) is not better than the
+most constrained.
+
+Restricting to **stable-gain frames** — where the gain state is unambiguous, removing the
+mid-buffer objection entirely — does not help either.
+
+### The question is now closed, and this time it is earned
+
+**Gain state carries no phase information in rover data that survives generalisation to a new
+capture.** That is a statement about the rover's own measurements, not about a donor model, and
+it is the bound the withdrawn analysis claimed without establishing.
+
+One limit worth stating: this rules out an effect that is *repeatable across captures*, which
+is exactly what a deployed correction requires. A within-capture effect that does not transfer
+would not be detectable here — and would not be deployable either.
+
+**Therefore: no same-radio bench campaign is justified.** That recommendation, withdrawn during
+the retraction for being unsupported, is now reinstated on evidence.
+
+The 35.2° residual is where rover bearing accuracy actually lives. Identifying its composition
+— multipath, GPS/heading error, segmentation — is a different and larger investigation.

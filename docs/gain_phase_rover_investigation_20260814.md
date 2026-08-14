@@ -16,15 +16,15 @@ Five statements, each with its evidence and its status.
 | # | conclusion | status |
 |---|---|---|
 | 1 | **Do not deploy the gain-phase correction we have.** The R18-derived held-out donor changes the geometry-conditioned rover residual by **+0.017°, 95% CI [−0.020, +0.061]** (42 unique captures, 84 streams) — indistinguishable from zero — and costs a small but reproducible accuracy penalty end to end in both direct particle filters. | **Supported. Act on this.** |
-| 2 | **The physical question is OPEN.** Whether a *correctly conditioned, same-radio, sample-weighted* gain correction would help is **not** established. A null on a held-out donor cannot bound one, because predictor error attenuates correlation toward zero whether or not the underlying term is real. | **Previously claimed closed. Retracted.** |
+| 2 | **The physical question is now CLOSED, on evidence.** Gain-state fixed effects fitted on the rover data itself — no donor model — do **not** generalise to held-out captures: every parameterisation and stratum is *worse*, by +0.018° to +0.087°. Because the effect is fitted on the target data, this is an **upper bound** no imported model can beat. | **Was overclaimed, retracted, then established properly.** |
 | 3 | **Keep the bench model.** `mixer + LNA`, 28 parameters per radio-carrier, is the most parsimonious description of the E-GSC9 Session-A measurements and localises R17's fault to a single coefficient (−77.09° on RX1's LNA switch against −18.10° on its own RX2). It is valuable for bench work and hardware diagnostics. | **Supported.** |
-| 4 | **Do not commission a same-radio bench campaign yet.** Not because it is ruled out — that reasoning was withdrawn — but because a cheaper analysis should come first. | **Sequencing judgement, not a proof.** |
-| 5 | **The next step needs no new capture.** Fit gain-state fixed effects directly to the geometry-corrected residual `wrap(mean_phase − ground_truth_phi)`, with cross-validation across physical captures and **no donor model at all**. That tests whether gain state carries repeatable information in rover data on its own terms, and is the proper bound this investigation failed to produce. | **Recommended.** |
+| 4 | **Do not commission a same-radio bench campaign.** A same-radio model is a *constrained* version of the free per-cell fit that was just shown not to generalise, so it cannot do better. | **Now supported, having been withdrawn once.** |
+| 5 | **That check has now been run** (`analysis/gain_fixed_effects.py`, 6-fold CV on 42 unique captures, 124,950 frames). It is the bound the investigation previously failed to produce. **The remaining work is the 35.2° residual itself** — multipath, GPS/heading, segmentation — which is a different and larger investigation. | **Done. Next question is elsewhere.** |
 
 **In one sentence:** the correction we built does not help the rover and should not ship, the
-model behind it is good bench physics worth keeping, and the question of whether gain-phase
-*could* matter for the rover remains genuinely open — an earlier version of this document said
-otherwise and was wrong.
+model behind it is good bench physics worth keeping, and gain state carries no phase
+information in rover data that survives generalisation to a new capture — a conclusion this
+document first asserted without evidence, retracted, and then established properly.
 
 ### What changed, and why you should trust this version less than its confidence suggests
 
@@ -65,6 +65,7 @@ sample-weighted correction.
 | 6 | same report, addendum | Rebuilt the empirical table from corrected φ. Consistency **halved the accuracy penalty and flipped the calibration sign** — but accuracy stayed worse. |
 | 7 | `analysis/why_null.py` | ⚠️ **WITHDRAWN — conditioned on the wrong angle.** |
 | 8 | `analysis/geometry_conditioned.py` | Corrected: the donor correction changes the geometry-conditioned residual by **+0.017°, 95% CI [−0.020, +0.061]** over 42 unique captures. A null **for the donor**, not for the physics. |
+| 9 | `analysis/gain_fixed_effects.py` | **The no-donor upper bound.** Gain-state fixed effects fitted on rover data, 6-fold CV by physical capture: every parameterisation and stratum is worse on held-out captures (+0.018° to +0.087°). **The physical question closes here.** |
 
 ---
 
