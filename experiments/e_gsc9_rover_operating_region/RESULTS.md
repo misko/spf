@@ -8,11 +8,35 @@
 `v0.38-plutoplus-spf-libiio-metadata-v5` and captured with request-driven
 IIO-over-USB.
 
-**Raw data:**
-`/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc9_*_20260813_v1/`.
-The local staging copies remain in `/home/pi/gsc9_staging/`. All 14 radio LMDB
-stores and all non-LMDB sidecars were compared after the copy; every key and
-value matched.
+**Raw-data root:**
+`/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/`.
+The local staging copies remain in `/home/pi/gsc9_staging/`.
+
+## Current QNAP availability audit
+
+On 2026-08-14, before Session B, every current local E-GSC9 capture was audited
+against QNAP by hashing the complete logical LMDB key/value stream and every
+non-LMDB sidecar. The result is **PASS: 7/7 capture roots, 14/14 radio LMDB
+stores, and 43/43 local sidecars are present and identical on QNAP**. The LMDB
+comparison covered 61,224 entries and 5,525,074,492 logical payload bytes. The
+only QNAP-only sidecar is the intentional post-Session-A live gain-table audit.
+
+The machine-readable evidence is
+`e_gsc9_pre_session_b_raw_verification_20260814_v1.json` under the raw-data
+root, SHA-256
+`5675923cbcaa16afdc7cae581d8ba2c45243ceaa995699cfe2850e56c2247050`.
+`analysis/verify_qnap_raw.py` reproduces the audit without hashing the unused
+holes in each sparse 128 GiB LMDB map.
+
+| QNAP capture root | Complete frames, both radios | Stored-IQ validation |
+|---|---:|---|
+| `e_gsc9_level_ladder_tx23_20260813_v1` | 144/144 | Capture complete; selection ladder, no separate strict-validation artifact |
+| `e_gsc9_level_ladder_tx29_20260813_v1` | 144/144 | Capture complete; selection ladder, no separate strict-validation artifact |
+| `e_gsc9_level_ladder_tx35_20260813_v1` | 144/144 | Capture complete; selection ladder, no separate strict-validation artifact |
+| `e_gsc9_session_a_20260813_v1` | 27,380/27,380 | PASS on both radios; 27,380/27,380 quality-valid |
+| `e_gsc9_t2_transitions_bridge_20260813_v1` | 840/840 | R17 PASS; R18 `fail_quality`, 414/420 quality-valid, with the six retained low-SNR frames described below |
+| `e_gsc9_t3a_ampm_16384_20260813_v1` | 336/336 | PASS on both radios; 336/336 quality-valid |
+| `e_gsc9_t3b_ampm_8192_20260813_v1` | 336/336 | PASS on both radios; 336/336 quality-valid |
 
 ## Captures and validation
 
@@ -75,6 +99,9 @@ Session B has been conformed, before capture, to the measured session-A fallback
 gains 26..62 and fixed TX attenuation -35 dB. It contains 273 cells per LO and
 1,638 frames/radio. It must begin no earlier than 2026-08-14 08:57 BST, after a
 real power cycle of both radios, without disturbing an RF connector.
+As of 2026-08-14 00:59 BST, the guarded systemd timer is active and waiting for
+that exact trigger; the service is inactive and no Session-B raw directory
+exists yet, as required by the time gate.
 
 Session C still requires operator handling: no pads, insert 10 dB pads on both
 arms, then remove them and repeat. The final analysis must retain the failed H2,
