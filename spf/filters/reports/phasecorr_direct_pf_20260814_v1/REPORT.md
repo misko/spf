@@ -191,3 +191,40 @@ captures the filters are evaluated on, so these baselines (0.9382 / 0.5096) are 
 *better* than the shipped-table baselines above (0.9411 / 0.5143) — the table is fitted on its
 own evaluation data. That affects both arms identically and so does not bias the comparison,
 but these numbers must not be quoted as clean held-out performance.
+
+---
+
+## Addendum 2 — why: the correction explains 0.060% of rover phase variance
+
+The controls said the perturbation's *magnitude* was being measured, not its content. This
+says why the content is absent. Within 2° ground-truth bearing bins, the bin mean is removed
+from both the measured phase and the predicted correction, and one is regressed on the other
+(`analysis/why_null.py`, 24,108 frames over 8 captures):
+
+| | value | interpretation |
+|---|---:|---|
+| slope β | **−1.1446** | +1 would be a perfect model |
+| correlation r | **−0.0245** | SE ≈ 0.0064 |
+| **variance of φ explained** | **0.060%** | |
+| sd of predicted correction in a bin | 1.751° | |
+| **sd of φ residual in a bin** | **81.980°** | |
+| correction as a share of the residual | **2.1%** | |
+
+**This is not a sign error.** β is negative but r is ~0, so the slope is noise amplified by the
+variance ratio (β = r·σ_Y/σ_X). The correction simply carries almost no information about
+these radios' phase. The small negative correlation is statistically real (3.8 SE) and
+practically nil, and it is why MSE rose rather than fell.
+
+**Even a perfect gain-phase correction would address 2% of what moves φ on a flying rover.**
+The remaining 98% is multipath, geometry and segmentation — outside the scope of any gain
+table.
+
+### This retires the last open option
+
+The previous addendum left one route open: a **same-radio** table for the rover's own units,
+to remove the donor as a confound. That is now withdrawn. It would recover more of a term that
+is 2.1% of the phase budget, at ~2.6 h of bench time per radio. **The recommendation is to stop
+work on gain-phase correction for the rover.**
+
+The model itself remains valid and worth keeping for bench and hardware-diagnostic use — it
+localised R17's fault to a single LNA coefficient. It is deployment to the rover that is closed.
