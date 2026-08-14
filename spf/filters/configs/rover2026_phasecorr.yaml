@@ -1,0 +1,49 @@
+# Does gain-phase correction help the DIRECT (non-NN) particle filters?
+#
+# Four arms of one axis, so every arm sees identical datasets and identical seeds
+# and the comparison is paired by construction:
+#
+#   none      baseline, byte-identical to today's code path
+#   constant  subtract only the per-receiver MEAN correction -- tests whether a
+#             per-session constant is already absorbed downstream
+#   arm_lut   subtract the full model prediction
+#   shuffled  NEGATIVE CONTROL: same correction values, permuted across gain
+#             states. If this scores like arm_lut, the effect is not the correction.
+#
+# The model is E-GSC9's R18 fit. THE ROVER'S RADIOS ARE HELD OUT -- they are not
+# this serial and have no calibration of their own -- so this measures the
+# held-out-donor case, which is what the rover would actually get today. Measured
+# expectation: a donor table removes 22-41% of the correctable variation, i.e.
+# ~0.3-0.7 deg of phase, against filter RMSEs of 41-56 deg.
+#
+# Hyperparameters are E-INF1's winners for each family, held fixed across arms.
+#
+#   python spf/filters/run_filters_on_data.py \
+#     -d $(cat experiments/e_inf1_filter_sweep/stage3_rover_all_n48.txt) \
+#     --empirical-pkl-fn empirical_dists/full_20260809_v1.pkl \
+#     --work-dir /mnt/qnap01/mouse9911/rovers_2026/filter_runs/phasecorr \
+#     --config spf/filters/configs/rover2026_phasecorr.yaml \
+#     --results-backend local --parallel 20
+precompute_caches:
+  3.7: "/mnt/qnap01/mouse9911/rovers_2026/precompute"
+
+runs:
+  - run_PF_single_theta_single_radio:
+      N: [1024]
+      theta_err: [0.001]
+      theta_dot_err: [0.1]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+      phase_correction: ["none", "constant", "arm_lut", "shuffled"]
+      phase_model_fn:
+        - "spf/calibrations/models/gsc9_arm_lut_per_radio/1040007c4a94000211000b009186843ef2.json"
+
+  - run_PF_single_theta_dual_radio:
+      N: [16384]
+      theta_err: [0.005]
+      theta_dot_err: [0.1]
+      seed: [0, 1, 2, 3, 4]
+      segmentation_version: [3.7]
+      phase_correction: ["none", "constant", "arm_lut", "shuffled"]
+      phase_model_fn:
+        - "spf/calibrations/models/gsc9_arm_lut_per_radio/1040007c4a94000211000b009186843ef2.json"

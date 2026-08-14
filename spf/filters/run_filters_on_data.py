@@ -11,6 +11,7 @@ import tqdm
 import yaml
 
 from spf.dataset.spf_dataset import v5spfdataset_manager
+from spf.dataset.phase_corrected_dataset import PhaseCorrectedDataset
 from spf.dataset.spf_nn_dataset_wrapper import v5spfdataset_nn_wrapper
 from spf.filters.ekf_dualradio_filter import SPFPairedKalmanFilter
 from spf.filters.ekf_dualradioXY_filter import SPFPairedXYKalmanFilter
@@ -124,7 +125,16 @@ def run_jobs_with_one_dataset(
             segmentation_version=segmentation_version,
         ) as ds:
 
-            fn_kwargs["ds"] = ds
+            # popped here, NOT earlier: it must still be in fn_kwargs when
+            # args_to_str() builds result_fn_without_workdir above, or every arm
+            # of a phase_correction sweep collides on one filename.
+            phase_correction = fn_kwargs.pop("phase_correction", "none")
+            phase_model_fn = fn_kwargs.pop("phase_model_fn", None)
+            fn_kwargs["ds"] = (
+                ds
+                if phase_correction == "none"
+                else PhaseCorrectedDataset(ds, phase_correction, phase_model_fn)
+            )
             new_results = fn(**fn_kwargs)
             for result in new_results:
                 # NOTE: deliberately not storing result_fn_without_workdir on the
@@ -135,6 +145,7 @@ def run_jobs_with_one_dataset(
                 result["ds_fn"] = kwargs["ds_fn"]
                 result["segmentation_version"] = segmentation_version
                 result["precompute_cache"] = precompute_cache
+                result["phase_correction"] = phase_correction
                 # report the b2 path the job was configured with, not the local
                 # cache copy it was actually read from
                 for replace_key, replace_value in original_b2_paths.items():
@@ -510,7 +521,11 @@ def config_to_job_params(config):
                 if isinstance(value, str):
                     try:
                         value = eval(value)  # TODO this might be dangerous
-                    except SyntaxError:
+                    except (SyntaxError, NameError):
+                        # NameError matters for string-valued axes: a path
+                        # like "/mnt/..." is a SyntaxError and was already
+                        # tolerated, but a bare word like "none" is a valid
+                        # identifier and raised out of the sweep.
                         pass
                 d = job.copy()
                 d.update({key: value})
