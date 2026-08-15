@@ -1,7 +1,8 @@
 # E-GSC9 results
 
 **Status:** IN PROGRESS. Session A and same-session controls were captured on
-2026-08-13. Session B and session C remain outstanding.
+2026-08-13. ⚠️ **Session B RAN on 2026-08-14 and H6 is FALSIFIED** (added 2026-08-14; this line
+previously said it was outstanding). Session C remains outstanding.
 
 **Radios:** R17 `104000bac4950008230026001b440a003a` and R18
 `1040007c4a94000211000b009186843ef2`, both persistently booted from
@@ -70,7 +71,7 @@ These are provisional until sessions B and C finish.
 | H3 | **PASS for the damaged R17 unit** | The 40->41 dB equal-gain transition carries 82.2% and 75.3% of the sum of measured absolute 1 dB steps at 5766 and 5840 MHz. Its signed steps are -59.49 and -62.49 degrees. |
 | H4 | **FALSIFIED as a radio-general claim** | R18 selects anchor 56 at both carriers. R17 selects 33 at 5766 and 38 at 5840 under the preregistered S2/S3 rule, outside the predicted 52..58 interval. |
 | H5 | **PASS at the median-effect criterion** | Halving DDS amplitude produces median absolute cell-mean phase shifts of 0.192 degrees on R17 and 0.133 degrees on R18, below 3x each radio's session-A median anchor drift. Measured per-arm level changes are -6.01/-6.02 dB. |
-| H6 | **PENDING** | Requires session B after the 12-hour separation and a power cycle. |
+| H6 | ❌ **FALSIFIED (2026-08-14)** | Session B ran to completion: `h6_pass: false` on **all four** radio×carrier strata. Circular MAE **3.220° / 1.115°** (serial …843ef2) and **2.781° / 5.090°** (serial …0a003a) against the preregistered **0.5°** gate, at **273/273** cell coverage per radio per LO, over a **12.2–12.8 h** separation (44,004 s / 45,916 s vs a 43,200 s minimum), `run_result: complete`, both radios `validation: pass`. **The 12-hour re-calibration interval does NOT hold.** But \|bias\| ≈ MAE on all four strata, so the drift is almost entirely a per-session **constant**, which the empirical table absorbs; the sd about it is **0.199° / 0.294°** (clean) and 0.723° / 0.578° (damaged) — 1.6–4.2% of the removable variance on a healthy radio. Artifact: `e_gsc9_session_b_20260814_v1/session_transfer_vs_a.json`; verified by `analysis/audit_session_b_h6.py`. |
 | H7 | **PENDING** | Requires the physical no-pad/pads/pads-removed A/B/A sequence. |
 
 The ordinary axis-only additive fit over every held-out grid frame, rather than
@@ -91,7 +92,7 @@ only rover-operating cells, gives MAE/P95 1.173/2.747 degrees on R17 and
 | G7 | PENDING | The required same-LO control must be reported before a cross-carrier claim. |
 | G8 | **FAIL** | `/run/spf/direct_usb_ready.json` was created at 15:49:52, before session A began at 19:51. Per-frame firmware/metadata validation still passed, but the literal freshness gate did not. |
 | G9 | **FAIL on R17** | Worst pairwise equal-gain across-epoch drift is 4.468 degrees on R17 and 2.476 degrees on R18; the gate is strictly below 4 degrees. |
-| G10 | PENDING | This report must be finalized after H6 and H7. |
+| G10 | PARTIAL | H6 is now resolved (falsified). H7 still requires Session C, which was terminated by decision. |
 
 ## Remaining execution
 

@@ -15,9 +15,9 @@ residual is 36.73 deg and the correlation is +0.0138 (r^2 = 0.019%) -- the sign 
 the correlation was an artifact too.
 
 Original docstring follows.
-"""
+------------------------------------------------------------------------------------
 
-"""Why the correction changes nothing: it explains 0.06% of rover phase variance.
+Why the correction changes nothing: it explains 0.06% of rover phase variance.
 
 The paired sweep showed every correction arm slightly WORSE than baseline, and the
 negative control degraded by a similar amount. That says the perturbation's

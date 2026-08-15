@@ -22,9 +22,11 @@
 > the inference does not.
 >
 > **The conclusion that survives is the engineering one:** do not deploy the held-out donor
-> correction — correctly conditioned it changes the rover residual by **+0.017°, 95% CI
-> [−0.020, +0.061]**, it is significantly worse end to end on 1,920 runs, and even a *perfect*
-> correction is capped at ~1.4% of filter RMSE. **No claim in this report establishes that the
+> correction — correctly conditioned it changes the rover residual by **+0.009°,
+> capture-clustered 95% CI [−0.024, +0.044]**, it is significantly worse end to end on 1,920 runs, and even a *perfect*
+> correction is worth under 0.6% of filter RMSE *as measured end to end* (the "≤1.4%" derived
+> ceiling is withdrawn — see [Retraction 3](#-retraction-3-2026-08-14--the-14-ceiling-was-not-a-ceiling)).
+> **No claim in this report establishes that the
 > gain-phase effect is absent on these radios.** That remains unmeasured.
 
 
@@ -319,12 +321,24 @@ stores down to **42 unique RX captures** (they reuse RX recordings across TX par
 
 | | |
 |---|---:|
-| unique RX captures / receiver-streams / frames | 42 / 84 / 124,950 |
-| mean \|e\| **without** correction | **36.728°** |
-| mean \|e\| **with** correction | 36.746° |
-| **change** | **+0.017°, 95% CI [−0.020, +0.061]** |
+| physical RX captures / receiver-streams / frames | 42 / 84 / **134,224** |
+| mean \|e\| **without** correction | **36.712°** |
+| mean \|e\| **with** correction | 36.721° |
+| **change** | **+0.009°, capture-clustered 95% CI [−0.024, +0.044]** |
 | better on | 45/84 streams — a coin flip |
-| corr(correction, residual) | **+0.0138**, r² = **0.019%** |
+| corr(correction, residual) | **+0.0132**, r² = **0.017%** |
+
+> ⚠️ **Superseded numbers.** This table originally read 124,950 frames / 36.728° / +0.017°, CI
+> [−0.020, +0.061]. The keep-first dedup discarded **9,274 frames (+7.42%)** across 6 RX captures
+> that are **disjoint in time** from what it kept — verified as 0 shared timestamps and 0.0 s of
+> interval overlap in all 6. `analysis/geometry_conditioned_v2.py` concatenates them per physical
+> capture and resamples **captures**, not streams. Effect: **+0.0174° → +0.0087°**, i.e. further
+> toward the null. *(The "+0.0139°" quoted in the acknowledgements below is a third, per-store
+> variant that centres a split capture twice; it is not canonical.)* The capture-clustered
+> bootstrap turned out to be **immaterial** — 0.9995× the per-stream width, within-capture
+> correlation −0.0075 — so it neither tightened nor widened anything. One caveat that remains
+> unmodelled: several distinct RX captures were merged against the *same* TX recording, so TX
+> GPS/track error is shared across some clusters.
 
 > **Why 36.728° here and 35.157° in Addendum 3, on the same 124,950 frames.** This table
 > averages the **84 per-stream means unweighted**, because the stream is the bootstrap's
@@ -447,8 +461,9 @@ information on these radios.** This analysis cannot distinguish a real 1–2° e
 effect at all — both produce the numbers in the table above.
 
 **A same-radio bench campaign is therefore declined on cost/benefit, not on physics.** Even a
-perfect correction removes ~0.4–0.76° of bearing against filter RMSEs of 41–56° — a ≤1.4%
-ceiling that justifies deprioritising a 2.6 h/radio campaign. It does not justify predicting
+perfect correction is worth under 0.6% of filter RMSE, measured end to end — which justifies
+deprioritising a 2.6 h/radio campaign. *(The derived "≤1.4%" that stood here is withdrawn; see
+[Retraction 3](#-retraction-3-2026-08-14--the-14-ceiling-was-not-a-ceiling).)* It does not justify predicting
 the campaign would find nothing. *(That recommendation was withdrawn in Retraction 1 for being
 unsupported, reinstated here on evidence that does not reach it, and is now rescoped.)*
 
@@ -482,8 +497,22 @@ actual 124,950 residuals (`analysis/power_calibration.py`):
 *(Table entries are measured directly, averaged over 12 draws; the law above is a fit to the
 small-A regime, so it reproduces the top rows and drifts ~2% by 5°.)*
 
-The term at issue is **1.0–1.9°** of phase. So an oracle with perfect knowledge of `δ` could
-have moved the headline by **+0.010 to +0.038°**. Now compare the procedure's own noise:
+> ### ⚠️ AMENDED 2026-08-14 — the amplitude fed into this law was the wrong moment
+>
+> **"1.0–1.9°" is a mean absolute deviation, not an rms.** It is correctly labelled "MAD about
+> the mean" where it is defined (`rover_model_gsc9_20260814_v1/REPORT.md:313`) and was called
+> "bench-measured sd" here. This law takes a *second* moment, so the mislabel is squared. The
+> rms about the identical weighted circular mean, on the identical frames and occupancy weights,
+> is **1.78 / 2.70 / 4.18 / 5.65°** (R18 5766, R18 5840, R17 5766, R17 5840). Observed rms/MAD
+> is **1.81–3.02** — a Gaussian 1.253 conversion would also have been wrong, by 1.4–2.4×.
+> Measured in `analysis/true_amplitude.py`.
+
+The term at issue is **1.78–5.65° rms**, or **1.78–2.70°** for R18, the only donor actually
+deployed. An oracle with perfect knowledge of `δ` could therefore have moved the headline by
+**+0.032 to +0.322°** (**+0.032 to +0.074°** for R18 alone). Dropping the Gaussian assumption
+entirely — injecting the *real* discrete per-cell correction at each frame's own gain cell —
+gives **Δ = +0.0447 ± 0.0007°** for R18 and **+0.2089 ± 0.0011°** for R17, agreeing with the
+quadratic law to 3% at this amplitude. Now compare the procedure's own noise:
 
 | source | magnitude |
 |---|---:|
@@ -493,16 +522,44 @@ have moved the headline by **+0.010 to +0.038°**. Now compare the procedure's o
 | `min_n` 50 / 100 | −0.006° / −0.001° |
 | randomised-gain-label null | +0.004° … +0.114° |
 
-**The entire signal ceiling is no larger than one sd of the statistic's own fold-seed noise,
-and sits well inside its observed run-to-run range.** Equivalently, as break-even amplitude — the
+**The signal ceiling is 1.3–1.4× the fold-seed sd for the deployed donor, and 6.3× for R17.**
+⚠️ The sentence that stood here — *"the entire signal ceiling is no larger than one sd of the
+statistic's own fold-seed noise"* — is **WITHDRAWN**; it was computed from the MAD. Retraction 2
+stands on its other two legs, untouched: the ceiling still sits well inside the statistic's
+observed run-to-run range (+0.002 to +0.111°), and the sign still flips with `min_n`. The correct
+word is **under-powered**, not *guaranteed blind*.
+
+One caveat the other way, so the margin is not over-read: R18's excess over the seed sd is
+carried by the tail. **2.08% of frames carry 72.6% of its second moment**, and one cell —
+(g₁ 62, g₂ 40) at 5840 MHz, where the table predicts −17.4° — is 20.4% of it. Trim the top 1% of
+\|δ\| and Δ falls to **+0.0152°**, below the seed sd. **The answer is conditional on those
+LNA-crossing cells being physical**, which ~30 minutes of bench repeat would settle.
+
+Equivalently, as break-even amplitude — the
 rms effect at which a free *k*-parameter fit's signal just covers its own parameter cost:
 
-| model | free parameters | break-even *A* | vs the 1.0–1.9° at stake |
-|---|---:|---:|---|
-| `cell` | 326 | **4.83°** | needs 2.5–4.8× more |
-| `arm` | 114 | **2.86°** | needs 1.5–2.9× more |
-| `rfblock` | 49 | **1.87°** | right at the boundary |
-| *one-parameter projection onto a known LUT* | *1* | ***0.27°*** | **4–7× inside reach** |
+| model | free params | break-even *A*, **MEASURED** | *(withdrawn heuristic)* | vs the donor's true **2.08° rms** |
+|---|---:|---:|---:|---|
+| `cell` | 326 | **3.08°** | *4.83°* | needs 1.5× more |
+| `arm` | 114 | **3.41°** | *2.86°* | needs 1.6× more |
+| `rfblock` | 49 | **2.91°** | *1.87°* | needs 1.4× more |
+| *one-parameter projection onto a known LUT* | *1* | ***0.29°*** | *0.27°* | **7× inside reach** |
+
+> ⚠️ **The parameter-counting heuristic is withdrawn and replaced by direct measurement**
+> (`analysis/lut_injection_power.py`, `detection_threshold.py`: the deployed LUT injected along
+> each stream's *real* gain sequence, 8 fold seeds, estimator verified bit-identical to
+> `gain_fixed_effects.cv` at 7.1e-15°). It predicted a **2.58×** spread with `rfblock` far the
+> most sensitive; the measured spread is **1.17×** and the ordering **inverts** — `arm` is
+> worst. Measured cost per free parameter is *anti-correlated* with *k*. So "a saturated
+> per-cell fit is the wrong instrument **because it has too many parameters**" is **withdrawn**;
+> it is the wrong instrument, but not for that reason. The cost is dominated by the
+> `arm`/`rfblock` marginal-vs-joint misspecification.
+>
+> **An i.i.d. Gaussian is also the wrong calibration instrument, independently of amplitude.**
+> The estimator recovers **35–153%** of an injected gain-*shaped* term and **0%** of a Gaussian
+> of identical rms (recovery −0.01 to +0.07 at every amplitude, 4/8 seeds negative — pure
+> noise). Any future power calibration here that uses `rng.normal` as a stand-in for a hardware
+> effect is measuring nothing.
 
 *(Effective sample size 33,908 of 124,950 frames, from a measured lag-1 residual
 autocorrelation of 0.573.)*
@@ -567,9 +624,13 @@ Recorded so the next reader is not misled in the other direction:
    variation and the °-bearing-per-°-phase conversion. Neither has been independently checked.
 2. **Replace the statistic with a one-parameter circular projection** α̂ of the residual onto a
    hypothesised LUT shape, capture-clustered bootstrap. Break-even 0.27° instead of 1.9–4.8°.
-   A prototype separates an injected 1.4° effect (α̂ = 0.814, CI [+0.595, +1.018]) from none
-   (α̂ = −0.186, CI [−0.412, +0.063]) at disjoint CIs — while the same effect moves *this
-   report's* statistic by 0.011°, i.e. invisibly.
+   ⚠️ An earlier version of this item cited a prototype giving "α̂ = 0.814, CI [+0.595, +1.018]"
+   against "α̂ = −0.186, CI [−0.412, +0.063]". **That prototype was never committed and those
+   numbers are withdrawn.** Implemented properly (`analysis/detection_threshold.py`) the
+   real-data result is **inconclusive**: β̂ = **+1.18° rms, capture-bootstrap 95% CI
+   [−0.675, +2.433]**, 88% of resamples positive, injection-recovery slope 0.99 (unbiased). The
+   deployed table's own 2.08° amplitude sits *inside* that CI, so the effect is neither detected
+   nor excluded. The CI is **capture-limited**: doubling 42 → ~84 captures roughly halves it.
 3. **Add the missing controls:** per-capture CI, seed spread, `min_n` sweep, and a
    **run-preserving** null (circular shift of the gain-key sequence within each stream). A
    plain within-stream shuffle is not adequate: gain is held for long runs and the residual has
@@ -578,5 +639,66 @@ Recorded so the next reader is not misled in the other direction:
 4. **Fix the dedup and the marginal-vs-joint fit** before any re-run.
 
 Only a same-radio bench LUT can test the per-radio hypothesis directly, and only protocol-v3
-firmware makes a sample-weighted model computable. **Decline those on the ≤1.4% ceiling if you
-decline them — not on this addendum.**
+firmware makes a sample-weighted model computable. **Decline those on the measured end-to-end
+effect if you decline them — not on this addendum, and not on the withdrawn ≤1.4% ceiling.**
+
+---
+
+## ⚠️ RETRACTION 3 (2026-08-14) — the "≤1.4% ceiling" was not a ceiling
+
+A third review accepted Retractions 1 and 2 but found that the overstatement had **moved into
+the engineering quantification**: with the physics claim withdrawn, the recommendation was left
+resting on a derived "≤1.4% of filter RMSE" ceiling that nobody had audited. It does not hold.
+Four independent errors, and they do **not** all point the same way.
+
+**1. The amplitude was the wrong moment — this makes the ceiling BIGGER.** "1.0–1.9°" is a MAD;
+the law takes an rms. True rms **1.78–5.65°** (1.78–2.70° for the deployed donor). See the
+amendment in Retraction 2 above.
+
+**2. The arithmetic did not follow from its own inputs.** 0.76° ÷ **41.09°** (the *smaller* of
+the two filter RMSEs) = **1.85%**, not 1.37%. The published number divided the largest numerator
+by the largest denominator. On its own inputs the range is **0.72%–1.85%**.
+
+**3. The conversion is not a constant.** \|dθ/dφ\| = 1/(2π(d/λ)·\|cos θ\|) depends on spacing
+*and* bearing and **diverges at endfire**. Measured framewise over 177,410 frames
+(`analysis/jacobian_audit.py`): median **0.296**, IQR [0.237, 0.545], P90 **1.333**, P95
+**2.573**; **34.6% of frames exceed 0.40**; mean and rms both divergent. Every rover capture is
+**d/λ = 0.673–0.916** and spatially aliased — 0.40 corresponds to d/λ = 0.398, the *wall array*.
+*(In fairness: as a mean-absolute conversion 0.40 is defensible — re-inverting through the
+repo's own `phase_diff_to_theta` gives 0.41–0.49 °/°. It is the use, not the value, that fails.)*
+
+**4. An L1 numerator over an L2 denominator.** Like-for-like the rms displacement is 3.50 °/° at
+A = 1.78°, 12× the mean-absolute figure. And if the removed term is approximately *independent*
+of the remaining error the reduction is **quadratic**: 0.017%, a factor of ~100 the other way.
+
+Corrected, the derived band spans **0.01% to 2.9%** depending on two choices nobody has
+measured. **A quantity with a 300× range is not a ceiling.**
+
+**5. The deeper problem: the pipeline never inverts a sine.** φ is quantised into 65 bins of
+5.5385° and read into a multimodal empirical p(θ\|φ). A 1.0° correction leaves the likelihood
+**bit-identical on 82.1% of frames**, and the median shift in the table's circular-mean θ is
+**exactly 0.000°**. A local derivative — corrected or not — is the wrong instrument.
+
+### What replaces it — a measurement that was already in this report
+
+**`arm_lut` minus `constant` *is* the gain-dependent term.** Both arms apply the same ~6.3°
+per-receiver constant; only `arm_lut` adds the variation. From the Result tables at the top:
+
+| family | `constant` → `arm_lut` | Δ RMSE | % of uncorrected RMSE | Wilcoxon p |
+|---|---:|---:|---:|---:|
+| PF single radio | 42.150 → 42.092° | **−0.059°** | −0.14% | 0.485 |
+| PF dual radio | 57.812 → 58.095° | **+0.283°** | +0.51% | 0.101 |
+
+**Under 0.6% of RMSE, opposite signs between the two families, neither significant.** Inverting
+the dual point estimate, a perfect removal takes 55.583 → 55.287° = **0.53%**; the single-radio
+point estimate is zero or negative.
+
+**Two caveats travel with it.** The measurement sits at an **out-of-distribution operating
+point** — φ already shifted ~6.3° from where the frozen empirical table was fitted — and
+**nothing committed propagates a phase term of known amplitude through the actual particle
+filter.** The per-frame like-for-like L2 sensitivity is 12–15% of RMSE, so the honest range is
+wide. This is a measurement of limited power, **not a bound**.
+
+**The recommendation is unchanged; its foundation is not.** Deprioritising the same-radio
+campaign is a prioritisation call under a measured-but-imperfect estimate. It is not a ceiling,
+and it is not evidence that the effect is absent.

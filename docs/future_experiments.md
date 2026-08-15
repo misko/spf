@@ -9,25 +9,32 @@ record the outcome in `learnings.md` and mark it here.
 **Why this exists.** `docs/gain_phase_rover_investigation_20260814.md` twice claimed the
 rover gain-phase question was closed and twice retracted it. The second attempt
 (`gain_fixed_effects.py`) was underpowered by construction: its statistic moves by at most
-+0.010–0.036° for the 1.0–1.9° term at stake, against a seed sd of 0.033°. **The open
++0.032–0.074° for the deployed donor's true 1.78–2.70° rms (the "1.0–1.9°" it was given is a
+MAD, not an rms), against a seed sd of 0.033°. **The open
 question is not "is there an effect" but "can any statistic on existing data see one".**
 
 **No new capture is required for stages 1–3.**
 
 **Stage 1 — audit the two load-bearing numbers (hours).** The entire surviving cost/benefit
-argument rests on (a) the 1.0–1.9° of correctable gain-phase variation and (b) the
+argument rested on (a) the 1.0–1.9° of correctable gain-phase variation and (b) the
 °-bearing-per-°-phase conversion. Neither has been independently checked. *If (a) is wrong
-by 2×, the ceiling moves from ≤1.4% of filter RMSE to ≤5.6% and the priority call changes.*
+by 2×, the priority call changes.* **Both were audited on 2026-08-14 — see Retraction 3 in
+the phase-correction report. (a) is a MAD, not an rms (true rms 1.78–5.65°); (b) is not a
+constant at all. The derived "≤1.4%" ceiling is withdrawn and replaced by the direct
+end-to-end measurement. This stage is DONE.**
 
 **Stage 2 — replace the statistic (the actual experiment).** A **one-parameter circular
 projection** α̂ of the geometry-conditioned residual onto a *hypothesised* LUT shape, with a
 **capture-clustered** bootstrap. Break-even amplitude **0.27°** versus the free fit's
 1.87–4.83°, so it is the first instrument in this investigation able to see a 1–2° term.
-- α̂ = 1 ⇒ the LUT shape explains the rover's gain-phase term exactly
-- α̂ = 0 ⇒ no component along that shape
-- A prototype separates an injected 1.4° effect (α̂ = 0.814, CI [+0.595, +1.018]) from none
-  (α̂ = −0.186, CI [−0.412, +0.063]) at disjoint CIs, while the same effect moves the
-  Addendum-3 statistic by 0.011° — invisibly.
+- β̂ = the rover's gain-phase amplitude along that shape, in degrees rms
+- **⚠️ RUN 2026-08-14, and INCONCLUSIVE.** β̂ = **+1.18° rms, capture-bootstrap 95% CI
+  [−0.675, +2.433]**, 88% of resamples positive, injection-recovery slope 0.99 (unbiased),
+  held-out change +0.0027 ± 0.0046° — not a detection. The deployed table's own **2.08° rms**
+  sits *inside* that CI, so the effect is neither detected nor excluded. The CI is
+  **capture-limited, not frame-limited** (the naive 1/√N sd understates the true sd by 3.1×);
+  doubling 42 → ~84 captures would roughly halve it. *(An earlier version of this entry cited
+  "α̂ = 0.814, CI [+0.595, +1.018]" from a prototype that was never committed. Withdrawn.)*
 
 **Stage 3 — the controls Addendum 3 lacked.** Per-capture CI, fold-seed spread, `min_n`
 sweep, and a **run-preserving null**: circular shift of the gain-key sequence within each
@@ -43,9 +50,9 @@ inflates significance.
   overcount at g₁ = g₂; 1.02× inflation measured here). `rfblock` also double-counts within
   one arm — mixer and LNA words are both functions of the same gain index, both signed +1.
 
-**Decision rule.** If Stage 2 gives α̂ with a CI excluding 0, the gain term is real on rover
+**Decision rule.** If Stage 2 gives β̂ with a CI excluding 0, the gain term is real on rover
 radios and E-GSC10b (same-radio bench LUT, **requires new capture**) becomes justified on
-physics. If the CI covers 0 *and* is tight enough to exclude α̂ = 1, the donor shape is
+physics. If the CI covers 0 *and* is tight enough to exclude the deployed 2.08°, the donor shape is
 excluded on rover data — a genuine null, unlike anything obtained so far. If the CI is wide,
 report that the corpus cannot answer it and stop **on power**, not on a claimed absence.
 

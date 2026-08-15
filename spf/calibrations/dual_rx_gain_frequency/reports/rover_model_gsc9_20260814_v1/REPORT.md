@@ -141,6 +141,19 @@ each carrying `d1_deg`, `d2_deg`, full provenance, the held-out score, and a
   buildable from data in hand.
 - **Two radios, one damaged.** Cross-radio transfer is 1.16× — none — so every table here is
   single-unit. A third unit remains the largest un-addressed weakness.
+> ⚠️ **CORRECTED 2026-08-14 — Session B was not terminated; it RAN, and H6 FAILED.**
+> `e_gsc9_session_b_20260814_v1/session_transfer_vs_a.json` records `h6_pass: false` on
+> **all four radio×carrier strata**: circular MAE **3.220° / 1.115°** (serial …843ef2) and
+> **2.781° / 5.090°** (serial …0a003a) against a preregistered **0.5°** gate, at 273/273
+> cell coverage, over a valid 12.2–12.8 h separation, `run_result: complete` and both
+> radios `validation: pass`. The artifacts predate this report. **What it costs in
+> practice is much smaller than the MAE suggests:** |bias| ≈ MAE on all four strata, so
+> the drift is almost entirely a per-session *constant*, which the empirical table
+> absorbs. The sd about that constant is **0.199° / 0.294°** on the clean unit and
+> 0.723° / 0.578° on the damaged one — 1.6–4.2% of the removable variance on a healthy
+> radio. Session C / H7 was correctly never run. Verified in
+> `experiments/e_gsc9_rover_operating_region/analysis/audit_session_b_h6.py`.
+
 - **Sessions B and C are TERMINATED by decision** for rover deployment. H6 (12 h transfer)
   and H7 (pad discriminator) were never run, so the re-calibration interval is unmeasured and
   any temporal-transfer claim remains unsupported.
@@ -219,7 +232,7 @@ LNA instead costs 30–70%, because the single 40→41 LNA step is unrepresentab
 And smooth functions of dB fail outright: the response is a **staircase over discrete
 hardware states**, not a curve.
 
-### It also transfers across carriers, which a LUT cannot
+### It also transfers across carriers — and so, it turns out, does the LUT
 
 Fit at one carrier, predict the other, on rover cells:
 
@@ -263,7 +276,8 @@ and it converts "the damaged unit is unreliable" into a single named, measured c
 ### Recommendation, updated
 
 **Use `mixer + LNA` — per radio, per arm, 28 parameters.** It matches the LUT everywhere
-tested, transfers across carriers where the LUT cannot, is interpretable, and its
+tested, matches the LUT on cross-carrier transfer too (0.276° vs 0.277° on the clean unit; the LUT is
+marginally *better* on R17 5766→5840, 3.023° vs 3.045°), is interpretable, and its
 coefficients are diagnostic of hardware faults. Coefficients are committed at
 `coefficients/rfblock/`. The gain LUT in `coefficients/luts62/` remains valid and is the
 safer choice if you distrust the state table, since it assumes nothing about the hardware.

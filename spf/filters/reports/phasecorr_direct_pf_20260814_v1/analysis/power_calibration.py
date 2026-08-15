@@ -14,21 +14,41 @@ Two calibrations, both on the same 124,950 real residuals the addendum used:
 
        Delta(mean|e|) = 0.0101 * A^2   deg, for A in deg
 
-   The physical term at issue is 1.0-1.9 deg (bench-measured sd), so a PERFECT
-   correction is worth +0.010 to +0.036 deg -- which must be compared against:
+   AMENDED 2026-08-14 -- THE AMPLITUDE WAS THE WRONG MOMENT. This originally read
+   "the physical term at issue is 1.0-1.9 deg (bench-measured sd)". It is a MEAN
+   ABSOLUTE DEVIATION, correctly labelled as such where it is defined
+   (rover_model_gsc9_20260814_v1/REPORT.md:313) and mislabelled everywhere it was
+   consumed. This law takes a SECOND moment, so the error is squared. The rms about
+   the same weighted circular mean is 1.78 / 2.70 / 4.18 / 5.65 deg; observed
+   rms/MAD is 1.81-3.02, so even a Gaussian 1.253 conversion would be wrong.
+   Corrected, a PERFECT correction is worth +0.032 to +0.322 deg (+0.032 to +0.074
+   for R18, the only donor deployed) -- which must be compared against:
 
 2. NOISE. The published number came from ONE fold seed at ONE min_n, with no
    dispersion reported. Re-running the addendum's own per-cell estimator across seeds
    and min_n shows a seed sd of 0.033 deg and a SIGN FLIP between min_n 8 and 25.
 
-The signal ceiling is smaller than the procedure's own noise, so the experiment could
-not have distinguished a real 1-2 deg gain-phase term from no term at all. That is
-why Addendum 3's conclusion is withdrawn.
+AMENDED: with the corrected amplitude the ceiling is 1.3-1.4x the fold-seed sd for
+the deployed donor (6.3x for the damaged unit), NOT below it. The experiment was
+UNDER-POWERED, not blind. Addendum 3's withdrawal stands on its other two legs, which
+are untouched: the ceiling still sits well inside the statistic's observed run-to-run
+range (+0.002 to +0.111 deg), and the sign still flips with min_n.
 
-Also reported: BREAK-EVEN AMPLITUDE, the rms effect at which a free k-parameter fit's
-signal just covers its own parameter cost. It is the reason a saturated per-cell fit
-is the WRONG instrument here and a one-parameter projection onto a hypothesised LUT
-is the right one -- 0.27 deg break-even against the per-cell fit's 4.83 deg.
+TWO WARNINGS about the methods below, both measured after this file was written:
+
+  - breakeven() COUNTS PARAMETERS, and that is the wrong instrument. It predicted
+    4.83/2.86/1.87 deg for cell/arm/rfblock -- a 2.58x spread with the smallest model
+    most sensitive. Injecting the real effect along the actual gain sequence measures
+    3.08/3.41/2.91 -- a 1.17x spread with the ordering INVERTED, and cost per free
+    parameter ANTI-correlated with k. Use lut_injection_power.py and
+    detection_threshold.py instead. The values printed here are retained only because
+    they were published.
+
+  - sensitivity() injects rng.normal. An i.i.d. Gaussian is ORTHOGONAL to a structured
+    estimator's basis: recovery is 35-153% for a gain-shaped term and 0% for a Gaussian
+    of identical rms. It is adequate for calibrating the METRIC's response, which is all
+    it is used for here (it agrees with a real-shape injection to 3% at ~2 deg), and
+    useless for calibrating an ESTIMATOR's power.
 
 Read-only. Opens rover stores through the standard read-only path, writes nothing.
 """
@@ -54,10 +74,11 @@ KW = dict(
     empirical_data_fn="empirical_dists/full_20260809_v1.pkl", segmentation_version=3.7,
 )
 
-# The bench-measured gain-phase term this whole investigation is about, in degrees rms.
-# NOTE: this range is itself UNAUDITED -- it comes from the bench fit, and the entire
-# surviving cost/benefit argument rests on it. Auditing it is item 1 of the next pass.
-TERM_LO, TERM_HI = 1.0, 1.9
+# The bench-measured gain-phase term, in degrees RMS, occupancy-weighted over the
+# rover's real gain cells. AUDITED 2026-08-14 (true_amplitude.py): the previously used
+# 1.0-1.9 was a MAD, not an rms. Full set, R18/R17 x 5766/5840: 1.78 / 2.70 / 4.18 /
+# 5.65 deg. R18 is the only donor actually deployed, so its range is used here.
+TERM_LO, TERM_HI = 1.78, 2.70   # R18 rms, the deployed donor (NOT the 1.0-1.9 MAD)
 
 
 def wrap(x):
@@ -110,8 +131,17 @@ def sensitivity(E, seed=1, draws=12):
     """Ceiling on Delta(mean|e|) from perfectly removing an rms-A term.
 
     Equivalently the PENALTY of leaving it in: E|wrap(e + d)| - E|wrap(e)| for d
-    independent of e. Independence is the neutral assumption; a d correlated with e
-    would only make the ceiling smaller.
+    independent of e.
+
+    AMENDED 2026-08-14: this docstring used to add "a d correlated with e would only
+    make the ceiling smaller". That is WRONG IN SIGN. For a term aligned with sign(e)
+    the response is LINEAR, not quadratic. Measured for the real donor shape,
+    Delta = 0.00692*A + 0.00761*A^2 -- the linear coefficient equals the measured
+    alignment E[sign(e)*u] = +0.00699 and DOMINATES below A = 0.91 deg, making the
+    true response 1.93x LARGER at A = 0.5. At the ~2 deg that matters here the two
+    laws agree to 5%, so the numbers above are unaffected. On this data the
+    independence assumption is defensible anyway: corr(LUT, e) = +0.0125, capture-
+    bootstrap 95% CI [-0.0025, +0.0302] (1.4 sigma).
     """
     rng = np.random.default_rng(seed)
     base = np.degrees(np.abs(E)).mean()

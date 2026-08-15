@@ -34,12 +34,24 @@ compute the statistic's response to it. Two cheap instruments:
 - **Sensitivity law** — inject a synthetic effect of the claimed magnitude into the real
   residuals and measure how far the headline moves. If a *perfect* correction is
   invisible, the experiment is uninformative regardless of outcome.
-- **Break-even amplitude** — the effect size at which a free *k*-parameter fit's signal
-  covers its own parameter cost, `A* = sd·sqrt(k/n_eff)`, with `n_eff` deflated by the
-  residual's autocorrelation (0.573 lag-1 here, so 33,908 of 124,950 frames). A saturated
-  per-cell fit needed 4.83°; a one-parameter projection onto a hypothesised shape needs
-  0.27°. **Flexibility is not free, and "the most flexible model failed" is not evidence
-  of absence — it is usually evidence of insufficient power.**
+- **Break-even amplitude, MEASURED — not counted.** ⚠️ *Corrected 2026-08-14.* The obvious
+  move is the parameter-counting formula `A* = sd·sqrt(k/n_eff)`. **It was wrong here.** It
+  predicted 4.83° / 2.86° / 1.87° for the three parameterisations — a 2.58× spread with the
+  smallest model most sensitive. Injecting the real effect along the actual gain sequence
+  measured **3.08° / 3.41° / 2.91°**: a **1.17×** spread with the ordering **inverted**, and
+  measured cost per free parameter *anti-correlated* with *k*. The cost was dominated by
+  model misspecification, not by flexibility. **Measure the threshold by injection and
+  recovery; do not count parameters.** ("The most flexible model failed" is still not
+  evidence of absence — but "because it had too many parameters" was not the reason.)
+- **Inject the REAL effect shape, never `rng.normal`.** An i.i.d. Gaussian of identical rms
+  is effectively *orthogonal* to a structured estimator's basis: recovery was **35–153%**
+  for a gain-shaped injection and **0%** for a Gaussian at every amplitude (4/8 seeds
+  negative — pure noise). A Gaussian stand-in for a hardware effect measures nothing.
+- **Check which moment you have.** The amplitude fed into the sensitivity law was quoted as
+  an sd; it was a **mean absolute deviation**, correctly labelled where it was defined and
+  mislabelled everywhere it was used. The law squares its input, so the error squared. The
+  observed rms/MAD was **1.81–3.02**, so even the Gaussian 1.253 conversion would have been
+  wrong. **Trace a number to its definition before putting it in a formula.**
 
 **Corollary — "fitted on the target data" does NOT make something an upper bound.** That
 argument requires the competing model to be a strict sub-model. It was not: the feature
