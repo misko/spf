@@ -4,6 +4,59 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## Method (2026-08-14): a null is worthless until you compute what the statistic
+## would have read if the hypothesis were TRUE
+
+The gain-phase rover investigation asserted "the physical question is closed" **twice**
+and retracted it twice, in a single day, on two different analyses. Both were caught in
+external review, not internally.
+
+1. `why_null.py` conditioned on `rx_theta_in_pis`, believing it was ground-truth bearing.
+   It is the array **mount orientation**, constant per receiver per capture, so every
+   frame fell in one "bearing bin" and the denominator contained the whole trajectory's
+   real geometric signal.
+2. `gain_fixed_effects.py` replaced it, fitted gain-state effects on the rover data
+   itself, got +0.018° to +0.087° on held-out captures, and read that as an upper bound.
+
+The second is the instructive one, because the code was **correct** and the numbers
+reproduce exactly. The failure was that nobody computed the **detection floor**. The
+metric, `mean|wrap(e)|`, responds *quadratically* to a small phase term buried in a
+49.2° residual — measured on the real residuals, **Δ = 0.0101·A²** degrees for an rms
+term of A degrees. The term at issue was 1.0–1.9°, so a **perfect** correction was worth
++0.010–0.036°, against the statistic's own seed-to-seed sd of **0.033°**, with the sign
+flipping on a nuisance parameter (`min_n` 8 → 25). **The experiment could not have
+detected the effect it claimed to bound, and would have returned a small positive number
+either way** — which is exactly what a randomised-label null returns.
+
+**What to do instead.** Before reporting any null, state the effect size at stake and
+compute the statistic's response to it. Two cheap instruments:
+
+- **Sensitivity law** — inject a synthetic effect of the claimed magnitude into the real
+  residuals and measure how far the headline moves. If a *perfect* correction is
+  invisible, the experiment is uninformative regardless of outcome.
+- **Break-even amplitude** — the effect size at which a free *k*-parameter fit's signal
+  covers its own parameter cost, `A* = sd·sqrt(k/n_eff)`, with `n_eff` deflated by the
+  residual's autocorrelation (0.573 lag-1 here, so 33,908 of 124,950 frames). A saturated
+  per-cell fit needed 4.83°; a one-parameter projection onto a hypothesised shape needs
+  0.27°. **Flexibility is not free, and "the most flexible model failed" is not evidence
+  of absence — it is usually evidence of insufficient power.**
+
+**Corollary — "fitted on the target data" does NOT make something an upper bound.** That
+argument requires the competing model to be a strict sub-model. It was not: the feature
+key was `(g1, g2, LO)` while 6 distinct Plutos across 3 rovers were pooled, so a
+per-radio model lived in a dimension the fit *discarded*. Check the nesting claim
+literally, against the feature construction.
+
+**Corollary — report dispersion or report nothing.** One fold seed, no CI, and "all nine
+cells are positive" presented as nine confirmations when they share frames, folds and
+residuals. Always: per-capture CI, seed spread, nuisance-parameter sweep, and a
+**run-preserving** null (circular shift, not a plain shuffle — gain is held for long runs
+and the residual autocorrelates, so shuffling destroys the structure and inflates
+significance).
+
+Full account: `docs/gain_phase_rover_investigation_20260814.md` (Retractions 1 and 2),
+calibration in `spf/filters/reports/phasecorr_direct_pf_20260814_v1/analysis/power_calibration.py`.
+
 ## RF (2026-08-06): the O4 emitter is BURSTY — any statistic taken over all
 ## frames measures the silence, not the signal
 

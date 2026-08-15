@@ -1,5 +1,39 @@
 """Does gain state carry repeatable phase information in ROVER data, with no model?
 
+!! THE CONCLUSION THIS SCRIPT WAS USED TO SUPPORT IS WITHDRAWN (2026-08-14). !!
+
+The code is correct as far as it goes and its numbers reproduce exactly. What was
+wrong was the INFERENCE: a small positive held-out change was read as evidence that
+the gain effect is absent. This statistic cannot support that, for two reasons.
+
+1. NO POWER. The reported metric, mean|wrap(e)|, responds QUADRATICALLY to a small
+   phase offset buried in a 49.24 deg residual: measured on the real 124,950
+   residuals, Delta = 0.0101 * A^2 deg for an rms term of A deg. The term at issue
+   is 1.0-1.9 deg, so a PERFECT correction could move the headline by +0.010 to
+   +0.036 deg -- against a fold-seed sd of 0.033 deg, and a min_n sensitivity that
+   flips the sign (+0.042 at 8, -0.013 at 25). Break-even amplitude for a free fit
+   is 4.83 deg (cell) / 2.86 (arm) / 1.87 (rfblock). A one-parameter projection onto
+   a hypothesised LUT would break even at 0.27 deg; that is the statistic to use.
+   See power_calibration.py.
+
+2. THE NESTING CLAIM WAS FALSE. The original docstring said "nothing imported from a
+   bench can beat it", because a same-radio model would be a constrained version of
+   this one. It would not: state_keys() below keys on (g1, g2, LO) and NOTHING else,
+   while this corpus pools 6 distinct physical Plutos across 3 rover units. Radio
+   identity (sdr_serial, present in all 84 streams, one lookup away at line 114) is
+   a dimension this fit DISCARDS, so a per-radio model is a different model, not a
+   sub-model. Same for a within-buffer gain trajectory.
+
+Two further defects, real but not the cause of the result: 'arm' and 'rfblock' below
+sum MARGINAL conditional means rather than fitting jointly (exact 2x overcount when
+g1 == g2; measured inflation 1.02x here), and load()'s dedup silently drops 6 merged
+stores -- 9,274 frames, 12 streams -- that are DISJOINT IN TIME, not duplicates.
+
+Retained unmodified because its numbers were published. Do not cite it as a bound.
+
+Original docstring follows.
+------------------------------------------------------------------------------------
+
 This is the upper bound the donor analyses could not give. Every earlier test asked
 "does R18's table predict rover phase?", which conflates two things: a negligible
 physical term, and a real term with the wrong predictor. Here the gain effect is

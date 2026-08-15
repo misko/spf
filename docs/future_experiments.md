@@ -4,6 +4,59 @@ Queued, concrete experiments with motivation, design, and decision rules. Read t
 with `docs/learnings.md` (the findings that motivate these). When an experiment runs,
 record the outcome in `learnings.md` and mark it here.
 
+## E-GSC10 — can we detect the rover gain-phase term *at all*? — 📋 **DESIGNED, NOT RUN (2026-08-14)**
+
+**Why this exists.** `docs/gain_phase_rover_investigation_20260814.md` twice claimed the
+rover gain-phase question was closed and twice retracted it. The second attempt
+(`gain_fixed_effects.py`) was underpowered by construction: its statistic moves by at most
++0.010–0.036° for the 1.0–1.9° term at stake, against a seed sd of 0.033°. **The open
+question is not "is there an effect" but "can any statistic on existing data see one".**
+
+**No new capture is required for stages 1–3.**
+
+**Stage 1 — audit the two load-bearing numbers (hours).** The entire surviving cost/benefit
+argument rests on (a) the 1.0–1.9° of correctable gain-phase variation and (b) the
+°-bearing-per-°-phase conversion. Neither has been independently checked. *If (a) is wrong
+by 2×, the ceiling moves from ≤1.4% of filter RMSE to ≤5.6% and the priority call changes.*
+
+**Stage 2 — replace the statistic (the actual experiment).** A **one-parameter circular
+projection** α̂ of the geometry-conditioned residual onto a *hypothesised* LUT shape, with a
+**capture-clustered** bootstrap. Break-even amplitude **0.27°** versus the free fit's
+1.87–4.83°, so it is the first instrument in this investigation able to see a 1–2° term.
+- α̂ = 1 ⇒ the LUT shape explains the rover's gain-phase term exactly
+- α̂ = 0 ⇒ no component along that shape
+- A prototype separates an injected 1.4° effect (α̂ = 0.814, CI [+0.595, +1.018]) from none
+  (α̂ = −0.186, CI [−0.412, +0.063]) at disjoint CIs, while the same effect moves the
+  Addendum-3 statistic by 0.011° — invisibly.
+
+**Stage 3 — the controls Addendum 3 lacked.** Per-capture CI, fold-seed spread, `min_n`
+sweep, and a **run-preserving null**: circular shift of the gain-key sequence within each
+stream. A plain within-stream shuffle is *not* adequate — gain is held for long runs and the
+residual has lag-1 autocorrelation 0.573, so shuffling destroys the run structure and
+inflates significance.
+
+**Fix first, before any re-run** (both are confirmed defects, neither caused the result):
+- the dedup in `gain_fixed_effects.py` / `geometry_conditioned.py` drops 6 merged stores —
+  9,274 frames, 12 streams, 6.9% — that are **disjoint in time**, not duplicates. Concatenate
+  per RX capture instead of keep-first.
+- `arm` and `rfblock` sum *marginal* conditional means rather than fitting jointly (exact 2×
+  overcount at g₁ = g₂; 1.02× inflation measured here). `rfblock` also double-counts within
+  one arm — mixer and LNA words are both functions of the same gain index, both signed +1.
+
+**Decision rule.** If Stage 2 gives α̂ with a CI excluding 0, the gain term is real on rover
+radios and E-GSC10b (same-radio bench LUT, **requires new capture**) becomes justified on
+physics. If the CI covers 0 *and* is tight enough to exclude α̂ = 1, the donor shape is
+excluded on rover data — a genuine null, unlike anything obtained so far. If the CI is wide,
+report that the corpus cannot answer it and stop **on power**, not on a claimed absence.
+
+**Out of scope without new capture:** any sample-weighted gain-trajectory model.
+`gain_observation_*`, `gain_event_*` and `sample_counter_end_exclusive` are v7 *schema*
+fields that this firmware never wrote — they appear in **0 of 96** receiver groups, and
+`first_gain_change_sample` is the −1 sentinel in 383,686 of 383,688 cells. That needs
+protocol-v3 firmware.
+
+---
+
 ## E-CAL1 — resolve the RF-DC vs RF-state confound — ✅ **BOTH ARMS COMPLETE (2026-08-07)**
 
 **Outcome: H₀ — the RF-DC machinery injects no resolvable phase.** The row-23 (+9 dB)

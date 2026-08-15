@@ -9,13 +9,23 @@
 > mount orientation and is constant per receiver per capture, not ground-truth bearing. Its
 > 81.98° residual, r = −0.0245, r² = 0.060%, "2.1% of the phase budget", "the other 98%", and
 > the claim that the physical question was closed are all retracted. See
-> [Retraction](#-retraction-2026-08-14--addendum-2-was-wrong) at the end.
+> [Retraction 1](#-retraction-1-2026-08-14--addendum-2-was-wrong) below.
 >
-> **The conclusions that survive:** (1) do not deploy the held-out donor correction —
-> correctly conditioned it changes the rover residual by **+0.017°, 95% CI [−0.020, +0.061]**;
-> and (2) **Addendum 3** then established the general result with no donor model at all —
-> gain-state fixed effects fitted on the rover data do not generalise across captures, which
-> is the upper bound the withdrawn analysis claimed but did not earn.
+> **Addendum 3's CONCLUSION is ALSO WITHDRAWN** (second review, same day). It was added to
+> replace Addendum 2 and fails for a different reason: the statistic it reports is
+> quadratically insensitive to the effect size at issue, so it had **no power**. A *perfect*
+> correction of the 1.0–1.9° at stake could move it by only +0.010–0.038°, against its own
+> seed-to-seed sd of 0.033°; the sign flips with `min_n`. Its "upper bound" argument also rests
+> on a nesting premise that is false — radio identity is absent from the fitted feature space
+> while 6 distinct Plutos are pooled. See
+> [Retraction 2](#-retraction-2-2026-08-14--addendum-3-had-no-power). The method and code stand;
+> the inference does not.
+>
+> **The conclusion that survives is the engineering one:** do not deploy the held-out donor
+> correction — correctly conditioned it changes the rover residual by **+0.017°, 95% CI
+> [−0.020, +0.061]**, it is significantly worse end to end on 1,920 runs, and even a *perfect*
+> correction is capped at ~1.4% of filter RMSE. **No claim in this report establishes that the
+> gain-phase effect is absent on these radios.** That remains unmeasured.
 
 
 **Run 2026-08-14.** 1,920 runs · 2 direct (non-NN) PF families · 4 arms · 5 seeds · 48 rover
@@ -87,6 +97,12 @@ phase ≈ 0.12–0.28° of bearing, against filter RMSEs of 41–56°.
 
 **Ruled out:** applying a gain-phase correction at inference against the frozen empirical
 table. It is harmful, reproducibly, on 48 captures at p < 0.0001.
+
+⚠️ **On the independent-unit count.** The 48 merged stores are only **42 unique RX
+recordings** — some RX captures are merged against more than one TX partner (established in
+Retraction 1). The paired Wilcoxon tests above pair on the merged store, so their n is
+slightly optimistic. The effect sizes are large and the direction unambiguous, so this does
+not change the conclusion, but the p-values must not be read as 48 independent captures.
 
 **NOT ruled out:** that gain-phase correction helps when the empirical table is *rebuilt from
 corrected φ*. This experiment cannot distinguish "the correction is worthless" from "the
@@ -197,12 +213,17 @@ donor table removes only 22–41% of the correctable variation while injecting t
 
 **Do not deploy.** A consistent rebuild buys better-calibrated uncertainty at a small but
 reproducible accuracy cost, and neither effect is large enough to matter against RMSEs of
-41–56°. The question is now closed for the held-out-donor case.
+41–56°. **The deployment question is settled for the held-out donor.**
 
-**What would still be worth testing, and only this:** the same 2×2 with a **same-radio** table
-for the rover's own units. That removes the donor as a confound and is the only remaining way
-the accuracy sign could flip. It needs an E-GSC9-style capture per rover radio (~2.6 h each)
-and is not justified by the effect sizes here.
+**What would still be worth testing:** the same 2×2 with a **same-radio** table for the rover's
+own units, which removes the donor as a confound. It needs an E-GSC9-style capture per rover
+radio (~2.6 h each) and is not justified by the effect sizes here.
+
+> ⚠️ *Amended 2026-08-14.* This paragraph originally read "the question is now closed" and
+> called a same-radio table "**the only** remaining way the accuracy sign could flip". Both are
+> too strong. Only the *deployment* question is settled, and several tests requiring **no new
+> capture** were identified later — see
+> [what would actually settle it](#what-would-actually-settle-it--no-new-capture-needed).
 
 ⚠️ **One caveat on the baselines in this addendum.** Both tables are built from the same 48
 captures the filters are evaluated on, so these baselines (0.9382 / 0.5096) are slightly
@@ -212,7 +233,23 @@ but these numbers must not be quoted as clean held-out performance.
 
 ---
 
-## Addendum 2 — why: the correction explains 0.060% of rover phase variance
+## Addendum 2 — why: the correction explains 0.060% of rover phase variance ⚠️ WITHDRAWN IN FULL
+
+> ### ⚠️ EVERY NUMBER IN THIS ADDENDUM IS WITHDRAWN — DO NOT CITE ANY OF IT
+>
+> It conditions on `rx_theta_in_pis`, which is the array **mount orientation** and is constant
+> per receiver per capture — *not* ground-truth bearing. Every frame of a receiver therefore
+> fell into a single "bearing bin", so the 81.98° denominator contains the whole trajectory's
+> real geometric signal, which is precisely what the array exists to measure.
+>
+> **Withdrawn:** the 81.98° residual · r = −0.0245 · r² = 0.060% · "2.1% of the phase budget" ·
+> "the other 98% is multipath, geometry and segmentation" · "this retires the last open option"
+> · and the conclusion that the physical question is closed. Correctly conditioned, the
+> residual is **36.7°** and the correlation is **+0.0138** — the sign was an artifact too.
+>
+> Retained unedited below **only** because these numbers were published and circulated. The
+> corrected analysis is [the corrected analysis](#the-corrected-analysis);
+> the full account is [Retraction 1](#-retraction-1-2026-08-14--addendum-2-was-wrong).
 
 The controls said the perturbation's *magnitude* was being measured, not its content. This
 says why the content is absent. Within 2° ground-truth bearing bins, the bin mean is removed
@@ -237,7 +274,7 @@ practically nil, and it is why MSE rose rather than fell.
 The remaining 98% is multipath, geometry and segmentation — outside the scope of any gain
 table.
 
-### This retires the last open option
+### This retires the last open option ⚠️ *(withdrawn — see the banner above)*
 
 The previous addendum left one route open: a **same-radio** table for the rover's own units,
 to remove the donor as a confound. That is now withdrawn. It would recover more of a term that
@@ -249,7 +286,7 @@ localised R17's fault to a single LNA coefficient. It is deployment to the rover
 
 ---
 
-## ⚠️ RETRACTION, 2026-08-14 — Addendum 2 was wrong
+## ⚠️ RETRACTION 1 (2026-08-14) — Addendum 2 was wrong
 
 **Addendum 2 above is withdrawn in full.** An external review found that
 `analysis/why_null.py` conditioned on the wrong angle, and the finding is confirmed.
@@ -289,6 +326,15 @@ stores down to **42 unique RX captures** (they reuse RX recordings across TX par
 | better on | 45/84 streams — a coin flip |
 | corr(correction, residual) | **+0.0138**, r² = **0.019%** |
 
+> **Why 36.728° here and 35.157° in Addendum 3, on the same 124,950 frames.** This table
+> averages the **84 per-stream means unweighted**, because the stream is the bootstrap's
+> independent unit. Addendum 3 is **frame-weighted** over the whole pool. Shorter streams have
+> larger mean |e| — measured corr(length, mean |e|) = **−0.389**; the shortest 21 streams
+> average **42.15°** against **34.09°** for the longest 21 — so the unweighted average sits
+> **+1.572°** higher. Two weightings of one quantity, not two measurements, and both reproduce
+> exactly. They are not interchangeable, and earlier drafts quoted "35–37°" as a range without
+> saying why it was a range.
+
 ![geometry conditioned](figures/fig3_geometry_conditioned.png)
 
 **Figure 3 (corrected).** Left: per receiver-stream mean |e| with and without the correction —
@@ -313,16 +359,26 @@ attenuated toward zero correlation even when the underlying physical term is rea
 a held-out donor does not bound a correctly-conditioned one. This report claimed a physical
 closure it had not earned, and **that closure is retracted.**
 
-**Addendum 3 below then established it properly**, using no donor model at all — which is the
-check the review proposed, and it required no new bench capture.
+**Addendum 3 below attempted to establish it properly**, using no donor model at all — the
+check the review proposed, requiring no new bench capture. ⚠️ **It failed too, and its
+conclusion is withdrawn** — see [Retraction 2](#-retraction-2-2026-08-14--addendum-3-had-no-power).
+The question this retraction opened is still open.
 
 ---
 
-## Addendum 3 — the no-donor upper bound: gain state carries no repeatable information
+## Addendum 3 — the no-donor fixed-effects fit ⚠️ CONCLUSION WITHDRAWN
 
-The retraction left one question genuinely open: a null on a *held-out donor* cannot
-distinguish "the physical term is negligible" from "R18's table is the wrong predictor".
-This settles it, without importing any model.
+> ⚠️ **Read [Retraction 2](#-retraction-2-2026-08-14--addendum-3-had-no-power) first.** The
+> method below is sound and the numbers reproduce exactly, but the inference drawn from them —
+> that this is an upper bound and that the physical question closes — **does not follow.** The
+> statistic had no power to detect the effect at issue. The **method and results tables below
+> are retained verbatim**, because their numbers were published; the two argument subsections
+> that followed them are replaced, and what they originally claimed is quoted in Retraction 2
+> so it can still be audited.
+
+Retraction 1 left one question genuinely open: a null on a *held-out donor* cannot distinguish
+"the physical term is negligible" from "R18's table is the wrong predictor". This was an
+attempt to settle it without importing any model. **It does not settle it.**
 
 ### Method
 
@@ -341,7 +397,7 @@ absorbed downstream" assumption the rest of the pipeline makes.
 **6-fold cross-validation split on physical RX capture** (42 unique, not 48 merged filenames).
 Three parameterisations, two strata.
 
-### Result — every cell is positive
+### Result — every cell is positive ⚠️ *(and this is uninformative — see Retraction 2)*
 
 | stratum | frames | model | mean \|e\| before | after | **change** |
 |---|---:|---|---:|---:|---:|
@@ -361,29 +417,166 @@ Three parameterisations, two strata.
 positive, i.e. all worse. Right: the geometry-removed residual is unmoved by the donor model
 (35.174°) and by the best free fit (35.199°).
 
-### Why this is an upper bound
+### ⚠️ Why this is NOT an upper bound
 
-`δ` is fitted on the target data itself, so **no model imported from a bench can beat it.** A
-same-radio capture, a sample-weighted gain trajectory, a better mechanistic form — each would
-be a *constrained* version of what was just fitted freely, and the free fit does not generalise
-across captures. The most flexible form (per-cell, ~500 free parameters) is not better than the
-most constrained.
+*The original text of this section argued that `δ` is fitted on the target data, so no imported
+model can beat it; that a same-radio capture, a sample-weighted trajectory, or a better
+mechanistic form would each be a constrained version of the free fit; and that restricting to
+stable-gain frames removes the mid-buffer objection. It is withdrawn. Two of those three claims
+are false.*
 
-Restricting to **stable-gain frames** — where the gain state is unambiguous, removing the
-mid-buffer objection entirely — does not help either.
+**The free fit is not a superset of a same-radio model.** `state_keys()` keys on
+`(g1, g2, LO_MHz)` and nothing else, while the corpus pools **6 distinct physical Plutos across
+3 rover units** (RO1 52,451 / RO3 58,562 / RO4 13,937 frames). `sdr_serial` is present in all
+84 streams and is not read. Radio identity is a dimension the fit *discards*, so a same-radio
+model is a different model, not a sub-model. The same applies to a within-buffer gain
+trajectory.
 
-### The question is now closed, and this time it is earned
+**The fit had no power regardless.** See Retraction 2 — this is the decisive objection, and it
+applies to the `cell` row too, which is otherwise a correct saturated estimate.
 
-**Gain state carries no phase information in rover data that survives generalisation to a new
-capture.** That is a statement about the rover's own measurements, not about a donor model, and
-it is the bound the withdrawn analysis claimed without establishing.
+**What does survive:** the stable-gain stratum genuinely does remove the mid-buffer objection
+*within itself* — when start gain equals end gain there is one gain value in play, so a
+sample-weighted predictor collapses to the frame's gain state. That much of the original
+argument was right. It just does not rescue an underpowered statistic.
 
-One limit worth stating: this rules out an effect that is *repeatable across captures*, which
-is exactly what a deployed correction requires. A within-capture effect that does not transfer
-would not be detectable here — and would not be deployable either.
+### The question is NOT closed
 
-**Therefore: no same-radio bench campaign is justified.** That recommendation, withdrawn during
-the retraction for being unsupported, is now reinstated on evidence.
+The corrected statement: **we have not measured whether gain state carries usable phase
+information on these radios.** This analysis cannot distinguish a real 1–2° effect from no
+effect at all — both produce the numbers in the table above.
+
+**A same-radio bench campaign is therefore declined on cost/benefit, not on physics.** Even a
+perfect correction removes ~0.4–0.76° of bearing against filter RMSEs of 41–56° — a ≤1.4%
+ceiling that justifies deprioritising a 2.6 h/radio campaign. It does not justify predicting
+the campaign would find nothing. *(That recommendation was withdrawn in Retraction 1 for being
+unsupported, reinstated here on evidence that does not reach it, and is now rescoped.)*
 
 The 35.2° residual is where rover bearing accuracy actually lives. Identifying its composition
 — multipath, GPS/heading error, segmentation — is a different and larger investigation.
+
+---
+
+## ⚠️ RETRACTION 2 (2026-08-14) — Addendum 3 had no power
+
+A second methodological review rejected Addendum 3's conclusion. It is right, and the decisive
+reason emerged only from adjudicating it — neither the review nor the original analysis stated
+it.
+
+### The sensitivity law that should have come first
+
+The reported statistic is the change in mean |wrap(e)|. That functional responds
+**quadratically** to a small phase offset buried in a 49.24° residual. Measured directly on the
+actual 124,950 residuals (`analysis/power_calibration.py`):
+
+> **Δ(mean |e|) = 0.0101 · A²** degrees, for a gain term of rms amplitude *A* degrees.
+
+| true rms term *A* | ceiling on Δ from removing it **perfectly** |
+|---:|---:|
+| 1.0° | **+0.010°** |
+| 1.4° | **+0.020°** |
+| 1.9° | **+0.038°** |
+| 3.0° | +0.090° |
+| 5.0° | +0.258° |
+
+*(Table entries are measured directly, averaged over 12 draws; the law above is a fit to the
+small-A regime, so it reproduces the top rows and drifts ~2% by 5°.)*
+
+The term at issue is **1.0–1.9°** of phase. So an oracle with perfect knowledge of `δ` could
+have moved the headline by **+0.010 to +0.038°**. Now compare the procedure's own noise:
+
+| source | magnitude |
+|---|---:|
+| fold-seed sd (8 seeds, cell/all; CV is 6-fold) | **0.033°** |
+| seed range | +0.002° … +0.111° |
+| `min_n` 8 → 25 | **+0.042° → −0.013°** (sign flips) |
+| `min_n` 50 / 100 | −0.006° / −0.001° |
+| randomised-gain-label null | +0.004° … +0.114° |
+
+**The entire signal ceiling is no larger than one sd of the statistic's own fold-seed noise,
+and sits well inside its observed run-to-run range.** Equivalently, as break-even amplitude — the
+rms effect at which a free *k*-parameter fit's signal just covers its own parameter cost:
+
+| model | free parameters | break-even *A* | vs the 1.0–1.9° at stake |
+|---|---:|---:|---|
+| `cell` | 326 | **4.83°** | needs 2.5–4.8× more |
+| `arm` | 114 | **2.86°** | needs 1.5–2.9× more |
+| `rfblock` | 49 | **1.87°** | right at the boundary |
+| *one-parameter projection onto a known LUT* | *1* | ***0.27°*** | **4–7× inside reach** |
+
+*(Effective sample size 33,908 of 124,950 frames, from a measured lag-1 residual
+autocorrelation of 0.573.)*
+
+The per-cell fit Addendum 3 leans on — the "most flexible form" whose failure carried the
+argument — needs a **2.5–4.8× larger** effect than physics offers before its signal covers its
+own parameter cost. Only `rfblock` comes close, and it sits at the top of the plausible range.
+**The experiment was guaranteed to return a small positive number whether or not the effect
+exists** — which is exactly what the randomised-label null does too.
+
+### Withdrawn
+
+"The physical question is now CLOSED, on evidence" · "an upper bound no imported model can
+beat" · "every cell is positive" *as evidence of absence* · "no same-radio bench campaign is
+justified" *as a physics claim* · and the docstring claim that "nothing imported from a bench
+can beat it".
+
+### Also confirmed by the review, real but not fatal
+
+- **`arm` and `rfblock` are not fitted jointly.** One residual is appended to every active
+  feature's own bucket, each bucket gets its own circular mean, and prediction sums them — so
+  the estimator returns E[e|g₁] + E[e|g₂], not a joint fit of d₁(g₁) − d₂(g₂). At g₁ = g₂ it
+  overcounts by exactly 2×. On this corpus (within-LO gain correlation 0.34–0.36, g₁ = g₂ in
+  3.0% of frames) the measured inflation is **1.02×** — an efficiency loss, not the cause of
+  the result. `rfblock` additionally double-counts *within* one arm, since the mixer and LNA
+  words are both functions of the same gain index and both signed +1.
+- **The dedup discards real data.** Keeping the first store per RX prefix drops 6 merged stores
+  — **9,274 usable frames, 12 receiver-streams, 6.9%** — which are **disjoint in time** from
+  what is kept, not duplicates of it. Adding them back moves the donor result +0.0174° →
+  +0.0139°, CI still spanning zero. Both scripts share the defect.
+- **Support was never reported.** Retention is on 8 *frames*, not captures. Measured: held-out
+  coverage is **97.75%**, the median retained parameter rests on **12 distinct captures /
+  4,965 training frames**, and only 2.8% rest on a single capture — so the support is better
+  than the rule guarantees, but the report should have said so rather than leaving it unstated.
+- **Factual corrections:** "~500 distinct gain cells" is wrong — there are **854 corpus-wide**
+  and **288–317 actually fitted per fold**. Endpoint stability is **31.34%** at 5766 MHz and
+  **54.54%** at 5840 MHz.
+
+### Where the review itself over-reached
+
+Recorded so the next reader is not misled in the other direction:
+
+- Its illustrative mechanism — "radio A +2°, radio B −2° cancel in the pool" — describes a
+  *constant* per-radio offset, which the per-stream circular centring at
+  `gain_fixed_effects.py:123` already removes. Only gain-*dependent* per-radio differences
+  could survive, a narrower claim.
+- The "2× doubling" is conditional on g₁ = g₂; it is **1.02×** on this data.
+- "The CI may be too narrow" is **refuted**: a capture-clustered bootstrap is 1.009× the
+  per-stream one, and the within-capture correlation of the per-stream delta is −0.0017.
+- The mean-vs-median mismatch is real but tied to *skew*, not to the 49° spread — the gap is
+  exactly zero for any symmetric wrapped law. Substituting a circular median makes held-out
+  error **worse** at every `min_n` tested (+0.083° vs +0.042°), because at these sample sizes
+  the median is the noisier estimator.
+- Its proposed **sample-weighted correction is not computable from this corpus.**
+  `gain_observation_*`, `gain_event_*` and `sample_counter_end_exclusive` exist in the v7
+  *schema* but appear in **0 of 96** receiver groups here; `first_gain_change_sample` is the
+  −1 sentinel in **383,686 of 383,688** cells. That predictor needs new protocol-v3 capture.
+
+### What would actually settle it — no new capture needed
+
+1. **Audit the two numbers the surviving argument now rests on:** the 1.0–1.9° correctable
+   variation and the °-bearing-per-°-phase conversion. Neither has been independently checked.
+2. **Replace the statistic with a one-parameter circular projection** α̂ of the residual onto a
+   hypothesised LUT shape, capture-clustered bootstrap. Break-even 0.27° instead of 1.9–4.8°.
+   A prototype separates an injected 1.4° effect (α̂ = 0.814, CI [+0.595, +1.018]) from none
+   (α̂ = −0.186, CI [−0.412, +0.063]) at disjoint CIs — while the same effect moves *this
+   report's* statistic by 0.011°, i.e. invisibly.
+3. **Add the missing controls:** per-capture CI, seed spread, `min_n` sweep, and a
+   **run-preserving** null (circular shift of the gain-key sequence within each stream). A
+   plain within-stream shuffle is not adequate: gain is held for long runs and the residual has
+   lag-1 autocorrelation 0.573, so shuffling destroys the run structure and inflates
+   significance.
+4. **Fix the dedup and the marginal-vs-joint fit** before any re-run.
+
+Only a same-radio bench LUT can test the per-radio hypothesis directly, and only protocol-v3
+firmware makes a sample-weighted model computable. **Decline those on the ≤1.4% ceiling if you
+decline them — not on this addendum.**
