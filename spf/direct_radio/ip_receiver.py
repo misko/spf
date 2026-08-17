@@ -148,6 +148,7 @@ class PlutoDirectIpReceiver:
         remote_control_port: int = DEFAULT_DIRECT_IP_CONTROL_PORT,
         remote_data_port: int = DEFAULT_DIRECT_IP_DATA_PORT,
         local_host: str = "0.0.0.0",
+        network_interface: str | None = None,
         protocol_version: int = VERSION_V3,
         # Both of the following default to today's behaviour rather than the
         # new one.  A caller must opt in: flashing firmware which advertises
@@ -167,6 +168,10 @@ class PlutoDirectIpReceiver:
     ) -> None:
         if not remote_host:
             raise ValueError("remote_host is required")
+        if network_interface is not None and (
+            not network_interface or "\0" in network_interface
+        ):
+            raise ValueError("network interface is invalid")
         if not 1 <= remote_control_port <= 0xFFFF:
             raise ValueError("remote control port is invalid")
         if not 1 <= remote_data_port <= 0xFFFF:
@@ -196,6 +201,7 @@ class PlutoDirectIpReceiver:
         self.transport = transport
         self.on_backlog = on_backlog
         self.local_host = local_host
+        self.network_interface = network_interface
         self.protocol_version = int(protocol_version)
         self.max_datagram_bytes = int(max_datagram_bytes)
         self.gain_observation_interval_samples = int(gain_observation_interval_samples)
@@ -267,6 +273,8 @@ class PlutoDirectIpReceiver:
         control = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         data = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
+            self._bind_to_network_interface(control)
+            self._bind_to_network_interface(data)
             control.connect(remote)
             control.settimeout(self.control_timeout_seconds)
             data.setsockopt(
@@ -401,6 +409,7 @@ class PlutoDirectIpReceiver:
 
         stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
+            self._bind_to_network_interface(stream)
             # Must precede connect(): the receive window is negotiated during
             # the handshake, and a buffer raised afterwards leaves a small
             # window with no error to show for it.
@@ -434,6 +443,16 @@ class PlutoDirectIpReceiver:
             raise
         self._stream_socket = stream
         return stream
+
+    def _bind_to_network_interface(self, sock: socket.socket) -> None:
+        """Pin a socket to one local radio when their IP addresses overlap."""
+
+        if self.network_interface is not None:
+            sock.setsockopt(
+                socket.SOL_SOCKET,
+                socket.SO_BINDTODEVICE,
+                self.network_interface.encode() + b"\0",
+            )
 
     def _close_stream_connection(self) -> None:
         if self._stream_socket is not None:

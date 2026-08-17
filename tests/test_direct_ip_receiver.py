@@ -266,6 +266,7 @@ def test_finite_v3_capture_retries_control_and_parses_common_inner_frames():
         receiver = PlutoDirectIpReceiver(
             remote_host="127.0.0.1",
             remote_control_port=gadget.control_port,
+            network_interface="lo",
             control_timeout_seconds=0.05,
             frame_timeout_seconds=2,
         )
@@ -391,6 +392,13 @@ def test_missing_data_times_out_explicitly_and_stops_stream():
 def test_receive_buffer_must_be_positive():
     with pytest.raises(ValueError, match="receive buffer"):
         PlutoDirectIpReceiver(remote_host="127.0.0.1", data_receive_buffer_bytes=0)
+
+
+def test_network_interface_rejects_empty_and_embedded_nul_names():
+    with pytest.raises(ValueError, match="network interface"):
+        PlutoDirectIpReceiver(remote_host="127.0.0.1", network_interface="")
+    with pytest.raises(ValueError, match="network interface"):
+        PlutoDirectIpReceiver(remote_host="127.0.0.1", network_interface="eth0\0x")
 
 
 def test_receive_buffer_requirement_fails_with_actionable_sysctl_message():
@@ -708,6 +716,7 @@ def test_tcp_capture_end_to_end_over_a_real_connection():
             remote_host="127.0.0.1",
             remote_control_port=gadget.control_port,
             remote_data_port=gadget.data_port,
+            network_interface="lo",
             transport="tcp",
             max_datagram_bytes=1472,
             gain_observation_interval_samples=1024,
