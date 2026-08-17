@@ -558,7 +558,9 @@ def test_v3_direct_ip_survives_malformed_control_datagrams(
 
 
 @pytest.mark.radio_direct_ip
-def test_v3_direct_ip_uses_the_same_inner_frame(pytestconfig, radio_report_dir):
+def test_v3_direct_ip_uses_the_same_inner_frame(
+    pytestconfig, direct_ip_transport_profile, radio_report_dir
+):
     host = pytestconfig.getoption("--radio-direct-ip-host")
     if not host:
         pytest.fail("--radio-direct-ip-host is required with --radio-direct-ip")
@@ -574,6 +576,7 @@ def test_v3_direct_ip_uses_the_same_inner_frame(pytestconfig, radio_report_dir):
         protocol_version=3,
         gain_observation_interval_samples=interval,
         gain_observation_capacity=capacity,
+        **direct_ip_transport_profile,
     ) as receiver:
         assert receiver.capabilities.flags & IpControlFlags.TIME_ANCHOR
         anchors = [receiver.query_time_anchor() for _ in range(8)]
@@ -586,7 +589,7 @@ def test_v3_direct_ip_uses_the_same_inner_frame(pytestconfig, radio_report_dir):
     sample_clock = _sample_clock_report(anchors, capture.frames, sample_rate_hz)
     assert sample_clock["sample_time_uncertainty_ns"] <= max_uncertainty_ns
     report = {
-        "transport": "direct_ip",
+        "transport": f"direct_ip_{direct_ip_transport_profile['transport']}",
         "host": host,
         "elapsed_seconds": capture.elapsed_seconds,
         "frame": _validate_v3_frame(capture.frames[0], samples),
@@ -598,7 +601,9 @@ def test_v3_direct_ip_uses_the_same_inner_frame(pytestconfig, radio_report_dir):
 
 
 @pytest.mark.radio_direct_ip
-def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_dir):
+def test_v3_direct_ip_buffers_a_maximum_finite_burst(
+    pytestconfig, direct_ip_transport_profile, radio_report_dir
+):
     """Prove capture is decoupled from UDP drain at the production frame size."""
 
     host = pytestconfig.getoption("--radio-direct-ip-host")
@@ -634,6 +639,7 @@ def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_
             gain_observation_interval_samples=interval,
             gain_observation_capacity=capacity,
             minimum_effective_receive_buffer_bytes=minimum_receive_buffer_bytes,
+            **direct_ip_transport_profile,
         ) as receiver:
             required_transport = (
                 IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
@@ -681,7 +687,7 @@ def test_v3_direct_ip_buffers_a_maximum_finite_burst(pytestconfig, radio_report_
     )
 
     report = {
-        "transport": "direct_ip",
+        "transport": f"direct_ip_{direct_ip_transport_profile['transport']}",
         "test": "maximum buffered finite burst",
         "host": host,
         "samples_per_channel": samples,

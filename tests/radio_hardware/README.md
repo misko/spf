@@ -28,6 +28,11 @@ Repeat `--radio-serial=SERIAL` to select exact devices. The expected count is
 checked after serial selection and is exact, so a missing or unexpected radio
 is reported before streaming begins.
 
+For tests that exercise standard libiio over the physical LAN, repeat
+`--radio-lan-radio=SERIAL=HOST` once for every selected radio. Supplying a map
+requires it to cover the selected serials exactly and keeps qualification from
+probing unrelated LAN neighbors.
+
 The default direct-USB gates cover both legacy finite capture and the bounded
 rolling path used by SPF session groups. The rolling two-radio test keeps one
 production-sized transfer resident per radio, validates contiguous sequences,

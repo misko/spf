@@ -73,10 +73,14 @@ def _usb_uri(serial: str) -> str:
     return matches[0]
 
 
-def _lan_host(serial: str, interface: str) -> str:
+def _lan_host(serial: str, interface: str, radio_lan_hosts: dict[str, str]) -> str:
     # IIO discovery and the neighbor table are deliberately resolved by the
     # immutable serial.  DHCP addresses are never associated by radio order.
-    candidates = neighbor_candidates(interface)
+    candidates = (
+        (radio_lan_hosts[serial],)
+        if radio_lan_hosts
+        else neighbor_candidates(interface)
+    )
     return resolve_pluto_ip(serial, candidates)
 
 
@@ -273,7 +277,7 @@ def _compare_gain_history(signal: np.ndarray, metadata: RadioMetadataV3) -> dict
 
 
 def test_iio_large_frame_agc_history_matches_endpoints_and_channels(
-    attached_plutos, pytestconfig, radio_report_dir
+    attached_plutos, radio_lan_hosts, pytestconfig, radio_report_dir
 ):
     attenuation = pytestconfig.getoption("--radio-tx-loopback-attenuation-db")
     validate_loopback_safety(
@@ -298,7 +302,7 @@ def test_iio_large_frame_agc_history_matches_endpoints_and_channels(
 
     for attached in attached_plutos:
         uri = _usb_uri(attached.serial)
-        host = _lan_host(attached.serial, interface)
+        host = _lan_host(attached.serial, interface, radio_lan_hosts)
         sdr = adi.ad9361(uri=uri)
         receiver = None
         stimulus = None

@@ -41,6 +41,16 @@ def pytest_addoption(parser):
         help="require exactly this many selected attached radios",
     )
     group.addoption(
+        "--radio-lan-radio",
+        action="append",
+        default=[],
+        metavar="SERIAL=HOST",
+        help=(
+            "bind an attached serial to its known LAN address; repeat once per "
+            "radio to avoid probing unrelated LAN neighbors"
+        ),
+    )
+    group.addoption(
         "--radio-direct-ip-transport",
         choices=("udp", "tcp"),
         default="udp",
@@ -486,6 +496,39 @@ def attached_plutos(pytestconfig) -> tuple[AttachedPluto, ...]:
     if len({radio.serial for radio in selected}) != len(selected):
         pytest.fail("attached Pluto serials are not unique")
     return tuple(selected)
+
+
+@pytest.fixture(scope="session")
+def radio_lan_hosts(pytestconfig, attached_plutos) -> dict[str, str]:
+    """Return an explicitly scoped, serial-keyed LAN map.
+
+    Hardware tests may fall back to neighbor discovery when this is empty. If
+    the operator supplies any mappings, however, require a complete one-to-one
+    map for the selected radios so a typo cannot silently redirect a test.
+    """
+
+    entries = pytestconfig.getoption("--radio-lan-radio")
+    if not entries:
+        return {}
+    hosts: dict[str, str] = {}
+    for entry in entries:
+        serial, separator, host = entry.partition("=")
+        if not separator or not serial or not host:
+            pytest.fail(
+                "--radio-lan-radio must be SERIAL=HOST, got " f"{entry!r}"
+            )
+        if serial in hosts:
+            pytest.fail(f"duplicate --radio-lan-radio serial: {serial}")
+        hosts[serial] = host
+    selected = {radio.serial for radio in attached_plutos}
+    if set(hosts) != selected:
+        pytest.fail(
+            "--radio-lan-radio serials must exactly match selected radios: "
+            f"selected={sorted(selected)}, mapped={sorted(hosts)}"
+        )
+    if len(set(hosts.values())) != len(hosts):
+        pytest.fail("--radio-lan-radio hosts must be unique")
+    return hosts
 
 
 @pytest.fixture(scope="session")

@@ -201,7 +201,7 @@ def _capture_cell(
 
 
 def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
-    attached_plutos, pytestconfig, radio_report_dir
+    attached_plutos, radio_lan_hosts, pytestconfig, radio_report_dir
 ):
     rates = parse_sample_rate_ladder(
         pytestconfig.getoption("--radio-iio-rate-ladder")
@@ -229,7 +229,12 @@ def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
 
     for attached in attached_plutos:
         usb_uri = _usb_uri(attached.serial)
-        host = resolve_pluto_ip(attached.serial, neighbor_candidates(interface))
+        candidates = (
+            (radio_lan_hosts[attached.serial],)
+            if radio_lan_hosts
+            else neighbor_candidates(interface)
+        )
+        host = resolve_pluto_ip(attached.serial, candidates)
         radio_report = {
             "serial": attached.serial,
             "usb_uri": usb_uri,
