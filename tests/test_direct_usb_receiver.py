@@ -130,7 +130,7 @@ class _OrphanedEndpointHandle:
         self.events.append(("clear", endpoint))
 
 
-def _finite_capabilities(maximum_frames=16):
+def _finite_capabilities(maximum_frames=16, *, status=False):
     return GadgetCapabilitiesV1(
         protocol_min=1,
         protocol_max=2,
@@ -141,8 +141,114 @@ def _finite_capabilities(maximum_frames=16):
         ),
         max_samples_per_channel=524288,
         max_finite_frames=maximum_frames,
-        capability_flags=CapabilityFlags.FINITE_RX,
+        capability_flags=(
+            CapabilityFlags.FINITE_RX
+            | (CapabilityFlags.STATUS if status else CapabilityFlags(0))
+        ),
     )
+
+
+def _runtime_status_payload(
+    state=RuntimeState.IDLE, flags=RuntimeStatusFlags(0)
+):
+    return struct.pack(
+        "<IHHHHiII16s16sQQ14I",
+        RUNTIME_STATUS_MAGIC,
+        RUNTIME_STATUS_BYTES,
+        RUNTIME_STATUS_VERSION,
+        state,
+        ErrorSubsystem.NONE,
+        0,
+        int(flags),
+        0,
+        bytes(16),
+        bytes(16),
+        0,
+        0xFFFFFFFFFFFFFFFF,
+        *([0] * 14),
+    )
+
+
+class _StatusFenceHandle(_OrphanedEndpointHandle):
+    def __init__(self, payload):
+        super().__init__([])
+        self.payload = payload
+
+    def controlRead(self, *args, **kwargs):
+        self.events.append(("status", args, kwargs))
+        return self.payload
+
+
+class _SequencedStatusFenceHandle(_StatusFenceHandle):
+    def __init__(self, payloads):
+        super().__init__(b"")
+        self.payloads = list(payloads)
+
+    def controlRead(self, *args, **kwargs):
+        self.events.append(("status", args, kwargs))
+        return self.payloads.pop(0)
+
+
+def test_quiesce_skips_stop_when_status_is_already_idle():
+    handle = _StatusFenceHandle(_runtime_status_payload())
+
+    PlutoDirectUsbReceiver._quiesce_rx_endpoint(
+        handle=handle,
+        interface=6,
+        bulk_in_endpoint=0x89,
+        capabilities=_finite_capabilities(status=True),
+    )
+
+    assert [event[0] for event in handle.events] == [
+        "status",
+        "drain",
+        "clear",
+    ]
+    assert handle.events[0][1][1] == COMMAND_GET_STATUS
+    assert handle.events[0][2]["timeout"] == 1_000
+
+
+def test_quiesce_stops_active_worker_and_fences_idle_before_draining():
+    handle = _SequencedStatusFenceHandle(
+        [
+            _runtime_status_payload(
+                RuntimeState.STREAMING, RuntimeStatusFlags.RX_WORKER_ACTIVE
+            ),
+            _runtime_status_payload(),
+        ]
+    )
+
+    PlutoDirectUsbReceiver._quiesce_rx_endpoint(
+        handle=handle,
+        interface=6,
+        bulk_in_endpoint=0x89,
+        capabilities=_finite_capabilities(status=True),
+    )
+
+    assert [event[0] for event in handle.events] == [
+        "status",
+        "stop",
+        "status",
+        "drain",
+        "clear",
+    ]
+
+
+def test_stop_fence_rejects_non_idle_worker_status():
+    handle = _StatusFenceHandle(
+        _runtime_status_payload(
+            RuntimeState.STREAMING, RuntimeStatusFlags.RX_WORKER_ACTIVE
+        )
+    )
+
+    with pytest.raises(DirectUsbTransportError, match="did not reach an idle"):
+        PlutoDirectUsbReceiver._stop_rx_and_fence(
+            handle=handle,
+            interface=6,
+            capabilities=_finite_capabilities(status=True),
+        )
+    assert [event[0] for event in handle.events] == ["stop", "status"]
+    assert handle.events[1][2]["timeout"] == 4_000
 
 
 def test_usb_time_anchor_brackets_control_exchange():

@@ -38,6 +38,7 @@ from spf.direct_radio.usb_protocol import (
     GadgetCapabilitiesV1,
     HardwareIdentityV1,
     HardwareIdentityFlags,
+    RuntimeState,
     RuntimeStatusFlags,
     RuntimeStatusV1,
     TimeAnchorV1,
@@ -56,6 +57,11 @@ PLUTO_PRODUCT_ID = 0xB673
 USB_CLASS_VENDOR_SPECIFIC = 0xFF
 USB_TRANSFER_TYPE_MASK = 0x03
 USB_CONTROL_TIMEOUT_MS = 1_000
+# Firmware completes STOP asynchronously from the host's zero-length control
+# write and allows up to three seconds to join a blocked RX worker.  The status
+# request is deliberately queued behind STOP on ep0, so its timeout must cover
+# that firmware bound plus transport scheduling margin.
+USB_STOP_FENCE_TIMEOUT_MS = 4_000
 USB_BULK_TIMEOUT_MS = 10_000
 DEFAULT_BULK_CHUNK_BYTES = 1024 * 1024
 DEFAULT_RECONNECT_ATTEMPTS = 20
@@ -303,7 +309,19 @@ class PlutoDirectUsbReceiver:
                             bulk_in_endpoint=bulk_in,
                             capabilities=capabilities,
                         )
-                    except (usb1.USBError, ProtocolError, DirectUsbTransportError):
+                    except (
+                        usb1.USBError,
+                        ProtocolError,
+                        DirectUsbTransportError,
+                    ) as error:
+                        logging.warning(
+                            "could not quiesce direct-USB candidate serial=%r "
+                            "port_path=%r interface=%s: %s",
+                            candidate_serial,
+                            candidate_port_path,
+                            interface,
+                            error,
+                        )
                         if claimed:
                             with contextlib.suppress(usb1.USBError):
                                 handle.releaseInterface(interface)
@@ -359,14 +377,27 @@ class PlutoDirectUsbReceiver:
         can only discard data whose owner no longer exists.
         """
 
-        handle.controlWrite(
-            usb1.ENDPOINT_OUT | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
-            COMMAND_STOP,
-            COMMAND_TARGET_RX,
-            interface,
-            b"",
-            timeout=USB_CONTROL_TIMEOUT_MS,
-        )
+        if capabilities.capability_flags & CapabilityFlags.STATUS:
+            status = PlutoDirectUsbReceiver._read_runtime_status(
+                handle=handle,
+                interface=interface,
+                timeout=USB_CONTROL_TIMEOUT_MS,
+            )
+            if (
+                status.lifecycle_state is not RuntimeState.IDLE
+                or status.flags & RuntimeStatusFlags.RX_WORKER_ACTIVE
+            ):
+                PlutoDirectUsbReceiver._stop_rx_and_fence(
+                    handle=handle,
+                    interface=interface,
+                    capabilities=capabilities,
+                )
+        else:
+            PlutoDirectUsbReceiver._stop_rx_and_fence(
+                handle=handle,
+                interface=interface,
+                capabilities=capabilities,
+            )
         maximum_frame_bytes = min(
             MAX_ORPHAN_DRAIN_BYTES,
             HEADER_BYTES_V2 + capabilities.max_samples_per_channel * 8,
@@ -407,6 +438,71 @@ class PlutoDirectUsbReceiver:
             "direct USB bulk-IN remained non-empty after discarding "
             f"{drain_limit} orphaned transfers"
         )
+
+    @staticmethod
+    def _read_runtime_status(
+        *, handle, interface: int, timeout: int
+    ) -> RuntimeStatusV1:
+        payload = handle.controlRead(
+            usb1.ENDPOINT_IN | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
+            COMMAND_GET_STATUS,
+            COMMAND_TARGET_RX,
+            interface,
+            RUNTIME_STATUS_BYTES,
+            timeout=timeout,
+        )
+        return RuntimeStatusV1.unpack(payload)
+
+    @staticmethod
+    def _stop_rx_and_fence(*, handle, interface: int, capabilities) -> None:
+        """Stop RX and serialize the next START behind worker teardown.
+
+        FunctionFS can complete the host's zero-length OUT control transfer
+        before userspace has finished joining the finite RX worker. After the
+        bounded UDC hand-off delay, a status query handled by the same ep0 loop
+        provides an explicit IDLE teardown assertion.
+        """
+
+        try:
+            handle.controlWrite(
+                usb1.ENDPOINT_OUT | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
+                COMMAND_STOP,
+                COMMAND_TARGET_RX,
+                interface,
+                b"",
+                timeout=USB_CONTROL_TIMEOUT_MS,
+            )
+        except usb1.USBError as error:
+            raise DirectUsbTransportError(
+                "direct USB RX STOP control write failed: "
+                f"{type(error).__name__}: {error}"
+            ) from error
+        if not (capabilities.capability_flags & CapabilityFlags.STATUS):
+            return
+        # FunctionFS completes the host-side zero-length OUT transaction when
+        # userspace consumes the setup event, just before the daemon executes
+        # STOP.  Do not submit the following IN transaction in that tiny ep0
+        # hand-off window; some UDCs reject it with EIO instead of queueing it.
+        time.sleep(ORPHAN_DRAIN_TIMEOUT_MS / 1_000)
+        try:
+            status = PlutoDirectUsbReceiver._read_runtime_status(
+                handle=handle,
+                interface=interface,
+                timeout=USB_STOP_FENCE_TIMEOUT_MS,
+            )
+        except usb1.USBError as error:
+            raise DirectUsbTransportError(
+                "direct USB RX STOP status fence failed: "
+                f"{type(error).__name__}: {error}"
+            ) from error
+        if (
+            status.lifecycle_state is not RuntimeState.IDLE
+            or status.flags & RuntimeStatusFlags.RX_WORKER_ACTIVE
+        ):
+            raise DirectUsbTransportError(
+                "direct USB RX STOP did not reach an idle worker state: "
+                f"state={status.lifecycle_state.name} flags=0x{int(status.flags):x}"
+            )
 
     def close(self) -> None:
         active_stream = self._active_stream
@@ -624,15 +720,11 @@ class PlutoDirectUsbReceiver:
                     if close_chunks is not None:
                         close_chunks()
             finally:
-                with contextlib.suppress(usb1.USBError):
-                    handle.controlWrite(
-                        usb1.ENDPOINT_OUT | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
-                        COMMAND_STOP,
-                        COMMAND_TARGET_RX,
-                        identity.interface,
-                        b"",
-                        timeout=USB_CONTROL_TIMEOUT_MS,
-                    )
+                self._stop_rx_and_fence(
+                    handle=handle,
+                    interface=identity.interface,
+                    capabilities=self.capabilities,
+                )
 
     def _prepare_rx_request(
         self, *, samples_per_channel: int, frame_count: int
@@ -762,15 +854,11 @@ class PlutoDirectUsbReceiver:
                 )
             parser.finish()
         finally:
-            with contextlib.suppress(usb1.USBError):
-                handle.controlWrite(
-                    usb1.ENDPOINT_OUT | usb1.TYPE_VENDOR | usb1.RECIPIENT_INTERFACE,
-                    COMMAND_STOP,
-                    COMMAND_TARGET_RX,
-                    identity.interface,
-                    b"",
-                    timeout=USB_CONTROL_TIMEOUT_MS,
-                )
+            self._stop_rx_and_fence(
+                handle=handle,
+                interface=identity.interface,
+                capabilities=capabilities,
+            )
         return DirectUsbCapture(
             identity=identity,
             capabilities=capabilities,
