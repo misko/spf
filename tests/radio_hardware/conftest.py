@@ -355,6 +355,16 @@ def pytest_addoption(parser):
         help="sample rates for the standard libiio USB/TCP benchmark",
     )
     group.addoption(
+        "--radio-iio-transport",
+        action="append",
+        choices=("usb", "tcp"),
+        default=[],
+        help=(
+            "standard libiio benchmark transport; repeat to select both; "
+            "the default runs USB and TCP"
+        ),
+    )
+    group.addoption(
         "--radio-iio-rate-frames",
         type=int,
         default=12,

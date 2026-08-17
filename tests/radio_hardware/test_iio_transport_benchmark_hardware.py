@@ -208,6 +208,12 @@ def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
     )
     frames = pytestconfig.getoption("--radio-iio-rate-frames")
     samples = pytestconfig.getoption("--radio-iio-rate-samples")
+    transports = tuple(pytestconfig.getoption("--radio-iio-transport")) or (
+        "usb",
+        "tcp",
+    )
+    if len(set(transports)) != len(transports):
+        pytest.fail("--radio-iio-transport values must be unique")
     if frames < 4:
         pytest.fail("--radio-iio-rate-frames must be at least 4")
     if samples < 16_384:
@@ -222,6 +228,7 @@ def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
         "rates_hz": list(rates),
         "frames_per_cell": frames,
         "samples_per_channel": samples,
+        "transports": list(transports),
         "minimum_continuous_metadata_rate_hz": MINIMUM_CONTINUOUS_METADATA_RATE_HZ,
         "radios": [],
     }
@@ -255,7 +262,8 @@ def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
         del restore_sdr
         try:
             for rate in rates:
-                for transport, uri in (("usb", usb_uri), ("tcp", f"ip:{host}")):
+                for transport in transports:
+                    uri = usb_uri if transport == "usb" else f"ip:{host}"
                     for mode in ("ordinary", "metadata"):
                         cell = _capture_cell(
                             uri=uri,
@@ -288,7 +296,7 @@ def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
             for cell in radio_report["cells"]
         }
         for rate in rates:
-            for transport in ("usb", "tcp"):
+            for transport in transports:
                 ordinary = by_key[(transport, rate, "ordinary")]
                 metadata = by_key[(transport, rate, "metadata")]
                 expected_floor = min(
