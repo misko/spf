@@ -37,6 +37,8 @@ from spf.sdrpluto.direct_usb_receiver import (
     DirectUsbRecoveryError,
     DirectUsbTransportError,
     DirectUsbIdentity,
+    DEFAULT_RECONNECT_ATTEMPTS,
+    DEFAULT_RECONNECT_DELAY_SECONDS,
     MAX_ORPHAN_DRAIN_BYTES,
     MAX_ORPHAN_DRAIN_TRANSFERS,
     PlutoDirectUsbReceiver,
@@ -583,6 +585,13 @@ def test_capture_rediscovery_is_bounded(monkeypatch):
         receiver.capture(samples_per_channel=8)
 
     assert len(open_calls) == 3
+
+
+def test_default_rediscovery_budget_covers_firmware_watchdog_and_reenumeration():
+    assert (
+        DEFAULT_RECONNECT_ATTEMPTS * DEFAULT_RECONNECT_DELAY_SECONDS
+        >= 15.0
+    )
 
 
 def test_protocol_error_fails_closed_without_transport_rediscovery(monkeypatch):

@@ -64,7 +64,11 @@ USB_CONTROL_TIMEOUT_MS = 1_000
 USB_STOP_FENCE_TIMEOUT_MS = 4_000
 USB_BULK_TIMEOUT_MS = 10_000
 DEFAULT_BULK_CHUNK_BYTES = 1024 * 1024
-DEFAULT_RECONNECT_ATTEMPTS = 20
+# A finite-write failure can take the firmware's ten-second missing-STOP
+# watchdog plus USB detach/re-enumeration latency before the same gadget is
+# claimable again.  Keep retries bounded, but cover that complete recovery
+# contract instead of abandoning the radio after five seconds.
+DEFAULT_RECONNECT_ATTEMPTS = 60
 DEFAULT_RECONNECT_DELAY_SECONDS = 0.25
 ORPHAN_DRAIN_TIMEOUT_MS = 50
 MAX_ORPHAN_DRAIN_TRANSFERS = 32
