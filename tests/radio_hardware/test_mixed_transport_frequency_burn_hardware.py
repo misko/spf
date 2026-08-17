@@ -10,6 +10,8 @@ from contextlib import ExitStack
 import numpy as np
 import pytest
 
+from spf.scripts.mute_pluto_tx import validate_loopback_safety
+
 from spf.bench.dual_rx_phase import ToneQualityThresholds, analyze_common_tone
 from spf.calibrations.dual_rx_gain_frequency.config import CalibrationConfig
 from spf.calibrations.dual_rx_gain_frequency.hardware import DirectUsbLoopbackRadio
@@ -188,7 +190,6 @@ def test_mixed_usb_ip_frequency_and_gain_state_burn(
 ):
     assert len(attached_plutos) == 2, "mixed burn requires exactly two radios"
     attenuation = pytestconfig.getoption("--radio-tx-loopback-attenuation-db")
-    assert attenuation is not None and attenuation >= 30
     frequencies = parse_frequency_list(
         pytestconfig.getoption("--radio-burn-frequencies")
     )
@@ -207,6 +208,10 @@ def test_mixed_usb_ip_frequency_and_gain_state_burn(
     bandwidth_hz = pytestconfig.getoption("--radio-tx-bandwidth")
     tone_hz = pytestconfig.getoption("--radio-tx-tone-hz")
     tx_gain_db = pytestconfig.getoption("--radio-tx-gain-db")
+    validate_loopback_safety(
+        physical_attenuation_db=attenuation,
+        strongest_tx_gain_db=tx_gain_db,
+    )
     config = CalibrationConfig(
         frequencies_hz=frequencies,
         gains_db=(26, 41),

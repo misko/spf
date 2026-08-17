@@ -22,13 +22,12 @@ from spf.direct_radio.usb_protocol import (
     MetadataFlags,
     RadioMetadataV3,
 )
-from spf.scripts.mute_pluto_tx import mute_attached_plutos
+from spf.scripts.mute_pluto_tx import mute_attached_plutos, validate_loopback_safety
 from spf.scripts.resolve_pluto_ip import neighbor_candidates, resolve_pluto_ip
 
 
 pytestmark = [pytest.mark.radio_hardware, pytest.mark.radio_tx_loopback]
 
-MINIMUM_LOOPBACK_ATTENUATION_DB = 30.0
 SAMPLES_PER_CHANNEL = 524_288
 SAMPLE_RATE_HZ = 3_000_000
 RF_BANDWIDTH_HZ = 1_500_000
@@ -277,11 +276,10 @@ def test_iio_large_frame_agc_history_matches_endpoints_and_channels(
     attached_plutos, pytestconfig, radio_report_dir
 ):
     attenuation = pytestconfig.getoption("--radio-tx-loopback-attenuation-db")
-    if attenuation is None or attenuation < MINIMUM_LOOPBACK_ATTENUATION_DB:
-        pytest.fail(
-            "large-frame AGC metadata requires an explicitly declared "
-            f"attenuated loopback of at least {MINIMUM_LOOPBACK_ATTENUATION_DB:g} dB"
-        )
+    validate_loopback_safety(
+        physical_attenuation_db=attenuation,
+        strongest_tx_gain_db=STRONG_TX_GAIN_DB,
+    )
 
     interface = pytestconfig.getoption("--radio-direct-ip-ladder-interface")
     report = {

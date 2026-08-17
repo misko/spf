@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Focused libiio metadata RF burn-in without invoking pytest.
 
-The fixture must connect TX2 through at least 30 dB attenuation to RX1 and
-RX2.  Every fresh session is identified by hardware serial, mutes both TX
-channels on exit, retunes RX/TX LO and bandwidth, and validates a cabled DDS
-tone plus the frame-associated metadata.
+The fixture must provide at least 30 dB combined physical and commanded TX
+attenuation from TX2 to RX1 and RX2. Every fresh session is identified by
+hardware serial, mutes both TX channels on exit, retunes RX/TX LO and
+bandwidth, and validates a cabled DDS tone plus the frame-associated metadata.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import numpy as np
 from spf.bench.dual_rx_phase import ToneQualityThresholds, analyze_common_tone
 from spf.direct_radio.iio_metadata import IioMetadataRx
 from spf.direct_radio.usb_protocol import MetadataFlags
+from spf.scripts.mute_pluto_tx import validate_loopback_safety
 
 
 DEFAULT_LOS_HZ = (
@@ -314,8 +315,10 @@ def _summarize(report: dict) -> dict:
 
 
 def burn(args: argparse.Namespace) -> None:
-    if args.attenuation_db < 30:
-        raise RuntimeError("this RF burn requires at least 30 dB loopback attenuation")
+    validate_loopback_safety(
+        physical_attenuation_db=args.attenuation_db,
+        strongest_tx_gain_db=args.tx_gain_db,
+    )
     report = {
         "status": "running",
         "started_unix_ns": time.time_ns(),

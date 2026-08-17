@@ -16,6 +16,38 @@ class MutedPluto:
     tx2_gain_db: float
 
 
+def validate_loopback_safety(
+    *,
+    physical_attenuation_db: float | None,
+    strongest_tx_gain_db: float,
+    minimum_effective_attenuation_db: float = 30.0,
+) -> float:
+    """Return worst-case effective attenuation or reject an unsafe setup.
+
+    AD9361 TX hardware gain is non-positive, so reducing it contributes the
+    corresponding positive amount of attenuation in addition to the physical
+    attenuator. This permits a declared 20 dB cabled path only when every TX
+    level used by the test is derated by at least another 10 dB.
+    """
+
+    if physical_attenuation_db is None:
+        raise ValueError("physical loopback attenuation must be declared")
+    if physical_attenuation_db < 0:
+        raise ValueError("physical loopback attenuation cannot be negative")
+    if not -80 <= strongest_tx_gain_db <= 0:
+        raise ValueError("strongest TX gain must be between -80 and 0 dB")
+    effective_attenuation_db = physical_attenuation_db - strongest_tx_gain_db
+    if effective_attenuation_db < minimum_effective_attenuation_db:
+        raise ValueError(
+            "unsafe loopback: physical attenuation "
+            f"{physical_attenuation_db:g} dB with strongest TX gain "
+            f"{strongest_tx_gain_db:g} dB provides only "
+            f"{effective_attenuation_db:g} dB effective attenuation; "
+            f"at least {minimum_effective_attenuation_db:g} dB is required"
+        )
+    return effective_attenuation_db
+
+
 def _usb_iio_contexts(scan_contexts) -> list[str]:
     return sorted(uri for uri in scan_contexts() if uri.startswith("usb:"))
 

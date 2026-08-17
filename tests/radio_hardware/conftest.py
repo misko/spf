@@ -214,7 +214,11 @@ def pytest_addoption(parser):
         "--radio-tx-loopback-attenuation-db",
         type=float,
         default=None,
-        help="physical attenuation from TX2 to each RX input; required for TX tests",
+        help=(
+            "minimum physical attenuation from TX2 to either RX input; TX tests "
+            "also require physical attenuation minus their strongest non-positive "
+            "TX gain to total at least 30 dB"
+        ),
     )
     group.addoption(
         "--radio-tx-lo-hz",
@@ -422,6 +426,13 @@ def _discover_attached_plutos() -> list[AttachedPluto]:
     radios: list[AttachedPluto] = []
     try:
         for device in context.getDeviceIterator(skip_on_error=True):
+            # Address zero is reserved for USB enumeration and cannot identify
+            # a usable device. Some host controllers leave a libusb zombie at
+            # bus 5/address 0 after a composite Pluto re-enumerates; attempting
+            # to open its string descriptor raises LIBUSB_ERROR_NO_DEVICE and
+            # must not hide the state of the real radios.
+            if device.getDeviceAddress() == 0:
+                continue
             if (
                 device.getVendorID() != PLUTO_VENDOR_ID
                 or device.getProductID() != PLUTO_PRODUCT_ID
