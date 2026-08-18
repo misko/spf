@@ -42,13 +42,26 @@ package_contents="$(dpkg-deb --contents "$deb")"
 grep -Eq '/usr/lib/.*/libiio\.so\.0\.25$' <<<"$package_contents"
 grep -Eq '/usr/bin/iio_info$' <<<"$package_contents"
 python3 - "$wheel" <<'PY'
+import ast
 import sys
 import zipfile
 
 with zipfile.ZipFile(sys.argv[1]) as archive:
     source = archive.read("iio.py").decode()
-assert "class MetadataBuffer" in source
-assert "def __init__(self, device, samples_count, request," in source
+module = ast.parse(source)
+metadata_class = next(
+    node
+    for node in module.body
+    if isinstance(node, ast.ClassDef) and node.name == "MetadataBuffer"
+)
+initializer = next(
+    node
+    for node in metadata_class.body
+    if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+)
+arguments = [argument.arg for argument in initializer.args.args]
+assert arguments == ["self", "device", "samples_count", "request", "metadata_capacity"]
+assert len(initializer.args.defaults) == 1, "request must be a required argument"
 PY
 
 if [[ "$runtime" == true ]]; then
