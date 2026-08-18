@@ -31,7 +31,7 @@ from spf.scripts.pluto_multi_firmware import IsolatedPlutoNetwork
 
 pytestmark = [pytest.mark.radio_hardware, pytest.mark.radio_tandem_agc]
 
-SAMPLES_PER_CHANNEL = 524_288
+SAMPLES_PER_CHANNEL = 65_536
 SAMPLE_RATE_HZ = 3_000_000
 RF_BANDWIDTH_HZ = 1_500_000
 LO_HZ = 915_000_000

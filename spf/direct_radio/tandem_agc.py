@@ -98,6 +98,35 @@ class TandemSessionRequestV1:
     large_adc_overload_threshold: int = 49
     small_adc_overload_threshold: int = 48
 
+    def maximum_events_per_frame(self, samples_per_channel: int) -> int:
+        """Return a conservative AUTO transition bound for one IQ frame."""
+
+        if not isinstance(samples_per_channel, int) or samples_per_channel <= 0:
+            raise ValueError("samples per channel must be a positive integer")
+        if (
+            not isinstance(self.power_measurement_samples, int)
+            or self.power_measurement_samples <= 0
+            or not isinstance(self.cooldown_periods, int)
+            or self.cooldown_periods < 0
+        ):
+            raise ValueError("tandem period must be positive and cooldown nonnegative")
+        if self.mode is TandemMode.HOLD:
+            return 0
+        minimum_transition_samples = self.power_measurement_samples * (
+            self.cooldown_periods + 1
+        )
+        return 1 + (samples_per_channel - 1) // minimum_transition_samples
+
+    def validate_frame_capacity(self, samples_per_channel: int) -> None:
+        maximum_events = self.maximum_events_per_frame(samples_per_channel)
+        if maximum_events > self.event_capacity:
+            raise ValueError(
+                "tandem event capacity "
+                f"{self.event_capacity} cannot cover the worst-case "
+                f"{maximum_events} AUTO transitions in a "
+                f"{samples_per_channel}-sample frame"
+            )
+
     def pack(self) -> bytes:
         values = (
             self.observation_capacity,

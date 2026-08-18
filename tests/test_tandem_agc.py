@@ -14,6 +14,7 @@ from spf.direct_radio.tandem_agc import (
     TandemEventDirection,
     TandemEventReason,
     TandemGainTable,
+    TandemMode,
     TandemSessionRequestV1,
     TandemState,
 )
@@ -142,6 +143,19 @@ def test_tandem_request_has_stable_104_byte_little_endian_layout():
     assert struct.unpack_from("<IHH", request) == (TANDEM_REQUEST_MAGIC, 1, 104)
     assert struct.unpack_from("<iii", request, 24) == (0, 62, 20)
     assert request[72:] == bytes(32)
+
+
+def test_tandem_request_rejects_frames_that_can_overrun_event_capacity():
+    request = TandemSessionRequestV1()
+    assert request.maximum_events_per_frame(65_536) == 22
+    request.validate_frame_capacity(65_536)
+    assert request.maximum_events_per_frame(524_288) == 171
+    with pytest.raises(ValueError, match="cannot cover.*171 AUTO transitions"):
+        request.validate_frame_capacity(524_288)
+
+    hold = dataclasses.replace(request, mode=TandemMode.HOLD)
+    assert hold.maximum_events_per_frame(524_288) == 0
+    hold.validate_frame_capacity(524_288)
 
 
 def test_tandem_metadata_v4_decodes_exact_event_and_provenance():

@@ -70,7 +70,9 @@ class IioMetadataRx:
         self._sample_rate_hz = int(sample_rate_hz)
         self._samples_per_channel = int(samples_per_channel)
         self._metadata_capacity = int(metadata_capacity)
-        self._tandem_request = (tandem_request or TandemSessionRequestV1()).pack()
+        tandem_session = tandem_request or TandemSessionRequestV1()
+        tandem_session.validate_frame_capacity(self._samples_per_channel)
+        self._tandem_request = tandem_session.pack()
         self._buffer = None
         self._time_anchors: list[HostTimeAnchorMeasurement] = []
         self._next_anchor_request_id = 1
