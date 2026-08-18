@@ -189,47 +189,60 @@ def _stop_process(process: subprocess.Popen | None) -> None:
             process.wait(timeout=3)
 
 
-def test_tandem_hold_owns_rx_and_restores_every_selected_radio(attached_plutos):
+def _exercise_tandem_hold(uri: str, serial: str) -> None:
     import adi
 
-    for attached in attached_plutos:
-        sdr = adi.ad9361(uri=_usb_uri(attached.serial))
-        receiver = None
-        try:
-            assert sdr._ctx.attrs.get("hw_serial") == attached.serial
-            _configure(sdr)
-            receiver = _open_receiver(sdr, TandemMode.HOLD)
-            frames = [receiver.capture()[1] for _ in range(2)]
-            assert all(isinstance(item, RadioMetadataV4) for item in frames)
-            assert len({item.ownership_epoch for item in frames}) == 1
-            for metadata in frames:
-                _assert_common(metadata, TandemMode.HOLD)
-                assert metadata.tandem_transition_count == 0
-                assert not metadata.gain_events
+    sdr = adi.ad9361(uri=uri)
+    receiver = None
+    try:
+        assert sdr._ctx.attrs.get("hw_serial") == serial
+        _configure(sdr)
+        receiver = _open_receiver(sdr, TandemMode.HOLD)
+        frames = [receiver.capture()[1] for _ in range(2)]
+        assert all(isinstance(item, RadioMetadataV4) for item in frames)
+        assert len({item.ownership_epoch for item in frames}) == 1
+        for metadata in frames:
+            _assert_common(metadata, TandemMode.HOLD)
+            assert metadata.tandem_transition_count == 0
+            assert not metadata.gain_events
 
-            with pytest.raises(OSError) as blocked:
-                sdr.rx_hardwaregain_chan0 = INITIAL_GAIN_DB + 1
-            assert blocked.value.errno == errno.EBUSY
-
-            # TX attenuation is outside the RX ownership transaction and must
-            # remain writable for a separately guarded calibration source.
-            sdr.tx_hardwaregain_chan1 = -70
-            sdr.tx_hardwaregain_chan1 = -80
-
-            receiver.close()
-            receiver = None
+        with pytest.raises(OSError) as blocked:
             sdr.rx_hardwaregain_chan0 = INITIAL_GAIN_DB + 1
-            sdr.rx_hardwaregain_chan0 = INITIAL_GAIN_DB
+        assert blocked.value.errno == errno.EBUSY
+
+        # TX attenuation is outside the RX ownership transaction and must
+        # remain writable for a separately guarded calibration source.
+        sdr.tx_hardwaregain_chan1 = -70
+        sdr.tx_hardwaregain_chan1 = -80
+
+        receiver.close()
+        receiver = None
+        sdr.rx_hardwaregain_chan0 = INITIAL_GAIN_DB + 1
+        sdr.rx_hardwaregain_chan0 = INITIAL_GAIN_DB
+    finally:
+        try:
+            if receiver is not None:
+                receiver.close()
         finally:
-            try:
-                if receiver is not None:
-                    receiver.close()
-            finally:
-                _mute_sdr(sdr)
-            sdr.rx_destroy_buffer()
-            sdr._ctx.close()
-        del sdr
-        gc.collect()
+            _mute_sdr(sdr)
+        sdr.rx_destroy_buffer()
+        sdr._ctx.close()
+    del sdr
+    gc.collect()
+
+
+def test_tandem_hold_owns_rx_and_restores_every_selected_radio(attached_plutos):
+    for attached in attached_plutos:
+        _exercise_tandem_hold(_usb_uri(attached.serial), attached.serial)
+
+
+def test_tandem_hold_metadata_and_ownership_work_over_lan(
+    attached_plutos, radio_lan_hosts
+):
+    for attached in attached_plutos:
+        host = radio_lan_hosts.get(attached.serial)
+        assert host is not None, f"no serial-bound LAN host for {attached.serial}"
+        _exercise_tandem_hold(f"ip:{host}", attached.serial)
 
 
 def test_tandem_stalled_owner_is_rolled_back(attached_plutos):
