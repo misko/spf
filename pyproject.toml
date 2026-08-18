@@ -7,6 +7,7 @@ name = "spf"
 version = "0.0.1"
 dependencies = [
  "pytest",
+ "tomli>=2; python_version < '3.11'",
  "numpy>=1.25",
  "docker",
  "matplotlib",
