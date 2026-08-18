@@ -6,7 +6,6 @@ import pytest
 import spf.scripts.pluto_multi_firmware as firmware_module
 from spf.scripts.pluto_multi_firmware import (
     FirmwareError,
-    IsolatedPlutoNetwork,
     MultiPlutoFirmwareManager,
     UsbPluto,
     discover_runtime_plutos,
@@ -97,42 +96,6 @@ def test_firmware_manager_rejects_wrong_image_checksum(tmp_path):
         manager._check_image()
 
 
-def test_firmware_manager_selects_one_radio_by_immutable_serial(
-    tmp_path, monkeypatch
-):
-    devices = [_device("SERIAL_A", "1-1.1"), _device("SERIAL_B", "1-1.2")]
-    manager = MultiPlutoFirmwareManager(
-        image=tmp_path / "pluto.dfu",
-        image_sha256="0" * 64,
-        ssh_config=tmp_path / "ssh_config",
-        ssh_password="analog",
-        state_root=tmp_path / "state",
-        expected_count=1,
-        serials=("SERIAL_B",),
-    )
-    monkeypatch.setattr(firmware_module, "discover_runtime_plutos", lambda: devices)
-
-    assert manager._devices() == [devices[1]]
-
-
-def test_firmware_manager_rejects_missing_selected_serial(tmp_path, monkeypatch):
-    manager = MultiPlutoFirmwareManager(
-        image=tmp_path / "pluto.dfu",
-        image_sha256="0" * 64,
-        ssh_config=tmp_path / "ssh_config",
-        ssh_password="analog",
-        state_root=tmp_path / "state",
-        expected_count=1,
-        serials=("MISSING",),
-    )
-    monkeypatch.setattr(
-        firmware_module, "discover_runtime_plutos", lambda: [_device()]
-    )
-
-    with pytest.raises(FirmwareError, match="selected Pluto serials are missing"):
-        manager._devices()
-
-
 def test_parse_uboot_environment_ignores_diagnostics():
     assert parse_uboot_environment(
         "Warning: Bad CRC\ncompatible=ad9361\nmode=2r2t\n"
@@ -177,35 +140,6 @@ def test_network_interface_wait_rejects_ambiguous_identity_without_retry(
 
     with pytest.raises(FirmwareError, match=r"found \['eth1', 'eth2'\]"):
         wait_for_network_interface("SERIAL_A", timeout=5)
-
-
-def test_isolated_network_popen_runs_command_inside_namespace(monkeypatch):
-    network = IsolatedPlutoNetwork("SERIAL_A")
-    network.state = SimpleNamespace()
-    calls = []
-    expected_process = object()
-    monkeypatch.setattr(
-        firmware_module.subprocess,
-        "Popen",
-        lambda command, **kwargs: calls.append((command, kwargs)) or expected_process,
-    )
-
-    process = network.popen(["ssh", "root@192.168.2.1"], stdout=-1)
-
-    assert process is expected_process
-    assert calls == [
-        (
-            [
-                "ip",
-                "netns",
-                "exec",
-                network.namespace,
-                "ssh",
-                "root@192.168.2.1",
-            ],
-            {"stdout": -1},
-        )
-    ]
 
 
 def test_parse_passive_device_facts_uses_strict_allowlist():

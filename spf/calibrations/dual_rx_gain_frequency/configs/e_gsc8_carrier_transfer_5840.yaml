@@ -2,18 +2,14 @@
 # 34 pairs x 4 LOs x 3 epochs = 408 frames/radio, 816 for the pair.
 data-version: 7
 pluto-firmware:
-  release-tag: v0.38-plutoplus-spf-gain-series-v4-rc16
-  device-fw: v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1
-  asset-name: plutoplus-spf-main-867e18542311-pluto.dfu
-  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-series-v4-rc16/plutoplus-spf-main-867e18542311-pluto.dfu
-  image-sha256: 27aca40915fd75fbcabfadef88fee96ff422c6058f83fab8a57a09b8d1eae911
-  firmware-git-sha: 867e18542311c25f5c1980bbdcfffc823e56f0a2
-  gadget-git-sha: 2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552
+  release-tag: v0.38-plutoplus-spf-libiio-metadata-v5
+  device-fw: v0.38-plutoplus-spf-libiio-metadata-v5
+  asset-name: plutoplus-spf-libiio-metadata-v5-d7c87a9a2809-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-libiio-metadata-v5/plutoplus-spf-libiio-metadata-v5-d7c87a9a2809-pluto.dfu
+  image-sha256: 948b46506febacb087f3955be86015e074f8c0e3370a9dfc6a942e735d97f882
+  firmware-git-sha: d7c87a9a28094ee6f0b23cb47df9ff737b5a69d8
+  gadget-git-sha: ab270f9e3128187372f27de887be65353f9e195d
   boot-mode: qspi
-direct-usb:
-  protocol-version: 3
-  gain-observation-interval-samples: 2048
-  gain-observation-capacity: 256
 calibration:
   # Mandatory same-LO control first, target second, then ripple brackets.
   frequencies-hz: [5766000000, 5840000000, 5700000000, 5900000000]
