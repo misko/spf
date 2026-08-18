@@ -1,4 +1,4 @@
-"""Request-driven libiio RX with frame-associated SPF V3 metadata."""
+"""Request-driven libiio RX with frame-associated tandem metadata v4."""
 
 from __future__ import annotations
 
@@ -14,13 +14,12 @@ from spf.direct_radio.sample_clock import (
     capture_host_realtime_mapping,
     fit_sample_clock,
 )
+from spf.direct_radio.tandem_agc import RadioMetadataV4, TandemSessionRequestV1
 from spf.direct_radio.usb_protocol import (
     MetadataFlags,
-    RadioMetadataV3,
     TimeAnchorFlags,
     TimeAnchorV1,
 )
-
 
 ADC_SAMPLE_COUNTER_LOW_REG = 0x800000B8
 DEFAULT_METADATA_CAPACITY = 64 * 1024
@@ -28,6 +27,19 @@ INITIAL_TIME_ANCHOR_COUNT = 8
 MAX_TIME_ANCHORS = 32
 TIME_ANCHOR_WINDOW_NS = 10_000_000_000
 MAX_STARTUP_FRAME_DISCARDS = 64
+_METADATA_OPEN_MAX_ATTEMPTS = 3
+_METADATA_OPEN_RETRY_DELAY_SECONDS = 0.05
+_ORDINARY_PRIME_CONSTANT_COMPONENT_ERROR = (
+    "ordinary IIO prime has a constant IQ component"
+)
+
+
+def _close_buffer_if_supported(buffer) -> None:
+    """Synchronously close patched buffers; retain older-binding cleanup."""
+
+    close = getattr(buffer, "close", None)
+    if callable(close):
+        close()
 
 
 class IioMetadataRx:
@@ -46,6 +58,7 @@ class IioMetadataRx:
         sample_rate_hz: int,
         samples_per_channel: int,
         metadata_capacity: int = DEFAULT_METADATA_CAPACITY,
+        tandem_request: TandemSessionRequestV1 | None = None,
     ) -> None:
         if sample_rate_hz <= 0:
             raise ValueError("sample_rate_hz must be positive")
@@ -57,6 +70,7 @@ class IioMetadataRx:
         self._sample_rate_hz = int(sample_rate_hz)
         self._samples_per_channel = int(samples_per_channel)
         self._metadata_capacity = int(metadata_capacity)
+        self._tandem_request = (tandem_request or TandemSessionRequestV1()).pack()
         self._buffer = None
         self._time_anchors: list[HostTimeAnchorMeasurement] = []
         self._next_anchor_request_id = 1
@@ -77,27 +91,60 @@ class IioMetadataRx:
                 "install the patched SPF libiio 0.25 or 0.26 binding"
             )
 
-        # Let pyadi configure precisely the channels it would use for rx().
-        # Its v0.x compatibility layer also creates an ordinary buffer, which
-        # must be closed before the metadata owner is opened.
-        self._sdr.rx_destroy_buffer()
-        self._sdr._rx_init_channels()
-        ordinary_buffer = self._sdr._rxbuf
-        self._sdr._rxbuf = None
-        del ordinary_buffer
-        gc.collect()
+        # Exercise the ordinary dual-channel path once before opting in to
+        # metadata RX.  Pluto+ shares this DMA path, so merely creating and
+        # destroying an unfilled ordinary buffer does not perform the required
+        # receive transition.
+        self._prime_ordinary_rx()
 
         try:
-            self._buffer = metadata_buffer_type(
-                self._sdr._rxadc,
-                self._samples_per_channel,
-                self._metadata_capacity,
-            )
+            self._buffer = self._open_metadata_buffer(metadata_buffer_type)
             self._sdr._rxbuf = self._buffer
             self._refresh_time_anchors(initial=True)
         except BaseException:
             self.close()
             raise
+
+    def _prime_ordinary_rx(self) -> None:
+        self._sdr.rx_destroy_buffer()
+        try:
+            signal = np.asarray(self._sdr.rx())
+            expected_shape = (2, self._samples_per_channel)
+            if signal.shape != expected_shape or not np.iscomplexobj(signal):
+                raise RuntimeError(
+                    "ordinary IIO prime did not return dual-channel complex IQ"
+                )
+            components = (
+                signal[0].real,
+                signal[0].imag,
+                signal[1].real,
+                signal[1].imag,
+            )
+            if any(np.all(component == component[0]) for component in components):
+                raise RuntimeError(_ORDINARY_PRIME_CONSTANT_COMPONENT_ERROR)
+        finally:
+            ordinary_buffer = getattr(self._sdr, "_rxbuf", None)
+            self._sdr.rx_destroy_buffer()
+            try:
+                _close_buffer_if_supported(ordinary_buffer)
+            finally:
+                del ordinary_buffer
+                gc.collect()
+
+    def _open_metadata_buffer(self, metadata_buffer_type):
+        for attempt in range(1, _METADATA_OPEN_MAX_ATTEMPTS + 1):
+            try:
+                return metadata_buffer_type(
+                    self._sdr._rxadc,
+                    self._samples_per_channel,
+                    self._tandem_request,
+                    self._metadata_capacity,
+                )
+            except OSError as error:
+                if error.errno != errno.EBUSY or attempt == _METADATA_OPEN_MAX_ATTEMPTS:
+                    raise
+                time.sleep(_METADATA_OPEN_RETRY_DELAY_SECONDS)
+        raise RuntimeError("metadata IIO open attempts were not exhausted")
 
     def close(self) -> None:
         buffer = self._buffer
@@ -105,11 +152,14 @@ class IioMetadataRx:
         self._time_anchors = []
         if getattr(self._sdr, "_rxbuf", None) is buffer:
             self._sdr._rxbuf = None
-        del buffer
-        gc.collect()
+        try:
+            _close_buffer_if_supported(buffer)
+        finally:
+            del buffer
+            gc.collect()
 
     def capture(self):
-        """Return pyadi IQ, parsed V3 metadata, and capture-time fields."""
+        """Return pyadi IQ, parsed tandem metadata, and capture-time fields."""
 
         if self._buffer is None:
             raise RuntimeError("IIO metadata RX is not open")
@@ -129,14 +179,14 @@ class IioMetadataRx:
         raw_metadata = self._buffer.metadata
         if raw_metadata is None:
             raise RuntimeError("metadata buffer refill returned no metadata")
-        metadata = RadioMetadataV3.unpack(raw_metadata)
+        metadata = RadioMetadataV4.unpack(raw_metadata)
         if len(raw_metadata) != metadata.header_bytes:
             raise RuntimeError("metadata refill returned trailing bytes")
         self._validate_metadata(metadata)
         self._refresh_time_anchors(initial=False)
         return signal_matrix, metadata, self._capture_time(metadata)
 
-    def _validate_metadata(self, metadata: RadioMetadataV3) -> None:
+    def _validate_metadata(self, metadata: RadioMetadataV4) -> None:
         if metadata.samples_per_channel != self._samples_per_channel:
             raise RuntimeError(
                 "metadata sample count does not match the requested IIO buffer"
@@ -154,9 +204,9 @@ class IioMetadataRx:
         if self._next_anchor_request_id == 0:
             self._next_anchor_request_id = 1
         host_before_ns = time.monotonic_ns()
-        sample_counter = int(
-            self._sdr._rxadc.reg_read(ADC_SAMPLE_COUNTER_LOW_REG)
-        ) & 0xFFFFFFFF
+        sample_counter = (
+            int(self._sdr._rxadc.reg_read(ADC_SAMPLE_COUNTER_LOW_REG)) & 0xFFFFFFFF
+        )
         host_after_ns = time.monotonic_ns()
         anchor = TimeAnchorV1(
             flags=(
@@ -191,7 +241,7 @@ class IioMetadataRx:
             if item.host_monotonic_after_ns >= cutoff
         ]
 
-    def _capture_time(self, metadata: RadioMetadataV3) -> dict[str, int | float | bool]:
+    def _capture_time(self, metadata: RadioMetadataV4) -> dict[str, int | float | bool]:
         extended = [
             item.extend_near(metadata.first_sample_sequence)
             for item in self._time_anchors
