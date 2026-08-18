@@ -7,6 +7,7 @@ import json
 import shutil
 import subprocess
 import time
+from contextlib import ExitStack
 from itertools import pairwise
 
 import pytest
@@ -21,6 +22,7 @@ from spf.direct_radio.tandem_agc import (
 )
 from spf.direct_radio.usb_protocol import GainObservationFlags, MetadataFlags
 from spf.scripts.mute_pluto_tx import mute_attached_plutos, validate_loopback_safety
+from spf.scripts.pluto_multi_firmware import IsolatedPlutoNetwork
 
 pytestmark = [pytest.mark.radio_hardware, pytest.mark.radio_tandem_agc]
 
@@ -131,7 +133,11 @@ def _open_receiver(sdr, mode: TandemMode) -> IioMetadataRx:
     return receiver
 
 
-def _start_remote_tx_pattern(host: str, serial: str) -> subprocess.Popen:
+def _start_remote_tx_pattern(
+    host: str,
+    serial: str,
+    network: IsolatedPlutoNetwork | None = None,
+) -> subprocess.Popen:
     if shutil.which("sshpass") is None:
         raise RuntimeError("sshpass is required for the bounded TX2 stimulus")
     command = f"""
@@ -149,19 +155,21 @@ while test "$iteration" -lt 120; do
     iteration=$((iteration + 1))
 done
 """
-    return subprocess.Popen(
-        [
-            "sshpass",
-            "-p",
-            "analog",
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            f"root@{host}",
-            command,
-        ],
+    ssh_command = [
+        "sshpass",
+        "-p",
+        "analog",
+        "ssh",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        f"root@{host}",
+        command,
+    ]
+    launcher = network.popen if network is not None else subprocess.Popen
+    return launcher(
+        ssh_command,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -259,9 +267,6 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
         physical_attenuation_db=attenuation,
         strongest_tx_gain_db=STRONG_TX_GAIN_DB,
     )
-    if set(radio_lan_hosts) != {radio.serial for radio in attached_plutos}:
-        pytest.fail("AUTO qualification requires SERIAL=HOST mappings for every radio")
-
     import adi
 
     report = {"attenuation_db": attenuation, "radios": []}
@@ -276,19 +281,28 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
             sdr.tx_hardwaregain_chan1 = WEAK_TX_GAIN_DB
             sdr.dds_single_tone(TONE_HZ, 0.25, channel=1)
             receiver = _open_receiver(sdr, TandemMode.AUTO)
-            stimulus = _start_remote_tx_pattern(
-                radio_lan_hosts[attached.serial], attached.serial
-            )
+            with ExitStack() as stimulus_stack:
+                host = radio_lan_hosts.get(attached.serial)
+                network = None
+                stimulus_transport = "lan"
+                if host is None:
+                    network = stimulus_stack.enter_context(
+                        IsolatedPlutoNetwork(attached.serial)
+                    )
+                    host = "192.168.2.1"
+                    stimulus_transport = "serial-scoped-usb-network"
+                stimulus = _start_remote_tx_pattern(host, attached.serial, network)
+                stimulus_stack.callback(_stop_process, stimulus)
 
-            frames = []
-            all_events = []
-            for _ in range(MAX_AUTO_FRAMES):
-                metadata = receiver.capture()[1]
-                _assert_common(metadata, TandemMode.AUTO)
-                frames.append(metadata)
-                all_events.extend(metadata.gain_events)
-                if len(all_events) >= 4:
-                    break
+                frames = []
+                all_events = []
+                for _ in range(MAX_AUTO_FRAMES):
+                    metadata = receiver.capture()[1]
+                    _assert_common(metadata, TandemMode.AUTO)
+                    frames.append(metadata)
+                    all_events.extend(metadata.gain_events)
+                    if len(all_events) >= 4:
+                        break
             assert len(all_events) >= 4, "bounded TX2 steps produced too few events"
 
             for previous, current in pairwise(all_events):
@@ -316,7 +330,8 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
                 {
                     "serial": attached.serial,
                     "usb_uri": _usb_uri(attached.serial),
-                    "lan_host": radio_lan_hosts[attached.serial],
+                    "stimulus_host": host,
+                    "stimulus_transport": stimulus_transport,
                     "ownership_epoch": frames[0].ownership_epoch,
                     "frame_count": len(frames),
                     "event_count": len(all_events),

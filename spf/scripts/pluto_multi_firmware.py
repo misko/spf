@@ -339,6 +339,13 @@ class IsolatedPlutoNetwork:
     def run(self, command: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
         return _run(["ip", "netns", "exec", self.namespace, *command], **kwargs)
 
+    def popen(self, command: list[str], **kwargs) -> subprocess.Popen:
+        if self.state is None:
+            raise FirmwareError("network namespace is not active")
+        return subprocess.Popen(
+            ["ip", "netns", "exec", self.namespace, *command], **kwargs
+        )
+
     def _interface_is_present(self) -> bool:
         if self.state is None:
             return False

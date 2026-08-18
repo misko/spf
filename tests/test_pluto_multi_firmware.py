@@ -6,6 +6,7 @@ import pytest
 import spf.scripts.pluto_multi_firmware as firmware_module
 from spf.scripts.pluto_multi_firmware import (
     FirmwareError,
+    IsolatedPlutoNetwork,
     MultiPlutoFirmwareManager,
     UsbPluto,
     discover_runtime_plutos,
@@ -176,6 +177,35 @@ def test_network_interface_wait_rejects_ambiguous_identity_without_retry(
 
     with pytest.raises(FirmwareError, match=r"found \['eth1', 'eth2'\]"):
         wait_for_network_interface("SERIAL_A", timeout=5)
+
+
+def test_isolated_network_popen_runs_command_inside_namespace(monkeypatch):
+    network = IsolatedPlutoNetwork("SERIAL_A")
+    network.state = SimpleNamespace()
+    calls = []
+    expected_process = object()
+    monkeypatch.setattr(
+        firmware_module.subprocess,
+        "Popen",
+        lambda command, **kwargs: calls.append((command, kwargs)) or expected_process,
+    )
+
+    process = network.popen(["ssh", "root@192.168.2.1"], stdout=-1)
+
+    assert process is expected_process
+    assert calls == [
+        (
+            [
+                "ip",
+                "netns",
+                "exec",
+                network.namespace,
+                "ssh",
+                "root@192.168.2.1",
+            ],
+            {"stdout": -1},
+        )
+    ]
 
 
 def test_parse_passive_device_facts_uses_strict_allowlist():
