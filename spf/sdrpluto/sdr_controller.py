@@ -233,7 +233,8 @@ def _legacy_rx_buffer(signal_matrix, rssis, gains) -> PlutoRxBuffer:
 def _gain_series_arrays(metadata):
     from spf.sdrpluto.direct_usb_protocol import RadioMetadataV3
 
-    if not isinstance(metadata, RadioMetadataV3):
+    compatible_metadata = getattr(metadata, "base", metadata)
+    if not isinstance(compatible_metadata, RadioMetadataV3):
         return {
             "gain_observation_interval_samples": 0,
             "gain_observation_sample_bounds": np.empty((0, 2), dtype=np.uint64),
@@ -1167,7 +1168,8 @@ class PPlus:
     def _cache_direct_legacy_values(self, metadata):
         from spf.sdrpluto.direct_usb_protocol import RadioMetadataV2
 
-        if not isinstance(metadata, RadioMetadataV2):
+        compatible_metadata = getattr(metadata, "base", metadata)
+        if not isinstance(compatible_metadata, RadioMetadataV2):
             raise RuntimeError(
                 "direct USB compatibility values require metadata protocol v2"
             )
