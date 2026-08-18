@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from spf.scripts.mute_pluto_tx import mute_attached_plutos
+from spf.scripts.mute_pluto_tx import mute_attached_plutos, mute_sdr_tx
 
 
 class FakeSdr:
@@ -27,6 +27,49 @@ class FakeAdi:
 
     def ad9361(self, *, uri):
         return self.radios[uri]
+
+
+class OrderSensitiveFakeSdr:
+    """Model pyadi's enabled-channel lookup for per-channel TX properties."""
+
+    def __init__(self):
+        self._tx1 = -12
+        self._tx2 = -9
+        self.tx_enabled_channels = [0, 1]
+        self.tx_cyclic_buffer = True
+        self.calls = []
+
+    @property
+    def tx_hardwaregain_chan0(self):
+        return self._tx1
+
+    @tx_hardwaregain_chan0.setter
+    def tx_hardwaregain_chan0(self, value):
+        if 0 in self.tx_enabled_channels:
+            self._tx1 = value
+
+    @property
+    def tx_hardwaregain_chan1(self):
+        return self._tx2
+
+    @tx_hardwaregain_chan1.setter
+    def tx_hardwaregain_chan1(self, value):
+        if 1 in self.tx_enabled_channels:
+            self._tx2 = value
+
+    def disable_dds(self):
+        self.calls.append("disable_dds")
+
+    def tx_destroy_buffer(self):
+        self.calls.append("tx_destroy_buffer")
+
+
+def test_mute_sdr_tx_attenuates_before_disabling_channel_lookup():
+    sdr = OrderSensitiveFakeSdr()
+
+    assert mute_sdr_tx(sdr) == (-80.0, -80.0)
+    assert sdr.tx_enabled_channels == []
+    assert sdr.tx_cyclic_buffer is False
 
 
 def test_mute_attached_plutos_is_verified_and_serial_selective():

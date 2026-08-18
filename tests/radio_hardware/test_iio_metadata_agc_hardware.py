@@ -22,7 +22,11 @@ from spf.direct_radio.usb_protocol import (
     MetadataFlags,
     RadioMetadataV3,
 )
-from spf.scripts.mute_pluto_tx import mute_attached_plutos, validate_loopback_safety
+from spf.scripts.mute_pluto_tx import (
+    mute_attached_plutos,
+    mute_sdr_tx,
+    validate_loopback_safety,
+)
 from spf.scripts.resolve_pluto_ip import neighbor_candidates, resolve_pluto_ip
 
 
@@ -85,16 +89,7 @@ def _lan_host(serial: str, interface: str, radio_lan_hosts: dict[str, str]) -> s
 
 
 def _mute_sdr(sdr) -> None:
-    try:
-        sdr.disable_dds()
-    finally:
-        try:
-            sdr.tx_destroy_buffer()
-        finally:
-            sdr.tx_enabled_channels = []
-            sdr.tx_hardwaregain_chan0 = -80
-            sdr.tx_hardwaregain_chan1 = -80
-            sdr.tx_cyclic_buffer = False
+    mute_sdr_tx(sdr)
 
 
 def _arm_verified_tone(sdr) -> dict:

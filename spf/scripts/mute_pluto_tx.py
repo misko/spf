@@ -52,6 +52,44 @@ def _usb_iio_contexts(scan_contexts) -> list[str]:
     return sorted(uri for uri in scan_contexts() if uri.startswith("usb:"))
 
 
+def mute_sdr_tx(sdr) -> tuple[float, float]:
+    """Mute one open AD9361 handle and verify both physical TX channels.
+
+    Gain writes deliberately precede disabling ``tx_enabled_channels``.  Pyadi
+    uses that channel list when resolving per-channel properties, so clearing
+    it first can make the TX2 write target disappear while leaving the actual
+    hardware gain unchanged.
+    """
+
+    failures: list[str] = []
+    operations = (
+        ("mute TX1", lambda: setattr(sdr, "tx_hardwaregain_chan0", -80)),
+        ("mute TX2", lambda: setattr(sdr, "tx_hardwaregain_chan1", -80)),
+        ("disable DDS", sdr.disable_dds),
+        ("destroy TX buffer", sdr.tx_destroy_buffer),
+        ("disable TX channels", lambda: setattr(sdr, "tx_enabled_channels", [])),
+        ("disable cyclic TX", lambda: setattr(sdr, "tx_cyclic_buffer", False)),
+    )
+    for name, operation in operations:
+        try:
+            operation()
+        except Exception as error:  # all independent safety steps must run
+            failures.append(f"{name}: {type(error).__name__}: {error}")
+
+    try:
+        tx1 = float(sdr.tx_hardwaregain_chan0)
+        tx2 = float(sdr.tx_hardwaregain_chan1)
+        if tx1 > -79.75 or tx2 > -79.75:
+            failures.append(f"mute readback mismatch: TX1={tx1} dB TX2={tx2} dB")
+    except Exception as error:
+        tx1 = tx2 = float("nan")
+        failures.append(f"mute readback: {type(error).__name__}: {error}")
+
+    if failures:
+        raise RuntimeError("; ".join(failures))
+    return tx1, tx2
+
+
 def mute_attached_plutos(
     *,
     serials: Iterable[str] = (),
@@ -89,37 +127,10 @@ def mute_attached_plutos(
             if requested and serial not in requested:
                 continue
 
-            operation_failures = []
-            operations = (
-                ("mute TX1", lambda: setattr(sdr, "tx_hardwaregain_chan0", -80)),
-                ("mute TX2", lambda: setattr(sdr, "tx_hardwaregain_chan1", -80)),
-                ("disable DDS", sdr.disable_dds),
-                (
-                    "disable TX channels",
-                    lambda: setattr(sdr, "tx_enabled_channels", []),
-                ),
-                ("destroy TX buffer", sdr.tx_destroy_buffer),
-                (
-                    "disable cyclic TX",
-                    lambda: setattr(sdr, "tx_cyclic_buffer", False),
-                ),
-            )
-            for name, operation in operations:
-                try:
-                    operation()
-                except Exception as error:  # all independent safety steps run
-                    operation_failures.append(
-                        f"{name}: {type(error).__name__}: {error}"
-                    )
-
-            tx1 = float(sdr.tx_hardwaregain_chan0)
-            tx2 = float(sdr.tx_hardwaregain_chan1)
-            if tx1 > -79.75 or tx2 > -79.75:
-                operation_failures.append(
-                    f"mute readback mismatch: TX1={tx1} dB TX2={tx2} dB"
-                )
-            if operation_failures:
-                failures.append(f"{serial} ({uri}): " + "; ".join(operation_failures))
+            try:
+                tx1, tx2 = mute_sdr_tx(sdr)
+            except RuntimeError as error:
+                failures.append(f"{serial} ({uri}): {error}")
                 continue
             results.append(
                 MutedPluto(

@@ -22,7 +22,11 @@ from spf.direct_radio.tandem_agc import (
     TandemState,
 )
 from spf.direct_radio.usb_protocol import GainObservationFlags, MetadataFlags
-from spf.scripts.mute_pluto_tx import mute_attached_plutos, validate_loopback_safety
+from spf.scripts.mute_pluto_tx import (
+    mute_attached_plutos,
+    mute_sdr_tx,
+    validate_loopback_safety,
+)
 from spf.scripts.pluto_multi_firmware import IsolatedPlutoNetwork
 
 pytestmark = [pytest.mark.radio_hardware, pytest.mark.radio_tandem_agc]
@@ -33,8 +37,6 @@ RF_BANDWIDTH_HZ = 1_500_000
 LO_HZ = 915_000_000
 TONE_HZ = 100_000
 INITIAL_GAIN_DB = 20
-STRONG_TX_GAIN_DB = -30.0
-WEAK_TX_GAIN_DB = -60.0
 MAX_AUTO_FRAMES = 12
 WATCHDOG_FAULT = 1 << 18
 WATCHDOG_SETTLE_SECONDS = 6.5
@@ -89,16 +91,7 @@ def _configure(sdr) -> None:
 
 
 def _mute_sdr(sdr) -> None:
-    try:
-        sdr.disable_dds()
-    finally:
-        try:
-            sdr.tx_destroy_buffer()
-        finally:
-            sdr.tx_enabled_channels = []
-            sdr.tx_hardwaregain_chan0 = -80
-            sdr.tx_hardwaregain_chan1 = -80
-            sdr.tx_cyclic_buffer = False
+    mute_sdr_tx(sdr)
 
 
 def _assert_common(metadata: RadioMetadataV4, mode: TandemMode) -> None:
@@ -137,6 +130,9 @@ def _open_receiver(sdr, mode: TandemMode) -> IioMetadataRx:
 def _start_remote_tx_pattern(
     host: str,
     serial: str,
+    *,
+    strong_tx_gain_db: float,
+    weak_tx_gain_db: float,
     network: IsolatedPlutoNetwork | None = None,
 ) -> subprocess.Popen:
     if shutil.which("sshpass") is None:
@@ -148,10 +144,10 @@ test "$(cat "$serial_path")" = {serial}
 gain_path=/sys/bus/iio/devices/iio:device0/out_voltage1_hardwaregain
 trap 'echo -80.000000 > "$gain_path"' EXIT HUP INT TERM
 iteration=0
-while test "$iteration" -lt 120; do
-    echo {STRONG_TX_GAIN_DB:.6f} > "$gain_path"
+while test "$iteration" -lt 32; do
+    echo {strong_tx_gain_db:.6f} > "$gain_path"
     usleep 70000
-    echo {WEAK_TX_GAIN_DB:.6f} > "$gain_path"
+    echo {weak_tx_gain_db:.6f} > "$gain_path"
     usleep 70000
     iteration=$((iteration + 1))
 done
@@ -179,12 +175,18 @@ done
 def _stop_process(process: subprocess.Popen | None) -> None:
     if process is None or process.poll() is not None:
         return
-    process.terminate()
     try:
-        process.wait(timeout=3)
+        # The remote shell's EXIT trap is the authoritative mute.  Closing the
+        # local SSH client does not reliably deliver HUP to a non-PTY remote
+        # shell, so let this short bounded pattern end by itself first.
+        process.wait(timeout=6)
     except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=3)
+        process.terminate()
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=3)
 
 
 def test_tandem_hold_owns_rx_and_restores_every_selected_radio(attached_plutos):
@@ -270,13 +272,22 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
     attached_plutos, radio_lan_hosts, pytestconfig, radio_report_dir
 ):
     attenuation = pytestconfig.getoption("--radio-tx-loopback-attenuation-db")
+    strong_tx_gain_db = pytestconfig.getoption("--radio-tx-strong-gain-db")
+    weak_tx_gain_db = pytestconfig.getoption("--radio-tx-weak-gain-db")
+    if weak_tx_gain_db >= strong_tx_gain_db:
+        raise ValueError("weak TX gain must be below strong TX gain")
     validate_loopback_safety(
         physical_attenuation_db=attenuation,
-        strongest_tx_gain_db=STRONG_TX_GAIN_DB,
+        strongest_tx_gain_db=strong_tx_gain_db,
     )
     import adi
 
-    report = {"attenuation_db": attenuation, "radios": []}
+    report = {
+        "attenuation_db": attenuation,
+        "strong_tx_gain_db": strong_tx_gain_db,
+        "weak_tx_gain_db": weak_tx_gain_db,
+        "radios": [],
+    }
     report_path = radio_report_dir / "tandem_agc_v2.json"
     for attached in attached_plutos:
         sdr = adi.ad9361(uri=_usb_uri(attached.serial))
@@ -285,7 +296,7 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
         try:
             assert sdr._ctx.attrs.get("hw_serial") == attached.serial
             _configure(sdr)
-            sdr.tx_hardwaregain_chan1 = WEAK_TX_GAIN_DB
+            sdr.tx_hardwaregain_chan1 = weak_tx_gain_db
             sdr.dds_single_tone(TONE_HZ, 0.25, channel=1)
             receiver = _open_receiver(sdr, TandemMode.AUTO)
             with ExitStack() as stimulus_stack:
@@ -298,7 +309,13 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
                     )
                     host = "192.168.2.1"
                     stimulus_transport = "serial-scoped-usb-network"
-                stimulus = _start_remote_tx_pattern(host, attached.serial, network)
+                stimulus = _start_remote_tx_pattern(
+                    host,
+                    attached.serial,
+                    strong_tx_gain_db=strong_tx_gain_db,
+                    weak_tx_gain_db=weak_tx_gain_db,
+                    network=network,
+                )
                 stimulus_stack.callback(_stop_process, stimulus)
 
                 frames = []
