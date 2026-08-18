@@ -338,9 +338,17 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
                     _assert_common(metadata, TandemMode.AUTO)
                     frames.append(metadata)
                     all_events.extend(metadata.gain_events)
-                    if len(all_events) >= 4:
+                    directions = {event.direction for event in all_events}
+                    if len(all_events) >= 4 and directions == {
+                        TandemEventDirection.INCREASE,
+                        TandemEventDirection.DECREASE,
+                    }:
                         break
             assert len(all_events) >= 4, "bounded TX2 steps produced too few events"
+            assert {event.direction for event in all_events} == {
+                TandemEventDirection.INCREASE,
+                TandemEventDirection.DECREASE,
+            }, "bounded TX2 steps did not prove bidirectional AUTO control"
 
             for previous, current in pairwise(all_events):
                 assert (
@@ -372,6 +380,14 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
                     "ownership_epoch": frames[0].ownership_epoch,
                     "frame_count": len(frames),
                     "event_count": len(all_events),
+                    "increase_event_count": sum(
+                        event.direction is TandemEventDirection.INCREASE
+                        for event in all_events
+                    ),
+                    "decrease_event_count": sum(
+                        event.direction is TandemEventDirection.DECREASE
+                        for event in all_events
+                    ),
                     "first_event_sequence": all_events[0].event_sequence,
                     "last_event_sequence": all_events[-1].event_sequence,
                 }
