@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 import usb1
 
-
 PLUTO_VENDOR_ID = 0x0456
 PLUTO_PRODUCT_ID = 0xB673
 
@@ -142,6 +141,11 @@ def pytest_addoption(parser):
         "--radio-gain-series-v3",
         action="store_true",
         help="enable protocol-v3 sample-associated gain-series hardware gates",
+    )
+    group.addoption(
+        "--radio-tandem-agc",
+        action="store_true",
+        help="enable forward-only tandem-AGC v2 ownership and metadata gates",
     )
     group.addoption(
         "--radio-gain-observation-interval",
@@ -324,8 +328,7 @@ def pytest_addoption(parser):
     group.addoption(
         "--radio-burn-frequencies",
         default=(
-            "868M,915M,1280M,1300M,1301M,2412M,2467.1M,"
-            "4000M,4001M,5766M,5804M,5866M"
+            "868M,915M,1280M,1300M,1301M,2412M,2467.1M,4000M,4001M,5766M,5804M,5866M"
         ),
         help="comma-separated LO frequencies for the mixed USB/IP soak",
     )
@@ -386,6 +389,7 @@ def pytest_collection_modifyitems(config, items):
     hardware_enabled = config.getoption("--radio-hardware", default=False)
     zarr_enabled = config.getoption("--radio-zarr", default=False)
     gain_series_enabled = config.getoption("--radio-gain-series-v3", default=False)
+    tandem_agc_enabled = config.getoption("--radio-tandem-agc", default=False)
     direct_ip_enabled = config.getoption("--radio-direct-ip", default=False)
     direct_ip_ladder_enabled = config.getoption(
         "--radio-direct-ip-ladder", default=False
@@ -402,6 +406,7 @@ def pytest_collection_modifyitems(config, items):
     gain_series_skip = pytest.mark.skip(
         reason="requires explicit --radio-gain-series-v3"
     )
+    tandem_agc_skip = pytest.mark.skip(reason="requires explicit --radio-tandem-agc")
     direct_ip_skip = pytest.mark.skip(reason="requires explicit --radio-direct-ip")
     direct_ip_ladder_skip = pytest.mark.skip(
         reason="requires explicit --radio-direct-ip-ladder"
@@ -424,6 +429,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(zarr_skip)
         if "radio_gain_series_v3" in item.keywords and not gain_series_enabled:
             item.add_marker(gain_series_skip)
+        if "radio_tandem_agc" in item.keywords and not tandem_agc_enabled:
+            item.add_marker(tandem_agc_skip)
         if "radio_direct_ip" in item.keywords and not direct_ip_enabled:
             item.add_marker(direct_ip_skip)
         if "radio_direct_ip_ladder" in item.keywords and not direct_ip_ladder_enabled:
@@ -524,9 +531,7 @@ def radio_lan_hosts(pytestconfig, attached_plutos) -> dict[str, str]:
     for entry in entries:
         serial, separator, host = entry.partition("=")
         if not separator or not serial or not host:
-            pytest.fail(
-                "--radio-lan-radio must be SERIAL=HOST, got " f"{entry!r}"
-            )
+            pytest.fail(f"--radio-lan-radio must be SERIAL=HOST, got {entry!r}")
         if serial in hosts:
             pytest.fail(f"duplicate --radio-lan-radio serial: {serial}")
         hosts[serial] = host

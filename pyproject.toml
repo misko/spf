@@ -58,6 +58,7 @@ markers = [
   "radio_hardware: requires explicitly enabled attached Pluto radio hardware",
   "radio_zarr: writes and reopens a short hardware-backed V7 Zarr artifact",
   "radio_gain_series_v3: requires explicitly enabled protocol-v3 gain-series firmware",
+  "radio_tandem_agc: requires explicitly enabled tandem-AGC v2 firmware",
   "radio_direct_ip: requires explicitly enabled direct-IP radio transport",
   "radio_direct_ip_ladder: parallel two-radio direct-IP rate/breakdown ladder",
   "radio_tx_loopback: explicitly enables a cabled and attenuated Pluto TX2 loopback",
