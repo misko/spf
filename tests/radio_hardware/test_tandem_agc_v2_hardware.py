@@ -40,7 +40,10 @@ RF_BANDWIDTH_HZ = 1_500_000
 LO_HZ = 915_000_000
 TONE_HZ = 100_000
 INITIAL_GAIN_DB = 20
-MAX_AUTO_FRAMES = 12
+AUTO_FRAMES_PER_STIMULUS = 24
+MAX_AUTO_STIMULUS_ATTEMPTS = 3
+AUTO_CAPTURE_PACE_SECONDS = 0.02
+AUTO_QUALIFICATION_COOLDOWN_PERIODS = 16
 TX_PATTERN_READY = b"SPF_TX_PATTERN_READY\n"
 WATCHDOG_FAULT = 1 << 18
 WATCHDOG_SETTLE_SECONDS = 6.5
@@ -118,6 +121,9 @@ def _assert_common(metadata: RadioMetadataV4, mode: TandemMode) -> None:
 
 
 def _open_receiver(sdr, mode: TandemMode) -> IioMetadataRx:
+    request_options = {}
+    if mode is TandemMode.AUTO:
+        request_options["cooldown_periods"] = AUTO_QUALIFICATION_COOLDOWN_PERIODS
     receiver = IioMetadataRx(
         sdr,
         sample_rate_hz=SAMPLE_RATE_HZ,
@@ -125,6 +131,7 @@ def _open_receiver(sdr, mode: TandemMode) -> IioMetadataRx:
         tandem_request=TandemSessionRequestV1(
             mode=mode,
             initial_gain_db=INITIAL_GAIN_DB,
+            **request_options,
         ),
     )
     receiver.open()
@@ -185,9 +192,9 @@ echo SPF_TX_PATTERN_READY
 iteration=0
 while test "$iteration" -lt 1; do
     echo {weak_tx_gain_db:.6f} > "$gain_path"
-    usleep 70000
+    usleep 150000
     echo {strong_tx_gain_db:.6f} > "$gain_path"
-    usleep 70000
+    usleep 400000
     iteration=$((iteration + 1))
 done
 """
@@ -367,22 +374,33 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
                     )
                     host = "192.168.2.1"
                     stimulus_transport = "serial-scoped-usb-network"
-                stimulus = _start_remote_tx_pattern(
-                    host,
-                    attached.serial,
-                    strong_tx_gain_db=strong_tx_gain_db,
-                    weak_tx_gain_db=weak_tx_gain_db,
-                    network=network,
-                )
-                stimulus_stack.callback(_stop_process, stimulus)
-
                 frames = []
                 all_events = []
-                for _ in range(MAX_AUTO_FRAMES):
-                    metadata = receiver.capture()[1]
-                    _assert_common(metadata, TandemMode.AUTO)
-                    frames.append(metadata)
-                    all_events.extend(metadata.gain_events)
+                stimulus_attempt_count = 0
+                for stimulus_attempt_count in range(
+                    1, MAX_AUTO_STIMULUS_ATTEMPTS + 1
+                ):
+                    stimulus = _start_remote_tx_pattern(
+                        host,
+                        attached.serial,
+                        strong_tx_gain_db=strong_tx_gain_db,
+                        weak_tx_gain_db=weak_tx_gain_db,
+                        network=network,
+                    )
+                    try:
+                        for _ in range(AUTO_FRAMES_PER_STIMULUS):
+                            metadata = receiver.capture()[1]
+                            _assert_common(metadata, TandemMode.AUTO)
+                            frames.append(metadata)
+                            all_events.extend(metadata.gain_events)
+                            # DMA may have several completed buffers queued, so
+                            # refill calls alone do not prove that wall-clock
+                            # stimulus time advanced.  Pace below one physical
+                            # frame period while continuing to drain the FIFO.
+                            time.sleep(AUTO_CAPTURE_PACE_SECONDS)
+                    finally:
+                        _stop_process(stimulus)
+                        stimulus = None
                     directions = {event.direction for event in all_events}
                     if len(all_events) >= 4 and directions == {
                         TandemEventDirection.INCREASE,
@@ -443,6 +461,7 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
                     "usb_uri": _usb_uri(attached.serial),
                     "stimulus_host": host,
                     "stimulus_transport": stimulus_transport,
+                    "stimulus_attempt_count": stimulus_attempt_count,
                     "tone_preflight": tone_preflight,
                     "ownership_epoch": frames[0].ownership_epoch,
                     "frame_count": len(frames),
