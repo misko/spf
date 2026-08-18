@@ -6,14 +6,14 @@ direct-usb:
   gain-observation-interval-samples: 2048
   gain-observation-capacity: 256
 pluto-firmware:
-  release-tag: v0.38-plutoplus-spf-gain-series-v4-rc17
-  device-fw: v0.38-plutoplus-spf-gain-series-v4-rc16-7-g1f3fe
-  asset-name: plutoplus-spf-main-1f3fe0cbe865-pluto.dfu
-  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-series-v4-rc17/plutoplus-spf-main-1f3fe0cbe865-pluto.dfu
-  image-sha256: 88a606f1a19f493e031989b8fc76cc77644ae5473e5d627b850252c9a615c54e
-  firmware-git-sha: 1f3fe0cbe865df0a8793e0fd0096368d02d28a14
+  release-tag: v0.38-plutoplus-spf-gain-series-v4-rc16
+  device-fw: v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1
+  asset-name: plutoplus-spf-main-867e18542311-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-gain-series-v4-rc16/plutoplus-spf-main-867e18542311-pluto.dfu
+  image-sha256: 27aca40915fd75fbcabfadef88fee96ff422c6058f83fab8a57a09b8d1eae911
+  firmware-git-sha: 867e18542311c25f5c1980bbdcfffc823e56f0a2
   gadget-git-sha: 2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552
-  boot-mode: ram
+  boot-mode: qspi
 calibration:
   frequencies-hz:
   - 868000000
