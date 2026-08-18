@@ -15,7 +15,13 @@ import time
 
 import pytest
 
-from spf.direct_radio.usb_protocol import MetadataFlags, RadioMetadataV3
+from spf.direct_radio.usb_protocol import MetadataFlags
+from spf.direct_radio.tandem_agc import (
+    RadioMetadataV4,
+    TandemMode,
+    TandemSessionRequestV1,
+)
+from spf.scripts.mute_pluto_tx import mute_sdr_tx
 from spf.scripts.resolve_pluto_ip import neighbor_candidates, resolve_pluto_ip
 from spf.scripts.direct_ip_parallel_ladder import parse_sample_rate_ladder
 
@@ -62,16 +68,7 @@ def _refill_metadata(buffer, *, startup: bool) -> bytes:
 
 
 def _mute(sdr) -> None:
-    try:
-        sdr.disable_dds()
-    finally:
-        try:
-            sdr.tx_destroy_buffer()
-        finally:
-            sdr.tx_enabled_channels = []
-            sdr.tx_hardwaregain_chan0 = -80
-            sdr.tx_hardwaregain_chan1 = -80
-            sdr.tx_cyclic_buffer = False
+    mute_sdr_tx(sdr)
 
 
 def _capture_cell(
@@ -92,7 +89,8 @@ def _capture_cell(
     try:
         assert sdr._ctx.attrs.get("hw_serial") == serial
         if mode == "metadata":
-            assert sdr._ctx.attrs.get("iio,buffer-metadata") == "1"
+            metadata_version = sdr._ctx.attrs.get("iio,buffer-metadata")
+            assert metadata_version == "2"
         sdr._ctx.set_timeout(20_000)
         _mute(sdr)
         sdr.rx_destroy_buffer()
@@ -114,7 +112,17 @@ def _capture_cell(
         device.set_kernel_buffers_count(KERNEL_BUFFERS)
         assert device.kernel_buffers_count == KERNEL_BUFFERS
         if mode == "metadata":
-            buffer = iio.MetadataBuffer(device, samples, 64 * 1024)
+            request = TandemSessionRequestV1(
+                mode=TandemMode.HOLD,
+                initial_gain_db=26,
+            )
+            request.validate_frame_capacity(samples)
+            buffer = iio.MetadataBuffer(
+                device,
+                samples,
+                request.pack(),
+                64 * 1024,
+            )
         else:
             buffer = iio.Buffer(device, samples)
 
@@ -131,7 +139,7 @@ def _capture_cell(
         for frame_index in range(frames):
             if mode == "metadata":
                 raw_metadata = _refill_metadata(buffer, startup=False)
-                metadata = RadioMetadataV3.unpack(raw_metadata)
+                metadata = RadioMetadataV4.unpack(raw_metadata)
                 assert metadata.samples_per_channel == samples
                 assert metadata.iq_payload_bytes == expected_iq_bytes
                 assert metadata.gain_metadata_valid
@@ -194,10 +202,16 @@ def _capture_cell(
             )
         return result
     finally:
+        try:
+            if buffer is not None:
+                buffer.close()
+        finally:
+            _mute(sdr)
+            sdr.rx_destroy_buffer()
+            sdr._ctx.close()
         del buffer
+        del sdr
         gc.collect()
-        _mute(sdr)
-        sdr.rx_destroy_buffer()
 
 
 def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
@@ -259,6 +273,7 @@ def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
             "gain0": float(restore_sdr.rx_hardwaregain_chan0),
             "gain1": float(restore_sdr.rx_hardwaregain_chan1),
         }
+        restore_sdr._ctx.close()
         del restore_sdr
         try:
             for rate in rates:
@@ -290,6 +305,7 @@ def test_iio_usb_tcp_sample_rate_and_throughput_matrix(
                     restore_sdr.rx_hardwaregain_chan1 = original["gain1"]
             finally:
                 _mute(restore_sdr)
+                restore_sdr._ctx.close()
 
         by_key = {
             (cell["transport"], cell["sample_rate_hz"], cell["mode"]): cell

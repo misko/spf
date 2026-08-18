@@ -39,7 +39,9 @@ SAMPLE_RATE_HZ = 3_000_000
 RF_BANDWIDTH_HZ = 1_500_000
 LO_HZ = 915_000_000
 TONE_HZ = 100_000
-INITIAL_GAIN_DB = 20
+# Keep equivalent detector margin for both supported safe loopbacks:
+# 20 dB physical / -10 dB TX and 30 dB physical / 0 dB TX.
+INITIAL_GAIN_DB = 30
 AUTO_FRAMES_PER_STIMULUS = 24
 MAX_AUTO_STIMULUS_ATTEMPTS = 3
 AUTO_CAPTURE_PACE_SECONDS = 0.02
@@ -414,7 +416,24 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
             assert int(tandem.attrs["state"].value) == int(TandemState.IDLE)
             assert int(tandem.attrs["fault_flags"].value) == 0
             assert int(tandem.attrs["overflow_count"].value) == 0
-            assert len(all_events) >= 4, "bounded TX2 steps produced too few events"
+            event_diagnostics = {
+                "frame_count": len(frames),
+                "event_count": len(all_events),
+                "first_transition_count": frames[0].tandem_transition_count,
+                "last_transition_count": frames[-1].tandem_transition_count,
+                "first_gain_indices": [
+                    frames[0].rx1_gain_index,
+                    frames[0].rx2_gain_index,
+                ],
+                "last_gain_indices": [
+                    frames[-1].rx1_gain_index,
+                    frames[-1].rx2_gain_index,
+                ],
+            }
+            assert len(all_events) >= 4, (
+                "bounded TX2 steps produced too few events: "
+                f"{event_diagnostics}"
+            )
             assert {event.direction for event in all_events} == {
                 TandemEventDirection.INCREASE,
                 TandemEventDirection.DECREASE,
