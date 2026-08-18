@@ -504,6 +504,7 @@ class MultiPlutoFirmwareManager:
         state_root: Path,
         expected_count: int,
         approved_qspi_versions: tuple[str, ...] = DEFAULT_APPROVED_QSPI_DEVICE_FW,
+        serials: tuple[str, ...] = (),
     ):
         self.image = image
         self.image_sha256 = image_sha256.lower()
@@ -512,6 +513,7 @@ class MultiPlutoFirmwareManager:
         self.state_root = state_root
         self.expected_count = expected_count
         self.approved_qspi_versions = approved_qspi_versions
+        self.serials = tuple(serials)
 
     def _check_root(self) -> None:
         if os.geteuid() != 0:
@@ -528,6 +530,17 @@ class MultiPlutoFirmwareManager:
 
     def _devices(self) -> list[UsbPluto]:
         devices = discover_runtime_plutos()
+        if self.serials:
+            requested = set(self.serials)
+            if len(requested) != len(self.serials):
+                raise FirmwareError("selected Pluto serials must be unique")
+            discovered = {device.serial for device in devices}
+            missing = requested - discovered
+            if missing:
+                raise FirmwareError(
+                    f"selected Pluto serials are missing: {sorted(missing)}"
+                )
+            devices = [device for device in devices if device.serial in requested]
         if len(devices) != self.expected_count:
             raise FirmwareError(
                 f"expected {self.expected_count} runtime Plutos; found {len(devices)}"
@@ -1241,6 +1254,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--state-root", type=Path)
     parser.add_argument("--expected-count", type=int)
     parser.add_argument(
+        "--serial",
+        action="append",
+        default=[],
+        help="operate only on this immutable USB serial; repeat to select more",
+    )
+    parser.add_argument(
         "--approved-qspi-version",
         action="append",
         dest="approved_qspi_versions",
@@ -1279,6 +1298,7 @@ def main() -> int:
         approved_qspi_versions=tuple(
             args.approved_qspi_versions or DEFAULT_APPROVED_QSPI_DEVICE_FW
         ),
+        serials=tuple(args.serial),
     )
     try:
         method = getattr(manager, args.command.replace("-", "_"))
