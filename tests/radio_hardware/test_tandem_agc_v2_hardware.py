@@ -12,8 +12,10 @@ import time
 from contextlib import ExitStack
 from itertools import pairwise
 
+import numpy as np
 import pytest
 
+from spf.bench.dual_rx_phase import ToneQualityThresholds, analyze_common_tone
 from spf.direct_radio.iio_metadata import IioMetadataRx
 from spf.direct_radio.tandem_agc import (
     RadioMetadataV4,
@@ -129,6 +131,40 @@ def _open_receiver(sdr, mode: TandemMode) -> IioMetadataRx:
     return receiver
 
 
+def _arm_verified_tx2_tone(sdr, strong_tx_gain_db: float) -> dict:
+    thresholds = ToneQualityThresholds(
+        min_tone_snr_db=6.0,
+        min_tone_dbfs=-75.0,
+        max_tone_dbfs=-3.0,
+        max_clipping_fraction=0.0,
+        min_coherence=0.98,
+        max_within_capture_phase_std_deg=5.0,
+    )
+    analysis = None
+    for arm_attempt in range(1, 4):
+        _mute_sdr(sdr)
+        sdr._ctrl.attrs["calib_mode"].value = "tx_quad"
+        sdr.tx_hardwaregain_chan0 = -80
+        sdr.tx_hardwaregain_chan1 = strong_tx_gain_db
+        sdr.dds_single_tone(TONE_HZ, 0.25, channel=1)
+        time.sleep(0.25)
+        signal = np.asarray(sdr.rx())
+        sdr.rx_destroy_buffer()
+        analysis = analyze_common_tone(
+            signal,
+            sample_rate_hz=SAMPLE_RATE_HZ,
+            expected_tone_offset_hz=TONE_HZ,
+            tone_search_width_hz=25_000,
+            transient_samples=1_024,
+            phase_segments=8,
+            thresholds=thresholds,
+        )
+        if analysis["quality_valid"]:
+            analysis["arm_attempt_count"] = arm_attempt
+            return analysis
+    raise AssertionError(json.dumps(analysis, sort_keys=True))
+
+
 def _start_remote_tx_pattern(
     host: str,
     serial: str,
@@ -147,7 +183,7 @@ gain_path=/sys/bus/iio/devices/iio:device0/out_voltage1_hardwaregain
 trap 'echo -80.000000 > "$gain_path"' EXIT HUP INT TERM
 echo SPF_TX_PATTERN_READY
 iteration=0
-while test "$iteration" -lt 32; do
+while test "$iteration" -lt 1; do
     echo {weak_tx_gain_db:.6f} > "$gain_path"
     usleep 70000
     echo {strong_tx_gain_db:.6f} > "$gain_path"
@@ -318,8 +354,8 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
         try:
             assert sdr._ctx.attrs.get("hw_serial") == attached.serial
             _configure(sdr)
+            tone_preflight = _arm_verified_tx2_tone(sdr, strong_tx_gain_db)
             sdr.tx_hardwaregain_chan1 = weak_tx_gain_db
-            sdr.dds_single_tone(TONE_HZ, 0.25, channel=1)
             receiver = _open_receiver(sdr, TandemMode.AUTO)
             with ExitStack() as stimulus_stack:
                 host = radio_lan_hosts.get(attached.serial)
@@ -353,6 +389,13 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
                         TandemEventDirection.DECREASE,
                     }:
                         break
+            receiver.close()
+            receiver = None
+            tandem = sdr._ctx.find_device("tandem-agc")
+            assert tandem is not None
+            assert int(tandem.attrs["state"].value) == int(TandemState.IDLE)
+            assert int(tandem.attrs["fault_flags"].value) == 0
+            assert int(tandem.attrs["overflow_count"].value) == 0
             assert len(all_events) >= 4, "bounded TX2 steps produced too few events"
             assert {event.direction for event in all_events} == {
                 TandemEventDirection.INCREASE,
@@ -400,6 +443,7 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
                     "usb_uri": _usb_uri(attached.serial),
                     "stimulus_host": host,
                     "stimulus_transport": stimulus_transport,
+                    "tone_preflight": tone_preflight,
                     "ownership_epoch": frames[0].ownership_epoch,
                     "frame_count": len(frames),
                     "event_count": len(all_events),
