@@ -38,13 +38,15 @@ import spf
 import spf.direct_radio
 
 
-# The five modules the package is documented to contain. Spelled out rather
+# The package modules are spelled out rather
 # than globbed so that adding a module is a deliberate edit here too -- a new
 # module is exactly the moment the dependency contract below can be broken.
 MODULES = (
+    "iio_metadata",
     "ip_protocol",
     "ip_receiver",
     "sample_clock",
+    "tandem_agc",
     "usb_protocol",
     "usb_receiver",
 )
@@ -61,7 +63,7 @@ SHIMS = {
 # Third-party packages the extracted link is allowed to need. Keeping this list
 # short is the entire point of the extraction: every addition is a new burden
 # on any consumer vendoring the package.
-ALLOWED_THIRD_PARTY = frozenset({"numpy", "usb1"})
+ALLOWED_THIRD_PARTY = frozenset({"iio", "numpy", "usb1"})
 
 # Modules that genuinely need libusb, and so cannot be imported where it is
 # absent. The protocol and clock modules must never join this set.
