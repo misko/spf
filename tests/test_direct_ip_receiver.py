@@ -8,15 +8,18 @@ import threading
 
 import pytest
 
-from spf.sdrpluto.direct_ip_protocol import (
+from spf.direct_radio.ip_protocol import (
+    IP_FRAGMENT_HEADER_BYTES,
     IpControlFlags,
     IpControlMessageV1,
     IpControlType,
     fragment_ip_frame,
 )
-from spf.sdrpluto.direct_ip_receiver import (
+from spf.direct_radio.ip_receiver import (
     DirectIpTransportError,
     PlutoDirectIpReceiver,
+    _sequence_gaps,
+    _StreamEnded,
 )
 from spf.sdrpluto.direct_usb_protocol import (
     FIRST_CHANGE_UNAVAILABLE,
@@ -437,19 +440,6 @@ def test_bad_started_echo_fails_closed_and_stops_assigned_stream():
 
 import socket as _socket
 import types as _types
-
-from spf.direct_radio.ip_protocol import (
-    IP_FRAGMENT_HEADER_BYTES,
-    IpControlFlags,
-    fragment_ip_frame,
-)
-from spf.direct_radio.ip_receiver import (
-    DirectIpTransportError,
-    PlutoDirectIpReceiver,
-    _sequence_gaps,
-    _StreamEnded,
-)
-
 
 def _receiver(**kwargs):
     return PlutoDirectIpReceiver(remote_host="127.0.0.1", **kwargs)
