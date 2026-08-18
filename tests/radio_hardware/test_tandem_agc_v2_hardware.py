@@ -5,6 +5,7 @@ from __future__ import annotations
 import errno
 import gc
 import json
+import select
 import shutil
 import subprocess
 import time
@@ -38,6 +39,7 @@ LO_HZ = 915_000_000
 TONE_HZ = 100_000
 INITIAL_GAIN_DB = 20
 MAX_AUTO_FRAMES = 12
+TX_PATTERN_READY = b"SPF_TX_PATTERN_READY\n"
 WATCHDOG_FAULT = 1 << 18
 WATCHDOG_SETTLE_SECONDS = 6.5
 UNSAFE_FLAGS = (
@@ -143,11 +145,12 @@ serial_path=/sys/kernel/config/usb_gadget/composite_gadget/strings/0x409/serialn
 test "$(cat "$serial_path")" = {serial}
 gain_path=/sys/bus/iio/devices/iio:device0/out_voltage1_hardwaregain
 trap 'echo -80.000000 > "$gain_path"' EXIT HUP INT TERM
+echo SPF_TX_PATTERN_READY
 iteration=0
 while test "$iteration" -lt 32; do
-    echo {strong_tx_gain_db:.6f} > "$gain_path"
-    usleep 70000
     echo {weak_tx_gain_db:.6f} > "$gain_path"
+    usleep 70000
+    echo {strong_tx_gain_db:.6f} > "$gain_path"
     usleep 70000
     iteration=$((iteration + 1))
 done
@@ -165,11 +168,17 @@ done
         command,
     ]
     launcher = network.popen if network is not None else subprocess.Popen
-    return launcher(
+    process = launcher(
         ssh_command,
-        stdout=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )
+    assert process.stdout is not None
+    readable, _, _ = select.select([process.stdout], [], [], 5)
+    if not readable or process.stdout.readline() != TX_PATTERN_READY:
+        _stop_process(process)
+        raise RuntimeError("bounded TX2 stimulus did not become ready")
+    return process
 
 
 def _stop_process(process: subprocess.Popen | None) -> None:
@@ -351,25 +360,39 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
             }, "bounded TX2 steps did not prove bidirectional AUTO control"
 
             for previous, current in pairwise(all_events):
-                assert (
-                    current.event_sequence == (previous.event_sequence + 1) & 0xFFFFFFFF
-                )
-                expected_delta = (
-                    1 if current.direction is TandemEventDirection.INCREASE else -1
-                )
-                assert (
-                    current.rx1_gain_index - previous.rx1_gain_index == expected_delta
-                )
+                event_delta = (
+                    current.event_sequence - previous.event_sequence
+                ) & 0xFFFFFFFF
+                assert 1 <= event_delta < (1 << 31)
+                if event_delta == 1:
+                    expected_delta = (
+                        1
+                        if current.direction is TandemEventDirection.INCREASE
+                        else -1
+                    )
+                    assert (
+                        current.rx1_gain_index - previous.rx1_gain_index
+                        == expected_delta
+                    )
 
             for previous, current in pairwise(frames):
+                buffer_delta = current.buffer_sequence - previous.buffer_sequence
+                assert buffer_delta >= 1
+                # iiOD rejects, rather than fabricates, an IQ frame when every
+                # periodic AUTO gain read is torn by an FPGA transition.  The
+                # public buffer sequence must account exactly for such gaps.
                 assert current.first_sample_sequence == (
-                    previous.first_sample_sequence + previous.samples_per_channel
+                    previous.first_sample_sequence
+                    + buffer_delta * previous.samples_per_channel
                 )
                 assert current.ownership_epoch == previous.ownership_epoch
                 transition_delta = (
                     current.tandem_transition_count - previous.tandem_transition_count
                 ) & 0xFFFFFFFF
-                assert transition_delta == len(current.gain_events)
+                if buffer_delta == 1:
+                    assert transition_delta == len(current.gain_events)
+                else:
+                    assert transition_delta >= len(current.gain_events)
 
             report["radios"].append(
                 {
