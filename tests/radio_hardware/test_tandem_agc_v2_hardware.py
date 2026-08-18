@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import gc
 import json
 import shutil
 import subprocess
@@ -224,6 +225,9 @@ def test_tandem_hold_owns_rx_and_restores_every_selected_radio(attached_plutos):
             finally:
                 _mute_sdr(sdr)
             sdr.rx_destroy_buffer()
+            sdr._ctx.close()
+        del sdr
+        gc.collect()
 
 
 def test_tandem_stalled_owner_is_rolled_back(attached_plutos):
@@ -256,6 +260,9 @@ def test_tandem_stalled_owner_is_rolled_back(attached_plutos):
             finally:
                 _mute_sdr(sdr)
                 sdr.rx_destroy_buffer()
+                sdr._ctx.close()
+        del sdr
+        gc.collect()
 
 
 @pytest.mark.radio_tx_loopback
@@ -348,6 +355,9 @@ def test_tandem_auto_events_are_paired_and_sample_aligned(
             finally:
                 _mute_sdr(sdr)
                 sdr.rx_destroy_buffer()
+                sdr._ctx.close()
+        del sdr
+        gc.collect()
 
     assert len(report["radios"]) == len(attached_plutos)
     report_path.write_text(json.dumps(report, indent=2) + "\n")
