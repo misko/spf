@@ -6,6 +6,7 @@ import errno
 import json
 import shutil
 import subprocess
+import time
 from itertools import pairwise
 
 import pytest
@@ -32,6 +33,8 @@ INITIAL_GAIN_DB = 20
 STRONG_TX_GAIN_DB = -30.0
 WEAK_TX_GAIN_DB = -60.0
 MAX_AUTO_FRAMES = 12
+WATCHDOG_FAULT = 1 << 18
+WATCHDOG_SETTLE_SECONDS = 6.5
 UNSAFE_FLAGS = (
     MetadataFlags.DUMMY_GAINS
     | MetadataFlags.GAIN_READ_FAILED
@@ -204,6 +207,38 @@ def test_tandem_hold_owns_rx_and_restores_every_selected_radio(attached_plutos):
 
             receiver.close()
             receiver = None
+            sdr.rx_hardwaregain_chan0 = INITIAL_GAIN_DB + 1
+            sdr.rx_hardwaregain_chan0 = INITIAL_GAIN_DB
+        finally:
+            try:
+                if receiver is not None:
+                    receiver.close()
+            finally:
+                _mute_sdr(sdr)
+            sdr.rx_destroy_buffer()
+
+
+def test_tandem_stalled_owner_is_rolled_back(attached_plutos):
+    import adi
+
+    for attached in attached_plutos:
+        sdr = adi.ad9361(uri=_usb_uri(attached.serial))
+        receiver = None
+        try:
+            assert sdr._ctx.attrs.get("hw_serial") == attached.serial
+            _configure(sdr)
+            receiver = _open_receiver(sdr, TandemMode.HOLD)
+
+            # Deliberately make no refill/status progress beyond the five-second
+            # kernel deadline while the descriptor and process remain alive.
+            time.sleep(WATCHDOG_SETTLE_SECONDS)
+            tandem = sdr._ctx.find_device("tandem-agc")
+            assert tandem is not None
+            assert int(tandem.attrs["state"].value) == int(TandemState.FAULTED)
+            assert int(tandem.attrs["fault_flags"].value) & WATCHDOG_FAULT
+
+            # Automatic rollback must unlock RX controls even before the stale
+            # userspace buffer is finally closed.
             sdr.rx_hardwaregain_chan0 = INITIAL_GAIN_DB + 1
             sdr.rx_hardwaregain_chan0 = INITIAL_GAIN_DB
         finally:
