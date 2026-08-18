@@ -20,7 +20,7 @@ usage() {
 Usage: ./install_spf_libiio.sh [options]
 
 Options:
-  --series 0.25|0.26  Patched host line (default: 0.25)
+  --series 0.25       Forward-only tandem host line (default: 0.25)
   --python PATH       Python/venv receiving the binding (default: active venv)
   --prefix PATH       C library/tools prefix (default: /usr/local)
   --jobs N            Parallel build jobs
@@ -98,6 +98,8 @@ cmake -S "$source_dir" -B "$build_dir" \
     -DHAVE_DNS_SD=OFF \
     -DWITH_DOC=OFF \
     -DWITH_EXAMPLES=OFF \
+    -DWITH_AIO=OFF \
+    -DWITH_IIOD=OFF \
     -DWITH_LOCAL_BACKEND=ON \
     -DWITH_NETWORK_BACKEND=ON \
     -DWITH_SERIAL_BACKEND=OFF \
@@ -137,6 +139,7 @@ fi
 SPF_EXPECTED_IIO_VERSION="$expected_version" \
 SPF_EXPECTED_IIO_GIT="$expected_git" \
 "$python_bin" - <<'PY'
+import inspect
 import os
 import iio
 
@@ -145,6 +148,9 @@ actual = tuple(iio.version)
 assert actual[:2] == expected_version, (actual, expected_version)
 assert str(actual[2]).startswith(os.environ["SPF_EXPECTED_IIO_GIT"]), actual
 assert hasattr(iio, "MetadataBuffer"), "patched binding lacks MetadataBuffer"
+assert "request" in inspect.signature(iio.MetadataBuffer).parameters, (
+    "patched binding lacks request-driven tandem sessions"
+)
 print(f"PASS Python binding: {iio.__file__} version={actual}")
 PY
 

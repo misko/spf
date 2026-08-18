@@ -1,22 +1,19 @@
-# Installing the SPF libiio host extension
+# Installing the SPF tandem libiio host extension
 
-The v5 radio firmware uses ordinary libiio IQ frames with an optional metadata
-record containing capture index, sample sequence/time, gain history, gain
-endpoints, and RSSI endpoints. Reading that record requires the matching SPF C
-library and Python binding. Installing only `pylibiio` from PyPI is not enough:
-that package does not contain the modified C protocol implementation.
+The tandem AGC firmware uses ordinary libiio IQ frames with a versioned session
+request and sample-aligned metadata/event record. Reading that record requires
+the matching SPF C library and Python binding. Installing only `pylibiio` from
+PyPI is not enough: that package does not contain the modified session or
+metadata protocol implementation.
 
 ## Supported versions
 
-Use 0.25 unless an existing application specifically requires 0.26.
-
 | Line | Immutable source tag | Commit | Role |
 |---|---|---|---|
-| 0.25 | `spf-frame-metadata-source/v0.25-final-v3` | `c26258bfa33098c2b215e19cf85d448e89499b1a` | recommended; same line as radio iiOD |
-| 0.26 | `spf-frame-metadata-source/v0.26-final-v3` | `d5695c3eaa9cec99cc6f7b2c91565555044b907a` | supported host alternative |
+| 0.25 | `tandem-agc-v2-source/libiio-v8` | `9d7878dd53316e3879c3f154aeb06b27632fda4d` | required; exact line embedded in the tandem radio iiOD |
 
-Both were qualified over USB and standard libiio IP/TCP against
-`v0.38-plutoplus-spf-libiio-metadata-v5`. Do not use an arbitrary branch tip.
+This is a forward-only compatibility contract. The older metadata-v3 host
+lines and arbitrary branch tips are not supported by tandem firmware.
 
 ## Ubuntu, Debian, or Raspberry Pi OS
 
@@ -29,9 +26,9 @@ the rover. One `arm64` package supports both Pi 4 and Pi 5 when they run a
 
 Download these three files from one `libiio-artifacts-v*` SPF GitHub release:
 
-- `spf-libiio_0.25+spfmeta3-1_arm64.deb` on Pi 4/Pi 5, or the `_amd64.deb`
+- `spf-libiio_0.25+spfmeta4-1_arm64.deb` on Pi 4/Pi 5, or the `_amd64.deb`
   equivalent on x86-64
-- `pylibiio-0.25+spfmeta3-py3-none-any.whl`
+- `pylibiio-0.25+spfmeta4-py3-none-any.whl`
 - `SHA256SUMS`
 
 Place them in one directory and install them after SPF's ordinary Python
@@ -100,8 +97,8 @@ To publish an immutable GitHub release after both architecture jobs pass, tag
 the reviewed SPF commit using a name such as:
 
 ```bash
-git tag -a libiio-artifacts-v0.25-spfmeta3.1 -m "SPF libiio 0.25 metadata artifacts"
-git push origin libiio-artifacts-v0.25-spfmeta3.1
+git tag -a libiio-artifacts-v0.25-spfmeta4.1 -m "SPF tandem libiio 0.25 artifacts"
+git push origin libiio-artifacts-v0.25-spfmeta4.1
 ```
 
 CI then publishes the two `.deb` files, one wheel, and a release-level
@@ -149,32 +146,27 @@ configuration used for hardware qualification, runs `ldconfig`, installs the
 generated binding into the requested virtual environment, and fails unless
 `iio.MetadataBuffer` and the exact Git version are present.
 
-To use the supported 0.26 host instead:
-
-```bash
-./install_spf_libiio.sh --series 0.26 --python ~/spf-virtualenv/bin/python
-```
-
-Only one line should be installed into `/usr/local` at a time. The isolated
-`--prefix /opt/libiio-spf-0.25` form is useful for testing two versions, but
-then every process needs that prefix's `lib` directory in `LD_LIBRARY_PATH`.
+Only the pinned 0.25 tandem line is supported. The isolated
+`--prefix /opt/libiio-spf-0.25` form is useful for testing without replacing a
+system library, but every process then needs that prefix's `lib` directory in
+`LD_LIBRARY_PATH`.
 
 ## Verify an installation
 
 ```bash
 ~/spf-virtualenv/bin/python - <<'PY'
+import inspect
 import iio
 print(iio.version, iio.__file__)
 print("MetadataBuffer:", hasattr(iio, "MetadataBuffer"))
-assert iio.version == (0, 25, "c26258b")
+assert iio.version == (0, 25, "9d7878d")
 assert hasattr(iio, "MetadataBuffer")
+assert "request" in inspect.signature(iio.MetadataBuffer).parameters
 PY
 
 /usr/local/bin/iio_info --version
 /usr/local/bin/iio_info -S
 ```
-
-For 0.26, the expected tuple is `(0, 26, "d5695c3")`.
 
 The radio context must also advertise the capability:
 
@@ -182,8 +174,8 @@ The radio context must also advertise the capability:
 /usr/local/bin/iio_attr -u ip:RADIO_ADDRESS -C iio,buffer-metadata
 ```
 
-The value is `1` on the v5 firmware. An upstream/older radio still works with
-the ordinary buffer API, but it cannot create `MetadataBuffer` captures.
+The value is `2` on tandem firmware. Older firmware is outside this
+forward-only release contract.
 
 ## Updating an existing SPF checkout
 

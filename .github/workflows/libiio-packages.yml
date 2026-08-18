@@ -22,7 +22,7 @@ on:
         required: true
         default: "0.25"
         type: choice
-        options: ["0.25", "0.26"]
+        options: ["0.25"]
 
 permissions:
   contents: read

@@ -15,16 +15,16 @@ def test_python_dependencies_match_hardware_qualified_stack():
     assert "pylibiio>=0.25,<0.27" in project["dependencies"]
 
 
-def test_installer_pins_both_supported_libiio_source_commits():
+def test_installer_pins_exact_tandem_libiio_source_commit():
     versions = (ROOT / "packaging/libiio/versions.sh").read_text()
-    assert "spf-frame-metadata-source/v0.25-final-v3" in versions
-    assert "c26258bfa33098c2b215e19cf85d448e89499b1a" in versions
-    assert "spf-frame-metadata-source/v0.26-final-v3" in versions
-    assert "d5695c3eaa9cec99cc6f7b2c91565555044b907a" in versions
+    assert "tandem-agc-v2-source/libiio-v8" in versions
+    assert "9d7878dd53316e3879c3f154aeb06b27632fda4d" in versions
+    assert "spf-frame-metadata-source" not in versions
 
     installer = (ROOT / "install_spf_libiio.sh").read_text()
     assert "packaging/libiio/versions.sh" in installer
     assert 'hasattr(iio, "MetadataBuffer")' in installer
+    assert '"request" in inspect.signature(iio.MetadataBuffer).parameters' in installer
 
 
 def test_binary_artifact_workflow_covers_pi_and_x86_64():
@@ -52,6 +52,7 @@ def test_binary_installer_verifies_bundle_before_installing():
     pip_offset = installer.index('"$python_bin" -m pip install')
     assert checksum_offset < apt_offset < pip_offset
     assert 'hasattr(iio, "MetadataBuffer")' in installer
+    assert '"request" in inspect.signature(iio.MetadataBuffer).parameters' in installer
 
     builder = (ROOT / "packaging/libiio/build_artifacts.sh").read_text()
     assert "cross_compiling = True" in builder

@@ -18,7 +18,7 @@ usage() {
 Usage: packaging/libiio/build_artifacts.sh [options]
 
 Options:
-  --series 0.25|0.26  Patched host line (default: 0.25)
+  --series 0.25       Forward-only tandem host line (default: 0.25)
   --output-dir PATH    Artifact directory (default: dist/libiio)
   --jobs N             Parallel build jobs
   --keep-worktree      Preserve the temporary source/build directory
@@ -128,9 +128,9 @@ Depends: libc6 (>= 2.36), libusb-1.0-0, libxml2
 Provides: libiio0 (= ${SPF_LIBIIO_EXPECTED_VERSION}), libiio-dev (= ${SPF_LIBIIO_EXPECTED_VERSION}), libiio-utils (= ${SPF_LIBIIO_EXPECTED_VERSION})
 Conflicts: libiio0, libiio-dev, libiio-utils
 Replaces: libiio0, libiio-dev, libiio-utils
-Description: SPF libiio with per-capture metadata support
- Hardware-qualified libiio ${SPF_LIBIIO_EXPECTED_VERSION} with capture index,
- timing, gain history, gain endpoints, and RSSI endpoint metadata.
+Description: SPF libiio with request-driven tandem metadata support
+ Hardware-qualified libiio ${SPF_LIBIIO_EXPECTED_VERSION} with versioned tandem
+ session requests and sample-aligned gain metadata and events.
 X-SPF-Source-Commit: ${SPF_LIBIIO_SOURCE_COMMIT}
 EOF
 cat >"$stage_dir/DEBIAN/postinst" <<'EOF'

@@ -37,9 +37,9 @@ wheel="$(find "$bundle" -maxdepth 1 -type f -name 'pylibiio-*-py3-none-any.whl' 
 (cd "$bundle" && sha256sum --check SHA256SUMS)
 [[ "$(dpkg-deb --field "$deb" Package)" == spf-libiio ]]
 [[ "$(dpkg-deb --field "$deb" Architecture)" == "$architecture" ]]
-dpkg-deb --field "$deb" Version | grep -Eq '^0\.(25|26)\+spfmeta[0-9]+-[0-9]+$'
+dpkg-deb --field "$deb" Version | grep -Eq '^0\.25\+spfmeta4-[0-9]+$'
 package_contents="$(dpkg-deb --contents "$deb")"
-grep -Eq '/usr/lib/.*/libiio\.so\.0\.(25|26)$' <<<"$package_contents"
+grep -Eq '/usr/lib/.*/libiio\.so\.0\.25$' <<<"$package_contents"
 grep -Eq '/usr/bin/iio_info$' <<<"$package_contents"
 python3 - "$wheel" <<'PY'
 import sys
@@ -48,15 +48,20 @@ import zipfile
 with zipfile.ZipFile(sys.argv[1]) as archive:
     source = archive.read("iio.py").decode()
 assert "class MetadataBuffer" in source
+assert "def __init__(self, device, samples_count, request," in source
 PY
 
 if [[ "$runtime" == true ]]; then
     [[ -n "$python_bin" ]] || { printf 'ERROR: --runtime requires --python\n' >&2; exit 2; }
     "$python_bin" - <<'PY'
+import inspect
 import iio
 
-assert iio.version[:2] in ((0, 25), (0, 26)), iio.version
+assert iio.version[:2] == (0, 25), iio.version
 assert hasattr(iio, "MetadataBuffer"), "patched binding lacks MetadataBuffer"
+assert "request" in inspect.signature(iio.MetadataBuffer).parameters, (
+    "patched binding lacks request-driven tandem sessions"
+)
 print(f"PASS Python binding: {iio.__file__} version={iio.version}")
 PY
     iio_info --version

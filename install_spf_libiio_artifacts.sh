@@ -45,10 +45,14 @@ fi
 "$python_bin" -m pip install --quiet --force-reinstall --no-deps "$wheel"
 
 "$python_bin" - <<'PY'
+import inspect
 import iio
 
-assert iio.version[:2] in ((0, 25), (0, 26)), iio.version
+assert iio.version[:2] == (0, 25), iio.version
 assert hasattr(iio, "MetadataBuffer"), "patched binding lacks MetadataBuffer"
+assert "request" in inspect.signature(iio.MetadataBuffer).parameters, (
+    "patched binding lacks request-driven tandem sessions"
+)
 print(f"PASS Python binding: {iio.__file__} version={iio.version}")
 PY
 iio_info --version

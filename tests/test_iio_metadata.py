@@ -580,7 +580,7 @@ def test_iio_metadata_adapter_requires_patched_python_binding(monkeypatch):
     try:
         receiver.open()
     except RuntimeError as error:
-        assert "0.25 or 0.26" in str(error)
+        assert "exact patched SPF tandem libiio 0.25" in str(error)
     else:
         raise AssertionError("stock Python binding was accepted")
 

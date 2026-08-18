@@ -90,7 +90,7 @@ class IioMetadataRx:
         if metadata_buffer_type is None:
             raise RuntimeError(
                 "the installed libiio Python binding lacks MetadataBuffer; "
-                "install the patched SPF libiio 0.25 or 0.26 binding"
+                "install the exact patched SPF tandem libiio 0.25 binding"
             )
 
         # Exercise the ordinary dual-channel path once before opting in to
