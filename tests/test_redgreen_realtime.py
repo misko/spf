@@ -174,7 +174,10 @@ def test_pf3_absolute_gt_circular_mean_at_seam():
             [[math.pi - 0.01] * 3, [-math.pi + 0.01] * 3]
         )
     )
-    traj = [{"craft_theta": np.array([math.pi])} for _ in range(3)]
+    traj = [
+        {"craft_theta": np.array([math.pi]), "P_theta": np.array([0.01])}
+        for _ in range(3)
+    ]
     m = pf.metrics(traj)
     assert m["mse_craft_theta"] < 0.01, (
         f"gt averaged non-circularly: mse={m['mse_craft_theta']}"
