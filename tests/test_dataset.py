@@ -18,6 +18,7 @@ from spf.dataset.v7_data import (
     v7rx_keys,
     v7rx_sample_time_scalar_keys,
     v7rx_scalar_keys,
+    v7rx_temperature_scalar_keys,
     v7rx_new_dataset,
 )
 from spf.rf import get_peaks_for_2rx
@@ -285,14 +286,20 @@ def testv7_data_create_and_radio_metadata_round_trip():
             receiver[key][1] = expected_2x[key]
         for key in v7rx_sample_time_scalar_keys:
             receiver[key][1] = expected_sample_time[key]
+        receiver["ad9361_temperature_mdeg_c"][1] = 43_860
 
         assert z.attrs["radio_metadata_schema_version"] == 2
         assert z.attrs["gain_series_schema_version"] == 1
         assert z.attrs["sample_time_schema_version"] == 1
+        assert z.attrs["temperature_schema_version"] == 1
+        assert z.attrs["temperature_invalid_value"] == np.iinfo(np.int32).min
+        assert receiver["ad9361_temperature_mdeg_c"][0] == np.iinfo(np.int32).min
         assert "gain_observation_index" not in v7rx_keys()
         assert "gain_observation_index" in v7rx_keys(include_gain_series=True)
         assert "sample_time_valid" not in v7rx_keys()
         assert "sample_time_valid" in v7rx_keys(include_sample_time=True)
+        assert "ad9361_temperature_mdeg_c" not in v7rx_keys()
+        assert "ad9361_temperature_mdeg_c" in v7rx_keys(include_temperature=True)
         receiver["gain_observation_count"][1] = 2
         receiver["gain_observation_interval_samples"][1] = 32768
         receiver["gain_observation_sample_bounds"][1, :2] = [
@@ -317,6 +324,8 @@ def testv7_data_create_and_radio_metadata_round_trip():
             np.testing.assert_allclose(receiver[key][1], expected_2x[key])
         for key in v7rx_sample_time_scalar_keys:
             assert receiver[key][1] == expected_sample_time[key]
+        for key in v7rx_temperature_scalar_keys:
+            assert receiver[key][1] == 43_860
 
 
 def test_lmdb_async_resume_matches_initial_capture_write_flags():

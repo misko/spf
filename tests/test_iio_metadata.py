@@ -9,7 +9,7 @@ import pytest
 from spf.direct_radio import iio_metadata
 from spf.direct_radio.iio_metadata import IioMetadataRx
 from spf.direct_radio.tandem_agc import (
-    RadioMetadataV4,
+    RadioMetadataV5,
     TandemGainTable,
     TandemState,
 )
@@ -84,7 +84,7 @@ def _metadata(samples=1024, first_sample_sequence=1_000_000):
         gain_event_capacity=64,
         gain_observations=(observation,),
     )
-    return RadioMetadataV4(
+    return RadioMetadataV5(
         base=base,
         header_bytes=base.header_bytes + 56,
         ownership_epoch=7,
@@ -101,6 +101,7 @@ def _metadata(samples=1024, first_sample_sequence=1_000_000):
         rx1_gain_index=42,
         rx2_gain_index=42,
         gain_events=(),
+        ad9361_temperature_mdeg_c=43_860,
     )
 
 
@@ -658,4 +659,5 @@ def test_pplus_rx_with_metadata_does_not_poll_host_gain_or_rssi():
     assert frame.sample_sequence == 1_000_000
     assert frame.sample_time_valid is True
     assert frame.gain_observation_index.tolist() == [[42, 43]]
+    assert frame.ad9361_temperature_mdeg_c == 43_860
     radio.sdr = None

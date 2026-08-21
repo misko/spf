@@ -1,4 +1,4 @@
-"""Request-driven libiio RX with frame-associated tandem metadata v4."""
+"""Request-driven libiio RX with frame-associated tandem metadata v5."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from spf.direct_radio.sample_clock import (
     capture_host_realtime_mapping,
     fit_sample_clock,
 )
-from spf.direct_radio.tandem_agc import RadioMetadataV4, TandemSessionRequestV1
+from spf.direct_radio.tandem_agc import RadioMetadataV5, TandemSessionRequestV1
 from spf.direct_radio.usb_protocol import (
     MetadataFlags,
     TimeAnchorFlags,
@@ -181,14 +181,14 @@ class IioMetadataRx:
         raw_metadata = self._buffer.metadata
         if raw_metadata is None:
             raise RuntimeError("metadata buffer refill returned no metadata")
-        metadata = RadioMetadataV4.unpack(raw_metadata)
+        metadata = RadioMetadataV5.unpack(raw_metadata)
         if len(raw_metadata) != metadata.header_bytes:
             raise RuntimeError("metadata refill returned trailing bytes")
         self._validate_metadata(metadata)
         self._refresh_time_anchors(initial=False)
         return signal_matrix, metadata, self._capture_time(metadata)
 
-    def _validate_metadata(self, metadata: RadioMetadataV4) -> None:
+    def _validate_metadata(self, metadata: RadioMetadataV5) -> None:
         if metadata.samples_per_channel != self._samples_per_channel:
             raise RuntimeError(
                 "metadata sample count does not match the requested IIO buffer"
@@ -243,7 +243,7 @@ class IioMetadataRx:
             if item.host_monotonic_after_ns >= cutoff
         ]
 
-    def _capture_time(self, metadata: RadioMetadataV4) -> dict[str, int | float | bool]:
+    def _capture_time(self, metadata: RadioMetadataV5) -> dict[str, int | float | bool]:
         extended = [
             item.extend_near(metadata.first_sample_sequence)
             for item in self._time_anchors

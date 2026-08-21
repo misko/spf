@@ -18,7 +18,7 @@ import pytest
 from spf.bench.dual_rx_phase import ToneQualityThresholds, analyze_common_tone
 from spf.direct_radio.iio_metadata import IioMetadataRx
 from spf.direct_radio.tandem_agc import (
-    RadioMetadataV4,
+    RadioMetadataV5,
     TandemEventDirection,
     TandemMode,
     TandemSessionRequestV1,
@@ -103,7 +103,7 @@ def _mute_sdr(sdr) -> None:
     mute_sdr_tx(sdr)
 
 
-def _assert_common(metadata: RadioMetadataV4, mode: TandemMode) -> None:
+def _assert_common(metadata: RadioMetadataV5, mode: TandemMode) -> None:
     expected_state = (
         TandemState.ARMED_HOLD if mode is TandemMode.HOLD else TandemState.ARMED_AUTO
     )
@@ -114,6 +114,8 @@ def _assert_common(metadata: RadioMetadataV4, mode: TandemMode) -> None:
     assert metadata.minimum_gain_db <= INITIAL_GAIN_DB <= metadata.maximum_gain_db
     assert metadata.minimum_gain_index <= metadata.rx1_gain_index
     assert metadata.rx1_gain_index <= metadata.maximum_gain_index
+    if metadata.ad9361_temperature_mdeg_c is not None:
+        assert -40_000 <= metadata.ad9361_temperature_mdeg_c <= 125_000
     for observation in metadata.gain_observations:
         required = (
             GainObservationFlags.VALID | GainObservationFlags.SAMPLE_INTERVAL_VALID
@@ -252,8 +254,16 @@ def _exercise_tandem_hold(uri: str, serial: str) -> None:
         assert sdr._ctx.attrs.get("hw_serial") == serial
         _configure(sdr)
         receiver = _open_receiver(sdr, TandemMode.HOLD)
-        frames = [receiver.capture()[1] for _ in range(2)]
-        assert all(isinstance(item, RadioMetadataV4) for item in frames)
+        frames = []
+        temperature_deadline = time.monotonic() + 2.0
+        while len(frames) < 2 or not any(
+            item.ad9361_temperature_mdeg_c is not None for item in frames
+        ):
+            frames.append(receiver.capture()[1])
+            if time.monotonic() >= temperature_deadline:
+                break
+        assert all(isinstance(item, RadioMetadataV5) for item in frames)
+        assert any(item.ad9361_temperature_mdeg_c is not None for item in frames)
         assert len({item.ownership_epoch for item in frames}) == 1
         for metadata in frames:
             _assert_common(metadata, TandemMode.HOLD)

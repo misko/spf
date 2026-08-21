@@ -17,7 +17,7 @@ import pytest
 
 from spf.direct_radio.usb_protocol import MetadataFlags
 from spf.direct_radio.tandem_agc import (
-    RadioMetadataV4,
+    RadioMetadataV5,
     TandemMode,
     TandemSessionRequestV1,
 )
@@ -139,7 +139,7 @@ def _capture_cell(
         for frame_index in range(frames):
             if mode == "metadata":
                 raw_metadata = _refill_metadata(buffer, startup=False)
-                metadata = RadioMetadataV4.unpack(raw_metadata)
+                metadata = RadioMetadataV5.unpack(raw_metadata)
                 assert metadata.samples_per_channel == samples
                 assert metadata.iq_payload_bytes == expected_iq_bytes
                 assert metadata.gain_metadata_valid

@@ -138,7 +138,11 @@ def _first_invalid_reason(receiver, index: int, previous: dict | None) -> str | 
 
 
 def valid_receiver_prefix(
-    receiver, *, include_gain_series=False, include_sample_time=False
+    receiver,
+    *,
+    include_gain_series=False,
+    include_sample_time=False,
+    include_temperature=False,
 ) -> tuple[int, str]:
     """Independently count contiguous fully valid records for one receiver."""
 
@@ -146,6 +150,7 @@ def valid_receiver_prefix(
         v7rx_keys(
             include_gain_series=include_gain_series,
             include_sample_time=include_sample_time,
+            include_temperature=include_temperature,
         )
     )
     missing = required - set(receiver.keys())
@@ -207,6 +212,7 @@ def recover_capture(
             raise ValueError(f"receiver groups are not contiguous: {receiver_names}")
         include_gain_series = source.attrs.get("gain_series_schema_version") == 1
         include_sample_time = source.attrs.get("sample_time_schema_version") == 1
+        include_temperature = source.attrs.get("temperature_schema_version") == 1
         detected = []
         stopping_reasons = []
         serials = []
@@ -216,6 +222,7 @@ def recover_capture(
                 receiver,
                 include_gain_series=include_gain_series,
                 include_sample_time=include_sample_time,
+                include_temperature=include_temperature,
             )
             detected.append(prefix)
             stopping_reasons.append(stopping_reason)
@@ -285,6 +292,7 @@ def recover_capture(
             for key in v7rx_keys(
                 include_gain_series=include_gain_series,
                 include_sample_time=include_sample_time,
+                include_temperature=include_temperature,
             ):
                 destination_receiver[key][:] = source_receiver[key][:common_prefix]
     finally:

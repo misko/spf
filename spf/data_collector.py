@@ -30,6 +30,7 @@ from spf.dataset.v7_data import (
     v7rx_gain_series_scalar_keys,
     v7rx_sample_time_scalar_keys,
     v7rx_scalar_keys,
+    v7rx_temperature_scalar_keys,
     v7rx_new_dataset,
 )
 from spf.dataset.wall_array_v2_idxs import v2_column_names
@@ -270,6 +271,7 @@ class DataSnapshotV7(DataSnapshotV6):
     rssi_metadata_valid: bool = False
     rssi_start_read_duration_ns: int = 0
     rssi_end_read_duration_ns: int = 0
+    ad9361_temperature_mdeg_c: Optional[int] = None
     sample_counter_end_exclusive: int = 0
     sample_time_valid: bool = False
     sample_time_monotonic_start_ns: int = 0
@@ -554,6 +556,9 @@ class ThreadedRXRaw(ThreadedRX):
                 rssi_metadata_valid=sdr_rx["rssi_metadata_valid"],
                 rssi_start_read_duration_ns=sdr_rx["rssi_start_read_duration_ns"],
                 rssi_end_read_duration_ns=sdr_rx["rssi_end_read_duration_ns"],
+                ad9361_temperature_mdeg_c=sdr_rx[
+                    "ad9361_temperature_mdeg_c"
+                ],
                 sample_counter_end_exclusive=sdr_rx["sample_counter_end_exclusive"],
                 sample_time_valid=sdr_rx["sample_time_valid"],
                 sample_time_monotonic_start_ns=sdr_rx["sample_time_monotonic_start_ns"],
@@ -1363,6 +1368,11 @@ class DroneDataCollectorRawV7(DroneDataCollectorRaw):
             receiver_z[key][record_idx] = getattr(data, key)
         for key in v7rx_sample_time_scalar_keys:
             receiver_z[key][record_idx] = getattr(data, key)
+        for key in v7rx_temperature_scalar_keys:
+            value = getattr(data, key)
+            receiver_z[key][record_idx] = (
+                np.iinfo(np.int32).min if value is None else value
+            )
         observations = np.asarray(data.gain_observation_valid, dtype=np.bool_)
         observation_count = observations.size
         if observation_count > V7_GAIN_OBSERVATION_CAPACITY:

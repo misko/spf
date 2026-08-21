@@ -5,12 +5,14 @@ import zlib
 import pytest
 
 from spf.direct_radio.tandem_agc import (
+    AD9361_TEMPERATURE_FEATURE,
     HEADER_PREFIX_BYTES_V3,
-    HEADER_PREFIX_BYTES_V4,
+    HEADER_PREFIX_BYTES_V5,
+    TEMPERATURE_INVALID,
     TANDEM_METADATA_FEATURE,
     TANDEM_METADATA_VALID_FLAG,
     TANDEM_REQUEST_MAGIC,
-    RadioMetadataV4,
+    RadioMetadataV5,
     TandemEventDirection,
     TandemEventReason,
     TandemGainTable,
@@ -102,15 +104,28 @@ def _v3_base() -> RadioMetadataV3:
     )
 
 
-def _v4_frame(*, event_sequence=7, event_flags=0x13, rx2_index=21) -> bytes:
+def _v5_frame(
+    *,
+    event_sequence=7,
+    event_flags=0x13,
+    rx2_index=21,
+    temperature_mdeg_c=43_860,
+) -> bytes:
     v3 = bytearray(_v3_base().pack())
     prefix = v3[:HEADER_PREFIX_BYTES_V3]
-    struct.pack_into("<H", prefix, 4, 4)
+    struct.pack_into("<H", prefix, 4, 5)
     struct.pack_into("<H", prefix, 6, len(v3) + 56)
-    struct.pack_into("<I", prefix, 8, struct.unpack_from("<I", prefix, 8)[0] | TANDEM_METADATA_FEATURE)
+    struct.pack_into(
+        "<I",
+        prefix,
+        8,
+        struct.unpack_from("<I", prefix, 8)[0]
+        | TANDEM_METADATA_FEATURE
+        | AD9361_TEMPERATURE_FEATURE,
+    )
     struct.pack_into("<I", prefix, 12, struct.unpack_from("<I", prefix, 12)[0] | TANDEM_METADATA_VALID_FLAG)
     extension = struct.pack(
-        "<IIIIIIiiiBBBB4I",
+        "<IIIIIIiiiBBBBi3I",
         9,
         int(TandemState.ARMED_AUTO),
         0,
@@ -124,7 +139,7 @@ def _v4_frame(*, event_sequence=7, event_flags=0x13, rx2_index=21) -> bytes:
         76,
         21,
         rx2_index,
-        0,
+        temperature_mdeg_c,
         0,
         0,
         0,
@@ -133,7 +148,7 @@ def _v4_frame(*, event_sequence=7, event_flags=0x13, rx2_index=21) -> bytes:
     struct.pack_into("<QIHBB", arrays, 32, 1050, event_sequence, event_flags, 21, rx2_index)
     output = prefix + extension + arrays + bytes(4)
     output[-4:] = struct.pack("<I", zlib.crc32(output))
-    assert len(prefix) + len(extension) == HEADER_PREFIX_BYTES_V4
+    assert len(prefix) + len(extension) == HEADER_PREFIX_BYTES_V5
     return bytes(output)
 
 
@@ -158,13 +173,14 @@ def test_tandem_request_rejects_frames_that_can_overrun_event_capacity():
     hold.validate_frame_capacity(524_288)
 
 
-def test_tandem_metadata_v4_decodes_exact_event_and_provenance():
-    metadata = RadioMetadataV4.unpack(_v4_frame())
+def test_tandem_metadata_v5_decodes_temperature_event_and_provenance():
+    metadata = RadioMetadataV5.unpack(_v5_frame())
     assert metadata.ownership_epoch == 9
     assert metadata.tandem_state is TandemState.ARMED_AUTO
     assert metadata.gain_table_id is TandemGainTable.MHZ_1300_4000
     assert metadata.samples_per_channel == 100
-    assert metadata.header_bytes == HEADER_PREFIX_BYTES_V4 + 32 + 16 + 4
+    assert metadata.header_bytes == HEADER_PREFIX_BYTES_V5 + 32 + 16 + 4
+    assert metadata.ad9361_temperature_mdeg_c == 43_860
     assert len(metadata.gain_events) == 1
     event = metadata.gain_events[0]
     assert event.event_sequence == 7
@@ -173,15 +189,22 @@ def test_tandem_metadata_v4_decodes_exact_event_and_provenance():
     assert event.rx1_gain_index == event.rx2_gain_index == 21
 
 
-def test_tandem_metadata_v4_rejects_crc_and_unpaired_event():
-    damaged = bytearray(_v4_frame())
+def test_tandem_metadata_v5_maps_invalid_temperature_to_none():
+    metadata = RadioMetadataV5.unpack(
+        _v5_frame(temperature_mdeg_c=TEMPERATURE_INVALID)
+    )
+    assert metadata.ad9361_temperature_mdeg_c is None
+
+
+def test_tandem_metadata_v5_rejects_crc_and_unpaired_event():
+    damaged = bytearray(_v5_frame())
     damaged[20] ^= 1
     with pytest.raises(ProtocolError, match="CRC"):
-        RadioMetadataV4.unpack(damaged)
+        RadioMetadataV5.unpack(damaged)
     with pytest.raises(ProtocolError, match="not paired"):
-        RadioMetadataV4.unpack(_v4_frame(rx2_index=22))
+        RadioMetadataV5.unpack(_v5_frame(rx2_index=22))
     with pytest.raises(ProtocolError, match="unknown flag"):
-        RadioMetadataV4.unpack(_v4_frame(event_flags=0x53))
+        RadioMetadataV5.unpack(_v5_frame(event_flags=0x53))
 
 
 def test_tandem_request_rejects_nonportable_gain_range():

@@ -61,6 +61,10 @@ v7rx_sample_time_scalar_keys = {
     "sample_time_rate_tolerance_ppm": np.float32,
 }
 
+v7rx_temperature_scalar_keys = {
+    "ad9361_temperature_mdeg_c": np.int32,
+}
+
 
 def v7rx_gain_series_keys():
     return list(v7rx_gain_series_scalar_keys) + [
@@ -78,12 +82,18 @@ def v7rx_sample_time_keys():
     return list(v7rx_sample_time_scalar_keys)
 
 
-def v7rx_keys(*, include_gain_series=False, include_sample_time=False):
+def v7rx_temperature_keys():
+    return list(v7rx_temperature_scalar_keys)
+
+
+def v7rx_keys(
+    *, include_gain_series=False, include_sample_time=False, include_temperature=False
+):
     """Return required fields without breaking protocol-v2 V7 captures.
 
-    The gain series is an optional, independently versioned V7 extension.
-    Callers inspecting a store should request it only when the root attribute
-    ``gain_series_schema_version`` is present and supported.
+    Gain series, sample time, and temperature are independently versioned V7
+    extensions. Callers should request each only when its root schema-version
+    attribute is present and supported.
     """
 
     keys = (
@@ -97,6 +107,8 @@ def v7rx_keys(*, include_gain_series=False, include_sample_time=False):
         keys += v7rx_gain_series_keys()
     if include_sample_time:
         keys += v7rx_sample_time_keys()
+    if include_temperature:
+        keys += v7rx_temperature_keys()
     return keys
 
 
@@ -121,11 +133,14 @@ def v7rx_new_dataset(
         config=config,
     )
     # Preserve the endpoint gain/RSSI schema contract for existing V7 readers.
-    # The bounded observation/event arrays are an independently versioned,
-    # backward-compatible extension.
+    # New per-frame surfaces are independently versioned, backward-compatible
+    # extensions so older protocol-v2 V7 stores remain readable.
     z.attrs["radio_metadata_schema_version"] = 2
     z.attrs["gain_series_schema_version"] = 1
     z.attrs["sample_time_schema_version"] = 1
+    z.attrs["temperature_schema_version"] = 1
+    z.attrs["temperature_unit"] = "millidegrees Celsius"
+    z.attrs["temperature_invalid_value"] = int(np.iinfo(np.int32).min)
     z.attrs["sample_counter_end_semantics"] = "exclusive"
     z.attrs[
         "sample_time_clock_domain"
@@ -170,6 +185,15 @@ def v7rx_new_dataset(
                 dtype=dtype,
                 chunks=(timesteps,),
                 compressor=None,
+            )
+        for key, dtype in v7rx_temperature_scalar_keys.items():
+            receiver_z.create_dataset(
+                key,
+                shape=(timesteps,),
+                dtype=dtype,
+                chunks=(timesteps,),
+                compressor=None,
+                fill_value=np.iinfo(np.int32).min,
             )
         row_chunk = min(timesteps, 512)
         receiver_z.create_dataset(

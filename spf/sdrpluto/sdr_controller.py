@@ -56,6 +56,7 @@ class PlutoRxBuffer:
     rssi_metadata_valid: bool
     rssi_start_read_duration_ns: int
     rssi_end_read_duration_ns: int
+    ad9361_temperature_mdeg_c: Optional[int] = None
     sample_counter_end_exclusive: int = 0
     sample_time_valid: bool = False
     sample_time_monotonic_start_ns: int = 0
@@ -1273,6 +1274,9 @@ class PPlus:
             rssi_metadata_valid=metadata.rssi_metadata_valid,
             rssi_start_read_duration_ns=metadata.rssi_start_read_duration_ns,
             rssi_end_read_duration_ns=metadata.rssi_end_read_duration_ns,
+            ad9361_temperature_mdeg_c=getattr(
+                metadata, "ad9361_temperature_mdeg_c", None
+            ),
             **sample_time,
             **gain_series,
         )
