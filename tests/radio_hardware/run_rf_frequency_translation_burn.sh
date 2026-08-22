@@ -8,6 +8,7 @@ readonly REPO_ROOT
 readonly PYTHON="${SPF_PYTHON:-${REPO_ROOT}/.venv/bin/python}"
 readonly DURATION_SECONDS="${SPF_RF_TRANSLATION_DURATION_SECONDS:-3600}"
 readonly EXPECTED_COUNT="${SPF_RF_TRANSLATION_EXPECTED_RADIOS:-4}"
+readonly EXPECTED_FIRMWARE="${SPF_RF_TRANSLATION_EXPECTED_FIRMWARE:-v0.41-plutoplus-spf-tandem-agc-v8-rc2}"
 readonly REPORT_DIR="${1:-/tmp/spf-rf-frequency-translation-$(date -u +%Y%m%dT%H%M%SZ)}"
 
 LIBIIO_SOURCE="${SPF_LIBIIO_SOURCE:-${REPO_ROOT}/../libiio}"
@@ -22,6 +23,7 @@ cd "$REPO_ROOT"
 
 "$PYTHON" -m spf.scripts.rf_frequency_translation_burn \
     --expected-count "$EXPECTED_COUNT" \
+    --expected-firmware "$EXPECTED_FIRMWARE" \
     --duration-seconds "$DURATION_SECONDS" \
     --physical-attenuation-db "${SPF_RF_TRANSLATION_ATTENUATION_DB:-0}" \
     --tx-gain-db "${SPF_RF_TRANSLATION_TX_GAIN_DB:--30}" \

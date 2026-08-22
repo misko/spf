@@ -37,7 +37,7 @@ from spf.scripts.mute_pluto_tx import mute_sdr_tx, validate_loopback_safety
 
 PLUTO_VENDOR_ID = 0x0456
 PLUTO_PRODUCT_ID = 0xB673
-EXPECTED_FIRMWARE = "v0.41-plutoplus-spf-tandem-agc-v8-rc1"
+EXPECTED_FIRMWARE = "v0.41-plutoplus-spf-tandem-agc-v8-rc2"
 SAMPLE_RATE_HZ = 3_000_000
 BANDWIDTH_HZ = 3_000_000
 SAMPLES_PER_CHANNEL = 65_536
