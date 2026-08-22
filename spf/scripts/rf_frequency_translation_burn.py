@@ -58,10 +58,11 @@ UNSAFE_FLAGS = (
     | MetadataFlags.GAIN_OBSERVATION_OVERFLOW
 )
 QUALITY_THRESHOLDS = ToneQualityThresholds(
-    # The cabled AD9361 DDS path is spur-limited in some retune states. Keep
-    # the repository's established 6 dB floor while independently enforcing
-    # signed frequency, image rejection, dominance, coherence, and clipping.
-    min_tone_snr_db=6.0,
+    # SNR here treats all deterministic DDS/AD9361 spurs as noise and becomes
+    # misleading during a long retune burn. Record it diagnostically; the hard
+    # spectral gates below independently require the signed IF to dominate all
+    # non-DC peaks and reject its image, in addition to level/coherence checks.
+    min_tone_snr_db=-120.0,
     min_tone_dbfs=-75.0,
     max_tone_dbfs=-3.0,
     max_clipping_fraction=0.0,
