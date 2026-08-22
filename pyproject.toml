@@ -67,5 +67,6 @@ markers = [
   "radio_crash_recovery: kills only the direct-USB daemon and verifies supervised rebind",
   "radio_soak: long-running attached-radio stability test",
   "radio_rf_dc_tracking: writes AD9361 RF-DC tracking state (--radio-rf-dc-tracking)",
+  "radio_frequency_translation: fixed-emitter swept-RX-LO signed-IF qualification",
   "sitl_crash: stall detection/recovery against a simulated rover (--sitl-crash)",
 ]

@@ -209,6 +209,45 @@ Both the pytest fixture and the outer campaign runner disable DDS, clear TX
 channels, destroy the TX buffer, and verify TX1/TX2 at -80 dB on exit. A failed
 mute is a campaign failure. The TX gate still never writes QSPI.
 
+### Fixed-emitter signed-IF translation gate
+
+The USB-only frequency-translation gate holds one emitted RF tone fixed while
+retuning only the receiver LO. It covers 433.92 MHz, 1.2 GHz, 2.45 GHz, and
+5.8 GHz. At each emitter it expects signed IFs of +900 kHz, +350 kHz, -225 kHz,
+and -800 kHz on both receivers. This detects stale LO state, reversed complex
+frequency, image selection, and band-specific retune failures that a test which
+moves TX and RX together cannot see.
+
+Run one complete matrix on exactly four USB radios with:
+
+```bash
+PYTHONPATH=/path/to/patched-libiio/bindings/python \
+LD_LIBRARY_PATH=/path/to/patched-libiio/build \
+pytest -q tests/radio_hardware/test_rf_frequency_translation_hardware.py::test_fixed_emitter_swept_rx_lo_signed_if_matrix \
+  --radio-hardware --radio-tandem-agc --radio-tx-loopback \
+  --radio-expected-count=4 --radio-tx-loopback-attenuation-db=0 \
+  --radio-tx-gain-db=-30 --radio-report-dir=/tmp/spf-rf-translation
+```
+
+The conservative -30 dB TX2 setting provides the required 30 dB effective
+attenuation even when no physical attenuation is credited. The usual cabled
+attenuator remains recommended. TX1 is never enabled, QSPI is never written,
+and every exit path verifies both TX channels at -80 dB and tandem IDLE.
+
+After the matrix passes, run the duration-bounded burn with:
+
+```bash
+SPF_RF_TRANSLATION_DURATION_SECONDS=3600 \
+tests/radio_hardware/run_rf_frequency_translation_burn.sh \
+  /tmp/spf-rf-translation-hour
+```
+
+Every cell is fsynced to append-only JSONL. A compact atomic summary records
+per-radio cell counts and bounds for frequency error, SNR, coherence, image
+rejection, peak dominance, temperature, retune latency, and capture latency.
+Burn order is deterministically shuffled and stops only after a complete epoch
+once the requested duration has elapsed.
+
 To run only the TX stage after a protocol-v3 candidate is already in RAM:
 
 ```bash

@@ -333,6 +333,22 @@ def pytest_addoption(parser):
         help="comma-separated LO frequencies for the mixed USB/IP soak",
     )
     group.addoption(
+        "--radio-frequency-translation-carriers",
+        default="433.92M,1.2G,2.45G,5.8G",
+        help="fixed emitted RF frequencies for the signed-IF loopback matrix",
+    )
+    group.addoption(
+        "--radio-frequency-translation-offsets",
+        default="-900K,-350K,225K,800K",
+        help="RX LO offsets relative to each fixed emitter",
+    )
+    group.addoption(
+        "--radio-frequency-translation-duration-seconds",
+        type=float,
+        default=3600.0,
+        help="minimum duration of the signed-IF burn before its epoch boundary",
+    )
+    group.addoption(
         "--radio-crash-recovery",
         action="store_true",
         help="enable deliberate direct-USB daemon crash/rebind tests",
