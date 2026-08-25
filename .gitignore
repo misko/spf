@@ -78,3 +78,6 @@ docs/boundary_maps/.tiles/
 
 # Frequency-scan prototype raw output (design in docs/frequency_scan_design.md)
 /artifacts/frequency_scan/
+
+# Locally rendered antenna-mount meshes and previews.
+/data_collection/3D_printing_design_files/generated/
