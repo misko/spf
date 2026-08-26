@@ -217,9 +217,9 @@ CH4 = Ail
 
 ### 3D printed parts
 
-- [Versioned seven-antenna mount STLs](./3D_printed_parts/antenna_mount/README.md)
-  — 47.5 mm and 51 mm antenna pitch-circle diameters, each with 0-degree and
-  30-degree outer-ring rotations.
+- [Versioned seven-antenna mount and flat-base STLs](./3D_printed_parts/antenna_mount/README.md)
+  — 47.5 mm and 51 mm antenna pitch-circle diameters, plus an E-Z LOK insert
+  base for standalone mounting.
 - [Parametric source and dimensional validation](../../3D_printing_design_files/antenna_mount.md)
   — regenerate the mounts or select a different spacing.
 - [Legacy Rover v3 parts archive](https://www.dropbox.com/s/egpfn434aox6vvk/roverv3_3dparts.zip?dl=0)
