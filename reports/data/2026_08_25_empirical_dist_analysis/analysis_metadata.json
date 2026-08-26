@@ -1,0 +1,47 @@
+{
+  "analysis_model_version": "two_element_vm_midpoint_v1",
+  "generated_utc_note": "Generated on the report date; inputs are read-only.",
+  "table": {
+    "path": "empirical_dists/full_20260809_v1.pkl",
+    "sha256": "96b604799022d5139f5a1c7568cad0840dbcb90c8c5e3e4f4d03350108c01f84"
+  },
+  "baseline": {
+    "path": "empirical_dists/full.pkl",
+    "sha256": "14bfe8026cdf266543679c2994571c3c687fc5887cef488ad65700971a26ae72"
+  },
+  "n_current_keys": 48,
+  "n_repo_sign_wins": 48,
+  "fit_bounds": {
+    "log_kappa": [
+      -5.0,
+      5.5
+    ],
+    "effective_spacing_gain": [
+      0.25,
+      3.0
+    ],
+    "theta_mount_shift_rad": [
+      -0.9,
+      0.9
+    ],
+    "phase_offset_rad": [
+      -3.141592653589793,
+      3.141592653589793
+    ]
+  },
+  "fit_target": "pooled r/nosym P(theta|phi), fixed consumer coordinates",
+  "nominal_model": "repo sign; g=1; theta0=0; phi0=0; fit kappa",
+  "calibrated_model": "repo sign; fit g, theta0, phi0, kappa",
+  "discretization": "65 phase-bin and bearing-bin centers (midpoint approximation)",
+  "conditional_prior": "uniform theta prior",
+  "metrics": {
+    "tv": "mean per-nonempty-phase-row total variation; [0,1]",
+    "js": "mean per-nonempty-phase-row Jensen-Shannon divergence; natural log",
+    "corr": "flattened Pearson correlation over nonempty empirical phase rows"
+  },
+  "optimizer": {
+    "differential_evolution_maxiter": 70,
+    "population_multiplier": 9,
+    "deterministic_seed": "sha256(key) first 32 bits"
+  }
+}
