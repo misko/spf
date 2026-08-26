@@ -370,6 +370,135 @@ allows a small slope and mount correction, and sets an honest likelihood width. 
 should be fit and scored with capture-level holdouts. A frequency-only lookup would miss
 the receiver and configuration effects demonstrated above.
 
+### 4.2 Temporal-block holdout: which parameters actually help?
+
+The pooled-table fits above are descriptive and in-sample. To test whether the same
+parameters predict unseen observations rather than merely absorb noise, a second audit
+reopened a timing-clean stratified subset of the current artifact's raw sources and
+precomputes in strict read-only mode:
+
+- **81 rover files** and **393 Pluto wall files**;
+- ten contiguous time blocks per receiver, alternating five training and five held-out
+  blocks;
+- the same nominal forward sign and platform-specific distance weighting as the quality
+  scanner;
+- all eight subsets of `c`, `g`, and δ fitted only on training blocks; and
+- each parameter's held-out contribution computed as its three-feature Shapley value,
+  which averages over every fit order and sums exactly to the full static-calibration
+  gain for each file.
+
+This is a **within-file temporal holdout**, not a capture, day, radio-unit, or environment
+holdout. It checks local generalization and removes direct test-block fitting, but it is
+still optimistic about reusing a calibration on a future capture. Deterministic
+training-only coarse starts were used so the full-file quality-scan fits could not leak
+holdout information through optimizer initialization.
+
+![Held-out calibration contribution summary](figures/2026_08_25_empirical_dist_analysis/calibration_parameter_heldout_help.png)
+
+The full static `c/g/δ` model reduces the median file's held-out absolute circular
+phase error by **8.69° (19.3%) on rover** and **13.69° (27.8%) on wall**. It helps
+74/81 rover files (91.4%) and 333/393 wall files (84.7%). The population median error
+moves from 41.1° to 26.0° on rover and from 53.3° to 35.8° on wall; those differences of
+medians are not the same statistic as the median paired improvement.
+
+| Parameter | What it changes | Rover median contribution; files helped | Wall median contribution; files helped | Read-only audit conclusion |
+|---|---|---:|---:|---|
+| `c` | vertical phase offset | **+2.54°; 82.7%** | **+1.86°; 72.5%** | useful, path-specific, highly configuration-systematic |
+| `g` | effective d/λ / curve slope | **+1.79°; 85.2%** | **+7.14°; 75.6%** | useful at lower spacing; harmful without alias-aware shrinkage at high spacing |
+| δ | bearing/mount origin | **+3.15°; 85.2%** | **+0.59°; 62.8%** | valuable on rover, weakly reusable by wall configuration |
+| τ | label time | **+0.048°; 60.5%** | **0.000°; 49.1%** | no fleet-wide deployable constant-lag correction |
+| σφ | likelihood width/confidence | not an MAE correction | not an MAE correction | must be estimated so noisy configurations are not overconfident |
+
+Positive contributions mean lower held-out phase error. The table reports medians; mean
+`c/g/δ` contributions sum to 11.27° for rover and 12.62° for wall. Medians need not
+sum. A parameter can help most files while having a negative mean if a smaller set of
+failures is large, as happens for wall δ.
+
+#### Constant phase offset `c`
+
+![Phase-offset calibration walkthrough](figures/2026_08_25_empirical_dist_analysis/phase_offset_calibration_walkthrough.png)
+
+`c` removes a constant electrical/path phase rotation. In the per-dataset diagnostic
+fits, median |c| is 15.6° on rover and 14.9° on wall; the 90th percentiles are
+45.3° and 66.0°. Exact configuration plus receiver explains **0.894** of its in-sample
+circular variance, with 4.70° median within-configuration MAD. At the same time,
+|c_r0 − c_r1| has 26.2° median and 101.6° 90th percentile. Therefore the
+reusable unit is not a frequency-only fleet constant: it is at least a
+radio/receiver-path/configuration value. Subtracting `c` changes phase MAE and
+likelihood centering, but not circular residual spread; that invariance is why the
+separate time-lag test uses spread rather than claiming `c` made the signal less noisy.
+
+#### Effective geometry gain `g`
+
+![Geometry-gain calibration walkthrough](figures/2026_08_25_empirical_dist_analysis/geometry_gain_calibration_walkthrough.png)
+
+`g` multiplies nominal d/λ. Configuration repeatability is high
+(R² = 0.882, within-configuration MAD 0.020), but that does **not** make every fitted
+value literal or deployable. Low-d/λ wall fits have limited observable phase
+swing, so `g`, `c`, and δ trade off; the extreme 2–3× values are effective
+model corrections, not credible tape-measure errors.
+
+The holdout result adds a second guardrail. On wall files, median `g` contribution is
++5.94° for d/λ < 0.25 and +15.70° for 0.25–0.50, but **−9.35°** for 0.50–1.00
+and **−18.73°** above 1. At aliased spacing, an unconstrained training fit can choose a
+different wrapped branch from the held-out blocks. Use strong shrinkage toward one,
+alias-aware/multistart validation, and reject a fitted `g` unless a whole-capture
+holdout supports it.
+
+#### Bearing/mount shift δ
+
+![Bearing-shift calibration walkthrough](figures/2026_08_25_empirical_dist_analysis/bearing_shift_calibration_walkthrough.png)
+
+δ shifts the bearing entering `sin(θ − δ)`. Median fitted magnitude is
+8.0° on rover and 4.0° on wall. Rover values can combine true mounting error with heading
+or label-frame bias, which explains why this term is more useful on rover: mean held-out
+contribution is +7.18° and 85.2% of files improve. It is much less reusable across the
+fleet than `c` or `g`: exact configuration explains only **0.428** of its variation.
+On wall, high-spacing aliasing again makes an unrestricted fit dangerous: median
+contribution is −7.93° for 0.50–1.00 and −15.14° above 1, and the fleet-wide mean is
+−0.89° despite a +0.59° median. Treat δ as a small, zero-centered mount/session
+term and require independent capture support.
+
+#### Residual spread σφ
+
+![Residual-spread calibration walkthrough](figures/2026_08_25_empirical_dist_analysis/residual_spread_calibration_walkthrough.png)
+
+σφ does not move a phase prediction, so it cannot reduce phase MAE by itself.
+It controls confidence: a 75° likelihood should not be multiplied into a particle filter
+as though it were a 25° likelihood. The key-level median is 36.9° and the fitted range is
+21.9°–85.3°. Pluto 0.9 GHz is broadest (75.2° median); bladeRF 2.4 GHz is sharpest
+(25.0° median). Exact configuration explains **0.828** of its variation with 2.53°
+within-configuration MAD, supporting a per-configuration robust width estimate, ideally
+a von-Mises-plus-uniform mixture rather than a single overconfident concentration.
+
+### 4.3 Label-time offset τ
+
+The acquisition path does have a real timing risk: RF receive, asynchronous writer, and
+the latest cached pose/heading are not atomically timestamped. Shifting labels is the
+correct experiment; the raw IQ should remain untouched. The fit used
+`θτ(t_i) = θGT(t_i + τ)` on each receiver's own timestamp axis, one shared τ per file
+in [−0.5,+0.5] s, training-only selection, and fixed edge support.
+Negative τ means use earlier labels.
+
+![Time-offset calibration benefit](figures/2026_08_25_empirical_dist_analysis/time_offset_calibration_help.png)
+
+On rover, median held-out residual-spread improvement is **+0.434%**, the 75th percentile
+is +3.05%, and the 90th percentile is +5.25%. Two files exceed 10%, but both select the
+−0.5 s search boundary. On wall, the median is **−0.013%**, the 90th percentile is only
++0.056%, and the best observed value is +0.617% at a boundary. No wall file exceeds 5%.
+The absolute-error ablation above reaches the same decision: median incremental benefit
+is just +0.048° on rover and 0.000° on wall.
+
+![Per-file time-offset calibration](figures/2026_08_25_empirical_dist_analysis/time_offset_calibration_per_file.png)
+
+A deployable rule required >10% held-out spread improvement, an interior optimum, and r0/r1
+agreement within 0.1 s. **Zero rover and zero wall files pass.** The wall exclusion is
+therefore empirical, not structural: wall labels use the same asynchronous writer risk,
+but this corpus contains no identifiable constant wall lag. A future implementation
+should keep τ disabled by default, fit it only on motion-excited timing-clean rover
+captures, compare against a same-degree-of-freedom heading shift, and retain the
+uncalibrated labels unless all gates pass.
+
 ## 5. Key-level results
 
 ### 5.1 The four new 2026 rover spacings
@@ -620,6 +749,9 @@ The remaining 41 keys are nearly unchanged. Details are in
 
 - The principal table fits are in-sample descriptions, so their scores are optimistic and
   have no capture-bootstrap confidence interval.
+- The parameter ablation uses held-out temporal blocks within the same file. It prevents
+  direct test-block fitting but is weaker than a held-out capture, date, radio unit, or
+  environment; its gains must not be treated as deployment estimates.
 - Matrix TV weights every nonempty phase row equally. The pickle discards phase counts, so
   an operational frequency-weighted score cannot be reproduced from it alone.
 - `r/nosym` is pooled from r0/r1 count matrices built on separately inferred coordinates;
@@ -650,8 +782,23 @@ uv run python \
   reports/data/2026_08_25_empirical_dist_analysis/analysis/calibration_parameter_distributions.py
 ```
 
-The theory script uses deterministic per-key optimizer seeds. Both scripts write only within this report
-directory.
+The read-only temporal-block ablation is selected by the frozen 474-row CSV and emits a
+full audit JSON to `/tmp` while refreshing only compact report products:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 uv run python -B \
+  reports/data/2026_08_25_empirical_dist_analysis/analysis/calibration_heldout_ablation.py \
+  --compact-csv reports/data/2026_08_25_empirical_dist_analysis/calibration_heldout_ablation.csv \
+  --summary-json reports/data/2026_08_25_empirical_dist_analysis/calibration_heldout_ablation_summary.json \
+  > /tmp/calibration_heldout_ablation_full.json
+
+PYTHONDONTWRITEBYTECODE=1 uv run python -B \
+  reports/data/2026_08_25_empirical_dist_analysis/analysis/calibration_parameter_walkthrough.py
+```
+
+The theory script uses deterministic per-key optimizer seeds. The two original scripts
+write only within this report directory; the ablation additionally opens the selected
+raw/precompute stores read-only and writes its verbose audit stream to `/tmp`.
 
 | Output | Contents |
 |---|---|
@@ -667,14 +814,27 @@ directory.
 | [`calibration_configuration_summary.csv`](data/2026_08_25_empirical_dist_analysis/calibration_configuration_summary.csv) | 34 exact-configuration receiver summaries and r0/r1 phase differences |
 | [`calibration_quality_scan_inputs.csv`](data/2026_08_25_empirical_dist_analysis/calibration_quality_scan_inputs.csv) | frozen 2,250-row quality-scan input used for the distribution supplement |
 | [`calibration_distribution_metadata.json`](data/2026_08_25_empirical_dist_analysis/calibration_distribution_metadata.json) | scan coverage, selection, bounds, and metric notes |
+| [`calibration_heldout_ablation.csv`](data/2026_08_25_empirical_dist_analysis/calibration_heldout_ablation.csv) | 474 per-file held-out errors, Shapley contributions, and fitted time offsets |
+| [`calibration_heldout_ablation_summary.json`](data/2026_08_25_empirical_dist_analysis/calibration_heldout_ablation_summary.json) | method, input hashes, immutable-store audit, and platform summaries |
 | [`all_48_keys_atlas.pdf`](figures/2026_08_25_empirical_dist_analysis/all_48_keys_atlas.pdf) | every empirical/calibrated/residual heatmap |
 | [`all_48_keys_production_sym_atlas.pdf`](figures/2026_08_25_empirical_dist_analysis/all_48_keys_production_sym_atlas.pdf) | every production/as-built/physical/residual heatmap |
 | [`calibration_parameter_histograms.png`](figures/2026_08_25_empirical_dist_analysis/calibration_parameter_histograms.png) | key-level fitted-parameter distributions by device/band |
 | [`calibration_parameters_by_frequency_spacing.png`](figures/2026_08_25_empirical_dist_analysis/calibration_parameters_by_frequency_spacing.png) | parameter scatter against LO and physical spacing |
 | [`per_dataset_calibration_histograms.png`](figures/2026_08_25_empirical_dist_analysis/per_dataset_calibration_histograms.png) | per-dataset/per-receiver distributions by platform and band |
 | [`calibration_configuration_systematics.png`](figures/2026_08_25_empirical_dist_analysis/calibration_configuration_systematics.png) | configuration variance explained and receiver-path phase differences |
+| [`calibration_parameter_heldout_help.png`](figures/2026_08_25_empirical_dist_analysis/calibration_parameter_heldout_help.png) | total held-out benefit and parameter attribution for rover and wall |
+| [`phase_offset_calibration_walkthrough.png`](figures/2026_08_25_empirical_dist_analysis/phase_offset_calibration_walkthrough.png) | phase-offset distribution, configuration structure, held-out benefit, and repeatability |
+| [`geometry_gain_calibration_walkthrough.png`](figures/2026_08_25_empirical_dist_analysis/geometry_gain_calibration_walkthrough.png) | effective-gain distribution and spacing-dependent held-out behavior |
+| [`bearing_shift_calibration_walkthrough.png`](figures/2026_08_25_empirical_dist_analysis/bearing_shift_calibration_walkthrough.png) | bearing-shift distribution and platform/spacing-dependent benefit |
+| [`residual_spread_calibration_walkthrough.png`](figures/2026_08_25_empirical_dist_analysis/residual_spread_calibration_walkthrough.png) | likelihood-width distribution and configuration repeatability |
+| [`time_offset_calibration_help.png`](figures/2026_08_25_empirical_dist_analysis/time_offset_calibration_help.png) | held-out residual-spread benefit and trust gates for label-time offset |
+| [`time_offset_calibration_per_file.png`](figures/2026_08_25_empirical_dist_analysis/time_offset_calibration_per_file.png) | fitted time offset versus benefit for every audited file |
 | [`compare_theory.py`](data/2026_08_25_empirical_dist_analysis/analysis/compare_theory.py) | reproducible analysis and figure generator |
 | [`calibration_parameter_distributions.py`](data/2026_08_25_empirical_dist_analysis/analysis/calibration_parameter_distributions.py) | reproducible distribution and configuration-repeatability analysis |
+| [`calibration_heldout_ablation.py`](data/2026_08_25_empirical_dist_analysis/analysis/calibration_heldout_ablation.py) | read-only training/holdout fit and Shapley audit |
+| [`calibration_parameter_walkthrough.py`](data/2026_08_25_empirical_dist_analysis/analysis/calibration_parameter_walkthrough.py) | static Matplotlib walkthrough figure generator |
 
-No empirical PKL, source dataset, precompute cache, or existing report was written or
-modified by this analysis.
+No empirical PKL, source dataset, or precompute cache was written or modified. The
+ablation opened 474 raw stores and 474 precompute stores read-only; every touched
+`data.mdb` size/mtime fingerprint was unchanged. Writes were limited to this report's
+Markdown, compact audit tables/metadata, analysis scripts, and Matplotlib PNGs.

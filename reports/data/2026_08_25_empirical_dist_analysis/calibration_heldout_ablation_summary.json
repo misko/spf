@@ -1,0 +1,201 @@
+{
+  "method": {
+    "metric": "within-file temporal-block-heldout weighted mean absolute circular phase error (degrees)",
+    "split": "10 contiguous blocks, alternating 5 train / 5 holdout",
+    "fit_objective": "training weighted circular cosine loss; c analytic",
+    "parameter_attribution": "three-parameter Shapley value over all 8 c/g/d subsets",
+    "tau": "shared per-file tau in [-0.5,+0.5] s, 0.025 s grid, selected on train after c/g/d; g/d fixed during tau scan",
+    "weighting": "each file equal; receivers averaged; rover observations weighted by max(range_m,1)^2",
+    "bounds": {
+      "wall_g": [
+        0.7,
+        3.0
+      ],
+      "rover_g": [
+        0.9,
+        1.1
+      ],
+      "wall_delta_rad": [
+        -0.35,
+        0.35
+      ],
+      "rover_delta_rad": [
+        -0.9,
+        0.9
+      ]
+    }
+  },
+  "provenance": {
+    "scan": "reports/data/2026_08_25_empirical_dist_analysis/calibration_quality_scan_inputs.csv",
+    "scan_sha256": "e481922fa03424e233afaa7aa75b09c2e331d2ece4ea796eb598cfbbdb458e20",
+    "artifact": "empirical_dists/full_20260809_v1.pkl",
+    "artifact_sha256": "96b604799022d5139f5a1c7568cad0840dbcb90c8c5e3e4f4d03350108c01f84",
+    "requested_jobs": 474,
+    "completed": 474,
+    "failures": [],
+    "unique_input_store_fingerprints": 948,
+    "all_per_job_store_stats_unchanged": true
+  },
+  "summary": {
+    "rover": {
+      "n": 81,
+      "baseline_mae_deg": {
+        "mean": 45.11869241721912,
+        "q10": 27.665615029260966,
+        "q25": 33.45504439918833,
+        "median": 41.12159678619511,
+        "q75": 52.485300851930305,
+        "q90": 74.19783927592239,
+        "positive_fraction": 1.0
+      },
+      "full_static_mae_deg": {
+        "mean": 33.845097568237215,
+        "q10": 15.25784999276095,
+        "q25": 18.91985407151075,
+        "median": 25.985360390031058,
+        "q75": 46.32377515609308,
+        "q90": 71.06666427821882,
+        "positive_fraction": 1.0
+      },
+      "static_reduction_deg": {
+        "mean": 11.273594848981913,
+        "q10": 0.7248395152013885,
+        "q25": 2.947557134371788,
+        "median": 8.69264263454443,
+        "q75": 17.951636278514563,
+        "q90": 30.455576078332577,
+        "positive_fraction": 0.9135802469135802
+      },
+      "static_reduction_pct": {
+        "mean": 26.699319785957716,
+        "q10": 1.776872555643265,
+        "q25": 7.591430122550277,
+        "median": 19.316372836312834,
+        "q75": 50.81854435873536,
+        "q90": 66.75138833811165,
+        "positive_fraction": 0.9135802469135802
+      },
+      "c_shapley_deg": {
+        "mean": 2.43001918124183,
+        "q10": -1.0053433297054095,
+        "q25": 0.8207411935673345,
+        "median": 2.536977303471025,
+        "q75": 4.54529230354659,
+        "q90": 7.1230969861862805,
+        "positive_fraction": 0.8271604938271605
+      },
+      "g_shapley_deg": {
+        "mean": 1.6637879607131563,
+        "q10": -0.08400936447616214,
+        "q25": 0.5284017772145873,
+        "median": 1.7854128946609322,
+        "q75": 2.7810211456332943,
+        "q90": 3.5008352469389936,
+        "positive_fraction": 0.8518518518518519
+      },
+      "delta_shapley_deg": {
+        "mean": 7.179787707026926,
+        "q10": -0.2378587126454592,
+        "q25": 0.6452744161081281,
+        "median": 3.153890724932062,
+        "q75": 12.617497116054516,
+        "q90": 21.599381569388306,
+        "positive_fraction": 0.8518518518518519
+      },
+      "tau_incremental_deg": {
+        "mean": 0.47861420031611146,
+        "q10": -0.34935992448859565,
+        "q25": -0.028450469537457224,
+        "median": 0.047832330469510964,
+        "q75": 1.3481355968045534,
+        "q90": 1.838563204290132,
+        "positive_fraction": 0.6049382716049383
+      }
+    },
+    "wall": {
+      "n": 393,
+      "baseline_mae_deg": {
+        "mean": 52.6001614089395,
+        "q10": 34.97537796097242,
+        "q25": 43.17729743312601,
+        "median": 53.30200485519613,
+        "q75": 59.07248517921806,
+        "q90": 65.68387873005922,
+        "positive_fraction": 1.0
+      },
+      "full_static_mae_deg": {
+        "mean": 39.97980822427079,
+        "q10": 25.661785729599938,
+        "q25": 28.138936886594344,
+        "median": 35.77388313445925,
+        "q75": 50.23051639730595,
+        "q90": 59.23883661746835,
+        "positive_fraction": 1.0
+      },
+      "static_reduction_deg": {
+        "mean": 12.620353184668703,
+        "q10": -7.701937403800201,
+        "q25": 4.9371692371824025,
+        "median": 13.687445806962359,
+        "q75": 23.595194482812488,
+        "q90": 30.83086670100087,
+        "positive_fraction": 0.8473282442748091
+      },
+      "static_reduction_pct": {
+        "mean": 19.88421312078974,
+        "q10": -17.046928559386274,
+        "q25": 9.595522724875076,
+        "median": 27.834197288441704,
+        "q75": 44.14429643314242,
+        "q90": 51.707592646828175,
+        "positive_fraction": 0.8473282442748091
+      },
+      "c_shapley_deg": {
+        "mean": 4.7620391119157786,
+        "q10": -4.216811257577498,
+        "q25": -0.19855687698613922,
+        "median": 1.8606581137529594,
+        "q75": 5.055961415535052,
+        "q90": 21.76266180720536,
+        "positive_fraction": 0.7251908396946565
+      },
+      "g_shapley_deg": {
+        "mean": 8.75056077787837,
+        "q10": -9.15940813650459,
+        "q25": 0.03955978901336321,
+        "median": 7.136766897709594,
+        "q75": 17.79266590651983,
+        "q90": 27.288050158068778,
+        "positive_fraction": 0.7557251908396947
+      },
+      "delta_shapley_deg": {
+        "mean": -0.8922467051254467,
+        "q10": -7.9986329625110155,
+        "q25": -1.2846263599927157,
+        "median": 0.5854506191516866,
+        "q75": 1.729455816229322,
+        "q90": 3.2667170633876745,
+        "positive_fraction": 0.628498727735369
+      },
+      "tau_incremental_deg": {
+        "mean": 0.0015601866784918743,
+        "q10": -0.03462877921458159,
+        "q25": -0.017196952857474912,
+        "median": 0.0,
+        "q75": 0.019204730920080237,
+        "q90": 0.039675936673986466,
+        "positive_fraction": 0.4910941475826972
+      }
+    }
+  },
+  "elapsed_s": 211.38924503326416,
+  "record_csv": "reports/data/2026_08_25_empirical_dist_analysis/calibration_heldout_ablation.csv",
+  "record_csv_sha256": "9bd4848a0487313233967158b60bb7208baa9b440d829eaf09c2c92439cb2325",
+  "record_rows": 474,
+  "notes": [
+    "Positive c/g/d/tau values are reductions in held-out mean absolute circular phase error.",
+    "c/g/d columns are per-file Shapley attributions and sum to static_reduction_deg up to floating-point roundoff.",
+    "This is a within-file temporal-block holdout, not a capture-level or hardware-unit holdout.",
+    "All source Zarr/YARR stores were opened read-only and every touched data.mdb size/mtime fingerprint was unchanged."
+  ]
+}
