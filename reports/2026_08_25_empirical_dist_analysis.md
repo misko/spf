@@ -236,6 +236,140 @@ treated as hypotheses for raw held-out calibration, not literal tape-measure cor
 The full 48-row table is in [`ALL_KEYS_TABLE.md`](data/2026_08_25_empirical_dist_analysis/ALL_KEYS_TABLE.md), with the machine-
 readable version in [`metrics_all_keys.csv`](data/2026_08_25_empirical_dist_analysis/metrics_all_keys.csv).
 
+### 4.1 Calibration parameter distributions and configuration repeatability
+
+The calibrated forward model used above is
+
+\[
+\phi_{\rm meas}=\operatorname{wrap}\left[
+c-2\pi g\rho\sin(\theta-\delta)+\epsilon_\phi
+\right].
+\]
+
+Here \(g\) changes the phase-versus-bearing slope, \(\delta\) shifts the bearing/mount
+origin, \(c\) removes a constant receiver-path phase bias, and the fitted
+\(\sigma_\phi\) controls likelihood width. These are descriptive fits to the pooled
+`r/nosym` matrices, not independent metrology measurements.
+
+#### How large do the key-level values get?
+
+| Parameter | Ideal | Median [IQR] | 5–95% | Full range |
+|---|---:|---:|---:|---:|
+| Effective gain \(g\) | 1 | 1.027 [0.981, 1.275] | 0.917–2.057 | 0.634–2.709 |
+| Bearing/mount shift \(\delta\) | 0° | 2.26° [0.91°, 3.87°] | −6.67°–5.86° | −11.67°–13.30° |
+| Phase offset \(c\) | 0° | 10.17° [−6.57°, 36.76°] | −12.05°–52.82° | −18.17°–74.76° |
+| Circular phase spread \(\sigma_\phi\) | 0° | 36.89° [25.58°, 49.20°] | 24.10°–72.01° | 21.89°–85.26° |
+
+A 65-bin matrix has 5.54° bins. The median \(\delta\) is therefore about 0.41 bearing
+bin, the median phase spread covers about 6.7 phase bins, and the largest fitted phase
+offset is 13.5 phase bins. Phase offsets are circular; the mixed-fleet median is not a
+universal correction.
+
+![Calibration parameter histograms](figures/2026_08_25_empirical_dist_analysis/calibration_parameter_histograms.png)
+
+The device/band medians expose structure hidden by the fleet-wide histogram:
+
+| Device / band | Keys | Sources | \(g\) | \(\delta\) | \(c\) | \(\sigma_\phi\) |
+|---|---:|---:|---:|---:|---:|---:|
+| Pluto, 0.9 GHz | 5 | 463 | 1.797 | 5.20° | 16.80° | 75.15° |
+| Pluto, 2.4 GHz | 12 | 1,273 | 1.075 | 4.50° | −5.76° | 38.54° |
+| Pluto, 5.8 GHz | 19 | 508 | 1.004 | 1.57° | 1.48° | 35.91° |
+| bladeRF, 2.4 GHz | 9 | 138 | 1.007 | 2.14° | **46.68°** | **24.96°** |
+| bladeRF, 5.8 GHz | 3 | 63 | 1.374 | 3.28° | **33.30°** | **27.35°** |
+
+The clearest stable family signature is \(c\). Across bladeRF keys its median is 46.52°,
+circular mean 44.37°, and circular standard deviation 6.38°. Pluto's corresponding
+values are −0.30°, 5.54°, and 20.06°. Matched 25 mm / 5.8 GHz configurations retain a
+roughly 28°–43° bladeRF-versus-Pluto offset, so this is not explained by
+\(d/\lambda\). A deployable calibration should estimate \(c\) per radio/receiver path,
+not only per spacing.
+
+The extreme \(g\) values are concentrated where the fit is least identifiable. For
+\(\rho\ge0.5\), \(g\) has median **0.998**, IQR **0.967–1.013**, and 5–95% range
+**0.917–1.067**. Below 0.25, its median is 1.842. At low \(\rho\), the available phase
+swing is small compared with 25°–85° noise, so \(g\), \(c\), \(\delta\), and corpus shape
+trade off. The 2.709 maximum should not be interpreted as a literal 171% antenna-spacing
+error.
+
+![Calibration parameters by frequency and physical spacing](figures/2026_08_25_empirical_dist_analysis/calibration_parameters_by_frequency_spacing.png)
+
+Unweighted 48-key Spearman associations are descriptive:
+
+| Parameter | vs \(d/\lambda\) | vs frequency | vs physical spacing |
+|---|---:|---:|---:|
+| \(g\) | **−0.644** | −0.278 | −0.450 |
+| \(\delta\) | −0.409 | **−0.682** | +0.254 |
+| \(c\) | −0.109 | −0.327 | +0.400 |
+| \(\sigma_\phi\) | −0.156 | −0.248 | +0.098 |
+
+Frequency, physical spacing, \(d/\lambda\), device, platform, source count, and capture
+environment are strongly unbalanced. These coefficients do not identify a causal
+frequency law. In particular, physical spacing alone is not a sufficient calibration
+key.
+
+#### Is it systematic across samples and configurations?
+
+Yes—especially for \(g\), \(c\), and residual spread. The July quality scan joins
+exactly to 2,227 of the current artifact's 2,445 provenance-loaded source datasets
+(91.1%). Requiring usable angular coverage from both receivers and at least five
+datasets in an exact `(device, platform, LO, d/lambda)` configuration leaves **2,187
+datasets, 4,374 receiver fits, and 34 exact configurations**.
+
+![Per-dataset calibration histograms](figures/2026_08_25_empirical_dist_analysis/per_dataset_calibration_histograms.png)
+
+The per-dataset diagnostic search is bounded and quantized: wall \(g\in[0.70,3.00]\),
+rover \(g\in[0.90,1.10]\), wall \(\delta\in[-0.35,0.35]\) rad, and rover
+\(\delta\in[-0.90,0.90]\) rad. Of 4,374 receiver fits, 271 (6.2%) carry the scan's
+combined boundary flag, meaning either \(g\) or \(\delta\) hit an endpoint. Consequently
+histogram spikes partly show the scan grid and should not be read as posterior certainty.
+
+For a direct repeatability diagnostic, the table below reports in-sample variance
+explained by configuration. The first \(R^2\) groups by device, band, physical spacing,
+and receiver; the second uses the exact configuration and receiver. Squared wrapped
+angular residuals are used for \(c\).
+
+| Parameter | Device + band + spacing \(R^2\) | Exact-config \(R^2\) | Median exact-config within-group MAD |
+|---|---:|---:|---:|
+| \(g\) | 0.861 | **0.882** | **0.020** |
+| \(\delta\) | 0.377 | **0.428** | **1.15°** |
+| \(c\) | 0.863 | **0.894** | **4.70°** |
+| \(\sigma_\phi\) | 0.771 | **0.828** | **2.53°** |
+
+![Configuration repeatability](figures/2026_08_25_empirical_dist_analysis/calibration_configuration_systematics.png)
+
+This is strong evidence of repeatable configuration state, not random sample scatter.
+It is also not a causal decomposition: exact configuration packages together radio
+identity, LO, array spacing, platform, mount, gain/firmware state, date, and environment.
+The bearing shift \(\delta\) is less repeatable than the other three parameters and should
+receive stronger shrinkage.
+
+Receiver-path phase differences are especially large and repeatable. Across the 2,187
+datasets, \(|c_{r0}-c_{r1}|\) has median **26.2°**, 90th percentile **101.6°**, and
+maximum **163.8°**. Exact configuration explains **0.860** of its circular variance, with
+median within-configuration MAD 7.55°. Examples include +108.0° at Pluto wall
+0.915 GHz / \(\rho=0.21367\), +106.4° at 2.467 GHz / 0.57606, and +86.3° at
+2.412 GHz / 0.56318. Pooling receivers without a path-specific offset therefore mixes
+physically shifted responses.
+
+#### Recommended calibration component
+
+Use a hierarchical raw-observation calibration keyed at least by radio identity,
+receiver, LO/band, gain/firmware state, and mounting configuration:
+
+1. estimate a circular \(c\) per receiver path and subtract it from observed phase;
+2. fit a small mount shift \(\delta\), with a prior centered at zero;
+3. fit \(g\) with strong shrinkage toward one—especially below \(d/\lambda=0.5\)—and
+   only relax it when capture-held-out data support the change;
+4. estimate \(\sigma_\phi\) or a robust von-Mises-plus-uniform noise model per
+   configuration; and
+5. generate \(P(\phi\mid\theta,\mathrm{configuration})\) on explicit fixed bin edges,
+   preserving separate r0/r1 likelihoods and uncertainty.
+
+This component removes repeatable electronics/path bias before applying geometry,
+allows a small slope and mount correction, and sets an honest likelihood width. It
+should be fit and scored with capture-level holdouts. A frequency-only lookup would miss
+the receiver and configuration effects demonstrated above.
+
 ## 5. Key-level results
 
 ### 5.1 The four new 2026 rover spacings
@@ -509,8 +643,15 @@ uv run python \
   reports/data/2026_08_25_empirical_dist_analysis/analysis/compare_theory.py
 ```
 
-The script uses deterministic per-key optimizer seeds and writes only within the canonical
-analysis directory linked above.
+Then generate the calibration-distribution supplement:
+
+```bash
+uv run python \
+  reports/data/2026_08_25_empirical_dist_analysis/analysis/calibration_parameter_distributions.py
+```
+
+The theory script uses deterministic per-key optimizer seeds. Both scripts write only within this report
+directory.
 
 | Output | Contents |
 |---|---|
@@ -520,9 +661,20 @@ analysis directory linked above.
 | [`metrics_cross_device.csv`](data/2026_08_25_empirical_dist_analysis/metrics_cross_device.csv) | exact-spacing device controls |
 | [`metrics_old_vs_current.csv`](data/2026_08_25_empirical_dist_analysis/metrics_old_vs_current.csv) | 44 shared-key baseline analysis |
 | [`analysis_metadata.json`](data/2026_08_25_empirical_dist_analysis/analysis_metadata.json) | input hashes, model, bounds, metric definitions |
+| [`calibration_key_parameters.csv`](data/2026_08_25_empirical_dist_analysis/calibration_key_parameters.csv) | 48 fitted keys joined to LO, band, and physical-spacing provenance |
+| [`calibration_parameter_summary.csv`](data/2026_08_25_empirical_dist_analysis/calibration_parameter_summary.csv) | parameter quantiles overall, by device/band, and by electrical-spacing regime |
+| [`calibration_systematics_summary.csv`](data/2026_08_25_empirical_dist_analysis/calibration_systematics_summary.csv) | grouping-level in-sample repeatability metrics |
+| [`calibration_configuration_summary.csv`](data/2026_08_25_empirical_dist_analysis/calibration_configuration_summary.csv) | 34 exact-configuration receiver summaries and r0/r1 phase differences |
+| [`calibration_quality_scan_inputs.csv`](data/2026_08_25_empirical_dist_analysis/calibration_quality_scan_inputs.csv) | frozen 2,250-row quality-scan input used for the distribution supplement |
+| [`calibration_distribution_metadata.json`](data/2026_08_25_empirical_dist_analysis/calibration_distribution_metadata.json) | scan coverage, selection, bounds, and metric notes |
 | [`all_48_keys_atlas.pdf`](figures/2026_08_25_empirical_dist_analysis/all_48_keys_atlas.pdf) | every empirical/calibrated/residual heatmap |
 | [`all_48_keys_production_sym_atlas.pdf`](figures/2026_08_25_empirical_dist_analysis/all_48_keys_production_sym_atlas.pdf) | every production/as-built/physical/residual heatmap |
+| [`calibration_parameter_histograms.png`](figures/2026_08_25_empirical_dist_analysis/calibration_parameter_histograms.png) | key-level fitted-parameter distributions by device/band |
+| [`calibration_parameters_by_frequency_spacing.png`](figures/2026_08_25_empirical_dist_analysis/calibration_parameters_by_frequency_spacing.png) | parameter scatter against LO and physical spacing |
+| [`per_dataset_calibration_histograms.png`](figures/2026_08_25_empirical_dist_analysis/per_dataset_calibration_histograms.png) | per-dataset/per-receiver distributions by platform and band |
+| [`calibration_configuration_systematics.png`](figures/2026_08_25_empirical_dist_analysis/calibration_configuration_systematics.png) | configuration variance explained and receiver-path phase differences |
 | [`compare_theory.py`](data/2026_08_25_empirical_dist_analysis/analysis/compare_theory.py) | reproducible analysis and figure generator |
+| [`calibration_parameter_distributions.py`](data/2026_08_25_empirical_dist_analysis/analysis/calibration_parameter_distributions.py) | reproducible distribution and configuration-repeatability analysis |
 
 No empirical PKL, source dataset, precompute cache, or existing report was written or
 modified by this analysis.
