@@ -22,7 +22,7 @@ datasets:
   - /mnt/md2/splits/rover_2026q3_v1/eval_apr17_plus_rover2026_n11.txt
   val_holdout_fraction: 0.5
   val_subsample_fraction: 0.5
-  workers: 24
+  workers: 16
   segmentation_version: 3.7
 global:
   beamformer_input: false
