@@ -43,7 +43,9 @@ The integrated cache has 2,454 matched PKL/YARR pairs: 2,406 historical pairs pl
 
 ## Configurations
 
-The new files retain the previous June architecture, augmentation, optimizer, seed, and validation cadence. Only dataset/artifact paths, output paths, and the paired warm-start checkpoint were changed.
+The new files retain the previous June architecture, augmentation, optimizer, seed, and validation cadence. Dataset/artifact paths, output paths, the paired warm-start checkpoint, and the worker count were changed.
+
+Both planned runs use 16 data-loader workers. This is lower than the previous 24-worker setting to reduce CPU pressure; it does not change the model architecture or objective.
 
 | Stage | Configuration | Output |
 | --- | --- | --- |
@@ -52,8 +54,8 @@ The new files retain the previous June architecture, augmentation, optimizer, se
 
 The committed configuration SHA-256 values are:
 
-- Single: `cbb195868ad2756113192a19ecf4650e0f64481c1bc736b46b66501d61ebe414`.
-- Paired: `b4877749f344a8a4e6aa2ae556cf308d40f1080accc93473a510b7e831812826`.
+- Single: `6cf431816f1135d3794e977eb530471fa190e6c2db220a63414483c9cb735b54`.
+- Paired: `3f66acb3b5f9e1022d73a8f3a5361337d1736227f3b40229486e54d0ebf1a148`.
 
 The paired run loads and freezes the selected single model from:
 
