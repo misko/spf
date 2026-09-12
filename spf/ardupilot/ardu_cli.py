@@ -2,7 +2,7 @@
 """Guarded ArduPilot inspection and calibration CLI.
 
 Exit codes:
-    0  Query completed and the requested health/policy check passed.
+    0  Query completed and any requested health/policy check passed.
     1  Query completed and reported an unhealthy/failed state.
     2  Usage, transport, ownership, timeout, or safety failure.
 """
@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import math
 import subprocess
 import sys
 import termios
@@ -41,7 +42,6 @@ from spf.mavlink.compass_policy import (
     parse_parameter_file,
     plan_external_compass_repairs,
 )
-
 
 SERVICE_NAME = "mavlink_controller.service"
 SOURCE_SYSTEM = 254
@@ -153,6 +153,68 @@ ACCELCAL_POSES = {
 ACCELCAL_SUCCESS = mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS
 ACCELCAL_FAILED = mavutil.mavlink.ACCELCAL_VEHICLE_POS_FAILED
 
+# Telemetry that streams continuously and cannot carry a calibration verdict.
+# A trace counts these instead of printing each one, so the interesting traffic
+# stays readable -- but the counts are still printed, so nothing is invisible.
+TRACE_NOISY_MESSAGE_TYPES = frozenset(
+    {
+        "AHRS",
+        "AHRS2",
+        "ATTITUDE",
+        "BATTERY_STATUS",
+        "EKF_STATUS_REPORT",
+        "GLOBAL_POSITION_INT",
+        "GPS_RAW_INT",
+        "HEARTBEAT",
+        "HWSTATUS",
+        "LOCAL_POSITION_NED",
+        "MEMINFO",
+        "MISSION_CURRENT",
+        "NAV_CONTROLLER_OUTPUT",
+        "POWER_STATUS",
+        "RAW_IMU",
+        "RC_CHANNELS",
+        "SCALED_IMU2",
+        "SCALED_IMU3",
+        "SCALED_PRESSURE",
+        "SCALED_PRESSURE2",
+        "SERVO_OUTPUT_RAW",
+        "SIMSTATE",
+        "SYSTEM_TIME",
+        "SYS_STATUS",
+        "TIMESYNC",
+        "VFR_HUD",
+        "VIBRATION",
+    }
+)
+
+# These parameter slots describe offsets and scales, not the outcome of the
+# latest calibration or whether the associated sensor is currently active.
+ACCEL_CALIBRATION_IMUS = (
+    ("IMU1", "INS_ACCOFFS_", "INS_ACCSCAL_"),
+    ("IMU2", "INS_ACC2OFFS_", "INS_ACC2SCAL_"),
+    ("IMU3", "INS_ACC3OFFS_", "INS_ACC3SCAL_"),
+)
+ACCEL_SCALE_LIMITS = (0.8, 1.2)
+
+ACCELCAL_NO_TERMINAL_RESULT_MESSAGE = (
+    "all six pose confirmations were sent, but calibration completion was "
+    "not confirmed within {seconds:g}s.\n"
+    "  Stored INS_ACCOFFS_*/INS_ACCSCAL_* values may be from an earlier run.\n"
+    "  Inspect them (read-only): rover ardupilot accelcal verify\n"
+    "  Parameter inspection does not confirm this run succeeded.\n"
+    "  To investigate, capture what the flight controller sends:\n"
+    "    rover ardupilot accelcal start --yes --trace "
+    "--trace-output accelcal_trace.txt\n"
+    "  Keep production stopped until calibration and pre-arm checks pass."
+)
+
+ACCEL_PARAMETER_NOTICE = (
+    "Stored parameter values do not confirm the latest calibration succeeded "
+    "or that all active sensors are calibrated. Use the calibration result "
+    "and ArduPilot pre-arm checks for those decisions."
+)
+
 CLI_CHEATSHEET = """quick reference:
   # Direct serial has one owner; stop production before using this CLI.
   sudo systemctl stop mavlink_controller.service
@@ -175,6 +237,11 @@ CLI_CHEATSHEET = """quick reference:
   # waits for Enter only after the assembled, disarmed rover is motionless.
   python -m spf.ardupilot.ardu_cli accelcal start --yes
 
+  # Inspect stored parameter values (read-only; not a calibration verdict),
+  # and capture what the FC sends if completion is not confirmed.
+  python -m spf.ardupilot.ardu_cli accelcal verify
+  python -m spf.ardupilot.ardu_cli accelcal start --yes --trace --trace-output trace.txt
+
   # Restore production only after compass/prearm checks pass.
   sudo systemctl restart mavlink_controller.service
   journalctl -fu mavlink_controller.service
@@ -183,6 +250,10 @@ exit codes:
   0  completed and healthy/passed
   1  completed with an unhealthy/failed result
   2  usage, transport, ownership, timeout, or safety failure
+
+accelcal verify reports parameter inspection only:
+  0 complete (including defaults), 1 invalid values, 2 unknown/incomplete.
+  It does not confirm calibration success or readiness.
 """
 
 
@@ -209,8 +280,6 @@ class TransportLost(RuntimeError):
 # pyserial raises SerialException, which subclasses IOError (== OSError in
 # py3); pymavlink can surface the same underlying condition as a bare OSError.
 TRANSPORT_ERRORS = (OSError,)
-
-
 
 
 def _json_safe(value: Any) -> Any:
@@ -876,6 +945,111 @@ def command_magcal(args: argparse.Namespace) -> int:
     return 0 if (action != "monitor" or events) else 1
 
 
+def _format_trace_message(message) -> str:
+    """One line describing a MAVLink message, detailed for the ones that matter."""
+    kind = str(message.get_type()) if hasattr(message, "get_type") else "UNKNOWN"
+    if kind in ("COMMAND_LONG", "COMMAND_INT"):
+        command = int(getattr(message, "command", -1))
+        params = " ".join(
+            f"param{index}={float(getattr(message, f'param{index}', 0.0)):g}"
+            for index in range(1, 8)
+            if hasattr(message, f"param{index}")
+        )
+        return f"{kind} command={command}({_enum_name('MAV_CMD', command)}) {params}"
+    if kind == "COMMAND_ACK":
+        command = int(getattr(message, "command", -1))
+        result = int(getattr(message, "result", -1))
+        return (
+            f"COMMAND_ACK command={command}({_enum_name('MAV_CMD', command)}) "
+            f"result={result}({_mav_result_name(result)})"
+        )
+    if kind == "STATUSTEXT":
+        severity = int(getattr(message, "severity", -1))
+        text = getattr(message, "text", "")
+        if isinstance(text, bytes):
+            text = text.decode("utf-8", errors="replace")
+        return (
+            f"STATUSTEXT severity={severity}({_enum_name('MAV_SEVERITY', severity)}) "
+            f"text={str(text).rstrip(chr(0))!r}"
+        )
+    try:
+        body = json.dumps(_message_dict(message), sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        body = repr(message)
+    return f"{kind} {body}"
+
+
+class MessageTracer:
+    """Records what the flight controller actually sends during a calibration.
+
+    Capture evidence for unconfirmed terminal results without broadening the
+    success matcher. Routine telemetry is counted; other messages are rendered.
+
+    Disabled instances are free: every entry point is a no-op.
+    """
+
+    def __init__(
+        self,
+        enabled: bool = False,
+        output: str | None = None,
+        stream=None,
+        clock=time.monotonic,
+    ) -> None:
+        self.enabled = bool(enabled)
+        self.output = output
+        self.lines: list[str] = []
+        self.counts: dict[str, int] = {}
+        self._stream = stream
+        self._clock = clock
+        self._start = clock()
+
+    def _emit(self, text: str) -> None:
+        line = f"[trace {self._clock() - self._start:8.3f}s] {text}"
+        self.lines.append(line)
+        stream = self._stream if self._stream is not None else sys.stderr
+        print(line, file=stream, flush=True)
+
+    def note(self, text: str) -> None:
+        """Record a phase boundary or a decision the CLI made."""
+        if not self.enabled:
+            return
+        self._emit(f"-- {text}")
+
+    def message(self, phase: str, message) -> None:
+        """Record one received message, or count it if it is pure telemetry."""
+        if not self.enabled or message is None:
+            return
+        kind = str(message.get_type()) if hasattr(message, "get_type") else "UNKNOWN"
+        self.counts[kind] = self.counts.get(kind, 0) + 1
+        if kind in TRACE_NOISY_MESSAGE_TYPES:
+            return
+        self._emit(f"{phase}: {_format_trace_message(message)}")
+
+    def close(self) -> None:
+        """Print the per-type totals and write the transcript if asked."""
+        if not self.enabled:
+            return
+        if self.counts:
+            summary = ", ".join(
+                f"{kind}={count}" for kind, count in sorted(self.counts.items())
+            )
+            self._emit(f"-- message totals: {summary}")
+        if self.output:
+            path = Path(self.output)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("\n".join(self.lines) + "\n", encoding="utf-8")
+            print(f"trace written to {path}", file=sys.stderr, flush=True)
+
+
+def tracer_from_args(args: argparse.Namespace) -> MessageTracer:
+    """Build a tracer from --trace/--trace-output, defaulting to disabled."""
+    output = getattr(args, "trace_output", None)
+    # --trace-output on its own is unambiguous intent to trace.
+    return MessageTracer(
+        enabled=bool(getattr(args, "trace", False) or output), output=output
+    )
+
+
 def send_accelcal_start(connection) -> None:
     """Start ArduPilot's full six-position accelerometer calibration."""
     connection.mav.command_long_send(
@@ -930,16 +1104,30 @@ def _accelcal_terminal_from_message(message) -> bool | None:
     return None
 
 
-def _wait_accelcal_event(connection, timeout_s: float):
+def _wait_accelcal_event(
+    connection,
+    timeout_s: float,
+    tracer: MessageTracer | None = None,
+    phase: str = "pose-wait",
+):
+    tracer = tracer or MessageTracer()
+    # While tracing, take delivery of EVERY message. The current matcher only
+    # ever sees COMMAND_LONG/STATUSTEXT, so if ArduPilot announces the terminal
+    # result some other way (a COMMAND_INT, a COMMAND_ACK, a MAVLink2-only
+    # message) the filter itself would hide the evidence.
+    wanted = None if tracer.enabled else ["COMMAND_LONG", "STATUSTEXT"]
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         remaining = max(0.0, deadline - time.monotonic())
         message = connection.recv_match(
-            type=["COMMAND_LONG", "STATUSTEXT"],
+            type=wanted,
             blocking=True,
             timeout=min(0.5, remaining),
         )
         if message is None:
+            continue
+        tracer.message(phase, message)
+        if message.get_type() not in ("COMMAND_LONG", "STATUSTEXT"):
             continue
         terminal = _accelcal_terminal_from_message(message)
         if terminal is not None:
@@ -962,12 +1150,16 @@ def run_accelcal(
     result_timeout_s: float,
     input_fn=input,
     output_fn=print,
+    tracer: MessageTracer | None = None,
 ) -> dict[str, Any]:
     """Run the complete interactive accelerometer-calibration state machine."""
+    tracer = tracer or MessageTracer()
+    tracer.note("accelcal start command sent")
     send_accelcal_start(connection)
     ack = _wait_command_ack(connection, ACCELCAL_START_COMMAND, command_timeout_s)
     if ack is None:
         raise CliError("no COMMAND_ACK received when starting accelcal")
+    tracer.message("start-ack", ack)
     start_result = int(ack.result)
     if start_result not in ACCELCAL_ACCEPTED_RESULTS:
         return {
@@ -981,7 +1173,12 @@ def run_accelcal(
     completed: list[int] = []
     expected_position = min(ACCELCAL_POSES)
     while expected_position <= max(ACCELCAL_POSES):
-        event = _wait_accelcal_event(connection, pose_timeout_s)
+        event = _wait_accelcal_event(
+            connection,
+            pose_timeout_s,
+            tracer=tracer,
+            phase=f"pose-wait[{expected_position}/6]",
+        )
         if event is None:
             raise CliError(
                 f"timed out waiting for accelerometer pose {expected_position}/6"
@@ -1020,6 +1217,7 @@ def run_accelcal(
                 "accelcal requires an interactive terminal for pose confirmation"
             ) from error
 
+        tracer.note(f"operator confirmed pose {position}/6; sample requested")
         send_accelcal_position(connection, position)
         # Do not require the per-pose COMMAND_ACK. ArduPilot periodically
         # publishes its current requested pose and terminal result, which are
@@ -1030,12 +1228,29 @@ def run_accelcal(
         completed.append(position)
         expected_position += 1
 
-    event = _wait_accelcal_event(connection, result_timeout_s)
-    if event is None or event[0] != "terminal":
-        raise CliError(
-            "all poses were accepted but no terminal calibration result was received"
+    tracer.note("all six poses sent; waiting for the terminal result")
+    deadline = time.monotonic() + result_timeout_s
+    terminal_event = None
+    while time.monotonic() < deadline:
+        event = _wait_accelcal_event(
+            connection,
+            max(0.0, deadline - time.monotonic()),
+            tracer=tracer,
+            phase="terminal-wait",
         )
-    success = bool(event[1])
+        if event is None:
+            break
+        if event[0] == "terminal":
+            terminal_event = event
+            break
+        # ArduPilot repeats pose requests. A buffered request must neither
+        # terminate this wait nor reset its deadline after the final sample.
+        tracer.note(f"ignoring repeated pose {event[1]} during terminal wait")
+    if terminal_event is None:
+        raise CliError(
+            ACCELCAL_NO_TERMINAL_RESULT_MESSAGE.format(seconds=result_timeout_s)
+        )
+    success = bool(terminal_event[1])
     return {
         "success": success,
         "start_result": start_result,
@@ -1043,6 +1258,130 @@ def run_accelcal(
         "poses_completed": completed,
         "failure": None if success else "flight controller reported failure",
     }
+
+
+def evaluate_accel_calibration(
+    params: dict[str, float], *, snapshot_complete: bool = True
+) -> dict[str, Any]:
+    """Inspect reported parameter slots without certifying calibration success.
+
+    A complete, finite, in-range snapshot is inspectable even when its values
+    are defaults. Sensor presence/identity and calibration freshness cannot be
+    inferred from these six values, so there is deliberately no calibrated flag.
+    """
+    imus: list[dict[str, Any]] = []
+    for name, offset_prefix, scale_prefix in ACCEL_CALIBRATION_IMUS:
+        offsets = {axis: params.get(f"{offset_prefix}{axis}") for axis in "XYZ"}
+        scales = {axis: params.get(f"{scale_prefix}{axis}") for axis in "XYZ"}
+        fields = {
+            **{f"{offset_prefix}{axis}": value for axis, value in offsets.items()},
+            **{f"{scale_prefix}{axis}": value for axis, value in scales.items()},
+        }
+        if all(value is None for value in fields.values()):
+            continue
+        missing = [key for key, value in fields.items() if value is None]
+        invalid = [
+            key
+            for key, value in fields.items()
+            if value is not None and not math.isfinite(value)
+        ]
+        low, high = ACCEL_SCALE_LIMITS
+        invalid.extend(
+            f"{scale_prefix}{axis}"
+            for axis, value in scales.items()
+            if value is not None and math.isfinite(value) and not low <= value <= high
+        )
+        if missing:
+            status = "unknown"
+        elif invalid:
+            status = "invalid_values"
+        elif all(value == 1.0 for value in scales.values()) and all(
+            value == 0.0 for value in offsets.values()
+        ):
+            status = "default_values"
+        else:
+            status = "nondefault_values"
+        # Preserve nonfinite values as text so JSON output remains valid JSON.
+        imus.append(
+            {
+                "imu": name,
+                "offsets": {
+                    axis: value if value is None or math.isfinite(value) else str(value)
+                    for axis, value in offsets.items()
+                },
+                "scales": {
+                    axis: value if value is None or math.isfinite(value) else str(value)
+                    for axis, value in scales.items()
+                },
+                "status": status,
+                "missing_parameters": missing,
+                "invalid_parameters": invalid,
+            }
+        )
+    if (
+        not snapshot_complete
+        or not imus
+        or any(imu["missing_parameters"] for imu in imus)
+    ):
+        status = "unknown"
+    elif any(imu["invalid_parameters"] for imu in imus):
+        status = "invalid_values"
+    else:
+        status = "complete"
+    return {
+        "status": status,
+        "imus": imus,
+        "parameter_snapshot_complete": snapshot_complete,
+        "notice": ACCEL_PARAMETER_NOTICE,
+    }
+
+
+def _print_accel_calibration(report: dict[str, Any]) -> None:
+    if not report["imus"]:
+        print("No INS_ACC* offset/scale parameters were reported.")
+    for imu in report["imus"]:
+        print(f"{imu['imu']}:")
+        for axis in "XYZ":
+            offset = imu["offsets"][axis]
+            scale = imu["scales"][axis]
+            offset_text = (
+                f"{offset:+.6f}" if isinstance(offset, (int, float)) else str(offset)
+            )
+            scale_text = (
+                f"{scale:.6f}" if isinstance(scale, (int, float)) else str(scale)
+            )
+            if offset is None:
+                offset_text = "missing"
+            if scale is None:
+                scale_text = "missing"
+            print(f"  {axis}  offset={offset_text:>12}  scale={scale_text:>10}")
+        print(f"  -> {imu['status']}")
+        if imu["missing_parameters"]:
+            print("  missing: " + ", ".join(imu["missing_parameters"]))
+        if imu["invalid_parameters"]:
+            print("  invalid: " + ", ".join(imu["invalid_parameters"]))
+    print(f"\nParameter inspection: {report['status']}")
+    if not report["parameter_snapshot_complete"]:
+        print("Parameter download incomplete; retry with a larger --parameter-timeout.")
+    print(report["notice"])
+
+
+def command_accelcal_verify(args: argparse.Namespace) -> int:
+    """Read-only parameter inspection, not a calibration or readiness verdict."""
+    connection, _heartbeat, master = _connect(args)
+    try:
+        params, complete = download_parameters(connection, args.parameter_timeout)
+    finally:
+        connection.close()
+    report = evaluate_accel_calibration(params, snapshot_complete=complete)
+    report["master"] = master
+    if args.json or args.json_output:
+        _write_json(report, args.json_output)
+    else:
+        _print_accel_calibration(report)
+    # Zero means the inspection completed, including for factory-default slots.
+    # It never means that a calibration operation or a pre-arm check passed.
+    return {"complete": 0, "invalid_values": 1, "unknown": 2}[report["status"]]
 
 
 def _print_accelcal_pose_plan() -> None:
@@ -1070,12 +1409,18 @@ def command_accelcal(args: argparse.Namespace) -> int:
     )
     print("The first command also calibrates the gyros; do not move it until prompted.")
     _print_accelcal_pose_plan()
-    report = run_accelcal(
-        connection,
-        command_timeout_s=args.command_timeout,
-        pose_timeout_s=args.pose_timeout,
-        result_timeout_s=args.result_timeout,
-    )
+    tracer = tracer_from_args(args)
+    try:
+        report = run_accelcal(
+            connection,
+            command_timeout_s=args.command_timeout,
+            pose_timeout_s=args.pose_timeout,
+            result_timeout_s=args.result_timeout,
+            tracer=tracer,
+        )
+    finally:
+        # The trace is most valuable precisely when the run raised.
+        tracer.close()
     if report["success"]:
         print("PASS: accelerometer calibration saved successfully.")
         print("Reboot ArduPilot, then run: python -m spf.ardupilot.ardu_cli prearm")
@@ -1521,12 +1866,17 @@ def command_calibrate(args: argparse.Namespace) -> int:
 
     print("== 1/4  accelerometer + gyro ==")
     _print_accelcal_pose_plan()
-    accel = run_accelcal(
-        connection,
-        command_timeout_s=args.command_timeout,
-        pose_timeout_s=args.pose_timeout,
-        result_timeout_s=args.result_timeout,
-    )
+    tracer = tracer_from_args(args)
+    try:
+        accel = run_accelcal(
+            connection,
+            command_timeout_s=args.command_timeout,
+            pose_timeout_s=args.pose_timeout,
+            result_timeout_s=args.result_timeout,
+            tracer=tracer,
+        )
+    finally:
+        tracer.close()
     if not accel["success"]:
         print(f"FAIL: accelerometer calibration failed: {accel['failure']}")
         return 1
@@ -1642,6 +1992,22 @@ def _add_connection_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json-output", help="Write JSON to this file.")
 
 
+def _add_trace_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        help=(
+            "Trace calibration messages to stderr (routine telemetry is counted). Use "
+            "this to capture what the flight controller really emits when the "
+            "terminal accelcal result is not recognised."
+        ),
+    )
+    parser.add_argument(
+        "--trace-output",
+        help="Also write the trace to this file (implies --trace).",
+    )
+
+
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Inspect an SPF rover's ArduPilot and manage sensor calibration.",
@@ -1737,6 +2103,7 @@ def get_parser() -> argparse.ArgumentParser:
             "slot 1, matching the fleet compass policy."
         ),
     )
+    _add_trace_options(calibrate)
     calibrate.set_defaults(handler=command_calibrate)
 
     rc = subparsers.add_parser(
@@ -1850,7 +2217,25 @@ def get_parser() -> argparse.ArgumentParser:
         default=60.0,
         help="Maximum seconds to wait for the saved terminal result.",
     )
+    _add_trace_options(accelcal_start)
     accelcal_start.set_defaults(handler=command_accelcal)
+
+    accelcal_verify = accelcal_subparsers.add_parser(
+        "verify",
+        description=(
+            "Read stored accelerometer parameters without writing calibration state. "
+            "Exit 0 means inspection completed (including defaults), 1 means invalid "
+            "values, and 2 means unknown/incomplete. This does not confirm calibration "
+            "success or vehicle readiness."
+        ),
+        help=(
+            "Read-only: print the saved INS_ACCOFFS_*/INS_ACCSCAL_* values and "
+            "inspect their completeness and numeric ranges, not calibration success."
+        ),
+    )
+    _add_connection_options(accelcal_verify)
+    accelcal_verify.add_argument("--parameter-timeout", type=float, default=60.0)
+    accelcal_verify.set_defaults(handler=command_accelcal_verify)
     return parser
 
 

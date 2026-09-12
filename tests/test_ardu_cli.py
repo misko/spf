@@ -1,3 +1,5 @@
+import argparse
+import io
 import json
 from types import SimpleNamespace
 
@@ -36,6 +38,10 @@ class FakeConnection:
     def __init__(self, messages=()):
         self.messages = list(messages)
         self.mav = FakeMav()
+        self.closed = False
+
+    def close(self):
+        self.closed = True
 
     def recv_match(self, *, blocking, type=None, timeout=None):
         if not blocking:
@@ -710,3 +716,413 @@ def test_run_accelcal_reports_terminal_failure():
 
     assert report["success"] is False
     assert report["failure"] == "flight controller reported failure"
+
+
+# ------------------------------------------------- accelcal trace + verify ---
+#
+# Rover 4 (2026-08-04) finished all six poses, saved INS_ACCSCAL_* at
+# 0.992/0.993/0.995 -- and `run_accelcal` still raised "no terminal calibration
+# result". Stored values alone cannot establish the outcome of that run.
+# These tests cover evidence gathering, repeated pose requests at completion,
+# and parameter inspection without certifying calibration success.
+
+
+class RecordingConnection(FakeConnection):
+    """FakeConnection that remembers which message types were asked for."""
+
+    def __init__(self, messages=()):
+        super().__init__(messages)
+        self.requested_types = []
+
+    def recv_match(self, *, blocking, type=None, timeout=None):
+        self.requested_types.append(type)
+        return super().recv_match(blocking=blocking, type=type, timeout=timeout)
+
+
+def statustext(text, severity=6):
+    return FakeMessage(message_type="STATUSTEXT", severity=severity, text=text)
+
+
+def full_pose_messages(terminal=None):
+    messages = [command_ack(mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION)]
+    for position in range(1, 7):
+        messages.append(accelcal_position(position))
+    if terminal is not None:
+        messages.append(accelcal_position(terminal))
+    return messages
+
+
+def run_traced_accelcal(connection, tracer):
+    return ardu_cli.run_accelcal(
+        connection,
+        command_timeout_s=0.01,
+        pose_timeout_s=0.01,
+        result_timeout_s=0.01,
+        input_fn=lambda prompt: "",
+        output_fn=lambda message: None,
+        tracer=tracer,
+    )
+
+
+def test_untraced_accelcal_keeps_the_narrow_message_filter():
+    connection = RecordingConnection(
+        full_pose_messages(mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS)
+    )
+
+    run_traced_accelcal(connection, ardu_cli.MessageTracer(enabled=False))
+
+    pose_filters = [
+        wanted for wanted in connection.requested_types if wanted is not None
+    ]
+    assert pose_filters
+    assert all(
+        set(wanted) == {"COMMAND_LONG", "STATUSTEXT"}
+        for wanted in pose_filters
+        if not isinstance(wanted, str)
+    )
+
+
+def test_trace_takes_delivery_of_every_message_not_just_the_matched_two():
+    """A filter that hides COMMAND_INT/COMMAND_ACK would hide the bug itself."""
+    messages = full_pose_messages(mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS)
+    messages.insert(
+        1,
+        FakeMessage(
+            message_type="COMMAND_INT",
+            command=mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS,
+            param1=17.0,
+        ),
+    )
+    connection = RecordingConnection(messages)
+    stream = io.StringIO()
+    tracer = ardu_cli.MessageTracer(enabled=True, stream=stream)
+
+    report = run_traced_accelcal(connection, tracer)
+    tracer.close()
+
+    assert report["success"] is True
+    # Everything after the start ACK is fetched unfiltered while tracing.
+    assert None in connection.requested_types
+    rendered = stream.getvalue()
+    assert "COMMAND_INT" in rendered
+    assert "MAV_CMD_ACCELCAL_VEHICLE_POS" in rendered
+    assert "param1=17" in rendered
+    assert tracer.counts["COMMAND_INT"] == 1
+
+
+def test_trace_records_command_ack_statustext_and_pose_detail():
+    messages = full_pose_messages(mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS)
+    messages.insert(1, statustext("Calibration step 1", severity=5))
+    messages.insert(
+        2, command_ack(mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS, result=0)
+    )
+    stream = io.StringIO()
+    tracer = ardu_cli.MessageTracer(enabled=True, stream=stream)
+
+    run_traced_accelcal(FakeConnection(messages), tracer)
+    tracer.close()
+
+    rendered = stream.getvalue()
+    assert "COMMAND_ACK" in rendered and "MAV_RESULT_ACCEPTED" in rendered
+    assert "Calibration step 1" in rendered
+    assert "severity=5" in rendered
+    assert f"COMMAND_LONG command={mavutil.mavlink.MAV_CMD_ACCELCAL_VEHICLE_POS}" in (
+        rendered
+    )
+    assert "pose-wait" in rendered
+    assert "message totals" in rendered
+
+
+def test_trace_counts_telemetry_without_printing_every_frame():
+    messages = full_pose_messages(mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS)
+    messages.insert(1, heartbeat())
+    messages.insert(2, heartbeat())
+    stream = io.StringIO()
+    tracer = ardu_cli.MessageTracer(enabled=True, stream=stream)
+
+    run_traced_accelcal(FakeConnection(messages), tracer)
+    tracer.close()
+
+    assert tracer.counts["HEARTBEAT"] == 2
+    printed = [line for line in stream.getvalue().splitlines() if "HEARTBEAT" in line]
+    # Counted in the totals line only -- never one line per frame.
+    assert len(printed) == 1
+    assert "message totals" in printed[0]
+
+
+def test_trace_output_file_is_written_and_implies_tracing(tmp_path):
+    path = tmp_path / "traces" / "accelcal.txt"
+    tracer = ardu_cli.tracer_from_args(
+        argparse.Namespace(trace=False, trace_output=str(path))
+    )
+    assert tracer.enabled
+
+    run_traced_accelcal(
+        FakeConnection(
+            full_pose_messages(mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS)
+        ),
+        tracer,
+    )
+    tracer.close()
+
+    assert "COMMAND_LONG" in path.read_text()
+
+
+def test_tracer_is_disabled_by_default():
+    tracer = ardu_cli.tracer_from_args(argparse.Namespace())
+
+    assert not tracer.enabled
+    tracer.note("ignored")
+    tracer.close()
+    assert tracer.lines == []
+
+
+def test_missing_terminal_result_still_fails_but_says_what_to_do():
+    """Fail closed, but name the parameters and the flag that closes this out."""
+    connection = FakeConnection(full_pose_messages(terminal=None))
+
+    with pytest.raises(ardu_cli.CliError) as error:
+        run_traced_accelcal(connection, ardu_cli.MessageTracer(enabled=False))
+
+    text = str(error.value)
+    assert "not confirmed" in text
+    assert "earlier run" in text
+    assert "PROBABLY SAVED" not in text
+    assert "INS_ACCOFFS_" in text and "INS_ACCSCAL_" in text
+    assert "accelcal verify" in text
+    assert "--trace" in text
+
+
+def accel_params(offsets=(0.058, -0.107, -0.836), scales=(0.992, 0.993, 0.995)):
+    axes = ("X", "Y", "Z")
+    params = {f"INS_ACCOFFS_{axis}": offsets[i] for i, axis in enumerate(axes)}
+    params.update({f"INS_ACCSCAL_{axis}": scales[i] for i, axis in enumerate(axes)})
+    return params
+
+
+def test_rover4_values_are_observations_not_a_calibration_verdict():
+    report = ardu_cli.evaluate_accel_calibration(accel_params())
+    assert report["status"] == "complete"
+    assert report["imus"][0]["status"] == "nondefault_values"
+    assert "calibrated" not in report
+    assert "calibrated" not in report["imus"][0]
+    assert "do not confirm" in report["notice"]
+
+
+def test_unity_scales_with_nonzero_offsets_are_nondefault_values():
+    report = ardu_cli.evaluate_accel_calibration(accel_params(scales=(1.0, 1.0, 1.0)))
+    assert report["status"] == "complete"
+    assert report["imus"][0]["status"] == "nondefault_values"
+
+
+def test_factory_defaults_are_reported_without_a_calibration_verdict():
+    report = ardu_cli.evaluate_accel_calibration(
+        accel_params(offsets=(0.0, 0.0, 0.0), scales=(1.0, 1.0, 1.0))
+    )
+    assert report["status"] == "complete"
+    assert report["imus"][0]["status"] == "default_values"
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("INS_ACCOFFS_X", float("nan")),
+        ("INS_ACCOFFS_Y", float("inf")),
+        ("INS_ACCOFFS_Z", -float("inf")),
+        ("INS_ACCSCAL_X", float("nan")),
+        ("INS_ACCSCAL_Y", float("inf")),
+        ("INS_ACCSCAL_Z", 4.0),
+        ("INS_ACCSCAL_X", 0.0),
+    ],
+)
+def test_invalid_values_are_flagged_and_json_is_finite(field, value):
+    params = accel_params()
+    params[field] = value
+    report = ardu_cli.evaluate_accel_calibration(params)
+    assert report["status"] == "invalid_values"
+    assert field in report["imus"][0]["invalid_parameters"]
+    json.dumps(report, allow_nan=False)
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"INS_ACCSCAL_X": 0.992, "INS_ACCOFFS_X": 0.058},
+        {"INS_ACCOFFS_X": 0.058},
+        {"INS_ACCSCAL_X": 0.992},
+    ],
+)
+def test_partial_imu_values_are_unknown_even_in_a_complete_download(params):
+    report = ardu_cli.evaluate_accel_calibration(params)
+    assert report["status"] == "unknown"
+    assert len(report["imus"]) == 1
+    assert report["imus"][0]["missing_parameters"]
+
+
+def test_incomplete_download_is_unknown_even_with_a_complete_imu():
+    report = ardu_cli.evaluate_accel_calibration(
+        accel_params(), snapshot_complete=False
+    )
+    assert report["status"] == "unknown"
+    assert report["imus"][0]["status"] == "nondefault_values"
+
+
+def test_absent_ins_parameters_are_unknown():
+    report = ardu_cli.evaluate_accel_calibration({"COMPASS_USE": 1})
+    assert report["imus"] == []
+    assert report["status"] == "unknown"
+
+
+def test_good_imu_does_not_hide_an_invalid_second_slot():
+    params = accel_params()
+    params.update(
+        {
+            key.replace("INS_ACC", "INS_ACC2"): value
+            for key, value in accel_params().items()
+        }
+    )
+    params["INS_ACC2SCAL_Z"] = 4.0
+    report = ardu_cli.evaluate_accel_calibration(params)
+    assert report["status"] == "invalid_values"
+    assert [imu["status"] for imu in report["imus"]] == [
+        "nondefault_values",
+        "invalid_values",
+    ]
+
+
+def test_default_secondary_slot_is_described_without_inferring_sensor_activity():
+    params = accel_params()
+    defaults = accel_params(offsets=(0.0, 0.0, 0.0), scales=(1.0, 1.0, 1.0))
+    params.update(
+        {key.replace("INS_ACC", "INS_ACC2"): value for key, value in defaults.items()}
+    )
+    report = ardu_cli.evaluate_accel_calibration(params)
+    assert report["status"] == "complete"
+    assert [imu["status"] for imu in report["imus"]] == [
+        "nondefault_values",
+        "default_values",
+    ]
+    assert "all active sensors" in report["notice"]
+
+
+@pytest.mark.parametrize(
+    "params,complete,expected_code,expected_status",
+    [
+        (accel_params(), True, 0, "complete"),
+        (
+            accel_params(offsets=(0.0, 0.0, 0.0), scales=(1.0, 1.0, 1.0)),
+            True,
+            0,
+            "complete",
+        ),
+        (accel_params(scales=(1.0, 1.0, 4.0)), True, 1, "invalid_values"),
+        ({"INS_ACCSCAL_X": 0.992, "INS_ACCOFFS_X": 0.058}, False, 2, "unknown"),
+        (accel_params(), False, 2, "unknown"),
+        ({"COMPASS_USE": 1}, False, 2, "unknown"),
+        ({}, False, 2, "unknown"),
+    ],
+)
+@pytest.mark.parametrize("json_output", [False, True])
+def test_verify_reports_inspection_status_without_writes(
+    monkeypatch, capsys, params, complete, expected_code, expected_status, json_output
+):
+    connection = FakeConnection()
+    monkeypatch.setattr(
+        ardu_cli, "_connect", lambda args: (connection, heartbeat(), "fake")
+    )
+    monkeypatch.setattr(
+        ardu_cli, "download_parameters", lambda _c, _t: (params, complete)
+    )
+    args = ["accelcal", "verify"] + (["--json"] if json_output else [])
+    assert ardu_cli.main(args) == expected_code
+    output = capsys.readouterr().out
+    if json_output:
+        report = json.loads(output)
+        assert report["status"] == expected_status
+        assert report["parameter_snapshot_complete"] == complete
+        assert "calibrated" not in report
+    else:
+        assert f"Parameter inspection: {expected_status}" in output
+        assert "do not confirm" in output
+        assert "PASS" not in output
+    assert connection.mav.commands == []
+    assert connection.closed
+
+
+@pytest.mark.parametrize("tracing", [False, True])
+@pytest.mark.parametrize(
+    "terminal",
+    [
+        mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS,
+        mavutil.mavlink.ACCELCAL_VEHICLE_POS_FAILED,
+    ],
+)
+def test_final_wait_ignores_repeated_poses_and_receives_terminal_result(
+    tracing, terminal
+):
+    messages = full_pose_messages(terminal)
+    messages[-1:-1] = [accelcal_position(position) for position in (6, 5, 1, 6)]
+    connection = FakeConnection(messages)
+    tracer = ardu_cli.MessageTracer(enabled=tracing, stream=io.StringIO())
+    report = run_traced_accelcal(connection, tracer)
+    assert report["success"] == (
+        terminal == mavutil.mavlink.ACCELCAL_VEHICLE_POS_SUCCESS
+    )
+    assert report["poses_completed"] == list(range(1, 7))
+    assert (
+        len(connection.mav.commands) == 7
+    ), "repeated poses must not request more samples"
+    assert not connection.messages
+    if tracing:
+        assert "ignoring repeated pose 6" in "\n".join(tracer.lines)
+
+
+def test_repeated_final_poses_do_not_extend_the_original_deadline(monkeypatch):
+    now = [0.0]
+    poses = iter(range(1, 7))
+    terminal_budgets = []
+    monkeypatch.setattr(ardu_cli.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(
+        ardu_cli,
+        "_wait_command_ack",
+        lambda *_a: command_ack(ardu_cli.ACCELCAL_START_COMMAND),
+    )
+
+    def event(_connection, timeout_s, tracer=None, phase="pose-wait"):
+        if phase != "terminal-wait":
+            position = next(poses)
+            return ("pose", position, accelcal_position(position))
+        terminal_budgets.append(timeout_s)
+        assert len(terminal_budgets) <= 4, "final wait restarted its timeout"
+        now[0] += 0.25
+        return ("pose", 6, accelcal_position(6))
+
+    monkeypatch.setattr(ardu_cli, "_wait_accelcal_event", event)
+    with pytest.raises(ardu_cli.CliError, match="not confirmed within 1s"):
+        ardu_cli.run_accelcal(
+            FakeConnection(),
+            command_timeout_s=1,
+            pose_timeout_s=1,
+            result_timeout_s=1,
+            input_fn=lambda _p: "",
+            output_fn=lambda _m: None,
+        )
+    assert terminal_budgets == [1.0, 0.75, 0.5, 0.25]
+
+
+def test_trace_is_saved_when_calibration_raises(monkeypatch, tmp_path):
+    connection = FakeConnection()
+    monkeypatch.setattr(
+        ardu_cli, "_connect", lambda _a: (connection, heartbeat(), "fake")
+    )
+
+    def fail(_connection, **kwargs):
+        kwargs["tracer"].note("terminal result missing")
+        raise ardu_cli.CliError("completion not confirmed")
+
+    monkeypatch.setattr(ardu_cli, "run_accelcal", fail)
+    path = tmp_path / "failed-trace.txt"
+    assert (
+        ardu_cli.main(["accelcal", "start", "--yes", "--trace-output", str(path)]) == 2
+    )
+    assert "terminal result missing" in path.read_text()

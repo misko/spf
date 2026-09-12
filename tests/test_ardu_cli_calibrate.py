@@ -378,6 +378,39 @@ def test_a_broken_compass_policy_blocks_calibration(harness):
     assert not any(stage == "magcal:start" for stage in recorder.stages)
 
 
+def test_calibrate_plumbs_trace_through_to_the_accel_stage(harness, monkeypatch):
+    """`calibrate` is where the accelcal terminal-result bug actually bites."""
+    recorder, _ = harness
+    seen = {}
+
+    def capture(_conn, **kwargs):
+        seen.update(kwargs)
+        recorder.stages.append("accel")
+        return {"success": True, "failure": None}
+
+    monkeypatch.setattr(ardu_cli, "run_accelcal", capture)
+
+    ardu_cli.command_calibrate(calibrate_args(trace=True, trace_output=None))
+
+    assert seen["tracer"].enabled
+
+
+def test_calibrate_without_trace_is_silent_by_default(harness, monkeypatch):
+    recorder, _ = harness
+    seen = {}
+
+    def capture(_conn, **kwargs):
+        seen.update(kwargs)
+        recorder.stages.append("accel")
+        return {"success": True, "failure": None}
+
+    monkeypatch.setattr(ardu_cli, "run_accelcal", capture)
+
+    ardu_cli.command_calibrate(calibrate_args())
+
+    assert not seen["tracer"].enabled
+
+
 def test_an_uncalibrated_compass_does_not_block_its_own_calibration(monkeypatch):
     """The gate must ignore 'has no calibration' or calibrate could never run."""
     monkeypatch.setattr(

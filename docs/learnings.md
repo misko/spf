@@ -4,6 +4,32 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## Rover (2026-09-12): calibration observations are not proof of the latest run
+
+The unmerged August 5 accelerometer diagnostic patch assumed that plausible
+stored offsets/scales proved the most recent six-pose attempt had saved. That
+is not established: values may predate the attempt. Keep tracing available,
+but report an unconfirmed result without claiming the calibration probably saved.
+
+A separate state-machine defect is reproducible without hardware: after the
+sixth sample confirmation, a repeated request for pose 6 followed by SUCCESS
+caused an immediate error and left SUCCESS unread. The final wait now ignores
+repeated pose requests until a terminal result or its original deadline. Repeated
+requests never extend that deadline. This fixes a demonstrated software defect;
+the cause of the original Rover 4 field incident remains unconfirmed.
+
+`accelcal verify` is read-only parameter inspection. Missing axes or an incomplete
+download mean unknown; nonfinite values and out-of-range scales are flagged.
+Complete default/nondefault values are observations, not calibration verdicts.
+Exit 0 means inspection completed, including when values are defaults. Sensor
+activity, identity, and calibration freshness cannot be inferred from this check.
+Use the actual calibration result and ArduPilot pre-arm checks for readiness.
+
+The upstream Rover 4.5.0 implementation repeats pose requests and terminal results:
+https://github.com/ArduPilot/ardupilot/blob/Rover-4.5.0/libraries/AP_AccelCal/AP_AccelCal.cpp
+Its sensor calibration checks also consider sensor identity and all detected accels:
+https://github.com/ArduPilot/ardupilot/blob/Rover-4.5.0/libraries/AP_InertialSensor/AP_InertialSensor.cpp
+
 ## Method (2026-08-14): a null is worthless until you compute what the statistic
 ## would have read if the hypothesis were TRUE
 
