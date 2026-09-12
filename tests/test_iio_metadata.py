@@ -11,6 +11,7 @@ from spf.direct_radio.iio_metadata import IioMetadataRx
 from spf.direct_radio.tandem_agc import (
     RadioMetadataV4,
     TandemGainTable,
+    TandemSessionRequestV1,
     TandemState,
 )
 from spf.direct_radio.usb_protocol import (
@@ -169,6 +170,7 @@ class _FakePyadiSdr:
         ordinary_signal=None,
         metadata_signal=None,
     ):
+        self._ctx = types.SimpleNamespace(attrs={"iio,buffer-metadata": "2"})
         self.events = []
         self._rxadc = _FakeRxAdc(metadata, sample_rate, self.events)
         self._rxadc.owner = self
@@ -225,6 +227,7 @@ def test_iio_metadata_adapter_reuses_pyadi_iq_and_returns_capture_time(monkeypat
 
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -287,6 +290,7 @@ def test_iio_metadata_adapter_cleans_up_failed_ordinary_prime(monkeypatch):
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -317,6 +321,7 @@ def test_iio_metadata_adapter_rejects_wrong_ordinary_prime_shape(monkeypatch):
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -342,6 +347,7 @@ def test_iio_metadata_adapter_rejects_known_radio_20_constant_prime(monkeypatch)
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -383,6 +389,7 @@ def test_iio_metadata_adapter_rejects_each_constant_prime_component(
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -404,6 +411,7 @@ def test_iio_metadata_adapter_closes_metadata_buffer_when_anchor_setup_fails(
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -466,6 +474,7 @@ def test_iio_metadata_adapter_retains_legacy_buffer_cleanup_fallback(monkeypatch
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -496,6 +505,7 @@ def test_iio_metadata_adapter_retries_bounded_ebusy_open(monkeypatch):
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -527,6 +537,7 @@ def test_iio_metadata_adapter_does_not_retry_non_ebusy_open(monkeypatch, failure
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -556,6 +567,7 @@ def test_iio_metadata_adapter_exhausts_bounded_ebusy_open(monkeypatch):
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -574,6 +586,7 @@ def test_iio_metadata_adapter_requires_patched_python_binding(monkeypatch):
     monkeypatch.setitem(sys.modules, "iio", types.SimpleNamespace())
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -595,6 +608,9 @@ def test_iio_metadata_adapter_retries_only_typed_startup_discards(monkeypatch):
             if isinstance(self._rxbuf, _FakeMetadataBuffer):
                 self.attempts += 1
                 if self.attempts <= 2:
+                    # PyADI's exception cleanup drops its reference even for
+                    # a recoverable startup discard.
+                    self._rxbuf = None
                     raise OSError(errno.EAGAIN, "startup frame lacks metadata")
             return super().rx()
 
@@ -604,6 +620,7 @@ def test_iio_metadata_adapter_retries_only_typed_startup_discards(monkeypatch):
     )
     receiver = IioMetadataRx(
         fake_sdr,
+        tandem_request=TandemSessionRequestV1(),
         sample_rate_hz=2_000_000,
         samples_per_channel=1024,
     )
@@ -611,6 +628,7 @@ def test_iio_metadata_adapter_retries_only_typed_startup_discards(monkeypatch):
     _signal, parsed, _capture_time = receiver.capture()
     assert parsed.buffer_sequence == 3
     assert fake_sdr.attempts == 3
+    assert fake_sdr.ordinary_buffer_creations == 1
     receiver.close()
 
 

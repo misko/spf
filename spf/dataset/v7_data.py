@@ -3,8 +3,8 @@
 import numpy as np
 
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys
+from spf.direct_radio.gain_control import GAIN_MODE_CODES
 from spf.scripts.zarr_utils import zarr_new_dataset
-
 
 v7rx_f64_keys = list(v4rx_f64_keys)
 v7rx_2xf64_keys = list(v4rx_2xf64_keys)
@@ -34,6 +34,31 @@ v7rx_2x_keys = {
 
 V7_GAIN_OBSERVATION_CAPACITY = 256
 V7_GAIN_EVENT_CAPACITY = 64
+
+# Optional provenance extension; absent in older V7 recordings.
+v7rx_gain_control_scalar_keys = {
+    "tandem_ownership_epoch": np.uint32,  # zero means no tandem owner
+    "missing_samples_before": np.uint64,
+    "requested_gain_mode_rx1": np.uint8,
+    "requested_gain_mode_rx2": np.uint8,
+}
+
+
+def gain_control_record_values(record):
+    modes = getattr(record, "requested_gain_modes", ())
+    return {
+        "tandem_ownership_epoch": getattr(record, "tandem_ownership_epoch", 0) or 0,
+        "missing_samples_before": getattr(record, "missing_samples_before", 0),
+        **{
+            f"requested_gain_mode_rx{channel + 1}": GAIN_MODE_CODES.get(
+                modes[channel], 255
+            )
+            if len(modes) == 2
+            else 255
+            for channel in range(2)
+        },
+    }
+
 
 v7rx_gain_series_scalar_keys = {
     "gain_observation_count": np.uint16,
@@ -125,14 +150,16 @@ def v7rx_new_dataset(
     # backward-compatible extension.
     z.attrs["radio_metadata_schema_version"] = 2
     z.attrs["gain_series_schema_version"] = 1
+    z.attrs["gain_control_schema_version"] = 1
+    z.attrs["gain_control_mode_codes"] = {**GAIN_MODE_CODES, "unknown": 255}
     z.attrs["sample_time_schema_version"] = 1
     z.attrs["sample_counter_end_semantics"] = "exclusive"
-    z.attrs[
-        "sample_time_clock_domain"
-    ] = "Pluto FPGA sample counter mapped to host CLOCK_MONOTONIC"
-    z.attrs[
-        "sample_time_realtime_clock"
-    ] = "host CLOCK_REALTIME; UTC accuracy is not asserted"
+    z.attrs["sample_time_clock_domain"] = (
+        "Pluto FPGA sample counter mapped to host CLOCK_MONOTONIC"
+    )
+    z.attrs["sample_time_realtime_clock"] = (
+        "host CLOCK_REALTIME; UTC accuracy is not asserted"
+    )
     z.attrs["sample_time_uncertainty_semantics"] = (
         "conservative host mapping bound: anchor half-RTT plus fit residual "
         "and monotonic-to-realtime bracket uncertainty"
@@ -155,7 +182,10 @@ def v7rx_new_dataset(
                 chunks=(timesteps, 2),
                 compressor=None,
             )
-        for key, dtype in v7rx_gain_series_scalar_keys.items():
+        for key, dtype in {
+            **v7rx_gain_series_scalar_keys,
+            **v7rx_gain_control_scalar_keys,
+        }.items():
             receiver_z.create_dataset(
                 key,
                 shape=(timesteps,),

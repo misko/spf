@@ -1,0 +1,33 @@
+{
+  "radio_serial": "104473b80a16000de6ff2000f8a6beca79",
+  "radio_ip": "192.168.1.173",
+  "firmware": "v0.49-plutoplus-spf-iq-direct-async-v4",
+  "provider_commit": "f7bdb33235ad6670a63c8eed253743fa7fd23102",
+  "provider_sha256": "7b1abdfffcf1c9ebda365f4a81976d829d9d2c4c64b93301a98020579a3432af",
+  "regression_tests_passed": 128,
+  "hardware_tests_passed": 10,
+  "ppu_profile_tests_passed": 46,
+  "c_metadata_sanitizers_passed": true,
+  "recorded_frames": 126,
+  "frames_by_mode": {
+    "manual": 36,
+    "tandem": 54,
+    "slow_attack": 18,
+    "fast_attack": 18
+  },
+  "tandem_epochs": 18,
+  "recorded_gain_events": 138,
+  "reported_missing_samples": 0,
+  "frequencies_hz": [
+    915000000,
+    2410000000,
+    5750000000
+  ],
+  "frame_samples": [
+    262144,
+    524288
+  ],
+  "controlled_rf_response_qualified": false,
+  "transport": "LAN IIO",
+  "final_cleanup_hardware_smoke_passed": true
+}

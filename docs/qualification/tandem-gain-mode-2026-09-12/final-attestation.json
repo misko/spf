@@ -1,0 +1,22 @@
+{
+  "serial": "104473b80a16000de6ff2000f8a6beca79",
+  "firmware": "v0.49-plutoplus-spf-iq-direct-async-v4",
+  "boot_id": "4d94ee79-8455-4b9b-a06f-0119e2fba8f7",
+  "qspi_bytes": "31457280",
+  "qspi_sha256": "4154f7975cf5afbe2562375200270bf639bac3f2f4483e76a93883924c3d449a",
+  "fit_sha256": "77f899610548d486aab2c83c4dc7170532d470b115d2bd0e8fc43e72b3bfca67",
+  "all_buffer_enable": "0,0",
+  "dds_present": "1",
+  "tandem_present": "1",
+  "tx_hardwaregain_db": "-80.000000,-80.000000",
+  "tx_lo_powerdown": "1",
+  "tx_buffer_enable": "0",
+  "tx_scan_enable": "0,0,0,0",
+  "tx_dds_raw": "0,0,0,0,0,0,0,0",
+  "tx_dds_scale": "0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000",
+  "root_marker_present": "0",
+  "rx_dma_dt_state": "enabled",
+  "dds_dt_state": "enabled",
+  "tx_dma_dt_state": "enabled",
+  "tandem_dt_state": "enabled"
+}

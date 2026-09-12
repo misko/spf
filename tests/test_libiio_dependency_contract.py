@@ -17,8 +17,8 @@ def test_python_dependencies_match_hardware_qualified_stack():
 
 def test_installer_pins_exact_tandem_libiio_source_commit():
     versions = (ROOT / "packaging/libiio/versions.sh").read_text()
-    assert "tandem-agc-v2-source/libiio-v8" in versions
-    assert "9d7878dd53316e3879c3f154aeb06b27632fda4d" in versions
+    assert "iq-direct-async-v4-source/libiio-v1" in versions
+    assert "5cb2389719d46d12463daa0371d1fda19eb25fa7" in versions
     assert "spf-frame-metadata-source" not in versions
 
     installer = (ROOT / "install_spf_libiio.sh").read_text()
