@@ -37,7 +37,8 @@ wheel="$(find "$bundle" -maxdepth 1 -type f -name 'pylibiio-*-py3-none-any.whl' 
 (cd "$bundle" && sha256sum --check SHA256SUMS)
 [[ "$(dpkg-deb --field "$deb" Package)" == spf-libiio ]]
 [[ "$(dpkg-deb --field "$deb" Architecture)" == "$architecture" ]]
-dpkg-deb --field "$deb" Version | grep -Eq '^0\.25\+spfmeta4-[0-9]+$'
+package_version="$(dpkg-deb --field "$deb" Version)"
+[[ "$package_version" =~ ^0\.25\+spfmeta4-[0-9]+$ ]]
 package_contents="$(dpkg-deb --contents "$deb")"
 grep -Eq '/usr/lib/.*/libiio\.so\.0\.25$' <<<"$package_contents"
 grep -Eq '/usr/bin/iio_info$' <<<"$package_contents"
@@ -81,7 +82,8 @@ PY
     iio_info -S
     library_path="$(ldconfig -p | awk '/libiio\.so\.0 / {print $NF; exit}')"
     [[ -n "$library_path" ]] || { printf 'ERROR: ldconfig cannot find libiio.so.0\n' >&2; exit 1; }
-    if ldd "$library_path" | grep -q 'not found'; then
+    library_dependencies="$(ldd "$library_path")"
+    if [[ "$library_dependencies" == *'not found'* ]]; then
         printf 'ERROR: installed libiio has an unresolved shared-library dependency\n' >&2
         exit 1
     fi

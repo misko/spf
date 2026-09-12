@@ -236,7 +236,7 @@ while kill -0 "$capture_pid" 2>/dev/null; do
     if [[ -n "$counts" ]]; then
         # The laggard receiver is the honest progress: the capture is not
         # finished until every receiver has its frames.
-        done_frames="$(tr ',' '\n' <<<"$counts" | sort -n | head -1)"
+        done_frames="$(tr ',' '\n' <<<"$counts" | sort -n | head -1 || true)"
         [[ "$done_frames" =~ ^[0-9]+$ ]] || done_frames=0
     fi
     elapsed=$(printf '%d:%02d' $(( (SECONDS-started)/60 )) $(( (SECONDS-started)%60 )))

@@ -781,9 +781,18 @@ cmd_sitl() {
             if [[ -n "$containers" ]]; then ok "sim running: ${containers}"; else note "no sim container running"; fi
             # CI shares this box and binds 14590/14591 on every push, so a
             # collision is the normal failure, not an exotic one.
-            local busy=0 port
+            #
+            # One snapshot, matched in-process. `ss | grep -q` reads better and
+            # is wrong: grep exits on the first match, ss dies of SIGPIPE mid
+            # write, and the pipefail set at the top of this file turns "found"
+            # into a non-zero pipeline -- reporting a BOUND port free, measured
+            # at 13% on the CI box. Never let an early-exit consumer end a
+            # pipeline whose status you read; tests/test_shell_pipeline_safety.py
+            # enforces that. `-p` is dropped because the process is never shown.
+            local busy=0 port listening
+            listening="$(ss -tln 2>/dev/null || true)"
             for port in $SITL_PORTS; do
-                if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
+                if [[ "$listening" == *":${port} "* ]]; then
                     bad "port ${port} is already bound — CI or another sim owns it"
                     busy=1
                 fi

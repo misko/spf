@@ -65,7 +65,7 @@ require_flash_commands() {
 
 serial_of() {  # $1=/dev/sdX -> ID_SERIAL_SHORT
     udevadm info --query=property --name="$1" 2>/dev/null |
-        sed -n 's/^ID_SERIAL_SHORT=//p' | head -1
+        sed -n 's/^ID_SERIAL_SHORT=//p' | head -1 || true
 }
 
 pluto_usb_serials() {  # serials of attached runtime Plutos (USB 0456:b673)
@@ -108,7 +108,7 @@ active_firmware_for_serial() {  # $1=serial -> active fw_version
     version="$(
         printf '%s\n' "$output" |
             sed -n 's/^fw_version:[[:space:]]*//p' |
-            head -1
+            head -1 || true
     )"
     [[ -n "$version" ]] || return 1
     printf '%s' "$version"

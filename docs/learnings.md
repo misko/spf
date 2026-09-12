@@ -69,6 +69,51 @@ significance).
 Full account: `docs/gain_phase_rover_investigation_20260814.md` (Retractions 1 and 2),
 calibration in `spf/filters/reports/phasecorr_direct_pf_20260814_v1/analysis/power_calibration.py`.
 
+## Rover/CI (2026-08-08): `cmd | grep -q` under `set -o pipefail` reports "not
+## found" when the match comes EARLY — a silent, always-negative failure
+
+`rover sitl status` called a bound SITL port free about one run in eight, and it
+read as flaky CI for 105 commits. The line looked unimpeachable:
+
+    if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
+
+`grep -q` exits the instant it matches. `ss` is still writing (~9 KB over several
+`write()` calls), so it dies of SIGPIPE (141), and `set -o pipefail` makes *that*
+the pipeline's status. The `if` reads false and the bound port is reported free.
+Which line the match lands on is kernel hash order, so it is random per call.
+
+Measured on the CI box (which is also the dev box), against a real bound port:
+
+- `ss` killed by SIGPIPE, no pipefail — **219 / 3000 = 7.3%**
+- the `if` wrongly says "free", with pipefail — **265 / 2000 = 13.3%**
+- after the fix — **0 / 3000**, and 0 / 300 end-to-end through the CLI
+
+**The failure is always a false NEGATIVE and never logs anything.** It gets more
+likely the more the producer has to say and the earlier the match lands — so it
+worsens on a loaded box, which is precisely when someone is looking at it.
+
+**The rule.** In a script with `set -o pipefail`, never let a consumer that can
+exit before its producer finishes (`grep -q`, `grep -m N`, `head`) end a pipeline
+whose exit status you read. Two compliant idioms, both already in these scripts:
+
+- **predicate** (the status *is* the answer) — capture the producer into a
+  variable and match with bash's own `[[ ]]`. No pipe, no race.
+- **extraction** (stdout is the answer) — append `|| true`.
+
+`tests/test_shell_pipeline_safety.py` enforces this across every tracked shell
+script that sets pipefail; an inline `# pipefail-safe: <reason>` opts a line out.
+It found 9 sites. Three were predicates, and two of those sit on the rover BOOT
+path — where the false negative reads as "no USB IIO context" or "no uplink
+address" on a rover that has both.
+
+**Why it hid for 105 commits.** The positive test failed only 13% of the time,
+and its sibling `test_sitl_status_reports_free_ports` aims at an *unbound* port —
+grep finds nothing, reads to EOF, `ss` exits 0, so that one could never fail. A
+test that fails sometimes is not a detector. The fix was to shim a deliberately
+chatty `ss` that cannot finish writing before an early-exit consumer gives up:
+10/10 red on the old code, green on the new. When a test guards a race, make the
+test win the race on purpose.
+
 ## RF (2026-08-06): the O4 emitter is BURSTY — any statistic taken over all
 ## frames measures the silence, not the signal
 
