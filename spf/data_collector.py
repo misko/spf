@@ -1,7 +1,7 @@
+import concurrent.futures
 import logging
 import multiprocessing
 import os
-from pathlib import Path
 import queue
 import signal
 import struct
@@ -11,26 +11,28 @@ import time
 import uuid
 from concurrent import futures
 from contextlib import ExitStack
-from typing import Any, Dict, Optional
-import concurrent.futures
-import numpy as np
 
 # from attr import dataclass
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Dict, Optional
 
+import numpy as np
 from tqdm import tqdm
 
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
-from spf.dataset.v6_data import v6rx_2x_keys, v6rx_scalar_keys, v6rx_new_dataset
+from spf.dataset.v6_data import v6rx_2x_keys, v6rx_new_dataset, v6rx_scalar_keys
 from spf.dataset.v7_data import (
     V7_GAIN_EVENT_CAPACITY,
     V7_GAIN_OBSERVATION_CAPACITY,
+    gain_control_record_values,
     v7rx_2x_keys,
+    v7rx_gain_control_scalar_keys,
     v7rx_gain_series_scalar_keys,
+    v7rx_new_dataset,
     v7rx_sample_time_scalar_keys,
     v7rx_scalar_keys,
-    v7rx_new_dataset,
 )
 from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import (
@@ -291,6 +293,9 @@ class DataSnapshotV7(DataSnapshotV6):
     gain_event_sample_sequence: Optional[np.ndarray] = None
     gain_event_flags: Optional[np.ndarray] = None
     gain_event_overflow_count: int = 0
+    tandem_ownership_epoch: int = 0
+    missing_samples_before: int = 0
+    requested_gain_modes: tuple[str, ...] = ()
 
 
 @dataclass
@@ -581,6 +586,9 @@ class ThreadedRXRaw(ThreadedRX):
                 gain_event_sample_sequence=sdr_rx["gain_event_sample_sequence"],
                 gain_event_flags=sdr_rx["gain_event_flags"],
                 gain_event_overflow_count=sdr_rx["gain_event_overflow_count"],
+                tandem_ownership_epoch=sdr_rx.get("tandem_ownership_epoch") or 0,
+                missing_samples_before=sdr_rx.get("missing_samples_before", 0),
+                requested_gain_modes=tuple(sdr_rx.get("requested_gain_modes", ())),
             )
         return self.snapshot_class(**snapshot_kwargs)
 
@@ -1388,6 +1396,10 @@ class DroneDataCollectorRawV7(DroneDataCollectorRaw):
         }
         for key in v7rx_gain_series_scalar_keys:
             receiver_z[key][record_idx] = scalar_values[key]
+        control_values = gain_control_record_values(data)
+        for key in v7rx_gain_control_scalar_keys:
+            if key in receiver_z:
+                receiver_z[key][record_idx] = control_values[key]
 
         bounds = np.full(
             (V7_GAIN_OBSERVATION_CAPACITY, 2), np.iinfo(np.uint64).max, np.uint64

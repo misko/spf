@@ -3,6 +3,11 @@
 
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=versions.sh
+source "${script_dir}/versions.sh"
+spf_libiio_select_version 0.25
+
 bundle=
 python_bin=
 runtime=false
@@ -38,7 +43,11 @@ wheel="$(find "$bundle" -maxdepth 1 -type f -name 'pylibiio-*-py3-none-any.whl' 
 [[ "$(dpkg-deb --field "$deb" Package)" == spf-libiio ]]
 [[ "$(dpkg-deb --field "$deb" Architecture)" == "$architecture" ]]
 package_version="$(dpkg-deb --field "$deb" Version)"
-[[ "$package_version" =~ ^0\.25\+spfmeta4-[0-9]+$ ]]
+expected_version="${SPF_LIBIIO_EXPECTED_VERSION}+spfmeta${SPF_LIBIIO_METADATA_REVISION}-${SPF_LIBIIO_PACKAGE_REVISION}"
+[[ "$package_version" == "$expected_version" ]] || {
+    printf 'ERROR: package version %s differs from source lock %s\n' "$package_version" "$expected_version" >&2
+    exit 1
+}
 package_contents="$(dpkg-deb --contents "$deb")"
 grep -Eq '/usr/lib/.*/libiio\.so\.0\.25$' <<<"$package_contents"
 grep -Eq '/usr/bin/iio_info$' <<<"$package_contents"
@@ -61,8 +70,10 @@ initializer = next(
     if isinstance(node, ast.FunctionDef) and node.name == "__init__"
 )
 arguments = [argument.arg for argument in initializer.args.args]
-assert arguments == ["self", "device", "samples_count", "request", "metadata_capacity"]
-assert len(initializer.args.defaults) == 1, "request must be a required argument"
+assert arguments[:5] == ["self", "device", "samples_count", "request", "metadata_capacity"]
+assert len(arguments) - len(initializer.args.defaults) == 4, (
+    "request must be required and subsequent options must have defaults"
+)
 PY
 
 if [[ "$runtime" == true ]]; then

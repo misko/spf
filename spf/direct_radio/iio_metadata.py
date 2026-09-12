@@ -8,6 +8,11 @@ import time
 
 import numpy as np
 
+from spf.direct_radio.gain_control import (
+    LEGACY_METADATA_CAPABILITY,
+    legacy_metadata_request,
+)
+from spf.direct_radio.metadata_v6 import RadioMetadataV6
 from spf.direct_radio.sample_clock import (
     DEFAULT_SAMPLE_CLOCK_RATE_TOLERANCE_PPM,
     HostTimeAnchorMeasurement,
@@ -70,9 +75,25 @@ class IioMetadataRx:
         self._sample_rate_hz = int(sample_rate_hz)
         self._samples_per_channel = int(samples_per_channel)
         self._metadata_capacity = int(metadata_capacity)
-        tandem_session = tandem_request or TandemSessionRequestV1()
-        tandem_session.validate_frame_capacity(self._samples_per_channel)
-        self._tandem_request = tandem_session.pack()
+        self._requested_tandem = tandem_request
+        attrs = getattr(getattr(sdr, "_ctx", None), "attrs", {})
+        self._metadata_abi = str(attrs.get("iio,buffer-metadata", ""))
+        if self._metadata_abi not in ("2", "3"):
+            raise ValueError("unsupported radio metadata ABI")
+        if tandem_request is None:
+            if (
+                self._metadata_abi != "3"
+                or str(attrs.get(LEGACY_METADATA_CAPABILITY)) != "1"
+            ):
+                raise ValueError(
+                    "radio lacks metadata support for legacy AGC; install the legacy-AGC provider"
+                )
+            self._tandem_request = legacy_metadata_request(self._samples_per_channel)
+        else:
+            tandem_request.validate_frame_capacity(
+                self._samples_per_channel * (2 if self._metadata_abi == "3" else 1)
+            )
+            self._tandem_request = tandem_request.pack()
         self._buffer = None
         self._time_anchors: list[HostTimeAnchorMeasurement] = []
         self._next_anchor_request_id = 1
@@ -175,13 +196,19 @@ class IioMetadataRx:
                     or startup_discard == MAX_STARTUP_FRAME_DISCARDS
                 ):
                     raise
+                # PyADI may clear its buffer reference on any refill error.
+                # EAGAIN discards an incomplete startup frame, not our live
+                # metadata session. Keep the next retry on that same buffer.
+                self._sdr._rxbuf = self._buffer
         signal_matrix = np.vstack(pyadi_signal).astype(np.complex64, copy=False)
         if signal_matrix.shape != (2, self._samples_per_channel):
             raise RuntimeError("pyadi IQ shape does not match dual-channel metadata")
         raw_metadata = self._buffer.metadata
         if raw_metadata is None:
             raise RuntimeError("metadata buffer refill returned no metadata")
-        metadata = RadioMetadataV4.unpack(raw_metadata)
+        metadata = (
+            RadioMetadataV6 if self._metadata_abi == "3" else RadioMetadataV4
+        ).unpack(raw_metadata)
         if len(raw_metadata) != metadata.header_bytes:
             raise RuntimeError("metadata refill returned trailing bytes")
         self._validate_metadata(metadata)
@@ -189,6 +216,17 @@ class IioMetadataRx:
         return signal_matrix, metadata, self._capture_time(metadata)
 
     def _validate_metadata(self, metadata: RadioMetadataV4) -> None:
+        tandem = metadata.tandem if isinstance(metadata, RadioMetadataV6) else metadata
+        if (tandem is not None) != (self._requested_tandem is not None):
+            raise RuntimeError(
+                "effective tandem ownership differs from the requested gain mode"
+            )
+        if tandem is not None and int(tandem.tandem_state) != 2 + int(
+            self._requested_tandem.mode
+        ):
+            raise RuntimeError(
+                "effective tandem policy differs from the requested mode"
+            )
         if metadata.samples_per_channel != self._samples_per_channel:
             raise RuntimeError(
                 "metadata sample count does not match the requested IIO buffer"

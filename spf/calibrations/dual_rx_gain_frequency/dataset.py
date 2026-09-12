@@ -24,16 +24,17 @@ from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys
 from spf.dataset.v7_data import (
     V7_GAIN_EVENT_CAPACITY,
     V7_GAIN_OBSERVATION_CAPACITY,
+    gain_control_record_values,
     v7rx_2x_keys,
+    v7rx_gain_control_scalar_keys,
     v7rx_gain_series_scalar_keys,
+    v7rx_new_dataset,
     v7rx_sample_time_scalar_keys,
     v7rx_scalar_keys,
-    v7rx_new_dataset,
 )
 from spf.rf import get_avg_phase_fast2
 from spf.scripts.zarr_utils import zarr_open_from_lmdb_store
 from spf.sdrpluto.sdr_controller import PlutoRxBuffer, SdrDeviceIdentity
-
 
 CALIBRATION_SCHEMA = "spf.calibration.dual_rx_gain_frequency"
 CALIBRATION_SCHEMA_VERSION = 1
@@ -392,6 +393,10 @@ class CalibrationV7Writer:
         }
         for key in v7rx_gain_series_scalar_keys:
             receiver[key][index] = gain_series_scalars[key]
+        control_values = gain_control_record_values(frame)
+        for key in v7rx_gain_control_scalar_keys:
+            if key in receiver:
+                receiver[key][index] = control_values[key]
 
         bounds = np.full(
             (V7_GAIN_OBSERVATION_CAPACITY, 2), np.iinfo(np.uint64).max, np.uint64

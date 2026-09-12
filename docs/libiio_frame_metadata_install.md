@@ -10,7 +10,7 @@ metadata protocol implementation.
 
 | Line | Immutable source tag | Commit | Role |
 |---|---|---|---|
-| 0.25 | `tandem-agc-v2-source/libiio-v8` | `9d7878dd53316e3879c3f154aeb06b27632fda4d` | required; exact line embedded in the tandem radio iiOD |
+| 0.25 | `iq-direct-async-v4-source/libiio-v1` | `5cb2389719d46d12463daa0371d1fda19eb25fa7` | required; exact line embedded in the tandem radio iiOD |
 
 This is a forward-only compatibility contract. The older metadata-v3 host
 lines and arbitrary branch tips are not supported by tandem firmware.
@@ -97,8 +97,8 @@ To publish an immutable GitHub release after both architecture jobs pass, tag
 the reviewed SPF commit using a name such as:
 
 ```bash
-git tag -a libiio-artifacts-v0.25-spfmeta4.1 -m "SPF tandem libiio 0.25 artifacts"
-git push origin libiio-artifacts-v0.25-spfmeta4.1
+git tag -a libiio-artifacts-v0.25-spfmeta6.1 -m "SPF tandem libiio 0.25 artifacts"
+git push origin libiio-artifacts-v0.25-spfmeta6.1
 ```
 
 CI then publishes the two `.deb` files, one wheel, and a release-level
@@ -159,7 +159,7 @@ import inspect
 import iio
 print(iio.version, iio.__file__)
 print("MetadataBuffer:", hasattr(iio, "MetadataBuffer"))
-assert iio.version == (0, 25, "9d7878d")
+assert iio.version == (0, 25, "5cb2389")
 assert hasattr(iio, "MetadataBuffer")
 assert "request" in inspect.signature(iio.MetadataBuffer).parameters
 PY
@@ -174,7 +174,7 @@ The radio context must also advertise the capability:
 /usr/local/bin/iio_attr -u ip:RADIO_ADDRESS -C iio,buffer-metadata
 ```
 
-The value is `2` on tandem firmware. Older firmware is outside this
+The value is `3` on v0.49 firmware. Older firmware is outside this
 forward-only release contract.
 
 ## Updating an existing SPF checkout

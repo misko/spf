@@ -1,8 +1,11 @@
 import argparse
+import copy
 import dataclasses
+import functools
 import gc
 import logging
 import sys
+import threading
 import time
 from datetime import datetime
 from math import gcd
@@ -20,6 +23,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
+from spf.direct_radio.gain_control import (
+    GAIN_MODES,
+    tandem_request_for_frame,
+    validate_gain_modes,
+    validate_manual_gains,
+)
 from spf.rf import (
     ULADetector,
     beamformer,
@@ -91,6 +100,9 @@ class PlutoRxBuffer:
         default_factory=lambda: np.empty(0, dtype=np.uint16)
     )
     gain_event_overflow_count: int = 0
+    requested_gain_modes: tuple[str, ...] = ()
+    tandem_ownership_epoch: Optional[int] = None
+    missing_samples_before: int = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -291,9 +303,9 @@ def bladerf_serial_to_info():
         serial_to_uri = {}
         for dev in _bladerf.get_device_list():
             dev_dict = dev._asdict()
-            serial_to_uri[
-                dev_dict["serial"].decode()
-            ] = f'bladerf://libusb:device={dev_dict["usb_bus"]}:{dev_dict["usb_addr"]}'
+            serial_to_uri[dev_dict["serial"].decode()] = (
+                f"bladerf://libusb:device={dev_dict['usb_bus']}:{dev_dict['usb_addr']}"
+            )
         return serial_to_uri
     except _bladerf.BladeRFError:
         print("No bladeRF devices found.")
@@ -359,7 +371,9 @@ class ReceiverConfig(Config):
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
         self.gains = gains
-        self.gain_control_modes = gain_control_modes
+        self.gain_control_modes = list(
+            validate_gain_modes(gain_control_modes, enabled_channels, rx_transport)
+        )
         self.enabled_channels = enabled_channels
         self.intermediate = intermediate
         self.uri = uri
@@ -747,9 +761,9 @@ class BladeRFSdr:
             assert rx_ch.sample_rate == self.rx_config.sample_rate
 
             rx_ch.frequency = self.rx_config.lo
-            assert (
-                abs(rx_ch.frequency - self.rx_config.lo) < 10
-            ), f"failed to set radio lo {rx_ch.frequency} != {self.rx_config.lo}"
+            assert abs(rx_ch.frequency - self.rx_config.lo) < 10, (
+                f"failed to set radio lo {rx_ch.frequency} != {self.rx_config.lo}"
+            )
 
             if self.rx_config.gain_control_modes[rx_ch_idx] == "slow_attack":
                 rx_ch.gain_mode = (
@@ -929,7 +943,20 @@ class FakePPlus:
         return True
 
 
+def _serialized_rx(method):
+    @functools.wraps(method)
+    def call(self, *args, **kwargs):
+        with self._rx_lock:
+            return method(self, *args, **kwargs)
+
+    return call
+
+
 class PPlus:
+    @functools.cached_property
+    def _rx_lock(self):
+        return threading.RLock()
+
     def __init__(
         self,
         uri: str,
@@ -973,25 +1000,29 @@ class PPlus:
             self.sdr.rx_destroy_buffer()
             self.sdr.tx_enabled_channels = []
 
+    @_serialized_rx
     def rx(self, num_samples=None):
+        if self.rx_config is None:
+            raise RuntimeError("RX is not configured")
         if self.rx_config is not None and self.rx_config.rx_transport == "direct_usb":
             signal_matrix, metadata = self._capture_direct_frame()
             self._cache_direct_legacy_values(metadata)
             return signal_matrix
+        if self.rx_config.gain_control_modes == ["tandem", "tandem"]:
+            self._ensure_iio_metadata_rx()
         if self._iio_metadata_rx is not None:
-            signal_matrix, metadata, sample_time = self._iio_metadata_rx.capture()
-            self._cache_direct_legacy_values(metadata)
+            signal_matrix, metadata, sample_time = self._capture_iio_frame()
             self._last_direct_sample_time = sample_time
             return signal_matrix
         return self.sdr.rx()
 
+    @_serialized_rx
     def rx_with_metadata(self):
         if self.rx_config is None:
-            return _legacy_rx_buffer(self.sdr.rx(), self.rssis(), self.gains())
+            raise RuntimeError("RX is not configured")
         if self.rx_config.rx_transport == "iio":
             self._ensure_iio_metadata_rx()
-            signal_matrix, metadata, sample_time = self._iio_metadata_rx.capture()
-            self._cache_direct_legacy_values(metadata)
+            signal_matrix, metadata, sample_time = self._capture_iio_frame()
             self._last_direct_sample_time = sample_time
             return self._direct_v2_rx_buffer(signal_matrix, metadata)
 
@@ -1013,9 +1044,126 @@ class PPlus:
             self.sdr,
             sample_rate_hz=self.rx_config.sample_rate,
             samples_per_channel=self.rx_config.buffer_size,
+            tandem_request=self._gain_session_request(self.rx_config),
         )
         receiver.open()
         self._iio_metadata_rx = receiver
+
+    def _capture_iio_frame(self):
+        try:
+            frame = self._iio_metadata_rx.capture()
+            self._cache_direct_legacy_values(frame[1])
+            return frame
+        except Exception:
+            try:
+                self.close_rx()
+            except Exception:
+                logging.exception("RX cleanup after metadata capture failure")
+            raise
+
+    def _gain_session_request(self, config):
+        modes = validate_gain_modes(
+            config.gain_control_modes, config.enabled_channels, config.rx_transport
+        )
+        return (
+            tandem_request_for_frame(config.buffer_size)
+            if modes[0] == "tandem"
+            else None
+        )
+
+    def _apply_gain_modes(self, config):
+        modes = validate_gain_modes(
+            config.gain_control_modes, config.enabled_channels, config.rx_transport
+        )
+        # The provider owns entry into manual mode and restoration for tandem.
+        if modes[0] == "tandem":
+            return
+        for channel, mode in enumerate(modes):
+            mode_attr = f"gain_control_mode_chan{channel}"
+            gain_attr = f"rx_hardwaregain_chan{channel}"
+            setattr(self.sdr, mode_attr, mode)
+            if getattr(self.sdr, mode_attr) != mode:
+                raise RuntimeError(f"RX{channel + 1} gain mode readback failed")
+            if mode == "manual":
+                setattr(self.sdr, gain_attr, config.gains[channel])
+                if getattr(self.sdr, gain_attr) != config.gains[channel]:
+                    raise RuntimeError(f"RX{channel + 1} gain readback failed")
+
+    @_serialized_rx
+    def set_gain_mode(self, mode, *, gains=None):
+        """Restart capture with a verified mode; restore or stop on failure."""
+        from spf.direct_radio.iio_metadata import IioMetadataRx
+
+        if self.rx_config is None:
+            raise RuntimeError("RX is not configured")
+        previous = copy.deepcopy(self.rx_config)
+        desired = copy.deepcopy(previous)
+        desired.gain_control_modes = list(
+            validate_gain_modes(
+                [mode, mode] if isinstance(mode, str) else mode,
+                desired.enabled_channels,
+                desired.rx_transport,
+            )
+        )
+        if gains is not None:
+            if len(gains) != 2 or not all(np.isfinite(gain) for gain in gains):
+                raise ValueError("gains must contain two finite dB values")
+            desired.gains = list(gains)
+        if desired.rx_transport != "iio":
+            raise ValueError("live gain-mode changes require the IIO session transport")
+        validate_manual_gains(self.sdr, desired.gain_control_modes, desired.gains)
+        # Constructing a receiver validates capabilities and capacity without writes.
+        candidate = IioMetadataRx(
+            self.sdr,
+            sample_rate_hz=desired.sample_rate,
+            samples_per_channel=desired.buffer_size,
+            tandem_request=self._gain_session_request(desired),
+        )
+        was_metadata = self._iio_metadata_rx is not None
+        if (
+            desired.gain_control_modes == previous.gain_control_modes
+            and desired.gains == previous.gains
+        ):
+            if was_metadata:
+                self.rx_with_metadata()  # Verify that the existing session remains healthy.
+                return
+        try:
+            if self._iio_metadata_rx is not None:
+                self._iio_metadata_rx.close()
+                self._iio_metadata_rx = None
+            self.sdr.rx_destroy_buffer()
+            self._last_direct_gains = self._last_direct_rssis = None
+            self._last_direct_metadata = self._last_direct_sample_time = None
+            self._apply_gain_modes(desired)
+            candidate.open()
+            signal, metadata, sample_time = candidate.capture()
+            self._cache_direct_legacy_values(metadata)
+            self._last_direct_sample_time = sample_time
+            self._iio_metadata_rx = candidate
+            self.rx_config = desired
+        except Exception as transition_error:
+            try:
+                candidate.close()
+                if self._iio_metadata_rx is not None:
+                    self._iio_metadata_rx.close()
+                    self._iio_metadata_rx = None
+                self.sdr.rx_destroy_buffer()
+                self._last_direct_gains = self._last_direct_rssis = None
+                self._last_direct_metadata = self._last_direct_sample_time = None
+                self.rx_config = previous
+                self._apply_gain_modes(previous)
+                if was_metadata or previous.gain_control_modes[0] == "tandem":
+                    self._ensure_iio_metadata_rx()
+                    self.rx_with_metadata()
+            except Exception as restore_error:
+                try:
+                    self.close_rx()
+                except Exception:
+                    logging.exception("RX cleanup after failed gain-mode restoration")
+                raise RuntimeError(
+                    f"gain-mode change failed ({transition_error}); restoration failed ({restore_error}); RX stopped"
+                ) from transition_error
+            raise
 
     def _capture_direct_frame(self):
         if self.direct_rx is None:
@@ -1249,6 +1397,11 @@ class PPlus:
             gain_index_start = np.full(2, 0xFF, dtype=np.uint8)
             gain_index_end = np.full(2, 0xFF, dtype=np.uint8)
         return PlutoRxBuffer(
+            requested_gain_modes=tuple(
+                getattr(self.rx_config, "gain_control_modes", ())
+            ),
+            tandem_ownership_epoch=getattr(metadata, "ownership_epoch", None),
+            missing_samples_before=getattr(metadata, "missing_samples_before", 0),
             signal_matrix=signal_matrix,
             rssis=np.asarray(metadata.rssi_db_end, dtype=np.float64),
             gains=np.asarray(metadata.gain_db_end, dtype=np.float64),
@@ -1413,7 +1566,18 @@ class PPlus:
     Setup the Rx part of the pluto
     """
 
+    @_serialized_rx
     def setup_rx_config(self):
+        request = self._gain_session_request(self.rx_config)
+        if request is not None:
+            from spf.direct_radio.iio_metadata import IioMetadataRx
+
+            IioMetadataRx(
+                self.sdr,
+                sample_rate_hz=self.rx_config.sample_rate,
+                samples_per_channel=self.rx_config.buffer_size,
+                tandem_request=request,
+            )
         if self._iio_metadata_rx is not None:
             self._iio_metadata_rx.close()
             self._iio_metadata_rx = None
@@ -1464,9 +1628,9 @@ class PPlus:
         assert self.sdr.sample_rate == self.rx_config.sample_rate
 
         self.sdr.rx_lo = self.rx_config.lo
-        assert (
-            abs(self.sdr.rx_lo - self.rx_config.lo) < 10
-        ), f"failed to set radio lo {self.sdr.rx_lo} != {self.rx_config.lo}"
+        assert abs(self.sdr.rx_lo - self.rx_config.lo) < 10, (
+            f"failed to set radio lo {self.sdr.rx_lo} != {self.rx_config.lo}"
+        )
 
         # set filter_fir_en according to config
         for rx_channel in [
@@ -1483,18 +1647,7 @@ class PPlus:
                 self.rx_config.filter_fir_en
             )
 
-        # setup the gain mode
-        self.sdr.gain_control_mode_chan0 = self.rx_config.gain_control_modes[0]
-        assert self.sdr.gain_control_mode_chan0 == self.rx_config.gain_control_modes[0]
-        if self.rx_config.gain_control_modes[0] == "manual":
-            self.sdr.rx_hardwaregain_chan0 = self.rx_config.gains[0]
-            assert self.sdr.rx_hardwaregain_chan0 == self.rx_config.gains[0]
-
-        self.sdr.gain_control_mode_chan1 = self.rx_config.gain_control_modes[1]
-        assert self.sdr.gain_control_mode_chan1 == self.rx_config.gain_control_modes[1]
-        if self.rx_config.gain_control_modes[1] == "manual":
-            self.sdr.rx_hardwaregain_chan1 = self.rx_config.gains[1]
-            assert self.sdr.rx_hardwaregain_chan1 == self.rx_config.gains[1]
+        self._apply_gain_modes(self.rx_config)
 
         if self.rx_config.buffer_size is not None:
             self.sdr.rx_buffer_size = self.rx_config.buffer_size
@@ -1523,6 +1676,8 @@ class PPlus:
 
         if self.rx_config.rx_transport == "direct_usb":
             self._open_direct_rx()
+        elif self.rx_config.gain_control_modes[0] == "tandem":
+            self._ensure_iio_metadata_rx()
 
     """
     Setup the Tx side of the pluto
@@ -1592,6 +1747,7 @@ class PPlus:
         if failures:
             raise SdrCleanupError(failures)
 
+    @_serialized_rx
     def close_rx(self):
         failures = []
         iio_metadata_rx = getattr(self, "_iio_metadata_rx", None)
@@ -2128,9 +2284,7 @@ def setup_rxtx_and_phase_calibration(
             )
             pplus_rx.phase_calibration = circular_mean(
                 phase_calibrations_cm.reshape(1, -1), 20
-            )[
-                0
-            ]  # .mean()
+            )[0]  # .mean()
             return pplus_rx, pplus_tx
     pplus_tx.close()
     logging.error(f"{rx_config.uri}: Phase calibration failed")
@@ -2296,7 +2450,7 @@ if __name__ == "__main__":
         help="rx mode",
         required=False,
         default="fast_attack",
-        choices=["manual", "slow_attack", "fast_attack"],
+        choices=list(GAIN_MODES),
     )
     parser.add_argument(
         "--rx-n",
