@@ -1,0 +1,82 @@
+datasets:
+  batch_size: 1
+  double_flip: false
+  empirical_data_fn: /tmp/tmp9udpqlr_/full.pkl
+  empirical_individual_radio: false
+  empirical_symmetry: true
+  flip: false
+  precompute_cache: /tmp/tmp9udpqlr_
+  random_adjacent_stride: false
+  random_snapshot_size: false
+  scatter: continuous
+  scatter_k: 21
+  segmentation_version: 3.6
+  shuffle: true
+  sigma: 0.25
+  skip_qc: true
+  snapshots_adjacent_stride: 1
+  snapshots_stride: 1
+  train_on_val: true
+  train_paths:
+  - /tmp/tmp9udpqlr_/perfect_circle_n7_noise0.zarr
+  train_snapshots_per_session: 1
+  val_snapshots_adjacent_stride: 1
+  val_snapshots_per_session: 1
+  val_subsample_fraction: 1.0
+  workers: 2
+global:
+  beamformer_input: false
+  empirical_input: false
+  gains_input: false
+  n_radios: 2
+  nthetas: 7
+  phase_input: true
+  rx_spacing_input: false
+  sdr_device_type_input: false
+  seed: 10
+  signal_matrix_input: false
+  vehicle_type_input: false
+  windowed_beamformer_input: false
+logger:
+  log_every: 10
+  name: simple
+  plot_every: 100000
+model:
+  block: true
+  bn: true
+  depth: 3
+  detach: true
+  dropout: 0.0
+  hidden: 16
+  load_paired: false
+  load_single: true
+  name: pairedbeamformer
+  norm: layer
+  output_ntheta: 7
+  single:
+    block: true
+    bn: true
+    depth: 4
+    detach: true
+    dropout: 0.0
+    hidden: 32
+    norm: layer
+optim:
+  amp: false
+  checkpoint: /tmp/tmpr4u18d39/single_checkpoints/best.pth
+  checkpoint_every: 10
+  device: cpu
+  direct_loss: false
+  dtype: torch.float32
+  epochs: 40
+  head_start: 0
+  learning_rate: 0.0001
+  loss: mse
+  output: null
+  resume_step: 0
+  save_on: val/single_loss
+  scheduler: step
+  scheduler_step: 20
+  steps: 11
+  val_every: 3
+  weight_decay: 0.0

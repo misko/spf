@@ -1,0 +1,7062 @@
+{
+ "run": "l31_gsc6_gsc7_union_20260812_v1",
+ "date_utc": "2026-08-12",
+ "check_A": {
+  "question": "does the fitting path reproduce l31_pooled_v1's published holdout numbers?",
+  "reimplementation_selfcheck": {
+   "n_rows": 400,
+   "max_tau_deviation_s": 0.0,
+   "max_h_deviation_rad": 0.0,
+   "max_ripple_deviation_rad": 0.0,
+   "identical": true
+  },
+  "dataset_reproduction": {
+   "pooled_rows": 4641,
+   "pooled_los": 119,
+   "pooled_baseline": {
+    "n": 4641,
+    "mae_deg": 5.555916410913223,
+    "rmse_deg": 8.164203127511724,
+    "p95_deg": 17.861042348904615,
+    "max_deg": 41.556044454612596
+   },
+   "stage_a_rows": 3389,
+   "stage_a_los": 113,
+   "stage_a_baseline": {
+    "n": 3389,
+    "mae_deg": 6.647185660866149,
+    "rmse_deg": 9.155229437640848,
+    "p95_deg": 18.382044687492986,
+    "max_deg": 41.556044454612596
+   }
+  },
+  "published": {
+   "pooled_LOFO": {
+    "L26": 2.109,
+    "L30": 2.985,
+    "L31": 2.261
+   },
+   "pooled_LOFO_p95": {
+    "L26": 6.686,
+    "L30": 11.388,
+    "L31": 7.363
+   },
+   "pooled_baseline_mae": 5.556,
+   "pooled_baseline_p95": 17.861,
+   "pooled_rows": 4641,
+   "pooled_los": 119,
+   "stage_a_rows": 3389,
+   "stage_a_baseline_mae": 6.647,
+   "stage_a_L26": {
+    "LOEO": 2.08,
+    "LOFO": 2.26,
+    "LOBLK": 2.47,
+    "LORO": 2.22
+   },
+   "stage_a_L26_uneq": {
+    "LOEO": 2.6,
+    "LOFO": 2.83
+   },
+   "stage_a_L31": {
+    "LOEO": 2.45,
+    "LOFO": 2.58,
+    "LOBLK": 2.79,
+    "LORO": 2.54
+   },
+   "stage_a_L31_uneq": {
+    "LOEO": 3.06,
+    "LOFO": 3.22
+   },
+   "stage_a_L30": {
+    "LOEO": 3.49,
+    "LOFO": 3.54,
+    "LOBLK": 3.66,
+    "LORO": 3.52
+   }
+  },
+  "two_fitting_rules": {
+   "package_fit_all_rows": {
+    "pooled_LOFO": {
+     "L26": {
+      "mae_deg": 2.11118247314163,
+      "p95_deg": 6.777889088327473
+     },
+     "L30": {
+      "mae_deg": 2.9852787818323083,
+      "p95_deg": 11.387557325667998
+     },
+     "L31": {
+      "mae_deg": 2.320335938870007,
+      "p95_deg": 7.6201446245601225
+     }
+    },
+    "stage_a": {
+     "L26": {
+      "LOEO": {
+       "mae_deg": 2.077875486167299,
+       "uneq_mae_deg": 2.5975359729328575,
+       "p95_deg": 7.038769113588628
+      },
+      "LOFO": {
+       "mae_deg": 2.1804387724069354,
+       "uneq_mae_deg": 2.7257495388001125,
+       "p95_deg": 7.294894039493078
+      },
+      "LOBLK": {
+       "mae_deg": 2.4421629884506415,
+       "uneq_mae_deg": 3.0529289442490684,
+       "p95_deg": 7.504864222159118
+      },
+      "LORO": {
+       "mae_deg": 2.219016155242253,
+       "uneq_mae_deg": 2.7739748248306877,
+       "p95_deg": 7.307363877721869
+      }
+     },
+     "L30": {
+      "LOEO": {
+       "mae_deg": 3.492243398739993,
+       "uneq_mae_deg": 4.365626292264786,
+       "p95_deg": 12.101122700834216
+      },
+      "LOFO": {
+       "mae_deg": 3.5389452284755083,
+       "uneq_mae_deg": 4.42400788613187,
+       "p95_deg": 12.274899636299883
+      },
+      "LOBLK": {
+       "mae_deg": 3.6598835036255553,
+       "uneq_mae_deg": 4.575191882621544,
+       "p95_deg": 12.262392585030618
+      },
+      "LORO": {
+       "mae_deg": 3.5151527380449177,
+       "uneq_mae_deg": 4.394265079024059,
+       "p95_deg": 12.235715091701108
+      }
+     },
+     "L31": {
+      "LOEO": {
+       "mae_deg": 2.4415086547053755,
+       "uneq_mae_deg": 3.05211096672686,
+       "p95_deg": 7.379086802831269
+      },
+      "LOFO": {
+       "mae_deg": 2.567341028005809,
+       "uneq_mae_deg": 3.20941303722305,
+       "p95_deg": 8.212384638628183
+      },
+      "LOBLK": {
+       "mae_deg": 2.7884481712802685,
+       "uneq_mae_deg": 3.485817356130147,
+       "p95_deg": 8.201642569607547
+      },
+      "LORO": {
+       "mae_deg": 2.5353765785422637,
+       "uneq_mae_deg": 3.1694545277313657,
+       "p95_deg": 7.878211852698989
+      }
+     }
+    }
+   },
+   "source_pipeline_1600_row_tau_search": {
+    "pooled_LOFO": {
+     "L26": {
+      "mae_deg": 2.108041267193642,
+      "p95_deg": 6.699628775428005
+     },
+     "L30": {
+      "mae_deg": 2.9852787818323083,
+      "p95_deg": 11.387557325667998
+     },
+     "L31": {
+      "mae_deg": 2.2579841730768218,
+      "p95_deg": 7.363006389674133
+     }
+    },
+    "stage_a": {
+     "L26": {
+      "LOEO": {
+       "mae_deg": 2.077875486167299,
+       "uneq_mae_deg": 2.5975359729328575,
+       "p95_deg": 7.038769113588628
+      },
+      "LOFO": {
+       "mae_deg": 2.218088237406919,
+       "uneq_mae_deg": 2.772814841966819,
+       "p95_deg": 7.265309013949644
+      },
+      "LOBLK": {
+       "mae_deg": 2.4421629884506415,
+       "uneq_mae_deg": 3.0529289442490684,
+       "p95_deg": 7.504864222159118
+      },
+      "LORO": {
+       "mae_deg": 2.219016155242253,
+       "uneq_mae_deg": 2.7739748248306877,
+       "p95_deg": 7.307363877721869
+      }
+     },
+     "L30": {
+      "LOEO": {
+       "mae_deg": 3.492243398739993,
+       "uneq_mae_deg": 4.365626292264786,
+       "p95_deg": 12.101122700834216
+      },
+      "LOFO": {
+       "mae_deg": 3.5389452284755083,
+       "uneq_mae_deg": 4.42400788613187,
+       "p95_deg": 12.274899636299883
+      },
+      "LOBLK": {
+       "mae_deg": 3.6598835036255553,
+       "uneq_mae_deg": 4.575191882621544,
+       "p95_deg": 12.262392585030618
+      },
+      "LORO": {
+       "mae_deg": 3.5151527380449177,
+       "uneq_mae_deg": 4.394265079024059,
+       "p95_deg": 12.235715091701108
+      }
+     },
+     "L31": {
+      "LOEO": {
+       "mae_deg": 2.445374852810398,
+       "uneq_mae_deg": 3.0569440708869204,
+       "p95_deg": 7.448173363588955
+      },
+      "LOFO": {
+       "mae_deg": 2.5685659903016953,
+       "uneq_mae_deg": 3.2109443530551265,
+       "p95_deg": 8.036018166162206
+      },
+      "LOBLK": {
+       "mae_deg": 2.7985523480559786,
+       "uneq_mae_deg": 3.4984485088755854,
+       "p95_deg": 8.263108326438749
+      },
+      "LORO": {
+       "mae_deg": 2.5353765785422637,
+       "uneq_mae_deg": 3.1694545277313657,
+       "p95_deg": 7.878211852698989
+      }
+     }
+    }
+   }
+  },
+  "grading": {
+   "package_fit_all_rows": {
+    "checks": [
+     {
+      "check": "pooled LOFO L26 MAE",
+      "measured": 2.11118247314163,
+      "published": 2.109,
+      "pass": true
+     },
+     {
+      "check": "pooled LOFO L26 P95",
+      "measured": 6.777889088327473,
+      "published": 6.686,
+      "pass": false
+     },
+     {
+      "check": "pooled LOFO L30 MAE",
+      "measured": 2.9852787818323083,
+      "published": 2.985,
+      "pass": true
+     },
+     {
+      "check": "pooled LOFO L30 P95",
+      "measured": 11.387557325667998,
+      "published": 11.388,
+      "pass": true
+     },
+     {
+      "check": "pooled LOFO L31 MAE",
+      "measured": 2.320335938870007,
+      "published": 2.261,
+      "pass": false
+     },
+     {
+      "check": "pooled LOFO L31 P95",
+      "measured": 7.6201446245601225,
+      "published": 7.363,
+      "pass": false
+     },
+     {
+      "check": "stage-A L26 LOEO MAE",
+      "measured": 2.077875486167299,
+      "published": 2.08,
+      "pass": true
+     },
+     {
+      "check": "stage-A L26 LOFO MAE",
+      "measured": 2.1804387724069354,
+      "published": 2.26,
+      "pass": false
+     },
+     {
+      "check": "stage-A L26 LOBLK MAE",
+      "measured": 2.4421629884506415,
+      "published": 2.47,
+      "pass": false
+     },
+     {
+      "check": "stage-A L26 LORO MAE",
+      "measured": 2.219016155242253,
+      "published": 2.22,
+      "pass": true
+     },
+     {
+      "check": "stage-A L30 LOEO MAE",
+      "measured": 3.492243398739993,
+      "published": 3.49,
+      "pass": true
+     },
+     {
+      "check": "stage-A L30 LOFO MAE",
+      "measured": 3.5389452284755083,
+      "published": 3.54,
+      "pass": true
+     },
+     {
+      "check": "stage-A L30 LOBLK MAE",
+      "measured": 3.6598835036255553,
+      "published": 3.66,
+      "pass": true
+     },
+     {
+      "check": "stage-A L30 LORO MAE",
+      "measured": 3.5151527380449177,
+      "published": 3.52,
+      "pass": true
+     },
+     {
+      "check": "stage-A L31 LOEO MAE",
+      "measured": 2.4415086547053755,
+      "published": 2.45,
+      "pass": false
+     },
+     {
+      "check": "stage-A L31 LOFO MAE",
+      "measured": 2.567341028005809,
+      "published": 2.58,
+      "pass": false
+     },
+     {
+      "check": "stage-A L31 LOBLK MAE",
+      "measured": 2.7884481712802685,
+      "published": 2.79,
+      "pass": true
+     },
+     {
+      "check": "stage-A L31 LORO MAE",
+      "measured": 2.5353765785422637,
+      "published": 2.54,
+      "pass": true
+     },
+     {
+      "check": "stage-A L26 LOEO unequal-gain MAE",
+      "measured": 2.5975359729328575,
+      "published": 2.6,
+      "pass": true
+     },
+     {
+      "check": "stage-A L26 LOFO unequal-gain MAE",
+      "measured": 2.7257495388001125,
+      "published": 2.83,
+      "pass": false
+     },
+     {
+      "check": "stage-A L31 LOEO unequal-gain MAE",
+      "measured": 3.05211096672686,
+      "published": 3.06,
+      "pass": false
+     },
+     {
+      "check": "stage-A L31 LOFO unequal-gain MAE",
+      "measured": 3.20941303722305,
+      "published": 3.22,
+      "pass": false
+     }
+    ],
+    "n": 22,
+    "n_pass": 12
+   },
+   "source_pipeline_1600_row_tau_search": {
+    "checks": [
+     {
+      "check": "pooled LOFO L26 MAE",
+      "measured": 2.108041267193642,
+      "published": 2.109,
+      "pass": true
+     },
+     {
+      "check": "pooled LOFO L26 P95",
+      "measured": 6.699628775428005,
+      "published": 6.686,
+      "pass": false
+     },
+     {
+      "check": "pooled LOFO L30 MAE",
+      "measured": 2.9852787818323083,
+      "published": 2.985,
+      "pass": true
+     },
+     {
+      "check": "pooled LOFO L30 P95",
+      "measured": 11.387557325667998,
+      "published": 11.388,
+      "pass": true
+     },
+     {
+      "check": "pooled LOFO L31 MAE",
+      "measured": 2.2579841730768218,
+      "published": 2.261,
+      "pass": true
+     },
+     {
+      "check": "pooled LOFO L31 P95",
+      "measured": 7.363006389674133,
+      "published": 7.363,
+      "pass": true
+     },
+     {
+      "check": "stage-A L26 LOEO MAE",
+      "measured": 2.077875486167299,
+      "published": 2.08,
+      "pass": true
+     },
+     {
+      "check": "stage-A L26 LOFO MAE",
+      "measured": 2.218088237406919,
+      "published": 2.26,
+      "pass": false
+     },
+     {
+      "check": "stage-A L26 LOBLK MAE",
+      "measured": 2.4421629884506415,
+      "published": 2.47,
+      "pass": false
+     },
+     {
+      "check": "stage-A L26 LORO MAE",
+      "measured": 2.219016155242253,
+      "published": 2.22,
+      "pass": true
+     },
+     {
+      "check": "stage-A L30 LOEO MAE",
+      "measured": 3.492243398739993,
+      "published": 3.49,
+      "pass": true
+     },
+     {
+      "check": "stage-A L30 LOFO MAE",
+      "measured": 3.5389452284755083,
+      "published": 3.54,
+      "pass": true
+     },
+     {
+      "check": "stage-A L30 LOBLK MAE",
+      "measured": 3.6598835036255553,
+      "published": 3.66,
+      "pass": true
+     },
+     {
+      "check": "stage-A L30 LORO MAE",
+      "measured": 3.5151527380449177,
+      "published": 3.52,
+      "pass": true
+     },
+     {
+      "check": "stage-A L31 LOEO MAE",
+      "measured": 2.445374852810398,
+      "published": 2.45,
+      "pass": true
+     },
+     {
+      "check": "stage-A L31 LOFO MAE",
+      "measured": 2.5685659903016953,
+      "published": 2.58,
+      "pass": false
+     },
+     {
+      "check": "stage-A L31 LOBLK MAE",
+      "measured": 2.7985523480559786,
+      "published": 2.79,
+      "pass": false
+     },
+     {
+      "check": "stage-A L31 LORO MAE",
+      "measured": 2.5353765785422637,
+      "published": 2.54,
+      "pass": true
+     },
+     {
+      "check": "stage-A L26 LOEO unequal-gain MAE",
+      "measured": 2.5975359729328575,
+      "published": 2.6,
+      "pass": true
+     },
+     {
+      "check": "stage-A L26 LOFO unequal-gain MAE",
+      "measured": 2.772814841966819,
+      "published": 2.83,
+      "pass": false
+     },
+     {
+      "check": "stage-A L31 LOEO unequal-gain MAE",
+      "measured": 3.0569440708869204,
+      "published": 3.06,
+      "pass": true
+     },
+     {
+      "check": "stage-A L31 LOFO unequal-gain MAE",
+      "measured": 3.2109443530551265,
+      "published": 3.22,
+      "pass": false
+     }
+    ],
+    "n": 22,
+    "n_pass": 15
+   }
+  },
+  "source_pipeline_rerun": {
+   "what": "the SOURCE analysis' own ladder.py / models.py, copied unmodified to a scratch directory and run against this run's own read-only re-extraction of the campaign stores",
+   "stage_A_LOFO": {
+    "L00": {
+     "params": 0,
+     "coverage": 1.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L01": {
+     "params": 3,
+     "coverage": 1.0,
+     "mae_deg": 5.16,
+     "uneq_mae_deg": 6.451,
+     "p95_deg": 16.138,
+     "max_deg": 34.927
+    },
+    "L02": {
+     "params": 6,
+     "coverage": 1.0,
+     "mae_deg": 5.158,
+     "uneq_mae_deg": 6.448,
+     "p95_deg": 16.144,
+     "max_deg": 34.68
+    },
+    "L03": {
+     "params": 6,
+     "coverage": 1.0,
+     "mae_deg": 5.161,
+     "uneq_mae_deg": 6.452,
+     "p95_deg": 16.13,
+     "max_deg": 34.723
+    },
+    "L04": {
+     "params": 12,
+     "coverage": 1.0,
+     "mae_deg": 5.162,
+     "uneq_mae_deg": 6.453,
+     "p95_deg": 16.159,
+     "max_deg": 34.417
+    },
+    "L05": {
+     "params": 15,
+     "coverage": 1.0,
+     "mae_deg": 3.288,
+     "uneq_mae_deg": 4.11,
+     "p95_deg": 11.923,
+     "max_deg": 33.075
+    },
+    "L06": {
+     "params": 9,
+     "coverage": 1.0,
+     "mae_deg": 3.288,
+     "uneq_mae_deg": 4.11,
+     "p95_deg": 11.923,
+     "max_deg": 33.075
+    },
+    "L07": {
+     "params": 30,
+     "coverage": 1.0,
+     "mae_deg": 3.282,
+     "uneq_mae_deg": 4.103,
+     "p95_deg": 12.02,
+     "max_deg": 32.136
+    },
+    "L08": {
+     "params": 9,
+     "coverage": 1.0,
+     "mae_deg": 3.288,
+     "uneq_mae_deg": 4.11,
+     "p95_deg": 11.923,
+     "max_deg": 33.075
+    },
+    "L09": {
+     "params": 18,
+     "coverage": 1.0,
+     "mae_deg": 3.282,
+     "uneq_mae_deg": 4.103,
+     "p95_deg": 12.02,
+     "max_deg": 32.136
+    },
+    "L10": {
+     "params": 36,
+     "coverage": 1.0,
+     "mae_deg": 3.28,
+     "uneq_mae_deg": 4.1,
+     "p95_deg": 11.908,
+     "max_deg": 31.11
+    },
+    "L11": {
+     "params": 12,
+     "coverage": 1.0,
+     "mae_deg": 3.083,
+     "uneq_mae_deg": 3.854,
+     "p95_deg": 12.035,
+     "max_deg": 32.572
+    },
+    "L12": {
+     "params": 24,
+     "coverage": 1.0,
+     "mae_deg": 3.08,
+     "uneq_mae_deg": 3.851,
+     "p95_deg": 12.127,
+     "max_deg": 31.541
+    },
+    "L13": {
+     "params": 18,
+     "coverage": 1.0,
+     "mae_deg": 3.31,
+     "uneq_mae_deg": 4.138,
+     "p95_deg": 12.071,
+     "max_deg": 33.152
+    },
+    "L14": {
+     "params": 15,
+     "coverage": 1.0,
+     "mae_deg": 2.986,
+     "uneq_mae_deg": 3.733,
+     "p95_deg": 9.341,
+     "max_deg": 34.042
+    },
+    "L15": {
+     "params": 30,
+     "coverage": 1.0,
+     "mae_deg": 2.958,
+     "uneq_mae_deg": 3.698,
+     "p95_deg": 9.48,
+     "max_deg": 32.981
+    },
+    "L16": {
+     "params": 21,
+     "coverage": 1.0,
+     "mae_deg": 2.497,
+     "uneq_mae_deg": 3.122,
+     "p95_deg": 8.923,
+     "max_deg": 36.22
+    },
+    "L17": {
+     "params": 27,
+     "coverage": 1.0,
+     "mae_deg": 2.571,
+     "uneq_mae_deg": 3.213,
+     "p95_deg": 8.766,
+     "max_deg": 37.669
+    },
+    "L18": {
+     "params": 21,
+     "coverage": 1.0,
+     "mae_deg": 2.699,
+     "uneq_mae_deg": 3.374,
+     "p95_deg": 8.6,
+     "max_deg": 34.982
+    },
+    "L19": {
+     "params": 48,
+     "coverage": 1.0,
+     "mae_deg": 2.563,
+     "uneq_mae_deg": 3.203,
+     "p95_deg": 8.939,
+     "max_deg": 32.978
+    },
+    "L20": {
+     "params": 45,
+     "coverage": 1.0,
+     "mae_deg": 2.723,
+     "uneq_mae_deg": 3.405,
+     "p95_deg": 8.601,
+     "max_deg": 34.623
+    },
+    "L21": {
+     "params": 54,
+     "coverage": 1.0,
+     "mae_deg": 2.997,
+     "uneq_mae_deg": 3.747,
+     "p95_deg": 11.555,
+     "max_deg": 30.986
+    },
+    "L22": {
+     "params": 78,
+     "coverage": 1.0,
+     "mae_deg": 2.407,
+     "uneq_mae_deg": 3.009,
+     "p95_deg": 8.7,
+     "max_deg": 32.548
+    },
+    "L25": {
+     "params": 29,
+     "coverage": 1.0,
+     "mae_deg": 2.553,
+     "uneq_mae_deg": 3.191,
+     "p95_deg": 8.699,
+     "max_deg": 36.165
+    },
+    "L26": {
+     "params": 27,
+     "coverage": 1.0,
+     "mae_deg": 2.262,
+     "uneq_mae_deg": 2.828,
+     "p95_deg": 7.541,
+     "max_deg": 36.847
+    },
+    "L27": {
+     "params": 49,
+     "coverage": 1.0,
+     "mae_deg": 1.852,
+     "uneq_mae_deg": 2.315,
+     "p95_deg": 6.931,
+     "max_deg": 32.882
+    },
+    "L28": {
+     "params": 77,
+     "coverage": 1.0,
+     "mae_deg": 1.888,
+     "uneq_mae_deg": 2.36,
+     "p95_deg": 7.091,
+     "max_deg": 31.1
+    },
+    "L30": {
+     "params": 8,
+     "coverage": 1.0,
+     "mae_deg": 3.539,
+     "uneq_mae_deg": 4.424,
+     "p95_deg": 12.275,
+     "max_deg": 33.671
+    },
+    "L31": {
+     "params": 20,
+     "coverage": 1.0,
+     "mae_deg": 2.575,
+     "uneq_mae_deg": 3.219,
+     "p95_deg": 8.124,
+     "max_deg": 37.329
+    },
+    "L32": {
+     "params": 42,
+     "coverage": 1.0,
+     "mae_deg": 2.331,
+     "uneq_mae_deg": 2.914,
+     "p95_deg": 7.713,
+     "max_deg": 32.144
+    },
+    "L33": {
+     "params": 43,
+     "coverage": 1.0,
+     "mae_deg": 1.987,
+     "uneq_mae_deg": 2.484,
+     "p95_deg": 7.277,
+     "max_deg": 31.759
+    },
+    "L34": {
+     "params": 71,
+     "coverage": 1.0,
+     "mae_deg": 2.018,
+     "uneq_mae_deg": 2.523,
+     "p95_deg": 7.249,
+     "max_deg": 29.958
+    },
+    "L29": {
+     "params": 45,
+     "coverage": 1.0,
+     "mae_deg": 3.1,
+     "uneq_mae_deg": 3.875,
+     "p95_deg": 9.826,
+     "max_deg": 32.653
+    },
+    "L23": {
+     "params": 672,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L24": {
+     "params": 1344,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    }
+   },
+   "stage_A_LOEO": {
+    "L00": {
+     "params": 0,
+     "coverage": 1.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L01": {
+     "params": 3,
+     "coverage": 1.0,
+     "mae_deg": 5.117,
+     "uneq_mae_deg": 6.397,
+     "p95_deg": 16.004,
+     "max_deg": 34.907
+    },
+    "L02": {
+     "params": 6,
+     "coverage": 1.0,
+     "mae_deg": 5.114,
+     "uneq_mae_deg": 6.393,
+     "p95_deg": 16.024,
+     "max_deg": 34.562
+    },
+    "L03": {
+     "params": 6,
+     "coverage": 1.0,
+     "mae_deg": 5.118,
+     "uneq_mae_deg": 6.398,
+     "p95_deg": 16.004,
+     "max_deg": 34.713
+    },
+    "L04": {
+     "params": 12,
+     "coverage": 1.0,
+     "mae_deg": 5.117,
+     "uneq_mae_deg": 6.397,
+     "p95_deg": 15.996,
+     "max_deg": 34.25
+    },
+    "L05": {
+     "params": 15,
+     "coverage": 1.0,
+     "mae_deg": 3.215,
+     "uneq_mae_deg": 4.019,
+     "p95_deg": 11.543,
+     "max_deg": 33.03
+    },
+    "L06": {
+     "params": 9,
+     "coverage": 1.0,
+     "mae_deg": 3.215,
+     "uneq_mae_deg": 4.019,
+     "p95_deg": 11.543,
+     "max_deg": 33.03
+    },
+    "L07": {
+     "params": 30,
+     "coverage": 1.0,
+     "mae_deg": 3.205,
+     "uneq_mae_deg": 4.006,
+     "p95_deg": 11.625,
+     "max_deg": 31.799
+    },
+    "L08": {
+     "params": 9,
+     "coverage": 1.0,
+     "mae_deg": 3.215,
+     "uneq_mae_deg": 4.019,
+     "p95_deg": 11.543,
+     "max_deg": 33.03
+    },
+    "L09": {
+     "params": 18,
+     "coverage": 1.0,
+     "mae_deg": 3.205,
+     "uneq_mae_deg": 4.006,
+     "p95_deg": 11.625,
+     "max_deg": 31.799
+    },
+    "L10": {
+     "params": 36,
+     "coverage": 1.0,
+     "mae_deg": 3.198,
+     "uneq_mae_deg": 3.998,
+     "p95_deg": 11.569,
+     "max_deg": 30.64
+    },
+    "L11": {
+     "params": 12,
+     "coverage": 1.0,
+     "mae_deg": 2.992,
+     "uneq_mae_deg": 3.74,
+     "p95_deg": 11.541,
+     "max_deg": 32.537
+    },
+    "L12": {
+     "params": 24,
+     "coverage": 1.0,
+     "mae_deg": 2.984,
+     "uneq_mae_deg": 3.73,
+     "p95_deg": 11.621,
+     "max_deg": 31.194
+    },
+    "L13": {
+     "params": 18,
+     "coverage": 1.0,
+     "mae_deg": 3.212,
+     "uneq_mae_deg": 4.015,
+     "p95_deg": 11.514,
+     "max_deg": 33.096
+    },
+    "L14": {
+     "params": 15,
+     "coverage": 1.0,
+     "mae_deg": 2.849,
+     "uneq_mae_deg": 3.561,
+     "p95_deg": 8.877,
+     "max_deg": 33.863
+    },
+    "L15": {
+     "params": 30,
+     "coverage": 1.0,
+     "mae_deg": 2.837,
+     "uneq_mae_deg": 3.546,
+     "p95_deg": 9.036,
+     "max_deg": 32.298
+    },
+    "L16": {
+     "params": 21,
+     "coverage": 1.0,
+     "mae_deg": 2.419,
+     "uneq_mae_deg": 3.024,
+     "p95_deg": 8.549,
+     "max_deg": 35.942
+    },
+    "L17": {
+     "params": 27,
+     "coverage": 1.0,
+     "mae_deg": 2.454,
+     "uneq_mae_deg": 3.068,
+     "p95_deg": 8.254,
+     "max_deg": 37.246
+    },
+    "L18": {
+     "params": 21,
+     "coverage": 1.0,
+     "mae_deg": 2.541,
+     "uneq_mae_deg": 3.177,
+     "p95_deg": 8.072,
+     "max_deg": 34.692
+    },
+    "L19": {
+     "params": 48,
+     "coverage": 1.0,
+     "mae_deg": 2.417,
+     "uneq_mae_deg": 3.021,
+     "p95_deg": 8.312,
+     "max_deg": 31.304
+    },
+    "L20": {
+     "params": 45,
+     "coverage": 1.0,
+     "mae_deg": 2.592,
+     "uneq_mae_deg": 3.24,
+     "p95_deg": 8.158,
+     "max_deg": 33.41
+    },
+    "L21": {
+     "params": 54,
+     "coverage": 1.0,
+     "mae_deg": 2.803,
+     "uneq_mae_deg": 3.504,
+     "p95_deg": 10.864,
+     "max_deg": 30.28
+    },
+    "L22": {
+     "params": 78,
+     "coverage": 1.0,
+     "mae_deg": 2.146,
+     "uneq_mae_deg": 2.683,
+     "p95_deg": 7.689,
+     "max_deg": 31.047
+    },
+    "L25": {
+     "params": 29,
+     "coverage": 1.0,
+     "mae_deg": 2.39,
+     "uneq_mae_deg": 2.988,
+     "p95_deg": 7.971,
+     "max_deg": 35.61
+    },
+    "L26": {
+     "params": 27,
+     "coverage": 1.0,
+     "mae_deg": 2.078,
+     "uneq_mae_deg": 2.598,
+     "p95_deg": 7.039,
+     "max_deg": 36.402
+    },
+    "L27": {
+     "params": 49,
+     "coverage": 1.0,
+     "mae_deg": 1.679,
+     "uneq_mae_deg": 2.099,
+     "p95_deg": 6.189,
+     "max_deg": 32.226
+    },
+    "L28": {
+     "params": 77,
+     "coverage": 1.0,
+     "mae_deg": 1.698,
+     "uneq_mae_deg": 2.122,
+     "p95_deg": 6.232,
+     "max_deg": 29.375
+    },
+    "L30": {
+     "params": 8,
+     "coverage": 1.0,
+     "mae_deg": 3.492,
+     "uneq_mae_deg": 4.366,
+     "p95_deg": 12.101,
+     "max_deg": 33.648
+    },
+    "L31": {
+     "params": 20,
+     "coverage": 1.0,
+     "mae_deg": 2.449,
+     "uneq_mae_deg": 3.062,
+     "p95_deg": 7.387,
+     "max_deg": 35.993
+    },
+    "L32": {
+     "params": 42,
+     "coverage": 1.0,
+     "mae_deg": 2.123,
+     "uneq_mae_deg": 2.654,
+     "p95_deg": 6.857,
+     "max_deg": 31.665
+    },
+    "L33": {
+     "params": 43,
+     "coverage": 1.0,
+     "mae_deg": 1.81,
+     "uneq_mae_deg": 2.263,
+     "p95_deg": 6.379,
+     "max_deg": 31.239
+    },
+    "L34": {
+     "params": 71,
+     "coverage": 1.0,
+     "mae_deg": 1.824,
+     "uneq_mae_deg": 2.28,
+     "p95_deg": 6.361,
+     "max_deg": 28.352
+    },
+    "L29": {
+     "params": 45,
+     "coverage": 1.0,
+     "mae_deg": 2.748,
+     "uneq_mae_deg": 3.435,
+     "p95_deg": 8.587,
+     "max_deg": 32.268
+    },
+    "L23": {
+     "params": 678,
+     "coverage": 1.0,
+     "mae_deg": 0.986,
+     "uneq_mae_deg": 1.233,
+     "p95_deg": 3.853,
+     "max_deg": 14.823
+    },
+    "L24": {
+     "params": 1356,
+     "coverage": 1.0,
+     "mae_deg": 0.617,
+     "uneq_mae_deg": 0.771,
+     "p95_deg": 2.825,
+     "max_deg": 8.058
+    }
+   },
+   "stage_A_LOBLOCK": {
+    "L00": {
+     "params": 0,
+     "coverage": 1.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L01": {
+     "params": 3,
+     "coverage": 1.0,
+     "mae_deg": 5.643,
+     "uneq_mae_deg": 7.054,
+     "p95_deg": 17.178,
+     "max_deg": 34.837
+    },
+    "L02": {
+     "params": 6,
+     "coverage": 1.0,
+     "mae_deg": 5.643,
+     "uneq_mae_deg": 7.054,
+     "p95_deg": 17.2,
+     "max_deg": 34.618
+    },
+    "L03": {
+     "params": 6,
+     "coverage": 1.0,
+     "mae_deg": 5.644,
+     "uneq_mae_deg": 7.056,
+     "p95_deg": 17.328,
+     "max_deg": 34.636
+    },
+    "L04": {
+     "params": 12,
+     "coverage": 1.0,
+     "mae_deg": 5.646,
+     "uneq_mae_deg": 7.058,
+     "p95_deg": 17.323,
+     "max_deg": 34.476
+    },
+    "L05": {
+     "params": 15,
+     "coverage": 1.0,
+     "mae_deg": 3.38,
+     "uneq_mae_deg": 4.225,
+     "p95_deg": 11.722,
+     "max_deg": 31.75
+    },
+    "L06": {
+     "params": 9,
+     "coverage": 1.0,
+     "mae_deg": 3.38,
+     "uneq_mae_deg": 4.225,
+     "p95_deg": 11.722,
+     "max_deg": 31.75
+    },
+    "L07": {
+     "params": 30,
+     "coverage": 1.0,
+     "mae_deg": 3.378,
+     "uneq_mae_deg": 4.223,
+     "p95_deg": 11.713,
+     "max_deg": 30.557
+    },
+    "L08": {
+     "params": 9,
+     "coverage": 1.0,
+     "mae_deg": 3.38,
+     "uneq_mae_deg": 4.225,
+     "p95_deg": 11.722,
+     "max_deg": 31.75
+    },
+    "L09": {
+     "params": 18,
+     "coverage": 1.0,
+     "mae_deg": 3.378,
+     "uneq_mae_deg": 4.223,
+     "p95_deg": 11.713,
+     "max_deg": 30.557
+    },
+    "L10": {
+     "params": 36,
+     "coverage": 1.0,
+     "mae_deg": 3.388,
+     "uneq_mae_deg": 4.236,
+     "p95_deg": 11.85,
+     "max_deg": 29.603
+    },
+    "L11": {
+     "params": 12,
+     "coverage": 1.0,
+     "mae_deg": 3.138,
+     "uneq_mae_deg": 3.922,
+     "p95_deg": 11.925,
+     "max_deg": 31.363
+    },
+    "L12": {
+     "params": 24,
+     "coverage": 1.0,
+     "mae_deg": 3.147,
+     "uneq_mae_deg": 3.934,
+     "p95_deg": 11.969,
+     "max_deg": 30.121
+    },
+    "L13": {
+     "params": 18,
+     "coverage": 1.0,
+     "mae_deg": 3.495,
+     "uneq_mae_deg": 4.369,
+     "p95_deg": 11.962,
+     "max_deg": 31.84
+    },
+    "L14": {
+     "params": 15,
+     "coverage": 1.0,
+     "mae_deg": 3.248,
+     "uneq_mae_deg": 4.06,
+     "p95_deg": 9.831,
+     "max_deg": 32.501
+    },
+    "L15": {
+     "params": 30,
+     "coverage": 1.0,
+     "mae_deg": 3.236,
+     "uneq_mae_deg": 4.045,
+     "p95_deg": 9.891,
+     "max_deg": 31.407
+    },
+    "L16": {
+     "params": 21,
+     "coverage": 1.0,
+     "mae_deg": 2.702,
+     "uneq_mae_deg": 3.378,
+     "p95_deg": 9.532,
+     "max_deg": 37.269
+    },
+    "L17": {
+     "params": 27,
+     "coverage": 1.0,
+     "mae_deg": 2.742,
+     "uneq_mae_deg": 3.428,
+     "p95_deg": 9.447,
+     "max_deg": 36.817
+    },
+    "L18": {
+     "params": 21,
+     "coverage": 1.0,
+     "mae_deg": 3.492,
+     "uneq_mae_deg": 4.366,
+     "p95_deg": 10.682,
+     "max_deg": 32.255
+    },
+    "L19": {
+     "params": 48,
+     "coverage": 1.0,
+     "mae_deg": 3.299,
+     "uneq_mae_deg": 4.123,
+     "p95_deg": 11.303,
+     "max_deg": 29.592
+    },
+    "L20": {
+     "params": 45,
+     "coverage": 1.0,
+     "mae_deg": 3.513,
+     "uneq_mae_deg": 4.392,
+     "p95_deg": 10.802,
+     "max_deg": 32.42
+    },
+    "L21": {
+     "params": 54,
+     "coverage": 1.0,
+     "mae_deg": 10.382,
+     "uneq_mae_deg": 12.978,
+     "p95_deg": 42.986,
+     "max_deg": 173.582
+    },
+    "L22": {
+     "params": 78,
+     "coverage": 1.0,
+     "mae_deg": 9.565,
+     "uneq_mae_deg": 11.957,
+     "p95_deg": 41.776,
+     "max_deg": 150.155
+    },
+    "L25": {
+     "params": 29,
+     "coverage": 1.0,
+     "mae_deg": 2.75,
+     "uneq_mae_deg": 3.438,
+     "p95_deg": 9.065,
+     "max_deg": 35.093
+    },
+    "L26": {
+     "params": 27,
+     "coverage": 1.0,
+     "mae_deg": 2.473,
+     "uneq_mae_deg": 3.091,
+     "p95_deg": 7.622,
+     "max_deg": 39.213
+    },
+    "L27": {
+     "params": 49,
+     "coverage": 1.0,
+     "mae_deg": 3.519,
+     "uneq_mae_deg": 4.399,
+     "p95_deg": 11.371,
+     "max_deg": 53.171
+    },
+    "L28": {
+     "params": 77,
+     "coverage": 1.0,
+     "mae_deg": 3.544,
+     "uneq_mae_deg": 4.43,
+     "p95_deg": 11.721,
+     "max_deg": 59.797
+    },
+    "L30": {
+     "params": 8,
+     "coverage": 1.0,
+     "mae_deg": 3.66,
+     "uneq_mae_deg": 4.575,
+     "p95_deg": 12.262,
+     "max_deg": 33.263
+    },
+    "L31": {
+     "params": 20,
+     "coverage": 1.0,
+     "mae_deg": 2.793,
+     "uneq_mae_deg": 3.492,
+     "p95_deg": 8.41,
+     "max_deg": 38.164
+    },
+    "L32": {
+     "params": 42,
+     "coverage": 1.0,
+     "mae_deg": 5.045,
+     "uneq_mae_deg": 6.307,
+     "p95_deg": 25.088,
+     "max_deg": 59.884
+    },
+    "L33": {
+     "params": 43,
+     "coverage": 1.0,
+     "mae_deg": 3.577,
+     "uneq_mae_deg": 4.471,
+     "p95_deg": 12.291,
+     "max_deg": 54.708
+    },
+    "L34": {
+     "params": 71,
+     "coverage": 1.0,
+     "mae_deg": 3.645,
+     "uneq_mae_deg": 4.556,
+     "p95_deg": 12.494,
+     "max_deg": 59.719
+    },
+    "L29": {
+     "params": 45,
+     "coverage": 1.0,
+     "mae_deg": 4.029,
+     "uneq_mae_deg": 5.037,
+     "p95_deg": 12.154,
+     "max_deg": 30.451
+    },
+    "L23": {
+     "params": 594,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L24": {
+     "params": 1188,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    }
+   },
+   "stage_A_LORO": {
+    "L00": {
+     "params": 0,
+     "coverage": 1.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L01": {
+     "params": 3,
+     "coverage": 1.0,
+     "mae_deg": 5.13,
+     "uneq_mae_deg": 6.413,
+     "p95_deg": 16.08,
+     "max_deg": 35.235
+    },
+    "L02": {
+     "params": 3,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L03": {
+     "params": 6,
+     "coverage": 1.0,
+     "mae_deg": 5.132,
+     "uneq_mae_deg": 6.416,
+     "p95_deg": 16.037,
+     "max_deg": 35.138
+    },
+    "L04": {
+     "params": 6,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L05": {
+     "params": 15,
+     "coverage": 1.0,
+     "mae_deg": 3.254,
+     "uneq_mae_deg": 4.068,
+     "p95_deg": 11.603,
+     "max_deg": 34.217
+    },
+    "L06": {
+     "params": 9,
+     "coverage": 1.0,
+     "mae_deg": 3.254,
+     "uneq_mae_deg": 4.068,
+     "p95_deg": 11.603,
+     "max_deg": 34.217
+    },
+    "L07": {
+     "params": 15,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L08": {
+     "params": 9,
+     "coverage": 1.0,
+     "mae_deg": 3.254,
+     "uneq_mae_deg": 4.068,
+     "p95_deg": 11.603,
+     "max_deg": 34.217
+    },
+    "L09": {
+     "params": 9,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L10": {
+     "params": 18,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L11": {
+     "params": 12,
+     "coverage": 1.0,
+     "mae_deg": 3.048,
+     "uneq_mae_deg": 3.81,
+     "p95_deg": 11.703,
+     "max_deg": 33.826
+    },
+    "L12": {
+     "params": 12,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L13": {
+     "params": 18,
+     "coverage": 1.0,
+     "mae_deg": 3.259,
+     "uneq_mae_deg": 4.074,
+     "p95_deg": 11.647,
+     "max_deg": 34.402
+    },
+    "L14": {
+     "params": 15,
+     "coverage": 1.0,
+     "mae_deg": 2.902,
+     "uneq_mae_deg": 3.628,
+     "p95_deg": 8.835,
+     "max_deg": 35.402
+    },
+    "L15": {
+     "params": 15,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L16": {
+     "params": 21,
+     "coverage": 1.0,
+     "mae_deg": 2.493,
+     "uneq_mae_deg": 3.116,
+     "p95_deg": 8.758,
+     "max_deg": 39.539
+    },
+    "L17": {
+     "params": 27,
+     "coverage": 1.0,
+     "mae_deg": 2.524,
+     "uneq_mae_deg": 3.155,
+     "p95_deg": 8.479,
+     "max_deg": 39.079
+    },
+    "L18": {
+     "params": 21,
+     "coverage": 1.0,
+     "mae_deg": 2.707,
+     "uneq_mae_deg": 3.384,
+     "p95_deg": 8.387,
+     "max_deg": 36.742
+    },
+    "L19": {
+     "params": 24,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L20": {
+     "params": 33,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L21": {
+     "params": 27,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L22": {
+     "params": 39,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L25": {
+     "params": 29,
+     "coverage": 1.0,
+     "mae_deg": 2.463,
+     "uneq_mae_deg": 3.079,
+     "p95_deg": 8.322,
+     "max_deg": 37.83
+    },
+    "L26": {
+     "params": 27,
+     "coverage": 1.0,
+     "mae_deg": 2.219,
+     "uneq_mae_deg": 2.774,
+     "p95_deg": 7.307,
+     "max_deg": 40.131
+    },
+    "L27": {
+     "params": 49,
+     "coverage": 1.0,
+     "mae_deg": 1.906,
+     "uneq_mae_deg": 2.382,
+     "p95_deg": 6.841,
+     "max_deg": 37.33
+    },
+    "L28": {
+     "params": 49,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L30": {
+     "params": 8,
+     "coverage": 1.0,
+     "mae_deg": 3.515,
+     "uneq_mae_deg": 4.394,
+     "p95_deg": 12.236,
+     "max_deg": 34.205
+    },
+    "L31": {
+     "params": 20,
+     "coverage": 1.0,
+     "mae_deg": 2.535,
+     "uneq_mae_deg": 3.169,
+     "p95_deg": 7.878,
+     "max_deg": 38.825
+    },
+    "L32": {
+     "params": 42,
+     "coverage": 1.0,
+     "mae_deg": 2.282,
+     "uneq_mae_deg": 2.852,
+     "p95_deg": 7.63,
+     "max_deg": 36.399
+    },
+    "L33": {
+     "params": 43,
+     "coverage": 1.0,
+     "mae_deg": 2.003,
+     "uneq_mae_deg": 2.503,
+     "p95_deg": 7.048,
+     "max_deg": 36.157
+    },
+    "L34": {
+     "params": 43,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L29": {
+     "params": 45,
+     "coverage": 1.0,
+     "mae_deg": 2.92,
+     "uneq_mae_deg": 3.65,
+     "p95_deg": 8.873,
+     "max_deg": 36.533
+    },
+    "L23": {
+     "params": 339,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    },
+    "L24": {
+     "params": 678,
+     "coverage": 0.0,
+     "mae_deg": 6.647,
+     "uneq_mae_deg": 8.31,
+     "p95_deg": 18.382,
+     "max_deg": 41.556
+    }
+   },
+   "pooled_LOFO": {
+    "L00": {
+     "params": 0,
+     "coverage": 1.0,
+     "mae_deg": 5.556,
+     "uneq_mae_deg": 6.62,
+     "p95_deg": 17.861,
+     "max_deg": 41.556
+    },
+    "L01": {
+     "params": 27,
+     "coverage": 1.0,
+     "mae_deg": 4.541,
+     "uneq_mae_deg": 5.41,
+     "p95_deg": 15.002,
+     "max_deg": 35.166
+    },
+    "L05": {
+     "params": 26,
+     "coverage": 1.0,
+     "mae_deg": 2.913,
+     "uneq_mae_deg": 3.471,
+     "p95_deg": 11.221,
+     "max_deg": 33.412
+    },
+    "L06": {
+     "params": 40,
+     "coverage": 0.99,
+     "mae_deg": 2.857,
+     "uneq_mae_deg": 3.405,
+     "p95_deg": 11.149,
+     "max_deg": 33.452
+    },
+    "L16": {
+     "params": 32,
+     "coverage": 1.0,
+     "mae_deg": 2.33,
+     "uneq_mae_deg": 2.777,
+     "p95_deg": 8.51,
+     "max_deg": 38.394
+    },
+    "L26": {
+     "params": 38,
+     "coverage": 1.0,
+     "mae_deg": 2.109,
+     "uneq_mae_deg": 2.513,
+     "p95_deg": 6.686,
+     "max_deg": 36.729
+    },
+    "L30": {
+     "params": 9,
+     "coverage": 1.0,
+     "mae_deg": 2.985,
+     "uneq_mae_deg": 3.557,
+     "p95_deg": 11.388,
+     "max_deg": 33.817
+    },
+    "L31": {
+     "params": 21,
+     "coverage": 1.0,
+     "mae_deg": 2.261,
+     "uneq_mae_deg": 2.694,
+     "p95_deg": 7.363,
+     "max_deg": 37.01
+    },
+    "L32": {
+     "params": 44,
+     "coverage": 1.0,
+     "mae_deg": 1.972,
+     "uneq_mae_deg": 2.349,
+     "p95_deg": 7.116,
+     "max_deg": 31.71
+    },
+    "L33": {
+     "params": 45,
+     "coverage": 1.0,
+     "mae_deg": 1.934,
+     "uneq_mae_deg": 2.305,
+     "p95_deg": 6.585,
+     "max_deg": 31.62
+    },
+    "L34": {
+     "params": 73,
+     "coverage": 1.0,
+     "mae_deg": 1.964,
+     "uneq_mae_deg": 2.34,
+     "p95_deg": 6.787,
+     "max_deg": 30.246
+    },
+    "L24": {
+     "params": 1748,
+     "coverage": 0.0,
+     "mae_deg": 5.556,
+     "uneq_mae_deg": 6.62,
+     "p95_deg": 17.861,
+     "max_deg": 41.556
+    }
+   }
+  }
+ },
+ "check_B_new_rung": {
+  "convention": "ANCHORED D = phi - measured equal-gain cell (26 dB), fail-closed, degrees",
+  "sources": {
+   "E-GSC6": "equal_gain_diagonal_20260811_v1/additive_cross_*.json (FITTED per-arm coefficients, 2 radios x 24 LOs x 21 gains)",
+   "E-GSC7": "e_gsc7_iio_20260812_v1/analysis.json results_5766[].steps_deg (FITTED shared-effect steps, 2 radios x 2 transports, 5766 MHz ONLY, mixer 5..15)"
+  },
+  "datasets": {
+   "U1_gsc6_plus_gsc7_both_radios": {
+    "n_rows": 2048,
+    "n_los": 24,
+    "radios": [
+     "R17",
+     "R18"
+    ],
+    "n_gains": 30,
+    "rows_by_source": {
+     "E-GSC6": 1968,
+     "E-GSC7": 80
+    },
+    "baseline_all": {
+     "n": 2048,
+     "mae_deg": 7.32324638217857,
+     "rmse_deg": 13.044249697673484,
+     "p95_deg": 21.224814189747786,
+     "max_deg": 86.31526107092931
+    },
+    "baseline_unequal": {
+     "n": 2000,
+     "mae_deg": 7.499004295350855,
+     "rmse_deg": 13.199852612035519,
+     "p95_deg": 21.48234974179529,
+     "max_deg": 86.31526107092931
+    },
+    "baseline_high_band": {
+     "n": 736,
+     "mae_deg": 10.288558849062616,
+     "rmse_deg": 18.567296917015593,
+     "p95_deg": 49.961939789296224,
+     "max_deg": 86.31526107092931
+    }
+   },
+   "U2_gsc6_plus_gsc7_R18_only": {
+    "n_rows": 1024,
+    "n_los": 24,
+    "radios": [
+     "R18"
+    ],
+    "n_gains": 30,
+    "rows_by_source": {
+     "E-GSC6": 984,
+     "E-GSC7": 40
+    },
+    "baseline_all": {
+     "n": 1024,
+     "mae_deg": 6.038270481717478,
+     "rmse_deg": 8.746797680242665,
+     "p95_deg": 18.420530164984644,
+     "max_deg": 25.426601282103945
+    },
+    "baseline_unequal": {
+     "n": 1000,
+     "mae_deg": 6.183188973278698,
+     "rmse_deg": 8.851136928718075,
+     "p95_deg": 18.601417697021116,
+     "max_deg": 25.426601282103945
+    },
+    "baseline_high_band": {
+     "n": 368,
+     "mae_deg": 7.090401736869559,
+     "rmse_deg": 9.816314530666034,
+     "p95_deg": 18.02932960896931,
+     "max_deg": 24.45977553730762
+    }
+   },
+   "U3_gsc6_only_both_radios": {
+    "n_rows": 1968,
+    "n_los": 24,
+    "radios": [
+     "R17",
+     "R18"
+    ],
+    "n_gains": 21,
+    "rows_by_source": {
+     "E-GSC6": 1968
+    },
+    "baseline_all": {
+     "n": 1968,
+     "mae_deg": 7.4800580007137665,
+     "rmse_deg": 13.283573846309094,
+     "p95_deg": 21.52904427460426,
+     "max_deg": 86.31526107092931
+    },
+    "baseline_unequal": {
+     "n": 1920,
+     "mae_deg": 7.667059450731609,
+     "rmse_deg": 13.448593513211918,
+     "p95_deg": 21.645803103840073,
+     "max_deg": 86.31526107092931
+    },
+    "baseline_high_band": {
+     "n": 656,
+     "mae_deg": 11.12061717623943,
+     "rmse_deg": 19.61985937433284,
+     "p95_deg": 51.68848478914956,
+     "max_deg": 86.31526107092931
+    }
+   },
+   "U4_gsc6_only_R18": {
+    "n_rows": 984,
+    "n_los": 24,
+    "radios": [
+     "R18"
+    ],
+    "n_gains": 21,
+    "rows_by_source": {
+     "E-GSC6": 984
+    },
+    "baseline_all": {
+     "n": 984,
+     "mae_deg": 6.148095793516634,
+     "rmse_deg": 8.89141968726007,
+     "p95_deg": 18.617647341481714,
+     "max_deg": 25.426601282103945
+    },
+    "baseline_unequal": {
+     "n": 960,
+     "mae_deg": 6.3017981883545495,
+     "rmse_deg": 9.0018763408731,
+     "p95_deg": 18.71561888474445,
+     "max_deg": 25.426601282103945
+    },
+    "baseline_high_band": {
+     "n": 328,
+     "mae_deg": 7.548186361919721,
+     "rmse_deg": 10.316676798541677,
+     "p95_deg": 18.12400124723438,
+     "max_deg": 24.45977553730762
+    }
+   },
+   "U5_gsc6_plus_gsc7_R17_only": {
+    "n_rows": 1024,
+    "n_los": 24,
+    "radios": [
+     "R17"
+    ],
+    "n_gains": 30,
+    "rows_by_source": {
+     "E-GSC6": 984,
+     "E-GSC7": 40
+    },
+    "baseline_all": {
+     "n": 1024,
+     "mae_deg": 8.60822228263966,
+     "rmse_deg": 16.24187275813387,
+     "p95_deg": 31.152345262236334,
+     "max_deg": 86.31526107092931
+    },
+    "baseline_unequal": {
+     "n": 1000,
+     "mae_deg": 8.814819617423012,
+     "rmse_deg": 16.435619642350115,
+     "p95_deg": 32.08839909147497,
+     "max_deg": 86.31526107092931
+    },
+    "baseline_high_band": {
+     "n": 368,
+     "mae_deg": 13.486715961255673,
+     "rmse_deg": 24.354239849444454,
+     "p95_deg": 72.50132591087757,
+     "max_deg": 86.31526107092931
+    }
+   }
+  },
+  "ladder": {
+   "U1_gsc6_plus_gsc7_both_radios": {
+    "L31": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 7.347432033942575,
+       "rmse_deg": 14.037986906297954,
+       "p95_deg": 26.668428763942906,
+       "max_deg": 105.40837833423132
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 7.523770402757195,
+       "rmse_deg": 14.205443964007118,
+       "p95_deg": 26.712665882061387,
+       "max_deg": 105.40837833423132
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 7.530416503566144,
+        "rmse_deg": 14.305200974447764,
+        "p95_deg": 26.84193458122731,
+        "max_deg": 105.40837833423132
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 2.846014081202773,
+        "rmse_deg": 3.2790383266836,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.746692992139455,
+        "rmse_deg": 17.665904694390807,
+        "p95_deg": 33.606331856380415,
+        "max_deg": 105.40837833423132
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.948171075745695,
+        "rmse_deg": 9.057922724967712,
+        "p95_deg": 20.135975268944886,
+        "max_deg": 33.10394953301447
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 10.630135944551405,
+       "rmse_deg": 20.292263970419445,
+       "p95_deg": 45.79983224310095,
+       "max_deg": 105.40837833423132
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 8.046554511793827,
+       "rmse_deg": 15.18170973121521,
+       "p95_deg": 28.861954045058532,
+       "max_deg": 109.75720454734204
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 8.23967182007688,
+       "rmse_deg": 15.36281008837848,
+       "p95_deg": 29.009871926300935,
+       "max_deg": 109.75720454734204
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 8.258305970146342,
+        "rmse_deg": 15.473044604985715,
+        "p95_deg": 29.1033423878347,
+        "max_deg": 109.75720454734204
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 2.8374686363219674,
+        "rmse_deg": 3.2843043908568865,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 9.334966249835263,
+        "rmse_deg": 18.75781511799268,
+        "p95_deg": 33.14182886332719,
+        "max_deg": 109.75720454734204
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 6.75814277375239,
+        "rmse_deg": 10.445716477339143,
+        "p95_deg": 25.015942583293015,
+        "max_deg": 37.44239177478081
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 11.16061327641635,
+       "rmse_deg": 21.62735015960118,
+       "p95_deg": 46.32467808398043,
+       "max_deg": 109.75720454734204
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LORO": {
+      "n_folds": 2,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 5.844161364123332,
+       "rmse_deg": 12.802494396909804,
+       "p95_deg": 24.132196647868437,
+       "max_deg": 93.51679881538104
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 5.984421236862292,
+       "rmse_deg": 12.955213448249191,
+       "p95_deg": 24.87867741505778,
+       "max_deg": 93.51679881538104
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.048169544190962,
+        "rmse_deg": 13.058469533767049,
+        "p95_deg": 25.210356142529786,
+        "max_deg": 93.51679881538104
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 0.8255601344596281,
+        "rmse_deg": 1.028432671637461,
+        "p95_deg": 2.0771119877226636,
+        "max_deg": 2.427468134582108
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 5.713951504687806,
+        "rmse_deg": 14.833672427105254,
+        "p95_deg": 23.057950628841347,
+        "max_deg": 93.51679881538104
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.974371223558858,
+        "rmse_deg": 10.381227667821914,
+        "p95_deg": 24.76379267204033,
+        "max_deg": 47.64173970847916
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 9.679779241950376,
+       "rmse_deg": 19.586325898625944,
+       "p95_deg": 55.652313603140385,
+       "max_deg": 93.51679881538104
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOEO_partial": {
+      "n_folds": 3,
+      "coverage": 0.0390625,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 7.206304057729709,
+       "rmse_deg": 13.022078112677242,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 7.379255355115223,
+       "rmse_deg": 13.177416545499796,
+       "p95_deg": 21.48234974179529,
+       "max_deg": 86.31526107092931
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 7.4800580007137665,
+        "rmse_deg": 13.283573846309094,
+        "p95_deg": 21.52904427460426,
+        "max_deg": 86.31526107092931
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 0.4719570603219456,
+        "rmse_deg": 0.59636459800774,
+        "p95_deg": 1.0771168779960314,
+        "max_deg": 1.7961872912718408
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.486299317093438,
+        "rmse_deg": 16.22242025249735,
+        "p95_deg": 31.152345262236334,
+        "max_deg": 86.31526107092931
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.926308798365981,
+        "rmse_deg": 8.716772217782179,
+        "p95_deg": 18.420530164984644,
+        "max_deg": 25.426601282103945
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 9.963154120161443,
+       "rmse_deg": 18.52394009775577,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9296875,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 8.64511897420695,
+       "rmse_deg": 15.470325403647028,
+       "p95_deg": 33.70157472290387,
+       "max_deg": 94.33336497836144
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 8.852601829587917,
+       "rmse_deg": 15.654868614236277,
+       "p95_deg": 34.02069523091253,
+       "max_deg": 94.33336497836144
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 8.855665250954681,
+        "rmse_deg": 15.762106043438294,
+        "p95_deg": 34.15212464792192,
+        "max_deg": 94.33336497836144
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 3.465680566212743,
+        "rmse_deg": 3.8923906381535978,
+        "p95_deg": 5.9747289024021155,
+        "max_deg": 8.004107976364072
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 9.822920209650272,
+        "rmse_deg": 18.303685526315178,
+        "p95_deg": 39.94265781369481,
+        "max_deg": 94.33336497836144
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 7.467317738763627,
+        "rmse_deg": 11.984866805401447,
+        "p95_deg": 27.023649359807916,
+        "max_deg": 49.35604455621038
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 11.970503761892244,
+       "rmse_deg": 21.228379903592145,
+       "p95_deg": 42.538697068845025,
+       "max_deg": 94.33336497836144
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     }
+    },
+    "L30": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 6.113764205804469,
+       "rmse_deg": 12.34088530607717,
+       "p95_deg": 19.662392962228022,
+       "max_deg": 98.40240548831758
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 6.260494546743776,
+       "rmse_deg": 12.488097891234576,
+       "p95_deg": 20.4325337477509,
+       "max_deg": 98.40240548831758
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.246659413423909,
+        "rmse_deg": 12.571835449598135,
+        "p95_deg": 20.48486485705364,
+        "max_deg": 98.40240548831758
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 2.844542098366237,
+        "rmse_deg": 3.2800880873593856,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 7.685528541840295,
+        "rmse_deg": 16.054185232725263,
+        "p95_deg": 30.143059683320004,
+        "max_deg": 98.40240548831758
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 4.541999869768643,
+        "rmse_deg": 6.845293038931862,
+        "p95_deg": 14.231780624876091,
+        "max_deg": 28.817006755285057
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 7.930876943265902,
+       "rmse_deg": 17.351627973482625,
+       "p95_deg": 50.20717139752882,
+       "max_deg": 98.40240548831758
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 6.345700045803164,
+       "rmse_deg": 12.452400306984137,
+       "p95_deg": 19.21131936528672,
+       "max_deg": 98.78400857693596
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 6.497996846902439,
+       "rmse_deg": 12.60094313799994,
+       "p95_deg": 19.448157781714833,
+       "max_deg": 98.78400857693596
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.4837310415120735,
+        "rmse_deg": 12.68541223037395,
+        "p95_deg": 19.55796293807908,
+        "max_deg": 98.78400857693596
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 2.9501375513639894,
+        "rmse_deg": 3.3120969485323797,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 7.9085271018753405,
+        "rmse_deg": 16.092619633450454,
+        "p95_deg": 32.11653598497511,
+        "max_deg": 98.78400857693596
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 4.782872989730986,
+        "rmse_deg": 7.152072436982326,
+        "p95_deg": 14.907500929753432,
+        "max_deg": 30.790483056940143
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 8.05387880146007,
+       "rmse_deg": 17.310281043890804,
+       "p95_deg": 47.92551293994187,
+       "max_deg": 98.78400857693596
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LORO": {
+      "n_folds": 2,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 5.8281182745691416,
+       "rmse_deg": 12.025901506980093,
+       "p95_deg": 18.651748008164287,
+       "max_deg": 96.75161959214748
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 5.9679931131588,
+       "rmse_deg": 12.169356697250686,
+       "p95_deg": 19.52608872272751,
+       "max_deg": 96.75161959214748
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.030304812114061,
+        "rmse_deg": 12.265893199471924,
+        "p95_deg": 19.722640754192934,
+        "max_deg": 96.75161959214748
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 0.8543294509640912,
+        "rmse_deg": 1.0993250174795999,
+        "p95_deg": 2.221750238376716,
+        "max_deg": 2.913872900281818
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 7.334897435529655,
+        "rmse_deg": 15.6698866580979,
+        "p95_deg": 28.272718966347483,
+        "max_deg": 96.75161959214748
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 4.3213391136086265,
+        "rmse_deg": 6.61054205292861,
+        "p95_deg": 13.512721460016236,
+        "max_deg": 27.70093014775246
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 7.59870463784494,
+       "rmse_deg": 17.040222514681087,
+       "p95_deg": 47.45360463170283,
+       "max_deg": 96.75161959214748
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOEO_partial": {
+      "n_folds": 3,
+      "coverage": 0.0390625,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 7.212458885223447,
+       "rmse_deg": 13.022733816560574,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 7.385557898468809,
+       "rmse_deg": 13.178080071177217,
+       "p95_deg": 21.48234974179529,
+       "max_deg": 86.31526107092931
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 7.4800580007137665,
+        "rmse_deg": 13.283573846309094,
+        "p95_deg": 21.52904427460426,
+        "max_deg": 86.31526107092931
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 0.6295206441616147,
+        "rmse_deg": 0.8904153257976007,
+        "p95_deg": 1.981263792563858,
+        "max_deg": 2.6456143297736228
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.493069627353158,
+        "rmse_deg": 16.222929039174065,
+        "p95_deg": 31.152345262236334,
+        "max_deg": 86.31526107092931
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.931848143093736,
+        "rmse_deg": 8.717784437797453,
+        "p95_deg": 18.420530164984644,
+        "max_deg": 25.426601282103945
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 9.980280596665756,
+       "rmse_deg": 18.525222731674287,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9296875,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 6.703545665612893,
+       "rmse_deg": 12.73281369361906,
+       "p95_deg": 20.06534339410451,
+       "max_deg": 86.71876030525628
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 6.8644307615876015,
+       "rmse_deg": 12.884701534213624,
+       "p95_deg": 20.322788672618792,
+       "max_deg": 86.71876030525628
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.8351661981088325,
+        "rmse_deg": 12.96530334719258,
+        "p95_deg": 20.54206826732542,
+        "max_deg": 86.71876030525628
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 3.465680566212743,
+        "rmse_deg": 3.8923906381535978,
+        "p95_deg": 5.9747289024021155,
+        "max_deg": 8.004107976364072
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.15207653392183,
+        "rmse_deg": 16.195951037108987,
+        "p95_deg": 34.84744315806546,
+        "max_deg": 86.71876030525628
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.255014797303953,
+        "rmse_deg": 7.87021340983803,
+        "p95_deg": 16.18443563293283,
+        "max_deg": 33.52139023003051
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 9.283682153274881,
+       "rmse_deg": 17.754009764593558,
+       "p95_deg": 50.90925333776532,
+       "max_deg": 86.71876030525628
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     }
+    },
+    "L26": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 7.403055789877782,
+       "rmse_deg": 14.188936544217526,
+       "p95_deg": 27.156746378006435,
+       "max_deg": 105.68414592809255
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 7.580729128834849,
+       "rmse_deg": 14.358194257704259,
+       "p95_deg": 27.43807496390065,
+       "max_deg": 105.68414592809255
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 7.5777171433981065,
+        "rmse_deg": 14.458127376212616,
+        "p95_deg": 27.727110514337124,
+        "max_deg": 105.68414592809255
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 3.1063864932777854,
+        "rmse_deg": 3.409157780198343,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.883727692144632,
+        "rmse_deg": 17.907329358654437,
+        "p95_deg": 32.46870348424415,
+        "max_deg": 105.68414592809255
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.92238388761093,
+        "rmse_deg": 9.054247387405326,
+        "p95_deg": 21.041747982654737,
+        "max_deg": 32.03021449745463
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 10.838826286437591,
+       "rmse_deg": 20.65669476430769,
+       "p95_deg": 54.54444970621206,
+       "max_deg": 105.68414592809255
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 8.163241981416613,
+       "rmse_deg": 15.175530946404958,
+       "p95_deg": 29.247374199997633,
+       "max_deg": 108.12452194475978
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 8.359159788970612,
+       "rmse_deg": 15.356557597763299,
+       "p95_deg": 29.353916941831297,
+       "max_deg": 108.12452194475978
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 8.377940814584173,
+        "rmse_deg": 15.466681003953584,
+        "p95_deg": 29.418461845734658,
+        "max_deg": 108.12452194475978
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 2.881650685494622,
+        "rmse_deg": 3.2906363967016805,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 9.456558073318861,
+        "rmse_deg": 18.70195497803741,
+        "p95_deg": 34.62673644894454,
+        "max_deg": 108.12452194475978
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 6.869925889514365,
+        "rmse_deg": 10.52759986939335,
+        "p95_deg": 24.092887026383483,
+        "max_deg": 37.173147029189224
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 11.149177897355747,
+       "rmse_deg": 21.543138037197224,
+       "p95_deg": 45.878424777176534,
+       "max_deg": 108.12452194475978
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LORO": {
+      "n_folds": 2,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 5.878535930104202,
+       "rmse_deg": 12.785106064469314,
+       "p95_deg": 24.2613183544538,
+       "max_deg": 93.58003230481694
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 6.019620792426703,
+       "rmse_deg": 12.937617692977467,
+       "p95_deg": 24.743360773849922,
+       "max_deg": 93.58003230481694
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.082914649227872,
+        "rmse_deg": 13.040560765886147,
+        "p95_deg": 25.03039472592592,
+        "max_deg": 93.58003230481694
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 0.8508194396619235,
+        "rmse_deg": 1.0796536747353354,
+        "p95_deg": 2.0917395587686536,
+        "max_deg": 2.8272804509508083
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 5.709495209624142,
+        "rmse_deg": 14.814021843388092,
+        "p95_deg": 22.93724752525452,
+        "max_deg": 93.58003230481694
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 6.047576650584261,
+        "rmse_deg": 10.366418426008112,
+        "p95_deg": 24.66948318183442,
+        "max_deg": 50.11357802823293
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 9.684154589659359,
+       "rmse_deg": 19.555026848419576,
+       "p95_deg": 55.475441415806316,
+       "max_deg": 93.58003230481694
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOEO_partial": {
+      "n_folds": 3,
+      "coverage": 0.0390625,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 7.2070178037119605,
+       "rmse_deg": 13.022115685262996,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 7.379986231001047,
+       "rmse_deg": 13.177454566283334,
+       "p95_deg": 21.48234974179529,
+       "max_deg": 86.31526107092931
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 7.4800580007137665,
+        "rmse_deg": 13.283573846309094,
+        "p95_deg": 21.52904427460426,
+        "max_deg": 86.31526107092931
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 0.4902289574675532,
+        "rmse_deg": 0.617010174146518,
+        "p95_deg": 1.1918626852739185,
+        "max_deg": 1.814591346858546
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.487084437687813,
+        "rmse_deg": 16.222448320461453,
+        "p95_deg": 31.152345262236334,
+        "max_deg": 86.31526107092931
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.926951169736108,
+        "rmse_deg": 8.716832241743699,
+        "p95_deg": 18.420530164984644,
+        "max_deg": 25.426601282103945
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 9.965140195938137,
+       "rmse_deg": 18.524013594807055,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.5,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 8.260963232041759,
+       "rmse_deg": 14.857524358490872,
+       "p95_deg": 31.205352124950775,
+       "max_deg": 95.29579102663307
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 8.459226349610761,
+       "rmse_deg": 15.03475755656423,
+       "p95_deg": 31.453496897167355,
+       "max_deg": 95.29579102663307
+      },
+      "baseline_no_correction": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 8.455893421709606,
+        "rmse_deg": 15.136167401531365,
+        "p95_deg": 32.000880182232244,
+        "max_deg": 95.29579102663307
+       },
+       "E-GSC7": {
+        "n": 80,
+        "mae_deg": 3.465680566212743,
+        "rmse_deg": 3.8923906381535978,
+        "p95_deg": 5.9747289024021155,
+        "max_deg": 8.004107976364072
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 9.40654771742625,
+        "rmse_deg": 17.603894235908776,
+        "p95_deg": 37.54361415112087,
+        "max_deg": 95.29579102663307
+       },
+       "R18": {
+        "n": 1024,
+        "mae_deg": 7.115378746657268,
+        "rmse_deg": 11.471484989191111,
+        "p95_deg": 26.35708679912861,
+        "max_deg": 50.199629327323315
+       }
+      },
+      "high_band_only": {
+       "n": 736,
+       "mae_deg": 12.87726321741054,
+       "rmse_deg": 21.80328006425886,
+       "p95_deg": 46.041793407278945,
+       "max_deg": 95.29579102663307
+      },
+      "high_band_baseline": {
+       "n": 736,
+       "mae_deg": 10.288558849062616,
+       "rmse_deg": 18.567296917015593,
+       "p95_deg": 49.961939789296224,
+       "max_deg": 86.31526107092931
+      }
+     }
+    },
+    "L00": {
+     "LOFO": {
+      "coverage": 0.0,
+      "all_cells": {
+       "n": 2048,
+       "mae_deg": 7.32324638217857,
+       "rmse_deg": 13.044249697673484,
+       "p95_deg": 21.224814189747786,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 2000,
+       "mae_deg": 7.499004295350855,
+       "rmse_deg": 13.199852612035519,
+       "p95_deg": 21.48234974179529,
+       "max_deg": 86.31526107092931
+      }
+     }
+    }
+   },
+   "U2_gsc6_plus_gsc7_R18_only": {
+    "L31": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 3.112913175793674,
+       "rmse_deg": 5.130440590046043,
+       "p95_deg": 10.486669693584274,
+       "max_deg": 34.01758705208135
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 3.187623092012722,
+       "rmse_deg": 5.191640852711578,
+       "p95_deg": 10.807658382481076,
+       "max_deg": 34.01758705208135
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 3.1251645498472613,
+        "rmse_deg": 5.192445736163233,
+        "p95_deg": 10.872063698515953,
+        "max_deg": 34.01758705208135
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.8115293740754272,
+        "rmse_deg": 3.252022079076585,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.391435122311254
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 3.112913175793674,
+        "rmse_deg": 5.130440590046043,
+        "p95_deg": 10.486669693584274,
+        "max_deg": 34.01758705208135
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 3.63954682629836,
+       "rmse_deg": 6.131313493047859,
+       "p95_deg": 12.834154609962729,
+       "max_deg": 34.01758705208135
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 4.295962876415604,
+       "rmse_deg": 6.706581371871628,
+       "p95_deg": 14.193297808089637,
+       "max_deg": 33.34582559844876
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 4.399065985449579,
+       "rmse_deg": 6.786583183478736,
+       "p95_deg": 14.250946684069907,
+       "max_deg": 33.34582559844876
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 4.358277274846542,
+        "rmse_deg": 6.810254897917011,
+        "p95_deg": 14.281545563350114,
+        "max_deg": 33.34582559844876
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.7630286750145396,
+        "rmse_deg": 3.2411906765391394,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.391435122311254
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 4.295962876415604,
+        "rmse_deg": 6.706581371871628,
+        "p95_deg": 14.193297808089637,
+        "max_deg": 33.34582559844876
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 4.912232743796969,
+       "rmse_deg": 7.612628388735011,
+       "p95_deg": 14.892200034183968,
+       "max_deg": 33.34582559844876
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LORO": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOEO_partial": {
+      "n_folds": 3,
+      "coverage": 0.0390625,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 5.92377916341865,
+       "rmse_deg": 8.716835371299668,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 6.065949863340699,
+       "rmse_deg": 8.820817203848472,
+       "p95_deg": 18.601417697021116,
+       "max_deg": 25.426601282103945
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 6.148095793516634,
+        "rmse_deg": 8.89141968726007,
+        "p95_deg": 18.617647341481714,
+        "max_deg": 25.426601282103945
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 0.40559006300823847,
+        "rmse_deg": 0.599783160674668,
+        "p95_deg": 1.164994627459488,
+        "max_deg": 1.6804540706656261
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.92377916341865,
+        "rmse_deg": 8.716835371299668,
+        "p95_deg": 18.420530164984644,
+        "max_deg": 25.426601282103945
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 6.771817198994559,
+       "rmse_deg": 9.74186988343685,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9296875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 6.818675465142261,
+       "rmse_deg": 9.735326798384824,
+       "p95_deg": 19.10150369020734,
+       "max_deg": 38.706951585827525
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 6.982323676305676,
+       "rmse_deg": 9.851458063670682,
+       "p95_deg": 19.36599377490083,
+       "max_deg": 38.706951585827525
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 6.960224556755433,
+        "rmse_deg": 9.903037412806867,
+        "p95_deg": 19.573877354492286,
+        "max_deg": 38.706951585827525
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 3.3365678114582313,
+        "rmse_deg": 3.7087679247992993,
+        "p95_deg": 5.431103937970519,
+        "max_deg": 5.919374462958696
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 6.818675465142261,
+        "rmse_deg": 9.735326798384824,
+        "p95_deg": 19.10150369020734,
+        "max_deg": 38.706951585827525
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 6.336270128639584,
+       "rmse_deg": 8.76476222112488,
+       "p95_deg": 17.20394854159315,
+       "max_deg": 31.685170400972424
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     }
+    },
+    "L30": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 4.466632303892296,
+       "rmse_deg": 6.735540993898097,
+       "p95_deg": 14.630636851109065,
+       "max_deg": 28.607198819609494
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 4.573831479185711,
+       "rmse_deg": 6.815888260528728,
+       "p95_deg": 14.66242520232277,
+       "max_deg": 28.607198819609494
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 4.530570681159787,
+        "rmse_deg": 6.839080548347029,
+        "p95_deg": 14.694950049356015,
+        "max_deg": 28.607198819609494
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.8937482231119978,
+        "rmse_deg": 3.2851118595227575,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.391435122311254
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 4.466632303892296,
+        "rmse_deg": 6.735540993898097,
+        "p95_deg": 14.630636851109065,
+        "max_deg": 28.607198819609494
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 3.5527631564033415,
+       "rmse_deg": 5.1900951796846675,
+       "p95_deg": 9.515777356475434,
+       "max_deg": 25.820134900357672
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 4.6346508675368945,
+       "rmse_deg": 6.977532459559482,
+       "p95_deg": 15.27860309296829,
+       "max_deg": 30.54378436081862
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 4.745882488357779,
+       "rmse_deg": 7.060766406388697,
+       "p95_deg": 15.290421910512306,
+       "max_deg": 30.54378436081862
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 4.707273730804313,
+        "rmse_deg": 7.087468721045398,
+        "p95_deg": 15.366065828761291,
+        "max_deg": 30.54378436081862
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.848128431158374,
+        "rmse_deg": 3.263145643926254,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.391435122311254
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 4.6346508675368945,
+        "rmse_deg": 6.977532459559482,
+        "p95_deg": 15.27860309296829,
+        "max_deg": 30.54378436081862
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 3.655249649415199,
+       "rmse_deg": 5.322076463879784,
+       "p95_deg": 9.979526110864905,
+       "max_deg": 25.71784963236976
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LORO": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOEO_partial": {
+      "n_folds": 3,
+      "coverage": 0.0390625,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 5.925251162887579,
+       "rmse_deg": 8.717068116169157,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 6.0674571907968815,
+       "rmse_deg": 8.82105272509689,
+       "p95_deg": 18.601417697021116,
+       "max_deg": 25.426601282103945
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 6.148095793516634,
+        "rmse_deg": 8.89141968726007,
+        "p95_deg": 18.617647341481714,
+        "max_deg": 25.426601282103945
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 0.44327324941282326,
+        "rmse_deg": 0.6808933254050527,
+        "p95_deg": 1.2050247571434431,
+        "max_deg": 2.0493787662031884
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.925251162887579,
+        "rmse_deg": 8.717068116169157,
+        "p95_deg": 18.420530164984644,
+        "max_deg": 25.426601282103945
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 6.775913197516796,
+       "rmse_deg": 9.742449367711256,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9296875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 5.0698660928842045,
+       "rmse_deg": 7.616344294047495,
+       "p95_deg": 15.65274818910765,
+       "max_deg": 33.384380184698905
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 5.191542879113426,
+       "rmse_deg": 7.707198532229535,
+       "p95_deg": 15.70132111809022,
+       "max_deg": 33.384380184698905
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 5.140325372616967,
+        "rmse_deg": 7.733539484724244,
+        "p95_deg": 15.706576976764223,
+        "max_deg": 33.384380184698905
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 3.3365678114582313,
+        "rmse_deg": 3.7087679247992993,
+        "p95_deg": 5.431103937970519,
+        "max_deg": 5.919374462958696
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.0698660928842045,
+        "rmse_deg": 7.616344294047495,
+        "p95_deg": 15.65274818910765,
+        "max_deg": 33.384380184698905
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 5.266979109484786,
+       "rmse_deg": 7.284640267421988,
+       "p95_deg": 14.889204030978098,
+       "max_deg": 25.87383504587219
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     }
+    },
+    "L26": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 3.14615382924644,
+       "rmse_deg": 5.1471439242595105,
+       "p95_deg": 10.558840481099127,
+       "max_deg": 34.85025548308309
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 3.2216615211483544,
+       "rmse_deg": 5.208543438514322,
+       "p95_deg": 10.684393937754395,
+       "max_deg": 34.85025548308309
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 3.1591887935669214,
+        "rmse_deg": 5.2095139015530965,
+        "p95_deg": 10.74195106974391,
+        "max_deg": 34.85025548308309
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.825493706962587,
+        "rmse_deg": 3.256202626769546,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.391435122311254
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 3.14615382924644,
+        "rmse_deg": 5.1471439242595105,
+        "p95_deg": 10.558840481099127,
+        "max_deg": 34.85025548308309
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 3.678406860991153,
+       "rmse_deg": 6.139884801428431,
+       "p95_deg": 13.114639756477912,
+       "max_deg": 34.85025548308309
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 4.498374727204631,
+       "rmse_deg": 6.9050198151690605,
+       "p95_deg": 16.05188449035242,
+       "max_deg": 33.739597579396246
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 4.606335720657541,
+       "rmse_deg": 6.987388769449315,
+       "p95_deg": 16.14848329158984,
+       "max_deg": 33.739597579396246
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 4.568917249651383,
+        "rmse_deg": 7.013595799762717,
+        "p95_deg": 16.182057420847546,
+        "max_deg": 33.739597579396246
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.7630286750145383,
+        "rmse_deg": 3.2408493857952134,
+        "p95_deg": 5.239910601061855,
+        "max_deg": 5.391435122311254
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 4.498374727204631,
+        "rmse_deg": 6.9050198151690605,
+        "p95_deg": 16.05188449035242,
+        "max_deg": 33.739597579396246
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 5.011832996104278,
+       "rmse_deg": 7.681230445870619,
+       "p95_deg": 15.032396127841869,
+       "max_deg": 33.739597579396246
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LORO": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOEO_partial": {
+      "n_folds": 3,
+      "coverage": 0.0390625,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 5.924819571831265,
+       "rmse_deg": 8.717001429940527,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 6.067015241555216,
+       "rmse_deg": 8.82098524337816,
+       "p95_deg": 18.601417697021116,
+       "max_deg": 25.426601282103945
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 6.148095793516634,
+        "rmse_deg": 8.89141968726007,
+        "p95_deg": 18.617647341481714,
+        "max_deg": 25.426601282103945
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 0.4322245183711785,
+        "rmse_deg": 0.6586750674506086,
+        "p95_deg": 1.1785686396541264,
+        "max_deg": 1.9519343178153685
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 5.924819571831265,
+        "rmse_deg": 8.717001429940527,
+        "p95_deg": 18.420530164984644,
+        "max_deg": 25.426601282103945
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 6.774712248490531,
+       "rmse_deg": 9.742283335398797,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.5,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 6.156115770179738,
+       "rmse_deg": 8.627424565930758,
+       "p95_deg": 17.385515822256263,
+       "max_deg": 32.58345033022227
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 6.3038625486640525,
+       "rmse_deg": 8.730339830281826,
+       "p95_deg": 17.474248559213716,
+       "max_deg": 32.58345033022227
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 6.270731540859475,
+        "rmse_deg": 8.769208600731007,
+        "p95_deg": 17.488505190207167,
+        "max_deg": 32.58345033022227
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 3.3365678114582313,
+        "rmse_deg": 3.7087679247992993,
+        "p95_deg": 5.431103937970519,
+        "max_deg": 5.919374462958696
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 1024,
+        "mae_deg": 6.156115770179738,
+        "rmse_deg": 8.627424565930758,
+        "p95_deg": 17.385515822256263,
+        "max_deg": 32.58345033022227
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 7.05027893133834,
+       "rmse_deg": 9.622040587265996,
+       "p95_deg": 18.125874112311315,
+       "max_deg": 32.58345033022227
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 7.090401736869559,
+       "rmse_deg": 9.816314530666034,
+       "p95_deg": 18.02932960896931,
+       "max_deg": 24.45977553730762
+      }
+     }
+    },
+    "L00": {
+     "LOFO": {
+      "coverage": 0.0,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 6.038270481717478,
+       "rmse_deg": 8.746797680242665,
+       "p95_deg": 18.420530164984644,
+       "max_deg": 25.426601282103945
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 6.183188973278698,
+       "rmse_deg": 8.851136928718075,
+       "p95_deg": 18.601417697021116,
+       "max_deg": 25.426601282103945
+      }
+     }
+    }
+   },
+   "U3_gsc6_only_both_radios": {
+    "L31": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 7.533990627492974,
+       "rmse_deg": 14.310080355971824,
+       "p95_deg": 26.923099791820068,
+       "max_deg": 105.32643759339012
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 7.722340393180297,
+       "rmse_deg": 14.487852145477945,
+       "p95_deg": 27.287808289677255,
+       "max_deg": 105.32643759339012
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 7.533990627492974,
+        "rmse_deg": 14.310080355971824,
+        "p95_deg": 26.923099791820068,
+        "max_deg": 105.32643759339012
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 8.987311006270026,
+        "rmse_deg": 18.012767824185406,
+        "p95_deg": 34.69011699985522,
+        "max_deg": 105.32643759339012
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 6.08067024871592,
+        "rmse_deg": 9.224803244553904,
+        "p95_deg": 21.105107324646216,
+        "max_deg": 33.107861140154775
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 11.584100348494166,
+       "rmse_deg": 21.469894610182692,
+       "p95_deg": 47.05699314200659,
+       "max_deg": 105.32643759339012
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 8.262028877064555,
+       "rmse_deg": 15.47929612759009,
+       "p95_deg": 29.133512460932227,
+       "max_deg": 109.69791368786946
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 8.46857959899117,
+       "rmse_deg": 15.671592893537213,
+       "p95_deg": 29.37970453182874,
+       "max_deg": 109.69791368786946
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 8.262028877064555,
+        "rmse_deg": 15.47929612759009,
+        "p95_deg": 29.133512460932227,
+        "max_deg": 109.69791368786946
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 9.600494152521001,
+        "rmse_deg": 19.128516528513266,
+        "p95_deg": 33.365839062736065,
+        "max_deg": 109.69791368786946
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 6.92356360160811,
+        "rmse_deg": 10.645049207478825,
+        "p95_deg": 25.4765834191256,
+        "max_deg": 37.45458814079052
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 12.176886098308142,
+       "rmse_deg": 22.883514421794178,
+       "p95_deg": 47.98002420444492,
+       "max_deg": 109.69791368786946
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LORO": {
+      "n_folds": 2,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 6.048779677868697,
+       "rmse_deg": 13.057576719789076,
+       "p95_deg": 25.097569066782967,
+       "max_deg": 93.33004382585554
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 6.199999169815415,
+       "rmse_deg": 13.219788861324794,
+       "p95_deg": 27.169469710769455,
+       "max_deg": 93.33004382585554
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.048779677868697,
+        "rmse_deg": 13.057576719789076,
+        "p95_deg": 25.097569066782967,
+        "max_deg": 93.33004382585554
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 5.913487850504575,
+        "rmse_deg": 15.128928532874452,
+        "p95_deg": 24.078299281042305,
+        "max_deg": 93.33004382585554
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 6.184071505232818,
+        "rmse_deg": 10.588490970555362,
+        "p95_deg": 25.991938475457218,
+        "max_deg": 47.679789431233004
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 10.759005894063023,
+       "rmse_deg": 20.73990670042257,
+       "p95_deg": 56.81514061557841,
+       "max_deg": 93.33004382585554
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOEO_partial": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9512195121951219,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 8.959733987324348,
+       "rmse_deg": 15.84765755869274,
+       "p95_deg": 34.167733612706684,
+       "max_deg": 94.33336497836144
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 9.183727337007456,
+       "rmse_deg": 16.04453041849561,
+       "p95_deg": 34.33557543043383,
+       "max_deg": 94.33336497836144
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 8.959733987324348,
+        "rmse_deg": 15.84765755869274,
+        "p95_deg": 34.167733612706684,
+        "max_deg": 94.33336497836144
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 10.163802650613965,
+        "rmse_deg": 18.722097548677247,
+        "p95_deg": 40.65518018246448,
+        "max_deg": 94.33336497836144
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 7.755665324034731,
+        "rmse_deg": 12.319884884729875,
+        "p95_deg": 27.660737946282893,
+        "max_deg": 49.35604455621038
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 13.007677322340964,
+       "rmse_deg": 22.444443980223415,
+       "p95_deg": 42.96656374209632,
+       "max_deg": 94.33336497836144
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     }
+    },
+    "L30": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 6.248449497781394,
+       "rmse_deg": 12.580799056612465,
+       "p95_deg": 20.47803130782531,
+       "max_deg": 99.2660319569551
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 6.404660735225928,
+       "rmse_deg": 12.7370882671603,
+       "p95_deg": 20.807546063330623,
+       "max_deg": 99.2660319569551
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.248449497781394,
+        "rmse_deg": 12.580799056612465,
+        "p95_deg": 20.47803130782531,
+        "max_deg": 99.2660319569551
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 7.882817748305279,
+        "rmse_deg": 16.374282709579163,
+        "p95_deg": 35.87689325644407,
+        "max_deg": 99.2660319569551
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 4.614081247257508,
+        "rmse_deg": 6.959588748805413,
+        "p95_deg": 14.28841351839828,
+        "max_deg": 28.81823846706847
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 8.55354443550596,
+       "rmse_deg": 18.35786704742251,
+       "p95_deg": 50.96269205303908,
+       "max_deg": 99.2660319569551
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 6.489957358168926,
+       "rmse_deg": 12.699602600036705,
+       "p95_deg": 19.53983590124871,
+       "max_deg": 100.0539038823326
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 6.652206292123149,
+       "rmse_deg": 12.857367687587942,
+       "p95_deg": 19.597717219821668,
+       "max_deg": 100.0539038823326
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.489957358168926,
+        "rmse_deg": 12.699602600036705,
+        "p95_deg": 19.53983590124871,
+        "max_deg": 100.0539038823326
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 8.110547249222362,
+        "rmse_deg": 16.41677980651888,
+        "p95_deg": 36.23761421521132,
+        "max_deg": 100.0539038823326
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 4.869367467115488,
+        "rmse_deg": 7.283484961334932,
+        "p95_deg": 14.919084894369199,
+        "max_deg": 30.79135416497011
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 8.682961073626329,
+       "rmse_deg": 18.31493039419567,
+       "p95_deg": 49.84332953302193,
+       "max_deg": 100.0539038823326
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LORO": {
+      "n_folds": 2,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 6.026755449995479,
+       "rmse_deg": 12.26576471155528,
+       "p95_deg": 19.72399765926454,
+       "max_deg": 97.04505597445034
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 6.177424336245365,
+       "rmse_deg": 12.418140301921849,
+       "p95_deg": 19.919182664279813,
+       "max_deg": 97.04505597445034
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.026755449995479,
+        "rmse_deg": 12.26576471155528,
+        "p95_deg": 19.72399765926454,
+        "max_deg": 97.04505597445034
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 7.59515085913143,
+        "rmse_deg": 15.983241436318146,
+        "p95_deg": 37.28386227523271,
+        "max_deg": 97.04505597445034
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 4.458360040859525,
+        "rmse_deg": 6.7404718756799324,
+        "p95_deg": 14.086967073372557,
+        "max_deg": 27.73922436678242
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 8.408293852934472,
+       "rmse_deg": 18.043838937494165,
+       "p95_deg": 49.743245660557335,
+       "max_deg": 97.04505597445034
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOEO_partial": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9512195121951219,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 6.932208076845625,
+       "rmse_deg": 13.04893885200098,
+       "p95_deg": 21.029472860008514,
+       "max_deg": 86.71876030525628
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 7.1055132787667645,
+       "rmse_deg": 13.21104368671689,
+       "p95_deg": 21.548689416679117,
+       "max_deg": 86.71876030525628
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.932208076845625,
+        "rmse_deg": 13.04893885200098,
+        "p95_deg": 21.029472860008514,
+        "max_deg": 86.71876030525628
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 8.414884919921992,
+        "rmse_deg": 16.54602833406834,
+        "p95_deg": 35.94420026135428,
+        "max_deg": 86.71876030525628
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 5.449531233769257,
+        "rmse_deg": 8.171814773642941,
+        "p95_deg": 16.807314069185633,
+        "max_deg": 33.504799383427184
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 9.993194541940996,
+       "rmse_deg": 18.75624784411142,
+       "p95_deg": 53.29598345439306,
+       "max_deg": 86.71876030525628
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     }
+    },
+    "L26": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 7.580750135510538,
+       "rmse_deg": 14.459839463191765,
+       "p95_deg": 27.639518534315943,
+       "max_deg": 105.88400631546843
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 7.770268888898303,
+       "rmse_deg": 14.639471685611124,
+       "p95_deg": 27.918545555845444,
+       "max_deg": 105.88400631546843
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 7.580750135510538,
+        "rmse_deg": 14.459839463191765,
+        "p95_deg": 27.639518534315943,
+        "max_deg": 105.88400631546843
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 9.118134876236503,
+        "rmse_deg": 18.254418328853895,
+        "p95_deg": 33.125757518253465,
+        "max_deg": 105.88400631546843
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 6.043365394784574,
+        "rmse_deg": 9.216839267219479,
+        "p95_deg": 21.47921913397518,
+        "max_deg": 32.03293516647763
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 11.782862131735257,
+       "rmse_deg": 21.847565510685374,
+       "p95_deg": 55.84557554758568,
+       "max_deg": 105.88400631546843
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 8.381093040059104,
+       "rmse_deg": 15.473658604440368,
+       "p95_deg": 29.44981150013874,
+       "max_deg": 108.32556309181835
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 8.590620366060582,
+       "rmse_deg": 15.665885336358771,
+       "p95_deg": 29.59333171300985,
+       "max_deg": 108.32556309181835
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 8.381093040059104,
+        "rmse_deg": 15.473658604440368,
+        "p95_deg": 29.44981150013874,
+        "max_deg": 108.32556309181835
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 9.724353073927622,
+        "rmse_deg": 19.072086124430797,
+        "p95_deg": 34.95708779039154,
+        "max_deg": 108.32556309181835
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 7.03783300619059,
+        "rmse_deg": 10.729573713612167,
+        "p95_deg": 24.321524812208796,
+        "max_deg": 37.18551090181543
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 12.15743711990583,
+       "rmse_deg": 22.794445387953107,
+       "p95_deg": 47.477821285842175,
+       "max_deg": 108.32556309181835
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LORO": {
+      "n_folds": 2,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 6.083840431310548,
+       "rmse_deg": 13.039314893746731,
+       "p95_deg": 25.035519608239863,
+       "max_deg": 93.36063957992612
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 6.235936442093312,
+       "rmse_deg": 13.20130017160213,
+       "p95_deg": 25.353598233769095,
+       "max_deg": 93.36063957992612
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 6.083840431310548,
+        "rmse_deg": 13.039314893746731,
+        "p95_deg": 25.035519608239863,
+        "max_deg": 93.36063957992612
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 5.908515892947625,
+        "rmse_deg": 15.107685152027958,
+        "p95_deg": 23.689280405538863,
+        "max_deg": 93.36063957992612
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 6.25916496967347,
+        "rmse_deg": 10.5738032487731,
+        "p95_deg": 25.081815018567717,
+        "max_deg": 50.15799095116083
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 10.761380696934866,
+       "rmse_deg": 20.705618535117996,
+       "p95_deg": 56.58818499403147,
+       "max_deg": 93.36063957992612
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOEO_partial": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.5040650406504065,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 8.556273953820126,
+       "rmse_deg": 15.21565912450021,
+       "p95_deg": 32.118137103603296,
+       "max_deg": 95.29579102663307
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 8.770180802665628,
+       "rmse_deg": 15.404680771045246,
+       "p95_deg": 32.600506643681186,
+       "max_deg": 95.29579102663307
+      },
+      "baseline_no_correction": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 1968,
+        "mae_deg": 8.556273953820126,
+        "rmse_deg": 15.21565912450021,
+        "p95_deg": 32.118137103603296,
+        "max_deg": 95.29579102663307
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 984,
+        "mae_deg": 9.729091137740186,
+        "rmse_deg": 18.004019848466697,
+        "p95_deg": 38.03340635209226,
+        "max_deg": 95.29579102663307
+       },
+       "R18": {
+        "n": 984,
+        "mae_deg": 7.383456769900064,
+        "rmse_deg": 11.785068284994791,
+        "p95_deg": 26.45371841071191,
+        "max_deg": 50.199629327323315
+       }
+      },
+      "high_band_only": {
+       "n": 656,
+       "mae_deg": 14.02501719926393,
+       "rmse_deg": 23.05447708881336,
+       "p95_deg": 48.83868672783744,
+       "max_deg": 95.29579102663307
+      },
+      "high_band_baseline": {
+       "n": 656,
+       "mae_deg": 11.12061717623943,
+       "rmse_deg": 19.61985937433284,
+       "p95_deg": 51.68848478914956,
+       "max_deg": 86.31526107092931
+      }
+     }
+    },
+    "L00": {
+     "LOFO": {
+      "coverage": 0.0,
+      "all_cells": {
+       "n": 1968,
+       "mae_deg": 7.4800580007137665,
+       "rmse_deg": 13.283573846309094,
+       "p95_deg": 21.52904427460426,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 1920,
+       "mae_deg": 7.667059450731609,
+       "rmse_deg": 13.448593513211918,
+       "p95_deg": 21.645803103840073,
+       "max_deg": 86.31526107092931
+      }
+     }
+    }
+   },
+   "U4_gsc6_only_R18": {
+    "L31": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 3.125106339021318,
+       "rmse_deg": 5.192525966723138,
+       "p95_deg": 10.871096975121032,
+       "max_deg": 34.009862538948894
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 3.203233997496851,
+       "rmse_deg": 5.257031868171564,
+       "p95_deg": 10.90190017571233,
+       "max_deg": 34.009862538948894
+      },
+      "baseline_no_correction": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 3.125106339021318,
+        "rmse_deg": 5.192525966723138,
+        "p95_deg": 10.871096975121032,
+        "max_deg": 34.009862538948894
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 984,
+        "mae_deg": 3.125106339021318,
+        "rmse_deg": 5.192525966723138,
+        "p95_deg": 10.871096975121032,
+        "max_deg": 34.009862538948894
+       }
+      },
+      "high_band_only": {
+       "n": 328,
+       "mae_deg": 3.7415401412453533,
+       "rmse_deg": 6.394706714989006,
+       "p95_deg": 13.563613383353253,
+       "max_deg": 34.009862538948894
+      },
+      "high_band_baseline": {
+       "n": 328,
+       "mae_deg": 7.548186361919721,
+       "rmse_deg": 10.316676798541677,
+       "p95_deg": 18.12400124723438,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 4.356371315731471,
+       "rmse_deg": 6.808262773849878,
+       "p95_deg": 14.279784439250273,
+       "max_deg": 33.33366370021732
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 4.465280598624758,
+       "rmse_deg": 6.892840709586636,
+       "p95_deg": 14.389966830693176,
+       "max_deg": 33.33366370021732
+      },
+      "baseline_no_correction": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 4.356371315731471,
+        "rmse_deg": 6.808262773849878,
+        "p95_deg": 14.279784439250273,
+        "max_deg": 33.33366370021732
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 984,
+        "mae_deg": 4.356371315731471,
+        "rmse_deg": 6.808262773849878,
+        "p95_deg": 14.279784439250273,
+        "max_deg": 33.33366370021732
+       }
+      },
+      "high_band_only": {
+       "n": 328,
+       "mae_deg": 5.172132738401526,
+       "rmse_deg": 7.982716411438651,
+       "p95_deg": 15.636850147939434,
+       "max_deg": 33.33366370021732
+      },
+      "high_band_baseline": {
+       "n": 328,
+       "mae_deg": 7.548186361919721,
+       "rmse_deg": 10.316676798541677,
+       "p95_deg": 18.12400124723438,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LORO": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOEO_partial": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9512195121951219,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 7.017515518169932,
+       "rmse_deg": 10.015984981347676,
+       "p95_deg": 19.971398357130244,
+       "max_deg": 38.70472895797343
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 7.1929534061241815,
+       "rmse_deg": 10.140411925816759,
+       "p95_deg": 20.04897671797116,
+       "max_deg": 38.70472895797343
+      },
+      "baseline_no_correction": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 7.017515518169932,
+        "rmse_deg": 10.015984981347676,
+        "p95_deg": 19.971398357130244,
+        "max_deg": 38.70472895797343
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 984,
+        "mae_deg": 7.017515518169932,
+        "rmse_deg": 10.015984981347676,
+        "p95_deg": 19.971398357130244,
+        "max_deg": 38.70472895797343
+       }
+      },
+      "high_band_only": {
+       "n": 328,
+       "mae_deg": 6.702087484393408,
+       "rmse_deg": 9.193043253741125,
+       "p95_deg": 17.352502809534855,
+       "max_deg": 31.685170400972424
+      },
+      "high_band_baseline": {
+       "n": 328,
+       "mae_deg": 7.548186361919721,
+       "rmse_deg": 10.316676798541677,
+       "p95_deg": 18.12400124723438,
+       "max_deg": 24.45977553730762
+      }
+     }
+    },
+    "L30": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 4.530009516356018,
+       "rmse_deg": 6.842931653379148,
+       "p95_deg": 14.686644025895792,
+       "max_deg": 28.608057813416636
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 4.6432597542649185,
+       "rmse_deg": 6.927940274940217,
+       "p95_deg": 14.750005159896302,
+       "max_deg": 28.608057813416636
+      },
+      "baseline_no_correction": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 4.530009516356018,
+        "rmse_deg": 6.842931653379148,
+        "p95_deg": 14.686644025895792,
+        "max_deg": 28.608057813416636
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 984,
+        "mae_deg": 4.530009516356018,
+        "rmse_deg": 6.842931653379148,
+        "p95_deg": 14.686644025895792,
+        "max_deg": 28.608057813416636
+       }
+      },
+      "high_band_only": {
+       "n": 328,
+       "mae_deg": 3.6305355873214227,
+       "rmse_deg": 5.381241738278341,
+       "p95_deg": 9.652255530955944,
+       "max_deg": 25.858089437917084
+      },
+      "high_band_baseline": {
+       "n": 328,
+       "mae_deg": 7.548186361919721,
+       "rmse_deg": 10.316676798541677,
+       "p95_deg": 18.12400124723438,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 4.709658301868479,
+       "rmse_deg": 7.096233387565515,
+       "p95_deg": 15.359197263395208,
+       "max_deg": 30.54435459383877
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 4.82739975941519,
+       "rmse_deg": 7.184388735172223,
+       "p95_deg": 15.49312254267395,
+       "max_deg": 30.54435459383877
+      },
+      "baseline_no_correction": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 4.709658301868479,
+        "rmse_deg": 7.096233387565515,
+        "p95_deg": 15.359197263395208,
+        "max_deg": 30.54435459383877
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 984,
+        "mae_deg": 4.709658301868479,
+        "rmse_deg": 7.096233387565515,
+        "p95_deg": 15.359197263395208,
+        "max_deg": 30.54435459383877
+       }
+      },
+      "high_band_only": {
+       "n": 328,
+       "mae_deg": 3.7520608629893983,
+       "rmse_deg": 5.526011138075558,
+       "p95_deg": 10.082776201959295,
+       "max_deg": 25.75453409261352
+      },
+      "high_band_baseline": {
+       "n": 328,
+       "mae_deg": 7.548186361919721,
+       "rmse_deg": 10.316676798541677,
+       "p95_deg": 18.12400124723438,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LORO": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOEO_partial": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9512195121951219,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 5.256436306039311,
+       "rmse_deg": 7.918862084033003,
+       "p95_deg": 16.16116277449779,
+       "max_deg": 33.37390671237948
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 5.387847213690294,
+       "rmse_deg": 8.017236813490287,
+       "p95_deg": 16.234594607742277,
+       "max_deg": 33.37390671237948
+      },
+      "baseline_no_correction": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 5.256436306039311,
+        "rmse_deg": 7.918862084033003,
+        "p95_deg": 16.16116277449779,
+        "max_deg": 33.37390671237948
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 984,
+        "mae_deg": 5.256436306039311,
+        "rmse_deg": 7.918862084033003,
+        "p95_deg": 16.16116277449779,
+        "max_deg": 33.37390671237948
+       }
+      },
+      "high_band_only": {
+       "n": 328,
+       "mae_deg": 5.502395121439244,
+       "rmse_deg": 7.606576837191795,
+       "p95_deg": 15.321033023285928,
+       "max_deg": 25.87383504587219
+      },
+      "high_band_baseline": {
+       "n": 328,
+       "mae_deg": 7.548186361919721,
+       "rmse_deg": 10.316676798541677,
+       "p95_deg": 18.12400124723438,
+       "max_deg": 24.45977553730762
+      }
+     }
+    },
+    "L26": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 3.1601474450207223,
+       "rmse_deg": 5.209871293020202,
+       "p95_deg": 10.752838510584867,
+       "max_deg": 34.828150216689295
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 3.2391511311462406,
+       "rmse_deg": 5.274592672622398,
+       "p95_deg": 10.79380611060313,
+       "max_deg": 34.828150216689295
+      },
+      "baseline_no_correction": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 3.1601474450207223,
+        "rmse_deg": 5.209871293020202,
+        "p95_deg": 10.752838510584867,
+        "max_deg": 34.828150216689295
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 984,
+        "mae_deg": 3.1601474450207223,
+        "rmse_deg": 5.209871293020202,
+        "p95_deg": 10.752838510584867,
+        "max_deg": 34.828150216689295
+       }
+      },
+      "high_band_only": {
+       "n": 328,
+       "mae_deg": 3.7868453303901415,
+       "rmse_deg": 6.404871468868474,
+       "p95_deg": 13.33295199675438,
+       "max_deg": 34.828150216689295
+      },
+      "high_band_baseline": {
+       "n": 328,
+       "mae_deg": 7.548186361919721,
+       "rmse_deg": 10.316676798541677,
+       "p95_deg": 18.12400124723438,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 1.0,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 4.5699194369157725,
+       "rmse_deg": 7.013553309340162,
+       "p95_deg": 16.17463023085387,
+       "max_deg": 33.70771315194037
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 4.684167422838667,
+       "rmse_deg": 7.100681535847827,
+       "p95_deg": 16.20188399822385,
+       "max_deg": 33.70771315194037
+      },
+      "baseline_no_correction": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 4.5699194369157725,
+        "rmse_deg": 7.013553309340162,
+        "p95_deg": 16.17463023085387,
+        "max_deg": 33.70771315194037
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 984,
+        "mae_deg": 4.5699194369157725,
+        "rmse_deg": 7.013553309340162,
+        "p95_deg": 16.17463023085387,
+        "max_deg": 33.70771315194037
+       }
+      },
+      "high_band_only": {
+       "n": 328,
+       "mae_deg": 5.28832441480062,
+       "rmse_deg": 8.057114153088007,
+       "p95_deg": 15.582148957597218,
+       "max_deg": 33.70771315194037
+      },
+      "high_band_baseline": {
+       "n": 328,
+       "mae_deg": 7.548186361919721,
+       "rmse_deg": 10.316676798541677,
+       "p95_deg": 18.12400124723438,
+       "max_deg": 24.45977553730762
+      }
+     },
+     "LORO": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOEO_partial": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.5040650406504065,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 6.326238781398875,
+       "rmse_deg": 8.894245751668738,
+       "p95_deg": 17.690382267247912,
+       "max_deg": 32.58345033022227
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 6.484394750933848,
+       "rmse_deg": 9.004737513018041,
+       "p95_deg": 17.740492305714415,
+       "max_deg": 32.58345033022227
+      },
+      "baseline_no_correction": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 6.326238781398875,
+        "rmse_deg": 8.894245751668738,
+        "p95_deg": 17.690382267247912,
+        "max_deg": 32.58345033022227
+       }
+      },
+      "by_radio": {
+       "R18": {
+        "n": 984,
+        "mae_deg": 6.326238781398875,
+        "rmse_deg": 8.894245751668738,
+        "p95_deg": 17.690382267247912,
+        "max_deg": 32.58345033022227
+       }
+      },
+      "high_band_only": {
+       "n": 328,
+       "mae_deg": 7.503170531323719,
+       "rmse_deg": 10.10924932111814,
+       "p95_deg": 18.22814176246192,
+       "max_deg": 32.58345033022227
+      },
+      "high_band_baseline": {
+       "n": 328,
+       "mae_deg": 7.548186361919721,
+       "rmse_deg": 10.316676798541677,
+       "p95_deg": 18.12400124723438,
+       "max_deg": 24.45977553730762
+      }
+     }
+    },
+    "L00": {
+     "LOFO": {
+      "coverage": 0.0,
+      "all_cells": {
+       "n": 984,
+       "mae_deg": 6.148095793516634,
+       "rmse_deg": 8.89141968726007,
+       "p95_deg": 18.617647341481714,
+       "max_deg": 25.426601282103945
+      },
+      "unequal_gain_cells": {
+       "n": 960,
+       "mae_deg": 6.3017981883545495,
+       "rmse_deg": 9.0018763408731,
+       "p95_deg": 18.71561888474445,
+       "max_deg": 25.426601282103945
+      }
+     }
+    }
+   },
+   "U5_gsc6_plus_gsc7_R17_only": {
+    "L31": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 7.642222108269993,
+       "rmse_deg": 14.297846137442045,
+       "p95_deg": 28.986068396650552,
+       "max_deg": 91.60644893705242
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 7.825635438868473,
+       "rmse_deg": 14.468403017266473,
+       "p95_deg": 30.21127380529372,
+       "max_deg": 91.60644893705242
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 7.833723852435457,
+        "rmse_deg": 14.570256233603388,
+        "p95_deg": 30.381580133324718,
+        "max_deg": 91.60644893705242
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.931279201799551,
+        "rmse_deg": 3.3128425279245177,
+        "p95_deg": 5.182570260655233,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 7.642222108269993,
+        "rmse_deg": 14.297846137442045,
+        "p95_deg": 28.986068396650552,
+        "max_deg": 91.60644893705242
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 10.658943419711525,
+       "rmse_deg": 19.914327232915507,
+       "p95_deg": 44.332077454902745,
+       "max_deg": 91.60644893705242
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 8.919874972999963,
+       "rmse_deg": 17.503010940957374,
+       "p95_deg": 33.33554154729874,
+       "max_deg": 101.42591256297439
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 9.13395197235196,
+       "rmse_deg": 17.711801754967116,
+       "p95_deg": 34.36480578444705,
+       "max_deg": 101.42591256297439
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 9.161267389160518,
+        "rmse_deg": 17.842595188582848,
+        "p95_deg": 34.51214191692356,
+        "max_deg": 101.42591256297439
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.9816215354502638,
+        "rmse_deg": 3.329600548994626,
+        "p95_deg": 5.182570260655233,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.919874972999963,
+        "rmse_deg": 17.503010940957374,
+        "p95_deg": 33.33554154729874,
+        "max_deg": 101.42591256297439
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 12.893524068703552,
+       "rmse_deg": 25.12850651975574,
+       "p95_deg": 70.34609037375722,
+       "max_deg": 101.42591256297439
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LORO": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOEO_partial": {
+      "n_folds": 3,
+      "coverage": 0.0390625,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 8.485672404151556,
+       "rmse_deg": 16.222687580980136,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 8.689328541851195,
+       "rmse_deg": 16.41620560807183,
+       "p95_deg": 32.08839909147497,
+       "max_deg": 86.31526107092931
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 8.812020207910896,
+        "rmse_deg": 16.54839340255416,
+        "p95_deg": 33.0695579921504,
+        "max_deg": 86.31526107092931
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 0.45751643167177475,
+        "rmse_deg": 0.7757504122164666,
+        "p95_deg": 2.0228540506804533,
+        "max_deg": 2.1731548363565936
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.485672404151556,
+        "rmse_deg": 16.222687580980136,
+        "p95_deg": 31.152345262236334,
+        "max_deg": 86.31526107092931
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 13.14570760372356,
+       "rmse_deg": 24.31863242988212,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9296875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 10.620512090226958,
+       "rmse_deg": 19.453563373203174,
+       "p95_deg": 41.43070641193921,
+       "max_deg": 103.1145613125849
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 10.875404380392403,
+       "rmse_deg": 19.685622037040066,
+       "p95_deg": 41.7897668942368,
+       "max_deg": 103.1145613125849
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 10.906110414180601,
+        "rmse_deg": 19.82806832937565,
+        "p95_deg": 42.14980070042185,
+        "max_deg": 103.1145613125849
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 3.5947933209672542,
+        "rmse_deg": 4.067732813245167,
+        "p95_deg": 7.075345488053983,
+        "max_deg": 8.004107976364072
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 10.620512090226958,
+        "rmse_deg": 19.453563373203174,
+        "p95_deg": 41.43070641193921,
+        "max_deg": 103.1145613125849
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 15.65998759346811,
+       "rmse_deg": 27.493308611016005,
+       "p95_deg": 73.12164367627766,
+       "max_deg": 103.1145613125849
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     }
+    },
+    "L30": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 7.797076012437286,
+       "rmse_deg": 16.321804108118023,
+       "p95_deg": 30.352867617916665,
+       "max_deg": 99.24799548183366
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 7.984205836735782,
+       "rmse_deg": 16.51650448151875,
+       "p95_deg": 30.904969590616197,
+       "max_deg": 99.24799548183366
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 7.994553482750763,
+        "rmse_deg": 16.636821546505306,
+        "p95_deg": 34.46948906975425,
+        "max_deg": 99.24799548183366
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.9391302427257435,
+        "rmse_deg": 3.3152315774694667,
+        "p95_deg": 5.182570260655233,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 7.797076012437286,
+        "rmse_deg": 16.321804108118023,
+        "p95_deg": 30.352867617916665,
+        "max_deg": 99.24799548183366
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 12.237859465118868,
+       "rmse_deg": 24.43815980084239,
+       "p95_deg": 68.13124971075364,
+       "max_deg": 99.24799548183366
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 8.000660252203138,
+       "rmse_deg": 16.2951235141584,
+       "p95_deg": 32.363234679456205,
+       "max_deg": 100.19152752256298
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 8.192676098256015,
+       "rmse_deg": 16.489505618722426,
+       "p95_deg": 32.844457048411726,
+       "max_deg": 100.19152752256298
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 8.193962530744608,
+        "rmse_deg": 16.607760819975194,
+        "p95_deg": 35.274902867644684,
+        "max_deg": 100.19152752256298
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 3.2454242000829714,
+        "rmse_deg": 3.5325614206664717,
+        "p95_deg": 5.182570260655233,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.000660252203138,
+        "rmse_deg": 16.2951235141584,
+        "p95_deg": 32.363234679456205,
+        "max_deg": 100.19152752256298
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 12.225786689373141,
+       "rmse_deg": 24.163595710813016,
+       "p95_deg": 69.77706192459283,
+       "max_deg": 100.19152752256298
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LORO": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOEO_partial": {
+      "n_folds": 3,
+      "coverage": 0.0390625,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 8.488085385329647,
+       "rmse_deg": 16.223021214804916,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 8.69179943457756,
+       "rmse_deg": 16.416543221764883,
+       "p95_deg": 32.08839909147497,
+       "max_deg": 86.31526107092931
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 8.812020207910896,
+        "rmse_deg": 16.54839340255416,
+        "p95_deg": 33.0695579921504,
+        "max_deg": 86.31526107092931
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 0.5192887498309218,
+        "rmse_deg": 0.937501115567946,
+        "p95_deg": 2.584314505271667,
+        "max_deg": 2.7348392184426658
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.488085385329647,
+        "rmse_deg": 16.223021214804916,
+        "p95_deg": 31.152345262236334,
+        "max_deg": 86.31526107092931
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 13.15242198613216,
+       "rmse_deg": 24.319251735192736,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.9296875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 8.334018827404995,
+       "rmse_deg": 16.310637050837222,
+       "p95_deg": 34.98445318666791,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 8.534035279262715,
+       "rmse_deg": 16.505204214072705,
+       "p95_deg": 35.35221196843406,
+       "max_deg": 86.31526107092931
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 8.526670270756123,
+        "rmse_deg": 16.618627152493154,
+        "p95_deg": 35.96724039263517,
+        "max_deg": 86.31526107092931
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 3.5947933209672542,
+        "rmse_deg": 4.067732813245167,
+        "p95_deg": 7.075345488053983,
+        "max_deg": 8.004107976364072
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.334018827404995,
+        "rmse_deg": 16.310637050837222,
+        "p95_deg": 34.98445318666791,
+        "max_deg": 86.31526107092931
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 13.039924055846996,
+       "rmse_deg": 24.00695058568852,
+       "p95_deg": 70.00891940329615,
+       "max_deg": 86.31526107092931
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     }
+    },
+    "L26": {
+     "LOFO": {
+      "n_folds": 24,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 7.730079127497228,
+       "rmse_deg": 14.32585076716251,
+       "p95_deg": 29.182563308051172,
+       "max_deg": 94.38740492978494
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 7.915601026557161,
+       "rmse_deg": 14.49674171004929,
+       "p95_deg": 29.895350019466957,
+       "max_deg": 94.38740492978494
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 7.923518162003756,
+        "rmse_deg": 14.598723349682725,
+        "p95_deg": 30.004169094381133,
+        "max_deg": 94.38740492978494
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.9714788786366433,
+        "rmse_deg": 3.3270119565474614,
+        "p95_deg": 5.182570260655233,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 7.730079127497228,
+        "rmse_deg": 14.32585076716251,
+        "p95_deg": 29.182563308051172,
+        "max_deg": 94.38740492978494
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 10.72475605280195,
+       "rmse_deg": 19.892489464365752,
+       "p95_deg": 46.60788182253875,
+       "max_deg": 94.38740492978494
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBLK": {
+      "n_folds": 8,
+      "coverage": 0.96875,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 9.093891200920758,
+       "rmse_deg": 17.58651855602459,
+       "p95_deg": 32.99878297790017,
+       "max_deg": 102.2421036861289
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 9.312144589742859,
+       "rmse_deg": 17.796305519953034,
+       "p95_deg": 37.15078488775565,
+       "max_deg": 102.2421036861289
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 9.34174170576529,
+        "rmse_deg": 17.927795229994814,
+        "p95_deg": 38.34040146961656,
+        "max_deg": 102.2421036861289
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 2.9967687817452786,
+        "rmse_deg": 3.3359474659530726,
+        "p95_deg": 5.182570260655233,
+        "max_deg": 5.396713222204085
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 9.093891200920758,
+        "rmse_deg": 17.58651855602459,
+        "p95_deg": 32.99878297790017,
+        "max_deg": 102.2421036861289
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 13.097179412515077,
+       "rmse_deg": 25.26327514763224,
+       "p95_deg": 71.36171492140295,
+       "max_deg": 102.2421036861289
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LORO": {
+      "unavailable": "only 0 usable fold(s) -- this split does not exist on this dataset"
+     },
+     "LOEO_partial": {
+      "n_folds": 3,
+      "coverage": 0.0390625,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 8.487796375638375,
+       "rmse_deg": 16.222977211027057,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 8.691503488653696,
+       "rmse_deg": 16.416498693072505,
+       "p95_deg": 32.08839909147497,
+       "max_deg": 86.31526107092931
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 8.812020207910896,
+        "rmse_deg": 16.54839340255416,
+        "p95_deg": 33.0695579921504,
+        "max_deg": 86.31526107092931
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 0.5118901017343621,
+        "rmse_deg": 0.917800648893475,
+        "p95_deg": 2.5172687543476884,
+        "max_deg": 2.667340240504337
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 8.487796375638375,
+        "rmse_deg": 16.222977211027057,
+        "p95_deg": 31.152345262236334,
+        "max_deg": 86.31526107092931
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 13.151617785252098,
+       "rmse_deg": 24.319170053680473,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     },
+     "LOBAND": {
+      "n_folds": 3,
+      "coverage": 0.5,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 9.942776319680235,
+       "rmse_deg": 18.091899826331336,
+       "p95_deg": 36.772190894505,
+       "max_deg": 104.71876715179768
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 10.18140295135256,
+       "rmse_deg": 18.307715408259764,
+       "p95_deg": 36.84187656877524,
+       "max_deg": 104.71876715179768
+      },
+      "baseline_no_correction": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "by_source": {
+       "E-GSC6": {
+        "n": 984,
+        "mae_deg": 10.200824409058809,
+        "rmse_deg": 18.437727136818747,
+        "p95_deg": 37.079705741903425,
+        "max_deg": 104.71876715179768
+       },
+       "E-GSC7": {
+        "n": 40,
+        "mae_deg": 3.5947933209672542,
+        "rmse_deg": 4.067732813245167,
+        "p95_deg": 7.075345488053983,
+        "max_deg": 8.004107976364072
+       }
+      },
+      "by_radio": {
+       "R17": {
+        "n": 1024,
+        "mae_deg": 9.942776319680235,
+        "rmse_deg": 18.091899826331336,
+        "p95_deg": 36.772190894505,
+        "max_deg": 104.71876715179768
+       }
+      },
+      "high_band_only": {
+       "n": 368,
+       "mae_deg": 15.56409545347892,
+       "rmse_deg": 26.785692324102477,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 104.71876715179768
+      },
+      "high_band_baseline": {
+       "n": 368,
+       "mae_deg": 13.486715961255673,
+       "rmse_deg": 24.354239849444454,
+       "p95_deg": 72.50132591087757,
+       "max_deg": 86.31526107092931
+      }
+     }
+    },
+    "L00": {
+     "LOFO": {
+      "coverage": 0.0,
+      "all_cells": {
+       "n": 1024,
+       "mae_deg": 8.60822228263966,
+       "rmse_deg": 16.24187275813387,
+       "p95_deg": 31.152345262236334,
+       "max_deg": 86.31526107092931
+      },
+      "unequal_gain_cells": {
+       "n": 1000,
+       "mae_deg": 8.814819617423012,
+       "rmse_deg": 16.435619642350115,
+       "p95_deg": 32.08839909147497,
+       "max_deg": 86.31526107092931
+      }
+     }
+    }
+   }
+  },
+  "paired_tests": {
+   "L31_vs_L26_LOFO": {
+    "split": "LOFO",
+    "n_matched": 2048,
+    "n_nonzero_diff": 1928,
+    "mae_a_deg": 7.347432033942575,
+    "mae_b_deg": 7.403055789877782,
+    "mean_paired_diff_deg": -0.055623755935206826,
+    "median_paired_diff_deg": -0.07216291523948878,
+    "a_better_fraction": 0.556640625,
+    "wilcoxon_statistic": 784953.5,
+    "wilcoxon_p": 3.145081527232943e-09
+   },
+   "L31_vs_L30_LOFO": {
+    "split": "LOFO",
+    "n_matched": 2048,
+    "n_nonzero_diff": 1576,
+    "mae_a_deg": 7.347432033942575,
+    "mae_b_deg": 6.113764205804469,
+    "mean_paired_diff_deg": 1.2336678281381057,
+    "median_paired_diff_deg": 0.0,
+    "a_better_fraction": 0.3017578125,
+    "wilcoxon_statistic": 439915.5,
+    "wilcoxon_p": 1.0143441675472307e-23
+   },
+   "L31_vs_L26_LOBLK": {
+    "split": "LOBLK",
+    "n_matched": 2048,
+    "n_nonzero_diff": 1928,
+    "mae_a_deg": 8.046554511793827,
+    "mae_b_deg": 8.163241981416613,
+    "mean_paired_diff_deg": -0.11668746962278645,
+    "median_paired_diff_deg": -0.08621897948191662,
+    "a_better_fraction": 0.55810546875,
+    "wilcoxon_statistic": 760919.0,
+    "wilcoxon_p": 4.9520687058688464e-12
+   },
+   "R18only_L31_vs_L30_LOFO": {
+    "split": "LOFO",
+    "n_matched": 1024,
+    "n_nonzero_diff": 788,
+    "mae_a_deg": 3.112913175793674,
+    "mae_b_deg": 4.466632303892296,
+    "mean_paired_diff_deg": -1.3537191280986218,
+    "median_paired_diff_deg": -0.15250504611681912,
+    "a_better_fraction": 0.5224609375,
+    "wilcoxon_statistic": 85686.0,
+    "wilcoxon_p": 1.0065486156676612e-27
+   }
+  },
+  "cross_radio_transfer": {
+   "fit_R18_score_R17": {
+    "coverage": 1.0,
+    "all_bands": {
+     "n": 1024,
+     "mae_deg": 5.713951504687806,
+     "rmse_deg": 14.833672427105254,
+     "p95_deg": 23.057950628841347,
+     "max_deg": 93.51679881538104
+    },
+    "high_band": {
+     "n": 368,
+     "mae_deg": 10.356148436032544,
+     "rmse_deg": 23.464036599362498,
+     "p95_deg": 64.30033341419363,
+     "max_deg": 93.51679881538104
+    },
+    "baseline_all_bands": {
+     "n": 1024,
+     "mae_deg": 8.60822228263966,
+     "rmse_deg": 16.24187275813387,
+     "p95_deg": 31.152345262236334,
+     "max_deg": 86.31526107092931
+    },
+    "baseline_high_band": {
+     "n": 368,
+     "mae_deg": 13.486715961255673,
+     "rmse_deg": 24.354239849444454,
+     "p95_deg": 72.50132591087757,
+     "max_deg": 86.31526107092931
+    }
+   },
+   "fit_R17_score_R18": {
+    "coverage": 1.0,
+    "all_bands": {
+     "n": 1024,
+     "mae_deg": 5.974371223558858,
+     "rmse_deg": 10.381227667821914,
+     "p95_deg": 24.76379267204033,
+     "max_deg": 47.64173970847916
+    },
+    "high_band": {
+     "n": 368,
+     "mae_deg": 9.003410047868206,
+     "rmse_deg": 14.720302676173068,
+     "p95_deg": 30.93183415133743,
+     "max_deg": 47.64173970847916
+    },
+    "baseline_all_bands": {
+     "n": 1024,
+     "mae_deg": 6.038270481717478,
+     "rmse_deg": 8.746797680242665,
+     "p95_deg": 18.420530164984644,
+     "max_deg": 25.426601282103945
+    },
+    "baseline_high_band": {
+     "n": 368,
+     "mae_deg": 7.090401736869559,
+     "rmse_deg": 9.816314530666034,
+     "p95_deg": 18.02932960896931,
+     "max_deg": 24.45977553730762
+    }
+   }
+  },
+  "gsc6_heldout_diagonal": {
+   "R18": {
+    "serial": "1040007c4a94000211000b009186843ef2",
+    "n_cells": 480,
+    "n_frames": 1440,
+    "all_bands": {
+     "n": 480,
+     "mae_deg": 1.3788141664324713,
+     "rmse_deg": 2.9348648947600355,
+     "p95_deg": 4.890607278246186,
+     "max_deg": 25.494632998894353
+    },
+    "high_band": {
+     "n": 160,
+     "mae_deg": 2.7353230302665623,
+     "rmse_deg": 4.874001587896972,
+     "p95_deg": 10.97365106852103,
+     "max_deg": 25.494632998894353
+    },
+    "at_5766": {
+     "n": 20,
+     "mae_deg": 2.4252325373310937,
+     "rmse_deg": 3.7332770964560194,
+     "p95_deg": 8.284398771638548,
+     "max_deg": 8.802282412636185
+    }
+   },
+   "R17": {
+    "serial": "104000bac4950008230026001b440a003a",
+    "n_cells": 480,
+    "n_frames": 1440,
+    "all_bands": {
+     "n": 480,
+     "mae_deg": 8.73311240621106,
+     "rmse_deg": 20.440769283963498,
+     "p95_deg": 55.771709513514686,
+     "max_deg": 93.61198640838006
+    },
+    "high_band": {
+     "n": 160,
+     "mae_deg": 20.391025403020812,
+     "rmse_deg": 34.17369729137015,
+     "p95_deg": 65.45064120835764,
+     "max_deg": 93.61198640838006
+    },
+    "at_5766": {
+     "n": 20,
+     "mae_deg": 19.86374226737313,
+     "rmse_deg": 32.42723540399512,
+     "p95_deg": 55.272074420163406,
+     "max_deg": 56.75243528279812
+    }
+   }
+  },
+  "prospective": {
+   "transfer_ratio_quoted": 1.9,
+   "source": "rover_applicability_ladder_20260812_v1 section 1.4 -- E-CAL3 measured the committed l26_pooled_v1 at 4.79-4.80 deg against a 9.06 deg anchor-only baseline on 103 fresh LOs",
+   "retrospective_lofo_mae_deg": 7.347432033942575,
+   "retrospective_ratio_vs_baseline": 0.9967082850644584,
+   "high_band_baseline_mae_deg": 10.288558849062616,
+   "prospective_expectation_high_band_deg": 5.41503097319085,
+   "prospective_expectation_all_deg": 3.854340201146616
+  },
+  "fitted_models": {
+   "pooled_both_radios": {
+    "tau_ns": [
+     1.2400000000000002,
+     2.720000000000001
+    ],
+    "n_rows": 2048,
+    "n_columns": 37,
+    "rank": 30,
+    "supported_levels": {
+     "lna": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "mixer": [
+      0,
+      1,
+      2,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+     ],
+     "tia": [
+      0,
+      1
+     ],
+     "lpf": [],
+     "ripple_lna": [
+      0,
+      1,
+      2,
+      3
+     ]
+    },
+    "families_used": [
+     "lna",
+     "mixer",
+     "tia",
+     "ripple_lna"
+    ]
+   },
+   "R18_only": {
+    "tau_ns": [
+     0.10000000000000002,
+     2.540000000000001
+    ],
+    "n_rows": 1024,
+    "n_columns": 37,
+    "rank": 30,
+    "supported_levels": {
+     "lna": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "mixer": [
+      0,
+      1,
+      2,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+     ],
+     "tia": [
+      0,
+      1
+     ],
+     "lpf": [],
+     "ripple_lna": [
+      0,
+      1,
+      2,
+      3
+     ]
+    },
+    "families_used": [
+     "lna",
+     "mixer",
+     "tia",
+     "ripple_lna"
+    ]
+   }
+  }
+ },
+ "check_B_sensitivity": {
+  "R18_only": {
+   "baseline": {
+    "n": 1024,
+    "mae_deg": 6.038270481717478,
+    "rmse_deg": 8.746797680242665,
+    "p95_deg": 18.420530164984644,
+    "max_deg": 25.426601282103945
+   },
+   "LOFO_delays_free": {
+    "n_folds": 24,
+    "coverage": 0.96875,
+    "all_cells": {
+     "n": 1024,
+     "mae_deg": 3.112913175793674,
+     "rmse_deg": 5.130440590046043,
+     "p95_deg": 10.486669693584274,
+     "max_deg": 34.01758705208135
+    },
+    "unequal_gain_cells": {
+     "n": 1000,
+     "mae_deg": 3.187623092012722,
+     "rmse_deg": 5.191640852711578,
+     "p95_deg": 10.807658382481076,
+     "max_deg": 34.01758705208135
+    },
+    "baseline_no_correction": {
+     "n": 1024,
+     "mae_deg": 6.038270481717478,
+     "rmse_deg": 8.746797680242665,
+     "p95_deg": 18.420530164984644,
+     "max_deg": 25.426601282103945
+    }
+   },
+   "LOFO_delays_frozen_at_campaign": {
+    "coverage": 0.96875,
+    "all_cells": {
+     "n": 1024,
+     "mae_deg": 3.9012547836128313,
+     "rmse_deg": 5.716139543681408,
+     "p95_deg": 11.644578295506422,
+     "max_deg": 26.58860201024181
+    }
+   },
+   "campaign_taus_ns": [
+    2.54,
+    0.9400000000000001
+   ],
+   "LOFO_by_source": {
+    "E-GSC6": {
+     "n": 984,
+     "mae_deg": 3.1251645498472613,
+     "rmse_deg": 5.192445736163233,
+     "p95_deg": 10.872063698515953,
+     "max_deg": 34.01758705208135
+    },
+    "E-GSC7": {
+     "n": 40,
+     "mae_deg": 2.8115293740754272,
+     "rmse_deg": 3.252022079076585,
+     "p95_deg": 5.239910601061855,
+     "max_deg": 5.391435122311254
+    }
+   },
+   "baseline_by_source": {
+    "E-GSC6": {
+     "n": 984,
+     "mae_deg": 6.148095793516634,
+     "rmse_deg": 8.89141968726007,
+     "p95_deg": 18.617647341481714,
+     "max_deg": 25.426601282103945
+    },
+    "E-GSC7": {
+     "n": 40,
+     "mae_deg": 3.3365678114582313,
+     "rmse_deg": 3.7087679247992993,
+     "p95_deg": 5.431103937970519,
+     "max_deg": 5.919374462958696
+    }
+   }
+  },
+  "pooled": {
+   "baseline": {
+    "n": 2048,
+    "mae_deg": 7.32324638217857,
+    "rmse_deg": 13.044249697673484,
+    "p95_deg": 21.224814189747786,
+    "max_deg": 86.31526107092931
+   },
+   "LOFO_delays_free": {
+    "n_folds": 24,
+    "coverage": 0.96875,
+    "all_cells": {
+     "n": 2048,
+     "mae_deg": 7.347432033942575,
+     "rmse_deg": 14.037986906297954,
+     "p95_deg": 26.668428763942906,
+     "max_deg": 105.40837833423132
+    },
+    "unequal_gain_cells": {
+     "n": 2000,
+     "mae_deg": 7.523770402757195,
+     "rmse_deg": 14.205443964007118,
+     "p95_deg": 26.712665882061387,
+     "max_deg": 105.40837833423132
+    },
+    "baseline_no_correction": {
+     "n": 2048,
+     "mae_deg": 7.32324638217857,
+     "rmse_deg": 13.044249697673484,
+     "p95_deg": 21.224814189747786,
+     "max_deg": 86.31526107092931
+    }
+   },
+   "LOFO_delays_frozen_at_campaign": {
+    "coverage": 0.96875,
+    "all_cells": {
+     "n": 2048,
+     "mae_deg": 5.996438698944149,
+     "rmse_deg": 12.589926624396767,
+     "p95_deg": 20.719037927124027,
+     "max_deg": 94.21312132585062
+    }
+   },
+   "campaign_taus_ns": [
+    2.54,
+    0.9400000000000001
+   ],
+   "LOFO_by_source": {
+    "E-GSC6": {
+     "n": 1968,
+     "mae_deg": 7.530416503566144,
+     "rmse_deg": 14.305200974447764,
+     "p95_deg": 26.84193458122731,
+     "max_deg": 105.40837833423132
+    },
+    "E-GSC7": {
+     "n": 80,
+     "mae_deg": 2.846014081202773,
+     "rmse_deg": 3.2790383266836,
+     "p95_deg": 5.239910601061855,
+     "max_deg": 5.396713222204085
+    }
+   },
+   "baseline_by_source": {
+    "E-GSC6": {
+     "n": 1968,
+     "mae_deg": 7.4800580007137665,
+     "rmse_deg": 13.283573846309094,
+     "p95_deg": 21.52904427460426,
+     "max_deg": 86.31526107092931
+    },
+    "E-GSC7": {
+     "n": 80,
+     "mae_deg": 3.465680566212743,
+     "rmse_deg": 3.8923906381535978,
+     "p95_deg": 5.9747289024021155,
+     "max_deg": 8.004107976364072
+    }
+   }
+  }
+ },
+ "check_C_rover_coverage": {
+  "corpus": "/mnt/qnap01/mouse9911/rovers_2026/merged",
+  "read_only": true,
+  "n_zarrs_globbed": 48,
+  "n_distinct_rx_captures": 42,
+  "skipped": [],
+  "carriers": {
+   "5766000000": {
+    "arm_pair_observations": 134374,
+    "receiver_stream_frames": 134374,
+    "n_receiver_streams": 64,
+    "n_rx_captures": 32,
+    "share_of_corpus": 0.7574206639986472,
+    "distinct_gain_pairs": 524,
+    "exact_equal_gain_fraction": 0.031747213002515366,
+    "gain_endpoints_unstable_fraction": 0.689925134326581,
+    "support": {
+     "l26_pooled_v1": {
+      "frames": 134374,
+      "supported": 686,
+      "supported_fraction": 0.005105154270915504,
+      "guarded_by_rule5": 534,
+      "guarded_fraction": 0.003973983062199532,
+      "correcting": 152,
+      "correcting_fraction": 0.0011311712087159718,
+      "top_refusal_reasons": [
+       {
+        "reason": "RX1 invokes mixer=15, which the fit never estimated",
+        "frames": 105345,
+        "fraction": 0.7839686248827898
+       },
+       {
+        "reason": "RX1 invokes mixer=14, which the fit never estimated",
+        "frames": 3670,
+        "fraction": 0.027311831157813268
+       },
+       {
+        "reason": "RX1 invokes mixer=13, which the fit never estimated",
+        "frames": 3438,
+        "fraction": 0.025585306681352046
+       },
+       {
+        "reason": "RX1 invokes mixer=12, which the fit never estimated",
+        "frames": 2511,
+        "fraction": 0.018686650691353984
+       },
+       {
+        "reason": "RX1 invokes mixer=11, which the fit never estimated",
+        "frames": 2382,
+        "fraction": 0.01772664354711477
+       }
+      ]
+     },
+     "l26_stage_a_v1": {
+      "frames": 134374,
+      "supported": 127,
+      "supported_fraction": 0.0009451233125455817,
+      "guarded_by_rule5": 109,
+      "guarded_fraction": 0.0008111688273029009,
+      "correcting": 18,
+      "correcting_fraction": 0.00013395448524268087,
+      "top_refusal_reasons": [
+       {
+        "reason": "RX1 invokes mixer=15, which the fit never estimated",
+        "frames": 105345,
+        "fraction": 0.7839686248827898
+       },
+       {
+        "reason": "RX1 invokes mixer=14, which the fit never estimated",
+        "frames": 3670,
+        "fraction": 0.027311831157813268
+       },
+       {
+        "reason": "RX1 invokes mixer=13, which the fit never estimated",
+        "frames": 3438,
+        "fraction": 0.025585306681352046
+       },
+       {
+        "reason": "RX1 invokes mixer=12, which the fit never estimated",
+        "frames": 2511,
+        "fraction": 0.018686650691353984
+       },
+       {
+        "reason": "RX1 invokes mixer=11, which the fit never estimated",
+        "frames": 2382,
+        "fraction": 0.01772664354711477
+       }
+      ]
+     },
+     "l30_pooled_v1": {
+      "frames": 134374,
+      "supported": 6968,
+      "supported_fraction": 0.05185526962061113,
+      "guarded_by_rule5": 6605,
+      "guarded_fraction": 0.04915385416821707,
+      "correcting": 363,
+      "correcting_fraction": 0.0027014154523940645,
+      "top_refusal_reasons": [
+       {
+        "reason": "RX1 invokes mixer=15, which the fit never estimated",
+        "frames": 105345,
+        "fraction": 0.7839686248827898
+       },
+       {
+        "reason": "RX1 invokes mixer=14, which the fit never estimated",
+        "frames": 3670,
+        "fraction": 0.027311831157813268
+       },
+       {
+        "reason": "RX1 invokes mixer=13, which the fit never estimated",
+        "frames": 3438,
+        "fraction": 0.025585306681352046
+       },
+       {
+        "reason": "RX1 invokes mixer=12, which the fit never estimated",
+        "frames": 2511,
+        "fraction": 0.018686650691353984
+       },
+       {
+        "reason": "RX1 invokes mixer=11, which the fit never estimated",
+        "frames": 2382,
+        "fraction": 0.01772664354711477
+       }
+      ]
+     },
+     "l31_pooled_v1": {
+      "frames": 134374,
+      "supported": 6968,
+      "supported_fraction": 0.05185526962061113,
+      "guarded_by_rule5": 6605,
+      "guarded_fraction": 0.04915385416821707,
+      "correcting": 363,
+      "correcting_fraction": 0.0027014154523940645,
+      "top_refusal_reasons": [
+       {
+        "reason": "RX1 invokes mixer=15, which the fit never estimated",
+        "frames": 105345,
+        "fraction": 0.7839686248827898
+       },
+       {
+        "reason": "RX1 invokes mixer=14, which the fit never estimated",
+        "frames": 3670,
+        "fraction": 0.027311831157813268
+       },
+       {
+        "reason": "RX1 invokes mixer=13, which the fit never estimated",
+        "frames": 3438,
+        "fraction": 0.025585306681352046
+       },
+       {
+        "reason": "RX1 invokes mixer=12, which the fit never estimated",
+        "frames": 2511,
+        "fraction": 0.018686650691353984
+       },
+       {
+        "reason": "RX1 invokes mixer=11, which the fit never estimated",
+        "frames": 2382,
+        "fraction": 0.01772664354711477
+       }
+      ]
+     },
+     "l31_gsc6_gsc7_r18_20260812_v1": {
+      "frames": 134374,
+      "supported": 134374,
+      "supported_fraction": 1.0,
+      "guarded_by_rule5": 10167,
+      "guarded_fraction": 0.07566195841457425,
+      "correcting": 124207,
+      "correcting_fraction": 0.9243380415854258,
+      "top_refusal_reasons": []
+     },
+     "l31_gsc6_gsc7_pooled_20260812_v1": {
+      "frames": 134374,
+      "supported": 134374,
+      "supported_fraction": 1.0,
+      "guarded_by_rule5": 10167,
+      "guarded_fraction": 0.07566195841457425,
+      "correcting": 124207,
+      "correcting_fraction": 0.9243380415854258,
+      "top_refusal_reasons": []
+     }
+    }
+   },
+   "5840000000": {
+    "arm_pair_observations": 43036,
+    "receiver_stream_frames": 43036,
+    "n_receiver_streams": 20,
+    "n_rx_captures": 10,
+    "share_of_corpus": 0.24257933600135279,
+    "distinct_gain_pairs": 337,
+    "exact_equal_gain_fraction": 0.024537596430895064,
+    "gain_endpoints_unstable_fraction": 0.4820150571614462,
+    "support": {
+     "l26_pooled_v1": {
+      "frames": 43036,
+      "supported": 284,
+      "supported_fraction": 0.006599126312854355,
+      "guarded_by_rule5": 263,
+      "guarded_fraction": 0.006111162747467236,
+      "correcting": 21,
+      "correcting_fraction": 0.00048796356538711777,
+      "top_refusal_reasons": [
+       {
+        "reason": "RX1 invokes mixer=15, which the fit never estimated",
+        "frames": 39294,
+        "fraction": 0.9130495399200669
+       },
+       {
+        "reason": "RX1 invokes mixer=9, which the fit never estimated",
+        "frames": 820,
+        "fraction": 0.01905381541035412
+       },
+       {
+        "reason": "RX1 invokes mixer=11, which the fit never estimated",
+        "frames": 503,
+        "fraction": 0.011687889209034297
+       },
+       {
+        "reason": "RX1 invokes mixer=14, which the fit never estimated",
+        "frames": 382,
+        "fraction": 0.008876289617994238
+       },
+       {
+        "reason": "RX1 invokes mixer=13, which the fit never estimated",
+        "frames": 341,
+        "fraction": 0.007923598847476532
+       }
+      ]
+     },
+     "l26_stage_a_v1": {
+      "frames": 43036,
+      "supported": 11,
+      "supported_fraction": 0.0002555999628218236,
+      "guarded_by_rule5": 9,
+      "guarded_fraction": 0.00020912724230876475,
+      "correcting": 2,
+      "correcting_fraction": 4.6472720513058835e-05,
+      "top_refusal_reasons": [
+       {
+        "reason": "RX1 invokes mixer=15, which the fit never estimated",
+        "frames": 39294,
+        "fraction": 0.9130495399200669
+       },
+       {
+        "reason": "RX1 invokes mixer=9, which the fit never estimated",
+        "frames": 820,
+        "fraction": 0.01905381541035412
+       },
+       {
+        "reason": "RX1 invokes mixer=11, which the fit never estimated",
+        "frames": 503,
+        "fraction": 0.011687889209034297
+       },
+       {
+        "reason": "RX1 invokes mixer=14, which the fit never estimated",
+        "frames": 382,
+        "fraction": 0.008876289617994238
+       },
+       {
+        "reason": "RX1 invokes mixer=13, which the fit never estimated",
+        "frames": 341,
+        "fraction": 0.007923598847476532
+       }
+      ]
+     },
+     "l30_pooled_v1": {
+      "frames": 43036,
+      "supported": 874,
+      "supported_fraction": 0.02030857886420671,
+      "guarded_by_rule5": 623,
+      "guarded_fraction": 0.014476252439817826,
+      "correcting": 251,
+      "correcting_fraction": 0.005832326424388884,
+      "top_refusal_reasons": [
+       {
+        "reason": "RX1 invokes mixer=15, which the fit never estimated",
+        "frames": 39294,
+        "fraction": 0.9130495399200669
+       },
+       {
+        "reason": "RX1 invokes mixer=9, which the fit never estimated",
+        "frames": 820,
+        "fraction": 0.01905381541035412
+       },
+       {
+        "reason": "RX1 invokes mixer=11, which the fit never estimated",
+        "frames": 503,
+        "fraction": 0.011687889209034297
+       },
+       {
+        "reason": "RX1 invokes mixer=14, which the fit never estimated",
+        "frames": 382,
+        "fraction": 0.008876289617994238
+       },
+       {
+        "reason": "RX1 invokes mixer=13, which the fit never estimated",
+        "frames": 341,
+        "fraction": 0.007923598847476532
+       }
+      ]
+     },
+     "l31_pooled_v1": {
+      "frames": 43036,
+      "supported": 874,
+      "supported_fraction": 0.02030857886420671,
+      "guarded_by_rule5": 623,
+      "guarded_fraction": 0.014476252439817826,
+      "correcting": 251,
+      "correcting_fraction": 0.005832326424388884,
+      "top_refusal_reasons": [
+       {
+        "reason": "RX1 invokes mixer=15, which the fit never estimated",
+        "frames": 39294,
+        "fraction": 0.9130495399200669
+       },
+       {
+        "reason": "RX1 invokes mixer=9, which the fit never estimated",
+        "frames": 820,
+        "fraction": 0.01905381541035412
+       },
+       {
+        "reason": "RX1 invokes mixer=11, which the fit never estimated",
+        "frames": 503,
+        "fraction": 0.011687889209034297
+       },
+       {
+        "reason": "RX1 invokes mixer=14, which the fit never estimated",
+        "frames": 382,
+        "fraction": 0.008876289617994238
+       },
+       {
+        "reason": "RX1 invokes mixer=13, which the fit never estimated",
+        "frames": 341,
+        "fraction": 0.007923598847476532
+       }
+      ]
+     },
+     "l31_gsc6_gsc7_r18_20260812_v1": {
+      "frames": 43036,
+      "supported": 43036,
+      "supported_fraction": 1.0,
+      "guarded_by_rule5": 1635,
+      "guarded_fraction": 0.0379914490194256,
+      "correcting": 41401,
+      "correcting_fraction": 0.9620085509805744,
+      "top_refusal_reasons": []
+     },
+     "l31_gsc6_gsc7_pooled_20260812_v1": {
+      "frames": 43036,
+      "supported": 43036,
+      "supported_fraction": 1.0,
+      "guarded_by_rule5": 1635,
+      "guarded_fraction": 0.0379914490194256,
+      "correcting": 41401,
+      "correcting_fraction": 0.9620085509805744,
+      "top_refusal_reasons": []
+     }
+    }
+   }
+  }
+ },
+ "check_C_rover_anchor": {
+  "lo_census_dedup": {
+   "5766000000": 134374,
+   "5840000000": 43036
+  },
+  "lo_census_raw": {
+   "5766000000": 146208,
+   "5840000000": 45636
+  },
+  "carrier_share_dedup": {
+   "5766000000": 0.7574206639986472,
+   "5840000000": 0.24257933600135279
+  },
+  "equal_gain": {
+   "dedup": {
+    "5766000000": {
+     "n_pair_observations": 134374,
+     "n_exact_equal": 4266,
+     "fraction": 0.031747213002515366,
+     "n_streams": 64,
+     "streams_with_any": 58,
+     "median_equal_frames_per_stream": 9.0,
+     "max_equal_frames_per_stream": 1674
+    },
+    "5840000000": {
+     "n_pair_observations": 43036,
+     "n_exact_equal": 1056,
+     "fraction": 0.024537596430895064,
+     "n_streams": 20,
+     "streams_with_any": 8,
+     "median_equal_frames_per_stream": 0.0,
+     "max_equal_frames_per_stream": 515
+    },
+    "corpus_wide_fraction": 0.029998309001747363
+   },
+   "raw": {
+    "5766000000": {
+     "n_pair_observations": 146208,
+     "n_exact_equal": 5347,
+     "fraction": 0.03657118625519808,
+     "n_streams": 74,
+     "streams_with_any": 64,
+     "median_equal_frames_per_stream": 9.0,
+     "max_equal_frames_per_stream": 1674
+    },
+    "5840000000": {
+     "n_pair_observations": 45636,
+     "n_exact_equal": 1056,
+     "fraction": 0.0231396266105706,
+     "n_streams": 22,
+     "streams_with_any": 8,
+     "median_equal_frames_per_stream": 0.0,
+     "max_equal_frames_per_stream": 515
+    },
+    "corpus_wide_fraction": 0.0333760763954046
+   }
+  },
+  "captures_with_any_equal_gain": {
+   "dedup": "36 of 42",
+   "raw": "40 of 48"
+  },
+  "rf_words_equal_fraction_dedup": {
+   "5766000000": 0.07566195841457425,
+   "5840000000": 0.0379914490194256
+  },
+  "equal_gain_gain_histogram_dedup": {
+   "5766000000": {
+    "28": 1,
+    "30": 3,
+    "31": 5,
+    "32": 3,
+    "33": 2,
+    "34": 1,
+    "36": 5,
+    "37": 7,
+    "38": 3,
+    "39": 3,
+    "40": 3,
+    "41": 12,
+    "42": 39,
+    "43": 39,
+    "44": 51,
+    "45": 65,
+    "46": 77,
+    "47": 116,
+    "48": 101,
+    "49": 107,
+    "50": 47,
+    "51": 14,
+    "52": 11,
+    "62": 3551
+   },
+   "5840000000": {
+    "31": 1,
+    "35": 1,
+    "38": 1,
+    "40": 1,
+    "42": 3,
+    "43": 1,
+    "44": 5,
+    "45": 6,
+    "46": 5,
+    "47": 4,
+    "48": 4,
+    "49": 7,
+    "50": 4,
+    "51": 1,
+    "52": 1,
+    "53": 1,
+    "62": 1010
+   }
+  }
+ },
+ "coefficients": {
+  "git_sha": "53ed590eec5823e051e8641297c731fc189bdd1a",
+  "inputs": [
+   {
+    "path": "spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/additive_cross_1040007c4a94.json",
+    "sha256": "41e0591c8c2dcce1de51b64541b5be72af5ebfeaa2d56e896f0cd05baa25dc19",
+    "bytes": 346836
+   },
+   {
+    "path": "spf/calibrations/dual_rx_gain_frequency/reports/equal_gain_diagonal_20260811_v1/additive_cross_104000bac495.json",
+    "sha256": "414047153ac9f6a43fb7605b5c366ae2e57a2379f1e5bcdfc8b59d6b15a95d68",
+    "bytes": 346233
+   },
+   {
+    "path": "spf/calibrations/dual_rx_gain_frequency/reports/e_gsc7_iio_20260812_v1/analysis.json",
+    "sha256": "b81281aef3514c0da668f2e357ee5a3e271e9acc3d87eb7bbdc14a3b7091cedb",
+    "bytes": 9791
+   }
+  ],
+  "sets": {
+   "l31_gsc6_gsc7_r18_20260812_v1": {
+    "path": "coeffs/l31_gsc6_gsc7_r18_20260812_v1.json",
+    "sha256": "d72c8b7ac9757508e93167276f74f149b0fc290436966157be1b31e4d0e5023d",
+    "bytes": 4403,
+    "tau_ns": [
+     0.10000000000000002,
+     2.540000000000001
+    ],
+    "n_rows": 1024,
+    "n_columns": 37,
+    "rank": 30,
+    "comb_conditioning": {
+     "n_los": 24,
+     "condition_number": 1.470749265349189,
+     "aliasing": [
+      {
+       "delay_pair_ns": [
+        2.56,
+        0.92
+       ],
+       "cycles_per_lo_step": 0.4362399999999999,
+       "nearest_integer": 0,
+       "distance_from_integer": 0.4362399999999999,
+       "aliased": false
+      }
+     ],
+     "verdict": "ok - safe to freeze the delays and refit if a local fit is needed"
+    },
+    "supported_levels": {
+     "lna": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "mixer": [
+      0,
+      1,
+      2,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+     ],
+     "tia": [
+      0,
+      1
+     ],
+     "lpf": [],
+     "ripple_lna": [
+      0,
+      1,
+      2,
+      3
+     ]
+    }
+   },
+   "l31_gsc6_gsc7_pooled_20260812_v1": {
+    "path": "coeffs/l31_gsc6_gsc7_pooled_20260812_v1.json",
+    "sha256": "6d47fd402d72352a0a098d0e4ac63008e1457639ab7c9f8a62929fbfdc02bf8a",
+    "bytes": 4417,
+    "tau_ns": [
+     1.2400000000000002,
+     2.720000000000001
+    ],
+    "n_rows": 2048,
+    "n_columns": 37,
+    "rank": 30,
+    "comb_conditioning": {
+     "n_los": 24,
+     "condition_number": 1.470749265349189,
+     "aliasing": [
+      {
+       "delay_pair_ns": [
+        2.56,
+        0.92
+       ],
+       "cycles_per_lo_step": 0.4362399999999999,
+       "nearest_integer": 0,
+       "distance_from_integer": 0.4362399999999999,
+       "aliased": false
+      }
+     ],
+     "verdict": "ok - safe to freeze the delays and refit if a local fit is needed"
+    },
+    "supported_levels": {
+     "lna": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "mixer": [
+      0,
+      1,
+      2,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+     ],
+     "tia": [
+      0,
+      1
+     ],
+     "lpf": [],
+     "ripple_lna": [
+      0,
+      1,
+      2,
+      3
+     ]
+    }
+   }
+  }
+ }
+}

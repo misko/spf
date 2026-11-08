@@ -1,0 +1,6 @@
+{'ds_fn': '/mnt/md2/rovers/merged/dec18_mission1_rover1.zarr', 'frequency': 2467000000, 'rf_bandwidth': 300000, 'rx_spacing': 0.05075, 'samples': 3962, 'routine': 'center', 'version': 1.1} 29
+frequency,rx_spacing,routine,rf_bandwidth,samples
+2467000000,0.05075,bounce,300000,32504
+2467000000,0.05075,bounce,3000000,16000
+2467000000,0.05075,center,300000,39962
+2467000000,0.05075,center,3000000,16000

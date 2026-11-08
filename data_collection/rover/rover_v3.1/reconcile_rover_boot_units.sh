@@ -292,7 +292,7 @@ install_and_verify() {
     previous_state=""
     if [[ -f "$marker_file" ]]; then
         previous_state="$(
-            sed -n 's/^desired_state=//p' "$marker_file" | head -1
+            sed -n 's/^desired_state=//p' "$marker_file" | head -1 || true
         )"
     fi
     if [[ "$previous_state" == "$desired_state" ]]; then

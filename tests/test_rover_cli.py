@@ -432,6 +432,71 @@ def test_sitl_status_detects_a_bound_port(tmp_path):
     assert str(bound) in result.stdout
 
 
+# The test above binds a real port, which is the honest end-to-end check but a
+# poor detector: the defect it guards against is a SIGPIPE race, so it only
+# failed about one run in eight. The two below remove the timing from the
+# question by shimming an `ss` that CANNOT finish writing before an early-exit
+# consumer gives up -- the match comes first, then more output than a pipe
+# buffer holds. Any implementation that lets `grep -q`/`head` end a pipeline
+# under `set -o pipefail` fails these every time. See docs/learnings.md.
+
+CHATTY_SS_FILLER_LINES = 4000  # ~200 KB, comfortably past the 64 KB pipe buffer
+
+
+def chatty_ss_shim(tmp_path: Path, listening_port: int | None) -> dict:
+    """PATH-shim an `ss` that prints the match first, then floods.
+
+    `listening_port=None` emits the flood with no matching line, so a fix that
+    simply always reports "bound" cannot pass.
+    """
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    match = (
+        f"printf 'LISTEN 0      1        127.0.0.1:{listening_port}"
+        f"      0.0.0.0:*\\n'\n"
+        if listening_port is not None
+        else ""
+    )
+    (shim / "ss").write_text(
+        "#!/bin/sh\n"
+        "printf 'State  Recv-Q Send-Q   Local Address:Port   Peer Address:Port\\n'\n"
+        f"{match}"
+        f"seq 1 {CHATTY_SS_FILLER_LINES} | "
+        "awk '{ printf \"LISTEN 0      1        10.0.0.1:%d      0.0.0.0:*\\n\","
+        " 20000 + $1 }'\n"
+    )
+    (shim / "ss").chmod(0o755)
+    return {"PATH": f"{shim}:{os.environ['PATH']}"}
+
+
+def test_sitl_status_detects_a_bound_port_when_ss_is_chatty(tmp_path):
+    """A bound port is bound however much `ss` has left to say."""
+    config = tmp_path / ".rover_config"
+    config.write_text("SPF_SITL_PORTS=14590\n")
+    environment = chatty_ss_shim(tmp_path, 14590)
+    environment["SPF_ROVER_CONFIG"] = str(config)
+
+    result = run_cli("sitl", "status", env=environment)
+
+    assert result.returncode == 0, result.stderr
+    assert "already bound" in result.stdout, result.stdout
+    assert "are free" not in result.stdout
+
+
+def test_sitl_status_reports_free_when_a_chatty_ss_has_no_match(tmp_path):
+    """The other direction: a flood of non-matching sockets is still free."""
+    config = tmp_path / ".rover_config"
+    config.write_text("SPF_SITL_PORTS=14590\n")
+    environment = chatty_ss_shim(tmp_path, None)
+    environment["SPF_ROVER_CONFIG"] = str(config)
+
+    result = run_cli("sitl", "status", env=environment)
+
+    assert result.returncode == 0, result.stderr
+    assert "are free" in result.stdout, result.stdout
+    assert "already bound" not in result.stdout
+
+
 # ------------------------------------------------------------------ stage ---
 #
 # `rover stage` fronts stage_captures.sh, which copies a capture WITH its .yaml

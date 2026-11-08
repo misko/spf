@@ -199,7 +199,13 @@ has_vendor_interface_six() {
 }
 
 has_usb_iio_context() {
-    iio_info -s 2>&1 | grep -Eq '\[usb:[^]]+\]'
+    # Capture, then match. Piping into `grep -Eq` lets grep exit on the first
+    # match while iio_info is still writing; iio_info dies of SIGPIPE and
+    # pipefail reports "no USB context" on a rover that has one. The pattern
+    # lives in a variable so `[^]]` cannot confuse the `[[` parser.
+    local contexts pattern='\[usb:[^]]+\]'
+    contexts="$(iio_info -s 2>&1 || true)"
+    [[ "$contexts" =~ $pattern ]]
 }
 
 show_status() {

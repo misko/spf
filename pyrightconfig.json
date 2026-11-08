@@ -1,0 +1,49 @@
+{
+  // Optionally reference the config schema so you get auto-completions in VS Code.
+  "$schema": "https://raw.githubusercontent.com/microsoft/pyright/main/packages/pyright/config-schema.json",
+
+  // Set your desired level of type checking: "off", "basic", or "strict".
+  "typeCheckingMode": "basic",
+
+  // Include your main source folder(s); if none is listed, Pyright defaults
+  // to analyzing everything not excluded in the workspace directory.
+  //"include": [
+  //  "./spf"
+  //],
+
+  // Exclude files/folders that you don't want analyzed.
+  // These globs follow the same style as .gitignore patterns.
+  "exclude": [
+    "**/.DS_Store",
+    "**/__pycache__",
+    "**/.ipynb_checkpoints",
+    "spf/data",
+    "**/*.npy",
+    "**/*.zip",
+    "**/*.pth",
+    "**/*.pkl",
+    "**/*.csv",
+    "**/*.mdb",
+    "**/*.tmp",
+    "**/*.log",
+    "**/*.chkpnt",
+    "**/wandb",
+    "**/run_on_filters_results",
+    "**/filter_reports",
+    "**/spf_env",
+    "**/temp",
+    "**/test_data.zip",
+    "**/test_data_dl.zip",
+    "**/test_data.txt",
+    "**/sessions*",
+    "**/token",
+    "**/session_output_*.png",
+    "**/*spf-run*",
+    "**/*2024*.yaml",
+    "**/tmp_*",
+    "**/mav.*",
+    "**/testdata*",
+    "**/*output*",
+    "**/*checkpoints*"
+  ]
+}

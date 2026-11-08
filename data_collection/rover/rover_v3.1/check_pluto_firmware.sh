@@ -28,12 +28,12 @@ found=0
 for d in /dev/sd?; do
     [[ -b "${d}1" ]] || continue
     ser="$(udevadm info --query=property --name="$d" 2>/dev/null |
-        sed -n 's/^ID_SERIAL_SHORT=//p' | head -1)"
+        sed -n 's/^ID_SERIAL_SHORT=//p' | head -1 || true)"
     [[ -n "$ser" && "$pluto_serials" == *" $ser "* ]] || continue
     found=$((found + 1))
     if mount -o ro "${d}1" "$MNT" 2>/dev/null; then
         fw="$(grep -oE 'VerLocal = "[^"]+"' "$MNT/img/version.js" 2>/dev/null |
-            grep -oE 'v[0-9][^"]*' | head -1)"
+            grep -oE 'v[0-9][^"]*' | head -1 || true)"
         umount "$MNT" 2>/dev/null || true
         printf '%-9s serial=%s  firmware=%s\n' "$d" "$ser" "${fw:-unknown}"
     else

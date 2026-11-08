@@ -1,0 +1,4357 @@
+{
+ "e_gsc7": {
+  "cross_lo_transfer": {
+   "median_cross_lo_rms_deg": 4.352612880898641,
+   "median_same_lo_rms_deg": 0.44032365799113404,
+   "n_cross_lo_worse": 16,
+   "n_pairs": 16,
+   "rows": [
+    {
+     "cross_lo_max_deg": 6.322491334832103,
+     "cross_lo_rms_deg": 5.766587233331494,
+     "lo_hz": 5000000000,
+     "radio": "R17",
+     "same_lo_cross_transport_rms_deg": 0.3659857423390855,
+     "transport": "usb"
+    },
+    {
+     "cross_lo_max_deg": 80.39174558679103,
+     "cross_lo_rms_deg": 79.8416680293495,
+     "lo_hz": 5300000000,
+     "radio": "R17",
+     "same_lo_cross_transport_rms_deg": 0.3659857423390855,
+     "transport": "usb"
+    },
+    {
+     "cross_lo_max_deg": 67.22073758262096,
+     "cross_lo_rms_deg": 65.96117451547413,
+     "lo_hz": 5500000000,
+     "radio": "R17",
+     "same_lo_cross_transport_rms_deg": 0.3659857423390855,
+     "transport": "usb"
+    },
+    {
+     "cross_lo_max_deg": 3.633202958907319,
+     "cross_lo_rms_deg": 2.8565678185220817,
+     "lo_hz": 5900000000,
+     "radio": "R17",
+     "same_lo_cross_transport_rms_deg": 0.3659857423390855,
+     "transport": "usb"
+    },
+    {
+     "cross_lo_max_deg": 2.483707992823882,
+     "cross_lo_rms_deg": 1.6934999080970132,
+     "lo_hz": 5000000000,
+     "radio": "R18",
+     "same_lo_cross_transport_rms_deg": 0.5146615736431825,
+     "transport": "usb"
+    },
+    {
+     "cross_lo_max_deg": 11.905165061641252,
+     "cross_lo_rms_deg": 9.05925981708565,
+     "lo_hz": 5300000000,
+     "radio": "R18",
+     "same_lo_cross_transport_rms_deg": 0.5146615736431825,
+     "transport": "usb"
+    },
+    {
+     "cross_lo_max_deg": 2.566561538011927,
+     "cross_lo_rms_deg": 1.3417663069844215,
+     "lo_hz": 5500000000,
+     "radio": "R18",
+     "same_lo_cross_transport_rms_deg": 0.5146615736431825,
+     "transport": "usb"
+    },
+    {
+     "cross_lo_max_deg": 1.627746298696084,
+     "cross_lo_rms_deg": 1.00125782792488,
+     "lo_hz": 5900000000,
+     "radio": "R18",
+     "same_lo_cross_transport_rms_deg": 0.5146615736431825,
+     "transport": "usb"
+    },
+    {
+     "cross_lo_max_deg": 6.58609731841876,
+     "cross_lo_rms_deg": 5.645721409410324,
+     "lo_hz": 5000000000,
+     "radio": "R17",
+     "same_lo_cross_transport_rms_deg": 0.3659857423390855,
+     "transport": "ip"
+    },
+    {
+     "cross_lo_max_deg": 80.18536283164315,
+     "cross_lo_rms_deg": 79.51152269783753,
+     "lo_hz": 5300000000,
+     "radio": "R17",
+     "same_lo_cross_transport_rms_deg": 0.3659857423390855,
+     "transport": "ip"
+    },
+    {
+     "cross_lo_max_deg": 67.05715894440775,
+     "cross_lo_rms_deg": 65.43896032275713,
+     "lo_hz": 5500000000,
+     "radio": "R17",
+     "same_lo_cross_transport_rms_deg": 0.3659857423390855,
+     "transport": "ip"
+    },
+    {
+     "cross_lo_max_deg": 4.4001589198511475,
+     "cross_lo_rms_deg": 3.0595043523869574,
+     "lo_hz": 5900000000,
+     "radio": "R17",
+     "same_lo_cross_transport_rms_deg": 0.3659857423390855,
+     "transport": "ip"
+    },
+    {
+     "cross_lo_max_deg": 2.5090094602057,
+     "cross_lo_rms_deg": 1.558548627223482,
+     "lo_hz": 5000000000,
+     "radio": "R18",
+     "same_lo_cross_transport_rms_deg": 0.5146615736431825,
+     "transport": "ip"
+    },
+    {
+     "cross_lo_max_deg": 12.204226606617816,
+     "cross_lo_rms_deg": 8.87582609135623,
+     "lo_hz": 5300000000,
+     "radio": "R18",
+     "same_lo_cross_transport_rms_deg": 0.5146615736431825,
+     "transport": "ip"
+    },
+    {
+     "cross_lo_max_deg": 2.883305237773793,
+     "cross_lo_rms_deg": 1.1940927875195222,
+     "lo_hz": 5500000000,
+     "radio": "R18",
+     "same_lo_cross_transport_rms_deg": 0.5146615736431825,
+     "transport": "ip"
+    },
+    {
+     "cross_lo_max_deg": 1.5483970463472492,
+     "cross_lo_rms_deg": 0.932673964582829,
+     "lo_hz": 5900000000,
+     "radio": "R18",
+     "same_lo_cross_transport_rms_deg": 0.5146615736431825,
+     "transport": "ip"
+    }
+   ],
+   "wilcoxon_p_cross_lo_greater": 1.52587890625e-05,
+   "wilcoxon_statistic": 136.0
+  },
+  "cross_lo_transfer_R18_only": {
+   "median_cross_lo_rms_deg": 1.4501574671039519,
+   "n_cross_lo_worse": 8,
+   "n_pairs": 8,
+   "same_lo_rms_deg": 0.5146615736431825,
+   "wilcoxon_p_cross_lo_greater": 0.00390625,
+   "wilcoxon_statistic": 36.0
+  },
+  "h1_threshold_deg": 1.104,
+  "h2_expected_deg": 5.42,
+  "h2_targets": {
+   "R17_ip": {
+    "h2_error_deg": 2.5841079763640717,
+    "step_sum_deg": 8.004107976364072
+   },
+   "R17_usb": {
+    "h2_error_deg": 1.6064632518271393,
+    "step_sum_deg": 7.026463251827139
+   },
+   "R18_ip": {
+    "h2_error_deg": -0.014594510713067166,
+    "step_sum_deg": 5.405405489286933
+   },
+   "R18_usb": {
+    "h2_error_deg": 0.4993744629586958,
+    "step_sum_deg": 5.919374462958696
+   }
+  },
+  "paired_usb_vs_ip_steps": {
+   "R17": {
+    "max_abs_difference_deg": 0.7522310808013011,
+    "mean_abs_difference_deg": 0.2152397640226809,
+    "n": 10,
+    "wilcoxon_p": 0.322265625,
+    "wilcoxon_statistic": 17.0
+   },
+   "R18": {
+    "max_abs_difference_deg": 1.6404319916568229,
+    "mean_abs_difference_deg": 0.6030778537857423,
+    "n": 10,
+    "wilcoxon_p": 0.6953125,
+    "wilcoxon_statistic": 23.0
+   }
+  },
+  "resolved_steps": {
+   "R17_ip": 2,
+   "R17_usb": 2,
+   "R18_ip": 3,
+   "R18_usb": 1
+  },
+  "rf_word_audit": {
+   "gain_db": [
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62
+   ],
+   "lna": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "lpf": [
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24
+   ],
+   "mixer": [
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+   ],
+   "radios": [
+    "R17",
+    "R18"
+   ],
+   "status": "pass",
+   "table_sha256": "90d34d61e8612277529dccfc3323f6c684c2bc36b7670dff078e009eb84a1143",
+   "tia": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ]
+  },
+  "step_counts": {
+   "R17_ip": 10,
+   "R17_usb": 10,
+   "R18_ip": 10,
+   "R18_usb": 10
+  },
+  "step_sums_deg": {
+   "R17_ip": 8.004107976364072,
+   "R17_usb": 7.026463251827138,
+   "R18_ip": 5.405405489286933,
+   "R18_usb": 5.919374462958696
+  },
+  "steps_by_run": {
+   "R17_ip": [
+    1.0608891150604727,
+    -0.03106131808681069,
+    2.3458532419380473,
+    -1.0629161797176125,
+    0.5381862628728136,
+    1.0981738787506288,
+    0.34687901198680193,
+    0.6899637129867638,
+    0.41074549641297925,
+    2.607394754159988
+   ],
+   "R17_usb": [
+    0.9940942978048962,
+    0.03390466345206823,
+    1.8697993262182522,
+    -0.6359706973184004,
+    0.5053328064281728,
+    0.9572151870791544,
+    0.36011547104625474,
+    0.5938344924976804,
+    0.49297403126037315,
+    1.855163673358687
+   ],
+   "R18_ip": [
+    0.39543137144698187,
+    1.2317991436250852,
+    -0.501600275764152,
+    1.754266158693945,
+    0.8481525674853737,
+    -0.5974452873948063,
+    1.8212921232336272,
+    -0.46505963038713455,
+    0.7450994553203347,
+    0.1734698630276777
+   ],
+   "R18_usb": [
+    1.1032714378430608,
+    0.5493793878112192,
+    -0.17613543851253796,
+    1.3548961321201531,
+    0.8119695594370246,
+    -0.010210578212210702,
+    0.1808601315768043,
+    0.48917037546139686,
+    1.0882341147863432,
+    0.5279393406474424
+   ]
+  },
+  "steps_vs_resolution_threshold": {
+   "R17_ip": {
+    "binomial_p_majority_above": 0.9892578125,
+    "mean_abs_step_deg": 1.019206297197292,
+    "median_abs_step_deg": 0.8754264140236183,
+    "n": 10,
+    "n_above_threshold": 2
+   },
+   "R17_usb": {
+    "binomial_p_majority_above": 0.9892578125,
+    "mean_abs_step_deg": 0.8298404646463939,
+    "median_abs_step_deg": 0.6149025949080404,
+    "n": 10,
+    "n_above_threshold": 2
+   },
+   "R18_ip": {
+    "binomial_p_majority_above": 0.9453125,
+    "mean_abs_step_deg": 0.8533615876379118,
+    "median_abs_step_deg": 0.6712723713575706,
+    "n": 10,
+    "n_above_threshold": 3
+   },
+   "R18_usb": {
+    "binomial_p_majority_above": 0.9990234375,
+    "mean_abs_step_deg": 0.6292066496408194,
+    "median_abs_step_deg": 0.5386593642293308,
+    "n": 10,
+    "n_above_threshold": 1
+   }
+  }
+ },
+ "ladder": {
+  "leave_one_band_out_pooled": {
+   "L00 zero (per-session anchor only)": {
+    "coverage": 1.0,
+    "failclosed_mae": 6.647185660866149,
+    "params": 0
+   },
+   "L01 sym H(g), universal": {
+    "coverage": 1.0,
+    "failclosed_mae": 7.344920923106809,
+    "params": 3
+   },
+   "L05 sym H(lna,mixer,tia,lpf) universal": {
+    "coverage": 0.0,
+    "failclosed_mae": 6.647185660866149,
+    "params": 12
+   },
+   "L06 sym H(gain-table row) universal": {
+    "coverage": 0.0,
+    "failclosed_mae": 6.647185660866149,
+    "params": 6
+   },
+   "L16 MECHANISTIC: H(state) + ripple amp per LNA state": {
+    "coverage": 0.0,
+    "failclosed_mae": 6.647185660866149,
+    "params": 18
+   },
+   "L24 arm d(radio,f,g)  per-frequency additive LUT": {
+    "coverage": 0.0,
+    "failclosed_mae": 6.647185660866149,
+    "params": 888
+   },
+   "L26 MECH: H(state) + 2 ripples per LNA state": {
+    "coverage": 0.0,
+    "failclosed_mae": 6.647185660866149,
+    "params": 24
+   },
+   "L30 MIN: H(lna,mixer,tia) only, universal": {
+    "coverage": 0.6937149601652405,
+    "failclosed_mae": 6.216576803761591,
+    "params": 7
+   },
+   "L31 MIN + 2 ripples per LNA state, universal": {
+    "coverage": 0.6937149601652405,
+    "failclosed_mae": 6.82249637093947,
+    "params": 19
+   },
+   "L32 MIN + 2 ripples per (band,LNA) + delay(lna,mixer)": {
+    "coverage": 0.0,
+    "failclosed_mae": 6.647185660866149,
+    "params": 32
+   },
+   "L33 L32 + linear LPF slope (1 param)": {
+    "coverage": 0.0,
+    "failclosed_mae": 6.647185660866149,
+    "params": 33
+   },
+   "L34 L33 + ripple amps per (band,LNA,radio)": {
+    "coverage": 0.0,
+    "failclosed_mae": 6.647185660866149,
+    "params": 53
+   }
+  },
+  "leave_one_gain_out_pooled": {
+   "L00 zero (per-session anchor only)": {
+    "coverage": 1.0,
+    "params": 0,
+    "sup_mae": 5.555916410913222,
+    "sup_p95": 17.861042348904615
+   },
+   "L01 sym H(g), universal": {
+    "coverage": 0.4768368886015945,
+    "params": 26,
+    "sup_mae": 2.9950339664102263,
+    "sup_p95": 10.454790957092756
+   },
+   "L05 sym H(lna,mixer,tia,lpf) universal": {
+    "coverage": 0.8853695324283559,
+    "params": 26,
+    "sup_mae": 3.285897793448897,
+    "sup_p95": 13.194311982040993
+   },
+   "L06 sym H(gain-table row) universal": {
+    "coverage": 0.781943546649429,
+    "params": 39,
+    "sup_mae": 3.767235176745689,
+    "sup_p95": 15.10172372781389
+   },
+   "L16 MECHANISTIC: H(state) + ripple amp per LNA state": {
+    "coverage": 0.8853695324283559,
+    "params": 32,
+    "sup_mae": 3.4154328016051982,
+    "sup_p95": 14.200245694213333
+   },
+   "L24 arm d(radio,f,g)  per-frequency additive LUT": {
+    "coverage": 0.16418875242404654,
+    "params": 1752,
+    "sup_mae": 0.9310017562982468,
+    "sup_p95": 2.9263063776956733
+   },
+   "L26 MECH: H(state) + 2 ripples per LNA state": {
+    "coverage": 0.8853695324283559,
+    "params": 38,
+    "sup_mae": 3.172493610491888,
+    "sup_p95": 11.941793545341612
+   },
+   "L30 MIN: H(lna,mixer,tia) only, universal": {
+    "coverage": 0.8957121310062487,
+    "params": 9,
+    "sup_mae": 3.3159718579286137,
+    "sup_p95": 12.256787911238895
+   },
+   "L31 MIN + 2 ripples per LNA state, universal": {
+    "coverage": 0.8957121310062487,
+    "params": 21,
+    "sup_mae": 3.089804062687858,
+    "sup_p95": 11.279952958234944
+   },
+   "L32 MIN + 2 ripples per (band,LNA) + delay(lna,mixer)": {
+    "coverage": 0.6992027580262874,
+    "params": 44,
+    "sup_mae": 2.2511499295839665,
+    "sup_p95": 8.20377068427507
+   },
+   "L33 L32 + linear LPF slope (1 param)": {
+    "coverage": 0.6992027580262874,
+    "params": 45,
+    "sup_mae": 2.42501822341188,
+    "sup_p95": 8.050407030365424
+   },
+   "L34 L33 + ripple amps per (band,LNA,radio)": {
+    "coverage": 0.6992027580262874,
+    "params": 73,
+    "sup_mae": 2.4309505761041206,
+    "sup_p95": 8.018970071172566
+   }
+  },
+  "pooled": {
+   "LOFO leave-one-frequency-out": {
+    "L00 zero (per-session anchor only)": {
+     "coverage": 1.0,
+     "mae": 6.647185660866149,
+     "p95": 18.382044687492986,
+     "params": 0,
+     "sup_mae": 6.647185660866149,
+     "uneq": null
+    },
+    "L01 sym H(g), universal": {
+     "coverage": 1.0,
+     "mae": 5.16017550269795,
+     "p95": 16.137602701840667,
+     "params": 3,
+     "sup_mae": 5.16017550269795,
+     "uneq": null
+    },
+    "L05 sym H(lna,mixer,tia,lpf) universal": {
+     "coverage": 1.0,
+     "mae": 3.2876534297502107,
+     "p95": 11.923346026573936,
+     "params": 15,
+     "sup_mae": 3.2876534297502107,
+     "uneq": null
+    },
+    "L06 sym H(gain-table row) universal": {
+     "coverage": 1.0,
+     "mae": 3.2876534297502453,
+     "p95": 11.923346026672895,
+     "params": 9,
+     "sup_mae": 3.2876534297502453,
+     "uneq": null
+    },
+    "L16 MECHANISTIC: H(state) + ripple amp per LNA state": {
+     "coverage": 1.0,
+     "mae": 2.497353273225628,
+     "p95": 8.923106674585354,
+     "params": 21,
+     "sup_mae": 2.497353273225628,
+     "uneq": null
+    },
+    "L24 arm d(radio,f,g)  per-frequency additive LUT": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "p95": 18.382044687492986,
+     "params": 1344,
+     "sup_mae": null,
+     "uneq": null
+    },
+    "L26 MECH: H(state) + 2 ripples per LNA state": {
+     "coverage": 1.0,
+     "mae": 2.2619847093214576,
+     "p95": 7.54074957234847,
+     "params": 27,
+     "sup_mae": 2.2619847093214576,
+     "uneq": null
+    },
+    "L30 MIN: H(lna,mixer,tia) only, universal": {
+     "coverage": 1.0,
+     "mae": 3.538945228475509,
+     "p95": 12.274899636299883,
+     "params": 8,
+     "sup_mae": 3.538945228475509,
+     "uneq": null
+    },
+    "L31 MIN + 2 ripples per LNA state, universal": {
+     "coverage": 1.0,
+     "mae": 2.5752707184287393,
+     "p95": 8.124090107476553,
+     "params": 20,
+     "sup_mae": 2.5752707184287393,
+     "uneq": null
+    },
+    "L32 MIN + 2 ripples per (band,LNA) + delay(lna,mixer)": {
+     "coverage": 1.0,
+     "mae": 2.331304801381287,
+     "p95": 7.712961128592011,
+     "params": 42,
+     "sup_mae": 2.331304801381287,
+     "uneq": null
+    },
+    "L33 L32 + linear LPF slope (1 param)": {
+     "coverage": 1.0,
+     "mae": 1.9867183657439595,
+     "p95": 7.277039585394433,
+     "params": 43,
+     "sup_mae": 1.9867183657439595,
+     "uneq": null
+    },
+    "L34 L33 + ripple amps per (band,LNA,radio)": {
+     "coverage": 1.0,
+     "mae": 2.0183026364119865,
+     "p95": 7.2488352814224,
+     "params": 71,
+     "sup_mae": 2.0183026364119865,
+     "uneq": null
+    }
+   },
+   "pooled_LOFO": {
+    "L00 zero (per-session anchor only)": {
+     "coverage": 1.0,
+     "mae": 5.555916410913222,
+     "p95": 17.861042348904615,
+     "params": 0,
+     "sup_mae": 5.555916410913222,
+     "uneq": null
+    },
+    "L01 sym H(g), universal": {
+     "coverage": 1.0,
+     "mae": 4.5407959685234776,
+     "p95": 15.002438136001082,
+     "params": 27,
+     "sup_mae": 4.5407959685234776,
+     "uneq": null
+    },
+    "L05 sym H(lna,mixer,tia,lpf) universal": {
+     "coverage": 1.0,
+     "mae": 2.9131436073017514,
+     "p95": 11.221150113807557,
+     "params": 26,
+     "sup_mae": 2.9131436073017514,
+     "uneq": null
+    },
+    "L06 sym H(gain-table row) universal": {
+     "coverage": 0.9896574014221073,
+     "mae": 2.8574628133465287,
+     "p95": 11.149427402159656,
+     "params": 40,
+     "sup_mae": 2.8490084001301597,
+     "uneq": null
+    },
+    "L16 MECHANISTIC: H(state) + ripple amp per LNA state": {
+     "coverage": 1.0,
+     "mae": 2.3304956630713134,
+     "p95": 8.509908494267558,
+     "params": 32,
+     "sup_mae": 2.3304956630713134,
+     "uneq": null
+    },
+    "L24 arm d(radio,f,g)  per-frequency additive LUT": {
+     "coverage": 0.0,
+     "mae": 5.555916410913222,
+     "p95": 17.861042348904615,
+     "params": 1748,
+     "sup_mae": null,
+     "uneq": null
+    },
+    "L26 MECH: H(state) + 2 ripples per LNA state": {
+     "coverage": 1.0,
+     "mae": 2.1086739684526257,
+     "p95": 6.6864046405013955,
+     "params": 38,
+     "sup_mae": 2.1086739684526257,
+     "uneq": null
+    },
+    "L30 MIN: H(lna,mixer,tia) only, universal": {
+     "coverage": 1.0,
+     "mae": 2.985278781832309,
+     "p95": 11.387557325667998,
+     "params": 9,
+     "sup_mae": 2.985278781832309,
+     "uneq": null
+    },
+    "L31 MIN + 2 ripples per LNA state, universal": {
+     "coverage": 1.0,
+     "mae": 2.260609284955337,
+     "p95": 7.363006389674158,
+     "params": 21,
+     "sup_mae": 2.260609284955337,
+     "uneq": null
+    },
+    "L32 MIN + 2 ripples per (band,LNA) + delay(lna,mixer)": {
+     "coverage": 1.0,
+     "mae": 1.9715690458989634,
+     "p95": 7.115987055367986,
+     "params": 44,
+     "sup_mae": 1.9715690458989634,
+     "uneq": null
+    },
+    "L33 L32 + linear LPF slope (1 param)": {
+     "coverage": 1.0,
+     "mae": 1.9342011434091237,
+     "p95": 6.584806666058804,
+     "params": 45,
+     "sup_mae": 1.9342011434091237,
+     "uneq": null
+    },
+    "L34 L33 + ripple amps per (band,LNA,radio)": {
+     "coverage": 1.0,
+     "mae": 1.9640098062442082,
+     "p95": 6.7868078097112905,
+     "params": 73,
+     "sup_mae": 1.9640098062442082,
+     "uneq": null
+    }
+   }
+  },
+  "readme_section_4_2_verification": [
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 6.65,
+     "LOEO": 6.65,
+     "LOEO_uneq": 8.31,
+     "LOFO": 6.65,
+     "LOFO_uneq": 8.31,
+     "LORO": 6.65,
+     "params": 0
+    },
+    "model": "L00 zero (per-session anchor only)",
+    "readme_values": {
+     "LOBLK": 6.65,
+     "LOEO": 6.65,
+     "LOEO_uneq": 8.31,
+     "LOFO": 6.65,
+     "LOFO_uneq": 8.31,
+     "LORO": 6.65,
+     "params": 0
+    },
+    "rung": "L00",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 5.64,
+     "LOEO": 5.12,
+     "LOEO_uneq": 6.4,
+     "LOFO": 5.16,
+     "LOFO_uneq": 6.45,
+     "LORO": 5.13,
+     "params": 3
+    },
+    "model": "L01 sym H(g), universal",
+    "readme_values": {
+     "LOBLK": 5.64,
+     "LOEO": 5.12,
+     "LOEO_uneq": 6.4,
+     "LOFO": 5.16,
+     "LOFO_uneq": 6.45,
+     "LORO": 5.13,
+     "params": 3
+    },
+    "rung": "L01",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 3.14,
+     "LOEO": 2.99,
+     "LOEO_uneq": 3.74,
+     "LOFO": 3.08,
+     "LOFO_uneq": 3.85,
+     "LORO": 3.05,
+     "params": 12
+    },
+    "model": "L11 sym H(band,g) + delay(g) universal",
+    "readme_values": {
+     "LOBLK": 3.14,
+     "LOEO": 2.99,
+     "LOEO_uneq": 3.74,
+     "LOFO": 3.08,
+     "LOFO_uneq": 3.85,
+     "LORO": 3.05,
+     "params": 12
+    },
+    "rung": "L11",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 3.25,
+     "LOEO": 2.85,
+     "LOEO_uneq": 3.56,
+     "LOFO": 2.99,
+     "LOFO_uneq": 3.73,
+     "LORO": 2.9,
+     "params": 15
+    },
+    "model": "L14 sym H(band,g) + 1 ripple, amp per g, universal",
+    "readme_values": {
+     "LOBLK": 3.25,
+     "LOEO": 2.85,
+     "LOEO_uneq": 3.56,
+     "LOFO": 2.99,
+     "LOFO_uneq": 3.73,
+     "LORO": 2.9,
+     "params": 15
+    },
+    "rung": "L14",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 2.7,
+     "LOEO": 2.42,
+     "LOEO_uneq": 3.02,
+     "LOFO": 2.5,
+     "LOFO_uneq": 3.12,
+     "LORO": 2.49,
+     "params": 21
+    },
+    "model": "L16 MECHANISTIC: H(state) + ripple amp per LNA state",
+    "readme_values": {
+     "LOBLK": 2.7,
+     "LOEO": 2.42,
+     "LOEO_uneq": 3.02,
+     "LOFO": 2.5,
+     "LOFO_uneq": 3.12,
+     "LORO": 2.49,
+     "params": 21
+    },
+    "rung": "L16",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 3.49,
+     "LOEO": 2.54,
+     "LOEO_uneq": 3.18,
+     "LOFO": 2.7,
+     "LOFO_uneq": 3.37,
+     "LORO": 2.71,
+     "params": 21
+    },
+    "model": "L18 sym H(band,g) + 2 ripples, amp per g, universal",
+    "readme_values": {
+     "LOBLK": 3.49,
+     "LOEO": 2.54,
+     "LOEO_uneq": 3.18,
+     "LOFO": 2.7,
+     "LOFO_uneq": 3.37,
+     "LORO": 2.71,
+     "params": 21
+    },
+    "rung": "L18",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 2.47,
+     "LOEO": 2.08,
+     "LOEO_uneq": 2.6,
+     "LOFO": 2.26,
+     "LOFO_uneq": 2.83,
+     "LORO": 2.22,
+     "params": 27
+    },
+    "model": "L26 MECH: H(state) + 2 ripples per LNA state",
+    "readme_values": {
+     "LOBLK": 2.47,
+     "LOEO": 2.08,
+     "LOEO_uneq": 2.6,
+     "LOFO": 2.26,
+     "LOFO_uneq": 2.83,
+     "LORO": 2.22,
+     "params": 27
+    },
+    "rung": "L26",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 3.52,
+     "LOEO": 1.68,
+     "LOEO_uneq": 2.1,
+     "LOFO": 1.85,
+     "LOFO_uneq": 2.32,
+     "LORO": 1.91,
+     "params": 49
+    },
+    "model": "L27 MECH: + delay(state) + 2 ripples per (band,LNA)",
+    "readme_values": {
+     "LOBLK": 3.52,
+     "LOEO": 1.68,
+     "LOEO_uneq": 2.1,
+     "LOFO": 1.85,
+     "LOFO_uneq": 2.32,
+     "LORO": 1.91,
+     "params": 49
+    },
+    "rung": "L27",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 4.03,
+     "LOEO": 2.75,
+     "LOEO_uneq": 3.44,
+     "LOFO": 3.1,
+     "LOFO_uneq": 3.88,
+     "LORO": 2.92,
+     "params": 45
+    },
+    "model": "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g",
+    "readme_values": {
+     "LOBLK": 4.03,
+     "LOEO": 2.75,
+     "LOEO_uneq": 3.44,
+     "LOFO": 3.1,
+     "LOFO_uneq": 3.88,
+     "LORO": 2.92,
+     "params": 45
+    },
+    "rung": "L29",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 3.66,
+     "LOEO": 3.49,
+     "LOEO_uneq": 4.37,
+     "LOFO": 3.54,
+     "LOFO_uneq": 4.42,
+     "LORO": 3.52,
+     "params": 8
+    },
+    "model": "L30 MIN: H(lna,mixer,tia) only, universal",
+    "readme_values": {
+     "LOBLK": 3.66,
+     "LOEO": 3.49,
+     "LOEO_uneq": 4.37,
+     "LOFO": 3.54,
+     "LOFO_uneq": 4.42,
+     "LORO": 3.52,
+     "params": 8
+    },
+    "rung": "L30",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 2.79,
+     "LOEO": 2.45,
+     "LOEO_uneq": 3.06,
+     "LOFO": 2.58,
+     "LOFO_uneq": 3.22,
+     "LORO": 2.54,
+     "params": 20
+    },
+    "model": "L31 MIN + 2 ripples per LNA state, universal",
+    "readme_values": {
+     "LOBLK": 2.79,
+     "LOEO": 2.45,
+     "LOEO_uneq": 3.06,
+     "LOFO": 2.58,
+     "LOFO_uneq": 3.22,
+     "LORO": 2.54,
+     "params": 20
+    },
+    "rung": "L31",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 3.58,
+     "LOEO": 1.81,
+     "LOEO_uneq": 2.26,
+     "LOFO": 1.99,
+     "LOFO_uneq": 2.48,
+     "LORO": 2.0,
+     "params": 43
+    },
+    "model": "L33 L32 + linear LPF slope (1 param)",
+    "readme_values": {
+     "LOBLK": 3.58,
+     "LOEO": 1.81,
+     "LOEO_uneq": 2.26,
+     "LOFO": 1.99,
+     "LOFO_uneq": 2.48,
+     "LORO": 2.0,
+     "params": 43
+    },
+    "rung": "L33",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 6.65,
+     "LOEO": 0.99,
+     "LOEO_uneq": 1.23,
+     "LOFO": 6.65,
+     "LOFO_uneq": 8.31,
+     "LORO": 6.65,
+     "params": 678
+    },
+    "model": "L23 sym H(radio,f,g)  per-frequency antisym LUT",
+    "readme_values": {
+     "LOBLK": null,
+     "LOEO": 0.99,
+     "LOEO_uneq": 1.23,
+     "LOFO": null,
+     "LOFO_uneq": null,
+     "LORO": null,
+     "params": 678
+    },
+    "rung": "L23",
+    "status": "match"
+   },
+   {
+    "differences": [],
+    "json_values": {
+     "LOBLK": 6.65,
+     "LOEO": 0.62,
+     "LOEO_uneq": 0.77,
+     "LOFO": 6.65,
+     "LOFO_uneq": 8.31,
+     "LORO": 6.65,
+     "params": 1356
+    },
+    "model": "L24 arm d(radio,f,g)  per-frequency additive LUT",
+    "readme_values": {
+     "LOBLK": null,
+     "LOEO": 0.62,
+     "LOEO_uneq": 0.77,
+     "LOFO": null,
+     "LOFO_uneq": null,
+     "LORO": null,
+     "params": 1356
+    },
+    "rung": "L24",
+    "status": "match"
+   }
+  ],
+  "stage_a_ladder": {
+   "L00 zero (per-session anchor only)": {
+    "LOBAND": {
+     "coverage": 1.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": 6.647185660866149,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": 6.647185660866149,
+     "uneq": 8.30959505889907
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": 6.647185660866149,
+     "uneq": 8.30959505889907
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": 6.647185660866149,
+     "uneq": 8.30959505889907
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": 6.647185660866149,
+     "uneq": 8.30959505889907
+    },
+    "params": 0
+   },
+   "L01 sym H(g), universal": {
+    "LOBAND": {
+     "coverage": 1.0,
+     "mae": 7.344920923106809,
+     "mx": 35.875807570280166,
+     "n": 3389,
+     "p95": 21.42974235464921,
+     "sup_mae": 7.344920923106809,
+     "uneq": 9.181828479678707
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 5.6429246152872885,
+     "mx": 34.83660685399719,
+     "n": 3389,
+     "p95": 17.17848961261229,
+     "sup_mae": 5.6429246152872885,
+     "uneq": 7.05417614209097
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 5.117494804045556,
+     "mx": 34.90668972876854,
+     "n": 3389,
+     "p95": 16.00408497923975,
+     "sup_mae": 5.117494804045556,
+     "uneq": 6.397340424533526
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 5.16017550269795,
+     "mx": 34.92697685041586,
+     "n": 3389,
+     "p95": 16.137602701840667,
+     "sup_mae": 5.16017550269795,
+     "uneq": 6.450695233730486
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 5.130321432666031,
+     "mx": 35.234539030580734,
+     "n": 3389,
+     "p95": 16.07954602674081,
+     "sup_mae": 5.130321432666031,
+     "uneq": 6.413374893140974
+    },
+    "params": 3
+   },
+   "L02 sym H(radio,g)": {
+    "LOBAND": {
+     "coverage": 1.0,
+     "mae": 7.361761431490748,
+     "mx": 35.98105356464076,
+     "n": 3389,
+     "p95": 21.4667926877725,
+     "sup_mae": 7.361761431490748,
+     "uneq": 9.20288066813801
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 5.642958074188762,
+     "mx": 34.61819251592712,
+     "n": 3389,
+     "p95": 17.200479152586478,
+     "sup_mae": 5.642958074188762,
+     "uneq": 7.054217968803286
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 5.114070811346124,
+     "mx": 34.56223442676631,
+     "n": 3389,
+     "p95": 16.023685021311337,
+     "sup_mae": 5.114070811346124,
+     "uneq": 6.393060117909265
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 5.158258247983903,
+     "mx": 34.68020061433315,
+     "n": 3389,
+     "p95": 16.14434479305038,
+     "sup_mae": 5.158258247983903,
+     "uneq": 6.448298488534654
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 6
+   },
+   "L03 arm d1(g),d2(g) universal": {
+    "LOBAND": {
+     "coverage": 1.0,
+     "mae": 7.349734746469334,
+     "mx": 35.904974839012745,
+     "n": 3389,
+     "p95": 21.532794726415485,
+     "sup_mae": 7.349734746469334,
+     "uneq": 9.187846202797257
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 5.644220548005721,
+     "mx": 34.63565019082487,
+     "n": 3389,
+     "p95": 17.327678897220625,
+     "sup_mae": 5.644220548005721,
+     "uneq": 7.0557961774953535
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 5.118233362727166,
+     "mx": 34.71300326864412,
+     "n": 3389,
+     "p95": 16.0035038968618,
+     "sup_mae": 5.118233362727166,
+     "uneq": 6.398263690992407
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 5.161447893699359,
+     "mx": 34.723169547942135,
+     "n": 3389,
+     "p95": 16.129794611473816,
+     "sup_mae": 5.161447893699359,
+     "uneq": 6.452285839817712
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 5.132102616467005,
+     "mx": 35.13818667546473,
+     "n": 3389,
+     "p95": 16.03723424323629,
+     "sup_mae": 5.132102616467005,
+     "uneq": 6.41560153714647
+    },
+    "params": 6
+   },
+   "L04 arm d1,d2 per radio": {
+    "LOBAND": {
+     "coverage": 1.0,
+     "mae": 7.372742159162524,
+     "mx": 36.100260832523475,
+     "n": 3389,
+     "p95": 21.50714902634328,
+     "sup_mae": 7.372742159162524,
+     "uneq": 9.216607590335412
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 5.645900455252398,
+     "mx": 34.476005314856515,
+     "n": 3389,
+     "p95": 17.323345387739483,
+     "sup_mae": 5.645900455252398,
+     "uneq": 7.057896216468945
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 5.117226847670931,
+     "mx": 34.249968633182974,
+     "n": 3389,
+     "p95": 15.996483167243877,
+     "sup_mae": 5.117226847670931,
+     "uneq": 6.397005454353705
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 5.16202782211253,
+     "mx": 34.41685916799732,
+     "n": 3389,
+     "p95": 16.159316122800387,
+     "sup_mae": 5.16202782211253,
+     "uneq": 6.453010803812889
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 12
+   },
+   "L05 sym H(lna,mixer,tia,lpf) universal": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.3799646166780604,
+     "mx": 31.7502849942839,
+     "n": 3389,
+     "p95": 11.721983751661577,
+     "sup_mae": 3.3799646166780604,
+     "uneq": 4.225267460686812
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 3.214655307489723,
+     "mx": 33.03008892634683,
+     "n": 3389,
+     "p95": 11.543074607670805,
+     "sup_mae": 3.214655307489723,
+     "uneq": 4.018615579890325
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.2876534297502107,
+     "mx": 33.07519294001293,
+     "n": 3389,
+     "p95": 11.923346026573926,
+     "sup_mae": 3.2876534297502107,
+     "uneq": 4.109869964376048
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 3.254046177360223,
+     "mx": 34.217470611056214,
+     "n": 3389,
+     "p95": 11.603134602312187,
+     "sup_mae": 3.254046177360223,
+     "uneq": 4.067857799732127
+    },
+    "params": 15
+   },
+   "L06 sym H(gain-table row) universal": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.379964616659972,
+     "mx": 31.750284994330283,
+     "n": 3389,
+     "p95": 11.721983751691653,
+     "sup_mae": 3.379964616659972,
+     "uneq": 4.2252674606642
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 3.214655307490453,
+     "mx": 33.03008892637937,
+     "n": 3389,
+     "p95": 11.543074607563277,
+     "sup_mae": 3.214655307490453,
+     "uneq": 4.018615579891238
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.2876534297502453,
+     "mx": 33.07519294003459,
+     "n": 3389,
+     "p95": 11.923346026672895,
+     "sup_mae": 3.2876534297502453,
+     "uneq": 4.10986996437609
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 3.25404617736108,
+     "mx": 34.21747061108081,
+     "n": 3389,
+     "p95": 11.603134602233066,
+     "sup_mae": 3.25404617736108,
+     "uneq": 4.067857799733198
+    },
+    "params": 9
+   },
+   "L07 sym H(lna,mixer,tia,lpf) per radio": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.3779562831716547,
+     "mx": 30.5570495251799,
+     "n": 3389,
+     "p95": 11.713189659553453,
+     "sup_mae": 3.3779562831716547,
+     "uneq": 4.222756858601527
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 3.2047498819589957,
+     "mx": 31.799334638408233,
+     "n": 3389,
+     "p95": 11.625461962761271,
+     "sup_mae": 3.2047498819589957,
+     "uneq": 4.0062328845293385
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.282493880744557,
+     "mx": 32.13580101112135,
+     "n": 3389,
+     "p95": 12.019595281295787,
+     "sup_mae": 3.282493880744557,
+     "uneq": 4.103420052321396
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 30
+   },
+   "L08 sym H(band,g) universal": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.379964616659972,
+     "mx": 31.750284994330283,
+     "n": 3389,
+     "p95": 11.721983751691653,
+     "sup_mae": 3.379964616659972,
+     "uneq": 4.2252674606642
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 3.214655307490453,
+     "mx": 33.03008892637937,
+     "n": 3389,
+     "p95": 11.543074607563277,
+     "sup_mae": 3.214655307490453,
+     "uneq": 4.018615579891238
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.2876534297502453,
+     "mx": 33.07519294003459,
+     "n": 3389,
+     "p95": 11.923346026672895,
+     "sup_mae": 3.2876534297502453,
+     "uneq": 4.10986996437609
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 3.25404617736108,
+     "mx": 34.21747061108081,
+     "n": 3389,
+     "p95": 11.603134602233066,
+     "sup_mae": 3.25404617736108,
+     "uneq": 4.067857799733198
+    },
+    "params": 9
+   },
+   "L09 sym H(radio,band,g)": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.3779562831369496,
+     "mx": 30.55704952529992,
+     "n": 3389,
+     "p95": 11.713189660425714,
+     "sup_mae": 3.3779562831369496,
+     "uneq": 4.222756858558142
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 3.2047498819599674,
+     "mx": 31.79933463850212,
+     "n": 3389,
+     "p95": 11.625461962311633,
+     "sup_mae": 3.2047498819599674,
+     "uneq": 4.0062328845305535
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.2824938807440134,
+     "mx": 32.13580101117957,
+     "n": 3389,
+     "p95": 12.019595281341099,
+     "sup_mae": 3.2824938807440134,
+     "uneq": 4.103420052320716
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 18
+   },
+   "L10 arm d(radio,band,g)": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.3884633943524505,
+     "mx": 29.603238762292264,
+     "n": 3389,
+     "p95": 11.85043787047214,
+     "sup_mae": 3.3884633943524505,
+     "uneq": 4.23589171649096
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 3.1980303577063007,
+     "mx": 30.64020553599944,
+     "n": 3389,
+     "p95": 11.569299189914751,
+     "sup_mae": 3.1980303577063007,
+     "uneq": 3.9978328595515245
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.2800957906659653,
+     "mx": 31.10964527863735,
+     "n": 3389,
+     "p95": 11.908377419394233,
+     "sup_mae": 3.2800957906659653,
+     "uneq": 4.100422218573321
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 36
+   },
+   "L11 sym H(band,g) + delay(g) universal": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.1375916391070713,
+     "mx": 31.362765758382526,
+     "n": 3389,
+     "p95": 11.924787978868855,
+     "sup_mae": 3.1375916391070713,
+     "uneq": 3.9222788878398616
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.9920690912806953,
+     "mx": 32.53738459737778,
+     "n": 3389,
+     "p95": 11.541254064519288,
+     "sup_mae": 2.9920690912806953,
+     "uneq": 3.7403622834195045
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.083344564746751,
+     "mx": 32.57179071008058,
+     "n": 3389,
+     "p95": 12.035117010606056,
+     "sup_mae": 3.083344564746751,
+     "uneq": 3.854465042392748
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 3.0476866653933854,
+     "mx": 33.82586630071282,
+     "n": 3389,
+     "p95": 11.70325895838269,
+     "sup_mae": 3.0476866653933854,
+     "uneq": 3.8098893799403117
+    },
+    "params": 12
+   },
+   "L12 sym H(band,g) + delay(g) per radio": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.1466139526608856,
+     "mx": 30.12109635938392,
+     "n": 3389,
+     "p95": 11.969060700042727,
+     "sup_mae": 3.1466139526608856,
+     "uneq": 3.9335576117918634
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.9840601008505225,
+     "mx": 31.19442862970789,
+     "n": 3389,
+     "p95": 11.62050274937298,
+     "sup_mae": 2.9840601008505225,
+     "uneq": 3.7303503068175656
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.080436923137213,
+     "mx": 31.541258393680266,
+     "n": 3389,
+     "p95": 12.12703323480502,
+     "sup_mae": 3.080436923137213,
+     "uneq": 3.850830222247147
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 24
+   },
+   "L13 sym H(state) + delay(lna) universal": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.495215283956136,
+     "mx": 31.840050268607307,
+     "n": 3389,
+     "p95": 11.96182697025181,
+     "sup_mae": 3.495215283956136,
+     "uneq": 4.369341422842989
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 3.2119752635787435,
+     "mx": 33.09644300759708,
+     "n": 3389,
+     "p95": 11.513670560817806,
+     "sup_mae": 3.2119752635787435,
+     "uneq": 4.015265277856276
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.3103706354458096,
+     "mx": 33.15189098738332,
+     "n": 3389,
+     "p95": 12.070788288064783,
+     "sup_mae": 3.3103706354458096,
+     "uneq": 4.138268566405698
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 3.2590974797270675,
+     "mx": 34.40155611452518,
+     "n": 3389,
+     "p95": 11.646761586294483,
+     "sup_mae": 3.2590974797270675,
+     "uneq": 4.074172393506098
+    },
+    "params": 18
+   },
+   "L14 sym H(band,g) + 1 ripple, amp per g, universal": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.247621326331513,
+     "mx": 32.501271615201055,
+     "n": 3389,
+     "p95": 9.831180296473757,
+     "sup_mae": 3.247621326331513,
+     "uneq": 4.059826143466432
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.8489550847887504,
+     "mx": 33.86279059705825,
+     "n": 3389,
+     "p95": 8.876875498226692,
+     "sup_mae": 2.8489550847887504,
+     "uneq": 3.5614565777753864
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.9864549180535724,
+     "mx": 34.04239247540531,
+     "n": 3389,
+     "p95": 9.34094030394172,
+     "sup_mae": 2.9864549180535724,
+     "uneq": 3.7333440491639833
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.9021594004162985,
+     "mx": 35.40174648488067,
+     "n": 3389,
+     "p95": 8.834519465452122,
+     "sup_mae": 2.9021594004162985,
+     "uneq": 3.6279668786465638
+    },
+    "params": 15
+   },
+   "L15 sym H(radio,band,g) + 1 ripple per radio": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.236126754545078,
+     "mx": 31.40700093964829,
+     "n": 3389,
+     "p95": 9.890813015372537,
+     "sup_mae": 3.236126754545078,
+     "uneq": 4.045456868739678
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.8368469060708406,
+     "mx": 32.29805812330319,
+     "n": 3389,
+     "p95": 9.035732013271632,
+     "sup_mae": 2.8368469060708406,
+     "uneq": 3.5463202377993652
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.957942504724171,
+     "mx": 32.981210881472954,
+     "n": 3389,
+     "p95": 9.479588700697398,
+     "sup_mae": 2.957942504724171,
+     "uneq": 3.6977009031760293
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 30
+   },
+   "L16 MECHANISTIC: H(state) + ripple amp per LNA state": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 2.7018863902236676,
+     "mx": 37.26869356511922,
+     "n": 3389,
+     "p95": 9.532210386647495,
+     "sup_mae": 2.7018863902236676,
+     "uneq": 3.3776071473507976
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.4188885644588733,
+     "mx": 35.942369081576935,
+     "n": 3389,
+     "p95": 8.548924671992227,
+     "sup_mae": 2.4188885644588733,
+     "uneq": 3.023833767964265
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.497353273225627,
+     "mx": 36.22036203346299,
+     "n": 3389,
+     "p95": 8.923106674585354,
+     "sup_mae": 2.497353273225627,
+     "uneq": 3.121921889694449
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.4927235444727533,
+     "mx": 39.53928256114566,
+     "n": 3389,
+     "p95": 8.75829809104942,
+     "sup_mae": 2.4927235444727533,
+     "uneq": 3.1161343018141503
+    },
+    "params": 21
+   },
+   "L17 MECHANISTIC + mixer ripple": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 2.7420438231763997,
+     "mx": 36.816743971269744,
+     "n": 3389,
+     "p95": 9.446713923770623,
+     "sup_mae": 2.7420438231763997,
+     "uneq": 3.427807641735455
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.453836355348816,
+     "mx": 37.24580720448344,
+     "n": 3389,
+     "p95": 8.253925961162478,
+     "sup_mae": 2.453836355348816,
+     "uneq": 3.067521729353426
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.5705537033391477,
+     "mx": 37.668721317722735,
+     "n": 3389,
+     "p95": 8.766250680303164,
+     "sup_mae": 2.5705537033391477,
+     "uneq": 3.2134291776526633
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.5240186350418874,
+     "mx": 39.07879920756452,
+     "n": 3389,
+     "p95": 8.478771668836064,
+     "sup_mae": 2.5240186350418874,
+     "uneq": 3.1552560509616216
+    },
+    "params": 27
+   },
+   "L18 sym H(band,g) + 2 ripples, amp per g, universal": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.4924381309391017,
+     "mx": 32.25512665097531,
+     "n": 3389,
+     "p95": 10.681700562722403,
+     "sup_mae": 3.4924381309391017,
+     "uneq": 4.3658697254712715
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.541065409328205,
+     "mx": 34.69221645070479,
+     "n": 3389,
+     "p95": 8.072000176583822,
+     "sup_mae": 2.541065409328205,
+     "uneq": 3.1765660908200974
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.699014105257623,
+     "mx": 34.982238972375214,
+     "n": 3389,
+     "p95": 8.599906565183597,
+     "sup_mae": 2.699014105257623,
+     "uneq": 3.3740165262700423
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.7072880935594057,
+     "mx": 36.74157650985376,
+     "n": 3389,
+     "p95": 8.38661300037648,
+     "sup_mae": 2.7072880935594057,
+     "uneq": 3.384359774648774
+    },
+    "params": 21
+   },
+   "L19 sym H(band,g)+2 ripples per radio + delay": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.2985396141287873,
+     "mx": 29.592070468203712,
+     "n": 3389,
+     "p95": 11.302803285477498,
+     "sup_mae": 3.2985396141287873,
+     "uneq": 4.1234786987393806
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.4166719965717274,
+     "mx": 31.303545031142907,
+     "n": 3389,
+     "p95": 8.31226562709907,
+     "sup_mae": 2.4166719965717274,
+     "uneq": 3.0210628537003266
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.562560008611098,
+     "mx": 32.97777567768566,
+     "n": 3389,
+     "p95": 8.939252513678458,
+     "sup_mae": 2.562560008611098,
+     "uneq": 3.2034363220889013
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 48
+   },
+   "L20 L18 + arm-specific ripple correction": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.51299952198221,
+     "mx": 32.419594588432226,
+     "n": 3389,
+     "p95": 10.802134704429129,
+     "sup_mae": 3.51299952198221,
+     "uneq": 4.391573360375421
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.5917270079359818,
+     "mx": 33.41011083498897,
+     "n": 3389,
+     "p95": 8.157797754976984,
+     "sup_mae": 2.5917270079359818,
+     "uneq": 3.239897760924814
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.7234249510982487,
+     "mx": 34.622759968978606,
+     "n": 3389,
+     "p95": 8.601474917112544,
+     "sup_mae": 2.7234249510982487,
+     "uneq": 3.404532334656184
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 45
+   },
+   "L21 sym H(band,g) + quad(f) per band-gain, per radio": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 10.381965197453821,
+     "mx": 173.58249601527424,
+     "n": 3389,
+     "p95": 42.98574566434234,
+     "sup_mae": 10.381965197453821,
+     "uneq": 12.978413889402804
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.803231150660823,
+     "mx": 30.280329173764823,
+     "n": 3389,
+     "p95": 10.863935646557515,
+     "sup_mae": 2.803231150660823,
+     "uneq": 3.5042974435962853
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.9974408139692383,
+     "mx": 30.985943089369105,
+     "n": 3389,
+     "p95": 11.555248075387736,
+     "sup_mae": 2.9974408139692383,
+     "uneq": 3.7470774321437657
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 54
+   },
+   "L22 L19 + quad(f) per band-gain": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 9.564567654481555,
+     "mx": 150.15469516510944,
+     "n": 3389,
+     "p95": 41.77609745970165,
+     "sup_mae": 9.564567654481555,
+     "uneq": 11.956591582824784
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.146119148248386,
+     "mx": 31.047259350007476,
+     "n": 3389,
+     "p95": 7.688706104639188,
+     "sup_mae": 2.146119148248386,
+     "uneq": 2.682846843752778
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.40675994626884,
+     "mx": 32.547726070624144,
+     "n": 3389,
+     "p95": 8.699909314575628,
+     "sup_mae": 2.40675994626884,
+     "uneq": 3.0086718767632235
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 78
+   },
+   "L23 sym H(radio,f,g)  per-frequency antisym LUT": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 0.9861304667521161,
+     "mx": 14.823019531151765,
+     "n": 3389,
+     "p95": 3.852789853858649,
+     "sup_mae": 0.9861304667521161,
+     "uneq": 1.232754021329001
+    },
+    "LOFO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 678
+   },
+   "L24 arm d(radio,f,g)  per-frequency additive LUT": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 0.6166705261434278,
+     "mx": 8.057632746043026,
+     "n": 3389,
+     "p95": 2.82457775525286,
+     "sup_mae": 0.6166705261434278,
+     "uneq": 0.7708950233364835
+    },
+    "LOFO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 1356
+   },
+   "L25 MECH: H(state) + ripple amp per (band,LNA)": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 2.7501455961231223,
+     "mx": 35.092897580798656,
+     "n": 3389,
+     "p95": 9.065099665509948,
+     "sup_mae": 2.7501455961231223,
+     "uneq": 3.4379356050391965
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.3903762377905338,
+     "mx": 35.61008425045652,
+     "n": 3389,
+     "p95": 7.970564801159148,
+     "sup_mae": 2.3903762377905338,
+     "uneq": 2.98819073031063
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.552516798993438,
+     "mx": 36.16475583749604,
+     "n": 3389,
+     "p95": 8.699006074235552,
+     "sup_mae": 2.552516798993438,
+     "uneq": 3.190881383913228
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.462946227323227,
+     "mx": 37.82971121005326,
+     "n": 3389,
+     "p95": 8.322218469099052,
+     "sup_mae": 2.462946227323227,
+     "uneq": 3.078909909405539
+    },
+    "params": 29
+   },
+   "L26 MECH: H(state) + 2 ripples per LNA state": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 2.47299790509485,
+     "mx": 39.21340562884004,
+     "n": 3389,
+     "p95": 7.62186361066876,
+     "sup_mae": 2.47299790509485,
+     "uneq": 3.0914754335545735
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.0778754861672994,
+     "mx": 36.40175212848172,
+     "n": 3389,
+     "p95": 7.038769113588628,
+     "sup_mae": 2.0778754861672994,
+     "uneq": 2.5975359729328575
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.261984709321458,
+     "mx": 36.846741118475315,
+     "n": 3389,
+     "p95": 7.54074957234847,
+     "sup_mae": 2.261984709321458,
+     "uneq": 2.8276894798562973
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.2190161552422523,
+     "mx": 40.13114637641107,
+     "n": 3389,
+     "p95": 7.30736387772187,
+     "sup_mae": 2.2190161552422523,
+     "uneq": 2.7739748248306872
+    },
+    "params": 27
+   },
+   "L27 MECH: + delay(state) + 2 ripples per (band,LNA)": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.5185496680538386,
+     "mx": 53.17098636763602,
+     "n": 3389,
+     "p95": 11.37096218613093,
+     "sup_mae": 3.5185496680538386,
+     "uneq": 4.398511554789546
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 1.6794311676844247,
+     "mx": 32.22561582077676,
+     "n": 3389,
+     "p95": 6.18899439190899,
+     "sup_mae": 1.6794311676844247,
+     "uneq": 2.0994438315317283
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 1.8519561078441518,
+     "mx": 32.881624008768405,
+     "n": 3389,
+     "p95": 6.931003085432246,
+     "sup_mae": 1.8519561078441518,
+     "uneq": 2.3151159164455293
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 1.905762629906494,
+     "mx": 37.33005368199759,
+     "n": 3389,
+     "p95": 6.840595070617614,
+     "sup_mae": 1.905762629906494,
+     "uneq": 2.382379030893806
+    },
+    "params": 49
+   },
+   "L28 MECH L27 + per-radio ripple amplitudes": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.5439270551650535,
+     "mx": 59.7971799068704,
+     "n": 3389,
+     "p95": 11.721548968310191,
+     "sup_mae": 3.5439270551650535,
+     "uneq": 4.430235628902385
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 1.6978600094217762,
+     "mx": 29.37457714691945,
+     "n": 3389,
+     "p95": 6.2321470734895135,
+     "sup_mae": 1.6978600094217762,
+     "uneq": 2.122481583153965
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 1.8880550817894526,
+     "mx": 31.099953278473226,
+     "n": 3389,
+     "p95": 7.0906731094740465,
+     "sup_mae": 1.8880550817894526,
+     "uneq": 2.3602429628124146
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 77
+   },
+   "L29 AGNOSTIC: H(band,g) + 6 fixed-delay Fourier terms per g": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 4.029429962189056,
+     "mx": 30.450870404168725,
+     "n": 3389,
+     "p95": 12.153710378976529,
+     "sup_mae": 4.029429962189056,
+     "uneq": 5.037159034252568
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.7479867933925815,
+     "mx": 32.267979076550276,
+     "n": 3389,
+     "p95": 8.58705958203726,
+     "sup_mae": 2.7479867933925815,
+     "uneq": 3.4352369025479375
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.10014369659858,
+     "mx": 32.652841089090664,
+     "n": 3389,
+     "p95": 9.826418005212497,
+     "sup_mae": 3.10014369659858,
+     "uneq": 3.875465506371297
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.920141477454989,
+     "mx": 36.53333060669183,
+     "n": 3389,
+     "p95": 8.872881303094298,
+     "sup_mae": 2.920141477454989,
+     "uneq": 3.6504461331962217
+    },
+    "params": 45
+   },
+   "L30 MIN: H(lna,mixer,tia) only, universal": {
+    "LOBAND": {
+     "coverage": 0.6937149601652405,
+     "mae": 6.216576803761591,
+     "mx": 34.28242488199928,
+     "n": 3389,
+     "p95": 17.894327919791785,
+     "sup_mae": 4.860049625334384,
+     "uneq": 7.771294278106985
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.6598835036255553,
+     "mx": 33.26343453684792,
+     "n": 3389,
+     "p95": 12.262392585030604,
+     "sup_mae": 3.6598835036255553,
+     "uneq": 4.575191882621545
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 3.4922433987399923,
+     "mx": 33.6476167439875,
+     "n": 3389,
+     "p95": 12.101122700834216,
+     "sup_mae": 3.4922433987399923,
+     "uneq": 4.365626292264786
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 3.538945228475509,
+     "mx": 33.6714231760809,
+     "n": 3389,
+     "p95": 12.274899636299883,
+     "sup_mae": 3.538945228475509,
+     "uneq": 4.424007886131871
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 3.5151527380449186,
+     "mx": 34.2052968464638,
+     "n": 3389,
+     "p95": 12.23571509170111,
+     "sup_mae": 3.5151527380449186,
+     "uneq": 4.39426507902406
+    },
+    "params": 8
+   },
+   "L31 MIN + 2 ripples per LNA state, universal": {
+    "LOBAND": {
+     "coverage": 0.6937149601652405,
+     "mae": 6.822496354096219,
+     "mx": 53.05883832520242,
+     "n": 3389,
+     "p95": 19.55601558155609,
+     "sup_mae": 5.733491291044316,
+     "uneq": 8.528749592044296
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 2.7931701765657095,
+     "mx": 38.16350298205707,
+     "n": 3389,
+     "p95": 8.409919714254082,
+     "sup_mae": 2.7931701765657095,
+     "uneq": 3.4917202981856104
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.4490327583363967,
+     "mx": 35.99277401671845,
+     "n": 3389,
+     "p95": 7.386855024931299,
+     "sup_mae": 2.4490327583363967,
+     "uneq": 3.061516790115104
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.5752707184287393,
+     "mx": 37.328597931403145,
+     "n": 3389,
+     "p95": 8.124090107476553,
+     "sup_mae": 2.5752707184287393,
+     "uneq": 3.219325881503135
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.5353765785422637,
+     "mx": 38.82453340527573,
+     "n": 3389,
+     "p95": 7.878211852698988,
+     "sup_mae": 2.5353765785422637,
+     "uneq": 3.169454527731365
+    },
+    "params": 20
+   },
+   "L32 MIN + 2 ripples per (band,LNA) + delay(lna,mixer)": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 5.0448335105078215,
+     "mx": 59.884020400859235,
+     "n": 3389,
+     "p95": 25.08781293652209,
+     "sup_mae": 5.0448335105078215,
+     "uneq": 6.306507107012543
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 2.122858749160108,
+     "mx": 31.664653359435622,
+     "n": 3389,
+     "p95": 6.8569367563154975,
+     "sup_mae": 2.122858749160108,
+     "uneq": 2.6537691998906703
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.331304801381287,
+     "mx": 32.144196268759146,
+     "n": 3389,
+     "p95": 7.712961128592026,
+     "sup_mae": 2.331304801381287,
+     "uneq": 2.9143459874146744
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.281730423703343,
+     "mx": 36.399216623416685,
+     "n": 3389,
+     "p95": 7.6302427941358575,
+     "sup_mae": 2.281730423703343,
+     "uneq": 2.852373443722106
+    },
+    "params": 42
+   },
+   "L33 L32 + linear LPF slope (1 param)": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.5765257577095073,
+     "mx": 54.70838539476707,
+     "n": 3389,
+     "p95": 12.290632775068111,
+     "sup_mae": 3.5765257577095073,
+     "uneq": 4.470987013234054
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 1.8102717888507274,
+     "mx": 31.238574071515004,
+     "n": 3389,
+     "p95": 6.379294069630827,
+     "sup_mae": 1.8102717888507274,
+     "uneq": 2.263006673705317
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 1.9867183657439598,
+     "mx": 31.758762230848067,
+     "n": 3389,
+     "p95": 7.277039585394418,
+     "sup_mae": 1.9867183657439598,
+     "uneq": 2.4835811661771596
+    },
+    "LORO": {
+     "coverage": 1.0,
+     "mae": 2.0025875573305574,
+     "mx": 36.157047168342125,
+     "n": 3389,
+     "p95": 7.048014742096624,
+     "sup_mae": 2.0025875573305574,
+     "uneq": 2.5034191190679667
+    },
+    "params": 43
+   },
+   "L34 L33 + ripple amps per (band,LNA,radio)": {
+    "LOBAND": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "LOBLK": {
+     "coverage": 1.0,
+     "mae": 3.644681054994169,
+     "mx": 59.719422478453694,
+     "n": 3389,
+     "p95": 12.494012417373755,
+     "sup_mae": 3.644681054994169,
+     "uneq": 4.556187419909715
+    },
+    "LOEO": {
+     "coverage": 1.0,
+     "mae": 1.8241530999549034,
+     "mx": 28.35226801540778,
+     "n": 3389,
+     "p95": 6.360984498136234,
+     "sup_mae": 1.8241530999549034,
+     "uneq": 2.2803595926769336
+    },
+    "LOFO": {
+     "coverage": 1.0,
+     "mae": 2.018302636411986,
+     "mx": 29.95809088801827,
+     "n": 3389,
+     "p95": 7.248835281422389,
+     "sup_mae": 2.018302636411986,
+     "uneq": 2.523064417115537
+    },
+    "LORO": {
+     "coverage": 0.0,
+     "mae": 6.647185660866149,
+     "mx": 41.556044454612596,
+     "n": 3389,
+     "p95": 18.382044687492986,
+     "sup_mae": null,
+     "uneq": 8.30959505889907
+    },
+    "params": 71
+   }
+  },
+  "wide_survey_ladder_53lo": {
+   "L00 anchor only": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 1.0,
+     "mae": 6.397000011842736,
+     "p95": 18.307434314839952,
+     "uneq": 6.447769853206567
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 6.397000011842736,
+     "p95": 18.307434314839952,
+     "uneq": 6.447769853206567
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 6.397000011842736,
+     "p95": 18.307434314839952,
+     "uneq": 6.447769853206567
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 6.397000011842736,
+     "p95": 18.307434314839952,
+     "uneq": 6.447769853206567
+    },
+    "params": 0
+   },
+   "L01 sym H(g) universal": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 1.0,
+     "mae": 6.173871849528554,
+     "p95": 16.241580101847394,
+     "uneq": 6.222870832461321
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 5.173265844588453,
+     "p95": 14.094299807026944,
+     "uneq": 5.214323510021695
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 4.797319088365063,
+     "p95": 13.22763578834835,
+     "uneq": 4.835393049383834
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 4.711319483084972,
+     "p95": 13.003578110675454,
+     "uneq": 4.7487109075539
+    },
+    "params": 64
+   },
+   "L05 sym H(lna,mixer,tia,lpf)": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.9572128955578666,
+     "mae": 4.890275331086947,
+     "p95": 14.877110630949934,
+     "uneq": 4.929087040063826
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 4.199697170358482,
+     "p95": 13.73005690876394,
+     "uneq": 4.233028100281961
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 3.7563121528916854,
+     "p95": 12.73454601660902,
+     "uneq": 3.7861241541051114
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 3.6595047176926596,
+     "p95": 12.373666569513748,
+     "uneq": 3.6885484059283153
+    },
+    "params": 46
+   },
+   "L06 sym H(gain-table row)": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.9488931808052296,
+     "mae": 4.787901272699181,
+     "p95": 14.449356554860408,
+     "uneq": 4.825900489149175
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 4.271669738133791,
+     "p95": 13.586483473736838,
+     "uneq": 4.305571878912631
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 3.8089888446961497,
+     "p95": 12.50688985467823,
+     "uneq": 3.8392189148921507
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 3.7106795278029363,
+     "p95": 12.171722816886822,
+     "uneq": 3.740129365325182
+    },
+    "params": 75
+   },
+   "L08 sym H(band,g)": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.0,
+     "mae": 6.397000011842736,
+     "p95": 18.307434314839952,
+     "uneq": 6.447769853206567
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 3.6234696833864453,
+     "p95": 12.39559002478368,
+     "uneq": 3.6522273792863382
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 3.1129712591979266,
+     "p95": 11.515990953040667,
+     "uneq": 3.1376773803026716
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 2.981849073137825,
+     "p95": 11.078785967546697,
+     "uneq": 3.0055145419722518
+    },
+    "params": 192
+   },
+   "L16 MECH H(state)+1 ripple/LNA": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.9572128955578666,
+     "mae": 4.746063453514427,
+     "p95": 13.5398814695714,
+     "uneq": 4.783730623780414
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 3.862014364670632,
+     "p95": 12.528245791563345,
+     "uneq": 3.8926652723267483
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 3.05806070625911,
+     "p95": 9.222190819256838,
+     "uneq": 3.082331029324658
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 2.9418389765151143,
+     "p95": 8.82997561654868,
+     "uneq": 2.965186904900155
+    },
+    "params": 54
+   },
+   "L26 MECH H(state)+2 ripples/LNA": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.9572128955578666,
+     "mae": 3.7272619488164604,
+     "p95": 13.210653005807524,
+     "uneq": 3.7568433928546865
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 2.656391223555639,
+     "p95": 7.042366027445595,
+     "uneq": 2.6774736935838583
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 2.2239867772764623,
+     "p95": 6.8516785159260145,
+     "uneq": 2.241637465985006
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 2.0731581279334454,
+     "p95": 6.2149825207421445,
+     "uneq": 2.089611763869425
+    },
+    "params": 62
+   },
+   "L27 MECH +delay +2 ripples/(band,LNA)": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.0,
+     "mae": 6.397000011842736,
+     "p95": 18.307434314839952,
+     "uneq": 6.447769853206567
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 4.155995417096327,
+     "p95": 20.95186566814682,
+     "uneq": 4.188979507708202
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 2.0941481880971593,
+     "p95": 8.434946056999697,
+     "uneq": 2.110768411812216
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 1.4919589821566035,
+     "p95": 4.952360723503063,
+     "uneq": 1.5037999264594337
+    },
+    "params": 113
+   },
+   "L30 MIN H(lna,mixer,tia)": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.9572128955578666,
+     "mae": 4.709350607381804,
+     "p95": 14.752001505382715,
+     "uneq": 4.746726405853089
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 4.089980809708706,
+     "p95": 13.713198764583506,
+     "uneq": 4.122440974865124
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 3.7084798633386185,
+     "p95": 12.798062773726532,
+     "uneq": 3.737912243206385
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 3.6178119210598716,
+     "p95": 12.6088791806584,
+     "uneq": 3.6465247140841566
+    },
+    "params": 21
+   },
+   "L30b MIN H(lna,mixer) -- no h_tia": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.9572128955578666,
+     "mae": 4.80095800290391,
+     "p95": 14.78739028418208,
+     "uneq": 4.839060844196799
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 4.081310759143956,
+     "p95": 13.73874962871562,
+     "uneq": 4.113702114375258
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 3.7084727055024747,
+     "p95": 12.799055762126285,
+     "uneq": 3.7379050285620177
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 3.621768194245823,
+     "p95": 12.587855730105304,
+     "uneq": 3.6505123862636477
+    },
+    "params": 19
+   },
+   "L31 MIN + 2 ripples/LNA": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.9572128955578666,
+     "mae": 3.77783244646522,
+     "p95": 13.384840898442732,
+     "uneq": 3.8078152436593884
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 2.6393532025981004,
+     "p95": 7.039671700257415,
+     "uneq": 2.660300450237768
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 2.2215436084325546,
+     "p95": 6.845991180247643,
+     "uneq": 2.2391749069121785
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 2.072107757593816,
+     "p95": 6.272382211499679,
+     "uneq": 2.0885530572572595
+    },
+    "params": 37
+   },
+   "L31b MIN + 2 ripples/LNA -- no h_tia": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.9572128955578666,
+     "mae": 3.7766264776891076,
+     "p95": 13.371632982105046,
+     "uneq": 3.8065997037025134
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 2.6277249269009664,
+     "p95": 7.081918153378273,
+     "uneq": 2.648579886638276
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 2.2231882579966133,
+     "p95": 6.902109944079157,
+     "uneq": 2.2408326092505546
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 2.0745874616110864,
+     "p95": 6.254118691286722,
+     "uneq": 2.0910524414651426
+    },
+    "params": 35
+   },
+   "L33 L32 + linear LPF slope": {
+    "LOBAND leave-one-gain-table-band-out": {
+     "coverage": 0.0,
+     "mae": 6.397000011842736,
+     "p95": 18.307434314839952,
+     "uneq": 6.447769853206567
+    },
+    "LOBLOCK leave-frequency-block-out": {
+     "coverage": 1.0,
+     "mae": 4.887035241983629,
+     "p95": 22.662990780675848,
+     "uneq": 4.925821235967626
+    },
+    "LOFO leave-one-frequency-out": {
+     "coverage": 1.0,
+     "mae": 2.0404863456073903,
+     "p95": 7.722075153221485,
+     "uneq": 2.0566806816836394
+    },
+    "LORO leave-one-radio-out": {
+     "coverage": 1.0,
+     "mae": 1.4327596747416023,
+     "p95": 4.7232197384254855,
+     "uneq": 1.4441307832712975
+    },
+    "params": 89
+   }
+  },
+  "wide_survey_meta": {
+   "baseline_all_deg": 6.397000011842736,
+   "baseline_uneq_deg": 6.447769853206567,
+   "caveats": [
+    "reconstructed from FITTED coefficients, not frames: the underlying additive fit's own residual is 0.514 deg MAE in-sample / 0.713 deg leave-one-epoch-out, so all errors here are optimistic relative to frame-level errors",
+    "no epoch structure in the committed file, so no leave-one-epoch-out",
+    "anchor fixed at the fit's 26 dB reference; cannot be re-anchored",
+    "quality masks cannot be re-derived; both stores carry validation_status = fail_quality (25 and 43 of 27,825 frames)",
+    "the 48 off-axis held-out pairs are NOT in the committed file; their published reference numbers are quoted, not recomputed",
+    "the committed frequency list is used as the ripple basis frequency; the ~100 kHz tone offset is not recorded and is worth <0.1 deg here",
+    "different session and dates from the A-G campaign -- independent corroboration, never pooled"
+   ],
+   "convention": "ANCHORED D = phi - equal-gain(26/26) cell, fail-closed, degrees",
+   "n_los": 53,
+   "n_rows": 13462,
+   "source": "committed wide_integer_gain_cross_band_20260730_v1/model_matrix.json",
+   "state_coverage": {
+    "lna_levels_per_band": {
+     "high": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "low": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "middle": [
+      0,
+      1,
+      2,
+      3
+     ]
+    },
+    "lna_levels_present": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "tia_levels_present": [
+     0,
+     1
+    ]
+   }
+  }
+ },
+ "rover_corpus": {
+  "distinct_rx_captures": 42,
+  "fitted_levels": {
+   "l26_pooled_v1": {
+    "lna": [
+     0,
+     2,
+     3
+    ],
+    "lpf": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     18
+    ],
+    "mixer": [
+     0,
+     1,
+     2,
+     4
+    ],
+    "n_columns": 38,
+    "rank": 29,
+    "tia": [
+     0,
+     1
+    ]
+   },
+   "l26_stage_a_v1": {
+    "lna": [
+     0,
+     2,
+     3
+    ],
+    "lpf": [
+     0,
+     3,
+     5,
+     8,
+     12,
+     13,
+     18
+    ],
+    "mixer": [
+     1,
+     2,
+     4
+    ],
+    "n_columns": 27,
+    "rank": 14,
+    "tia": [
+     0,
+     1
+    ]
+   },
+   "l30_pooled_v1": {
+    "lna": [
+     0,
+     2,
+     3
+    ],
+    "lpf": [],
+    "mixer": [
+     0,
+     1,
+     2,
+     4
+    ],
+    "n_columns": 9,
+    "rank": 6,
+    "tia": [
+     0,
+     1
+    ]
+   },
+   "l31_pooled_v1": {
+    "lna": [
+     0,
+     2,
+     3
+    ],
+    "lpf": [],
+    "mixer": [
+     0,
+     1,
+     2,
+     4
+    ],
+    "n_columns": 21,
+    "rank": 14,
+    "tia": [
+     0,
+     1
+    ]
+   }
+  },
+  "gain_metadata_valid_fraction": 1.0,
+  "gain_stability_definitions": {
+   "5766": {
+    "any_gain_change_observed_either_arm": 7.441915846815605e-06,
+    "any_gain_change_observed_elementwise": 7.441915846815605e-06,
+    "endpoints_unequal_arm0": 0.17882179588313218,
+    "endpoints_unequal_arm1": 0.6351303079464777,
+    "endpoints_unequal_both_arms": 0.6899251343265811,
+    "endpoints_unequal_elementwise": 0.40697605191480496,
+    "flag_histogram": {
+     "0": 1,
+     "361491": 41666,
+     "361495": 7363,
+     "361499": 68679,
+     "361503": 16665
+    },
+    "gain_change_arm0": 7.441915846815605e-06,
+    "gain_change_arm1": 7.441915846815605e-06,
+    "n": 134374
+   },
+   "5840": {
+    "any_gain_change_observed_either_arm": 0.0,
+    "any_gain_change_observed_elementwise": 0.0,
+    "endpoints_unequal_arm0": 0.054837810205409454,
+    "endpoints_unequal_arm1": 0.46477367785110135,
+    "endpoints_unequal_both_arms": 0.4820150571614462,
+    "endpoints_unequal_elementwise": 0.2598057440282554,
+    "flag_histogram": {
+     "361491": 22292,
+     "361495": 742,
+     "361499": 18384,
+     "361503": 1618
+    },
+    "gain_change_arm0": 0.0,
+    "gain_change_arm1": 0.0,
+    "n": 43036
+   },
+   "all": {
+    "any_gain_change_observed_either_arm": 5.63666084211713e-06,
+    "any_gain_change_observed_elementwise": 5.63666084211713e-06,
+    "endpoints_unequal_arm0": 0.14874584296262894,
+    "endpoints_unequal_arm1": 0.5938053097345133,
+    "endpoints_unequal_both_arms": 0.6394904458598727,
+    "endpoints_unequal_elementwise": 0.3712755763485711,
+    "flag_histogram": {
+     "0": 1,
+     "361491": 63958,
+     "361495": 8105,
+     "361499": 87063,
+     "361503": 18283
+    },
+    "gain_change_arm0": 5.63666084211713e-06,
+    "gain_change_arm1": 5.63666084211713e-06,
+    "n": 177410
+   }
+  },
+  "lo_histogram_hz": {
+   "5766000000": 134374,
+   "5840000000": 43036
+  },
+  "merged_zarr_files": 48,
+  "per_lo": {
+   "5766000000": {
+    "band": "high",
+    "coefficient_set_support": {
+     "l26_pooled_v1": {
+      "frame_weighted_fraction": 0.005105154270915504,
+      "frame_weighted_supported": 686,
+      "sampled_400_fraction": 0.0025,
+      "sampled_400_supported": 1
+     },
+     "l26_stage_a_v1": {
+      "frame_weighted_fraction": 0.0009451233125455817,
+      "frame_weighted_supported": 127,
+      "sampled_400_fraction": 0.0,
+      "sampled_400_supported": 0
+     },
+     "l30_pooled_v1": {
+      "frame_weighted_fraction": 0.05185526962061113,
+      "frame_weighted_supported": 6968,
+      "sampled_400_fraction": 0.0425,
+      "sampled_400_supported": 17
+     },
+     "l31_pooled_v1": {
+      "frame_weighted_fraction": 0.05185526962061113,
+      "frame_weighted_supported": 6968,
+      "sampled_400_fraction": 0.0425,
+      "sampled_400_supported": 17
+     }
+    },
+    "gain_db_arm_share": {
+     "23": 3.7209579234078023e-06,
+     "24": 5.209341092770923e-05,
+     "25": 2.976766338726242e-05,
+     "26": 9.674490600860285e-05,
+     "27": 4.8372453004301426e-05,
+     "28": 7.069820054474824e-05,
+     "29": 9.674490600860285e-05,
+     "30": 0.00013767544316608868,
+     "31": 0.00022697843332787594,
+     "32": 0.0001972107699406135,
+     "33": 0.0001897688540937979,
+     "34": 0.0001897688540937979,
+     "35": 0.0001860478961703901,
+     "36": 0.00023814130709809935,
+     "37": 0.00030883950764284756,
+     "38": 0.00030139759179603195,
+     "39": 0.00047256165627279086,
+     "40": 0.0008818670278476491,
+     "41": 0.00169303585515055,
+     "42": 0.002824207063866522,
+     "43": 0.004238171074761487,
+     "44": 0.005990742256686561,
+     "45": 0.017343384881003766,
+     "46": 0.059617187848839806,
+     "47": 0.06755771205739206,
+     "48": 0.09604536591900219,
+     "49": 0.10882685638590799,
+     "50": 0.09331418280322086,
+     "51": 0.040320300058046946,
+     "52": 0.014455921532439311,
+     "53": 0.006429815291648682,
+     "54": 0.006329349427716672,
+     "55": 0.0063702799648741575,
+     "56": 0.007200053581794097,
+     "57": 0.007851221218390462,
+     "58": 0.008863321773557385,
+     "59": 0.009343325345676992,
+     "60": 0.012796374298599431,
+     "61": 0.013659636536830042,
+     "62": 0.40520115498533943
+    },
+    "gain_endpoints_equal_fraction_both_arms": 0.31007486567341896,
+    "gain_endpoints_equal_fraction_per_arm": [
+     0.8211782041168678,
+     0.36486969205352227
+    ],
+    "gain_endpoints_unequal_by_capture": [
+     0.0022505626406601476,
+     0.04596412556053808,
+     0.26631657914478624,
+     0.37267825044937086,
+     0.4108744394618834,
+     0.4375478927203065,
+     0.442911877394636,
+     0.45774171737660585,
+     0.4807756603142762,
+     0.49011299435028244,
+     0.505,
+     0.516048353480617,
+     0.5164353542731921,
+     0.5183333333333333,
+     0.5349293563579278,
+     0.6186666666666667,
+     0.6264308012486992,
+     0.6368827678871347,
+     0.6454802259887006,
+     0.6932580303565126,
+     0.7003027245206861,
+     0.7052522460262612,
+     0.7134562841530054,
+     0.7293196279980421,
+     0.74415817855003,
+     0.7483629560336763,
+     0.750784929356358,
+     0.7586666666666666,
+     0.7603260869565217,
+     0.7615673197165486,
+     0.7625231910946196,
+     0.7666666666666666,
+     0.77,
+     0.7726791387222026,
+     0.7781617138908086,
+     0.779891304347826,
+     0.781,
+     0.7823721436343852,
+     0.7836843864928118,
+     0.7837201479986545,
+     0.7844650205761317,
+     0.788708586883029,
+     0.7924217462932455,
+     0.7925493060628196,
+     0.794,
+     0.7970620239390642,
+     0.7977736549165121,
+     0.7978395061728395,
+     0.8016666666666666,
+     0.8026666666666666,
+     0.8027182866556837,
+     0.8043704474505723,
+     0.8092038965401411,
+     0.8102159468438538,
+     0.8114754098360656,
+     0.8126843657817109,
+     0.8129092609915809,
+     0.8130200685266764,
+     0.8183333333333334,
+     0.8236666666666667,
+     0.83645443196005,
+     0.8442691029900332,
+     0.8476903870162297,
+     0.8525073746312685
+    ],
+    "gain_endpoints_unequal_fraction_any_arm_elementwise": 0.40697605191480496,
+    "gain_endpoints_unequal_fraction_both_arms": 0.6899251343265811,
+    "gain_unequal_fraction": 0.9682527869974846,
+    "lna_arm_share": {
+     "1": 8.558203223837945e-05,
+     "2": 0.003642817807016238,
+     "3": 0.9962716001607453
+    },
+    "lna_levels_invoked": [
+     1,
+     2,
+     3
+    ],
+    "lpf_arm_share": {
+     "0": 0.00010046586393201066,
+     "1": 0.00010046586393201066,
+     "10": 0.00023814130709809935,
+     "11": 0.00030883950764284756,
+     "12": 0.00030139759179603195,
+     "13": 0.00047256165627279086,
+     "14": 0.002574902882998199,
+     "15": 0.002824207063866522,
+     "16": 0.004238171074761487,
+     "17": 0.005990742256686561,
+     "18": 0.017343384881003766,
+     "19": 0.059617187848839806,
+     "2": 0.00010046586393201066,
+     "20": 0.06755771205739206,
+     "21": 0.09604536591900219,
+     "22": 0.10882685638590799,
+     "23": 0.09331418280322086,
+     "24": 0.5388207540149136,
+     "3": 9.674490600860285e-05,
+     "4": 0.00013767544316608868,
+     "5": 0.00022697843332787594,
+     "6": 0.0001972107699406135,
+     "7": 0.0001897688540937979,
+     "8": 0.0001897688540937979,
+     "9": 0.0001860478961703901
+    },
+    "lpf_levels_invoked": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23,
+     24
+    ],
+    "median_abs_gain_diff_db_all": 13.0,
+    "median_abs_gain_diff_db_unequal_only": 13.0,
+    "mixer_arm_share": {
+     "10": 0.007851221218390462,
+     "11": 0.008863321773557385,
+     "12": 0.009343325345676992,
+     "13": 0.012796374298599431,
+     "14": 0.013659636536830042,
+     "15": 0.40520115498533943,
+     "4": 0.5014995460431333,
+     "5": 0.014455921532439311,
+     "6": 0.006429815291648682,
+     "7": 0.006329349427716672,
+     "8": 0.0063702799648741575,
+     "9": 0.007200053581794097
+    },
+    "mixer_levels_invoked": [
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ],
+    "mixer_pair_top": [
+     [
+      [
+       15,
+       4
+      ],
+      99127,
+      0.7376947921472904
+     ],
+     [
+      [
+       4,
+       4
+      ],
+      6991,
+      0.052026433685087886
+     ],
+     [
+      [
+       14,
+       4
+      ],
+      3580,
+      0.026642058731599864
+     ],
+     [
+      [
+       15,
+       15
+      ],
+      3551,
+      0.02642624317204221
+     ],
+     [
+      [
+       13,
+       4
+      ],
+      3371,
+      0.0250866983196154
+     ],
+     [
+      [
+       12,
+       4
+      ],
+      2466,
+      0.01835176447824728
+     ],
+     [
+      [
+       11,
+       4
+      ],
+      2333,
+      0.017361989670620803
+     ],
+     [
+      [
+       15,
+       5
+      ],
+      2288,
+      0.0170271034575141
+     ]
+    ],
+    "mixer_pair_top_needing_correction": [
+     [
+      [
+       15,
+       4
+      ],
+      99127,
+      0.7980790132601222
+     ],
+     [
+      [
+       14,
+       4
+      ],
+      3580,
+      0.02882285217419308
+     ],
+     [
+      [
+       13,
+       4
+      ],
+      3371,
+      0.0271401772846941
+     ],
+     [
+      [
+       12,
+       4
+      ],
+      2466,
+      0.01985395348088272
+     ],
+     [
+      [
+       11,
+       4
+      ],
+      2333,
+      0.018783160369383368
+     ],
+     [
+      [
+       15,
+       5
+      ],
+      2288,
+      0.018420861948199377
+     ],
+     [
+      [
+       10,
+       4
+      ],
+      2076,
+      0.016714033830621464
+     ],
+     [
+      [
+       9,
+       4
+      ],
+      1904,
+      0.015329248754095985
+     ]
+    ],
+    "n_frames": 134374,
+    "n_frames_needing_correction": 124207,
+    "n_receiver_streams": 64,
+    "n_rx_captures": 32,
+    "needs_correction_fraction": 0.9243380415854258,
+    "refit_coverage": {
+     "e_gsc6": {
+      "levels": {
+       "lna": [
+        0,
+        1,
+        2,
+        3
+       ],
+       "lpf": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        13,
+        14,
+        18,
+        22,
+        23,
+        24
+       ],
+       "mixer": [
+        1,
+        2,
+        4,
+        5,
+        15
+       ],
+       "tia": [
+        0,
+        1
+       ]
+      },
+      "rf_only": {
+       "all_frames": 0.8426630151666245,
+       "needing_correction": 0.8297841506517346
+      },
+      "with_lpf": {
+       "all_frames": 0.4647848542128686,
+       "needing_correction": 0.4633796806943248
+      }
+     },
+     "e_gsc6_plus_e_gsc7": {
+      "levels": {
+       "lna": [
+        0,
+        1,
+        2,
+        3
+       ],
+       "lpf": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        13,
+        14,
+        18,
+        22,
+        23,
+        24
+       ],
+       "mixer": [
+        1,
+        2,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+       ],
+       "tia": [
+        0,
+        1
+       ]
+      },
+      "rf_only": {
+       "all_frames": 1.0,
+       "needing_correction": 1.0
+      },
+      "with_lpf": {
+       "all_frames": 0.5411984461279712,
+       "needing_correction": 0.5460481293324853
+      }
+     },
+     "l26_pooled_v1_fitted": {
+      "rf_only": {
+       "all_frames": 0.05185526962061113,
+       "needing_correction": 0.0029225405975508625
+      },
+      "with_lpf": {
+       "all_frames": 0.005105154270915504,
+       "needing_correction": 0.0012237635559992593
+      }
+     }
+    },
+    "rf_words_equal_fraction": 0.07566195841457425,
+    "tia_arm_share": {
+     "1": 1.0
+    },
+    "tia_levels_invoked": [
+     1
+    ],
+    "within_buffer_move_db": {
+     "frames_with_any_move": 0.6899176924107342,
+     "max": 13.0,
+     "mean": 0.6498578786849976,
+     "median": 0.0,
+     "p95": 2.0
+    }
+   },
+   "5840000000": {
+    "band": "high",
+    "coefficient_set_support": {
+     "l26_pooled_v1": {
+      "frame_weighted_fraction": 0.006599126312854355,
+      "frame_weighted_supported": 284,
+      "sampled_400_fraction": 0.01,
+      "sampled_400_supported": 4
+     },
+     "l26_stage_a_v1": {
+      "frame_weighted_fraction": 0.0002555999628218236,
+      "frame_weighted_supported": 11,
+      "sampled_400_fraction": 0.0025,
+      "sampled_400_supported": 1
+     },
+     "l30_pooled_v1": {
+      "frame_weighted_fraction": 0.02030857886420671,
+      "frame_weighted_supported": 874,
+      "sampled_400_fraction": 0.0325,
+      "sampled_400_supported": 13
+     },
+     "l31_pooled_v1": {
+      "frame_weighted_fraction": 0.02030857886420671,
+      "frame_weighted_supported": 874,
+      "sampled_400_fraction": 0.0325,
+      "sampled_400_supported": 13
+     }
+    },
+    "gain_db_arm_share": {
+     "29": 1.1618180128264709e-05,
+     "30": 1.1618180128264709e-05,
+     "31": 3.4854540384794124e-05,
+     "32": 2.3236360256529417e-05,
+     "33": 3.4854540384794124e-05,
+     "34": 1.1618180128264709e-05,
+     "35": 0.0026605632493726184,
+     "36": 0.0026605632493726184,
+     "37": 0.00024398178269355888,
+     "38": 0.0001277999814109118,
+     "39": 0.00034854540384794127,
+     "40": 0.008225671530811414,
+     "41": 0.0005460544660284413,
+     "42": 0.011501998326982062,
+     "43": 0.0013477088948787063,
+     "44": 0.001510363416674412,
+     "45": 0.02990519565015336,
+     "46": 0.0660725903894414,
+     "47": 0.07482108002602472,
+     "48": 0.10858351147876197,
+     "49": 0.11224323821916535,
+     "50": 0.04448601171112557,
+     "51": 0.008667162375685473,
+     "52": 0.012350125476345385,
+     "53": 0.004531090250023236,
+     "54": 0.007412398921832884,
+     "55": 0.00278836323078353,
+     "56": 0.010177525792359884,
+     "57": 0.003078817733990148,
+     "58": 0.00616925364810856,
+     "59": 0.0022887814852681474,
+     "60": 0.004089599405149177,
+     "61": 0.00456594479040803,
+     "62": 0.4684682591318896
+    },
+    "gain_endpoints_equal_fraction_both_arms": 0.5179849428385538,
+    "gain_endpoints_equal_fraction_per_arm": [
+     0.9451621897945905,
+     0.5352263221488986
+    ],
+    "gain_endpoints_unequal_by_capture": [
+     0.0006618133686300265,
+     0.001323626737260053,
+     0.003325942350332567,
+     0.005847953216374324,
+     0.0077605321507761005,
+     0.016081871345029253,
+     0.17197020988490186,
+     0.35613382899628254,
+     0.36638789326961374,
+     0.39005235602094246,
+     0.4663333333333334,
+     0.5094049904030711,
+     0.5303525990548892,
+     0.6439790575916231,
+     0.6622859418558343,
+     0.6687732342007435,
+     0.7166666666666667,
+     0.7622682660850599,
+     0.7715930902111324,
+     0.8297224102911307
+    ],
+    "gain_endpoints_unequal_fraction_any_arm_elementwise": 0.2598057440282554,
+    "gain_endpoints_unequal_fraction_both_arms": 0.4820150571614462,
+    "gain_unequal_fraction": 0.975462403569105,
+    "lna_arm_share": {
+     "2": 0.014394925178919974,
+     "3": 0.9856050748210801
+    },
+    "lna_levels_invoked": [
+     2,
+     3
+    ],
+    "lpf_arm_share": {
+     "10": 0.0026605632493726184,
+     "11": 0.00024398178269355888,
+     "12": 0.0001277999814109118,
+     "13": 0.00034854540384794127,
+     "14": 0.008771725996839855,
+     "15": 0.011501998326982062,
+     "16": 0.0013477088948787063,
+     "17": 0.001510363416674412,
+     "18": 0.02990519565015336,
+     "19": 0.0660725903894414,
+     "20": 0.07482108002602472,
+     "21": 0.10858351147876197,
+     "22": 0.11224323821916535,
+     "23": 0.04448601171112557,
+     "24": 0.534587322241844,
+     "3": 1.1618180128264709e-05,
+     "4": 1.1618180128264709e-05,
+     "5": 3.4854540384794124e-05,
+     "6": 2.3236360256529417e-05,
+     "7": 3.4854540384794124e-05,
+     "8": 1.1618180128264709e-05,
+     "9": 0.0026605632493726184
+    },
+    "lpf_levels_invoked": [
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23,
+     24
+    ],
+    "median_abs_gain_diff_db_all": 14.0,
+    "median_abs_gain_diff_db_unequal_only": 14.0,
+    "mixer_arm_share": {
+     "10": 0.003078817733990148,
+     "11": 0.00616925364810856,
+     "12": 0.0022887814852681474,
+     "13": 0.004089599405149177,
+     "14": 0.00456594479040803,
+     "15": 0.4684682591318896,
+     "4": 0.4740798401338414,
+     "5": 0.012350125476345385,
+     "6": 0.004531090250023236,
+     "7": 0.007412398921832884,
+     "8": 0.00278836323078353,
+     "9": 0.010177525792359884
+    },
+    "mixer_levels_invoked": [
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ],
+    "mixer_pair_top": [
+     [
+      [
+       15,
+       4
+      ],
+      36296,
+      0.8433869318709917
+     ],
+     [
+      [
+       15,
+       15
+      ],
+      1010,
+      0.023468723859094712
+     ],
+     [
+      [
+       15,
+       5
+      ],
+      945,
+      0.021958360442420298
+     ],
+     [
+      [
+       4,
+       4
+      ],
+      874,
+      0.02030857886420671
+     ],
+     [
+      [
+       9,
+       4
+      ],
+      812,
+      0.018867924528301886
+     ],
+     [
+      [
+       15,
+       7
+      ],
+      530,
+      0.012315270935960592
+     ],
+     [
+      [
+       11,
+       4
+      ],
+      483,
+      0.011223162003903709
+     ],
+     [
+      [
+       14,
+       4
+      ],
+      367,
+      0.008527744214146296
+     ]
+    ],
+    "mixer_pair_top_needing_correction": [
+     [
+      [
+       15,
+       4
+      ],
+      36296,
+      0.8766937996666747
+     ],
+     [
+      [
+       15,
+       5
+      ],
+      945,
+      0.02282553561508176
+     ],
+     [
+      [
+       9,
+       4
+      ],
+      812,
+      0.019613052824810996
+     ],
+     [
+      [
+       15,
+       7
+      ],
+      530,
+      0.012801623149199295
+     ],
+     [
+      [
+       11,
+       4
+      ],
+      483,
+      0.011666384869930678
+     ],
+     [
+      [
+       14,
+       4
+      ],
+      367,
+      0.008864520180671964
+     ],
+     [
+      [
+       13,
+       4
+      ],
+      327,
+      0.007898359942996546
+     ],
+     [
+      [
+       15,
+       6
+      ],
+      262,
+      0.006328349556773991
+     ]
+    ],
+    "n_frames": 43036,
+    "n_frames_needing_correction": 41401,
+    "n_receiver_streams": 20,
+    "n_rx_captures": 10,
+    "needs_correction_fraction": 0.9620085509805744,
+    "refit_coverage": {
+     "e_gsc6": {
+      "levels": {
+       "lna": [
+        0,
+        1,
+        2,
+        3
+       ],
+       "lpf": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        13,
+        14,
+        18,
+        22,
+        23,
+        24
+       ],
+       "mixer": [
+        1,
+        2,
+        4,
+        5,
+        15
+       ],
+       "tia": [
+        0,
+        1
+       ]
+      },
+      "rf_only": {
+       "all_frames": 0.9109117947764662,
+       "needing_correction": 0.907417695224753
+      },
+      "with_lpf": {
+       "all_frames": 0.4258527744214146,
+       "needing_correction": 0.41636675442622156
+      }
+     },
+     "e_gsc6_plus_e_gsc7": {
+      "levels": {
+       "lna": [
+        0,
+        1,
+        2,
+        3
+       ],
+       "lpf": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        13,
+        14,
+        18,
+        22,
+        23,
+        24
+       ],
+       "mixer": [
+        1,
+        2,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+       ],
+       "tia": [
+        0,
+        1
+       ]
+      },
+      "rf_only": {
+       "all_frames": 1.0,
+       "needing_correction": 1.0
+      },
+      "with_lpf": {
+       "all_frames": 0.4703968770331815,
+       "needing_correction": 0.46264582981087415
+      }
+     },
+     "l26_pooled_v1_fitted": {
+      "rf_only": {
+       "all_frames": 0.02030857886420671,
+       "needing_correction": 0.0060626554914132505
+      },
+      "with_lpf": {
+       "all_frames": 0.006599126312854355,
+       "needing_correction": 0.0005072341247795947
+      }
+     }
+    },
+    "rf_words_equal_fraction": 0.0379914490194256,
+    "tia_arm_share": {
+     "1": 1.0
+    },
+    "tia_levels_invoked": [
+     1
+    ],
+    "within_buffer_move_db": {
+     "frames_with_any_move": 0.4820150571614462,
+     "max": 21.0,
+     "mean": 0.5477042198181152,
+     "median": 0.0,
+     "p95": 2.0
+    }
+   }
+  },
+  "receiver_streams_after_dedup": 84,
+  "rx_captures_merged_more_than_once": 6,
+  "total_frames_after_dedup": 177410
+ },
+ "segmentation_fold": {
+  "correction_10deg": {
+   "disagreement_deg_inside": 19.996676539094796,
+   "disagreement_deg_outside_max": 20.000000000000004,
+   "disagreement_deg_outside_median": 19.99999999999999,
+   "fraction_theta_outside_half_pi": 0.499815,
+   "mean_abs_disagreement_deg": 9.994227350642864,
+   "ratio_outside_to_correction": 1.999999999999999
+  },
+  "correction_20deg": {
+   "disagreement_deg_inside": 39.9966765390948,
+   "disagreement_deg_outside_max": 40.00000000000001,
+   "disagreement_deg_outside_median": 40.00000000000001,
+   "fraction_theta_outside_half_pi": 0.499815,
+   "mean_abs_disagreement_deg": 19.980531272001194,
+   "ratio_outside_to_correction": 2.0000000000000004
+  },
+  "correction_2deg": {
+   "disagreement_deg_inside": 3.9966765390947994,
+   "disagreement_deg_outside_max": 4.000000000000005,
+   "disagreement_deg_outside_median": 4.000000000000005,
+   "fraction_theta_outside_half_pi": 0.499815,
+   "mean_abs_disagreement_deg": 1.9983757404781186,
+   "ratio_outside_to_correction": 2.0000000000000027
+  },
+  "correction_5deg": {
+   "disagreement_deg_inside": 9.996676539094782,
+   "disagreement_deg_outside_max": 10.000000000000002,
+   "disagreement_deg_outside_median": 9.999999999999995,
+   "fraction_theta_outside_half_pi": 0.499815,
+   "mean_abs_disagreement_deg": 4.9962610370255724,
+   "ratio_outside_to_correction": 1.999999999999999
+  },
+  "source": "spf/dataset/segmentation.py: mean_phase = trim_mean(reduce_theta_to_positive_y(all_windows_stats[0])[mask], 0.1); fold is spf/rf.py reduce_theta_to_positive_y, theta -> sign(theta)*pi - theta for |theta| > pi/2 (read-only inspection; segmentation.py was not modified)"
+ },
+ "segmentation_fold_measured": {
+  "captures": [
+   "rover_2026_07_31_18_35_35_nRX2_bounce_spacing0p035_tag_RO1.rover_2026_07_31_18_35_23_nRX1_circle_spacing0p05075_tag_RO2_segmentation_nthetas65.yarr",
+   "rover_2026_07_31_18_49_02_nRX2_bounce_spacing0p035_tag_RO1.rover_2026_07_31_18_35_23_nRX1_circle_spacing0p05075_tag_RO2_segmentation_nthetas65.yarr",
+   "rover_2026_07_31_20_11_15_nRX2_bounce_spacing0p043_tag_RO3.rover_2026_07_31_18_35_23_nRX1_circle_spacing0p05075_tag_RO2_segmentation_nthetas65.yarr",
+   "rover_2026_07_31_21_18_45_nRX2_bounce_spacing0p043_tag_RO3.rover_2026_07_31_21_09_45_nRX1_circle_spacing0p05075_tag_RO2_segmentation_nthetas65.yarr",
+   "rover_2026_08_01_19_31_21_nRX2_bounce_spacing0p043_tag_RO3.rover_2026_08_01_19_54_32_nRX1_circle_spacing0p05075_tag_RO2_segmentation_nthetas65.yarr",
+   "rover_2026_08_01_20_01_10_nRX2_bounce_spacing0p035_tag_RO1.rover_2026_08_01_19_54_32_nRX1_circle_spacing0p05075_tag_RO2_segmentation_nthetas65.yarr"
+  ],
+  "n_captures": 6,
+  "n_frames_scored": 14350,
+  "post_hoc_error_on_circular_mean_deg": {
+   "10": {
+    "max": 5.088887490341627e-14,
+    "mean": 3.721101738235845e-15,
+    "median": 0.0,
+    "p95": 2.5444437451708134e-14
+   },
+   "2": {
+    "max": 8.269442171805144e-14,
+    "mean": 3.00402195212236e-15,
+    "median": 0.0,
+    "p95": 2.5444437451708134e-14
+   },
+   "20": {
+    "max": 3.180554681463517e-14,
+    "mean": 4.391715465016073e-15,
+    "median": 0.0,
+    "p95": 2.5444437451708134e-14
+   },
+   "5": {
+    "max": 5.088887490341627e-14,
+    "mean": 3.2041684577794347e-15,
+    "median": 0.0,
+    "p95": 2.5444437451708134e-14
+   }
+  },
+  "post_hoc_error_on_folded_trimmed_mean_deg": {
+   "10": {
+    "fraction_above_half_the_correction": 0.6963763066202091,
+    "fraction_at_least_1p9x_correction": 0.6114285714285714,
+    "max": 20.000000000000078,
+    "mean": 13.385340477625656,
+    "median": 19.999999999999986,
+    "p95": 20.000000000000004
+   },
+   "2": {
+    "fraction_above_half_the_correction": 0.6924738675958189,
+    "fraction_at_least_1p9x_correction": 0.6431358885017422,
+    "max": 4.000000000000069,
+    "mean": 2.7057140424233483,
+    "median": 3.999999999999999,
+    "p95": 4.000000000000019
+   },
+   "20": {
+    "fraction_above_half_the_correction": 0.7013937282229965,
+    "fraction_at_least_1p9x_correction": 0.5627177700348432,
+    "max": 40.00000000000007,
+    "mean": 26.231907195500362,
+    "median": 39.99999999999999,
+    "p95": 40.00000000000001
+   },
+   "5": {
+    "fraction_above_half_the_correction": 0.6936585365853658,
+    "fraction_at_least_1p9x_correction": 0.6331707317073171,
+    "max": 10.000000000000052,
+    "mean": 6.743389475575658,
+    "median": 9.99999999999999,
+    "p95": 10.000000000000007
+   }
+  },
+  "stored_mean_phase_outside_half_pi_fraction": 0.6774657577084245,
+  "stored_weighted_windows_stats0_outside_half_pi_fraction": 0.0,
+  "trimmed_fold_reproduces_weighted_windows_stats_rad": {
+   "max": 0.0009677123779359142,
+   "median": 0.0009676365598945136,
+   "p95": 0.0009676866997890054
+  }
+ }
+}

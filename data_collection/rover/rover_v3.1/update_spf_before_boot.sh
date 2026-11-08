@@ -94,8 +94,12 @@ uplink_has_address() {
     # 192.168.2.10 on eth1/eth2 within a second of boot, which is why any
     # any-interface check (including network-online.target) is not the same
     # question as "can this rover reach the remote".
-    ip -4 addr show dev "$UPLINK_INTERFACE" scope global 2>/dev/null |
-        grep -q 'inet '
+    # Captured rather than piped into `grep -q`: an early-exit consumer under
+    # pipefail can SIGPIPE the producer and report "no address" on a rover that
+    # has one. Same defect as `rover sitl status` had; see docs/learnings.md.
+    local addresses
+    addresses="$(ip -4 addr show dev "$UPLINK_INTERFACE" scope global 2>/dev/null || true)"
+    [[ "$addresses" == *"inet "* ]]
 }
 
 # Returns 0 as soon as the LAN interface is usable, 1 if it is not going to be.

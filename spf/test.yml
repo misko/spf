@@ -1,0 +1,6 @@
+run_EKF_single_theta_single_radio:
+  phi_std: [10.0]
+  p: [2.5]
+  noise_std: [0.0001]
+  dynamic_R: [True]
+

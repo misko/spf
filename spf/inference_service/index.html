@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SPF · Inference lab</title>
+<style>
+:root{font:15px system-ui,sans-serif;color:#182838;background:#f4f6f8}*{box-sizing:border-box}body{margin:0}header{padding:24px 32px;background:#142d40;color:white}header h1{margin:0 0 5px;font-size:25px}header p{margin:0;color:#c8d9e5}main{display:grid;grid-template-columns:320px minmax(0,1fr);gap:24px;max-width:1500px;margin:24px auto;padding:0 24px}.panel{background:white;border:1px solid #dce3e8;border-radius:10px;padding:20px;margin-bottom:20px}h2{font-size:18px;margin:0 0 14px}h3{font-size:15px;margin:16px 0 8px}label{display:block;margin:12px 0 5px;font-weight:600}select,input,textarea,button{font:inherit;border-radius:5px}select,input,textarea{width:100%;padding:8px;border:1px solid #bac8d2;background:white}select[multiple]{height:160px}textarea{height:150px;font-family:monospace;font-size:13px}button{padding:9px 14px;border:0;background:#166b88;color:white;cursor:pointer}button:hover{background:#10556d}button:disabled{opacity:.5;cursor:default}.secondary{background:#e6edf2;color:#203d51}.danger{background:#a83c41}.muted{color:#637887;font-size:13px}.badge{display:inline-block;border-radius:20px;padding:3px 9px;font-size:12px;background:#e8f0f5}.status-succeeded{background:#def0e5;color:#21633c}.status-failed,.status-interrupted{background:#fbe4e4;color:#8c3030}.run{display:block;width:100%;text-align:left;background:#f3f6f8;color:#203d51;margin:8px 0;padding:11px}.run:hover{background:#e3edf4}.run.active{background:#e3edf4;outline:2px solid #166b88}.run small{display:block;margin-top:4px;color:#617583}.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.row select,.row input{width:auto;flex:1}.error{color:#a12b32;white-space:pre-wrap}.metrics{display:flex;gap:14px;flex-wrap:wrap;margin:15px 0}.metric{padding:12px 17px;border-radius:7px;background:#edf3f7}.metric strong{font-size:23px;display:block}canvas{display:block;width:100%;height:330px;background:#fff;border:1px solid #dce3e8;border-radius:6px}#cursor{padding:0;flex:5}.legend{font-size:13px;margin:8px 0}.legend span{margin-right:18px}pre{max-height:350px;overflow:auto;font-size:12px;background:#f4f6f8;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere}details{margin-top:16px}#savedPlot{max-width:100%;display:block}.hidden{display:none!important}a{color:#156a88}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:9px;border-bottom:1px solid #dde5ea}th{background:#edf3f7}.tableWrap{overflow:auto}#heatmap{width:100%;height:auto}.count{font-weight:600;color:#24566b}#runList{max-height:420px;overflow:auto}.busy{padding:18px;background:#eef5f9;border-radius:7px}.notice{border-left:3px solid #166b88;padding-left:12px;font-size:13px;color:#526b7d}@media(max-width:800px){main{grid-template-columns:1fr;padding:0 12px;margin:14px auto}header{padding:20px}canvas{height:270px}}
+</style>
+<header><h1>SPF inference lab</h1><p>Historical evaluation · current-code profile · CPU execution</p></header>
+<main>
+<aside>
+<section class="panel"><h2>New evaluation</h2>
+<form id="newRun"><label for="cohort">Dataset cohort</label><select id="cohort"><option value="">Manual selection</option></select><p id="cohortSummary" class="notice"></p>
+<label for="datasets">Recordings</label><select id="datasets" multiple required aria-describedby="selectionHint"></select><p id="selectionHint" class="muted">Select one or more recordings. Use Ctrl or Cmd to select several.</p>
+<label for="kind">Evaluation mode</label><select id="kind"><option value="evaluation">Aggregate evaluation</option><option value="sweep">Hyperparameter sweep</option></select>
+<label for="algorithm">Algorithm</label><select id="algorithm"></select>
+<div id="modelField" class="hidden"><label for="model">Model</label><select id="model"></select></div>
+<div id="singleSeed"><label for="seed">Seed</label><input id="seed" type="number" min="0" max="4294967295" value="0" required></div>
+<div id="sweepControls" class="hidden"><label for="seeds">Seeds</label><input id="seeds" value="0,1,2" aria-describedby="seedHint"><p id="seedHint" class="muted">Particle filters use repeated seeds. EKF uses only seed 0.</p><label for="grid">Two-axis parameter grid</label><textarea id="grid" spellcheck="false"></textarea></div>
+<label id="paramsLabel" for="params">Filter parameters</label><textarea id="params" spellcheck="false"></textarea>
+<p class="notice">Processing uses the existing code and cached preprocessing. The saved playback below displays completed results.</p>
+<p id="expandedCount" class="count"></p><button id="submit" type="submit">Run evaluation</button><p id="formError" class="error" role="alert"></p></form></section>
+<section class="panel"><h2>Evaluations</h2><div id="runList"><p class="muted">Loading…</p></div></section>
+</aside>
+<article>
+<section class="panel"><div class="row"><h2 id="title" style="margin:0">Select an evaluation</h2><span id="state" class="badge hidden"></span><button id="cancel" class="danger hidden">Cancel run</button></div>
+<p id="description" class="muted">Submit a recording or open a completed run to inspect its predictions.</p>
+<div id="progress" class="busy hidden"></div><p id="runError" class="error" role="alert"></p>
+<p id="resultCohortNotes" class="notice hidden"></p>
+<div id="sweepResult" class="hidden"><div id="sweepMetrics" class="metrics"></div><h3>Aggregate hyperparameter heatmap</h3><p id="sweepSemantics" class="muted"></p><img id="heatmap" alt="Aggregate hyperparameter heatmap"><div class="row"><a id="trialsDownload" download>Download every capture trial</a><a id="heatmapDownload" download>Download heatmap values</a><a id="reportDownload" download>Download report rows</a></div><h3>Configurations ranked by cohort mean</h3><div class="tableWrap"><table><thead><tr><th>Parameters</th><th>MSE (rad²)</th><th>RMSE (°)</th><th>Seed SD</th><th>Capture SD</th><th>Captures</th><th>Seeds</th></tr></thead><tbody id="sweepRows"></tbody></table></div></div>
+<div id="result" class="hidden"><div class="row"><label for="resultDataset">Recording</label><select id="resultDataset"></select></div><div id="metrics" class="metrics"></div>
+<h3>Results playback</h3><p class="muted">Saved predictions and ground truth. Playback does not recompute inference or verify a live pipeline.</p>
+<div class="row"><button id="play">Play</button><input id="cursor" type="range" min="0" max="0" value="0" aria-label="Frame cursor"><select id="speed" aria-label="Playback speed"><option value="10">10 frames/s</option><option value="30" selected>30 frames/s</option><option value="100">100 frames/s</option><option value="300">300 frames/s</option></select></div>
+<p id="frameInfo" class="muted"></p><canvas id="track" aria-label="Bearing estimate, uncertainty, and ground truth over frames"></canvas><p class="legend"><span style="color:#c94f38">● Filter estimate and ±1σ</span><span style="color:#263849">● Ground truth</span></p>
+<div class="row"><a id="npz" download>Download track arrays</a><a id="trackJson" download>Download playback data</a></div>
+<details><summary>Full diagnostic figure</summary><img id="savedPlot" alt="Diagnostic figure produced by the existing filter plotter"></details></div>
+<details><summary>Run configuration</summary><pre id="configuration"></pre></details>
+<details id="provenanceDetails"><summary>Scientific provenance</summary><pre id="provenance">Available after the worker records its inputs.</pre></details>
+<details id="logDetails"><summary>Worker log</summary><pre id="log"></pre></details>
+</section>
+</article>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let catalog,selected=null,lastState=null,result=null,track=null,playing=false,lastTick=0,loadGeneration=0;
+const names={ekf_dual:'Dual-radio EKF',pf_dual:'Empirical particle filter',pf_dual_nn:'Neural particle filter'};
+async function api(path,options){const r=await fetch(path,options);const d=await r.json();if(!r.ok)throw Error(d.error||r.statusText);return d}
+function option(parent,value,label){const o=document.createElement('option');o.value=value;o.textContent=label;parent.append(o)}
+function show(id,visible){$(id).classList.toggle('hidden',!visible)}
+function stop(){playing=false;$('play').textContent='Play'}
+function selectedIds(){return [...$('datasets').selectedOptions].map(o=>o.value)}
+function seedList(){return $('seeds').value.split(',').map(s=>s.trim()).filter(Boolean).map(Number)}
+function cohortNotes(c){return c?[c.description||'',`Role: ${c.role}.`,...(c.overlap_notes||[])].join(' '):''}
+function chooseCohort(){
+ const c=catalog.cohorts?.[$('cohort').value];
+ const previous=new Set(selectedIds());
+ $('datasets').replaceChildren();
+ for(const id of c?c.dataset_ids:Object.keys(catalog.datasets)){
+  option($('datasets'),id,catalog.datasets[id].label);
+  $('datasets').lastElementChild.selected=!!c||previous.has(id);
+ }
+ $('datasets').disabled=!!c;
+ $('selectionHint').textContent=c?'Membership is fixed by the selected cohort.':'Select one or more recordings. Use Ctrl or Cmd to select several.';
+ $('cohortSummary').textContent=c?cohortNotes(c):'Manual recording selection. Membership and aggregate scores are saved with each run.';
+ countTrials();
+}
+function params(){
+ const key=$('algorithm').value,sweep=$('kind').value==='sweep';
+ const defaults={...catalog.algorithms[key]};
+ const grid=key==='ekf_dual'?{noise_std:[.001,.01,.1],phi_std:[5,12,20]}:{N:[128,512,2048],theta_dot_err:[.001,.01,.1]};
+ if(sweep){for(const k of Object.keys(grid))delete defaults[k];if(key==='pf_dual_nn')defaults.absolute=false}
+ $('params').value=JSON.stringify(defaults,null,2);$('grid').value=JSON.stringify(grid,null,2);
+ $('seeds').value=key==='ekf_dual'?'0':'0,1,2';
+ show('modelField',key==='pf_dual_nn');show('sweepControls',sweep);show('singleSeed',!sweep);
+ $('paramsLabel').textContent=sweep?'Fixed parameters':'Filter parameters';
+ $('submit').textContent=sweep?'Run sweep':'Run evaluation';countTrials();
+}
+function countTrials(){
+ if(!catalog)return;
+ const n=selectedIds().length;
+ try{if($('kind').value==='sweep'){const grid=JSON.parse($('grid').value);const cells=Object.values(grid).reduce((a,v)=>a*v.length,1),seeds=seedList().length;$('expandedCount').textContent=`${n} recordings × ${cells} cells × ${seeds} seeds = ${n*cells*seeds} capture trials`}else $('expandedCount').textContent=`${n} recordings, equal weight per recording`}
+ catch(e){$('expandedCount').textContent='Enter a valid parameter grid to count trials.'}
+}
+async function init(){
+ catalog=await api('/api/catalog');
+ for(const[id,d]of Object.entries(catalog.datasets))option($('datasets'),id,d.label);
+ if($('datasets').options.length)$('datasets').options[0].selected=true;
+ for(const[id,c]of Object.entries(catalog.cohorts||{}))option($('cohort'),id,`${id} (${c.dataset_ids.length} recordings)`);
+ if($('cohort').options.length>1)$('cohort').selectedIndex=1;
+ for(const id of Object.keys(catalog.algorithms))option($('algorithm'),id,names[id]);
+ for(const[id,m]of Object.entries(catalog.models))option($('model'),id,m.label);
+ params();chooseCohort();await refresh();
+}
+$('algorithm').onchange=params;$('kind').onchange=params;$('cohort').onchange=chooseCohort;
+$('datasets').onchange=countTrials;$('grid').oninput=countTrials;$('seeds').oninput=countTrials;
+$('newRun').onsubmit=async e=>{
+ e.preventDefault();$('formError').textContent='';$('submit').disabled=true;
+ try{
+  const body={kind:$('kind').value,algorithm:$('algorithm').value};
+  if($('cohort').value)body.cohort_id=$('cohort').value;else body.dataset_ids=selectedIds();
+  if(body.kind==='sweep'){body.fixed_params=JSON.parse($('params').value);body.grid=JSON.parse($('grid').value);body.seeds=seedList()}
+  else{body.params=JSON.parse($('params').value);body.seed=Number($('seed').value)}
+  if(body.algorithm==='pf_dual_nn')body.model_id=$('model').value;
+  const run=await api('/api/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  await selectRun(run.id);await refresh();
+ }catch(e){$('formError').textContent=e.message}finally{$('submit').disabled=false}
+};
+async function refresh(){
+ try{
+  const runs=await api('/api/runs');$('runList').replaceChildren();
+  if(!runs.length){const p=document.createElement('p');p.textContent='No evaluations yet.';p.className='muted';$('runList').append(p)}
+  for(const r of runs){const b=document.createElement('button');b.className='run'+(r.id===selected?' active':'');const name=document.createElement('strong');name.textContent=names[r.request.algorithm]||r.request.algorithm;const detail=document.createElement('small');detail.textContent=`${r.request.kind==='sweep'?'Sweep · ':''}${r.state} · ${r.request.dataset_ids.length} recordings · ${r.request.kind==='sweep'?r.request.seeds.length+' seeds':'seed '+r.request.seed}`;b.append(name,detail);b.onclick=()=>selectRun(r.id);$('runList').append(b)}
+  if(selected)await updateRun();
+ }catch(e){$('runError').textContent=e.message}
+}
+async function selectRun(id){
+ selected=id;lastState=null;result=null;track=null;stop();loadGeneration++;
+ show('result',false);show('sweepResult',false);show('resultCohortNotes',false);
+ $('provenance').textContent='Available after the worker records its inputs.';$('log').textContent='';await updateRun();
+}
+async function updateRun(){
+ const id=selected;const r=await api('/api/runs/'+id);if(selected!==id)return;
+ $('title').textContent=(r.request.kind==='sweep'?'Sweep: ':'')+(names[r.request.algorithm]||r.request.algorithm);
+ $('state').textContent=r.state;$('state').className='badge status-'+r.state;
+ $('description').textContent=`${r.id} · current-code · ${r.request.kind==='sweep'?'seeds '+r.request.seeds.join(', '):'seed '+r.request.seed}`;
+ $('configuration').textContent=JSON.stringify(r.request,null,2);
+ show('resultCohortNotes',!!r.request.cohort);$('resultCohortNotes').textContent=cohortNotes(r.request.cohort);
+ show('cancel',['queued','running'].includes(r.state));show('progress',['queued','running'].includes(r.state));
+ $('progress').textContent=r.progress?`${r.progress.stage} · ${r.progress.completed}/${r.progress.total} ${r.progress.unit||'recordings'}${r.progress.dataset_id?' · '+r.progress.dataset_id:''}`:'Waiting for a worker';
+ $('runError').textContent=r.error||'';
+ if(r.state==='succeeded'&&lastState!=='succeeded'){
+  const next=await api('/api/runs/'+id+'/results');if(selected!==id)return;result=next;
+  if(result.kind==='sweep'){show('sweepResult',true);show('result',false);showSweep()}
+  else{$('resultDataset').replaceChildren();for(let i=0;i<result.datasets.length;i++)option($('resultDataset'),String(i),catalog.datasets[result.datasets[i].dataset_id]?.label||result.datasets[i].dataset_id);show('result',true);show('sweepResult',false);await loadTrack()}
+ }
+ if(selected!==id)return;lastState=r.state;
+ if($('logDetails').open)await loadLog();if($('provenanceDetails').open)await loadProvenance();
+}
+function artifact(name){return `/api/runs/${selected}/artifacts/${name}`}
+function metricCards(parent,values){
+ $(parent).replaceChildren();for(const[label,value,digits=4]of values){const box=document.createElement('div');box.className='metric';const number=document.createElement('strong');number.textContent=value===null?'—':Number(value).toFixed(digits);const text=document.createElement('span');text.textContent=label;box.append(number,text);$(parent).append(box)}
+}
+function showSweep(){
+ const best=result.best_cell;
+ metricCards('sweepMetrics',[['Best cohort MSE (rad²)',best.mean_dataset_mse],['Capture trials',result.n_trials,0],['Recordings',result.dataset_ids.length,0],['Seeds',result.seeds.length,0]]);
+ $('sweepSemantics').textContent=`${result.frame}. ${result.weighting} ${result.spread_semantics} ${result.heatmap.interpretation}`;
+ $('heatmap').src=artifact(result.heatmap.image);$('trialsDownload').href=artifact('trials.json');$('heatmapDownload').href=artifact('heatmap_values.json');$('reportDownload').href=artifact('sweep_report.json');
+ $('sweepRows').replaceChildren();
+ for(const cell of [...result.cells].sort((a,b)=>a.mean_dataset_mse-b.mean_dataset_mse)){
+  const tr=document.createElement('tr');const values=[Object.entries(cell.params).map(([k,v])=>`${k}=${v}`).join(', '),cell.mean_dataset_mse.toFixed(5),cell.rmse_deg.toFixed(3),cell.seed_std_mse.toFixed(5),cell.capture_std_mse.toFixed(5),cell.n_datasets,cell.n_seeds];
+  for(const value of values){const td=document.createElement('td');td.textContent=value;tr.append(td)}$('sweepRows').append(tr);
+ }
+}
+async function loadTrack(){
+ const generation=++loadGeneration;stop();const d=result.datasets[Number($('resultDataset').value)];const next=await api(artifact(d.tracks));if(generation!==loadGeneration)return;
+ track=next;$('cursor').max=track.frames-1;$('cursor').value=0;
+ const values=[['MSE (rad²)',d.metrics.mse],['RMSE (degrees)',d.metrics.rmse_deg],['Frames',d.frames,0]];
+ if(result.aggregate&&result.datasets.length>1)values.push(['Mean dataset MSE',result.aggregate.mean_dataset_mse]);metricCards('metrics',values);
+ $('npz').href=artifact(d.npz);$('trackJson').href=artifact(d.tracks);$('savedPlot').src=artifact(d.plot);draw();
+}
+$('resultDataset').onchange=()=>loadTrack().catch(e=>$('runError').textContent=e.message);
+$('cancel').onclick=async()=>{try{await api('/api/runs/'+selected+'/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});await refresh()}catch(e){$('runError').textContent=e.message}};
+async function loadProvenance(){const id=selected;try{const value=await api('/api/runs/'+id+'/provenance');if(selected===id)$('provenance').textContent=JSON.stringify(value,null,2)}catch(e){if(selected===id)$('provenance').textContent=e.message}}
+async function loadLog(){const id=selected;try{const value=await api('/api/runs/'+id+'/log');if(selected===id)$('log').textContent=value.log}catch(e){if(selected===id)$('log').textContent=e.message}}
+$('provenanceDetails').ontoggle=()=>{if($('provenanceDetails').open&&selected)loadProvenance()};$('logDetails').ontoggle=()=>{if($('logDetails').open&&selected)loadLog()};
+function draw(){if(!track)return;const canvas=$('track'),rect=canvas.getBoundingClientRect(),dpr=devicePixelRatio||1;canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;const c=canvas.getContext('2d');c.scale(dpr,dpr);const W=rect.width,H=rect.height,L=45,R=18,T=20,B=30,n=track.frames,frame=Number($('cursor').value);const x=i=>L+i/Math.max(1,n-1)*(W-L-R),y=v=>T+(4-v)/8*(H-T-B);c.font='12px system-ui';c.strokeStyle='#e3e9ed';c.fillStyle='#627788';for(let a=-3;a<=3;a++){c.beginPath();c.moveTo(L,y(a));c.lineTo(W-R,y(a));c.stroke();c.fillText(a.toString(),15,y(a)+4)}c.fillText('0',L,H-8);c.fillText((n-1).toString(),W-50,H-8);c.fillText('rad',8,15);const step=Math.max(1,Math.floor(n/(W*2)));function line(values,color){c.strokeStyle=color;c.lineWidth=1.4;c.beginPath();let valid=false;for(let i=0;i<n;i+=step){const v=values[i];if(v===null||!Number.isFinite(v)){valid=false;continue}if(valid)c.lineTo(x(i),y(v));else c.moveTo(x(i),y(v));valid=true}c.stroke()}c.fillStyle='rgba(201,79,56,.18)';for(let i=0;i<n-1;i+=step){if(track.theta[i]===null||track.sigma[i]===null)continue;const hi=Math.min(4,track.theta[i]+track.sigma[i]),lo=Math.max(-4,track.theta[i]-track.sigma[i]);c.fillRect(x(i),y(hi),Math.max(1,x(Math.min(n-1,i+step))-x(i)),y(lo)-y(hi))}line(track.gt,'#263849');line(track.theta,'#c94f38');c.strokeStyle='#1684a1';c.beginPath();c.moveTo(x(frame),T);c.lineTo(x(frame),H-B);c.stroke();const fmt=v=>v===null?'missing':Number(v).toFixed(4);$('frameInfo').textContent=`Frame ${frame}/${n-1} · ${track.frame} · estimate ${fmt(track.theta[frame])} rad · truth ${fmt(track.gt[frame])} rad`}
+$('cursor').oninput=()=>{stop();draw()};$('play').onclick=()=>{if(!track)return;playing=!playing;if(playing&&Number($('cursor').value)>=track.frames-1)$('cursor').value=0;$('play').textContent=playing?'Pause':'Play';lastTick=performance.now()};
+function tick(now){if(playing&&track){const elapsed=now-lastTick;const advance=Math.floor(elapsed/1000*Number($('speed').value));if(advance){$('cursor').value=Math.min(track.frames-1,Number($('cursor').value)+advance);lastTick=now;draw();if(Number($('cursor').value)>=track.frames-1)stop()}}requestAnimationFrame(tick)}
+window.addEventListener('resize',draw);requestAnimationFrame(tick);init().catch(e=>$('formError').textContent=e.message);setInterval(refresh,1500);
+</script>
+</html>

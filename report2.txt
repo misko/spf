@@ -1,0 +1,3735 @@
+Graph Count: 5
+Graph Break Count: 4
+Op Count: 51
+Break Reasons:
+  Break Reason 1:
+    Reason: generic_jump TensorVariable()
+    User Stack:
+      <FrameSummary file /home/mouse9911/gits/spf/spf/model_training_and_inference/models/single_point_networks.py, line 877 in forward>
+  Break Reason 2:
+    Reason: dynamic shape operator: aten.nonzero.default; to enable, set torch._dynamo.config.capture_dynamic_output_shape_ops = True
+    User Stack:
+      <FrameSummary file /home/mouse9911/gits/spf/spf/model_training_and_inference/models/single_point_networks.py, line 886 in torch_dynamo_resume_in_forward_at_877>
+  Break Reason 3:
+    Reason: generic_jump TensorVariable()
+    User Stack:
+      <FrameSummary file /home/mouse9911/gits/spf/spf/model_training_and_inference/models/single_point_networks.py, line 890 in torch_dynamo_resume_in_forward_at_886>
+Ops per Graph:
+  Ops 1:
+    <built-in function getitem>
+    <built-in function setitem>
+    <built-in function add>
+    <built-in function truediv>
+    <built-in function truediv>
+    <built-in method concatenate of type object at 0x74a846e5f5e0>
+    <built-in method rand of type object at 0x74a846e5f5e0>
+    <built-in function lt>
+  Ops 2:
+    <built-in method rand of type object at 0x74a846e5f5e0>
+    <built-in function gt>
+  Ops 3:
+    <built-in method rand of type object at 0x74a846e5f5e0>
+    <built-in function lt>
+  Ops 4:
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+  Ops 5:
+    <built-in method rand of type object at 0x74a846e5f5e0>
+    <built-in function getitem>
+    <built-in function mul>
+    <built-in function getitem>
+    <built-in function setitem>
+    <built-in function getitem>
+    <built-in function add>
+    <built-in function truediv>
+    <built-in function getitem>
+    <built-in function setitem>
+    <built-in function truediv>
+    <built-in function getitem>
+    <built-in function setitem>
+    <built-in function getitem>
+    <built-in function getitem>
+    <built-in function setitem>
+    <built-in function getitem>
+    <built-in function truediv>
+    <built-in method concatenate of type object at 0x74a846e5f5e0>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <built-in function add>
+    <function normalize at 0x74a8907934c0>
+Out Guards:
+  Guard 1:
+    Name: ''
+    Source: global
+    Create Function: TORCH_FUNCTION_STATE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 2:
+    Name: "L['self'].network_inputs"
+    Source: local_nn_module
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(L['self'].network_inputs, 10725536)", "len(L['self'].network_inputs) == 1"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14d170; to 'type' at 0xa3a8a0 (list)>
+  Guard 3:
+    Name: "L['self'].window_shrink"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["L['self'].window_shrink == 0.5"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e13aa20; to 'type' at 0xa386c0 (float)>
+  Guard 4:
+    Name: ''
+    Source: shape_env
+    Create Function: SHAPE_ENV
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 5:
+    Name: "L['self'].windowed_beamformer"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].windowed_beamformer, 10654560)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 6:
+    Name: "L['batch']['windowed_beamformer']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['batch']['windowed_beamformer'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a893d49490; to 'Tensor' at 0x74a7107d5270>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 7:
+    Name: "G['torch'].rand"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].rand, 128267488515936)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e1245e0; to 'type' at 0xa3eb20 (builtin_function_or_method)>
+  Guard 8:
+    Name: "L['self'].normalize_windowed_beamformer"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].normalize_windowed_beamformer, 10654592)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 9:
+    Name: "G['torch'].concatenate"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].concatenate, 128267488507152)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e1245e0; to 'type' at 0xa3eb20 (builtin_function_or_method)>
+  Guard 10:
+    Name: "L['batch']['all_windows_stats']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['batch']['all_windows_stats'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a893d0f100; to 'Tensor' at 0x74a7107cbe30>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 11:
+    Name: ''
+    Source: global
+    Create Function: DETERMINISTIC_ALGORITHMS
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 12:
+    Name: "L['batch']"
+    Source: local
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(L['batch'], 10733632)", "len(L['batch']) == 18"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e139670; to 'type' at 0xa3c840 (dict)>
+  Guard 13:
+    Name: ''
+    Source: global
+    Create Function: DEFAULT_DEVICE
+    Guard Types: ['DEFAULT_DEVICE']
+    Code List: ['utils_device.CURRENT_DEVICE == None']
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 14:
+    Name: "L['self']"
+    Source: local
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'], 128261689582576)"]
+    Object Weakref: <weakref at 0x74a898acfb00; to 'AllWindowsStatsNet' at 0x74a7407223f0>
+    Guarded Class Weakref: <weakref at 0x74a728577c90; to 'type' at 0x17421ba0 (AllWindowsStatsNet)>
+  Guard 15:
+    Name: "G['torch']"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'], 128267549153280)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 16:
+    Name: "L['self'].network_inputs[0]"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["L['self'].network_inputs[0] == 'all_windows_stats'"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e164ea0; to 'type' at 0xa462c0 (str)>
+  Guard 17:
+    Name: "L['self'].training"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].training, 10654560)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 18:
+    Name: "L['batch']"
+    Source: local
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(L['batch'].keys()) == ['all_windows_stats', 'rx_lo', 'rx_wavelength_spacing', 'y_rad', 'y_phi', 'craft_y_rad', 'system_timestamp', 'y_rad_binned', 'craft_y_rad_binned', 'rx_pos_xy', 'tx_pos_xy', 'rx_theta_in_pis', 'rx_heading_in_pis', 'windowed_beamformer', 'gains', 'vehicle_type', 'sdr_device_type', 'empirical']"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e139670; to 'type' at 0xa3c840 (dict)>
+  Guard 19:
+    Name: ''
+    Source: global
+    Create Function: GRAD_MODE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 20:
+    Name: "G['torch'].pi"
+    Source: global
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["G['torch'].pi == 3.141592653589793"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e13aa20; to 'type' at 0xa386c0 (float)>
+  Guard 21:
+    Name: ''
+    Source: global
+    Create Function: TORCH_FUNCTION_STATE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 22:
+    Name: "G['torch'].rand"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].rand, 128267488515936)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e1245e0; to 'type' at 0xa3eb20 (builtin_function_or_method)>
+  Guard 23:
+    Name: "L['self'].window_dropout"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["L['self'].window_dropout == 0.25"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e13aa20; to 'type' at 0xa386c0 (float)>
+  Guard 24:
+    Name: ''
+    Source: shape_env
+    Create Function: SHAPE_ENV
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 25:
+    Name: ''
+    Source: global
+    Create Function: DEFAULT_DEVICE
+    Guard Types: ['DEFAULT_DEVICE']
+    Code List: ['utils_device.CURRENT_DEVICE == None']
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 26:
+    Name: "L['input']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['input'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a893d3a6b0; dead>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 27:
+    Name: "L['self']"
+    Source: local
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'], 128261689582576)"]
+    Object Weakref: <weakref at 0x74a898acfb00; to 'AllWindowsStatsNet' at 0x74a7407223f0>
+    Guarded Class Weakref: <weakref at 0x74a728577c90; to 'type' at 0x17421ba0 (AllWindowsStatsNet)>
+  Guard 28:
+    Name: "G['torch']"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'], 128267549153280)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 29:
+    Name: "L['windows']"
+    Source: local
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["L['windows'] == 256"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14e610; to 'type' at 0xa3af20 (int)>
+  Guard 30:
+    Name: ''
+    Source: global
+    Create Function: GRAD_MODE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 31:
+    Name: ''
+    Source: global
+    Create Function: DETERMINISTIC_ALGORITHMS
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 32:
+    Name: "L['___stack0']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['___stack0'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a893d72430; dead>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 33:
+    Name: ''
+    Source: global
+    Create Function: TORCH_FUNCTION_STATE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 34:
+    Name: "G['torch'].rand"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].rand, 128267488515936)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e1245e0; to 'type' at 0xa3eb20 (builtin_function_or_method)>
+  Guard 35:
+    Name: ''
+    Source: shape_env
+    Create Function: SHAPE_ENV
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 36:
+    Name: ''
+    Source: global
+    Create Function: DEFAULT_DEVICE
+    Guard Types: ['DEFAULT_DEVICE']
+    Code List: ['utils_device.CURRENT_DEVICE == None']
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 37:
+    Name: "L['self']"
+    Source: local
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'], 128261689582576)"]
+    Object Weakref: <weakref at 0x74a898acfb00; to 'AllWindowsStatsNet' at 0x74a7407223f0>
+    Guarded Class Weakref: <weakref at 0x74a728577c90; to 'type' at 0x17421ba0 (AllWindowsStatsNet)>
+  Guard 38:
+    Name: "G['torch']"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'], 128267549153280)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 39:
+    Name: "L['self'].window_shuffle"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["L['self'].window_shuffle == 0.15"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e13aa20; to 'type' at 0xa386c0 (float)>
+  Guard 40:
+    Name: ''
+    Source: global
+    Create Function: GRAD_MODE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 41:
+    Name: ''
+    Source: global
+    Create Function: DETERMINISTIC_ALGORITHMS
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 42:
+    Name: "getattr(L['self'].conv_net, '4')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '4')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 43:
+    Name: "getattr(L['self'].conv_net, '0')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '0')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 44:
+    Name: "getattr(getattr(L['self'].conv_net, '4').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '4').internal_module, '1'), 128261284138544)"]
+    Object Weakref: <weakref at 0x74a8973f5670; to 'Identity' at 0x74a728478e30>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 45:
+    Name: "getattr(L['self'].conv_net, '3')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '3')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 46:
+    Name: "getattr(getattr(L['self'].conv_net, '5').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '5').internal_module, '1'), 128261284139408)"]
+    Object Weakref: <weakref at 0x74a8973f5a30; to 'Identity' at 0x74a728479190>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 47:
+    Name: "getattr(getattr(L['self'].conv_net, '9').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '9').internal_module, '0'), 128261284143680)"]
+    Object Weakref: <weakref at 0x74a8973f67f0; to 'Conv1d' at 0x74a72847a240>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 48:
+    Name: "getattr(L['self'].conv_net, '15')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '15')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 49:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks"
+    Source: global
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 50:
+    Name: "getattr(L['self'].conv_net, '8')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '8')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 51:
+    Name: "getattr(L['self'].conv_net, '17')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '17')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 52:
+    Name: ''
+    Source: shape_env
+    Create Function: SHAPE_ENV
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 53:
+    Name: "getattr(L['self'].conv_net, '7')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 54:
+    Name: "getattr(L['self'].conv_net, '7')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '7')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 55:
+    Name: "getattr(L['self'].conv_net, '5')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '5')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 56:
+    Name: "getattr(L['self'].conv_net, '0')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '0')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 57:
+    Name: "getattr(L['self'].conv_net, '13')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '13')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 58:
+    Name: "getattr(L['self'].conv_net, '11')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '11')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 59:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks"
+    Source: global
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 60:
+    Name: "getattr(L['self'].conv_net, '13')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '13')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 61:
+    Name: "getattr(L['self'].conv_net, '15')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '15')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 62:
+    Name: "getattr(L['self'].conv_net, '8')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '8')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 63:
+    Name: "getattr(L['self'].conv_net, '4').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '4').internal_module, 128261284140944)"]
+    Object Weakref: <weakref at 0x74a8973b74c0; to 'Sequential' at 0x74a728479790>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 64:
+    Name: "getattr(L['self'].conv_net, '13')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '13')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 65:
+    Name: "getattr(L['self'].conv_net, '13')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '13')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 66:
+    Name: "getattr(L['self'].conv_net, '7')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '7')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 67:
+    Name: "getattr(L['self'].conv_net, '5')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '5')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 68:
+    Name: "getattr(getattr(L['self'].conv_net, '11').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '11').internal_module, '0'), 128261284142480)"]
+    Object Weakref: <weakref at 0x74a8973f6f70; to 'Conv1d' at 0x74a728479d90>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 69:
+    Name: "getattr(L['self'].conv_net, '15')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '15')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 70:
+    Name: "getattr(L['self'].conv_net, '11')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '11')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 71:
+    Name: "getattr(L['self'].conv_net, '13')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '13')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 72:
+    Name: "getattr(L['self'].conv_net, '5')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '5')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 73:
+    Name: "getattr(getattr(L['self'].conv_net, '0').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '0').internal_module, '1'), 128262308155792)"]
+    Object Weakref: <weakref at 0x74a8973f4770; to 'Identity' at 0x74a76550d190>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 74:
+    Name: "getattr(L['self'].conv_net, '9').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '9').internal_module, 128261284143296)"]
+    Object Weakref: <weakref at 0x74a8973b7ab0; to 'Sequential' at 0x74a72847a0c0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 75:
+    Name: "getattr(L['self'].conv_net, '13')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '13')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 76:
+    Name: "getattr(L['self'].conv_net, '3')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '3')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 77:
+    Name: "getattr(L['self'].conv_net, '15')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '15')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 78:
+    Name: "getattr(L['self'].conv_net, '5')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '5')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 79:
+    Name: "getattr(L['self'].conv_net, '3')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '3')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 80:
+    Name: "L['input']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['input'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a893d72430; dead>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 81:
+    Name: "getattr(L['self'].conv_net, '4')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '4')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 82:
+    Name: "getattr(getattr(L['self'].conv_net, '5').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '5').internal_module, '2'), 128261284139024)"]
+    Object Weakref: <weakref at 0x74a8973f5b70; to 'LeakyReLU' at 0x74a728479010>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 83:
+    Name: "getattr(getattr(L['self'].conv_net, '7').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '7').internal_module, '0'), 128261284135808)"]
+    Object Weakref: <weakref at 0x74a8973f6070; to 'Conv1d' at 0x74a728478380>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 84:
+    Name: "getattr(L['self'].conv_net, '11')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 85:
+    Name: "getattr(getattr(L['self'].conv_net, '6').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '6').internal_module, '1'), 128261284139264)"]
+    Object Weakref: <weakref at 0x74a8973f5df0; to 'Identity' at 0x74a728479100>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 86:
+    Name: "getattr(L['self'].conv_net, '10')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '10')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 87:
+    Name: "getattr(L['self'].conv_net, '16')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '16')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 88:
+    Name: "getattr(L['self'].conv_net, '4')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '4')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 89:
+    Name: "getattr(L['self'].conv_net, '5')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 90:
+    Name: "getattr(L['self'].conv_net, '10')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '10')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 91:
+    Name: "getattr(L['self'].conv_net, '13')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 92:
+    Name: "getattr(L['self'].conv_net, '11')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '11')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 93:
+    Name: "getattr(L['self'].conv_net, '6')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '6')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 94:
+    Name: "getattr(getattr(L['self'].conv_net, '7').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '7').internal_module, '1'), 128261284135712)"]
+    Object Weakref: <weakref at 0x74a8973f61b0; to 'Identity' at 0x74a728478320>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 95:
+    Name: "getattr(L['self'].conv_net, '16')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '16')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 96:
+    Name: "getattr(getattr(L['self'].conv_net, '17').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '17').internal_module, '2'), 128261284140656)"]
+    Object Weakref: <weakref at 0x74a8973dc8b0; to 'LeakyReLU' at 0x74a728479670>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 97:
+    Name: "getattr(getattr(L['self'].conv_net, '1').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '1').internal_module, '0'), 128261284144016)"]
+    Object Weakref: <weakref at 0x74a8973f49f0; to 'Conv1d' at 0x74a72847a390>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 98:
+    Name: "getattr(L['self'].conv_net, '8')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 99:
+    Name: "getattr(L['self'].conv_net, '0')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '0')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 100:
+    Name: "getattr(L['self'].conv_net, '11')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '11')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 101:
+    Name: "getattr(L['self'].conv_net, '16')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '16')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 102:
+    Name: "getattr(L['self'].conv_net, '12')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '12')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 103:
+    Name: "getattr(L['self'].conv_net, '7')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '7')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 104:
+    Name: "getattr(L['self'].conv_net, '0')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '0')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 105:
+    Name: "getattr(L['self'].conv_net, '5')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '5'), 128261284139072)"]
+    Object Weakref: <weakref at 0x74a898179300; to 'SkipConnect' at 0x74a728479040>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 106:
+    Name: "getattr(L['self'].conv_net, '9')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 107:
+    Name: "getattr(L['self'].conv_net, '16')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '16')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 108:
+    Name: "getattr(L['self'].conv_net, '14').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '14').internal_module, 128261284140032)"]
+    Object Weakref: <weakref at 0x74a8973f4130; to 'Sequential' at 0x74a728479400>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 109:
+    Name: "getattr(L['self'].conv_net, '12')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '12')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 110:
+    Name: "getattr(L['self'].conv_net, '4')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '4')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 111:
+    Name: "getattr(L['self'].conv_net, '7')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '7')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 112:
+    Name: "getattr(getattr(L['self'].conv_net, '4').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '4').internal_module, '2'), 128261284138592)"]
+    Object Weakref: <weakref at 0x74a8973f57b0; to 'LeakyReLU' at 0x74a728478e60>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 113:
+    Name: "getattr(L['self'].conv_net, '13')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '13'), 128261284140176)"]
+    Object Weakref: <weakref at 0x74a8973b66b0; to 'SkipConnect' at 0x74a728479490>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 114:
+    Name: "getattr(L['self'].conv_net, '1')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '1')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 115:
+    Name: "getattr(L['self'].conv_net, '11').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '11').internal_module, 128261284142432)"]
+    Object Weakref: <weakref at 0x74a8973b7d30; to 'Sequential' at 0x74a728479d60>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 116:
+    Name: "getattr(L['self'].conv_net, '14')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '14')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 117:
+    Name: "getattr(L['self'].conv_net, '9')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '9')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 118:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks"
+    Source: global
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks, 10737792)", "not G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 119:
+    Name: "getattr(L['self'].conv_net, '12')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '12')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 120:
+    Name: "getattr(L['self'].conv_net, '3').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '3').internal_module, 128261284137920)"]
+    Object Weakref: <weakref at 0x74a8973b7380; to 'Sequential' at 0x74a728478bc0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 121:
+    Name: "getattr(L['self'].conv_net, '4')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '4')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 122:
+    Name: "getattr(L['self'].conv_net, '11')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '11')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 123:
+    Name: "getattr(L['self'].conv_net, '9')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '9')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 124:
+    Name: "getattr(getattr(L['self'].conv_net, '15').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '15').internal_module, '0'), 128261284140512)"]
+    Object Weakref: <weakref at 0x74a8973f7e70; to 'Conv1d' at 0x74a7284795e0>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 125:
+    Name: "getattr(getattr(L['self'].conv_net, '15').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '15').internal_module, '1'), 128261284144208)"]
+    Object Weakref: <weakref at 0x74a8973f7fb0; to 'Identity' at 0x74a72847a450>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 126:
+    Name: "getattr(L['self'].conv_net, '14')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '14')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 127:
+    Name: "getattr(L['self'].conv_net, '1')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '1')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 128:
+    Name: "getattr(L['self'].conv_net, '17')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '17')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 129:
+    Name: "getattr(getattr(L['self'].conv_net, '3').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '3').internal_module, '2'), 128261284138304)"]
+    Object Weakref: <weakref at 0x74a8973f53f0; to 'LeakyReLU' at 0x74a728478d40>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 130:
+    Name: "G['__import_torch_dot__dynamo_dot_polyfill']"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__import_torch_dot__dynamo_dot_polyfill'], 128263440074048)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 131:
+    Name: "getattr(L['self'].conv_net, '6')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '6')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 132:
+    Name: "getattr(L['self'].conv_net, '9')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '9')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 133:
+    Name: "getattr(L['self'].conv_net, '10')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '10')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 134:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module'].torch._C"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__import_torch_dot_nn_dot_modules_dot_module'].torch._C, 128267488348816)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 135:
+    Name: "getattr(L['self'].conv_net, '17')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '17')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 136:
+    Name: "getattr(L['self'].conv_net, '9')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '9')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 137:
+    Name: "getattr(L['self'].conv_net, '8')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '8')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 138:
+    Name: "getattr(L['self'].conv_net, '1')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '1')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 139:
+    Name: "getattr(L['self'].conv_net, '6')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '6')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 140:
+    Name: "L['self'].conv_net"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].conv_net, 128261284135952)"]
+    Object Weakref: <weakref at 0x74a898141990; to 'Sequential' at 0x74a728478410>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 141:
+    Name: "getattr(L['self'].conv_net, '1')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '1')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 142:
+    Name: "getattr(L['self'].conv_net, '1')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '1')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 143:
+    Name: "getattr(L['self'].conv_net, '10')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '10')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 144:
+    Name: "getattr(L['self'].conv_net, '5')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '5')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 145:
+    Name: "getattr(getattr(L['self'].conv_net, '17').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '17').internal_module, '1'), 128261284136576)"]
+    Object Weakref: <weakref at 0x74a8973dc770; to 'Identity' at 0x74a728478680>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 146:
+    Name: "getattr(L['self'].conv_net, '10')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '10'), 128261284141424)"]
+    Object Weakref: <weakref at 0x74a8973b6250; to 'SkipConnect' at 0x74a728479970>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 147:
+    Name: "getattr(L['self'].conv_net, '8')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '8')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 148:
+    Name: "getattr(L['self'].conv_net, '1')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '1')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 149:
+    Name: "getattr(L['self'].conv_net, '10')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '10')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 150:
+    Name: "getattr(L['self'].conv_net, '8')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '8'), 128261284141616)"]
+    Object Weakref: <weakref at 0x74a8973b5da0; to 'SkipConnect' at 0x74a728479a30>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 151:
+    Name: "getattr(L['self'].conv_net, '1')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '1')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 152:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks"
+    Source: global
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 153:
+    Name: "getattr(L['self'].conv_net, '1')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '1')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 154:
+    Name: "getattr(L['self'].conv_net, '3')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 155:
+    Name: "getattr(L['self'].conv_net, '18')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '18'), 128261284136240)"]
+    Object Weakref: <weakref at 0x74a8973b6e80; to 'Conv1d' at 0x74a728478530>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 156:
+    Name: "getattr(getattr(L['self'].conv_net, '14').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '14').internal_module, '1'), 128261284140080)"]
+    Object Weakref: <weakref at 0x74a8973f7bf0; to 'Identity' at 0x74a728479430>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 157:
+    Name: "getattr(getattr(L['self'].conv_net, '11').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '11').internal_module, '1'), 128261284142240)"]
+    Object Weakref: <weakref at 0x74a8973f70b0; to 'Identity' at 0x74a728479ca0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 158:
+    Name: "getattr(L['self'].conv_net, '11')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '11'), 128261284142192)"]
+    Object Weakref: <weakref at 0x74a8973b63e0; to 'SkipConnect' at 0x74a728479c70>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 159:
+    Name: "getattr(L['self'].conv_net, '7')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '7'), 128261284135328)"]
+    Object Weakref: <weakref at 0x74a8973b5e40; to 'SkipConnect' at 0x74a7284781a0>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 160:
+    Name: "getattr(L['self'].conv_net, '11')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '11')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 161:
+    Name: "L['self'].outputs"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["L['self'].outputs == 12"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14e610; to 'type' at 0xa3af20 (int)>
+  Guard 162:
+    Name: "getattr(L['self'].conv_net, '1')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 163:
+    Name: "getattr(L['self'].conv_net, '9')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '9')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 164:
+    Name: "getattr(getattr(L['self'].conv_net, '12').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '12').internal_module, '1'), 128261284142384)"]
+    Object Weakref: <weakref at 0x74a8973f7470; to 'Identity' at 0x74a728479d30>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 165:
+    Name: "getattr(L['self'].conv_net, '3')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '3')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 166:
+    Name: "getattr(getattr(L['self'].conv_net, '8').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '8').internal_module, '2'), 128261284141760)"]
+    Object Weakref: <weakref at 0x74a8973f66b0; to 'LeakyReLU' at 0x74a728479ac0>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 167:
+    Name: "getattr(L['self'].conv_net, '15')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 168:
+    Name: "getattr(L['self'].conv_net, '11')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '11')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 169:
+    Name: "L['self'].output_phi"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].output_phi, 10654592)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 170:
+    Name: "getattr(L['self'].conv_net, '9')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '9')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 171:
+    Name: "getattr(L['self'].conv_net, '3')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '3')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 172:
+    Name: "getattr(L['self'].conv_net, '7')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '7')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 173:
+    Name: "getattr(L['self'].conv_net, '6')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '6')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 174:
+    Name: "getattr(L['self'].conv_net, '12')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '12')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 175:
+    Name: "getattr(L['self'].conv_net, '0').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '0').internal_module, 128262075621088)"]
+    Object Weakref: <weakref at 0x74a898141f80; to 'Sequential' at 0x74a757749ee0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 176:
+    Name: "getattr(L['self'].conv_net, '15')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '15')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 177:
+    Name: "G['__builtins_dict___34']['len']"
+    Source: global
+    Create Function: BUILTIN_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__builtins_dict___34']['len'], 128267555791440)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e1245e0; to 'type' at 0xa3eb20 (builtin_function_or_method)>
+  Guard 178:
+    Name: "getattr(L['self'].conv_net, '10')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '10')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 179:
+    Name: "getattr(getattr(L['self'].conv_net, '16').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '16').internal_module, '2'), 128261284136864)"]
+    Object Weakref: <weakref at 0x74a8973dc4f0; to 'LeakyReLU' at 0x74a7284787a0>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 180:
+    Name: "getattr(L['self'].conv_net, '7')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '7')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 181:
+    Name: "getattr(L['self'].conv_net, '6')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '6')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 182:
+    Name: "getattr(getattr(L['self'].conv_net, '0').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '0').internal_module, '2'), 128262853272032)"]
+    Object Weakref: <weakref at 0x74a8973f48b0; to 'LeakyReLU' at 0x74a785cea1e0>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 183:
+    Name: "getattr(L['self'].conv_net, '14')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '14')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 184:
+    Name: "getattr(L['self'].conv_net, '8').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '8').internal_module, 128261284143728)"]
+    Object Weakref: <weakref at 0x74a8973b7970; to 'Sequential' at 0x74a72847a270>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 185:
+    Name: "getattr(L['self'].conv_net, '10')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '10')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 186:
+    Name: "getattr(L['self'].conv_net, '0')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '0')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 187:
+    Name: "getattr(L['self'].conv_net, '12')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '12')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 188:
+    Name: "getattr(L['self'].conv_net, '15')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '15')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 189:
+    Name: "getattr(L['self'].conv_net, '16')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 190:
+    Name: "getattr(getattr(L['self'].conv_net, '17').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '17').internal_module, '0'), 128261284143872)"]
+    Object Weakref: <weakref at 0x74a8973dc630; to 'Conv1d' at 0x74a72847a300>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 191:
+    Name: "getattr(L['self'].conv_net, '14')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '14')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 192:
+    Name: ''
+    Source: global
+    Create Function: TORCH_FUNCTION_STATE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 193:
+    Name: "getattr(L['self'].conv_net, '12')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '12')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 194:
+    Name: "getattr(L['self'].conv_net, '11')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '11')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 195:
+    Name: "getattr(L['self'].conv_net, '0')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '0')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 196:
+    Name: "getattr(L['self'].conv_net, '3')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '3')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 197:
+    Name: "getattr(L['self'].conv_net, '15')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '15')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 198:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module'].torch._C._get_tracing_state"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__import_torch_dot_nn_dot_modules_dot_module'].torch._C._get_tracing_state, 128267488971408)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e1245e0; to 'type' at 0xa3eb20 (builtin_function_or_method)>
+  Guard 199:
+    Name: "getattr(getattr(L['self'].conv_net, '2').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '2').internal_module, '0'), 128261284137296)"]
+    Object Weakref: <weakref at 0x74a8973f4db0; to 'Conv1d' at 0x74a728478950>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 200:
+    Name: "getattr(L['self'].conv_net, '4')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '4'), 128261284138784)"]
+    Object Weakref: <weakref at 0x74a89817b290; to 'SkipConnect' at 0x74a728478f20>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 201:
+    Name: "getattr(L['self'].conv_net, '9')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '9')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 202:
+    Name: "getattr(L['self'].conv_net, '10')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 203:
+    Name: "getattr(L['self'].conv_net, '17')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '17')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 204:
+    Name: "getattr(L['self'].conv_net, '15').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '15').internal_module, 128261284136912)"]
+    Object Weakref: <weakref at 0x74a8973f4270; to 'Sequential' at 0x74a7284787d0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 205:
+    Name: "getattr(getattr(L['self'].conv_net, '3').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '3').internal_module, '1'), 128261284138736)"]
+    Object Weakref: <weakref at 0x74a8973f52b0; to 'Identity' at 0x74a728478ef0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 206:
+    Name: "getattr(getattr(L['self'].conv_net, '5').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '5').internal_module, '0'), 128261284138400)"]
+    Object Weakref: <weakref at 0x74a8973f58f0; to 'Conv1d' at 0x74a728478da0>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 207:
+    Name: "L['self'].conv_type"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["L['self'].conv_type == '1d'"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e164ea0; to 'type' at 0xa462c0 (str)>
+  Guard 208:
+    Name: "getattr(L['self'].conv_net, '3')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '3')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 209:
+    Name: "getattr(getattr(L['self'].conv_net, '10').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '10').internal_module, '1'), 128261284141664)"]
+    Object Weakref: <weakref at 0x74a8973f6cf0; to 'Identity' at 0x74a728479a60>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 210:
+    Name: "getattr(L['self'].conv_net, '14')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 211:
+    Name: "getattr(L['self'].conv_net, '15')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '15')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 212:
+    Name: "getattr(L['self'].conv_net, '9')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '9')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 213:
+    Name: "getattr(L['self'].conv_net, '6')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '6')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 214:
+    Name: "getattr(getattr(L['self'].conv_net, '1').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '1').internal_module, '2'), 128261284146512)"]
+    Object Weakref: <weakref at 0x74a8973f4c70; to 'LeakyReLU' at 0x74a72847ad50>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 215:
+    Name: "getattr(getattr(L['self'].conv_net, '12').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '12').internal_module, '0'), 128261284142288)"]
+    Object Weakref: <weakref at 0x74a8973f7330; to 'Conv1d' at 0x74a728479cd0>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 216:
+    Name: "getattr(L['self'].conv_net, '17')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '17')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 217:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks"
+    Source: global
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks, 10737792)", "not G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 218:
+    Name: "G['__builtins_dict___34']['zip']"
+    Source: global
+    Create Function: BUILTIN_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__builtins_dict___34']['zip'], 10784576)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e104c20; to 'type' at 0xa43b40 (type)>
+  Guard 219:
+    Name: "getattr(L['self'].conv_net, '5')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '5')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 220:
+    Name: "getattr(L['self'].conv_net, '12')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 221:
+    Name: "getattr(L['self'].conv_net, '14')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '14')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 222:
+    Name: "getattr(getattr(L['self'].conv_net, '1').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '1').internal_module, '1'), 128261284138016)"]
+    Object Weakref: <weakref at 0x74a8973f4b30; to 'Identity' at 0x74a728478c20>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 223:
+    Name: "getattr(L['self'].conv_net, '10')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '10')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 224:
+    Name: "getattr(L['self'].conv_net, '6')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '6')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 225:
+    Name: "getattr(getattr(L['self'].conv_net, '8').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '8').internal_module, '1'), 128261284141376)"]
+    Object Weakref: <weakref at 0x74a8973f6570; to 'Identity' at 0x74a728479940>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 226:
+    Name: "getattr(L['self'].conv_net, '9')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '9'), 128261284143536)"]
+    Object Weakref: <weakref at 0x74a8973b4040; to 'SkipConnect' at 0x74a72847a1b0>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 227:
+    Name: "L['size_snapshots']"
+    Source: local
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["L['size_snapshots'] == 1"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14e610; to 'type' at 0xa3af20 (int)>
+  Guard 228:
+    Name: "getattr(L['self'].conv_net, '3')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '3'), 128261284138208)"]
+    Object Weakref: <weakref at 0x74a8981795d0; to 'SkipConnect' at 0x74a728478ce0>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 229:
+    Name: "getattr(getattr(L['self'].conv_net, '10').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '10').internal_module, '2'), 128261284142336)"]
+    Object Weakref: <weakref at 0x74a8973f6e30; to 'LeakyReLU' at 0x74a728479d00>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 230:
+    Name: "getattr(getattr(L['self'].conv_net, '11').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '11').internal_module, '2'), 128261284142144)"]
+    Object Weakref: <weakref at 0x74a8973f71f0; to 'LeakyReLU' at 0x74a728479c40>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 231:
+    Name: ''
+    Source: global
+    Create Function: DETERMINISTIC_ALGORITHMS
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 232:
+    Name: "getattr(L['self'].conv_net, '16').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '16').internal_module, 128261284137008)"]
+    Object Weakref: <weakref at 0x74a8973f43b0; to 'Sequential' at 0x74a728478830>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 233:
+    Name: "getattr(getattr(L['self'].conv_net, '6').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '6').internal_module, '0'), 128261284139216)"]
+    Object Weakref: <weakref at 0x74a8973f5cb0; to 'Conv1d' at 0x74a7284790d0>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 234:
+    Name: "getattr(L['self'].conv_net, '8')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '8')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 235:
+    Name: "getattr(getattr(L['self'].conv_net, '9').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '9').internal_module, '2'), 128261284143776)"]
+    Object Weakref: <weakref at 0x74a8973f6a70; to 'LeakyReLU' at 0x74a72847a2a0>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 236:
+    Name: "getattr(L['self'].conv_net, '2')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '2')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 237:
+    Name: "getattr(L['self'].conv_net, '17')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '17')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 238:
+    Name: ''
+    Source: global
+    Create Function: DEFAULT_DEVICE
+    Guard Types: ['DEFAULT_DEVICE']
+    Code List: ['utils_device.CURRENT_DEVICE == None']
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 239:
+    Name: "getattr(L['self'].conv_net, '16')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '16')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 240:
+    Name: "getattr(L['self'].conv_net, '0')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '0')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 241:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks"
+    Source: global
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 242:
+    Name: "getattr(L['self'].conv_net, '8')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '8')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 243:
+    Name: "getattr(getattr(L['self'].conv_net, '14').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '14').internal_module, '0'), 128261284140128)"]
+    Object Weakref: <weakref at 0x74a8973f7ab0; to 'Conv1d' at 0x74a728479460>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 244:
+    Name: "getattr(L['self'].conv_net, '1').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '1').internal_module, 128261284141136)"]
+    Object Weakref: <weakref at 0x74a8973b6fc0; to 'Sequential' at 0x74a728479850>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 245:
+    Name: "getattr(getattr(L['self'].conv_net, '2').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '2').internal_module, '1'), 128261284138256)"]
+    Object Weakref: <weakref at 0x74a8973f4ef0; to 'Identity' at 0x74a728478d10>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 246:
+    Name: "getattr(getattr(L['self'].conv_net, '2').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '2').internal_module, '2'), 128261284137488)"]
+    Object Weakref: <weakref at 0x74a8973f5030; to 'LeakyReLU' at 0x74a728478a10>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 247:
+    Name: "getattr(L['self'].conv_net, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '1'), 128261284141568)"]
+    Object Weakref: <weakref at 0x74a898179760; to 'SkipConnect' at 0x74a728479a00>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 248:
+    Name: "getattr(getattr(L['self'].conv_net, '6').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '6').internal_module, '2'), 128261284139504)"]
+    Object Weakref: <weakref at 0x74a8973f5f30; to 'LeakyReLU' at 0x74a7284791f0>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 249:
+    Name: "getattr(L['self'].conv_net, '10').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '10').internal_module, 128261284141808)"]
+    Object Weakref: <weakref at 0x74a8973b7bf0; to 'Sequential' at 0x74a728479af0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 250:
+    Name: "getattr(getattr(L['self'].conv_net, '16').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '16').internal_module, '1'), 128261284137056)"]
+    Object Weakref: <weakref at 0x74a8973dc3b0; to 'Identity' at 0x74a728478860>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 251:
+    Name: "getattr(L['self'].conv_net, '6')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 252:
+    Name: "getattr(L['self'].conv_net, '12').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '12').internal_module, 128261284142528)"]
+    Object Weakref: <weakref at 0x74a8973b7e70; to 'Sequential' at 0x74a728479dc0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 253:
+    Name: "getattr(L['self'].conv_net, '0')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '0')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 254:
+    Name: "getattr(getattr(L['self'].conv_net, '4').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '4').internal_module, '0'), 128261284138688)"]
+    Object Weakref: <weakref at 0x74a8973f5530; to 'Conv1d' at 0x74a728478ec0>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 255:
+    Name: "getattr(L['self'].conv_net, '12')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '12')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 256:
+    Name: "getattr(L['self'].conv_net, '12')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '12'), 128261284142864)"]
+    Object Weakref: <weakref at 0x74a8973b6430; to 'SkipConnect' at 0x74a728479f10>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 257:
+    Name: "getattr(L['self'].conv_net, '16')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '16')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 258:
+    Name: "getattr(L['self'].conv_net, '4')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 259:
+    Name: "getattr(L['self'].conv_net, '17')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '17')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 260:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module'].torch"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__import_torch_dot_nn_dot_modules_dot_module'].torch, 128267549153280)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 261:
+    Name: "getattr(L['self'].conv_net, '2')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 262:
+    Name: "getattr(L['self'].conv_net, '12')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '12')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 263:
+    Name: "getattr(L['self'].conv_net, '14')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '14'), 128261284140464)"]
+    Object Weakref: <weakref at 0x74a8973b6840; to 'SkipConnect' at 0x74a7284795b0>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 264:
+    Name: ''
+    Source: global
+    Create Function: GRAD_MODE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 265:
+    Name: "getattr(L['self'].conv_net, '17')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '17')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 266:
+    Name: "getattr(L['self'].conv_net, '15')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '15'), 128261284144160)"]
+    Object Weakref: <weakref at 0x74a8973b69d0; to 'SkipConnect' at 0x74a72847a420>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 267:
+    Name: "getattr(L['self'].conv_net, '2').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '2').internal_module, 128261284138448)"]
+    Object Weakref: <weakref at 0x74a8973b7240; to 'Sequential' at 0x74a728478dd0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 268:
+    Name: "getattr(L['self'].conv_net, '13').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '13').internal_module, 128261284144064)"]
+    Object Weakref: <weakref at 0x74a8973b7fb0; to 'Sequential' at 0x74a72847a3c0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 269:
+    Name: "getattr(L['self'].conv_net, '6')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '6'), 128261284139552)"]
+    Object Weakref: <weakref at 0x74a8973b5850; to 'SkipConnect' at 0x74a728479220>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 270:
+    Name: "getattr(getattr(L['self'].conv_net, '14').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '14').internal_module, '2'), 128261284140800)"]
+    Object Weakref: <weakref at 0x74a8973f7d30; to 'LeakyReLU' at 0x74a728479700>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 271:
+    Name: "getattr(L['self'].conv_net, '4')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '4')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 272:
+    Name: "getattr(L['self'].conv_net, '2')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '2')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 273:
+    Name: "getattr(getattr(L['self'].conv_net, '10').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '10').internal_module, '0'), 128261284141952)"]
+    Object Weakref: <weakref at 0x74a8973f6bb0; to 'Conv1d' at 0x74a728479b80>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 274:
+    Name: "getattr(getattr(L['self'].conv_net, '9').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '9').internal_module, '1'), 128261284143824)"]
+    Object Weakref: <weakref at 0x74a8973f6930; to 'Identity' at 0x74a72847a2d0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 275:
+    Name: "getattr(L['self'].conv_net, '7').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '7').internal_module, 128261284135904)"]
+    Object Weakref: <weakref at 0x74a8973b7880; to 'Sequential' at 0x74a7284783e0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 276:
+    Name: "getattr(L['self'].conv_net, '4')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '4')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 277:
+    Name: "getattr(getattr(L['self'].conv_net, '0').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '0').internal_module, '0'), 128261284139888)"]
+    Object Weakref: <weakref at 0x74a8973f4040; to 'Conv1d' at 0x74a728479370>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 278:
+    Name: "getattr(L['self'].conv_net, '2')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '2')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 279:
+    Name: "getattr(L['self'].conv_net, '14')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '14')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 280:
+    Name: "getattr(getattr(L['self'].conv_net, '15').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '15').internal_module, '2'), 128261284140560)"]
+    Object Weakref: <weakref at 0x74a8973dc130; to 'LeakyReLU' at 0x74a728479610>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 281:
+    Name: "getattr(L['self'].conv_net, '7')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '7')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 282:
+    Name: "getattr(L['self'].conv_net, '7')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '7')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 283:
+    Name: "getattr(L['self'].conv_net, '5').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '5').internal_module, 128261284135616)"]
+    Object Weakref: <weakref at 0x74a8973b7600; to 'Sequential' at 0x74a7284782c0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 284:
+    Name: "getattr(getattr(L['self'].conv_net, '13').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '13').internal_module, '2'), 128261284138928)"]
+    Object Weakref: <weakref at 0x74a8973f7970; to 'LeakyReLU' at 0x74a728478fb0>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 285:
+    Name: "getattr(getattr(L['self'].conv_net, '7').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '7').internal_module, '2'), 128261284135136)"]
+    Object Weakref: <weakref at 0x74a8973f62f0; to 'LeakyReLU' at 0x74a7284780e0>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 286:
+    Name: "getattr(getattr(L['self'].conv_net, '16').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '16').internal_module, '0'), 128261284137152)"]
+    Object Weakref: <weakref at 0x74a8973dc270; to 'Conv1d' at 0x74a7284788c0>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 287:
+    Name: "getattr(L['self'].conv_net, '16')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '16')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 288:
+    Name: "getattr(L['self'].conv_net, '14')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '14')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 289:
+    Name: "getattr(getattr(L['self'].conv_net, '13').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '13').internal_module, '0'), 128261284143008)"]
+    Object Weakref: <weakref at 0x74a8973f76f0; to 'Conv1d' at 0x74a728479fa0>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 290:
+    Name: "getattr(L['self'].conv_net, '2')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '2')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 291:
+    Name: "getattr(L['self'].conv_net, '2')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '2')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 292:
+    Name: "getattr(getattr(L['self'].conv_net, '8').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '8').internal_module, '0'), 128261284140848)"]
+    Object Weakref: <weakref at 0x74a8973f6430; to 'Conv1d' at 0x74a728479730>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 293:
+    Name: "getattr(L['self'].conv_net, '17')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 294:
+    Name: "L['size_batch']"
+    Source: local
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["L['size_batch'] == 512"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14e610; to 'type' at 0xa3af20 (int)>
+  Guard 295:
+    Name: "getattr(L['self'].conv_net, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '2'), 128261284137824)"]
+    Object Weakref: <weakref at 0x74a898178400; to 'SkipConnect' at 0x74a728478b60>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 296:
+    Name: "getattr(L['self'].conv_net, '16')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '16')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 297:
+    Name: "getattr(getattr(L['self'].conv_net, '13').internal_module, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '13').internal_module, '1'), 128261284135664)"]
+    Object Weakref: <weakref at 0x74a8973f7830; to 'Identity' at 0x74a7284782f0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3b00; to 'type' at 0x123bc340 (Identity)>
+  Guard 298:
+    Name: "getattr(L['self'].conv_net, '14')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '14')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 299:
+    Name: "getattr(L['self'].conv_net, '16')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '16'), 128261284136960)"]
+    Object Weakref: <weakref at 0x74a8973b6b60; to 'SkipConnect' at 0x74a728478800>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 300:
+    Name: "getattr(L['self'].conv_net, '2')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '2')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 301:
+    Name: "L['self']"
+    Source: local
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'], 128261689582576)"]
+    Object Weakref: <weakref at 0x74a898acfb00; to 'AllWindowsStatsNet' at 0x74a7407223f0>
+    Guarded Class Weakref: <weakref at 0x74a728577c90; to 'type' at 0x17421ba0 (AllWindowsStatsNet)>
+  Guard 302:
+    Name: "getattr(L['self'].conv_net, '0')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 303:
+    Name: "getattr(L['self'].conv_net, '2')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '2')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 304:
+    Name: "getattr(L['self'].conv_net, '8')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '8')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 305:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks"
+    Source: global
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks, 10737792)", "not G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 306:
+    Name: "getattr(L['self'].conv_net, '6')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '6')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 307:
+    Name: "getattr(L['self'].conv_net, '2')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '2')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 308:
+    Name: "getattr(L['self'].conv_net, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '0'), 128261438518624)"]
+    Object Weakref: <weakref at 0x74a8985db5b0; to 'SkipConnect' at 0x74a7317b3560>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 309:
+    Name: "getattr(L['self'].conv_net, '5')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '5')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 310:
+    Name: "getattr(L['self'].conv_net, '6').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '6').internal_module, 128261284135472)"]
+    Object Weakref: <weakref at 0x74a8973b7740; to 'Sequential' at 0x74a728478230>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 311:
+    Name: "getattr(L['self'].conv_net, '13')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '13')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 312:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__import_torch_dot_nn_dot_modules_dot_module'], 128267391713200)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 313:
+    Name: "getattr(L['self'].conv_net, '8')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '8')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 314:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks"
+    Source: global
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks, 10737792)", "not G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 315:
+    Name: "getattr(L['self'].conv_net, '17').internal_module"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '17').internal_module, 128261284137248)"]
+    Object Weakref: <weakref at 0x74a8973f44f0; to 'Sequential' at 0x74a728478920>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 316:
+    Name: "getattr(getattr(L['self'].conv_net, '12').internal_module, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '12').internal_module, '2'), 128261284141856)"]
+    Object Weakref: <weakref at 0x74a8973f75b0; to 'LeakyReLU' at 0x74a728479b20>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 317:
+    Name: "getattr(L['self'].conv_net, '13')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '13')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 318:
+    Name: "getattr(L['self'].conv_net, '5')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].conv_net, '5')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 319:
+    Name: "getattr(L['self'].conv_net, '4')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '4')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 320:
+    Name: "getattr(L['self'].conv_net, '17')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].conv_net, '17'), 128261284136624)"]
+    Object Weakref: <weakref at 0x74a8973b6cf0; to 'SkipConnect' at 0x74a7284786b0>
+    Guarded Class Weakref: <weakref at 0x74a728577a60; to 'type' at 0x174214b0 (SkipConnect)>
+  Guard 321:
+    Name: "getattr(L['self'].conv_net, '3')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].conv_net, '3')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 322:
+    Name: "getattr(getattr(L['self'].conv_net, '3').internal_module, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(getattr(L['self'].conv_net, '3').internal_module, '0'), 128261284138832)"]
+    Object Weakref: <weakref at 0x74a8973f5170; to 'Conv1d' at 0x74a728478f50>
+    Guarded Class Weakref: <weakref at 0x74a8907ced40; to 'type' at 0xe2a53b0 (Conv1d)>
+  Guard 323:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '3')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '3'), 128261325742128)"]
+    Object Weakref: <weakref at 0x74a893eae070; to 'LayerNorm' at 0x74a72ac26030>
+    Guarded Class Weakref: <weakref at 0x74a88fd33f10; to 'type' at 0x12646600 (LayerNorm)>
+  Guard 324:
+    Name: "L['___stack0']"
+    Source: local
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(L['___stack0'], 10733632)", "len(L['___stack0']) == 1"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e139670; to 'type' at 0xa3c840 (dict)>
+  Guard 325:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').d1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').d1, 128261284052720)"]
+    Object Weakref: <weakref at 0x74a893eaeca0; to 'Dropout' at 0x74a728463ef0>
+    Guarded Class Weakref: <weakref at 0x74a88fd44310; to 'type' at 0x1264cc70 (Dropout)>
+  Guard 326:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 327:
+    Name: "L['___stack0']['all_windows_embedding']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['___stack0']['all_windows_embedding'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a89150ff10; dead>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 328:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks"
+    Source: global
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 329:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').n1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').n1, 128261284051376)"]
+    Object Weakref: <weakref at 0x74a893eaea20; to 'LayerNorm' at 0x74a7284639b0>
+    Guarded Class Weakref: <weakref at 0x74a88fd33f10; to 'type' at 0x12646600 (LayerNorm)>
+  Guard 330:
+    Name: ''
+    Source: shape_env
+    Create Function: SHAPE_ENV
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 331:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks"
+    Source: global
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 332:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '0')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '0'), 128261284150448)"]
+    Object Weakref: <weakref at 0x74a8973ce1b0; to 'Linear' at 0x74a72847bcb0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 333:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '8')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '8'), 128262933808720)"]
+    Object Weakref: <weakref at 0x74a893eae7f0; to 'Linear' at 0x74a78a9b8650>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 334:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6'), 128261284047296)"]
+    Object Weakref: <weakref at 0x74a893eae5c0; to 'BasicBlock' at 0x74a7284629c0>
+    Guarded Class Weakref: <weakref at 0x74a7285772e0; to 'type' at 0x1747b760 (BasicBlock)>
+  Guard 335:
+    Name: "G['torch'].Size"
+    Source: global
+    Create Function: ID_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].Size, 128266092792544)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e104c20; to 'type' at 0xa43b40 (type)>
+  Guard 336:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 337:
+    Name: "L['self'].prepare_input.gains_input"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input.gains_input, 10654560)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 338:
+    Name: "L['return_dict']"
+    Source: local
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(L['return_dict'], 10733632)", "not L['return_dict']"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e139670; to 'type' at 0xa3c840 (dict)>
+  Guard 339:
+    Name: "L['batch']['rx_lo']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['batch']['rx_lo'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a8973da3e0; to 'Tensor' at 0x74a7107ca940>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 340:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 341:
+    Name: "L['self'].signal_matrix_net"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].signal_matrix_net, 10746016)"]
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 342:
+    Name: "G['torch'].bool"
+    Source: global
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['EQUALS_MATCH']
+    Code List: ["G['torch'].bool == torch.bool"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89a1539c0; to 'type' at 0x74a846e5b160 (dtype)>
+  Guard 343:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 344:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 345:
+    Name: "L['self'].single_point_with_beamformer_ffnn._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not L['self'].single_point_with_beamformer_ffnn._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 346:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 347:
+    Name: "L['self'].prepare_input.vehicle_type_input"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input.vehicle_type_input, 10654560)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 348:
+    Name: "L['self'].single_point_with_beamformer_ffnn._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not L['self'].single_point_with_beamformer_ffnn._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 349:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '1')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '1'), 128261327486368)"]
+    Object Weakref: <weakref at 0x74a893eae200; to 'Dropout' at 0x74a72adcfda0>
+    Guarded Class Weakref: <weakref at 0x74a88fd44310; to 'type' at 0x1264cc70 (Dropout)>
+  Guard 350:
+    Name: "L['self'].single_point_with_beamformer_ffnn._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not L['self'].single_point_with_beamformer_ffnn._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 351:
+    Name: "L['self'].single_point_with_beamformer_ffnn._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(L['self'].single_point_with_beamformer_ffnn._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 352:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 353:
+    Name: "L['self'].single_point_with_beamformer_ffnn._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(L['self'].single_point_with_beamformer_ffnn._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 354:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').d1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').d1, 128261284050800)"]
+    Object Weakref: <weakref at 0x74a893eae930; to 'Dropout' at 0x74a728463770>
+    Guarded Class Weakref: <weakref at 0x74a88fd44310; to 'type' at 0x1264cc70 (Dropout)>
+  Guard 355:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 356:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 357:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 358:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks"
+    Source: global
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks, 10737792)", "not G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 359:
+    Name: "L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, 128261284052912)"]
+    Object Weakref: <weakref at 0x74a8973cdd00; to 'Sequential' at 0x74a728463fb0>
+    Guarded Class Weakref: <weakref at 0x74a88fd167a0; to 'type' at 0x125fc450 (Sequential)>
+  Guard 360:
+    Name: "L['additional_inputs']"
+    Source: local
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(L['additional_inputs'], 10725536)", "not L['additional_inputs']"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14d170; to 'type' at 0xa3a8a0 (list)>
+  Guard 361:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 362:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5'), 128261284052384)"]
+    Object Weakref: <weakref at 0x74a893eae480; to 'BasicBlock' at 0x74a728463da0>
+    Guarded Class Weakref: <weakref at 0x74a7285772e0; to 'type' at 0x1747b760 (BasicBlock)>
+  Guard 363:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 364:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').n2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').n2, 128261284044992)"]
+    Object Weakref: <weakref at 0x74a893eaf060; to 'LayerNorm' at 0x74a7284620c0>
+    Guarded Class Weakref: <weakref at 0x74a88fd33f10; to 'type' at 0x12646600 (LayerNorm)>
+  Guard 365:
+    Name: "G['torch'].nn.functional.normalize"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].nn.functional.normalize, 128267327190208)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e13b830; to 'type' at 0xa39680 (function)>
+  Guard 366:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module'].torch._C"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__import_torch_dot_nn_dot_modules_dot_module'].torch._C, 128267488348816)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 367:
+    Name: "G['torch'].rand"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].rand, 128267488515936)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e1245e0; to 'type' at 0xa3eb20 (builtin_function_or_method)>
+  Guard 368:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').act"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').act, 128261284051136)"]
+    Object Weakref: <weakref at 0x74a893eb00e0; to 'LeakyReLU' at 0x74a7284638c0>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 369:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks"
+    Source: global
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 370:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').linear1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').linear1, 128261284052432)"]
+    Object Weakref: <weakref at 0x74a893eb04a0; to 'Linear' at 0x74a728463dd0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 371:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 372:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 373:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').d2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').d2, 128261284051808)"]
+    Object Weakref: <weakref at 0x74a893eaf7e0; to 'Dropout' at 0x74a728463b60>
+    Guarded Class Weakref: <weakref at 0x74a88fd44310; to 'type' at 0x1264cc70 (Dropout)>
+  Guard 374:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').linear2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').linear2, 128261284047344)"]
+    Object Weakref: <weakref at 0x74a893eb05e0; to 'Linear' at 0x74a7284629f0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 375:
+    Name: "L['batch']['gains']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['batch']['gains'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a8973db920; to 'Tensor' at 0x74a7107d5400>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 376:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').n1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').n1, 128261284052480)"]
+    Object Weakref: <weakref at 0x74a893eaef20; to 'LayerNorm' at 0x74a728463e00>
+    Guarded Class Weakref: <weakref at 0x74a88fd33f10; to 'type' at 0x12646600 (LayerNorm)>
+  Guard 377:
+    Name: "L['batch']['sdr_device_type']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['batch']['sdr_device_type'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a8973cc400; to 'Tensor' at 0x74a7107d5590>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 378:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 379:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 380:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').d2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').d2, 128261284052240)"]
+    Object Weakref: <weakref at 0x74a893eae980; to 'Dropout' at 0x74a728463d10>
+    Guarded Class Weakref: <weakref at 0x74a88fd44310; to 'type' at 0x1264cc70 (Dropout)>
+  Guard 381:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 382:
+    Name: "L['self'].single_point_with_beamformer_ffnn._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not L['self'].single_point_with_beamformer_ffnn._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 383:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 384:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._backward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 385:
+    Name: "L['self'].single_point_with_beamformer_ffnn._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(L['self'].single_point_with_beamformer_ffnn._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 386:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').n2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').n2, 128261284052288)"]
+    Object Weakref: <weakref at 0x74a893eaeb60; to 'LayerNorm' at 0x74a728463d40>
+    Guarded Class Weakref: <weakref at 0x74a88fd33f10; to 'type' at 0x12646600 (LayerNorm)>
+  Guard 387:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').linear2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').linear2, 128261284046000)"]
+    Object Weakref: <weakref at 0x74a893eb0360; to 'Linear' at 0x74a7284624b0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 388:
+    Name: "L['self'].prepare_input"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input, 128261288292096)"]
+    Object Weakref: <weakref at 0x74a8973cd3a0; to 'PrepareInput' at 0x74a72886ef00>
+    Guarded Class Weakref: <weakref at 0x74a7285778d0; to 'type' at 0x174dd650 (PrepareInput)>
+  Guard 389:
+    Name: ''
+    Source: global
+    Create Function: TORCH_FUNCTION_STATE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 390:
+    Name: "L['self'].prepare_input.beamformer_input"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input.beamformer_input, 10654592)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 391:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module'].torch._C._get_tracing_state"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__import_torch_dot_nn_dot_modules_dot_module'].torch._C._get_tracing_state, 128267488971408)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e1245e0; to 'type' at 0xa3eb20 (builtin_function_or_method)>
+  Guard 392:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 393:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks"
+    Source: global
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks, 10737792)", "not G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 394:
+    Name: "L['batch']['vehicle_type']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['batch']['vehicle_type'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a8973dbdd0; to 'Tensor' at 0x74a7107d52c0>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 395:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '2')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '2'), 128261284143920)"]
+    Object Weakref: <weakref at 0x74a893eadf80; to 'LeakyReLU' at 0x74a72847a330>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 396:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 397:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 398:
+    Name: "L['self'].prepare_input.phase_input"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input.phase_input, 10654592)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 399:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').linear1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').linear1, 128261284047392)"]
+    Object Weakref: <weakref at 0x74a893eb0720; to 'Linear' at 0x74a728462a20>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 400:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').d2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').d2, 128261284052624)"]
+    Object Weakref: <weakref at 0x74a893eaede0; to 'Dropout' at 0x74a728463e90>
+    Guarded Class Weakref: <weakref at 0x74a88fd44310; to 'type' at 0x1264cc70 (Dropout)>
+  Guard 401:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').d1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').d1, 128261284051568)"]
+    Object Weakref: <weakref at 0x74a893eaf6a0; to 'Dropout' at 0x74a728463a70>
+    Guarded Class Weakref: <weakref at 0x74a88fd44310; to 'type' at 0x1264cc70 (Dropout)>
+  Guard 402:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').d1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').d1, 128261284052768)"]
+    Object Weakref: <weakref at 0x74a893eaf1a0; to 'Dropout' at 0x74a728463f20>
+    Guarded Class Weakref: <weakref at 0x74a88fd44310; to 'type' at 0x1264cc70 (Dropout)>
+  Guard 403:
+    Name: ''
+    Source: global
+    Create Function: DETERMINISTIC_ALGORITHMS
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 404:
+    Name: "L['self'].prepare_input.empirical_input"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input.empirical_input, 10654592)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 405:
+    Name: "L['batch']"
+    Source: local
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(L['batch'], 10733632)", "len(L['batch']) == 18"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e139670; to 'type' at 0xa3c840 (dict)>
+  Guard 406:
+    Name: "L['batch']['y_rad']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['batch']['y_rad'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a8985f10d0; to 'Tensor' at 0x74a7107cbcf0>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 407:
+    Name: ''
+    Source: global
+    Create Function: DEFAULT_DEVICE
+    Guard Types: ['DEFAULT_DEVICE']
+    Code List: ['utils_device.CURRENT_DEVICE == None']
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 408:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks"
+    Source: global
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 409:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4'), 128261284150544)"]
+    Object Weakref: <weakref at 0x74a893eae340; to 'BasicBlock' at 0x74a72847bd10>
+    Guarded Class Weakref: <weakref at 0x74a7285772e0; to 'type' at 0x1747b760 (BasicBlock)>
+  Guard 410:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 411:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 412:
+    Name: "L['return_dict']"
+    Source: local
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(L['return_dict'].keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e139670; to 'type' at 0xa3c840 (dict)>
+  Guard 413:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 414:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 415:
+    Name: "L['self'].prepare_input.frequency_input"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input.frequency_input, 10654560)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 416:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module'].torch"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__import_torch_dot_nn_dot_modules_dot_module'].torch, 128267549153280)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 417:
+    Name: "L['batch']"
+    Source: local
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(L['batch'].keys()) == ['all_windows_stats', 'rx_lo', 'rx_wavelength_spacing', 'y_rad', 'y_phi', 'craft_y_rad', 'system_timestamp', 'y_rad_binned', 'craft_y_rad_binned', 'rx_pos_xy', 'tx_pos_xy', 'rx_theta_in_pis', 'rx_heading_in_pis', 'windowed_beamformer', 'gains', 'vehicle_type', 'sdr_device_type', 'empirical']"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e139670; to 'type' at 0xa3c840 (dict)>
+  Guard 418:
+    Name: ''
+    Source: global
+    Create Function: GRAD_MODE
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 419:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').n2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').n2, 128261284051760)"]
+    Object Weakref: <weakref at 0x74a893eafa60; to 'LayerNorm' at 0x74a728463b30>
+    Guarded Class Weakref: <weakref at 0x74a88fd33f10; to 'type' at 0x12646600 (LayerNorm)>
+  Guard 420:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._backward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._backward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 421:
+    Name: "G['torch'].nn.functional"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].nn.functional, 128267392603200)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 422:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').act"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').act, 128261284052672)"]
+    Object Weakref: <weakref at 0x74a893eaff60; to 'LeakyReLU' at 0x74a728463ec0>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 423:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').linear1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').linear1, 128261326310048)"]
+    Object Weakref: <weakref at 0x74a893eb0220; to 'Linear' at 0x74a72acb0aa0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 424:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._backward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._backward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 425:
+    Name: "L['self'].prepare_input.sdr_device_type_input"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input.sdr_device_type_input, 10654560)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 426:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').act"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5').act, 128261284047248)"]
+    Object Weakref: <weakref at 0x74a893eafe20; to 'LeakyReLU' at 0x74a728462990>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+  Guard 427:
+    Name: "L['___stack0']"
+    Source: local
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(L['___stack0'].keys()) == ['all_windows_embedding']"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e139670; to 'type' at 0xa3c840 (dict)>
+  Guard 428:
+    Name: "L['self'].prepare_input.training"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input.training, 10654560)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 429:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 430:
+    Name: "G['torch'].concatenate"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].concatenate, 128267488507152)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e1245e0; to 'type' at 0xa3eb20 (builtin_function_or_method)>
+  Guard 431:
+    Name: "L['self'].prepare_input.rx_spacing_input"
+    Source: local_nn_module
+    Create Function: CONSTANT_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].prepare_input.rx_spacing_input, 10654560)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16c400; to 'type' at 0xa293a0 (bool)>
+  Guard 432:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '5')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 433:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').n1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').n1, 128261284052576)"]
+    Object Weakref: <weakref at 0x74a893eaf420; to 'LayerNorm' at 0x74a728463e60>
+    Guarded Class Weakref: <weakref at 0x74a88fd33f10; to 'type' at 0x12646600 (LayerNorm)>
+  Guard 434:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').linear2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').linear2, 128261284052864)"]
+    Object Weakref: <weakref at 0x74a893eb0860; to 'Linear' at 0x74a728463f80>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 435:
+    Name: "L['self'].single_point_with_beamformer_ffnn"
+    Source: local_nn_module
+    Create Function: NOT_PRESENT_IN_GENERIC_DICT
+    Guard Types: None
+    Code List: None
+    Object Weakref: None
+    Guarded Class Weakref: None
+  Guard 436:
+    Name: "L['self'].single_point_with_beamformer_ffnn"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'].single_point_with_beamformer_ffnn, 128261284136288)"]
+    Object Weakref: <weakref at 0x74a8973cd580; to 'FFNN' at 0x74a728478560>
+    Guarded Class Weakref: <weakref at 0x74a728577380; to 'type' at 0x174dee10 (FFNN)>
+  Guard 437:
+    Name: "L['self']"
+    Source: local
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(L['self'], 128261689719264)"]
+    Object Weakref: <weakref at 0x74a89924cef0; to 'SinglePointWithBeamformer' at 0x74a7407439e0>
+    Guarded Class Weakref: <weakref at 0x74a728577e20; to 'type' at 0x174dfcd0 (SinglePointWithBeamformer)>
+  Guard 438:
+    Name: "G['torch']"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'], 128267549153280)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 439:
+    Name: "G['torch'].nn"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['torch'].nn, 128267391710560)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 440:
+    Name: "L['batch']['rx_wavelength_spacing']"
+    Source: local
+    Create Function: TENSOR_MATCH
+    Guard Types: ['TENSOR_MATCH']
+    Code List: ["hasattr(L['batch']['rx_wavelength_spacing'], '_dynamo_dynamic_indices') == False"]
+    Object Weakref: <weakref at 0x74a8973da6b0; to 'Tensor' at 0x74a7107cbf70>
+    Guarded Class Weakref: <weakref at 0x74a89833c0e0; to 'torch._C._TensorMeta' at 0x120fe140 (Tensor)>
+  Guard 441:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').d2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').d2, 128261284052816)"]
+    Object Weakref: <weakref at 0x74a893eaf2e0; to 'Dropout' at 0x74a728463f50>
+    Guarded Class Weakref: <weakref at 0x74a88fd44310; to 'type' at 0x1264cc70 (Dropout)>
+  Guard 442:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').linear1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').linear1, 128261284052048)"]
+    Object Weakref: <weakref at 0x74a893eb09a0; to 'Linear' at 0x74a728463c50>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 443:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks"
+    Source: global
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks, 10737792)", "not G['__import_torch_dot_nn_dot_modules_dot_module']._global_backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 444:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 445:
+    Name: "L['self'].single_point_with_beamformer_ffnn._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(L['self'].single_point_with_beamformer_ffnn._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 446:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').n2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6').n2, 128261284052960)"]
+    Object Weakref: <weakref at 0x74a893eaf560; to 'LayerNorm' at 0x74a728463fe0>
+    Guarded Class Weakref: <weakref at 0x74a88fd33f10; to 'type' at 0x12646600 (LayerNorm)>
+  Guard 447:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 448:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7')"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7'), 128261284052528)"]
+    Object Weakref: <weakref at 0x74a893eae700; to 'BasicBlock' at 0x74a728463e30>
+    Guarded Class Weakref: <weakref at 0x74a7285772e0; to 'type' at 0x1747b760 (BasicBlock)>
+  Guard 449:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._forward_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._forward_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 450:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']"
+    Source: global
+    Create Function: FUNCTION_MATCH
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(G['__import_torch_dot_nn_dot_modules_dot_module'], 128267391713200)"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e14fbf0; to 'type' at 0xa3ef00 (module)>
+  Guard 451:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').n1"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').n1, 128261284052144)"]
+    Object Weakref: <weakref at 0x74a893eaf920; to 'LayerNorm' at 0x74a728463cb0>
+    Guarded Class Weakref: <weakref at 0x74a88fd33f10; to 'type' at 0x12646600 (LayerNorm)>
+  Guard 452:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').linear2"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '7').linear2, 128261284051424)"]
+    Object Weakref: <weakref at 0x74a893eb0ae0; to 'Linear' at 0x74a7284639e0>
+    Guarded Class Weakref: <weakref at 0x74a8907b3a60; to 'type' at 0x1235ad20 (Linear)>
+  Guard 453:
+    Name: "G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks"
+    Source: global
+    Create Function: SEQUENCE_LENGTH
+    Guard Types: ['TYPE_MATCH', 'SEQUENCE_LENGTH']
+    Code List: ["___check_type_id(G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks, 10737792)", "not G['__import_torch_dot_nn_dot_modules_dot_module']._global_forward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 454:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._forward_pre_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._forward_pre_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 455:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._forward_hooks"
+    Source: local_nn_module
+    Create Function: DICT_CONST_KEYS
+    Guard Types: ['DICT_CONST_KEYS']
+    Code List: ["list(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '6')._forward_hooks.keys()) == []"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 456:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._backward_pre_hooks"
+    Source: local_nn_module
+    Create Function: BOOL_FALSE
+    Guard Types: ['BOOL_FALSE']
+    Code List: ["not getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4')._backward_pre_hooks"]
+    Object Weakref: None
+    Guarded Class Weakref: <weakref at 0x74a89e16d030; to 'type' at 0xa3d880 (OrderedDict)>
+  Guard 457:
+    Name: "getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').act"
+    Source: local_nn_module
+    Create Function: NN_MODULE
+    Guard Types: ['ID_MATCH']
+    Code List: ["___check_obj_id(getattr(L['self'].single_point_with_beamformer_ffnn.ffnn_internal_net, '4').act, 128261284052336)"]
+    Object Weakref: <weakref at 0x74a893eafd30; to 'LeakyReLU' at 0x74a728463d70>
+    Guarded Class Weakref: <weakref at 0x74a8907ed670; to 'type' at 0x125baaa0 (LeakyReLU)>
+Compile Times: TorchDynamo compilation metrics:
+Function, Runtimes (s)
+_compile.<locals>.compile_inner, 0.0161, 0.0166, 0.0178, 0.0215, 0.1288, 0.2073
+OutputGraph.call_user_compiler, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000
+

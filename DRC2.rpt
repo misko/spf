@@ -1,0 +1,45 @@
+** Drc report for power_board_v1.kicad_pcb **
+** Created on 2026-07-14T08:53:25 **
+** Report includes: Errors, Warnings **
+
+** Found 5 DRC violations **
+[starved_thermal]: Thermal relief connection to zone incomplete (layer F.Cu; 3 spokes connected to isolated island)
+    Local override; error
+    @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu, priority 0
+    @(51.5000 mm, 81.7650 mm): PTH pad 2 [GND] of J12
+[starved_thermal]: Thermal relief connection to zone incomplete (layer F.Cu; zone min spoke count 2; actual 1)
+    Local override; error
+    @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu, priority 0
+    @(76.2000 mm, 69.5000 mm): Pad 7 [GND] of U5 on F.Cu
+[starved_thermal]: Thermal relief connection to zone incomplete (layer F.Cu; 2 spokes connected to isolated island)
+    Local override; error
+    @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu, priority 0
+    @(93.6200 mm, 101.0000 mm): PTH pad 4 [GND] of J10
+[starved_thermal]: Thermal relief connection to zone incomplete (layer F.Cu; 1 spokes connected to isolated island)
+    Local override; error
+    @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu, priority 0
+    @(129.3200 mm, 56.1050 mm): PTH pad S1 [GND] of J3
+[starved_thermal]: Thermal relief connection to zone incomplete (layer F.Cu; zone min spoke count 2; actual 1)
+    Local override; error
+    @(50.5000 mm, 50.5000 mm): Zone [GND] on F.Cu, priority 0
+    @(52.5724 mm, 87.3181 mm): Pad 2 [GND] of C15 on F.Cu
+
+** Found 0 unconnected pads **
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Courtyards overlap
+    - Footprint has no courtyard defined
+    - Solder mask aperture bridges items with different nets
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - Silkscreen clipped by board edge
+    - PTH inside courtyard
+    - NPTH inside courtyard
+    - Footprint component type doesn't match footprint pads
+    - Footprint not found in libraries
+    - Footprint doesn't match copy in library
+
+** End of Report **

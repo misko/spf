@@ -1,0 +1,1 @@
+while [ 1 -lt 2 ]; do  rsync -avP pi@devpi:'/home/pi/spf/data_collection_model_and_results/2d_wall_array/2d_wall_array_v2/temp/*.zarr' ./ ; rsync -avP pi@devpi:'/home/pi/spf/data_collection_model_and_results/2d_wall_array/2d_wall_array_v2/temp/*.yaml' ./ ;   sleep 600; done

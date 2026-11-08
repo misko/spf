@@ -1,0 +1,1 @@
+ls -d /mnt/md2/2d_wallarray_v2_data/*/*.zarr /mnt/md2/rovers/merged/*.zarr | shuf | while read x ; do python ~/gits/spf/spf/scripts/segment_zarr.py -i $x  --precompute-cache /mnt/md2/cache/precompute_cache_3p5/ -w 0 -p 16; done

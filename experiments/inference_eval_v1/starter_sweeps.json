@@ -1,0 +1,72 @@
+{
+  "ekf_dual": {
+    "kind": "sweep",
+    "cohort_id": "rover_tune16_v1",
+    "algorithm": "ekf_dual",
+    "fixed_params": {
+      "p": 0.1,
+      "dynamic_R": 0
+    },
+    "grid": {
+      "phi_std": [
+        5,
+        12
+      ],
+      "noise_std": [
+        0.001,
+        0.01
+      ]
+    },
+    "seeds": [
+      0
+    ]
+  },
+  "pf_dual": {
+    "kind": "sweep",
+    "cohort_id": "rover_tune16_v1",
+    "algorithm": "pf_dual",
+    "fixed_params": {
+      "theta_err": 0.1
+    },
+    "grid": {
+      "N": [
+        128,
+        512
+      ],
+      "theta_dot_err": [
+        0.001,
+        0.01
+      ]
+    },
+    "seeds": [
+      0,
+      1,
+      2
+    ]
+  },
+  "pf_dual_nn": {
+    "kind": "sweep",
+    "cohort_id": "rover_tune16_v1",
+    "algorithm": "pf_dual_nn",
+    "model_id": "aug2026",
+    "fixed_params": {
+      "theta_err": 0.075,
+      "absolute": false
+    },
+    "grid": {
+      "N": [
+        128,
+        512
+      ],
+      "theta_dot_err": [
+        0.001,
+        0.01
+      ]
+    },
+    "seeds": [
+      0,
+      1,
+      2
+    ]
+  }
+}
