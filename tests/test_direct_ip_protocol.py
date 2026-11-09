@@ -10,6 +10,8 @@ from spf.sdrpluto.direct_ip_protocol import (
     DEFAULT_UDP_DATAGRAM_BYTES,
     IP_CONTROL_BYTES,
     IP_FRAGMENT_HEADER_BYTES,
+    MAX_UDP_DATAGRAM_BYTES,
+    START_TRANSPORT_FLAGS,
     IpControlFlags,
     IpControlMessageV1,
     IpControlType,
@@ -466,3 +468,192 @@ def test_invalid_limits_fail_closed():
             frame_sequence=0,
             max_datagram_bytes=IP_FRAGMENT_HEADER_BYTES,
         )
+
+
+# --- TCP data transport -------------------------------------------------------
+
+
+V3_FEATURES = (
+    MetadataFeatures.GAIN_ENDPOINT_SNAPSHOTS
+    | MetadataFeatures.HEADER_CRC32
+    | MetadataFeatures.SAMPLE_SEQUENCE
+    | MetadataFeatures.GAIN_DB_ENDPOINTS
+    | MetadataFeatures.RSSI_ENDPOINT_SNAPSHOTS
+    | MetadataFeatures.GAIN_OBSERVATION_SERIES
+    | MetadataFeatures.HARDWARE_SAMPLE_COUNTER
+)
+
+
+def _v3_start(**overrides):
+    kwargs = dict(
+        request_id=7,
+        protocol_version=3,
+        features=V3_FEATURES,
+        enabled_scan_mask=0x0F,
+        samples_per_channel=524_288,
+        frame_count=16,
+        data_port=45_000,
+        max_datagram_bytes=MAX_UDP_DATAGRAM_BYTES,
+        gain_observation_interval_samples=32_768,
+        gain_observation_capacity=32,
+    )
+    kwargs.update(overrides)
+    return make_ip_start_request(**kwargs)
+
+
+def _capabilities(flags, **overrides):
+    kwargs = dict(
+        message_type=IpControlType.CAPABILITIES,
+        request_id=11,
+        flags=flags,
+        protocol_min=3,
+        protocol_max=3,
+        features=V3_FEATURES,
+        max_samples_per_channel=524_288,
+        max_finite_frames=16,
+    )
+    kwargs.update(overrides)
+    return IpControlMessageV1(**kwargs)
+
+
+def test_tcp_capability_query_has_stable_golden_bytes():
+    query = make_ip_capability_query(
+        request_id=0x0102030405060708, tcp_transport=True
+    )
+    assert query.flags == IpControlFlags.TCP_DATA_TRANSPORT
+    payload = query.pack()
+    # The probe is the whole compatibility mechanism: firmware predating TCP
+    # rejects this exact datagram with -EINVAL, which is how a new host learns
+    # to fall back.  Freeze the bytes so the probe cannot drift silently.
+    assert payload.hex() == (
+        "5349433101000100500000000807060504030201000000004000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "00000000000000000000000000000000"
+    )
+    assert struct.unpack_from("<I", payload, 24)[0] == int(
+        IpControlFlags.TCP_DATA_TRANSPORT
+    )
+    assert IpControlMessageV1.unpack(payload) == query
+
+
+def test_capability_query_accepts_both_probe_flags_together():
+    query = make_ip_capability_query(
+        request_id=3, transport_capabilities=True, tcp_transport=True
+    )
+    assert IpControlMessageV1.unpack(query.pack()) == query
+
+
+def test_capability_query_rejects_non_probe_flags():
+    query = IpControlMessageV1(
+        message_type=IpControlType.QUERY_CAPABILITIES,
+        request_id=3,
+        flags=IpControlFlags.FINITE_RX,
+    )
+    with pytest.raises(ProtocolError, match="non-zero fields"):
+        query.pack()
+
+
+def test_capabilities_response_ignores_unknown_flags_from_newer_firmware():
+    # A gadget newer than this host must never be able to break open().  The
+    # deployed-host failure this guards against was a hard exception out of
+    # open(), not a fallback.
+    known = _capabilities(
+        IpControlFlags.FINITE_RX
+        | IpControlFlags.IDEMPOTENT_REQUESTS
+        | IpControlFlags.TIME_ANCHOR
+    )
+    payload = bytearray(known.pack())
+    future_bit = 1 << 20
+    struct.pack_into(
+        "<I", payload, 24, int(known.flags) | future_bit
+    )
+    parsed = IpControlMessageV1.unpack(bytes(payload))
+    assert int(parsed.flags) & future_bit
+    assert parsed.flags & IpControlFlags.FINITE_RX
+
+
+def test_requests_still_reject_unknown_flags_on_the_wire():
+    start = _v3_start(transport_flags=IpControlFlags.TCP_DATA_TRANSPORT)
+    payload = bytearray(start.pack())
+    struct.pack_into("<I", payload, 24, int(start.flags) | (1 << 20))
+    with pytest.raises(ProtocolError, match="unknown direct-IP control flags"):
+        IpControlMessageV1.unpack(bytes(payload))
+
+
+def test_packing_never_emits_an_unknown_flag():
+    message = _capabilities(IpControlFlags.FINITE_RX | IpControlFlags(1 << 21))
+    with pytest.raises(ProtocolError, match="unknown direct-IP control flags"):
+        message.pack()
+
+
+def test_capabilities_may_advertise_tcp_and_frame_drop():
+    capabilities = _capabilities(
+        IpControlFlags.FINITE_RX
+        | IpControlFlags.IDEMPOTENT_REQUESTS
+        | IpControlFlags.TIME_ANCHOR
+        | IpControlFlags.TCP_DATA_TRANSPORT
+        | IpControlFlags.DROP_STALE_FRAMES
+    )
+    assert IpControlMessageV1.unpack(capabilities.pack()) == capabilities
+
+
+def test_capabilities_frame_drop_requires_tcp():
+    capabilities = _capabilities(
+        IpControlFlags.FINITE_RX | IpControlFlags.DROP_STALE_FRAMES
+    )
+    with pytest.raises(ProtocolError, match="frame drop requires the TCP transport"):
+        capabilities.pack()
+
+
+def test_tcp_start_started_round_trip_at_the_maximum_chunk_size():
+    start = _v3_start(transport_flags=IpControlFlags.TCP_DATA_TRANSPORT)
+    assert start.max_datagram_bytes == 65_507
+    assert IpControlMessageV1.unpack(start.pack()) == start
+
+    started = dataclasses.replace(
+        start, message_type=IpControlType.STARTED, stream_id=0xABCDEF
+    )
+    assert IpControlMessageV1.unpack(started.pack()) == started
+    # STARTED echoes the transport selection, which is what lets the host
+    # confirm the gadget honoured it rather than silently using UDP.
+    assert started.flags & IpControlFlags.TCP_DATA_TRANSPORT
+
+
+def test_tcp_start_may_request_frame_drop():
+    start = _v3_start(
+        transport_flags=(
+            IpControlFlags.TCP_DATA_TRANSPORT | IpControlFlags.DROP_STALE_FRAMES
+        )
+    )
+    assert IpControlMessageV1.unpack(start.pack()) == start
+
+
+def test_start_frame_drop_requires_tcp():
+    start = _v3_start(transport_flags=IpControlFlags.DROP_STALE_FRAMES)
+    with pytest.raises(ProtocolError, match="frame drop requires the TCP transport"):
+        start.pack()
+
+
+def test_start_still_rejects_capability_only_flags():
+    for flag in (
+        IpControlFlags.FINITE_RX,
+        IpControlFlags.IDEMPOTENT_REQUESTS,
+        IpControlFlags.TIME_ANCHOR,
+        IpControlFlags.QUERY_TRANSPORT_CAPABILITIES,
+    ):
+        start = _v3_start(transport_flags=flag)
+        with pytest.raises(ProtocolError, match="capability-only flags"):
+            start.pack()
+
+
+def test_transport_flag_sets_stay_disjoint_from_capability_only_flags():
+    # START may only carry per-stream selections.  If a capability bit ever
+    # leaks into START_TRANSPORT_FLAGS the gadget would accept a request it
+    # cannot honour.
+    capability_only = (
+        IpControlFlags.FINITE_RX
+        | IpControlFlags.IDEMPOTENT_REQUESTS
+        | IpControlFlags.TIME_ANCHOR
+        | IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
+    )
+    assert not int(START_TRANSPORT_FLAGS) & int(capability_only)

@@ -260,6 +260,6 @@ python -m spf.calibrations.dual_rx_gain_frequency.spectroscopy_analysis \
   --campaign-root /home/pi/spf-campaigns/spectroscopy_20260730_full_r2 \
   --treated-serial 104000bac4950008230026001b440a003a \
   --control-serial 1040007c4a94000211000b009186843ef2 \
-  --prior-calibration-root /home/pi/spf/artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1 \
+  --prior-calibration-root /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1 \
   --output-dir <campaign-root>/analysis/campaign
 ```

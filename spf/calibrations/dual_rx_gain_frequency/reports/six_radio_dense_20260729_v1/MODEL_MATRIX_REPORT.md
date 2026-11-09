@@ -113,11 +113,11 @@ The delay models are useful descriptions of a broad phase slope, but their unsee
 ```bash
 python -m spf.calibrations.dual_rx_gain_frequency model-matrix \
   --config spf/calibrations/dual_rx_gain_frequency/configs/survey_cross_band.yaml \
-  --dataset artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1/104000707f0700120f001a0095f2dbee49/calibration.v7.zarr \
-  --dataset artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1/104000f6ad020002fdff3a00bba2f096a1/calibration.v7.zarr \
-  --dataset artifacts/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104000b299050013f4ff0700255e35222f/calibration.v7.zarr \
-  --dataset artifacts/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104473b80a16000de6ff2000f8a6beca79/calibration.v7.zarr \
-  --dataset artifacts/dual_rx_gain_frequency/survey_cross_band_20260728_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr \
-  --dataset artifacts/dual_rx_gain_frequency/survey_cross_band_20260728_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr \
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260727_v1/104000707f0700120f001a0095f2dbee49/calibration.v7.zarr \
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260727_v1/104000f6ad020002fdff3a00bba2f096a1/calibration.v7.zarr \
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104000b299050013f4ff0700255e35222f/calibration.v7.zarr \
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104473b80a16000de6ff2000f8a6beca79/calibration.v7.zarr \
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260728_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr \
+  --dataset /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260728_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr \
   --output-dir artifacts/dual_rx_gain_frequency/model_matrix
 ```

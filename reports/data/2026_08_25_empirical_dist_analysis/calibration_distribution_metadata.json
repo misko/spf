@@ -1,0 +1,52 @@
+{
+  "quality_scan_rows": 2250,
+  "joined_current_rows": 2227,
+  "good_both_receivers_rows": 2211,
+  "configured_rows": 2187,
+  "receiver_observations": 4374,
+  "exact_configurations": 34,
+  "scan_rows_not_current_or_failed": 23,
+  "current_provenance_rows_not_in_scan": 218,
+  "grid_bound_flag_receiver_observations": 271,
+  "configuration_min_datasets": 5,
+  "inputs": {
+    "key_metrics": {
+      "path": "/tmp/spf-empirical-report-publish.8agpPG/worktree/reports/data/2026_08_25_empirical_dist_analysis/metrics_all_keys.csv",
+      "sha256": "802e5ba21bcb4225ea248f7215516deb3db11eb8bea74f48810473ab6056ec7b"
+    },
+    "rebuild_provenance": {
+      "path": "/tmp/spf-empirical-report-publish.8agpPG/worktree/spf/calibrations/empirical_p_dist/reports/empirical_rebuild_20260809_v1/provenance.json",
+      "sha256": "e44f35f9a1dc87192cf7fa53d2a9caacc7e41c6ac919053cea27bf25244f54c6"
+    },
+    "quality_scan": {
+      "path": "/tmp/spf-empirical-report-publish.8agpPG/worktree/reports/data/2026_08_25_empirical_dist_analysis/calibration_quality_scan_inputs.csv",
+      "sha256": "e481922fa03424e233afaa7aa75b09c2e331d2ece4ea796eb598cfbbdb458e20"
+    }
+  },
+  "parameter_model": "phi_measured = wrap(c - 2*pi*g*(d/lambda)*sin(theta-delta) + noise)",
+  "quality_scan_bounds": {
+    "wall_g": [
+      0.7,
+      3.0
+    ],
+    "rover_g": [
+      0.9,
+      1.1
+    ],
+    "wall_delta_rad": [
+      -0.35,
+      0.35
+    ],
+    "rover_delta_rad": [
+      -0.9,
+      0.9
+    ]
+  },
+  "notes": [
+    "R2 is descriptive and in-sample.",
+    "Phase-offset R2 uses squared wrapped-angle distances.",
+    "Within-MAD is the median of exact-configuration/receiver group MADs.",
+    "Configuration analysis requires both receivers to have usable angular coverage and exact groups of at least five datasets.",
+    "rx_lo=0 quality-scan rows are filled from the key's one-to-one rebuild provenance configuration."
+  ]
+}

@@ -28,6 +28,11 @@ Repeat `--radio-serial=SERIAL` to select exact devices. The expected count is
 checked after serial selection and is exact, so a missing or unexpected radio
 is reported before streaming begins.
 
+For tests that exercise standard libiio over the physical LAN, repeat
+`--radio-lan-radio=SERIAL=HOST` once for every selected radio. Supplying a map
+requires it to cover the selected serials exactly and keeps qualification from
+probing unrelated LAN neighbors.
+
 The default direct-USB gates cover both legacy finite capture and the bounded
 rolling path used by SPF session groups. The rolling two-radio test keeps one
 production-sized transfer resident per radio, validates contiguous sequences,
@@ -45,6 +50,18 @@ sudo env PYTHONPATH="$PWD" python -m pytest \
 
 This gate changes the USB device address and process nonce by design. It does
 not reboot the Pluto, enable TX, or write QSPI.
+
+> **Nothing under `tests/` or `spf/scripts/` ever writes QSPI, and that is
+> deliberate — it does not mean no supported path exists.** Persistent flashing
+> lives in the rover tree: `data_collection/rover/rover_v3.1/make_pluto_frm.sh`
+> and `ensure_pluto_qspi.sh`, documented in `PLUTO_QSPI_FLASH.md` there. Read
+> that doc's "A RAM-booted radio defeats this check" section first: run straight
+> after a RAM-boot campaign, the flasher skips every radio and reports success
+> without writing anything. Note also that `pluto_multi_firmware.py`'s
+> `DEFAULT_APPROVED_QSPI_DEVICE_FW = ("v0.37-dirty",)` is a policy knob, not a
+> statement about the bench radios — theirs already hold SPF firmware in QSPI.
+> Only `provision-config-all` enforces it; the `check-config-all` used by these
+> campaigns does not.
 
 `--radio-zarr` and `--radio-soak` are reserved as additional explicit gates;
 they are never implied by `--radio-hardware`.

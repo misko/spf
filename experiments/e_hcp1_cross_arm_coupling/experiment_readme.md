@@ -116,7 +116,7 @@ Script: [`scripts/hcp1_coupling.sh`](scripts/hcp1_coupling.sh), driven by
 
 ## 6. Outputs
 
-`artifacts/harness_coupling/<run>/` for raw (gitignored); [`RESULTS.md`](RESULTS.md) and
+`/mnt/qnap01/mouse9911/spf/calibration_data/raw/harness_coupling/<run>/` for raw (gitignored); [`RESULTS.md`](RESULTS.md) and
 `coupling.json` committed.
 
 | Artifact | Content | Acceptance gate |

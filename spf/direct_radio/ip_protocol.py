@@ -63,6 +63,15 @@ class IpControlFlags(enum.IntFlag):
     QUERY_TRANSPORT_CAPABILITIES = 1 << 3
     BUFFERED_FINITE_RX = 1 << 4
     USB_CLASS_PACING = 1 << 5
+    # Deliver radio frames over a TCP stream instead of UDP datagrams.  A
+    # gadget advertises this bit only in reply to a query which set it, so a
+    # host predating the bit never sees it and never fails its own strict
+    # flag validation.
+    TCP_DATA_TRANSPORT = 1 << 6
+    # Drop whole frames rather than stalling when the host falls behind.
+    # Requires TCP_DATA_TRANSPORT: the admission test needs a send queue whose
+    # depth can be measured, which UDP does not provide.
+    DROP_STALE_FRAMES = 1 << 7
 
 
 KNOWN_IP_CONTROL_FLAGS: Final[IpControlFlags] = (
@@ -72,6 +81,24 @@ KNOWN_IP_CONTROL_FLAGS: Final[IpControlFlags] = (
     | IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
     | IpControlFlags.BUFFERED_FINITE_RX
     | IpControlFlags.USB_CLASS_PACING
+    | IpControlFlags.TCP_DATA_TRANSPORT
+    | IpControlFlags.DROP_STALE_FRAMES
+)
+
+# Flags a host may set on QUERY_CAPABILITIES to ask about an optional feature.
+# A gadget which does not know one of these rejects the whole request, which is
+# how a new host discovers old firmware.
+QUERY_PROBE_FLAGS: Final[IpControlFlags] = (
+    IpControlFlags.QUERY_TRANSPORT_CAPABILITIES | IpControlFlags.TCP_DATA_TRANSPORT
+)
+
+# Flags which select per-stream behaviour on START_RX.  Everything else in
+# IpControlFlags describes a gadget capability and belongs only in CAPABILITIES.
+START_TRANSPORT_FLAGS: Final[IpControlFlags] = (
+    IpControlFlags.BUFFERED_FINITE_RX
+    | IpControlFlags.USB_CLASS_PACING
+    | IpControlFlags.TCP_DATA_TRANSPORT
+    | IpControlFlags.DROP_STALE_FRAMES
 )
 
 
@@ -193,21 +220,25 @@ class IpControlMessageV1:
             max_datagram_bytes=max_datagram_bytes,
             stream_id=stream_id,
         )
-        _validate_control_message(message)
+        _validate_control_message(message, strict_flags=False)
         return message
 
 
 def make_ip_capability_query(
-    *, request_id: int, transport_capabilities: bool = False
+    *,
+    request_id: int,
+    transport_capabilities: bool = False,
+    tcp_transport: bool = False,
 ) -> IpControlMessageV1:
+    flags = IpControlFlags(0)
+    if transport_capabilities:
+        flags |= IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
+    if tcp_transport:
+        flags |= IpControlFlags.TCP_DATA_TRANSPORT
     return IpControlMessageV1(
         message_type=IpControlType.QUERY_CAPABILITIES,
         request_id=request_id,
-        flags=(
-            IpControlFlags.QUERY_TRANSPORT_CAPABILITIES
-            if transport_capabilities
-            else IpControlFlags(0)
-        ),
+        flags=flags,
     )
 
 
@@ -736,12 +767,21 @@ def _validate_fragment(fragment: IpFragmentV1) -> None:
         raise ProtocolError("direct-IP LAST flag disagrees with fragment index")
 
 
-def _validate_control_message(message: IpControlMessageV1) -> None:
+def _validate_control_message(
+    message: IpControlMessageV1, *, strict_flags: bool = True
+) -> None:
     _validate_uint("request_id", message.request_id, 64)
     if not -(1 << 31) <= message.status <= (1 << 31) - 1:
         raise ProtocolError("direct-IP control status is outside int32")
     unknown_flags = int(message.flags) & ~int(KNOWN_IP_CONTROL_FLAGS)
-    if unknown_flags:
+    if unknown_flags and (
+        strict_flags or message.message_type != IpControlType.CAPABILITIES
+    ):
+        # Conservative in what we send, liberal in what we accept.  An
+        # unrecognised capability bit from a newer gadget must not fail the
+        # host's open(): that is precisely how a firmware upgrade would break
+        # every already-deployed client.  Requests stay strict, so we never
+        # transmit a bit the peer cannot have agreed to.
         raise ProtocolError(f"unknown direct-IP control flags: 0x{unknown_flags:08x}")
     unknown_features = int(message.features) & ~int(KNOWN_FEATURES)
     if unknown_features:
@@ -796,10 +836,7 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
         message.stream_id,
     )
     if message_type == IpControlType.QUERY_CAPABILITIES:
-        if message.flags not in (
-            IpControlFlags(0),
-            IpControlFlags.QUERY_TRANSPORT_CAPABILITIES,
-        ) or any(zero_except_flags):
+        if int(message.flags) & ~int(QUERY_PROBE_FLAGS) or any(zero_except_flags):
             raise ProtocolError("direct-IP capability query has non-zero fields")
         return
 
@@ -813,6 +850,11 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
             and not message.flags & IpControlFlags.BUFFERED_FINITE_RX
         ):
             raise ProtocolError("direct-IP pacing requires buffered finite RX")
+        if (
+            message.flags & IpControlFlags.DROP_STALE_FRAMES
+            and not message.flags & IpControlFlags.TCP_DATA_TRANSPORT
+        ):
+            raise ProtocolError("direct-IP frame drop requires the TCP transport")
         if not (
             VERSION_V1 <= message.protocol_min <= message.protocol_max <= VERSION_V3
         ):
@@ -837,16 +879,18 @@ def _validate_control_message(message: IpControlMessageV1) -> None:
         return
 
     if message_type in (IpControlType.START_RX, IpControlType.STARTED):
-        transport_flags = (
-            IpControlFlags.BUFFERED_FINITE_RX | IpControlFlags.USB_CLASS_PACING
-        )
-        if message.flags & ~transport_flags:
+        if int(message.flags) & ~int(START_TRANSPORT_FLAGS):
             raise ProtocolError("direct-IP START has capability-only flags")
         if (
             message.flags & IpControlFlags.USB_CLASS_PACING
             and not message.flags & IpControlFlags.BUFFERED_FINITE_RX
         ):
             raise ProtocolError("direct-IP pacing requires buffered finite RX")
+        if (
+            message.flags & IpControlFlags.DROP_STALE_FRAMES
+            and not message.flags & IpControlFlags.TCP_DATA_TRANSPORT
+        ):
+            raise ProtocolError("direct-IP frame drop requires the TCP transport")
         if (
             message.protocol_min != message.protocol_max
             or message.protocol_min

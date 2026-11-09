@@ -1,0 +1,172 @@
+{
+  "host_libiio_version": [
+    0,
+    25,
+    "c26258b"
+  ],
+  "rates_hz": [
+    1000000
+  ],
+  "frames_per_cell": 4,
+  "samples_per_channel": 262144,
+  "minimum_continuous_metadata_rate_hz": {
+    "usb": 2000000,
+    "tcp": 3000000
+  },
+  "radios": [
+    {
+      "serial": "104000bac4950008230026001b440a003a",
+      "usb_uri": "usb:1.51.5",
+      "tcp_uri": "ip:192.168.1.165",
+      "cells": [
+        {
+          "transport": "usb",
+          "uri": "usb:1.51.5",
+          "mode": "ordinary",
+          "sample_rate_hz": 1000000,
+          "continuous_payload_requirement_MBps": 8.0,
+          "samples_per_channel": 262144,
+          "frames": 4,
+          "kernel_buffers": 2,
+          "elapsed_seconds": 1.045537013,
+          "payload_MBps": 8.023253022798535,
+          "payload_MiBps": 7.651570341871771,
+          "delivered_sample_rate_sps": 1002906.6278498168
+        },
+        {
+          "transport": "usb",
+          "uri": "usb:1.51.5",
+          "mode": "metadata",
+          "sample_rate_hz": 1000000,
+          "continuous_payload_requirement_MBps": 8.0,
+          "samples_per_channel": 262144,
+          "frames": 4,
+          "kernel_buffers": 2,
+          "elapsed_seconds": 1.050855094,
+          "payload_MBps": 7.9826496040185715,
+          "payload_MiBps": 7.612847904223034,
+          "delivered_sample_rate_sps": 997831.2005023215,
+          "capture_index_first": 2,
+          "capture_index_last": 5,
+          "capture_index_gap_count": 0,
+          "source_span_samples": 1048576,
+          "captured_sample_coverage_ratio": 1.0,
+          "host_delivery_fraction_of_source_rate": 0.9978312005023214,
+          "continuous_sustainable": true
+        },
+        {
+          "transport": "tcp",
+          "uri": "ip:192.168.1.165",
+          "mode": "ordinary",
+          "sample_rate_hz": 1000000,
+          "continuous_payload_requirement_MBps": 8.0,
+          "samples_per_channel": 262144,
+          "frames": 4,
+          "kernel_buffers": 2,
+          "elapsed_seconds": 1.048977523,
+          "payload_MBps": 7.996937795205741,
+          "payload_MiBps": 7.626474185186139,
+          "delivered_sample_rate_sps": 999617.2244007176
+        },
+        {
+          "transport": "tcp",
+          "uri": "ip:192.168.1.165",
+          "mode": "metadata",
+          "sample_rate_hz": 1000000,
+          "continuous_payload_requirement_MBps": 8.0,
+          "samples_per_channel": 262144,
+          "frames": 4,
+          "kernel_buffers": 2,
+          "elapsed_seconds": 1.044568729,
+          "payload_MBps": 8.030690338615335,
+          "payload_MiBps": 7.6586631189492556,
+          "delivered_sample_rate_sps": 1003836.2923269168,
+          "capture_index_first": 2,
+          "capture_index_last": 5,
+          "capture_index_gap_count": 0,
+          "source_span_samples": 1048576,
+          "captured_sample_coverage_ratio": 1.0,
+          "host_delivery_fraction_of_source_rate": 1.0038362923269168,
+          "continuous_sustainable": true
+        }
+      ]
+    },
+    {
+      "serial": "1040007c4a94000211000b009186843ef2",
+      "usb_uri": "usb:1.52.5",
+      "tcp_uri": "ip:192.168.1.175",
+      "cells": [
+        {
+          "transport": "usb",
+          "uri": "usb:1.52.5",
+          "mode": "ordinary",
+          "sample_rate_hz": 1000000,
+          "continuous_payload_requirement_MBps": 8.0,
+          "samples_per_channel": 262144,
+          "frames": 4,
+          "kernel_buffers": 2,
+          "elapsed_seconds": 1.050395223,
+          "payload_MBps": 7.986144468594941,
+          "payload_MiBps": 7.616180866808835,
+          "delivered_sample_rate_sps": 998268.0585743677
+        },
+        {
+          "transport": "usb",
+          "uri": "usb:1.52.5",
+          "mode": "metadata",
+          "sample_rate_hz": 1000000,
+          "continuous_payload_requirement_MBps": 8.0,
+          "samples_per_channel": 262144,
+          "frames": 4,
+          "kernel_buffers": 2,
+          "elapsed_seconds": 1.049575625,
+          "payload_MBps": 7.99238073006888,
+          "payload_MiBps": 7.622128229206925,
+          "delivered_sample_rate_sps": 999047.59125861,
+          "capture_index_first": 2,
+          "capture_index_last": 5,
+          "capture_index_gap_count": 0,
+          "source_span_samples": 1048576,
+          "captured_sample_coverage_ratio": 1.0,
+          "host_delivery_fraction_of_source_rate": 0.99904759125861,
+          "continuous_sustainable": true
+        },
+        {
+          "transport": "tcp",
+          "uri": "ip:192.168.1.175",
+          "mode": "ordinary",
+          "sample_rate_hz": 1000000,
+          "continuous_payload_requirement_MBps": 8.0,
+          "samples_per_channel": 262144,
+          "frames": 4,
+          "kernel_buffers": 2,
+          "elapsed_seconds": 1.05543513,
+          "payload_MBps": 7.948009083229967,
+          "payload_MiBps": 7.579812129240004,
+          "delivered_sample_rate_sps": 993501.1354037458
+        },
+        {
+          "transport": "tcp",
+          "uri": "ip:192.168.1.175",
+          "mode": "metadata",
+          "sample_rate_hz": 1000000,
+          "continuous_payload_requirement_MBps": 8.0,
+          "samples_per_channel": 262144,
+          "frames": 4,
+          "kernel_buffers": 2,
+          "elapsed_seconds": 1.050359489,
+          "payload_MBps": 7.986416163085664,
+          "payload_MiBps": 7.616439974866547,
+          "delivered_sample_rate_sps": 998302.0203857081,
+          "capture_index_first": 2,
+          "capture_index_last": 5,
+          "capture_index_gap_count": 0,
+          "source_span_samples": 1048576,
+          "captured_sample_coverage_ratio": 1.0,
+          "host_delivery_fraction_of_source_rate": 0.998302020385708,
+          "continuous_sustainable": true
+        }
+      ]
+    }
+  ]
+}

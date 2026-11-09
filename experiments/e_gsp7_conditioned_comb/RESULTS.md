@@ -2,7 +2,7 @@
 
 **Full report, code hashes and per-arm detail:**
 [`reports/e_gsp7_conditioned_comb_20260807_v1/`](../../spf/calibrations/dual_rx_gain_frequency/reports/e_gsp7_conditioned_comb_20260807_v1/REPORT.md)
-· raw capture `artifacts/dual_rx_gain_frequency/e_gsp7_20260807/` (gitignored)
+· raw capture `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsp7_20260807/` (gitignored)
 
 Session `e_gsp7_20260807`, SPF `70d84b8` clean, 111 LOs, **3,330/3,330 frames**,
 one unchanged-harness session. Combs pre-registered before the first frame.

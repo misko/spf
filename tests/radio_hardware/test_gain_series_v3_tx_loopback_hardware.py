@@ -17,7 +17,7 @@ import pytest
 from spf.bench.dual_rx_phase import ToneQualityThresholds, analyze_common_tone
 from spf.calibrations.dual_rx_gain_frequency.config import CalibrationConfig
 from spf.calibrations.dual_rx_gain_frequency.hardware import DirectUsbLoopbackRadio
-from spf.scripts.mute_pluto_tx import mute_attached_plutos
+from spf.scripts.mute_pluto_tx import mute_attached_plutos, validate_loopback_safety
 from spf.sdrpluto.direct_usb_protocol import (
     GainObservationFlags,
     MetadataFlags,
@@ -32,7 +32,6 @@ pytestmark = [
     pytest.mark.radio_tx_loopback,
 ]
 
-MINIMUM_LOOPBACK_ATTENUATION_DB = 30.0
 MANUAL_GAINS_DB = (20, 35)
 TX_CORE_REGISTERS = {
     "version": 0x00,
@@ -285,18 +284,16 @@ def test_v3_cyclic_tx_reaches_dac_with_timestamping_disabled(
     """Exercise the DMA/timestamp-FIFO path that FPGA DDS bypasses."""
 
     attenuation = pytestconfig.getoption("--radio-tx-loopback-attenuation-db")
-    if attenuation is None or attenuation < MINIMUM_LOOPBACK_ATTENUATION_DB:
-        pytest.fail(
-            "cyclic TX requires an explicitly declared attenuated loopback of "
-            f"at least {MINIMUM_LOOPBACK_ATTENUATION_DB:g} dB"
-        )
-
     samples = pytestconfig.getoption("--radio-tx-samples")
     sample_rate_hz = pytestconfig.getoption("--radio-tx-sample-rate")
     bandwidth_hz = pytestconfig.getoption("--radio-tx-bandwidth")
     lo_hz = pytestconfig.getoption("--radio-tx-lo-hz")
     tone_hz = int(pytestconfig.getoption("--radio-tx-tone-hz"))
     nominal_tx_gain = pytestconfig.getoption("--radio-tx-gain-db")
+    validate_loopback_safety(
+        physical_attenuation_db=attenuation,
+        strongest_tx_gain_db=nominal_tx_gain,
+    )
     interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
     capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
     period_samples = sample_rate_hz // math.gcd(sample_rate_hz, abs(tone_hz))
@@ -429,16 +426,6 @@ def test_v3_tx2_tone_manual_gain_and_slow_attack_agc(
     attached_plutos, pytestconfig, radio_report_dir
 ):
     attenuation = pytestconfig.getoption("--radio-tx-loopback-attenuation-db")
-    if attenuation is None:
-        pytest.fail(
-            "--radio-tx-loopback requires " "--radio-tx-loopback-attenuation-db"
-        )
-    if attenuation < MINIMUM_LOOPBACK_ATTENUATION_DB:
-        pytest.fail(
-            f"declared loopback attenuation {attenuation:g} dB is below the "
-            f"{MINIMUM_LOOPBACK_ATTENUATION_DB:g} dB release-test minimum"
-        )
-
     samples = pytestconfig.getoption("--radio-tx-samples")
     sample_rate_hz = pytestconfig.getoption("--radio-tx-sample-rate")
     bandwidth_hz = pytestconfig.getoption("--radio-tx-bandwidth")
@@ -447,6 +434,10 @@ def test_v3_tx2_tone_manual_gain_and_slow_attack_agc(
     nominal_tx_gain = pytestconfig.getoption("--radio-tx-gain-db")
     weak_tx_gain = pytestconfig.getoption("--radio-tx-weak-gain-db")
     strong_tx_gain = pytestconfig.getoption("--radio-tx-strong-gain-db")
+    validate_loopback_safety(
+        physical_attenuation_db=attenuation,
+        strongest_tx_gain_db=strong_tx_gain,
+    )
     interval = min(pytestconfig.getoption("--radio-gain-observation-interval"), samples)
     capacity = pytestconfig.getoption("--radio-gain-observation-capacity")
     if samples < 16_384:

@@ -121,7 +121,8 @@ def violations_in(text: str) -> list[tuple[int, str, str]]:
         stripped = source.strip()
         if stripped.startswith("#") or not stripped:
             continue
-        if PRAGMA in source or GUARD.search(source):
+        exemption_reason = source.partition(PRAGMA)[2].strip()
+        if exemption_reason or GUARD.search(source):
             continue
         stages = STAGE_SPLIT.split(source)
         for stage in stages[1:]:
@@ -177,6 +178,8 @@ def test_scanner_accepts_both_documented_idioms():
 
 def test_scanner_accepts_the_pragma_but_only_with_a_reason():
     assert not violations_in(f"cmd | head -1  {PRAGMA} producer emits one line\n")
+    assert violations_in(f"cmd | head -1  {PRAGMA}\n")
+    assert violations_in(f"cmd | head -1  {PRAGMA}   \n")
     assert violations_in("cmd | head -1  # unrelated comment\n")
 
 

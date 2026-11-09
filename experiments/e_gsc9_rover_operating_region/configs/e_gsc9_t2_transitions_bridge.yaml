@@ -1,0 +1,80 @@
+data-version: 7
+pluto-firmware:
+  release-tag: v0.38-plutoplus-spf-libiio-metadata-v5
+  device-fw: v0.38-plutoplus-spf-libiio-metadata-v5
+  asset-name: plutoplus-spf-libiio-metadata-v5-d7c87a9a2809-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-libiio-metadata-v5/plutoplus-spf-libiio-metadata-v5-d7c87a9a2809-pluto.dfu
+  image-sha256: 948b46506febacb087f3955be86015e074f8c0e3370a9dfc6a942e735d97f882
+  firmware-git-sha: d7c87a9a28094ee6f0b23cb47df9ff737b5a69d8
+  gadget-git-sha: ab270f9e3128187372f27de887be65353f9e195d
+  boot-mode: qspi
+calibration:
+  frequencies-hz: [5766000000, 5840000000]
+  gains-db: [13, 14, 15, 16, 17, 21, 22, 23, 24, 25, 26, 27, 28, 33, 34, 39, 40, 41, 44, 49]
+  schedule-design: additive_cross
+  schedule-reference-gain-db: 26
+  held-out-gain-pairs:
+    - [13, 13]
+    - [14, 14]
+    - [15, 15]
+    - [16, 16]
+    - [17, 17]
+    - [21, 21]
+    - [22, 22]
+    - [23, 23]
+    - [24, 24]
+    - [25, 25]
+    - [27, 27]
+    - [28, 28]
+    - [33, 33]
+    - [34, 34]
+    - [39, 39]
+    - [40, 40]
+    - [41, 41]
+    - [44, 44]
+    - [49, 49]
+    - [13, 14]
+    - [14, 13]
+    - [22, 23]
+    - [23, 22]
+    - [40, 41]
+    - [41, 40]
+    - [16, 17]
+    - [17, 16]
+    - [33, 34]
+    - [34, 33]
+    - [27, 28]
+    - [28, 27]
+  repetitions: 3
+  sample-rate-hz: 30000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000
+  tone-search-width-hz: 25000
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
+  random-seed: 20260814
+  tx-source: fpga_dds
+  tx-gain-db: 0
+  tx-gain-policy: adaptive_max_rx_gain
+  tx-reference-rx-gain-db: 34
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 16384
+  min-quality-valid-per-cell: 2
+  max-across-repeat-phase-std-deg: 5
+  setup-label: e-gsc9-r17-r18-v5-iio-usb-tx2-30db-tee-rx1-rx2
+  quality:
+    min-tone-snr-db: 3
+    min-tone-dbfs: -52
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5
+  notes: >-
+    E-GSC9 Tier 2. Brackets the three band-2 RF-word transitions no capture at 5766 or 5840 has ever crossed (TIA 13->14, LNA 0->1 at 22->23, LNA 1->2 at 25->26) plus LNA 2->3 at 40->41, each against an adjacent pure-LPF control step. Reference 26 is the bench convention, so this tier bridges E-GSC9's anchor-49 frame to the prior corpus; gains 40, 41, 44, 49 are shared with Tier 1 for cross-session linkage.

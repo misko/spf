@@ -896,3 +896,52 @@ def test_start_request_rejects_non_finite_or_wrong_layout():
             samples_per_channel=524288,
             frame_count=0,
         )
+
+
+# --- gap-tolerant sequence validation (TCP drop policy) -----------------------
+
+
+def _v3_wire(buffer_sequence, first_sample_sequence, samples_per_channel=32768):
+    meta = metadata_v3(
+        buffer_sequence=buffer_sequence,
+        first_sample_sequence=first_sample_sequence,
+        samples_per_channel=samples_per_channel,
+    )
+    return meta.pack() + bytes(meta.iq_payload_bytes)
+
+
+def test_parser_rejects_sequence_gaps_by_default():
+    parser = RxFrameParser(protocol_version=3)
+    parser.parse_complete_frame(_v3_wire(0, 1_000_000))
+    with pytest.raises(ProtocolError, match="buffer sequence discontinuity"):
+        parser.parse_complete_frame(_v3_wire(2, 1_000_000 + 2 * 32768))
+
+
+def test_parser_accepts_whole_frame_gaps_when_dropping_is_enabled():
+    # The gadget skipped sequence 1 under backpressure.  Both counters advance
+    # by exactly one extra frame stride, which is what makes it a drop rather
+    # than a fault.
+    parser = RxFrameParser(protocol_version=3, allow_sequence_gaps=True)
+    parser.parse_complete_frame(_v3_wire(0, 1_000_000))
+    parser.parse_complete_frame(_v3_wire(2, 1_000_000 + 2 * 32768))
+    parser.parse_complete_frame(_v3_wire(3, 1_000_000 + 3 * 32768))
+    parser.finish()
+    assert parser.dropped_frame_count == 1
+
+
+def test_parser_still_rejects_a_partial_stride_as_an_adc_overrun():
+    # A sample-counter jump that is NOT a whole multiple of the frame stride
+    # means the ADC ran ahead of capture.  That is a hardware fault, not a
+    # frame we chose to skip, and must fail even under the drop policy.
+    parser = RxFrameParser(protocol_version=3, allow_sequence_gaps=True)
+    parser.parse_complete_frame(_v3_wire(0, 1_000_000))
+    with pytest.raises(ProtocolError, match="sample sequence discontinuity"):
+        parser.parse_complete_frame(_v3_wire(1, 1_000_000 + 32768 + 17))
+
+
+def test_parser_rejects_a_backwards_sequence_even_when_dropping():
+    parser = RxFrameParser(protocol_version=3, allow_sequence_gaps=True)
+    parser.parse_complete_frame(_v3_wire(0, 1_000_000))
+    parser.parse_complete_frame(_v3_wire(5, 1_000_000 + 5 * 32768))
+    with pytest.raises(ProtocolError, match="backwards or jumped absurdly"):
+        parser.parse_complete_frame(_v3_wire(4, 1_000_000 + 4 * 32768))

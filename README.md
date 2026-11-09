@@ -253,8 +253,10 @@ The project uses Zarr arrays stored in LMDB databases for efficient data storage
 #### For Ubuntu/Debian Linux:
 
 ```bash
-# Install system dependencies
-sudo apt-get install git screen libiio-dev libiio-utils vim python3-dev uhubctl libusb-dev libusb-1.0-0-dev sshpass python3.10-venv -y
+# Install system and SPF libiio build dependencies
+sudo apt-get install -y git screen vim python3-dev python3-venv uhubctl \
+  libusb-dev libusb-1.0-0-dev sshpass cmake make pkg-config flex bison \
+  libxml2-dev libaio-dev
 
 # Create and activate Python virtual environment
 python3 -m venv spf_venv
@@ -263,9 +265,22 @@ source spf_venv/bin/activate
 # Install the package in development mode
 pip install -e .
 
+# Install the hardware-qualified modified C library and Python binding last
+./install_spf_libiio_artifacts.sh \
+  --bundle ~/Downloads/spf-libiio \
+  --python "$VIRTUAL_ENV/bin/python"
+
 # Run the tests to verify installation
 pytest tests
 ```
+
+The modified libiio is required for v5 frame metadata; PyPI `pylibiio` alone
+is not sufficient. CI publishes native Debian 12 packages for Pi 4/Pi 5
+(`arm64`) and standard x86-64 (`amd64`), plus the shared Python wheel. The
+source-building `install_spf_libiio.sh` remains available as a fallback. See
+[the SPF libiio installation guide](docs/libiio_frame_metadata_install.md)
+for immutable source pins, 0.26 instructions, verification, and isolated
+side-by-side installs.
 
 
 ### Hardware Setup
@@ -301,7 +316,4 @@ pytest tests
    cd bladeRF/host/libraries/libbladeRF_bindings/python
    python setup.py install
    ```
-
-
-
 

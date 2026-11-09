@@ -1,0 +1,3 @@
+# Review workflow changes before approving any fork-triggered Actions run.
+/.github/CODEOWNERS @misko
+/.github/workflows/ @misko

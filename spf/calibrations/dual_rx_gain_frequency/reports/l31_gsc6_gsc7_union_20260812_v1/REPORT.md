@@ -57,13 +57,15 @@ recomputable here. *Inferred* = reasoned from measured quantities. Every table s
 ## 1. What data actually exists, and what it is not
 
 The review's step 1 says *"This is a refit, not a capture: both gain lists have already been
-captured."* That is true of the frames. It is **not** true of this machine.
+captured."* That is true of the frames. At the time this refit was run, it was **not** true
+of the data mounted on this machine.
 
-**Measured.** A filesystem sweep found no E-GSC6 or E-GSC7 raw store anywhere:
-`artifacts/dual_rx_gain_frequency/e_gsc7_iio_usb_20260812_v2/` and its IP sibling, named in
-`experiments/e_gsc7_mixer_ladder_high_band/RESULTS.md` §Artifacts, do not exist here, and
-`/mnt/qnap01/mouse9911/share/spf_campaigns/` holds only the A–G campaign and
-`gain_state_followups_20260807_v1`. What is in Git is each experiment's *fitted* output.
+**Measured at refit time.** The 2026-08-12 filesystem sweep found no mounted E-GSC6 or
+E-GSC7 raw store, so this report used each experiment's *fitted* output. The raw stores
+were subsequently recovered and migrated to the canonical QNAP root; for example,
+`/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc7_iio_usb_20260812_v2/`
+and its IP sibling now exist. That later storage migration does not change what was
+available to, or computed by, this refit.
 
 | Source | What is committed | What that supports |
 |---|---|---|
@@ -653,3 +655,62 @@ says so and shows the measurement.
   different rung, on a different session, at different LOs. They are a prior, not a
   measurement, and must be replaced by a prospective test at both rover carriers before any
   deployment conversation resumes.
+
+---
+
+## Addendum, 2026-08-13 — E-GSC8 removes one of the three blockers
+
+[E-GSC8](../../../../../experiments/e_gsc8_carrier_transfer_5840/RESULTS.md) (`4292c01`) measured
+the carrier transfer this report's §5 listed as its second independent reason not to deploy.
+That reason no longer holds, and the wording it was stated in was sloppy on my part.
+
+**What §5 said, and why it was the wrong test.** §5 wrote that "mixer 6…14 [is] estimated from
+a single LO that E-GSC7 already showed does not transfer." E-GSC7's H5 measured 5766 → **5300**
+MHz, a 466 MHz jump to a carrier the rover does not use. The rover's two carriers are 5766 and
+5840 MHz — **74 MHz apart**. The banner added to E-GSC7's readme in `53ed590` had already said
+so; this report restated the blocker as though it had not.
+
+**What E-GSC8 measured.** On the untouched control radio, 5766 → 5840 transfers at **0.451° RMS**
+(paired-state bootstrap 95% CI 0.329–0.554°), against a preregistered 3° bound. Same-LO control
+H3 passes on both radios; 816/816 frames and 272/272 cells validated.
+
+**R17's graded H1 failure is 98% a constant offset, which this model's form cancels.**
+Decomposed from the committed `analysis.json`, the 11 paired-state differences are:
+
+| radio | raw RMS | mean offset | de-meaned RMS | range |
+|---|---:|---:|---:|---:|
+| R17 | 2.842° | **−2.819°** | **0.360°** | 1.183° |
+| R18 | 0.451° | −0.069° | 0.445° | 1.339° |
+
+*Measured* — recomputed here from `spf/calibrations/dual_rx_gain_frequency/reports/e_gsc8_iio_20260813_v1/analysis.json`.
+
+R17's curve is displaced almost rigidly, and its **shape** transfers better than R18's. The
+model is defined as `D(f, g1, g2) = H(s1) − H(s2)` ([`model.py`](../../../gain_state_phase_model_v1/model.py)),
+in which a per-LO constant cancels exactly. So on the axis the model actually uses, R17's
+carrier transfer is not a failure. E-GSC8's grading is correct as an absolute-curve test; it is
+simply stricter than the differential deployment path requires.
+
+**What has not changed.** R17 still differs from R18 in **gain-state** response — E-GSC7's H2
+put its 52→62 sum at 7.026°/8.004° against E-GSC6's 5.420° target, which is why §3.2's pooled
+union fit lands at 7.347° LOFO against a 7.323° do-nothing baseline. That is a different axis
+from carrier transfer and E-GSC8 says nothing about it. Blockers 1 and 3 of §5 stand unmodified:
+a single-radio fit with no LORO and no LOEO evidence, and no usable equal-gain anchor.
+
+**And E-GSC8 sharpens blocker 3 rather than easing it.** The two constant offsets above,
+−2.819° and −0.069°, *are* per-LO anchor offsets — the same free absolute reference §6 identifies
+as unresolved, now visible in a controlled bench capture where every other variable is pinned.
+The anchor question still outranks all coefficient work.
+
+**Net effect on the verdict: unchanged.** Still **NOT DEPLOYABLE**, on two remaining reasons
+instead of three. The coefficient file's `DEPLOYMENT_STATUS` has been updated to say so
+accurately.
+
+**One reproduction caveat found while making this edit.** §8 claims
+`emit_coefficients.py` reproduces the coefficient file byte-for-byte. Re-running it here
+against `4292c01` reproduces the fitted values only to ~1e-7 deg. Two consecutive re-emits in
+*this* environment are byte-identical, so it is environment sensitivity in the least-squares
+solve, not run-to-run nondeterminism — but "byte-for-byte" should read "to ~1e-7 deg across
+environments". The committed coefficient file keeps the **2026-08-12 published fitted values
+unchanged**; only `DEPLOYMENT_STATUS`, `spf_git_sha` and `input_sha256` were updated. That last
+one moved because E-GSC8 rewrote two artifact **path strings** inside E-GSC7's `analysis.json`;
+every numeric leaf in that file is unchanged, verified leaf-by-leaf.

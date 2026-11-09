@@ -1,9 +1,12 @@
-#installing dependencies
-sudo apt-get install flex bison libxml2-dev libaio-dev libusb-1.0-0-dev libserialport-dev libavahi-client-dev
-git clone https://github.com/analogdevicesinc/libiio.git
-cd libiio
-mkdir build
-cd build
-cmake ../ -D PYTHON_BINDINGS=TRUE
-make 
-sudo make install
+#!/usr/bin/env bash
+# Install the immutable, hardware-qualified SPF libiio extension. The former
+# version of this file cloned an unpinned upstream branch and cannot provide
+# frame metadata.
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+python_bin="${SPF_PYTHON:-${VIRTUAL_ENV:+${VIRTUAL_ENV}/bin/python}}"
+python_bin="${python_bin:-python3}"
+exec "${repo_root}/install_spf_libiio.sh" \
+    --series "${SPF_LIBIIO_SERIES:-0.25}" \
+    --python "$python_bin"

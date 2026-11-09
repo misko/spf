@@ -7,6 +7,7 @@ name = "spf"
 version = "0.0.1"
 dependencies = [
  "pytest",
+ "tomli>=2; python_version < '3.11'",
  "numpy>=1.25",
  "docker",
  "matplotlib",
@@ -28,7 +29,11 @@ dependencies = [
  # with ImportError: cannot import name 'cbuffer_sizes'. Pinning zarr without
  # pinning what zarr imports from is not a pin.
  "numcodecs<0.16",
- "pyadi-iio",
+ # Hardware-qualified with the SPF libiio 0.25/0.26 extension. The PyPI
+ # pylibiio dependency satisfies packaging; install_spf_libiio.sh overlays the
+ # matching modified C library and binding from an immutable source tag.
+ "pyadi-iio==0.0.18",
+ "pylibiio>=0.25,<0.27",
  "libusb1>=3.1",
  "pyproj",
  "compress-pickle",
@@ -54,6 +59,7 @@ markers = [
   "radio_hardware: requires explicitly enabled attached Pluto radio hardware",
   "radio_zarr: writes and reopens a short hardware-backed V7 Zarr artifact",
   "radio_gain_series_v3: requires explicitly enabled protocol-v3 gain-series firmware",
+  "radio_tandem_agc: requires explicitly enabled tandem-AGC v2 firmware",
   "radio_direct_ip: requires explicitly enabled direct-IP radio transport",
   "radio_direct_ip_ladder: parallel two-radio direct-IP rate/breakdown ladder",
   "radio_tx_loopback: explicitly enables a cabled and attenuated Pluto TX2 loopback",

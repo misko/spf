@@ -1335,8 +1335,8 @@
   "checked_on": "2026-08-07",
   "note": "the wide 53-LO integer-gain survey and the 2.4 GHz integer-gain runs no longer have raw stores on this machine",
   "expected_locations": [
-   "artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/",
-   "artifacts/dual_rx_gain_frequency/integer_gain_cross_2p4_20260729_special_17_18_v1/"
+   "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/",
+   "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/integer_gain_cross_2p4_20260729_special_17_18_v1/"
   ],
   "verified_absent": true,
   "search_performed": "artifacts/ contains only direct_usb_gain_metadata and direct_usb_stability; no *.v7.zarr exists under /mnt/{4tb_ssd,data,md0,md1,md2,ssd,usb_drive,backblaze}; /mnt/qnap01/.../spf_campaigns holds only the two spectroscopy campaigns and the 2026-08-07 follow-up"

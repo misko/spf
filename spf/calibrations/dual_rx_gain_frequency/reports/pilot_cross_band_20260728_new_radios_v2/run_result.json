@@ -2,7 +2,7 @@
   "completed_measurements": 648,
   "expected_measurements": 648,
   "measurements_per_radio": 324,
-  "output_dir": "artifacts/dual_rx_gain_frequency/pilot_cross_band_20260728_new_radios_v2",
+  "output_dir": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/pilot_cross_band_20260728_new_radios_v2",
   "radio_serials": [
     "104473b80a16000de6ff2000f8a6beca79",
     "104000b299050013f4ff0700255e35222f"

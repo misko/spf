@@ -96,6 +96,56 @@ unexpected pose, rejected acknowledgement, timeout, or missing terminal result.
 After a successful save, reboot ArduPilot and run `ardu_cli prearm` before
 restoring production.
 
+### Investigating an unconfirmed calibration result
+
+On Rover 4 (2026-08-04), the CLI reported no terminal result after the six-pose
+sequence, and nondefault offsets/scales were observed afterward. Those values
+alone do not establish whether that attempt succeeded: they can be from an
+earlier calibration. The cause of that field incident has not been confirmed.
+
+The CLI now tolerates repeated pose requests while waiting for the final result,
+using one fixed timeout. Previously, a buffered request for pose 6 could abort
+the wait immediately, leaving a following SUCCESS message unread. This sequence
+is reproduced in a regression test; it is not assumed to explain the field run.
+The accepted success/failure messages are unchanged, and missing confirmation
+still stops the combined calibration procedure before compass calibration.
+
+```bash
+# Read stored parameter values without writing calibration state.
+python -m spf.ardupilot.ardu_cli accelcal verify
+
+# Capture messages during a physically supervised calibration.
+python -m spf.ardupilot.ardu_cli accelcal start --yes \
+  --trace --trace-output accelcal_trace.txt
+```
+
+`accelcal verify` inspects the offset/scale parameters reported for IMU slots
+1–3. Each slot is labeled `default_values`, `nondefault_values`, `unknown`
+(missing axes), or `invalid_values` (nonfinite values or scales outside
+0.8–1.2). It does not infer which sensors are active, validate their identity,
+or prove that any values were written by the latest run. Unity scales with
+nonzero offsets are simply nondefault values, not a calibration failure.
+
+Its exit codes describe **parameter inspection**, not calibration readiness:
+
+- **0:** download complete, all reported slots have six finite values, and scales
+  are in range. This includes factory-default slots.
+- **1:** a complete inspection found invalid numeric values.
+- **2:** the download or a reported slot is incomplete, or no offset/scale
+  parameters were received. The overall status is `unknown` even if one complete
+  slot was received. Invalid values already observed are still listed.
+
+Human-readable and JSON output both include this limitation. Require a confirmed
+calibration result and ArduPilot pre-arm checks before restoring production.
+
+`--trace` records calibration messages to stderr, with command IDs, parameters,
+status text, and relative timestamps. Routine telemetry is counted by type.
+During pose and terminal waits, tracing receives messages without a type filter
+so unexpected message types can be inspected. It does not expand the success
+matcher. `--trace-output` implies tracing and saves the transcript when the
+calibration returns or raises an error. Both options also apply to the
+accelerometer stage of `calibrate`.
+
 The CLI refuses direct-serial access while `mavlink_controller.service` is
 active. Calibration actions additionally refuse an armed vehicle and require
 the explicit `--yes` acknowledgement. `--allow-active-service` exists only for

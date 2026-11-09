@@ -4,6 +4,97 @@ Durable, hard-won conclusions. Read this before making decisions about data qual
 training-set curation, or hardware/capture changes. Each entry states the finding, the
 evidence, and what to do (or not do) because of it. Newest first.
 
+## Rover (2026-09-12): calibration observations are not proof of the latest run
+
+The unmerged August 5 accelerometer diagnostic patch assumed that plausible
+stored offsets/scales proved the most recent six-pose attempt had saved. That
+is not established: values may predate the attempt. Keep tracing available,
+but report an unconfirmed result without claiming the calibration probably saved.
+
+A separate state-machine defect is reproducible without hardware: after the
+sixth sample confirmation, a repeated request for pose 6 followed by SUCCESS
+caused an immediate error and left SUCCESS unread. The final wait now ignores
+repeated pose requests until a terminal result or its original deadline. Repeated
+requests never extend that deadline. This fixes a demonstrated software defect;
+the cause of the original Rover 4 field incident remains unconfirmed.
+
+`accelcal verify` is read-only parameter inspection. Missing axes or an incomplete
+download mean unknown; nonfinite values and out-of-range scales are flagged.
+Complete default/nondefault values are observations, not calibration verdicts.
+Exit 0 means inspection completed, including when values are defaults. Sensor
+activity, identity, and calibration freshness cannot be inferred from this check.
+Use the actual calibration result and ArduPilot pre-arm checks for readiness.
+
+The upstream Rover 4.5.0 implementation repeats pose requests and terminal results:
+https://github.com/ArduPilot/ardupilot/blob/Rover-4.5.0/libraries/AP_AccelCal/AP_AccelCal.cpp
+Its sensor calibration checks also consider sensor identity and all detected accels:
+https://github.com/ArduPilot/ardupilot/blob/Rover-4.5.0/libraries/AP_InertialSensor/AP_InertialSensor.cpp
+
+## Method (2026-08-14): a null is worthless until you compute what the statistic
+## would have read if the hypothesis were TRUE
+
+The gain-phase rover investigation asserted "the physical question is closed" **twice**
+and retracted it twice, in a single day, on two different analyses. Both were caught in
+external review, not internally.
+
+1. `why_null.py` conditioned on `rx_theta_in_pis`, believing it was ground-truth bearing.
+   It is the array **mount orientation**, constant per receiver per capture, so every
+   frame fell in one "bearing bin" and the denominator contained the whole trajectory's
+   real geometric signal.
+2. `gain_fixed_effects.py` replaced it, fitted gain-state effects on the rover data
+   itself, got +0.018° to +0.087° on held-out captures, and read that as an upper bound.
+
+The second is the instructive one, because the code was **correct** and the numbers
+reproduce exactly. The failure was that nobody computed the **detection floor**. The
+metric, `mean|wrap(e)|`, responds *quadratically* to a small phase term buried in a
+49.2° residual — measured on the real residuals, **Δ = 0.0101·A²** degrees for an rms
+term of A degrees. The term at issue was 1.0–1.9°, so a **perfect** correction was worth
++0.010–0.036°, against the statistic's own seed-to-seed sd of **0.033°**, with the sign
+flipping on a nuisance parameter (`min_n` 8 → 25). **The experiment could not have
+detected the effect it claimed to bound, and would have returned a small positive number
+either way** — which is exactly what a randomised-label null returns.
+
+**What to do instead.** Before reporting any null, state the effect size at stake and
+compute the statistic's response to it. Two cheap instruments:
+
+- **Sensitivity law** — inject a synthetic effect of the claimed magnitude into the real
+  residuals and measure how far the headline moves. If a *perfect* correction is
+  invisible, the experiment is uninformative regardless of outcome.
+- **Break-even amplitude, MEASURED — not counted.** ⚠️ *Corrected 2026-08-14.* The obvious
+  move is the parameter-counting formula `A* = sd·sqrt(k/n_eff)`. **It was wrong here.** It
+  predicted 4.83° / 2.86° / 1.87° for the three parameterisations — a 2.58× spread with the
+  smallest model most sensitive. Injecting the real effect along the actual gain sequence
+  measured **3.08° / 3.41° / 2.91°**: a **1.17×** spread with the ordering **inverted**, and
+  measured cost per free parameter *anti-correlated* with *k*. The cost was dominated by
+  model misspecification, not by flexibility. **Measure the threshold by injection and
+  recovery; do not count parameters.** ("The most flexible model failed" is still not
+  evidence of absence — but "because it had too many parameters" was not the reason.)
+- **Inject the REAL effect shape, never `rng.normal`.** An i.i.d. Gaussian of identical rms
+  is effectively *orthogonal* to a structured estimator's basis: recovery was **35–153%**
+  for a gain-shaped injection and **0%** for a Gaussian at every amplitude (4/8 seeds
+  negative — pure noise). A Gaussian stand-in for a hardware effect measures nothing.
+- **Check which moment you have.** The amplitude fed into the sensitivity law was quoted as
+  an sd; it was a **mean absolute deviation**, correctly labelled where it was defined and
+  mislabelled everywhere it was used. The law squares its input, so the error squared. The
+  observed rms/MAD was **1.81–3.02**, so even the Gaussian 1.253 conversion would have been
+  wrong. **Trace a number to its definition before putting it in a formula.**
+
+**Corollary — "fitted on the target data" does NOT make something an upper bound.** That
+argument requires the competing model to be a strict sub-model. It was not: the feature
+key was `(g1, g2, LO)` while 6 distinct Plutos across 3 rovers were pooled, so a
+per-radio model lived in a dimension the fit *discarded*. Check the nesting claim
+literally, against the feature construction.
+
+**Corollary — report dispersion or report nothing.** One fold seed, no CI, and "all nine
+cells are positive" presented as nine confirmations when they share frames, folds and
+residuals. Always: per-capture CI, seed spread, nuisance-parameter sweep, and a
+**run-preserving** null (circular shift, not a plain shuffle — gain is held for long runs
+and the residual autocorrelates, so shuffling destroys the structure and inflates
+significance).
+
+Full account: `docs/gain_phase_rover_investigation_20260814.md` (Retractions 1 and 2),
+calibration in `spf/filters/reports/phasecorr_direct_pf_20260814_v1/analysis/power_calibration.py`.
+
 ## Rover/CI (2026-08-08): `cmd | grep -q` under `set -o pipefail` reports "not
 ## found" when the match comes EARLY — a silent, always-negative failure
 
@@ -1636,3 +1727,60 @@ two power readings per hop. And RSSI is quantised to 0.25 dB, is input-referred,
 [[E-HCP1]] is only a valid input-power estimate while the ADC is out of overload, which is
 what makes E-AGC1's latching CTRL_OUT flags the natural validity signal for each point.
 
+
+## Ops (2026-08-11): persistent QSPI flashing lives in the rover tree, not the bench
+## tree — and a RAM-booted image silently makes the flasher a no-op
+
+Found while promoting the gain-series-v4 image (`95e952326`) after its RAM-boot gates
+passed. Two independent traps, both of which produce a *confident wrong answer* rather
+than an error.
+
+**1. The bench tooling has no QSPI write path, and that is deliberate — do not conclude
+one does not exist.** `spf/scripts/pluto_multi_firmware.py` offers eight subcommands
+(`discover-count`, `load-all`, `verify-all`, `check-config-all`, `provision-config-all`,
+`rollback-all`, `restart-all`, `status-all`) and none writes flash; its docstring is
+"Safely RAM-load direct-USB firmware". The persistent flasher is in the **rover** tree:
+
+| Tool | Role |
+|---|---|
+| `data_collection/rover/rover_v3.1/make_pluto_frm.sh` | derives `pluto.frm` from a published `.dfu` (strip 16-byte DFU suffix → `.itb`, append md5 trailer); no Vivado rebuild |
+| `data_collection/rover/rover_v3.1/ensure_pluto_qspi.sh` | version-conditional flash via the on-device mass-storage updater |
+| `data_collection/rover/rover_v3.1/PLUTO_QSPI_FLASH.md` | partition map, brick history, recovery |
+
+Searching only `spf/scripts/` for "qspi" yields the *approved-version check* and nothing
+that writes, which reads as "there is no supported path". There is one, and it is proven.
+
+**2. `ensure_pluto_qspi.sh` decides from the ACTIVE firmware, so a matching RAM image
+makes it skip and report success without writing QSPI.** It compares the running
+device-fw *and* gadget SHA over USB-IIO and skips on a match — correct when RAM loading
+is disabled, which is the assumption its header states. But immediately after a RAM-boot
+validation campaign the radios are running the very image you are about to flash, so both
+checks match, both radios are skipped, and QSPI still holds the old firmware. Nothing
+errors and the next power cycle quietly reverts.
+
+Concretely: v4 ships gadget `2e8e40ade5dcf3c7880a5ebb58419ad7c37ed552`, which is the same
+SHA RC17 records, so even the gadget check cannot distinguish them.
+
+**Reboot the radios to QSPI first**, confirm they return on the installed version, and
+only then flash. Verifying `/opt/VERSIONS` after a flash is not sufficient either — a
+RAM-booted radio reports the new string regardless of what is in `mtd3`.
+
+**3. `DEFAULT_APPROVED_QSPI_DEVICE_FW = ("v0.37-dirty",)` does NOT describe what is in
+QSPI, and only one code path enforces it.** Measured on both bench radios on 2026-08-11
+after rebooting them off their RAM image: QSPI holds
+`v0.38-plutoplus-spf-gain-series-v4-rc12-9-g867e1` — SPF firmware, persistently flashed
+some time ago, exactly as `PLUTO_QSPI_FLASH.md` §1 records. `RADIO_NOTES.md`'s
+"QSPI/runtime firmware before RAM loading = `v0.37-dirty`" is stale for these two units.
+
+The gate `_require_approved_qspi_version()` is called from `provision_config_all()` only —
+**not** from `check_config_all()`. `run_gain_series_v3_candidate.sh` runs `check-config-all`,
+which is why every gate passes today despite QSPI holding an unapproved version. So a
+persistent flash does *not* break the bench campaign; it breaks `provision-config-all`,
+which the rover path already parameterises via `load_direct_usb_firmware.sh:381`. Do not
+infer installed firmware from that constant — reboot the radio off any RAM image and read
+`fw_version` over USB-IIO.
+
+Unchanged and still true: only `pluto.frm` → `/dev/mtdblock3` is safe; the historical
+PlutoPlus v0.38 bricks came from `*-fw-*.zip`/`boot.frm`, which rewrite the FSBL/U-Boot in
+`mtdblock0/1`. See [[Ops-2026-08-11-ram-reload-rotates-dhcp-leases]] for the companion
+hazard that addresses rotate across any firmware load.

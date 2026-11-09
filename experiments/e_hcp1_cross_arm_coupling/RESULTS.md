@@ -3,7 +3,7 @@
 **Run:** 2026-08-11, R17 `104000bac4950008230026001b440a003a`, ~3 minutes.
 **Firmware:** stock RC17 `…-rc16-7-g1f3fe`. **Harness:** unchanged —
 TX2 → 30 dB pad → bare SMA tee → RX1/RX2.
-**Raw:** `artifacts/harness_coupling/20260811_r17_v1/` (gitignored) ·
+**Raw:** `/mnt/qnap01/mouse9911/spf/calibration_data/raw/harness_coupling/20260811_r17_v1/` (gitignored) ·
 **Committed:** [`coupling.json`](coupling.json)
 
 ## Answer: coupling is small and **frequency-flat**, while `A` is not

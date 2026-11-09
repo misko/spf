@@ -691,7 +691,7 @@ cmd_ardupilot() {
                 "" \
                 "calibrate (accel BEFORE compass, with a reboot between — the compass" \
                 "fit uses the accel/gyro attitude, and accel offsets need a restart):" \
-                "  accelcal     six-position accelerometer + gyro calibration" \
+                "  accelcal     six-position accel + gyro calibration (start | verify)" \
                 "  magcal       compass calibration (start | accept | cancel | monitor)" \
                 "  calibrate    all of the above in order, plus a pre-arm verify" \
                 "" \
@@ -703,6 +703,7 @@ cmd_ardupilot() {
                 "the usual sequence, with production stopped:" \
                 "  sudo systemctl stop mavlink_controller.service" \
                 "  rover ardupilot accelcal start --yes" \
+                "  rover ardupilot accelcal verify        # inspect stored INS_ACC* values" \
                 "  rover ardupilot reboot --yes" \
                 "  rover ardupilot compass --repair --yes --parameter-timeout 90" \
                 "  rover ardupilot magcal start --yes --mask 1 --retry --monitor-seconds 300" \

@@ -31,6 +31,7 @@ from .model_matrix import write_model_matrix_bundle
 from .power_cycle import PowerCycleThresholds, write_power_cycle_bundle
 from .report import write_analysis_bundle
 from .runner import load_calibration_document, probe_loopback, run_calibration
+from .hardware import DirectUsbLoopbackRadio, IioLoopbackRadio
 from .validate import validate_dataset, write_validation_report
 
 
@@ -58,11 +59,13 @@ def _run(args) -> int:
         progress_bar.refresh()
 
     try:
+        radio_factory = _radio_factory_from_args(args)
         result = run_calibration(
             config_path=args.config,
             output_dir=args.output,
             ready_manifest_path=args.ready_manifest,
             serials=tuple(args.serial) if args.serial else None,
+            radio_factory=radio_factory,
             progress=progress,
         )
     finally:
@@ -92,6 +95,14 @@ def _validate(args) -> int:
         config=config,
         expected_serial=args.serial,
         recompute_iq=not args.no_recompute_iq,
+        expected_rx_transport=(
+            "iio" if args.transport.startswith("iio-") else "direct_usb"
+        ),
+        expected_iio_backend=(
+            args.transport.removeprefix("iio-")
+            if args.transport.startswith("iio-")
+            else None
+        ),
     )
     if args.output:
         write_validation_report(args.output, report)
@@ -103,6 +114,40 @@ def _validate(args) -> int:
         )
     )
     return 0 if report["status"] == "pass" else 1
+
+
+def _parse_iio_uri_assignments(values: list[str]) -> dict[str, str]:
+    result = {}
+    for value in values:
+        serial, separator, uri = value.partition("=")
+        if not separator or not serial or not uri:
+            raise ValueError("--iio-uri must be SERIAL=usb:... or SERIAL=ip:...")
+        if serial in result:
+            raise ValueError(f"duplicate --iio-uri for {serial}")
+        result[serial] = uri
+    return result
+
+
+def _radio_factory_from_args(args):
+    if args.transport == "direct-usb":
+        return DirectUsbLoopbackRadio
+    uri_by_serial = _parse_iio_uri_assignments(args.iio_uri)
+    required_prefix = "usb:" if args.transport == "iio-usb" else "ip:"
+    for serial, uri in uri_by_serial.items():
+        if not uri.startswith(required_prefix):
+            raise ValueError(
+                f"{serial}: {args.transport} requires a {required_prefix} URI"
+            )
+    if args.transport == "iio-ip" and not uri_by_serial:
+        raise ValueError("iio-ip requires one --iio-uri SERIAL=ip:HOST per radio")
+
+    def factory(serial, config):
+        uri = uri_by_serial.get(serial)
+        if args.transport == "iio-ip" and uri is None:
+            raise ValueError(f"missing --iio-uri for {serial}")
+        return IioLoopbackRadio(serial, config, uri=uri)
+
+    return factory
 
 
 def _fit(args) -> int:
@@ -384,6 +429,18 @@ def parse_args():
     run_parser.add_argument("--output", type=Path, required=True)
     run_parser.add_argument("--serial", action="append", default=[])
     run_parser.add_argument(
+        "--transport",
+        choices=("direct-usb", "iio-usb", "iio-ip"),
+        default="direct-usb",
+    )
+    run_parser.add_argument(
+        "--iio-uri",
+        action="append",
+        default=[],
+        metavar="SERIAL=URI",
+        help="explicit IIO URI; required per radio for iio-ip",
+    )
+    run_parser.add_argument(
         "--ready-manifest",
         type=Path,
         default=Path("/run/spf/direct_usb_ready.json"),
@@ -429,6 +486,11 @@ def parse_args():
     validate_parser.add_argument("--serial")
     validate_parser.add_argument("--output", type=Path)
     validate_parser.add_argument("--no-recompute-iq", action="store_true")
+    validate_parser.add_argument(
+        "--transport",
+        choices=("direct-usb", "iio-usb", "iio-ip"),
+        default="direct-usb",
+    )
     validate_parser.set_defaults(function=_validate)
 
     fit_parser = subparsers.add_parser(

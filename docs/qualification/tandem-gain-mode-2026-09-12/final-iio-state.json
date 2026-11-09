@@ -1,0 +1,11 @@
+{
+  "fault_flags": "0",
+  "ownership_epoch": "0",
+  "state": "0",
+  "gain_modes": [
+    "manual",
+    "manual"
+  ],
+  "serial": "104473b80a16000de6ff2000f8a6beca79",
+  "legacy_metadata_capability": "1"
+}

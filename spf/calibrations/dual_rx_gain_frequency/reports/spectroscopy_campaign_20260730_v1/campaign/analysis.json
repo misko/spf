@@ -1787,11 +1787,11 @@
         }
       }
     },
-    "prior_calibration_root": "/home/pi/spf/artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1",
+    "prior_calibration_root": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1",
     "provenance": {
       "1040007c4a94000211000b009186843ef2": {
         "calibration_run_signature": "5a92fe66bc1a9f287453a9aa2938c5fbd2607414dd54de8c4a3528ab8cf04ac9",
-        "dataset_path": "/home/pi/spf/artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+        "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
         "firmware_git_sha": "7b02276519a802aed83d47b6672c46e578ce4de0",
         "firmware_image_sha256": "0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9",
         "firmware_release_tag": "v0.38-plutoplus-spf-gain-rssi-fingerprint-v1",
@@ -1802,7 +1802,7 @@
       },
       "104000bac4950008230026001b440a003a": {
         "calibration_run_signature": "f5f1bc021377934c1543bc5520ff8dbdb1ee4be7169d58b227f812fa38140913",
-        "dataset_path": "/home/pi/spf/artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+        "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr",
         "firmware_git_sha": "7b02276519a802aed83d47b6672c46e578ce4de0",
         "firmware_image_sha256": "0a6a8939b31babed2ad7093d83941ebc809323d69804adcd8da5bcae0e48d3e9",
         "firmware_release_tag": "v0.38-plutoplus-spf-gain-rssi-fingerprint-v1",

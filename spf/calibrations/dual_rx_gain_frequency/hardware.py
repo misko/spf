@@ -22,8 +22,12 @@ from spf.sdrpluto.sdr_controller import (
     PLUTO_USB_VENDOR_ID,
     PlutoRxBuffer,
     SdrDeviceIdentity,
+    _find_local_pluto_usb_device,
+    _gain_series_arrays,
     _iq_power_dbfs,
 )
+from spf.direct_radio.iio_metadata import IioMetadataRx
+from spf.direct_radio.usb_protocol import RadioMetadataV3
 
 
 UNSAFE_FLAGS = (
@@ -469,3 +473,170 @@ class DirectUsbLoopbackRadio:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
+
+
+class IioLoopbackRadio(DirectUsbLoopbackRadio):
+    """Pluto TX2 loopback captured through standard metadata-enabled libiio.
+
+    ``uri`` may be either a discovered ``usb:`` URI or an explicit ``ip:``
+    URI.  In both cases every call to :meth:`capture` performs one ordinary,
+    request-driven IIO buffer refill; no independent producer or host-side IQ
+    queue is introduced by this adapter.
+    """
+
+    def __init__(
+        self,
+        serial: str,
+        config: CalibrationConfig,
+        *,
+        uri: str | None = None,
+        adi_module=None,
+        scan_contexts=None,
+        metadata_receiver_class=IioMetadataRx,
+    ):
+        config.validate()
+        if adi_module is None:
+            import adi as adi_module
+        if scan_contexts is None:
+            import iio
+
+            scan_contexts = iio.scan_contexts
+        self.serial = serial
+        self.config = config
+        self.uri = uri or self._resolve_uri(scan_contexts())
+        if not self.uri.startswith(("usb:", "ip:")):
+            raise ValueError(f"unsupported IIO URI: {self.uri}")
+        self.sdr = adi_module.ad9361(uri=self.uri)
+        actual_serial = self.sdr._ctx.attrs.get("hw_serial")
+        actual_serial = getattr(actual_serial, "value", actual_serial)
+        if actual_serial != serial:
+            self.sdr = None
+            raise RuntimeError(
+                f"IIO serial mismatch: requested {serial}, opened {actual_serial}"
+            )
+        self.direct = None
+        self._tone_active = False
+        self._active_tx_gain = None
+        self._iio_rx = None
+        try:
+            self._configure_static()
+            # MetadataBuffer may expose one buffer that was armed during open.
+            # Seed that buffer with the experiment's reference gain so startup
+            # cannot inherit a manual gain left by an earlier process.
+            reference_gain = int(config.tx_reference_rx_gain_db)
+            self.set_gains(reference_gain, reference_gain)
+            self._iio_rx = metadata_receiver_class(
+                self.sdr,
+                sample_rate_hz=int(config.sample_rate_hz),
+                samples_per_channel=int(config.buffer_size),
+            )
+            self._iio_rx.open()
+        except Exception:
+            self.close()
+            raise
+
+    def _prime_iio_rx_dma(self) -> None:
+        """Complete one metadata IIO refill after arming DDS when requested."""
+
+        self.capture()
+
+    def identity(self) -> SdrDeviceIdentity:
+        # These experiments require locally attached radios even for the IP
+        # pass, so bind the network context to the same physical unit used in
+        # the USB pass and to the boot-attested hardware fingerprint.
+        usb_bus, usb_address, usb_port_path = _find_local_pluto_usb_device(self.serial)
+        return SdrDeviceIdentity(
+            sdr_family="pluto",
+            serial=self.serial,
+            receiver_uri=self.uri,
+            rx_transport="iio",
+            usb_vendor_id=PLUTO_USB_VENDOR_ID,
+            usb_product_id=PLUTO_USB_PRODUCT_ID,
+            usb_bus=usb_bus,
+            usb_address=usb_address,
+            usb_port_path=usb_port_path,
+        )
+
+    def discard(self, frame_count: int) -> None:
+        for _ in range(max(0, int(frame_count))):
+            self.capture()
+
+    def capture(self) -> PlutoRxBuffer:
+        if self._iio_rx is None:
+            raise RuntimeError("IIO metadata RX is not open")
+        signal, metadata, capture_time = self._iio_rx.capture()
+        if not isinstance(metadata, RadioMetadataV3):
+            raise RuntimeError("IIO calibration requires radio metadata V3")
+        unsafe = metadata.flags & UNSAFE_FLAGS
+        if unsafe:
+            raise RuntimeError(f"unsafe IIO metadata flags: 0x{int(unsafe):x}")
+        if not metadata.gain_metadata_valid or not metadata.rssi_metadata_valid:
+            raise RuntimeError("IIO gain/RSSI metadata is invalid")
+        first_change = np.asarray(
+            [
+                -1
+                if metadata.rx1_first_change_sample == FIRST_CHANGE_UNAVAILABLE
+                else metadata.rx1_first_change_sample,
+                -1
+                if metadata.rx2_first_change_sample == FIRST_CHANGE_UNAVAILABLE
+                else metadata.rx2_first_change_sample,
+            ],
+            dtype=np.int32,
+        )
+        gain_series = _gain_series_arrays(metadata)
+        observation_indices = gain_series["gain_observation_index"]
+        if observation_indices.shape[0]:
+            gain_index_start = observation_indices[0]
+            gain_index_end = observation_indices[-1]
+        else:
+            gain_index_start = np.full(2, 0xFF, dtype=np.uint8)
+            gain_index_end = np.full(2, 0xFF, dtype=np.uint8)
+        return PlutoRxBuffer(
+            signal_matrix=signal,
+            rssis=np.asarray(metadata.rssi_db_end, dtype=np.float64),
+            gains=np.asarray(metadata.gain_db_end, dtype=np.float64),
+            gain_index_start=gain_index_start,
+            gain_index_end=gain_index_end,
+            gain_metadata_valid=metadata.gain_metadata_valid,
+            gain_endpoints_equal=np.asarray(
+                metadata.gain_endpoints_equal, dtype=np.bool_
+            ),
+            gain_metadata_flags=int(metadata.flags),
+            stream_id=metadata.stream_id,
+            buffer_sequence=metadata.buffer_sequence,
+            sample_sequence=metadata.first_sample_sequence,
+            gain_start_read_duration_ns=metadata.gain_start_read_duration_ns,
+            gain_end_read_duration_ns=metadata.gain_end_read_duration_ns,
+            first_gain_change_sample=first_change,
+            iq_power_dbfs=_iq_power_dbfs(signal),
+            gain_db_start=np.asarray(metadata.gain_db_start, dtype=np.float32),
+            gain_db_end=np.asarray(metadata.gain_db_end, dtype=np.float32),
+            rssi_db_start=np.asarray(metadata.rssi_db_start, dtype=np.float32),
+            rssi_db_end=np.asarray(metadata.rssi_db_end, dtype=np.float32),
+            rssi_metadata_valid=metadata.rssi_metadata_valid,
+            rssi_start_read_duration_ns=metadata.rssi_start_read_duration_ns,
+            rssi_end_read_duration_ns=metadata.rssi_end_read_duration_ns,
+            **capture_time,
+            **gain_series,
+        )
+
+    def capture_after_discard(self, discard_frame_count: int) -> PlutoRxBuffer:
+        if discard_frame_count < 0:
+            raise ValueError("discard frame count cannot be negative")
+        self.discard(discard_frame_count)
+        return self.capture()
+
+    def close(self) -> None:
+        receiver = getattr(self, "_iio_rx", None)
+        self._iio_rx = None
+        if receiver is not None:
+            receiver.close()
+        if getattr(self, "sdr", None) is not None:
+            sdr = self.sdr
+            try:
+                self.stop_tone()
+            finally:
+                try:
+                    sdr.rx_destroy_buffer()
+                finally:
+                    self.sdr = None

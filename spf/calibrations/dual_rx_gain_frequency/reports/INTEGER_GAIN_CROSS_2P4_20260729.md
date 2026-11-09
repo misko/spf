@@ -42,7 +42,7 @@ python -m spf.calibrations.dual_rx_gain_frequency run \
   --config \
     spf/calibrations/dual_rx_gain_frequency/configs/integer_gain_cross_2p4.yaml \
   --output \
-    artifacts/dual_rx_gain_frequency/integer_gain_cross_2p4_20260729_special_17_18_v1 \
+    /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/integer_gain_cross_2p4_20260729_special_17_18_v1 \
   --serial 104000bac4950008230026001b440a003a \
   --serial 1040007c4a94000211000b009186843ef2 \
   --ready-manifest /run/spf/direct_usb_ready.json

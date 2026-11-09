@@ -2,8 +2,8 @@
   "artifact_root": null,
   "config_path": "spf/calibrations/dual_rx_gain_frequency/configs/wide_integer_gain_cross_band.yaml",
   "dataset_paths": [
-    "artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr",
-    "artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr"
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+    "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr"
   ],
   "default_model_policy": {
     "accuracy_reference": "frequency_specific_additive_gain_per_radio",
@@ -64594,7 +64594,7 @@
         "sdr_serial": "104000bac4950008230026001b440a003a"
       },
       "completed_frames": 27825,
-      "dataset_path": "artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr",
+      "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/104000bac4950008230026001b440a003a/calibration.v7.zarr",
       "quality_reason_counts": {
         "cross_channel_coherence_low": 2,
         "rx1_tone_snr_low": 25,
@@ -64619,7 +64619,7 @@
         "sdr_serial": "1040007c4a94000211000b009186843ef2"
       },
       "completed_frames": 27825,
-      "dataset_path": "artifacts/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
+      "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/overnight_wide_integer_gain_cross_20260730_special_17_18_v1/1040007c4a94000211000b009186843ef2/calibration.v7.zarr",
       "quality_reason_counts": {
         "cross_channel_coherence_low": 9,
         "rx1_tone_snr_low": 22,

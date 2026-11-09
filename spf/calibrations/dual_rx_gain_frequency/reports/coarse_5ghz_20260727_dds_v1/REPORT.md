@@ -9,7 +9,7 @@ From the SPF repository root, with the source V7 artifact present:
 ```bash
 python -m spf.calibrations.dual_rx_gain_frequency compare-models \
   --config spf/calibrations/dual_rx_gain_frequency/configs/coarse_5ghz.yaml \
-  --artifact-root artifacts/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1 \
+  --artifact-root /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1 \
   --output-dir spf/calibrations/dual_rx_gain_frequency/reports/coarse_5ghz_20260727_dds_v1
 ```
 

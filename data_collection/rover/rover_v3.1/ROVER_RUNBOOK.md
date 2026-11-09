@@ -472,6 +472,14 @@ mavproxy.py --master /dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0G4IOK-if00-
    ```
    Reboot ArduPilot and run `python -m spf.ardupilot.ardu_cli prearm` before
    restoring production.
+
+   > **If calibration completion is not confirmed, keep production stopped.**
+   > Inspect stored values with the read-only
+   > `python -m spf.ardupilot.ardu_cli accelcal verify`. Its exit code 0 means
+   > parameter inspection completed, not that this calibration succeeded;
+   > values may come from an earlier run. Missing values mean unknown.
+   > To investigate during a supervised calibration, capture messages with
+   > `accelcal start --yes --trace --trace-output accelcal_trace.txt`.
 3. **Compass / magcal** (`magcal start` then accept via mavproxy/Mission Planner). **Do this every collection era** — a skipped magcal is the traced root cause of the Dec–Feb heading bias (−0.14…−0.33 rad); it will trip `FLAG:heading` in the post-run scan.
 4. **Set `SYSID_THISMAV`** — unique MAVLink system id per rover.
 5. **Backup parameters** (verify the backup actually succeeded — see MP-2: a failed diff can exit 0).

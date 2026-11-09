@@ -8,6 +8,7 @@ from __future__ import annotations
 import concurrent.futures
 import dataclasses
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -232,10 +233,33 @@ def _simultaneous_rolling_stream(serial: str, samples: int, frames: int) -> dict
     }
 
 
+def _require_simultaneous_usbfs_capacity(radio_count: int, samples: int) -> None:
+    """Fail before claiming devices when usbfs cannot hold the live transfers."""
+
+    path = Path("/sys/module/usbcore/parameters/usbfs_memory_mb")
+    if not path.exists():
+        return
+    configured_mib = int(path.read_text().strip())
+    iq_bytes = radio_count * samples * 8
+    # Keep 4 MiB beyond the IQ payload for libusb bookkeeping and concurrent
+    # control/metadata transfers. Four 4 MiB frames otherwise exactly consume
+    # the usual 16 MiB pool and fail later as misleading PIPE/NO_DEVICE errors.
+    required_mib = math.ceil(iq_bytes / (1024 * 1024)) + 4
+    if configured_mib < required_mib:
+        pytest.fail(
+            "insufficient host usbfs transfer memory for simultaneous capture: "
+            f"configured={configured_mib} MiB, required>={required_mib} MiB; "
+            "temporarily raise it with `echo 128 | sudo tee "
+            "/sys/module/usbcore/parameters/usbfs_memory_mb`, or reduce "
+            "--radio-samples"
+        )
+
+
 def test_simultaneous_radios(attached_plutos, pytestconfig, radio_report_dir):
     if len(attached_plutos) < 2:
         pytest.skip("simultaneous capture requires at least two selected radios")
     samples = pytestconfig.getoption("--radio-samples")
+    _require_simultaneous_usbfs_capacity(len(attached_plutos), samples)
     # Production asks for one finite frame per radio. Do not multiply the
     # multi-frame parser test by the radio count here: two radios x three
     # 4 MiB frames exceeds Linux's common 16 MiB usbfs transfer-memory limit
@@ -262,6 +286,7 @@ def test_simultaneous_rolling_streams(attached_plutos, pytestconfig, radio_repor
     if len(attached_plutos) < 2:
         pytest.skip("simultaneous streaming requires at least two selected radios")
     samples = pytestconfig.getoption("--radio-samples")
+    _require_simultaneous_usbfs_capacity(len(attached_plutos), samples)
     frames = pytestconfig.getoption("--radio-frames-per-request")
     assert frames > 1
     with concurrent.futures.ThreadPoolExecutor(

@@ -345,7 +345,7 @@ python -m spf.calibrations.dual_rx_gain_frequency probe \
   --config \
     spf/calibrations/dual_rx_gain_frequency/configs/pilot_cross_band.yaml \
   --serial SERIAL \
-  --output "artifacts/dual_rx_gain_frequency_probe_SERIAL.json"
+  --output "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/probes/dual_rx_gain_frequency_probe_SERIAL.json"
 ```
 
 The production path is TX2, represented by `--tx-channel 1` if the diagnostic

@@ -1,6 +1,8 @@
 import json
 import csv
 import gzip
+import hashlib
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -27,6 +29,47 @@ MATRIX_PATH = (
     REPO_ROOT / "spf/calibrations/dual_rx_gain_frequency/reports/"
     "six_radio_dense_20260729_v1/model_matrix.json"
 )
+
+
+def _registry_model_paths(root):
+    registry = json.loads((root / "registry.json").read_text())
+    for model_name, model_row in registry["models"].items():
+        for serial in model_row["configs_by_serial"]:
+            yield root / model_name / f"{serial}.json"
+
+
+@pytest.fixture
+def loadable_historical_registry(tmp_path):
+    """Make archived models executable without modifying historical evidence.
+
+    Shared support profiles changed after these model snapshots were exported,
+    so their recorded hashes correctly fail closed. Functional tests reconcile
+    only a temporary copy; the repository copy remains immutable and is tested
+    separately below.
+    """
+
+    root = tmp_path / "models"
+    shutil.copytree(REGISTRY_ROOT, root)
+    for model_path in _registry_model_paths(root):
+        document = json.loads(model_path.read_text())
+        support = document["support_profile"]
+        support_path = (model_path.parent / support["path"]).resolve()
+        support["sha256"] = hashlib.sha256(support_path.read_bytes()).hexdigest()
+        model_path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
+    return root
+
+
+def test_historical_registry_rejects_stale_support_hashes():
+    rejected = []
+    for model_path in _registry_model_paths(REGISTRY_ROOT):
+        with pytest.raises(ValueError, match="support profile hash mismatch"):
+            load_model(
+                model_path.parent.name,
+                model_path.stem,
+                registry_root=REGISTRY_ROOT,
+            )
+        rejected.append(model_path)
+    assert len(rejected) == 56
 
 
 def _source_prediction(matrix, model_name, radio_index, coordinate):
@@ -62,7 +105,9 @@ def _source_prediction(matrix, model_name, radio_index, coordinate):
     return float(wrap_phase((design @ beta)[0]))
 
 
-def test_all_exported_models_load_and_match_source_matrix():
+def test_all_exported_models_load_and_match_source_matrix(
+    loadable_historical_registry,
+):
     registry = json.loads((REGISTRY_ROOT / "registry.json").read_text())
     matrix = json.loads(MATRIX_PATH.read_text())
     assert registry["recommended_model"] == (
@@ -80,7 +125,11 @@ def test_all_exported_models_load_and_match_source_matrix():
         if model_name in matrix["models"]:
             assert expected_serials == set(registry["radio_serials"])
         for serial in expected_serials:
-            model = load_model(model_name, serial, registry_root=REGISTRY_ROOT)
+            model = load_model(
+                model_name,
+                serial,
+                registry_root=loadable_historical_registry,
+            )
             coordinate = sorted(model.supported_cells)[0]
             actual = model.predict_phase_offset(
                 frequency_hz=coordinate[0],
@@ -99,11 +148,13 @@ def test_all_exported_models_load_and_match_source_matrix():
             assert actual == pytest.approx(expected, abs=1e-12)
 
 
-def test_strict_prediction_rejects_a_quality_unsupported_cell():
+def test_strict_prediction_rejects_a_quality_unsupported_cell(
+    loadable_historical_registry,
+):
     model = load_model(
         "frequency_specific_additive_gain_per_radio",
         "104473b80a16000de6ff2000f8a6beca79",
-        registry_root=REGISTRY_ROOT,
+        registry_root=loadable_historical_registry,
     )
     all_cells = {
         (frequency, gain1, gain2)
@@ -120,11 +171,13 @@ def test_strict_prediction_rejects_a_quality_unsupported_cell():
         )
 
 
-def test_phase_correction_subtracts_and_wraps_prediction():
+def test_phase_correction_subtracts_and_wraps_prediction(
+    loadable_historical_registry,
+):
     model = load_model(
         "frequency_specific_additive_gain_per_radio",
         "104000707f0700120f001a0095f2dbee49",
-        registry_root=REGISTRY_ROOT,
+        registry_root=loadable_historical_registry,
     )
     coordinate = (2_412_000_000, 26, 41)
     offset = model.predict_phase_offset(
@@ -265,13 +318,15 @@ def test_complete_additive_cross_export_supports_full_gain_product(tmp_path):
     ) == pytest.approx(0.55)
 
 
-def test_external_wall_validation_rederives_geometry_and_subtracts_model(tmp_path):
+def test_external_wall_validation_rederives_geometry_and_subtracts_model(
+    tmp_path, loadable_historical_registry
+):
     serial = "104000bac4950008230026001b440a003a"
     frequency_hz = 2_467_100_000
     model = load_model(
         COMPLETE_2P4_MODEL_NAME,
         serial,
-        registry_root=REGISTRY_ROOT,
+        registry_root=loadable_historical_registry,
     )
     fieldnames = [
         "capture",
@@ -331,7 +386,7 @@ def test_external_wall_validation_rederives_geometry_and_subtracts_model(tmp_pat
         receiver="r0",
         serial=serial,
         frequency_hz=frequency_hz,
-        registry_root=REGISTRY_ROOT,
+        registry_root=loadable_historical_registry,
     )
 
     assert result["integrity"]["selected_rows"] == 4

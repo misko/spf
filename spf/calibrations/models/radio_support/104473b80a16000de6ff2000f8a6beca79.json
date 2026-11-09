@@ -39,8 +39,8 @@
   "schema_version": 1,
   "source": {
     "analysis_input_sha256": "b648131701ecaf5d1910040427fbfb610244eca2f95f7fdf1c78eaff37bfd916",
-    "dataset_path": "artifacts/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104473b80a16000de6ff2000f8a6beca79/calibration.v7.zarr",
-    "validation_path": "artifacts/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104473b80a16000de6ff2000f8a6beca79/validation.json",
+    "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104473b80a16000de6ff2000f8a6beca79/calibration.v7.zarr",
+    "validation_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260728_new_radios_v1/104473b80a16000de6ff2000f8a6beca79/validation.json",
     "validation_sha256": "eb4df0f4050bccc979bda2ec194a3023838aebc94c3fb04a68f971b4a1896f37",
     "validation_status": "fail_quality"
   },

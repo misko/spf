@@ -10,7 +10,7 @@ Command:
   -m spf.sdrpluto.benchmark_rover_frame \
   --config data_collection/rover/rover_v3.1/capture_configs/rover3_one_radio_benchmark_iio.yaml \
   --uri usb:1.10.5 \
-  --output-dir artifacts/direct_usb_gain_metadata/rover3_one_radio/2026-07-25_iio_baseline_repeat
+  --output-dir /mnt/qnap01/mouse9911/spf/calibration_data/raw/direct_usb_gain_metadata/rover3_one_radio/2026-07-25_iio_baseline_repeat
 ```
 
 Device:

@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 import usb1
 
-
 PLUTO_VENDOR_ID = 0x0456
 PLUTO_PRODUCT_ID = 0xB673
 
@@ -39,6 +38,45 @@ def pytest_addoption(parser):
         type=int,
         default=None,
         help="require exactly this many selected attached radios",
+    )
+    group.addoption(
+        "--radio-lan-radio",
+        action="append",
+        default=[],
+        metavar="SERIAL=HOST",
+        help=(
+            "bind an attached serial to its known LAN address; repeat once per "
+            "radio to avoid probing unrelated LAN neighbors"
+        ),
+    )
+    group.addoption(
+        "--radio-direct-ip-transport",
+        choices=("udp", "tcp"),
+        default="udp",
+        help=(
+            "data transport for direct-IP gates. Defaults to udp so the "
+            "existing numbers stay the baseline; 'tcp' fails closed rather "
+            "than falling back, so a cell cannot silently run as udp"
+        ),
+    )
+    group.addoption(
+        "--radio-direct-ip-datagram-bytes",
+        type=int,
+        default=1_472,
+        help=(
+            "direct-IP chunk size. 65507 is the large-chunk cell, which "
+            "isolates the effect of chunk size from the effect of transport"
+        ),
+    )
+    group.addoption(
+        "--radio-direct-ip-on-backlog",
+        choices=("fail", "drop"),
+        default="fail",
+        help=(
+            "backpressure policy. 'drop' sheds whole frames instead of "
+            "stalling; run it only after the same cell passes on 'fail', "
+            "since a drop-mode run cannot fail the way a fail-mode run does"
+        ),
     )
     group.addoption(
         "--radio-samples",
@@ -103,6 +141,11 @@ def pytest_addoption(parser):
         "--radio-gain-series-v3",
         action="store_true",
         help="enable protocol-v3 sample-associated gain-series hardware gates",
+    )
+    group.addoption(
+        "--radio-tandem-agc",
+        action="store_true",
+        help="enable forward-only tandem-AGC v2 ownership and metadata gates",
     )
     group.addoption(
         "--radio-gain-observation-interval",
@@ -185,7 +228,11 @@ def pytest_addoption(parser):
         "--radio-tx-loopback-attenuation-db",
         type=float,
         default=None,
-        help="physical attenuation from TX2 to each RX input; required for TX tests",
+        help=(
+            "minimum physical attenuation from TX2 to either RX input; TX tests "
+            "also require physical attenuation minus their strongest non-positive "
+            "TX gain to total at least 30 dB"
+        ),
     )
     group.addoption(
         "--radio-tx-lo-hz",
@@ -281,8 +328,7 @@ def pytest_addoption(parser):
     group.addoption(
         "--radio-burn-frequencies",
         default=(
-            "868M,915M,1280M,1300M,1301M,2412M,2467.1M,"
-            "4000M,4001M,5766M,5804M,5866M"
+            "868M,915M,1280M,1300M,1301M,2412M,2467.1M,4000M,4001M,5766M,5804M,5866M"
         ),
         help="comma-separated LO frequencies for the mixed USB/IP soak",
     )
@@ -306,6 +352,33 @@ def pytest_addoption(parser):
         default=None,
         help="optional directory for JSON hardware-test reports",
     )
+    group.addoption(
+        "--radio-iio-rate-ladder",
+        default="1M,1.5M,2M,2.5M,3M,5M,10M,20M,30M",
+        help="sample rates for the standard libiio USB/TCP benchmark",
+    )
+    group.addoption(
+        "--radio-iio-transport",
+        action="append",
+        choices=("usb", "tcp"),
+        default=[],
+        help=(
+            "standard libiio benchmark transport; repeat to select both; "
+            "the default runs USB and TCP"
+        ),
+    )
+    group.addoption(
+        "--radio-iio-rate-frames",
+        type=int,
+        default=12,
+        help="timed frames per cell in the standard libiio USB/TCP benchmark",
+    )
+    group.addoption(
+        "--radio-iio-rate-samples",
+        type=int,
+        default=262_144,
+        help="samples per channel in each libiio USB/TCP benchmark frame",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -316,6 +389,7 @@ def pytest_collection_modifyitems(config, items):
     hardware_enabled = config.getoption("--radio-hardware", default=False)
     zarr_enabled = config.getoption("--radio-zarr", default=False)
     gain_series_enabled = config.getoption("--radio-gain-series-v3", default=False)
+    tandem_agc_enabled = config.getoption("--radio-tandem-agc", default=False)
     direct_ip_enabled = config.getoption("--radio-direct-ip", default=False)
     direct_ip_ladder_enabled = config.getoption(
         "--radio-direct-ip-ladder", default=False
@@ -332,6 +406,7 @@ def pytest_collection_modifyitems(config, items):
     gain_series_skip = pytest.mark.skip(
         reason="requires explicit --radio-gain-series-v3"
     )
+    tandem_agc_skip = pytest.mark.skip(reason="requires explicit --radio-tandem-agc")
     direct_ip_skip = pytest.mark.skip(reason="requires explicit --radio-direct-ip")
     direct_ip_ladder_skip = pytest.mark.skip(
         reason="requires explicit --radio-direct-ip-ladder"
@@ -354,6 +429,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(zarr_skip)
         if "radio_gain_series_v3" in item.keywords and not gain_series_enabled:
             item.add_marker(gain_series_skip)
+        if "radio_tandem_agc" in item.keywords and not tandem_agc_enabled:
+            item.add_marker(tandem_agc_skip)
         if "radio_direct_ip" in item.keywords and not direct_ip_enabled:
             item.add_marker(direct_ip_skip)
         if "radio_direct_ip_ladder" in item.keywords and not direct_ip_ladder_enabled:
@@ -376,6 +453,13 @@ def _discover_attached_plutos() -> list[AttachedPluto]:
     radios: list[AttachedPluto] = []
     try:
         for device in context.getDeviceIterator(skip_on_error=True):
+            # Address zero is reserved for USB enumeration and cannot identify
+            # a usable device. Some host controllers leave a libusb zombie at
+            # bus 5/address 0 after a composite Pluto re-enumerates; attempting
+            # to open its string descriptor raises LIBUSB_ERROR_NO_DEVICE and
+            # must not hide the state of the real radios.
+            if device.getDeviceAddress() == 0:
+                continue
             if (
                 device.getVendorID() != PLUTO_VENDOR_ID
                 or device.getProductID() != PLUTO_PRODUCT_ID
@@ -429,6 +513,55 @@ def attached_plutos(pytestconfig) -> tuple[AttachedPluto, ...]:
     if len({radio.serial for radio in selected}) != len(selected):
         pytest.fail("attached Pluto serials are not unique")
     return tuple(selected)
+
+
+@pytest.fixture(scope="session")
+def radio_lan_hosts(pytestconfig, attached_plutos) -> dict[str, str]:
+    """Return an explicitly scoped, serial-keyed LAN map.
+
+    Hardware tests may fall back to neighbor discovery when this is empty. If
+    the operator supplies any mappings, however, require a complete one-to-one
+    map for the selected radios so a typo cannot silently redirect a test.
+    """
+
+    entries = pytestconfig.getoption("--radio-lan-radio")
+    if not entries:
+        return {}
+    hosts: dict[str, str] = {}
+    for entry in entries:
+        serial, separator, host = entry.partition("=")
+        if not separator or not serial or not host:
+            pytest.fail(f"--radio-lan-radio must be SERIAL=HOST, got {entry!r}")
+        if serial in hosts:
+            pytest.fail(f"duplicate --radio-lan-radio serial: {serial}")
+        hosts[serial] = host
+    selected = {radio.serial for radio in attached_plutos}
+    if set(hosts) != selected:
+        pytest.fail(
+            "--radio-lan-radio serials must exactly match selected radios: "
+            f"selected={sorted(selected)}, mapped={sorted(hosts)}"
+        )
+    if len(set(hosts.values())) != len(hosts):
+        pytest.fail("--radio-lan-radio hosts must be unique")
+    return hosts
+
+
+@pytest.fixture(scope="session")
+def direct_ip_transport_profile(pytestconfig) -> dict:
+    """Transport settings for one cell of the direct-IP matrix.
+
+    The whole point of passing these as one dict is that the gate bodies stay
+    identical across cells; only the profile changes, so a difference in the
+    result cannot come from a difference in the test.
+    """
+
+    return {
+        "transport": pytestconfig.getoption("--radio-direct-ip-transport"),
+        "max_datagram_bytes": pytestconfig.getoption(
+            "--radio-direct-ip-datagram-bytes"
+        ),
+        "on_backlog": pytestconfig.getoption("--radio-direct-ip-on-backlog"),
+    }
 
 
 @pytest.fixture(scope="session")

@@ -387,7 +387,7 @@ reason to hold that result behind bench time for the detector sweep.
 
 ### 6.1 Raw
 
-`artifacts/agc_pin_bringup/<run>/` (gitignored): the raw command transcript, and one
+`/mnt/qnap01/mouse9911/spf/calibration_data/raw/agc_pin_bringup/<run>/` (gitignored): the raw command transcript, and one
 JSON per measurement.
 
 ### 6.2 Committed

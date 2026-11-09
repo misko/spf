@@ -3,7 +3,7 @@
 **Session:** `e_cal1_arm2_20260807` · captured 2026-08-07 · SPF `25df125`, clean checkout
 **Design:** [`experiments/e_cal1_rfdc_discriminator/`](../../../../../experiments/e_cal1_rfdc_discriminator/experiment_readme.md) (arm 2)
 **Arm 1:** [`e_cal1_rfdc_20260807_v1/`](../e_cal1_rfdc_20260807_v1/REPORT.md)
-**Raw capture:** `artifacts/dual_rx_gain_frequency/e_cal1_arm2_20260807/` (gitignored)
+**Raw capture:** `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_arm2_20260807/` (gitignored)
 
 ---
 
@@ -136,7 +136,7 @@ is an artifact of the per-dB normalization in both arms.
 
 ```bash
 python ../e_cal1_rfdc_20260807_v1/analyze.py \
-  artifacts/dual_rx_gain_frequency/e_cal1_arm2_20260807 results.json
+  /mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal1_arm2_20260807 results.json
 ```
 
 The analysis code is arm 1's, unmodified — the two arms are scored by the identical

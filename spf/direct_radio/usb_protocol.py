@@ -1411,10 +1411,22 @@ class RxFrameParser:
     with the wrong metadata.
     """
 
-    def __init__(self, protocol_version: int = VERSION_V1) -> None:
+    def __init__(
+        self,
+        protocol_version: int = VERSION_V1,
+        *,
+        allow_sequence_gaps: bool = False,
+    ) -> None:
         if protocol_version not in (VERSION_V1, VERSION_V2, VERSION_V3):
             raise ProtocolError(f"unsupported parser protocol: {protocol_version}")
         self.protocol_version = protocol_version
+        # Opt-in for transports which deliberately shed whole frames under
+        # backpressure.  Everything else stays enforced: a gap is only accepted
+        # when it is a whole number of frames, which is what distinguishes a
+        # frame the gadget chose not to send from the ADC running ahead of
+        # capture.
+        self.allow_sequence_gaps = bool(allow_sequence_gaps)
+        self.dropped_frame_count = 0
         self.header_bytes = {
             VERSION_V1: HEADER_BYTES_V1,
             VERSION_V2: HEADER_BYTES_V2,
@@ -1537,7 +1549,18 @@ class RxFrameParser:
             )
 
         if self._expected_buffer_sequence is not None:
-            if metadata.buffer_sequence != self._expected_buffer_sequence:
+            if self.allow_sequence_gaps:
+                skipped = (
+                    metadata.buffer_sequence - self._expected_buffer_sequence
+                ) & 0xFFFFFFFFFFFFFFFF
+                if skipped > MAX_FINITE_FRAMES:
+                    raise ProtocolError(
+                        "buffer sequence went backwards or jumped absurdly: "
+                        f"expected >= {self._expected_buffer_sequence}, "
+                        f"got {metadata.buffer_sequence}"
+                    )
+                self.dropped_frame_count += skipped
+            elif metadata.buffer_sequence != self._expected_buffer_sequence:
                 raise ProtocolError(
                     "buffer sequence discontinuity: "
                     f"expected {self._expected_buffer_sequence}, "
@@ -1557,11 +1580,23 @@ class RxFrameParser:
                         "new stream must begin at sample sequence 0, "
                         f"got {metadata.first_sample_sequence}"
                     )
-            else:
-                if (
+            elif (
+                metadata.first_sample_sequence
+                != self._expected_first_sample_sequence
+            ):
+                advance = (
                     metadata.first_sample_sequence
-                    != self._expected_first_sample_sequence
+                    - self._expected_first_sample_sequence
+                ) & 0xFFFFFFFFFFFFFFFF
+                if (
+                    not self.allow_sequence_gaps
+                    or metadata.samples_per_channel == 0
+                    or advance % metadata.samples_per_channel
                 ):
+                    # The FPGA counter free-runs, so it counts samples the ADC
+                    # produced whether or not anything captured them.  A whole
+                    # multiple of the frame stride is a frame we declined to
+                    # send; anything else means the ADC outran the DMA.
                     raise ProtocolError(
                         "sample sequence discontinuity: "
                         f"expected {self._expected_first_sample_sequence}, "

@@ -1,0 +1,22 @@
+parameter,parameter_label,grouping,r2_in_sample,median_exact_config_within_mad,within_mad_unit
+g,$g$,receiver,0.037113910467816424,,
+g,$g$,device + receiver,0.03947319819739481,,
+g,$g$,device + band + receiver,0.24070578841101165,,
+g,$g$,device + band + physical spacing + receiver,0.86092688253642,,
+g,$g$,exact configuration + receiver,0.8817220528507691,0.020000000000000018,unitless
+theta,$\delta$ (deg),receiver,0.03197043466203242,,
+theta,$\delta$ (deg),device + receiver,0.0331128281081855,,
+theta,$\delta$ (deg),device + band + receiver,0.31070715897424683,,
+theta,$\delta$ (deg),device + band + physical spacing + receiver,0.3765077368181401,,
+theta,$\delta$ (deg),exact configuration + receiver,0.4281245161578795,1.1459155902616465,degrees
+phase,$c$ (deg),receiver,0.11258126096802168,,
+phase,$c$ (deg),device + receiver,0.1296255337328257,,
+phase,$c$ (deg),device + band + receiver,0.218707231482557,,
+phase,$c$ (deg),device + band + physical spacing + receiver,0.8631797178613086,,
+phase,$c$ (deg),exact configuration + receiver,0.8939806953103072,4.702051522014663,degrees
+sigma,$\sigma_\phi$ (deg),receiver,0.013202742517668953,,
+sigma,$\sigma_\phi$ (deg),device + receiver,0.023579565668102265,,
+sigma,$\sigma_\phi$ (deg),device + band + receiver,0.6723215592808353,,
+sigma,$\sigma_\phi$ (deg),device + band + physical spacing + receiver,0.7708934030279997,,
+sigma,$\sigma_\phi$ (deg),exact configuration + receiver,0.8284167484033489,2.529972558671636,degrees
+receiver_phase_delta,$c_{r0}-c_{r1}$,exact configuration,0.8595201565463293,7.553988026883467,degrees

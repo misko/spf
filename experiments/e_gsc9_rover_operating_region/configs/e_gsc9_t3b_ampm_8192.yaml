@@ -1,0 +1,62 @@
+data-version: 7
+pluto-firmware:
+  release-tag: v0.38-plutoplus-spf-libiio-metadata-v5
+  device-fw: v0.38-plutoplus-spf-libiio-metadata-v5
+  asset-name: plutoplus-spf-libiio-metadata-v5-d7c87a9a2809-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-libiio-metadata-v5/plutoplus-spf-libiio-metadata-v5-d7c87a9a2809-pluto.dfu
+  image-sha256: 948b46506febacb087f3955be86015e074f8c0e3370a9dfc6a942e735d97f882
+  firmware-git-sha: d7c87a9a28094ee6f0b23cb47df9ff737b5a69d8
+  gadget-git-sha: ab270f9e3128187372f27de887be65353f9e195d
+  boot-mode: qspi
+calibration:
+  frequencies-hz: [5766000000, 5840000000]
+  gains-db: [44, 46, 48, 49, 50, 52, 56, 62]
+  schedule-design: additive_cross
+  schedule-reference-gain-db: 49
+  held-out-gain-pairs:
+    - [44, 44]
+    - [46, 46]
+    - [48, 48]
+    - [50, 50]
+    - [52, 52]
+    - [56, 56]
+    - [62, 62]
+    - [62, 46]
+    - [62, 48]
+    - [62, 50]
+    - [56, 46]
+    - [52, 44]
+    - [62, 52]
+  repetitions: 3
+  sample-rate-hz: 30000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000
+  tone-search-width-hz: 25000
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
+  random-seed: 20260814
+  tx-source: fpga_dds
+  tx-gain-db: 0
+  tx-gain-policy: adaptive_max_rx_gain
+  tx-reference-rx-gain-db: 34
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 8192
+  min-quality-valid-per-cell: 2
+  max-across-repeat-phase-std-deg: 5
+  setup-label: e-gsc9-r17-r18-v5-iio-usb-tx2-30db-tee-rx1-rx2
+  quality:
+    min-tone-snr-db: 3
+    min-tone-dbfs: -52
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5
+  notes: >-
+    E-GSC9 Tier 3b. AM-PM control: identical gain pairs and identical TX attenuator schedule to Tier 3a, differing ONLY in tx-digital-amplitude (8192), an exact -6.02 dB change in source drive. Under the gain-state model the differential phase depends on the gain words alone, so the two runs must agree. Run 3a and 3b back to back so drift cannot masquerade as a level effect.

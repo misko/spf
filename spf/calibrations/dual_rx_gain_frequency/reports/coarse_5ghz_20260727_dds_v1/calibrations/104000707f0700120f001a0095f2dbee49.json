@@ -566,7 +566,7 @@
     "analysis_input_sha256": "bfb6217518420aa16bdadf2190d2b1833c32d707f1667b74edb8efe00048d024",
     "calibration_run_signature": "8e94db752080ffbd682821dea50f2fbbfeb261421d92f0c9c0713fd369246179",
     "calibration_software_git_sha": "d7c959f00409e1541f91169e56c7804fc8a9f781",
-    "dataset_path": "artifacts/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1/104000707f0700120f001a0095f2dbee49/calibration.v7.zarr",
+    "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/coarse_5ghz_20260727_dds_v1/104000707f0700120f001a0095f2dbee49/calibration.v7.zarr",
     "firmware_gadget_git_sha": "54610e01c6fd6a69df77f148ea0dc88f9cb18063",
     "firmware_git_sha": "dd6b1f4db710abc20693888db08e8da2427e0dc3",
     "firmware_image_sha256": "f3cd4d689e7c9ad392edc00eeb6d20da178900fb092eb6afe38a8e003ddbfdf4",

@@ -89,12 +89,27 @@ def main(outdir: str):
                               "shared-effect steps at 5766 MHz ONLY. Every "
                               "holdout number is optimistic by roughly the "
                               "additive fit's own residual.",
-            "DEPLOYMENT_STATUS": "NOT DEPLOYABLE -- see the report. Mixer levels "
-                                 "6..14 are estimated from a single LO (5766 MHz) "
-                                 "and E-GSC7 H5 measured that a 5766 MHz curve "
-                                 "does not transfer 466 MHz. The rover corpus "
-                                 "also has no usable equal-gain anchor, which "
-                                 "this model is defined as a residual to.",
+            # Updated 2026-08-13 after E-GSC8. The carrier-transfer clause this
+            # field used to carry cited E-GSC7 H5, which tested 5766 -> 5300 MHz,
+            # a carrier the rover does not use. E-GSC8 tested the 74 MHz hop that
+            # matters and it passes, so that clause is withdrawn rather than
+            # restated. Two reasons remain, and either alone is sufficient.
+            "DEPLOYMENT_STATUS": "NOT DEPLOYABLE -- see the report, including "
+                                 "its 2026-08-13 addendum. Two reasons, either "
+                                 "sufficient: (1) this is a single-radio fit "
+                                 "with no leave-one-radio-out and no "
+                                 "leave-one-epoch-out evidence, and the pooled "
+                                 "two-radio fit is worse than applying no "
+                                 "correction (7.347 deg LOFO vs a 7.323 deg "
+                                 "anchor-only baseline); (2) the rover corpus "
+                                 "has no usable equal-gain anchor, which this "
+                                 "model is defined as a residual to. "
+                                 "NOT a reason any more: carrier transfer. "
+                                 "E-GSC8 measured 5766 -> 5840 MHz at 0.451 deg "
+                                 "RMS on the clean radio (95% CI 0.329-0.554), "
+                                 "and the damaged radio's 2.842 deg is 98% a "
+                                 "constant -2.819 deg offset that cancels in "
+                                 "this model's D = H(s1) - H(s2) form.",
         })
         path = out / f"{name}.json"
         model.save(path)

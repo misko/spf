@@ -46,6 +46,8 @@ def validate_dataset(
     config: CalibrationConfig,
     expected_serial: str | None = None,
     recompute_iq: bool = True,
+    expected_rx_transport: str = "direct_usb",
+    expected_iio_backend: str | None = None,
 ) -> dict[str, Any]:
     """Validate one serial-specific dataset and summarize phase coverage."""
 
@@ -63,10 +65,22 @@ def validate_dataset(
         serial = receiver.attrs.get("sdr_serial")
         if expected_serial is not None and serial != expected_serial:
             raise ValueError(f"serial {serial!r} != expected {expected_serial!r}")
-        if receiver.attrs.get("rx_transport") != "direct_usb":
-            raise ValueError("calibration was not captured through direct USB")
-        if receiver.attrs.get("gain_metadata_protocol_version") != 2:
-            raise ValueError("calibration did not negotiate protocol v2")
+        if receiver.attrs.get("rx_transport") != expected_rx_transport:
+            raise ValueError(
+                f"calibration transport {receiver.attrs.get('rx_transport')!r} "
+                f"!= expected {expected_rx_transport!r}"
+            )
+        expected_protocol = 3 if expected_rx_transport == "iio" else 2
+        if receiver.attrs.get("gain_metadata_protocol_version") != expected_protocol:
+            raise ValueError(
+                f"calibration did not use metadata protocol v{expected_protocol}"
+            )
+        if expected_iio_backend is not None:
+            if receiver.attrs.get("iio_backend") != expected_iio_backend:
+                raise ValueError(
+                    f"IIO backend {receiver.attrs.get('iio_backend')!r} != "
+                    f"expected {expected_iio_backend!r}"
+                )
         if receiver.attrs.get("firmware_verified") is not True:
             raise ValueError("calibration firmware is not boot-verified")
         expected_shape = (len(schedule), 2, config.buffer_size)
@@ -80,6 +94,7 @@ def validate_dataset(
         grouped: dict[tuple[int, int, int], list[dict[str, Any]]] = defaultdict(list)
         quality_reasons = Counter()
         capture_sequence_modes = set()
+        seen_iio_sequences = set()
         for entry in schedule:
             index = entry.record_index
             expected_gain = np.asarray(
@@ -120,20 +135,35 @@ def validate_dataset(
                 int(receiver.buffer_sequence[index]),
                 int(receiver.sample_sequence[index]),
             )
-            legacy_sequence = (0, 0)
-            batched_sequence = (
-                config.discard_frames_after_gain,
-                config.discard_frames_after_gain * config.buffer_size,
-            )
-            if actual_sequence == legacy_sequence:
-                capture_sequence_modes.add("separate_discard_and_capture")
-            elif actual_sequence == batched_sequence:
-                capture_sequence_modes.add("batched_discard_and_capture")
+            if expected_rx_transport == "iio":
+                if actual_sequence[1] <= 0:
+                    raise ValueError(f"invalid IIO sample sequence at record {index}")
+                if actual_sequence in seen_iio_sequences:
+                    raise ValueError(
+                        f"duplicate IIO capture sequence {actual_sequence}"
+                    )
+                seen_iio_sequences.add(actual_sequence)
+                expected_end = actual_sequence[1] + config.buffer_size
+                if int(receiver.sample_counter_end_exclusive[index]) != expected_end:
+                    raise ValueError(f"IIO sample end mismatch at record {index}")
+                if not bool(receiver.sample_time_valid[index]):
+                    raise ValueError(f"IIO sample time is invalid at record {index}")
+                capture_sequence_modes.add("iio_request_driven")
             else:
-                raise ValueError(
-                    f"unexpected finite stream sequence {actual_sequence} "
-                    f"at record {index}"
+                legacy_sequence = (0, 0)
+                batched_sequence = (
+                    config.discard_frames_after_gain,
+                    config.discard_frames_after_gain * config.buffer_size,
                 )
+                if actual_sequence == legacy_sequence:
+                    capture_sequence_modes.add("separate_discard_and_capture")
+                elif actual_sequence == batched_sequence:
+                    capture_sequence_modes.add("batched_discard_and_capture")
+                else:
+                    raise ValueError(
+                        f"unexpected finite stream sequence {actual_sequence} "
+                        f"at record {index}"
+                    )
             if int(receiver.rx_lo[index]) != entry.lo_frequency_hz:
                 raise ValueError(f"V7 RX LO mismatch at record {index}")
 

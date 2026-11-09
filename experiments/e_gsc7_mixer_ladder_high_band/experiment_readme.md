@@ -3,6 +3,20 @@
 **Status: DESIGNED, NOT RUN.** Hypotheses and decision rules recorded before any
 data is taken. Needs two radios on a bench harness.
 
+> ## ⚠️ Correction (2026-08-12): this preregistration contained a factual error
+>
+> It states that 5766 MHz is the rover's only carrier. **It is not.** The 2026
+> corpus carries **5766 MHz (76.2% of frames) and 5840 MHz (23.8%)**. The error
+> propagated into the design: the transferability LOs chosen below are
+> 5000/5300/5500/5900, and **5840 — the only other carrier actually in use — was
+> omitted.**
+>
+> This does not affect E-GSC7's execution or its graded outcomes, which stand.
+> It does mean H5's failure (5766 → 5300 at 9.06° RMS) leaves the operationally
+> important question — whether 5766 transfers the 74 MHz to 5840 — untested.
+> [E-GSC8](../e_gsc8_carrier_transfer_5840/experiment_readme.md) exists to close
+> that hole. The mistake was mine, in the design brief.
+
 ## Why
 
 The committed gain-state phase model

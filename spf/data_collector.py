@@ -1,7 +1,7 @@
+import concurrent.futures
 import logging
 import multiprocessing
 import os
-from pathlib import Path
 import queue
 import signal
 import struct
@@ -11,26 +11,28 @@ import time
 import uuid
 from concurrent import futures
 from contextlib import ExitStack
-from typing import Any, Dict, Optional
-import concurrent.futures
-import numpy as np
 
 # from attr import dataclass
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Dict, Optional
 
+import numpy as np
 from tqdm import tqdm
 
 from spf.dataset.v4_data import v4rx_2xf64_keys, v4rx_f64_keys, v4rx_new_dataset
 from spf.dataset.v5_data import v5rx_2xf64_keys, v5rx_f64_keys, v5rx_new_dataset
-from spf.dataset.v6_data import v6rx_2x_keys, v6rx_scalar_keys, v6rx_new_dataset
+from spf.dataset.v6_data import v6rx_2x_keys, v6rx_new_dataset, v6rx_scalar_keys
 from spf.dataset.v7_data import (
     V7_GAIN_EVENT_CAPACITY,
     V7_GAIN_OBSERVATION_CAPACITY,
+    gain_control_record_values,
     v7rx_2x_keys,
+    v7rx_gain_control_scalar_keys,
     v7rx_gain_series_scalar_keys,
+    v7rx_new_dataset,
     v7rx_sample_time_scalar_keys,
     v7rx_scalar_keys,
-    v7rx_new_dataset,
 )
 from spf.dataset.wall_array_v2_idxs import v2_column_names
 from spf.rf import (
@@ -102,8 +104,11 @@ def _identity_zarr_attrs(
         attrs.update(
             {key: value for key, value in direct_attrs.items() if value is not None}
         )
-        if firmware_provenance is not None:
-            attrs.update(firmware_provenance)
+    # Firmware and hardware provenance describe the Pluto itself, not the RX
+    # transport.  A boot-attested image remains the same image when captured
+    # through standard IIO over USB or IP.
+    if firmware_provenance is not None:
+        attrs.update(firmware_provenance)
     return attrs
 
 
@@ -111,7 +116,7 @@ def _capture_firmware_provenance(
     yaml_config: dict[str, Any],
     identity: SdrDeviceIdentity,
 ) -> dict[str, Any] | None:
-    if identity.rx_transport != "direct_usb":
+    if identity.sdr_family != "pluto":
         return None
     firmware = yaml_config.get("pluto-firmware")
     if not isinstance(firmware, dict):
@@ -288,6 +293,9 @@ class DataSnapshotV7(DataSnapshotV6):
     gain_event_sample_sequence: Optional[np.ndarray] = None
     gain_event_flags: Optional[np.ndarray] = None
     gain_event_overflow_count: int = 0
+    tandem_ownership_epoch: int = 0
+    missing_samples_before: int = 0
+    requested_gain_modes: tuple[str, ...] = ()
 
 
 @dataclass
@@ -578,6 +586,9 @@ class ThreadedRXRaw(ThreadedRX):
                 gain_event_sample_sequence=sdr_rx["gain_event_sample_sequence"],
                 gain_event_flags=sdr_rx["gain_event_flags"],
                 gain_event_overflow_count=sdr_rx["gain_event_overflow_count"],
+                tandem_ownership_epoch=sdr_rx.get("tandem_ownership_epoch") or 0,
+                missing_samples_before=sdr_rx.get("missing_samples_before", 0),
+                requested_gain_modes=tuple(sdr_rx.get("requested_gain_modes", ())),
             )
         return self.snapshot_class(**snapshot_kwargs)
 
@@ -655,6 +666,12 @@ class DataCollector:
         self.cleanup_errors = []
         self.status_writer = status_writer
         self.records_written_by_receiver = [0] * len(yaml_config["receivers"])
+        # A transport which sheds whole frames under backpressure leaves holes
+        # in buffer_sequence.  The data is honest either way -- the sequence
+        # numbers are stored per frame -- but nothing announced it, so a rover
+        # could shed frames for hours and report success throughout.
+        self.dropped_frames_by_receiver = [0] * len(yaml_config["receivers"])
+        self._last_buffer_sequence = [None] * len(yaml_config["receivers"])
         self._records_written_lock = threading.Lock()
         self.stop_requested = threading.Event()
         self.setup_record_matrix()
@@ -897,10 +914,41 @@ class DataCollector:
     def write_to_record_matrix(self, thread_idx, record_idx, read_thread: ThreadedRX):
         raise NotImplementedError
 
+    def _track_dropped_frames(self, thread_idx, data) -> int:
+        """Count frames the radio declined to send, from the sequence itself.
+
+        Returns the number newly dropped, so a degraded run is visible while it
+        is still running rather than only to whoever later runs a validator.
+        """
+
+        sequence = getattr(data, "buffer_sequence", None)
+        if sequence is None:
+            return 0
+        previous = self._last_buffer_sequence[thread_idx]
+        self._last_buffer_sequence[thread_idx] = int(sequence)
+        if previous is None:
+            return 0
+        step = int(sequence) - previous
+        if step <= 1:
+            return 0
+        dropped = step - 1
+        self.dropped_frames_by_receiver[thread_idx] += dropped
+        return dropped
+
     def _write_record_and_track(self, thread_idx, record_idx, data):
         self.write_to_record_matrix(thread_idx, record_idx, data)
         with self._records_written_lock:
             self.records_written_by_receiver[thread_idx] += 1
+            newly_dropped = self._track_dropped_frames(thread_idx, data)
+            if newly_dropped:
+                logging.warning(
+                    "receiver %d: %d frame(s) dropped before buffer sequence %s "
+                    "(%d total this capture)",
+                    thread_idx,
+                    newly_dropped,
+                    getattr(data, "buffer_sequence", "?"),
+                    self.dropped_frames_by_receiver[thread_idx],
+                )
             # Commit progress only after the full record. An abrupt death may
             # under-count the record currently being committed, but it can
             # never claim that an unwritten record is safe to consume.
@@ -908,6 +956,11 @@ class DataCollector:
             if self.data_filename is not None and zarr is not None:
                 zarr.attrs["capture_records_written_by_receiver"] = list(
                     self.records_written_by_receiver
+                )
+                # Always written, even when zero, so the artifact states its own
+                # completeness rather than leaving a reader to infer it.
+                zarr.attrs["capture_dropped_frames_by_receiver"] = list(
+                    self.dropped_frames_by_receiver
                 )
             self.publish_operator_status("collecting")
 
@@ -924,6 +977,9 @@ class DataCollector:
         zarr.attrs["capture_status"] = status
         zarr.attrs["capture_records_written_by_receiver"] = list(
             self.records_written_by_receiver
+        )
+        zarr.attrs["capture_dropped_frames_by_receiver"] = list(
+            self.dropped_frames_by_receiver
         )
         # Seconds of this capture recorded while the planner was NOT driving --
         # an operator in MANUAL, or a stall handover. Those records describe a
@@ -1340,6 +1396,10 @@ class DroneDataCollectorRawV7(DroneDataCollectorRaw):
         }
         for key in v7rx_gain_series_scalar_keys:
             receiver_z[key][record_idx] = scalar_values[key]
+        control_values = gain_control_record_values(data)
+        for key in v7rx_gain_control_scalar_keys:
+            if key in receiver_z:
+                receiver_z[key][record_idx] = control_values[key]
 
         bounds = np.full(
             (V7_GAIN_OBSERVATION_CAPACITY, 2), np.iinfo(np.uint64).max, np.uint64

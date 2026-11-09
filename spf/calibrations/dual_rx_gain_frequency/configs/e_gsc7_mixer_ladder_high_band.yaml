@@ -1,0 +1,69 @@
+# E-GSC7 -- confound-free high-band mixer ladder, captured over standard IIO.
+# 23 additive-cross training pairs + 11 held-out diagonals = 34 pairs.
+# 34 pairs x 5 LOs x 3 epochs = 510 frames per radio and transport.
+data-version: 7
+pluto-firmware:
+  release-tag: v0.38-plutoplus-spf-libiio-metadata-v5
+  device-fw: v0.38-plutoplus-spf-libiio-metadata-v5
+  asset-name: plutoplus-spf-libiio-metadata-v5-d7c87a9a2809-pluto.dfu
+  image-url: https://github.com/misko/plutosdr-fw/releases/download/v0.38-plutoplus-spf-libiio-metadata-v5/plutoplus-spf-libiio-metadata-v5-d7c87a9a2809-pluto.dfu
+  image-sha256: 948b46506febacb087f3955be86015e074f8c0e3370a9dfc6a942e735d97f882
+  firmware-git-sha: d7c87a9a28094ee6f0b23cb47df9ff737b5a69d8
+  gadget-git-sha: ab270f9e3128187372f27de887be65353f9e195d
+  boot-mode: qspi
+calibration:
+  # Required rover carrier first; remaining LOs test high-band portability.
+  frequencies-hz: [5766000000, 5000000000, 5300000000, 5500000000, 5900000000]
+  gains-db: [26, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62]
+  schedule-design: additive_cross
+  schedule-reference-gain-db: 26
+  held-out-gain-pairs:
+    - [52, 52]
+    - [53, 53]
+    - [54, 54]
+    - [55, 55]
+    - [56, 56]
+    - [57, 57]
+    - [58, 58]
+    - [59, 59]
+    - [60, 60]
+    - [61, 61]
+    - [62, 62]
+  repetitions: 3
+  sample-rate-hz: 30000000
+  bandwidth-hz: 3000000
+  buffer-size: 65536
+  tone-offset-hz: 100000
+  tone-search-width-hz: 25000
+  transient-samples: 1024
+  phase-segments: 8
+  settle-seconds: 0.025
+  frequency-settle-seconds: 0.5
+  discard-frames-after-gain: 1
+  max-retries: 1
+  rf-dc-calibration-policy: before_each_frequency_block
+  random-seed: 20260812
+  tx-source: fpga_dds
+  tx-gain-db: 0
+  tx-gain-policy: adaptive_max_rx_gain
+  tx-reference-rx-gain-db: 26
+  tx-min-gain-db: -80
+  tx-max-gain-db: 0
+  tx-digital-amplitude: 16384
+  min-quality-valid-per-cell: 2
+  max-across-repeat-phase-std-deg: 5
+  setup-label: e-gsc7-r17-r18-v5-standard-iio-tx2-30db-tee-rx1-rx2
+  notes: >-
+    E-GSC7 preregistered in experiments/e_gsc7_mixer_ladder_high_band. Standard
+    request-driven libiio MetadataBuffer capture, repeated over USB and IP.
+    Manual gain 52--62 freezes high-band LNA=3, TIA=1 and LPF=24 while mixer
+    advances 5--15. The 5766 MHz block is deliberately first. Bare SMA tee and
+    the same pad arrangement as E-GSC6. Interpret transports separately before
+    comparing them; no direct-USB IQ path is used in this experiment.
+  quality:
+    min-tone-snr-db: -10
+    min-tone-dbfs: -75
+    max-tone-dbfs: -3
+    max-clipping-fraction: 0
+    min-coherence: 0.98
+    max-within-capture-phase-std-deg: 5

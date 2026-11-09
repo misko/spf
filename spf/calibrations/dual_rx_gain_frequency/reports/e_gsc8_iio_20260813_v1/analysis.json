@@ -1,0 +1,145 @@
+{
+  "artifact": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_gsc8_iio_usb_20260813_v1",
+  "capture_gates": {
+    "R17": {
+      "expected_cells": 136,
+      "expected_frames": 408,
+      "passing_cells": 136,
+      "quality_valid_frames": 408,
+      "status": "pass"
+    },
+    "R18": {
+      "expected_cells": 136,
+      "expected_frames": 408,
+      "passing_cells": 136,
+      "quality_valid_frames": 408,
+      "status": "pass"
+    }
+  },
+  "confidence_interval_method": "paired gain-state nonparametric bootstrap, 20000 resamples; the 11 gain states remain paired between 5766 and 5840 MHz",
+  "grading_order": [
+    "H3",
+    "H1",
+    "H2"
+  ],
+  "hypotheses": {
+    "R17": {
+      "H1": "fail",
+      "H2": "pass",
+      "H3": "pass"
+    },
+    "R18": {
+      "H1": "pass",
+      "H2": "pass",
+      "H3": "pass"
+    }
+  },
+  "results": [
+    {
+      "H1": {
+        "paired_curve_difference_deg": [
+          -2.0633048731690224,
+          -3.165610336253179,
+          -2.529357459112162,
+          -3.0196573744121507,
+          -2.4090981695159805,
+          -2.5768727076686866,
+          -3.182372570377187,
+          -2.8527032129657512,
+          -3.2459439036022797,
+          -3.0697659521455813,
+          -2.892893111499974
+        ],
+        "paired_gain_states": 11,
+        "paired_state_bootstrap_95pct_ci_deg": [
+          2.626356782796408,
+          3.02624329574737
+        ],
+        "rms_deg": 2.841769275007454,
+        "status": "fail",
+        "threshold_deg": 3.0
+      },
+      "H2": {
+        "new_5766_to_5840_rms_deg": 2.841769275007454,
+        "prior_usb_5766_to_5300_rms_deg": 79.8416680293495,
+        "status": "pass"
+      },
+      "H3": {
+        "acceptance_band_deg": [
+          6.537640889558673,
+          8.492930338632537
+        ],
+        "distance_to_band_deg": 0.0,
+        "new_5766_step_sum_deg": 6.677815081255567,
+        "prior_midpoint_deg": 7.515285614095605,
+        "prior_usb_ip_values_deg": {
+          "ip": 8.004107976364072,
+          "usb": 7.026463251827139
+        },
+        "status": "pass",
+        "transport_repeatability_tolerance_deg": 0.9776447245369324
+      },
+      "diagnostic_cross_lo_rms_deg": {
+        "5700000000": 11.238224977192003,
+        "5840000000": 2.841769275007454,
+        "5900000000": 2.6462759604224075
+      },
+      "radio": "R17",
+      "serial": "104000bac4950008230026001b440a003a"
+    },
+    {
+      "H1": {
+        "paired_curve_difference_deg": [
+          0.6610472117943853,
+          0.728782115898422,
+          -0.15471521560318205,
+          -0.0777924235302136,
+          -0.385015683370196,
+          0.42538088781279515,
+          -0.20905008168162775,
+          -0.1758646077716699,
+          -0.4650507496407754,
+          -0.49415926235196117,
+          -0.6098382870862631
+        ],
+        "paired_gain_states": 11,
+        "paired_state_bootstrap_95pct_ci_deg": [
+          0.32888670254856195,
+          0.5539811530568693
+        ],
+        "rms_deg": 0.4506843113587022,
+        "status": "pass",
+        "threshold_deg": 3.0
+      },
+      "H2": {
+        "new_5766_to_5840_rms_deg": 0.4506843113587022,
+        "prior_usb_5766_to_5300_rms_deg": 9.05925981708565,
+        "status": "pass"
+      },
+      "H3": {
+        "acceptance_band_deg": [
+          5.148421002451051,
+          6.176358949794577
+        ],
+        "distance_to_band_deg": 0.0,
+        "new_5766_step_sum_deg": 5.268896322940993,
+        "prior_midpoint_deg": 5.662389976122814,
+        "prior_usb_ip_values_deg": {
+          "ip": 5.405405489286933,
+          "usb": 5.919374462958696
+        },
+        "status": "pass",
+        "transport_repeatability_tolerance_deg": 0.513968973671763
+      },
+      "diagnostic_cross_lo_rms_deg": {
+        "5700000000": 1.0584054641231841,
+        "5840000000": 0.4506843113587022,
+        "5900000000": 0.9094186060994298
+      },
+      "radio": "R18",
+      "serial": "1040007c4a94000211000b009186843ef2"
+    }
+  ],
+  "schema": "spf.experiment.e_gsc8.result",
+  "schema_version": 1
+}

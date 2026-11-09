@@ -39,8 +39,8 @@
   "schema_version": 1,
   "source": {
     "analysis_input_sha256": "3cdff911d608a6a1e9c30f1a2756e56f68e453aab5a950ab4d808edc6aaed492",
-    "dataset_path": "artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1/104000f6ad020002fdff3a00bba2f096a1/calibration.v7.zarr",
-    "validation_path": "artifacts/dual_rx_gain_frequency/survey_cross_band_20260727_v1/104000f6ad020002fdff3a00bba2f096a1/validation.json",
+    "dataset_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260727_v1/104000f6ad020002fdff3a00bba2f096a1/calibration.v7.zarr",
+    "validation_path": "/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/survey_cross_band_20260727_v1/104000f6ad020002fdff3a00bba2f096a1/validation.json",
     "validation_sha256": "049bf213db18ff80edbd92c8a79bcfe46965a210a82822601583b8fa1b0b4c48",
     "validation_status": "fail_quality"
   },

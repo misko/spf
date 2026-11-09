@@ -15,7 +15,7 @@ Fully plotted per-radio reports:
 ## Captured evidence
 
 - Artifact root:
-  `artifacts/dual_rx_gain_frequency/frequency_scout_cross_band_20260727_v1`
+  `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/frequency_scout_cross_band_20260727_v1`
 - Radio A: `104000f6ad020002fdff3a00bba2f096a1`
 - Radio B: `104000707f0700120f001a0095f2dbee49`
 - V7 frames: 1,269/1,269 durable frames per radio
@@ -232,5 +232,5 @@ python -m spf.calibrations.dual_rx_gain_frequency compare-models \
 Set `ARTIFACT_ROOT` to:
 
 ```text
-artifacts/dual_rx_gain_frequency/frequency_scout_cross_band_20260727_v1
+/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/frequency_scout_cross_band_20260727_v1
 ```

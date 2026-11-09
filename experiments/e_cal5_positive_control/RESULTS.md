@@ -2,7 +2,7 @@
 
 **Full report and code hashes:**
 [`reports/e_cal5_positive_control_20260807_v1/`](../../spf/calibrations/dual_rx_gain_frequency/reports/e_cal5_positive_control_20260807_v1/REPORT.md)
-· raw capture `artifacts/dual_rx_gain_frequency/e_cal5_positive_control_20260807/` (gitignored)
+· raw capture `/mnt/qnap01/mouse9911/spf/calibration_data/raw/dual_rx_gain_frequency/e_cal5_positive_control_20260807/` (gitignored)
 
 Session `e_cal5_positive_control_20260807`, SPF `5fa45b0` clean,
 **1,050/1,050 frames**, harness untouched since E-CAL1 arm 1.
